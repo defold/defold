@@ -233,9 +233,9 @@ public class Ktx2TextureGeneratorTest {
         assertEquals(255, result.imageDatas.get(1)[3] & 0xff);
     }
 
-    // Bob discovers this class when scanning the test jar, so it needs a public no-argument constructor.
+    // Bob discovers this class in the test jar, so it must have a public no-arg constructor.
     public static class MipIndexCompressor extends TextureCompressorUncompressed {
-        final List<Integer> levels = new ArrayList<>();
+        private final List<Integer> levels = new ArrayList<>();
 
         @Override
         public String getName() { return "Ktx2MipIndexTest"; }
@@ -407,11 +407,104 @@ public class Ktx2TextureGeneratorTest {
     }
 
     @Test
+    public void keepKtx2FormatRetainsCodecAndCompatibleMips() throws Exception {
+        TextureProfile.Builder profile = TextureProfile.newBuilder().setName("Keep")
+                .addPlatforms(PlatformProfile.newBuilder().setOs(PlatformProfile.OS.OS_ID_GENERIC)
+                    .setMipmaps(true).setPremultiplyAlpha(false).setKeepKtx2Format(true));
+        for (String name : new String[] {"etc1s", "uastc", "uastc-zstd", "uastc-zlib", "bc7", "bc7-zlib"}) {
+            byte[] source = fixture(name);
+            boolean bc7 = name.startsWith("bc7");
+            CompressionType compression = bc7 ? CompressionType.COMPRESSION_TYPE_DEFAULT
+                    : name.equals("etc1s") ? CompressionType.COMPRESSION_TYPE_BASIS_ETC1S : CompressionType.COMPRESSION_TYPE_BASIS_UASTC;
+            try (TexcLibraryJni.Ktx2Texture texture = TexcLibraryJni.LoadKtx2(source)) {
+                TextureGenerator.GenerateResult preserved = generate(source, profile.build(), true);
+                assertEquals(1, preserved.textureImage.getAlternativesCount());
+                assertEquals(compression, preserved.textureImage.getAlternatives(0).getCompressionType());
+                assertEquals(bc7 ? TextureFormat.TEXTURE_FORMAT_RGBA_BC7 : TextureFormat.TEXTURE_FORMAT_RGB,
+                        preserved.textureImage.getAlternatives(0).getFormat());
+                assertEquals(4, preserved.imageDatas.size());
+                for (int level = 0; level < texture.levelCount; ++level) {
+                    assertArrayEquals(texture.repackMip(level), preserved.imageDatas.get(level));
+                }
+                if (name.equals("bc7")) {
+                    ByteBuffer header = ByteBuffer.wrap(source).order(ByteOrder.LITTLE_ENDIAN);
+                    int offset = (int)header.getLong(80);
+                    assertArrayEquals(Arrays.copyOfRange(source, offset, offset + (int)header.getLong(88)), preserved.imageDatas.get(0));
+                }
+
+                TextureProfile.Builder changed = profile.clone();
+                changed.getPlatformsBuilder(0).setRecompress(true);
+                TextureGenerator.GenerateResult forced = generate(source, changed.build(), true);
+                TextureGenerator.GenerateResult flipped = TextureGenerator.generate(source, profile.build(), true);
+                for (TextureGenerator.GenerateResult result : new TextureGenerator.GenerateResult[] {forced, flipped}) {
+                    assertEquals(compression, result.textureImage.getAlternatives(0).getCompressionType());
+                    assertEquals(preserved.textureImage.getAlternatives(0).getFormat(), result.textureImage.getAlternatives(0).getFormat());
+                    for (int level = 0; level < result.imageDatas.size(); ++level) {
+                        byte[] mip = result.imageDatas.get(level);
+                        if (bc7) {
+                            int width = Math.max(1, texture.width >> level), height = Math.max(1, texture.height >> level);
+                            assertEquals(((width + 3) / 4) * ((height + 3) / 4) * 16, mip.length);
+                        } else {
+                            assertEquals('s', mip[0]); assertEquals('B', mip[1]);
+                            assertEquals(name.equals("etc1s") ? 0 : 1, mip[20]);
+                        }
+                    }
+                }
+                assertFalse(Arrays.equals(preserved.imageDatas.get(0), flipped.imageDatas.get(0)));
+                if (name.equals("bc7")) {
+                    // Put the processed native blocks back into a KTX2 container to check orientation.
+                    int offset = (int)ByteBuffer.wrap(source).order(ByteOrder.LITTLE_ENDIAN).getLong(80);
+                    byte[] roundtrip = source.clone();
+                    System.arraycopy(flipped.imageDatas.get(0), 0, roundtrip, offset, flipped.imageDatas.get(0).length);
+                    byte[] original = texture.decodeMip(0);
+                    try (TexcLibraryJni.Ktx2Texture decoded = TexcLibraryJni.LoadKtx2(roundtrip)) {
+                        byte[] pixels = decoded.decodeMip(0);
+                        for (int y = 0; y < texture.height; ++y) {
+                            for (int x = 0; x < texture.width * 4; ++x) {
+                                assertEquals(original[((texture.height - 1 - y) * texture.width * 4) + x] & 255,
+                                        pixels[y * texture.width * 4 + x] & 255, 12);
+                            }
+                        }
+                    }
+                }
+
+                changed = profile.clone();
+                changed.getPlatformsBuilder(0).setMaxTextureSize(4).setMipmaps(false);
+                TextureGenerator.GenerateResult smaller = generate(source, changed.build(), true);
+                assertEquals(1, smaller.imageDatas.size());
+                if (texture.levelCount > 1) assertArrayEquals(texture.repackMip(1), smaller.imageDatas.get(0));
+                assertEquals(compression, smaller.textureImage.getAlternatives(0).getCompressionType());
+                TextureGenerator.GenerateResult uncompressed = generate(source, profile.build(), false);
+                assertEquals(CompressionType.COMPRESSION_TYPE_DEFAULT, uncompressed.textureImage.getAlternatives(0).getCompressionType());
+                assertNotEquals(TextureFormat.TEXTURE_FORMAT_RGBA_BC7, uncompressed.textureImage.getAlternatives(0).getFormat());
+            }
+        }
+    }
+
+    @Test
+    public void keepKtx2FormatOverridesFormatsOnlyForKtx2() throws Exception {
+        TextureProfile.Builder profile = profile(false, false, false, 0, false, false).toBuilder();
+        profile.getPlatformsBuilder(0).setKeepKtx2Format(true).getFormatsBuilder(0).setFormat(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
+        byte[] pixels = {10,20,30,40,50,60,70,80,90,100,110,120};
+        byte[] source = raw(3, 2, 2, false, false, null, pixels);
+        TextureGenerator.GenerateResult kept = generate(source, profile.build(), true);
+        assertEquals(3, kept.textureImage.getAlternatives(0).getWidth());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, kept.textureImage.getAlternatives(0).getFormat());
+        assertArrayEquals(new byte[] {10,20,0,-1,30,40,0,-1,50,60,0,-1,70,80,0,-1,90,100,0,-1,110,120,0,-1}, kept.imageDatas.get(0));
+        BufferedImage ordinary = new BufferedImage(4, 4, BufferedImage.TYPE_INT_RGB);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE,
+                TextureGenerator.generate(ordinary, profile.build(), true).textureImage.getAlternatives(0).getFormat());
+    }
+
+    @Test
     public void profileFieldsRoundTripAndDefaultToFalse() throws Exception {
         PlatformProfile.Builder defaults = PlatformProfile.newBuilder();
         TextFormat.merge("os: OS_ID_GENERIC mipmaps: true", defaults);
         assertFalse(defaults.getRecompress()); assertFalse(defaults.getRegenerateMipmaps());
-        TextureProfile expected = profile(true, true, false, 0, true, true);
+        assertFalse(defaults.getKeepKtx2Format());
+        TextureProfile.Builder profile = profile(true, true, false, 0, true, true).toBuilder();
+        profile.getPlatformsBuilder(0).setKeepKtx2Format(true);
+        TextureProfile expected = profile.build();
         TextureProfile.Builder parsed = TextureProfile.newBuilder();
         TextFormat.merge(TextFormat.printer().printToString(expected), parsed);
         assertEquals(expected, TextureProfile.parseFrom(parsed.build().toByteArray()));

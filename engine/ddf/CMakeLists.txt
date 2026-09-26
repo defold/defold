@@ -289,7 +289,6 @@ add_custom_target(ddf_sdk_headers
   DEPENDS ddf_public_sdk_headers ddf_generated_sdk_headers ddf_dmsdk_sdk_headers)
 
 install(FILES "${DDF_PROTO_DIR}/ddf.h" ${DDF_PROTO_HEADERS} DESTINATION include/ddf)
-install(FILES "${DDF_SRC_DIR}/waf_ddf.py" DESTINATION lib/python)
 install(FILES
   "${DDF_SRC_DIR}/ddfc.py"
   "${DDF_SRC_DIR}/ddfc_java"

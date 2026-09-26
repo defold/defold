@@ -49,7 +49,9 @@ namespace dmTexc
     void DestroyKtx2(Ktx2Texture* texture);
     // RGBA8 with channel swizzle applied, retaining source orientation and premultiplication.
     bool DecodeKtx2Mip(Ktx2Texture* texture, uint32_t level, dmArray<uint8_t>& pixels, const char** error);
-    bool RepackKtx2Mip(Ktx2Texture* texture, uint32_t level, dmArray<uint8_t>& basis, const char** error);
+    // Single-mip Basis payloads for ETC1S/UASTC, native blocks for BC7.
+    bool RepackKtx2Mip(Ktx2Texture* texture, uint32_t level, dmArray<uint8_t>& bytes, const char** error);
+    bool EncodeKtx2Mip(Ktx2Texture* texture, uint32_t width, uint32_t height, const uint8_t* pixels, uint32_t size, dmArray<uint8_t>& bytes, const char** error);
 
     static const uint32_t COMPRESSION_ENABLED_PIXELCOUNT_THRESHOLD = 64; // do not compress mips with less than this pixelcount
 

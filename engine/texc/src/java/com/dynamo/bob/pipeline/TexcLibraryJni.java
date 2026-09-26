@@ -132,8 +132,14 @@ public class TexcLibraryJni {
 
         public synchronized byte[] repackMip(int level) throws IOException {
             if (handle == 0) throw new IllegalStateException("KTX2 source is closed");
-            if (!canRepack) throw new IOException("KTX2 source requires decoding before BasisU encoding");
+            if (!canRepack) throw new IOException("KTX2 source requires decoding before encoding");
             return RepackKtx2Mip(handle, level);
+        }
+
+        /** Encodes processed RGBA8 pixels using this source's compression format and transfer function. */
+        public synchronized byte[] encodeMip(int width, int height, byte[] pixels) throws IOException {
+            if (handle == 0) throw new IllegalStateException("KTX2 source is closed");
+            return EncodeKtx2Mip(handle, width, height, pixels);
         }
 
         @Override
@@ -149,6 +155,7 @@ public class TexcLibraryJni {
     public static native Ktx2Texture LoadKtx2(byte[] data) throws IOException;
     private static native byte[] DecodeKtx2Mip(long texture, int level) throws IOException;
     private static native byte[] RepackKtx2Mip(long texture, int level) throws IOException;
+    private static native byte[] EncodeKtx2Mip(long texture, int width, int height, byte[] pixels) throws IOException;
     private static native void DestroyKtx2(long texture);
 
     // Part of the basisu compressor api

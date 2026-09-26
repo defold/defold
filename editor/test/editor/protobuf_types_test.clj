@@ -15,17 +15,71 @@
 (ns editor.protobuf-types-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.cljfx-form-view :as cljfx-form-view]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
             [support.test-support :refer [with-clean-system]]
-            [util.coll :as coll]))
+            [util.coll :as coll])
+  (:import [com.dynamo.graphics.proto Graphics$TextureProfiles]
+           [javafx.scene Node]
+           [javafx.scene.control Label ListView ScrollPane]
+           [javafx.scene.layout AnchorPane]))
 
 (def ^:private project-path "test/resources/all_types_project")
+
+(deftest keep-ktx2-format-profile-edit
+  (test-util/with-loaded-project project-path
+    (let [node (test-util/resource-node project "/test.texture_profiles")
+          {:keys [sections form-ops]} (g/node-value node :form-data)
+          profiles-field (coll/first-where #(= [:profiles] (:path %)) (:fields (first sections)))
+          platforms-field (first (get-in profiles-field [:panel-form :sections 0 :fields]))
+          field (coll/first-where #(= [:keep-ktx2-format] (:path %))
+                                  (get-in ((:panel-form-fn platforms-field) nil) [:sections 0 :fields]))
+          path [:profiles 0 :platforms 0 :keep-ktx2-format]
+          original-formats (get-in (g/node-value node :save-value) [:profiles 0 :platforms 0 :formats])
+          parent (AnchorPane.)
+          view-node (cljfx-form-view/make-form-view-node! parent node nil nil nil test-util/localization)
+          check-formats-disabled!
+          (fn [disabled]
+            (let [rendered (promise)]
+              (g/node-value view-node :form-view)
+              (ui/run-later (deliver rendered true))
+              @rendered)
+            (let [content (.getContent ^ScrollPane (.lookup parent "ScrollPane"))
+                  ^ListView formats-list (coll/first-where
+                                          #(= [[0 :texture-format-rgba]] (vec (.getItems ^ListView %)))
+                                          (.lookupAll content ".list-view"))]
+              (is (some? formats-list))
+              (when formats-list
+                (is (= disabled (.isDisabled formats-list))))
+              (is (coll/any? #(= "Formats" (.getText ^Label %))
+                             (.lookupAll content ".label")))
+              (doseq [^Node checkbox (.lookupAll content ".check-box")]
+                (is (false? (.isDisabled checkbox)))))
+            (is (= original-formats (get-in (g/node-value node :save-value) [:profiles 0 :platforms 0 :formats]))))]
+      (is (= :boolean (:type field)))
+      (is (false? (:default field)))
+      (is (= "texture-profiles.profiles.platforms.keep-ktx2-format" (:localization-key field)))
+      (is (false? (g/node-value node :dirty)))
+      (check-formats-disabled! false)
+      (g/transact ((:set form-ops) (:user-data form-ops) path true))
+      (check-formats-disabled! true)
+      (is (true? (g/node-value node :dirty)))
+      (is (true? (get-in (->> (g/node-value node :save-value)
+                              (protobuf/map->pb Graphics$TextureProfiles)
+                              .toByteArray
+                              (protobuf/bytes->map-with-defaults Graphics$TextureProfiles))
+                         path)))
+      (g/transact ((:clear form-ops) (:user-data form-ops) path))
+      (check-formats-disabled! false)
+      (is (false? (g/node-value node :dirty))))))
 
 (deftest test-load
   (with-clean-system
@@ -66,12 +120,13 @@
                                                           "/test.tilemap"
                                                           "/test.wav"]
    "/test.collectionfactory" ["/test.collection"]
-   "/test.collectionproxy" ["/test.collection"]   
+   "/test.collectionproxy" ["/test.collection"]
    "/test.collisionobject" ["/test.tilemap"]
    "/test.cubemap" ["/builtins/graphics/particle_blob.png"]
    "/test.gltf" []
-   "/test.gltf/materials/0.material" ["/defold-pbr/shaders/pbr.fp"
-                                     "/defold-pbr/shaders/pbr.vp"]
+   "/test.gltf/meshes/Cube.001_0" []
+   "/test.gltf/materials/default_0.material" ["/defold-pbr/shaders/pbr.fp"
+                                              "/defold-pbr/shaders/pbr.vp"]
    "/test.display_profiles" []
    "/test.factory" ["/test2.go"]
    "/test.font" ["/builtins/fonts/vera_mo_bd.ttf"
@@ -155,8 +210,9 @@
    "/test.font" []
    "/test.fp" []
    "/test.gamepads" []
-   "/test.gltf" ["/test.gltf/materials/0.material"]
-   "/test.gltf/materials/0.material" []
+   "/test.gltf" ["/test.gltf/materials/default_0.material"]
+   "/test.gltf/meshes/Cube.001_0" ["/test.gltf"]
+   "/test.gltf/materials/default_0.material" []
    "/test.go" []
    "/test.gui" ["/builtins/fonts/default.font"]
    "/test.gui_script" []
@@ -205,11 +261,9 @@
           project (test-util/setup-project! workspace)
           resource-nodes (g/node-value project :nodes-by-resource-path)
           basis (g/now)]
-      ;; Source dependency checks apply to resources with file content.
       (doseq [[resource-path node-id] resource-nodes
               :when (.startsWith resource-path "/test")
-              :let [resource (resource-node/resource basis node-id)]
-              :when (resource/has-content? resource)]
+              :let [resource (resource-node/resource basis node-id)]]
         (let [resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
               save-value (g/node-value node-id :save-value)

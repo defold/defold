@@ -632,6 +632,7 @@
        (boolean? (:premultiply-alpha value true))
        (boolean? (:recompress value false))
        (boolean? (:regenerate-mipmaps value false))
+       (boolean? (:keep-ktx2-format value false))
        (let [formats (:formats value)]
          (or (nil? formats)
              (and (vector? formats)

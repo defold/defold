@@ -111,7 +111,7 @@ request deletes the branch.
 ### What a contrib build does differently
 
 Mirroring a fork into this repository removes the trust boundary GitHub normally puts
-around fork pull requests: the build executes `wscript`s, `CMakeLists.txt`, Gradle files,
+around fork pull requests: the build executes `CMakeLists.txt`, Gradle files,
 `ci/**`, `scripts/build.py` and the editor's Clojure tasks straight from the pull request.
 Log redaction is not a control against that, so a run on `contrib/**` simply does not get
 the credentials:

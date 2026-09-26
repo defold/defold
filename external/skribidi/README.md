@@ -2,5 +2,5 @@
 
     > ./update_skribidi.sh <sha1>
 
-* Also, in src/wscript, alter the `VERSION` member to use the correct version.
+* Also update the Skribidi version in `EXTERNAL_PACKAGE_VERSIONS` in `scripts/build.py`.
 

@@ -8,6 +8,8 @@
 #include <basis/transcoder/basisu_transcoder.h>
 #include <basis/transcoder/basisu_transcoder_uastc.h>
 #include <basis/encoder/basisu_basis_file.h>
+#include <basis/encoder/basisu_bc7e_scalar.h>
+#include <basis/encoder/basisu_comp.h>
 #include <basis/zstd/zstd.h>
 #include <dlib/zlib.h>
 #include <string.h>
@@ -333,7 +335,7 @@ namespace dmTexc
         }
         *info = texture->m_Info;
         // Only RGB/RGBA with identity swizzle can be repacked without channel processing.
-        info->m_CanRepack = texture->m_Uastc && info->m_Channels >= 3 && !memcmp(texture->m_Swizzle, "rgba", 4);
+        info->m_CanRepack = (!texture->m_Format || texture->m_Format >= 145) && info->m_Channels >= 3 && !memcmp(texture->m_Swizzle, "rgba", 4);
         if (memcmp(texture->m_Swizzle, "rgba", 4))
             info->m_Channels = 4;
         return texture;
@@ -419,34 +421,116 @@ namespace dmTexc
         return true;
     }
 
+    static bool RepackEtc1sMip(Ktx2Texture* texture, uint32_t level, basisu::basisu_backend_output& output, const char** error)
+    {
+        basist::ktx2_transcoder& reader = texture->m_Transcoder;
+        if (!texture->m_Transcoding)
+        {
+            if (!reader.start_transcoding())
+                return Fail(error, "Invalid ETC1S KTX2 global data");
+            texture->m_Transcoding = true;
+        }
+        if (reader.is_video())
+            return Fail(error, "ETC1S video cannot be repacked as independent texture mips");
+
+        const basist::ktx2_etc1s_global_data_header& header = reader.get_etc1s_header();
+        const basist::ktx2_etc1s_image_desc& image = reader.get_etc1s_image_descs()[level];
+        uint64_t offset = reader.get_header().m_sgd_byte_offset.get_uint64()
+                        + sizeof(header) + reader.get_etc1s_image_descs().size() * sizeof(image);
+        uint64_t size = (uint64_t)header.m_endpoints_byte_length + header.m_selectors_byte_length + header.m_tables_byte_length;
+        if (!Range(offset, size, texture->m_Data.Size()))
+            return Fail(error, "Invalid ETC1S KTX2 codebook range");
+
+        const uint8_t* data = texture->m_Data.Begin() + offset;
+        output.m_tex_format = basist::basis_tex_format::cETC1S;
+        output.m_etc1s = true;
+        output.m_num_endpoints = header.m_endpoint_count;
+        output.m_num_selectors = header.m_selector_count;
+        output.m_endpoint_palette.append(data, header.m_endpoints_byte_length);
+        data += header.m_endpoints_byte_length;
+        output.m_selector_palette.append(data, header.m_selectors_byte_length);
+        data += header.m_selectors_byte_length;
+        output.m_slice_image_tables.append(data, header.m_tables_byte_length);
+
+        const Ktx2Level& mip = texture->m_Levels[level];
+        uint32_t slices = reader.get_has_alpha() ? 2 : 1;
+        for (uint32_t i = 0; i < slices; ++i)
+        {
+            uint32_t slice_offset = i ? image.m_alpha_slice_byte_offset : image.m_rgb_slice_byte_offset;
+            uint32_t slice_size = i ? image.m_alpha_slice_byte_length : image.m_rgb_slice_byte_length;
+            if (!Range(slice_offset, slice_size, mip.m_Size))
+                return Fail(error, "Invalid ETC1S KTX2 slice range");
+            basisu::basisu_backend_slice_desc slice;
+            slice.m_orig_width = Dimension(texture->m_Info.m_Width, level);
+            slice.m_orig_height = Dimension(texture->m_Info.m_Height, level);
+            slice.m_num_blocks_x = (slice.m_orig_width + 3) / 4;
+            slice.m_num_blocks_y = (slice.m_orig_height + 3) / 4;
+            slice.m_alpha = i != 0;
+            output.m_slice_desc.push_back(slice);
+            output.m_slice_image_data.resize(i + 1);
+            output.m_slice_image_data[i].append(texture->m_Data.Begin() + mip.m_Offset + slice_offset, slice_size);
+
+            // Basis stores a checksum of the unpacked ETC1 blocks. This is a lossless
+            // unpack for validation and the checksum; the original ETC1S bytes are retained.
+            uint32_t block_count = slice.m_num_blocks_x * slice.m_num_blocks_y;
+            dmArray<uint8_t> blocks;
+            blocks.SetCapacity(block_count * 8);
+            blocks.SetSize(block_count * 8);
+            uint32_t flags = i ? basist::cDecodeFlagsTranscodeAlphaDataToOpaqueFormats : 0;
+            if (!reader.transcode_image_level(level, 0, 0, blocks.Begin(), block_count, basist::transcoder_texture_format::cTFETC1_RGB, flags))
+                return Fail(error, "Invalid ETC1S KTX2 slice data");
+            output.m_slice_image_crcs.push_back(basist::crc16(blocks.Begin(), blocks.Size(), 0));
+        }
+        return true;
+    }
+
     bool RepackKtx2Mip(Ktx2Texture* texture, uint32_t level, dmArray<uint8_t>& basis, const char** error)
     {
-        if (level >= texture->m_Info.m_LevelCount || !texture->m_Uastc)
-            return Fail(error, "KTX2 mip cannot be repacked as UASTC");
-        dmArray<uint8_t> blocks;
-        if (!ReadLevel(texture, level, blocks, error))
-            return false;
-        InitBasisU();
-        for (uint32_t offset = 0; offset < blocks.Size(); offset += 16)
+        if (level >= texture->m_Info.m_LevelCount || (texture->m_Format && texture->m_Format < 145))
+            return Fail(error, "KTX2 mip has no supported compressed payload");
+        if (texture->m_Format >= 145)
         {
-            basist::unpacked_uastc_block unpacked;
-            if (!basist::unpack_uastc(*(const basist::uastc_block*)(blocks.Begin() + offset), unpacked, false))
-                return Fail(error, "Invalid UASTC KTX2 block");
+            if (!ReadLevel(texture, level, basis, error))
+                return false;
+            for (uint32_t offset = 0; offset < basis.Size(); offset += 16)
+            {
+                basist::color_rgba block[16];
+                if (!basist::bc7u::unpack_bc7(basis.Begin() + offset, block))
+                    return Fail(error, "Invalid BC7 KTX2 block");
+            }
+            return true;
         }
+        InitBasisU();
         // Let BasisU write each retained mip in the same .basis layout as its encoder.
         basisu::basisu_backend_output output;
-        output.m_tex_format = basist::basis_tex_format::cUASTC_LDR_4x4;
         output.m_srgb = texture->m_Info.m_Srgb;
-        basisu::basisu_backend_slice_desc slice;
-        slice.m_orig_width = Dimension(texture->m_Info.m_Width, level);
-        slice.m_orig_height = Dimension(texture->m_Info.m_Height, level);
-        slice.m_num_blocks_x = (slice.m_orig_width + 3) / 4;
-        slice.m_num_blocks_y = (slice.m_orig_height + 3) / 4;
-        slice.m_alpha = texture->m_Info.m_Channels == 4;
-        output.m_slice_desc.push_back(slice);
-        output.m_slice_image_data.resize(1);
-        output.m_slice_image_data[0].append(blocks.Begin(), blocks.Size());
-        output.m_slice_image_crcs.push_back(basist::crc16(blocks.Begin(), blocks.Size(), 0));
+        if (texture->m_Uastc)
+        {
+            dmArray<uint8_t> blocks;
+            if (!ReadLevel(texture, level, blocks, error))
+                return false;
+            for (uint32_t offset = 0; offset < blocks.Size(); offset += 16)
+            {
+                basist::unpacked_uastc_block unpacked;
+                if (!basist::unpack_uastc(*(const basist::uastc_block*)(blocks.Begin() + offset), unpacked, false))
+                    return Fail(error, "Invalid UASTC KTX2 block");
+            }
+            output.m_tex_format = basist::basis_tex_format::cUASTC_LDR_4x4;
+            basisu::basisu_backend_slice_desc slice;
+            slice.m_orig_width = Dimension(texture->m_Info.m_Width, level);
+            slice.m_orig_height = Dimension(texture->m_Info.m_Height, level);
+            slice.m_num_blocks_x = (slice.m_orig_width + 3) / 4;
+            slice.m_num_blocks_y = (slice.m_orig_height + 3) / 4;
+            slice.m_alpha = texture->m_Info.m_Channels == 4;
+            output.m_slice_desc.push_back(slice);
+            output.m_slice_image_data.resize(1);
+            output.m_slice_image_data[0].append(blocks.Begin(), blocks.Size());
+            output.m_slice_image_crcs.push_back(basist::crc16(blocks.Begin(), blocks.Size(), 0));
+        }
+        else if (!RepackEtc1sMip(texture, level, output, error))
+        {
+            return false;
+        }
         basisu::basisu_file file;
         basist::key_value_vec metadata;
         if (!file.init(output, basist::cBASISTexType2D, 0, 0, false, 0, metadata))
@@ -455,6 +539,68 @@ namespace dmTexc
         basis.SetCapacity(encoded.size());
         basis.SetSize(encoded.size());
         memcpy(basis.Begin(), encoded.data(), encoded.size());
+        return true;
+    }
+
+    static bool InitBc7Encoder()
+    {
+        bc7e_scalar::bc7e_compress_block_init();
+        return true;
+    }
+
+    bool EncodeKtx2Mip(Ktx2Texture* texture, uint32_t width, uint32_t height, const uint8_t* pixels, uint32_t size, dmArray<uint8_t>& bytes, const char** error)
+    {
+        if (!width || !height || width > 65535 || height > 65535 ||
+            (uint64_t)width * height * 4 != size || size > MAX_DECODED_SIZE)
+            return Fail(error, "Invalid KTX2 encoding dimensions or pixel data");
+        if (texture->m_Format && texture->m_Format < 145)
+            return Fail(error, "Uncompressed KTX2 does not require a block encoder");
+        InitBasisU();
+        basisu::image image(pixels, width, height, 4);
+        if (texture->m_Format >= 145)
+        {
+            static const bool initialized = InitBc7Encoder();
+            (void)initialized;
+            bc7e_scalar::bc7e_compress_block_params params;
+            bc7e_scalar::bc7e_compress_block_params_init_slow(&params, texture->m_Info.m_Srgb);
+            uint32_t blocks_x = (width + 3) / 4;
+            uint32_t blocks_y = (height + 3) / 4;
+            bytes.SetCapacity(blocks_x * blocks_y * 16);
+            bytes.SetSize(blocks_x * blocks_y * 16);
+            for (uint32_t y = 0; y < blocks_y; ++y)
+            {
+                for (uint32_t x = 0; x < blocks_x; ++x)
+                {
+                    basisu::color_rgba block[16];
+                    uint64_t encoded[2];
+                    image.extract_block_clamped(block, x * 4, y * 4, 4, 4);
+                    bc7e_scalar::bc7e_compress_blocks(1, encoded, (const uint32_t*)block, &params);
+                    memcpy(bytes.Begin() + (y * blocks_x + x) * 16, encoded, 16);
+                }
+            }
+            return true;
+        }
+
+        basisu::basis_compressor_params params;
+        basisu::job_pool jobs(1);
+        params.m_pJob_pool = &jobs;
+        params.m_multithreading = false;
+        params.m_read_source_images = false;
+        params.m_write_output_basis_or_ktx2_files = false;
+        params.m_status_output = false;
+        params.m_mip_gen = false;
+        params.set_format_mode(texture->m_Uastc ? basist::basis_tex_format::cUASTC_LDR_4x4 : basist::basis_tex_format::cETC1S);
+        params.set_srgb_options(texture->m_Info.m_Srgb);
+        params.m_quality_level = 255;
+        params.m_pack_uastc_ldr_4x4_flags = 3;
+        params.m_source_images.push_back(image);
+        basisu::basis_compressor compressor;
+        if (!compressor.init(params) || compressor.process() != basisu::basis_compressor::cECSuccess)
+            return Fail(error, "Failed to encode KTX2 mip using its source compression format");
+        const basisu::uint8_vec& encoded = compressor.get_output_basis_file();
+        bytes.SetCapacity(encoded.size());
+        bytes.SetSize(encoded.size());
+        memcpy(bytes.Begin(), encoded.data(), encoded.size());
         return true;
     }
 

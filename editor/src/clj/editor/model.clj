@@ -72,18 +72,14 @@
     (coll/first-where #(= mesh-index (:index %))
                       (model-loader/named-meshes collision-meshes))))
 
-(defn- selected-mesh-material-indices
-  "Returns the material indices referenced by the selected mesh's primitives."
-  [selected-mesh]
-  (into #{}
-        (keep :material-index)
-        (:primitives selected-mesh)))
-
 (defn- gltf-auto-fill-candidate
   "Prepares available material bindings and records whether applying them would replace existing ones."
   [evaluation-context node-id source-resource material-indices]
   (when-let [descriptors (and (gltf-source-resource? source-resource)
-                              (coll/not-empty (gltf/material-binding-descriptors source-resource material-indices)))]
+                              (coll/not-empty
+                                (gltf/material-binding-descriptors
+                                  source-resource material-indices
+                                  (workspace/make-proj-path->resource-fn (resource/workspace source-resource) evaluation-context))))]
     (let [material-binding-infos (g/node-value node-id :material-binding-infos evaluation-context)]
       {:node-id node-id
        :source-resource source-resource
@@ -95,11 +91,10 @@
   "Asks once whether to auto-fill materials for all candidate models."
   [evaluation-context candidates]
   (let [{:keys [source-resource]} (candidates 0)
-        localization-state (workspace/localization (resource/workspace source-resource) evaluation-context)
         replaces-existing (coll/any? :replaces-existing candidates)]
     (true?
       (dialogs/make-confirmation-dialog
-        localization-state
+        (workspace/localization (resource/workspace source-resource) evaluation-context)
         {:title (localization/message "dialog.model-auto-fill.title")
          :icon :icon/circle-question
          :header (localization/message "dialog.model-auto-fill.header"
@@ -155,7 +150,7 @@
                           node-id
                           source-resource
                           (when selected-mesh
-                            (selected-mesh-material-indices selected-mesh))))))))
+                            (into #{} (keep :material-index) (:primitives selected-mesh)))))))))
               set-operations)]
     (prepare-gltf-auto-fill evaluation-context candidates)))
 
@@ -210,7 +205,7 @@
                       (when user-edit
                         (g/set-properties self :mesh-name "" :mesh-index -1)))]
     (if-let [descriptors (and user-edit
-                             (auto-fill-material-descriptors evaluation-context self))]
+                              (auto-fill-material-descriptors evaluation-context self))]
       (into tx-data
             (replace-gltf-material-bindings-tx evaluation-context self descriptors))
       tx-data)))
@@ -462,10 +457,10 @@
                                               ^:try texture-binding-infos
                                               :as info]
                                         (let [info (cond-> info
-                                                           (g/error-value? material-attribute-infos)
-                                                           (assoc :material-attribute-infos [])
-                                                           (g/error-value? vertex-attribute-bytes)
-                                                           (assoc :vertex-attribute-bytes {}))]
+                                                     (g/error-value? material-attribute-infos)
+                                                     (assoc :material-attribute-infos [])
+                                                     (g/error-value? vertex-attribute-bytes)
+                                                     (assoc :vertex-attribute-bytes {}))]
                                           (cond
                                             (g/error-value? texture-binding-infos) (assoc info :texture-binding-infos [])
                                             (g/error-value? samplers) (dissoc info :samplers)
@@ -518,7 +513,7 @@
   (reify resource/Resource
     (children [_])
     (ext [_] "")
-    (resource-type [_])
+    (resource-type* [_ _resource-types])
     (source-type [_])
     (exists? [_] false)
     (read-only? [_] true)
@@ -584,8 +579,8 @@
                                                                       :ext "material"
                                                                       :clear-fn (fn [_ _]
                                                                                   (g/delete-node material-binding-node-id))}}
-                                                         should-be-deleted
-                                                         (assoc :original-value fake-resource))]
+                                                   should-be-deleted
+                                                   (assoc :original-value fake-resource))]
                               combined-material-properties (into [material-property]
                                                                  (map-indexed
                                                                    (fn [binding-index sampler-name+order]
@@ -606,8 +601,8 @@
                                                                                      :edit-type {:type resource/Resource
                                                                                                  :ext supported-image-exts
                                                                                                  :clear-fn (fn [_ _] (g/delete-node _node-id))}}
-                                                                                    texture-binding-should-be-deleted
-                                                                                    (assoc :original-value fake-resource))])
+                                                                              texture-binding-should-be-deleted
+                                                                              (assoc :original-value fake-resource))])
                                                                          ;; texture binding does not exist
                                                                          (let [sampler (key sampler-name+order)]
                                                                            [texture-binding-prop-key
@@ -657,13 +652,20 @@
             (dynamic label (properties/label-dynamic :model :scene))
             (dynamic tooltip (properties/tooltip-dynamic :model :scene)))
   (property mesh-name g/Str
-            (default "")
+            (default (protobuf/default ModelProto$ModelDesc :mesh-name))
             (dynamic visible (g/constantly false)))
   (property mesh-index g/Int
-            (default -1)
+            (default (protobuf/default ModelProto$ModelDesc :mesh-index))
             (value (g/fnk [^:try collision-meshes mesh-index mesh-name]
-                     (if (g/error-value? collision-meshes)
+                     (cond
+                       (and (str/blank? mesh-name)
+                            (= mesh-index (protobuf/default ModelProto$ModelDesc :mesh-index)))
+                       -1
+
+                       (g/error-value? collision-meshes)
                        mesh-index
+
+                       :else
                        (or (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index))
                            mesh-index))))
             (set set-mesh-index)
@@ -745,9 +747,9 @@
   (property default-animation g/Str
             (default (protobuf/default ModelProto$ModelDesc :default-animation))
             (dynamic error (g/fnk [_node-id default-animation animation-ids]
-                                  (validate-default-animation _node-id default-animation animation-ids)))
+                             (validate-default-animation _node-id default-animation animation-ids)))
             (dynamic edit-type (g/fnk [animation-ids]
-                                      (properties/->choicebox (into [""] animation-ids))))
+                                 (properties/->choicebox (into [""] animation-ids))))
             (dynamic label (properties/label-dynamic :model :default-animation))
             (dynamic tooltip (properties/tooltip-dynamic :model :default-animation)))
 
@@ -812,7 +814,7 @@
         default-animation :default-animation
         mesh (resolve-resource :mesh)
         mesh-name :mesh-name
-        mesh-index (:mesh-index :or -1)
+        mesh-index :mesh-index
         skeleton (resolve-resource :skeleton)
         animations (resolve-resource :animations)
         create-go-bones :create-go-bones)
@@ -834,16 +836,16 @@
       (cond-> (and (zero? (count materials))
                    (or (pos? (count material))
                        (pos? (count textures))))
-              (assoc :materials [(protobuf/make-map-without-defaults ModelProto$Material
-                                   :name "default"
-                                   :material material
-                                   :textures (into []
-                                                   (map-indexed
-                                                     (fn [i tex-name]
-                                                       (protobuf/make-map-without-defaults ModelProto$Texture
-                                                         :sampler (.intern (str "tex" i))
-                                                         :texture tex-name)))
-                                                   textures))]))))
+        (assoc :materials [(protobuf/make-map-without-defaults ModelProto$Material
+                             :name "default"
+                             :material material
+                             :textures (into []
+                                             (map-indexed
+                                               (fn [i tex-name]
+                                                 (protobuf/make-map-without-defaults ModelProto$Texture
+                                                   :sampler (.intern (str "tex" i))
+                                                   :texture tex-name)))
+                                             textures))]))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

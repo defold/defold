@@ -23,7 +23,6 @@ ordinary paths."
             [editor.code.preprocessors :as code.preprocessors]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
-            [editor.gltf :as gltf]
             [editor.graph-util :as gu]
             [editor.library :as library]
             [editor.localization :as localization]
@@ -114,7 +113,7 @@ ordinary paths."
   resource/Resource
   (children [_] nil)
   (ext [this] (:build-ext (resource/resource-type this) "unknown"))
-  (resource-type [_] (resource/resource-type resource))
+  (resource-type* [_ resource-types] (resource/resource-type* resource resource-types))
   (source-type [_] (resource/source-type resource))
   (read-only? [_] false)
   (symlink? [_] false)
@@ -278,6 +277,8 @@ ordinary paths."
                         querying the graph. See make-read-opts for details.
     :write-fn           a fn from a data representation of the resource
                         (a save-value) to string
+    :export-name-fn     a fn from a resource to a filename when materializing it
+                        for copy or drag-and-drop; defaults to resource/resource-name
     :source-value-fn    a fn from a save-value to whatever you want to cache as
                         the source-value for the resource type. When not
                         specified, the save-value will be the source-value.
@@ -339,7 +340,7 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type connect-fn load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type connect-fn load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn export-name-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
   {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
   (let [view-types (mapv canonical-view-type-id view-types)
         editable (if (nil? editable) true (boolean editable))
@@ -354,6 +355,7 @@ ordinary paths."
                        :dependencies-fn dependencies-fn
                        :write-fn write-fn
                        :read-fn read-fn
+                       :export-name-fn (or export-name-fn resource/resource-name)
                        :search-fn search-fn
                        :search-value-fn (or search-value-fn default-search-value-fn)
                        :source-value-fn source-value-fn
@@ -579,11 +581,13 @@ ordinary paths."
 
         proj-path->resource-type
         (fn proj-path->resource-type [proj-path]
-          (let [editable (editable-proj-path? proj-path)
-                type-ext (resource/filename->type-ext proj-path)
-                type-ext->resource-type (editable->type-ext->resource-type editable)]
-            (or (type-ext->resource-type type-ext)
-                (type-ext->resource-type resource/placeholder-resource-type-ext))))
+          (if-let [resource (proj-path->resource proj-path)]
+            (resource/resource-type* resource editable->type-ext->resource-type)
+            (let [editable (editable-proj-path? proj-path)
+                  type-ext (resource/filename->type-ext proj-path)
+                  type-ext->resource-type (editable->type-ext->resource-type editable)]
+              (or (type-ext->resource-type type-ext)
+                  (type-ext->resource-type resource/placeholder-resource-type-ext)))))
 
         template-resource-fn
         (fn template-resource-fn [resource-type consider-user-resource]
@@ -950,7 +954,7 @@ ordinary paths."
                moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map (resource-watch/make-resource-map old-snapshot)
-         moved-proj-paths (gltf/expand-resource-moves physical-moved-proj-paths old-map new-map)
+         moved-proj-paths (resource/expand-resource-moves physical-moved-proj-paths old-map new-map)
          changes (resource-watch/diff old-snapshot new-snapshot)]
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))

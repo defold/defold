@@ -14,22 +14,99 @@
 
 (ns editor.gltf
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.core :as core]
+            [editor.defold-project :as project]
+            [editor.image :as image]
+            [editor.image-util :as image-util]
             [editor.resource :as resource]
-            [service.log :as log]
-            [util.coll :as coll :refer [pair]])
-  (:import [com.dynamo.bob.fs GltfContainer GltfContainer$Asset GltfContainer$Extraction GltfContainer$ImageAsset GltfContainer$ImageLocation GltfContainer$MaterialAsset GltfContainer$MeshMetadata GltfContainer$SamplerBinding GltfContainer$TextureMetadata]
+            [editor.resource-io :as resource-io]
+            [editor.texture-util :as texture-util]
+            [util.coll :as coll]
+            [util.defonce :as defonce]
+            [util.http-server :as http-server]
+            [util.path :as path])
+  (:import [com.dynamo.bob.fs GltfContainer GltfContainer$Asset GltfContainer$Extraction GltfContainer$ImageAsset GltfContainer$ImageLocation GltfContainer$ImageReference GltfContainer$MaterialAsset GltfContainer$MeshMetadata GltfContainer$SamplerBinding GltfContainer$TextureMetadata]
            [com.dynamo.bob.pipeline ModelImporterJni$DataResolver]
            [com.google.protobuf ByteString]
+           [java.io FileNotFoundException IOException]
            [java.util Map]
-           [org.apache.commons.io FilenameUtils]))
+           [org.apache.commons.io.input BoundedInputStream]))
 
 (set! *warn-on-reflection* true)
+
+(declare EmbeddedImageNode load-embedded-image embedded-image-dependencies)
+
+(defonce/record EmbeddedImageResource [entry buffer-path offset length backing-resource]
+  resource/Resource
+  (children [_this] nil)
+  (ext [_this] (resource/ext entry))
+  (resource-type* [_this resource-types]
+    (cond-> (assoc (resource/resource-type* entry resource-types)
+              :dependencies-fn embedded-image-dependencies)
+      (not= "ktx2" (resource/type-ext entry))
+      (assoc :node-type EmbeddedImageNode
+             :load-fn load-embedded-image)))
+  (source-type [_this] :file)
+  (exists? [_this] (resource/exists? entry))
+  (read-only? [_this] true)
+  (symlink? [_this] false)
+  (path [_this] (resource/path entry))
+  (abs-path [_this] nil)
+  (proj-path [_this] (resource/proj-path entry))
+  (resource-name [_this] (resource/resource-name entry))
+  (workspace [_this] (resource/workspace entry))
+  (resource-hash [_this] (resource/resource-hash entry))
+  (openable? [_this] (resource/openable? entry))
+  (editable? [_this] (resource/editable? entry))
+  (loaded? [_this] (resource/loaded? entry))
+
+  io/IOFactory
+  (make-input-stream [_this _opts]
+    (let [source (:source entry)
+          ;; This lookup is safe for graph invalidation: EmbeddedImageNode explicitly
+          ;; connects to the backing resource node, so buffer changes invalidate its
+          ;; image outputs. Direct readers (e.g. copy/extract) have no backing-resource
+          ;; supplied by the graph and resolve the buffer from the workspace here.
+          buffer (or backing-resource
+                     (if (= buffer-path (resource/proj-path source))
+                       source
+                       (get (g/raw-property-value (g/unsafe-basis) (resource/workspace source) :resource-map) buffer-path)))]
+      (when-not buffer
+        (throw (FileNotFoundException. buffer-path)))
+      (let [stream (io/input-stream buffer)]
+        (try
+          (.skipNBytes stream (long offset))
+          (BoundedInputStream. stream (long length))
+          (catch Throwable error
+            (.close stream)
+            (throw error))))))
+  (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [_this _opts] (throw (IOException. "Embedded images are read-only")))
+  (make-writer [_this _opts] (throw (IOException. "Embedded images are read-only")))
+
+  io/Coercions
+  (as-file [_this] (io/as-file entry))
+  (as-url [_this] (throw (IllegalArgumentException. "Embedded images have no URL")))
+
+  path/Coercions
+  (as-path [_this] (path/as-path entry))
+
+  http-server/ContentType
+  (content-type [_this] (http-server/content-type entry))
+
+  http-server/->Connection
+  (->connection [this] (io/input-stream this)))
+
+(core/register-record-type! EmbeddedImageResource)
+
+(defmethod resource/snapshot-dependencies EmbeddedImageResource [resource]
+  [(:buffer-path resource)])
 
 (defn asset-info
   "Returns glTF metadata attached to an embedded resource, or nil."
   [resource]
-  (get-in resource [:data ::asset]))
+  (get-in (if (instance? EmbeddedImageResource resource) (:entry resource) resource) [:data :asset]))
 
 (defn- asset-resources
   "Returns virtual assets beneath a glTF source, excluding grouping folders."
@@ -41,7 +118,7 @@
 
 (defn material-binding-descriptors
   "Builds material and texture bindings for the given index set; nil selects all materials."
-  [source-resource material-indices]
+  [source-resource material-indices resolve-resource]
   (let [asset-resources
         (asset-resources source-resource)
 
@@ -65,7 +142,8 @@
                      :textures
                      (into []
                            (keep (fn [{:keys [sampler image-path]}]
-                                   (when-let [texture-resource (resource-by-asset-path image-path)]
+                                   (when-let [texture-resource (or (resource-by-asset-path image-path)
+                                                                   (resolve-resource image-path))]
                                      {:sampler sampler
                                       :texture texture-resource})))
                            sampler-bindings)})))))
@@ -73,29 +151,29 @@
 
 (defn metadata-descriptors
   "Builds mesh, material and texture descriptors for the read-only glTF outline."
-  [source-resource]
+  [source-resource resolve-resource]
   (let [asset-resources (asset-resources source-resource)
+        image-descriptors (into (mapv #(assoc % :image (resolve-resource (:path %)))
+                                      (get-in source-resource [:data :external-images]))
+                                (comp (filter #(= :image (:kind (asset-info %))))
+                                      (map #(assoc (asset-info %) :image %)))
+                                asset-resources)
         texture-descriptors
         (into []
-              (comp
-                (filter #(= :image (:kind (asset-info %))))
-                (mapcat
-                  (fn [image-resource]
-                    (let [{:keys [mime-type name source-kind textures uri] :as image-info}
-                          (asset-info image-resource)
-                          image-index (:index image-info)]
-                      (eduction
-                        (map (fn [{:keys [index] :as texture-info}]
-                               (assoc texture-info
-                                 :image image-resource
-                                 :image-index image-index
-                                 :image-name (or (coll/not-empty name) (format "Image %d" image-index))
-                                 :mime-type (or mime-type "")
-                                 :name (or (coll/not-empty (:name texture-info)) (format "Texture %d" index))
-                                 :source-kind (or source-kind "")
-                                 :uri (or uri ""))))
-                        textures)))))
-              asset-resources)
+              (mapcat
+                (fn [{:keys [image index mime-type name source-kind textures uri]}]
+                  (eduction
+                    (map (fn [texture-info]
+                           (assoc texture-info
+                             :image image
+                             :image-index index
+                             :image-name (or (coll/not-empty name) (format "Image %d" index))
+                             :mime-type (or mime-type "")
+                             :name (or (coll/not-empty (:name texture-info)) (format "Texture %d" (:index texture-info)))
+                             :source-kind source-kind
+                             :uri (or uri ""))))
+                    textures)))
+              image-descriptors)
         texture-name-by-index
         (into {}
               (map (juxt :index :name))
@@ -138,6 +216,9 @@
      :meshes (vec (sort-by :index mesh-descriptors))
      :textures (vec (sort-by :index texture-descriptors))}))
 
+(defn external-image-paths [source-resource]
+  (mapv :path (get-in source-resource [:data :external-images])))
+
 (defn uri->proj-path
   "Resolves an external URI against a glTF source path, returning nil for unsupported paths."
   ^String [^String source-path ^String uri]
@@ -158,6 +239,42 @@
               (resource/resource->bytes external-resource))))
         (catch Exception _
           nil)))))
+
+(defn- texture-metadata [textures]
+  (mapv (fn [^GltfContainer$TextureMetadata texture]
+          (let [min-filter (.minFilter texture)
+                mag-filter (.magFilter texture)
+                wrap-s (.wrapS texture)
+                wrap-t (.wrapT texture)]
+            {:index (.index texture)
+             :name (.name texture)
+             :sampler-index (.samplerIndex texture)
+             :min-filter (case min-filter
+                           0 "Linear"
+                           9728 "Nearest"
+                           9729 "Linear"
+                           9984 "Nearest Mipmap Nearest"
+                           9985 "Linear Mipmap Nearest"
+                           9986 "Nearest Mipmap Linear"
+                           9987 "Linear Mipmap Linear"
+                           (format "Unknown (%d)" min-filter))
+             :mag-filter (case mag-filter
+                           0 "Linear"
+                           9728 "Nearest"
+                           9729 "Linear"
+                           (format "Unknown (%d)" mag-filter))
+             :wrap-s (case wrap-s
+                       10497 "Repeat"
+                       33071 "Clamp to Edge"
+                       33648 "Mirrored Repeat"
+                       (format "Unknown (%d)" wrap-s))
+             :wrap-t (case wrap-t
+                       10497 "Repeat"
+                       33071 "Clamp to Edge"
+                       33648 "Mirrored Repeat"
+                       (format "Unknown (%d)" wrap-t))
+             :basisu (.basisu texture)}))
+        textures))
 
 (defn- gltf-asset-info
   "Converts extracted asset metadata to the map stored on its virtual resource."
@@ -199,148 +316,89 @@
                  (.getUri image-asset))
           :mime-type (.getMimeType image-asset)
           :source-kind source-kind
-          :textures
-          (mapv
-            (fn [^GltfContainer$TextureMetadata texture]
-              {:index (.index texture)
-               :name (.name texture)
-               :sampler-index (.samplerIndex texture)
-               :min-filter (.minFilter texture)
-               :mag-filter (.magFilter texture)
-               :wrap-s (.wrapS texture)
-               :wrap-t (.wrapT texture)
-               :basisu (.basisu texture)})
-            (.getTextures image-asset)))))))
+          :textures (texture-metadata (.getTextures image-asset)))))))
 
-(defn- expand-resource
-  "Adapts shared asset metadata, resolving headers only when image format is unspecified."
-  [source resolve-resource]
-  (when (#{"gltf" "glb"} (resource/type-ext source))
-    (try
-      (with-open [stream (io/input-stream source)]
-        (let [^GltfContainer$Extraction extraction (GltfContainer/inspect
-                                                     stream (resource/path source)
-                                                     (reify ModelImporterJni$DataResolver
-                                                       (getData [_this source-path uri]
-                                                         (when-let [path (uri->proj-path source-path uri)]
-                                                           (when-let [resource (resolve-resource path)]
-                                                             (with-open [stream (io/input-stream resource)]
-                                                               (.readNBytes stream 12)))))))
-              children-by-group
-              (reduce
-                (fn [groups ^GltfContainer$Asset asset]
-                  (let [path (.getPath asset)
-                        group (subs path 0 (.indexOf ^String path "/"))
-                        {:keys [index kind name] :as info} (gltf-asset-info asset)
-                        ^GltfContainer$ImageLocation location (when (instance? GltfContainer$ImageAsset asset)
-                                                                (.getLocation ^GltfContainer$ImageAsset asset))
-                        content (cond
-                                  location
-                                  {:path (str "/" (.path location))
-                                   :offset (.offset location)
-                                   :length (.length location)}
+(g/defnode EmbeddedImageNode
+  (inherits image/ImageNode)
 
-                                  (= :mesh kind)
-                                  nil
+  (input backing-resource resource/Resource)
 
-                                  :else
-                                  (ByteString/copyFrom (.getContent asset)))
-                        resource-name (if (= :mesh kind)
-                                        (str (resource/resource-name source) " : " (FilenameUtils/getName path))
-                                        (format "%s [%d].%s"
-                                                (-> name
-                                                    (string/replace #"[\\/:*?\"<>|\p{Cntrl}]" "_")
-                                                    string/trim)
-                                                index
-                                                (FilenameUtils/getExtension path)))
-                        child (resource/make-resource-entry source
-                                                            {:path path
-                                                             :name resource-name
-                                                             :ext (when (= :mesh kind) "gltf-mesh")
-                                                             :content content
-                                                             :data {::asset info}})]
-                    (update groups group (fnil conj []) child)))
-                (sorted-map)
-                (.assets extraction))]
-          {:children (into []
-                           (map (fn [[group children]]
-                                  (resource/make-resource-entry source {:path group :children children})))
-                           children-by-group)}))
-      (catch Exception exception
-        (log/warn :message (format "Failed to expose glTF resources from '%s'" (resource/proj-path source))
-                  :exception exception)
-        {:children []}))))
+  (output image-resource g/Any
+          (g/fnk [resource ^:try backing-resource]
+            (if (resource/resource? backing-resource)
+              (assoc resource :backing-resource backing-resource)
+              resource)))
 
-(defn make-snapshot
-  "Returns the resource tree, status map and cached discovery for loaded glTF containers."
-  [resources source-status-map cached-expansions]
-  (let [source-resources (delay (into {}
-                                     (comp resource/xform-recursive-resources
-                                           (coll/pair-map-by resource/proj-path))
-                                     resources))
-        expansions (volatile! {})
-        status-map (volatile! source-status-map)]
-    (letfn [(expand [source]
-              (let [proj-path (resource/proj-path source)
-                    source-status (get source-status-map proj-path)
-                    expansion
-                    (when (and (= :file (resource/source-type source))
-                               (resource/loaded? source)
-                               (#{"gltf" "glb"} (resource/type-ext source)))
-                      (let [old-expansion (get cached-expansions proj-path)
-                            cache-key [source-status source]
-                            cached (and (= cache-key (:key old-expansion))
-                                        (coll/every? (fn [[path status]]
-                                                       (= status (get source-status-map path)))
-                                                     (:dependencies old-expansion)))
-                            dependencies (volatile! (if cached (:dependencies old-expansion) {}))
-                            expansion (if cached
-                                        (:value old-expansion)
-                                        (expand-resource source
-                                                         (fn [path]
-                                                           (vswap! dependencies assoc path (get source-status-map path))
-                                                           (get @source-resources path))))]
-                        (vswap! expansions assoc proj-path {:key cache-key
-                                                           :dependencies @dependencies
-                                                           :value expansion})
-                        ;; Header reads can change which embedded resources exist.
-                        (when (coll/not-empty @dependencies)
-                          (vswap! status-map assoc proj-path
-                                  (assoc source-status :expansion-dependencies @dependencies)))
-                        expansion))]
-                (if expansion
-                  (let [source (resource/sort-resource-tree (merge source expansion))]
-                    (vswap! status-map into
-                            (map (fn [child]
-                                   ;; Like ZIP entry versions, backing content versions use
-                                   ;; the ordinary resource diff to invalidate cached outputs.
-                                   (pair (resource/proj-path child)
-                                         (assoc source-status :version
-                                                [child (get source-status-map (resource/content-source-path child))]))))
-                            (eduction resource/xform-recursive-resources (resource/children source)))
-                    source)
-                  (if-let [children (resource/children source)]
-                    (assoc source :children (mapv expand children))
-                    source))))]
-      {:resources (mapv expand resources)
-       :status-map @status-map
-       :cache @expansions})))
+  (output size g/Any :cached (g/fnk [_node-id image-resource]
+                               (resource-io/with-error-translation image-resource _node-id :size
+                                 (image-util/read-size image-resource))))
 
-(defn expand-resource-moves
-  "Includes embedded file entries when their containing resource moves."
-  [moved-proj-paths old-map new-map]
-  (into []
-        (mapcat (fn [[source-path target-path :as moved-paths]]
-                  (into [moved-paths]
-                        (comp resource/xform-recursive-resources
-                              (filter #(and (resource/entry-source %)
-                                            (= :file (resource/source-type %))))
-                              (keep (fn [child]
-                                      (let [child-path (resource/proj-path child)
-                                            target-child-path (str target-path (subs child-path (count source-path)))]
-                                        (when (resource/entry-source (get new-map target-child-path))
-                                          [child-path target-child-path])))))
-                        (when-let [source (get old-map source-path)]
-                          (when (= :file (resource/source-type source))
-                            (resource/children source))))))
-        moved-proj-paths))
+  (output content-generator g/Any :cached
+          (g/fnk [_node-id image-resource]
+            (texture-util/make-buffered-image-generator image-resource _node-id :content-generator)))
+
+  (output sha256 g/Str :cached
+          (g/fnk [_node-id image-resource]
+            (resource-io/with-error-translation image-resource _node-id :sha256
+              (resource/resource->sha256-hex image-resource)))))
+
+(defn- load-embedded-image
+  [{:keys [project resolve-resource-fn editable->type-ext->resource-type] :as load-opts}
+   {:keys [node-id resource] :as node-load-info}]
+  (let [image-type (resource/resource-type* (:entry resource) editable->type-ext->resource-type)]
+    (into (vec ((:load-fn image-type) load-opts node-load-info))
+          (g/expand-ec
+            (fn [evaluation-context]
+              (:tx-data (project/connect-resource-node evaluation-context project
+                                                       (resolve-resource-fn resource (:buffer-path resource))
+                                                       node-id [[:resource :backing-resource]])))))))
+
+(defn- embedded-image-dependencies [_read-opts resource _source-value]
+  [(:buffer-path resource)])
+
+(defn- expand
+  "Discovers embedded assets and external references using only the container bytes."
+  [source stream]
+  (let [^GltfContainer$Extraction extraction (GltfContainer/inspect stream (resource/path source))
+        children-by-group
+        (reduce
+          (fn [groups ^GltfContainer$Asset asset]
+            (let [path (.getPath asset)
+                  group (subs path 0 (.indexOf ^String path "/"))
+                  {:keys [kind] :as info} (gltf-asset-info asset)
+                  ^GltfContainer$ImageLocation location (when (instance? GltfContainer$ImageAsset asset)
+                                                          (.getLocation ^GltfContainer$ImageAsset asset))
+                  content (when-not location
+                            (ByteString/copyFrom (.getContent asset)))
+                  child (resource/make-resource-entry source
+                                                      {:path path
+                                                       :ext (when (= :mesh kind) "gltf-mesh")
+                                                       :content content
+                                                       :data {:asset info}})
+                  child (if location
+                          (->EmbeddedImageResource child (str "/" (.path location)) (.offset location) (.length location) nil)
+                          child)]
+              (update groups group (fnil conj []) child)))
+          (sorted-map)
+          (.assets extraction))]
+    (assoc source
+      :data {:external-images
+             (mapv (fn [^GltfContainer$ImageReference image]
+                     {:index (.index image)
+                      :name (.name image)
+                      :path (.path image)
+                      :uri (.uri image)
+                      :mime-type (.mimeType image)
+                      :source-kind "external-uri"
+                      :textures (texture-metadata (.textures image))})
+                   (.externalImages extraction))}
+      :children (into []
+                      (map (fn [[group children]]
+                             (resource/make-resource-entry source {:path group :children children})))
+                      children-by-group))))
+
+(defmethod resource/expand "gltf" [source stream]
+  (expand source stream))
+
+(defmethod resource/expand "glb" [source stream]
+  (expand source stream))

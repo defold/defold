@@ -45,7 +45,7 @@
   resource/Resource
   (children [_] (resource/children resource))
   (ext [_] (resource/ext resource))
-  (resource-type [_] (assoc (resource/resource-type resource) :build-ext "gamepadsc"))
+  (resource-type* [_ resource-types] (assoc (resource/resource-type* resource resource-types) :build-ext "gamepadsc"))
   (source-type [_] (resource/source-type resource))
   (exists? [_] (resource/exists? resource))
   (read-only? [_] (resource/read-only? resource))

@@ -18,10 +18,10 @@ compiler settings into the separate engine/tools build.
 Build and install with the regular Defold toolchain:
 
 ```sh
-./scripts/build.py --platform=arm64-macos build_ext
+./scripts/build.py --platform=arm64-macos install_ext
 ```
 
-Run after `install_ext` and before building the engine. Headers are installed
+Run with the platform SDK set up before building the engine. Headers are installed
 under `tmp/dynamo_home/ext/include/basis`; archives are installed under
 `tmp/dynamo_home/ext/lib/<platform>`.
 
@@ -114,7 +114,7 @@ The patch also removes the unused `<fenv.h>` include from
 `transcoder/basisu_astc_helpers.h`, where it prevents builds with PS4 toolchains
 that lack this header.
 
-`build_ext` uses Git to apply the patch to a build copy of the runtime source
+The CMake build uses Git to apply the patch to a build copy of the runtime source
 and headers, and installs those patched headers for engine consumers;
 the full offline library builds the original source. All 115 vendored files
 still match upstream byte-for-byte. Keep future source edits in this patch,

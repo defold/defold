@@ -272,11 +272,11 @@
              (properties/visible? outline-property))
     (let [ext-edit-type (:ext-edit-type outline-property)
           outline-property (cond-> outline-property
-                                   ext-edit-type
-                                   (assoc :edit-type ext-edit-type)
+                             ext-edit-type
+                             (assoc :edit-type ext-edit-type)
 
-                                   (not (contains? outline-property :prop-kw))
-                                   (assoc :prop-kw prop-kw))]
+                             (not (contains? outline-property :prop-kw))
+                             (assoc :prop-kw prop-kw))]
       (when (edit-type-id->value-converter (properties/property-edit-type-id outline-property))
         outline-property))))
 
@@ -394,9 +394,8 @@
 (defn- textual-resource-node? [node-id evaluation-context]
   (let [resource (g/node-value node-id :resource evaluation-context)]
     (and (some? resource)
-         (-> evaluation-context
-             :basis
-             (resource/lookup-resource-type (resource/workspace resource) resource)
+         (-> resource
+             (resource/resource-type (:basis evaluation-context))
              :textual?))))
 
 (register-property-getter!

@@ -87,6 +87,7 @@ static jobjectArray CreateImagesArray(JNIEnv* env, dmModelImporter::jni::TypeInf
 
         jobject obj = env->AllocObject(types->m_ImageJNI.cls);
         dmJNI::SetString(env, obj, types->m_ImageJNI.name, image->m_Name);
+        dmJNI::SetBoolean(env, obj, types->m_ImageJNI.nameIsGenerated, image->m_NameIsGenerated);
         dmJNI::SetString(env, obj, types->m_ImageJNI.uri, image->m_Uri);
         dmJNI::SetString(env, obj, types->m_ImageJNI.mimeType, image->m_MimeType);
         dmJNI::SetUInt(env, obj, types->m_ImageJNI.index, image->m_Index);

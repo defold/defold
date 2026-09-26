@@ -96,7 +96,7 @@ TEST(Ktx2, RejectMalformedAndUnsupportedInput)
         ASSERT_EQ((dmTexc::Ktx2Texture*)0, dmTexc::LoadKtx2(data.Begin(), size, &info, &error));
 }
 
-TEST(Ktx2, BasisDecodeRecompressAndLosslessUastcRepack)
+TEST(Ktx2, BasisDecodeRecompressAndLosslessRepack)
 {
     basisu::basisu_encoder_init();
     for (uint32_t variant = 0; variant < 8; ++variant)
@@ -167,7 +167,17 @@ TEST(Ktx2, BasisDecodeRecompressAndLosslessUastcRepack)
             ASSERT_NEAR(pixels[i], roundtrip[i], 4);
         free(encoded);
 
-        if (uastc)
+        dmArray<uint8_t> same_format;
+        ASSERT_TRUE(dmTexc::EncodeKtx2Mip(texture, 8, 4, pixels.Begin(), pixels.Size(), same_format, &error));
+        basist::basisu_transcoder same_format_decoder;
+        ASSERT_TRUE(same_format_decoder.get_file_info(same_format.Begin(), same_format.Size(), recompressed_info));
+        ASSERT_EQ(srgb, recompressed_info.m_srgb);
+        ASSERT_EQ(uastc ? basist::basis_tex_format::cUASTC_LDR_4x4 : basist::basis_tex_format::cETC1S, recompressed_info.m_tex_format);
+        ASSERT_TRUE(same_format_decoder.start_transcoding(same_format.Begin(), same_format.Size()));
+        ASSERT_TRUE(same_format_decoder.transcode_image_level(same_format.Begin(), same_format.Size(), 0, 0, roundtrip, 32, basist::transcoder_texture_format::cTFRGBA32));
+        for (uint32_t i = 0; i < pixels.Size(); ++i)
+            ASSERT_NEAR(pixels[i], roundtrip[i], 4);
+
         {
             dmArray<uint8_t> repacked;
             ASSERT_TRUE(dmTexc::RepackKtx2Mip(texture, 0, repacked, &error));
@@ -176,18 +186,47 @@ TEST(Ktx2, BasisDecodeRecompressAndLosslessUastcRepack)
             basist::basisu_file_info file_info;
             ASSERT_TRUE(transcoder.get_file_info(repacked.Begin(), repacked.Size(), file_info));
             ASSERT_EQ(srgb, file_info.m_srgb);
+            ASSERT_EQ(uastc ? basist::basis_tex_format::cUASTC_LDR_4x4 : basist::basis_tex_format::cETC1S, file_info.m_tex_format);
             ASSERT_TRUE(transcoder.start_transcoding(repacked.Begin(), repacked.Size()));
             uint8_t decoded[8 * 4 * 4];
             ASSERT_TRUE(transcoder.transcode_image_level(repacked.Begin(), repacked.Size(), 0, 0, decoded, 32, basist::transcoder_texture_format::cTFRGBA32));
             ASSERT_EQ(0, memcmp(decoded, pixels.Begin(), sizeof(decoded)));
-            // .basis and KTX2 must contain exactly the same UASTC blocks.
+            // Repacking must retain compressed slices and ETC1S codebooks byte for byte.
             const basist::basis_file_header* header = (const basist::basis_file_header*)repacked.Begin();
             const basist::basis_slice_desc* slice = (const basist::basis_slice_desc*)(repacked.Begin() + (uint32_t)header->m_slice_desc_file_ofs);
             basist::ktx2_transcoder source;
             ASSERT_TRUE(source.init(ktx2.data(), ktx2.size()));
             const basist::ktx2_level_index& level = source.get_level_index()[0];
-            ASSERT_EQ(level.m_byte_length.get_uint64(), (uint64_t)(uint32_t)slice->m_file_size);
-            ASSERT_EQ(0, memcmp(ktx2.data() + level.m_byte_offset.get_uint64(), repacked.Begin() + (uint32_t)slice->m_file_ofs, (uint32_t)slice->m_file_size));
+            if (uastc)
+            {
+                ASSERT_EQ(level.m_byte_length.get_uint64(), (uint64_t)(uint32_t)slice->m_file_size);
+                ASSERT_EQ(0, memcmp(ktx2.data() + level.m_byte_offset.get_uint64(), repacked.Begin() + (uint32_t)slice->m_file_ofs, (uint32_t)slice->m_file_size));
+            }
+            else
+            {
+                ASSERT_TRUE(source.start_transcoding());
+                const basist::ktx2_etc1s_image_desc& desc = source.get_etc1s_image_descs()[0];
+                ASSERT_EQ((uint32_t)desc.m_rgb_slice_byte_length, (uint32_t)slice[0].m_file_size);
+                ASSERT_EQ(0, memcmp(ktx2.data() + level.m_byte_offset.get_uint64() + (uint32_t)desc.m_rgb_slice_byte_offset,
+                                    repacked.Begin() + (uint32_t)slice[0].m_file_ofs, (uint32_t)slice[0].m_file_size));
+                if (source.get_has_alpha())
+                {
+                    ASSERT_EQ((uint32_t)desc.m_alpha_slice_byte_length, (uint32_t)slice[1].m_file_size);
+                    ASSERT_EQ(0, memcmp(ktx2.data() + level.m_byte_offset.get_uint64() + (uint32_t)desc.m_alpha_slice_byte_offset,
+                                        repacked.Begin() + (uint32_t)slice[1].m_file_ofs, (uint32_t)slice[1].m_file_size));
+                }
+                const basist::ktx2_etc1s_global_data_header& global = source.get_etc1s_header();
+                const uint8_t* codebooks = ktx2.data() + source.get_header().m_sgd_byte_offset.get_uint64()
+                                        + sizeof(global) + source.get_etc1s_image_descs().size() * sizeof(desc);
+                ASSERT_EQ((uint32_t)global.m_endpoints_byte_length, (uint32_t)header->m_endpoint_cb_file_size);
+                ASSERT_EQ(0, memcmp(codebooks, repacked.Begin() + (uint32_t)header->m_endpoint_cb_file_ofs, (uint32_t)global.m_endpoints_byte_length));
+                codebooks += global.m_endpoints_byte_length;
+                ASSERT_EQ((uint32_t)global.m_selectors_byte_length, (uint32_t)header->m_selector_cb_file_size);
+                ASSERT_EQ(0, memcmp(codebooks, repacked.Begin() + (uint32_t)header->m_selector_cb_file_ofs, (uint32_t)global.m_selectors_byte_length));
+                codebooks += global.m_selectors_byte_length;
+                ASSERT_EQ((uint32_t)global.m_tables_byte_length, (uint32_t)header->m_tables_file_size);
+                ASSERT_EQ(0, memcmp(codebooks, repacked.Begin() + (uint32_t)header->m_tables_file_ofs, (uint32_t)global.m_tables_byte_length));
+            }
         }
         dmTexc::DestroyKtx2(texture);
         if (alpha == 128)

@@ -251,6 +251,25 @@ JNIEXPORT void JNICALL Java_TexcLibraryJni_DestroyKtx2(JNIEnv* env, jclass cls, 
     dmTexc::DestroyKtx2((dmTexc::Ktx2Texture*)texture);
 }
 
+JNIEXPORT jbyteArray JNICALL Java_TexcLibraryJni_EncodeKtx2Mip(JNIEnv* env, jclass cls, jlong texture, jint width, jint height, jbyteArray pixels)
+{
+    jbyteArray result = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmJNI::ScopedByteArray input(env, pixels);
+        dmArray<uint8_t> bytes;
+        const char* error = 0;
+        if (!dmTexc::EncodeKtx2Mip((dmTexc::Ktx2Texture*)texture, width, height, (const uint8_t*)input.m_Array, input.m_ArraySize, bytes, &error))
+        {
+            env->ThrowNew(env->FindClass("java/io/IOException"), error);
+            return 0;
+        }
+        result = env->NewByteArray(bytes.Size());
+        if (result)
+            env->SetByteArrayRegion(result, 0, bytes.Size(), (const jbyte*)bytes.Begin());
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
+}
+
 JNIEXPORT jint JNICALL Java_TexcLibraryJni_CreatePreviewImage(JNIEnv* env, jclass cls, jint width, jint height, jbyteArray inputArray, jbyteArray outputArray)
 {
     dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
@@ -557,6 +576,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         JNIFUNC(LoadKtx2, "([B)Lcom/dynamo/bob/pipeline/TexcLibraryJni$Ktx2Texture;"),
         JNIFUNC(DecodeKtx2Mip, "(JI)[B"),
         JNIFUNC(RepackKtx2Mip, "(JI)[B"),
+        JNIFUNC(EncodeKtx2Mip, "(JII[B)[B"),
         JNIFUNC(DestroyKtx2, "(J)V"),
         JNIFUNC(CreateImageFromBuffer, "([B)L" CLASS_NAME "$Image;"),
         JNIFUNC(CreatePreviewImage, "(II[B[B)I"),

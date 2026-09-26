@@ -7,4 +7,6 @@
 
 * We maintain a `./config-override.h` file, in order to support SkriBidi text layout.
 
-    * `cp ./config-override.h package/harfbuzz-<version>`
+    * CMake uses this override directly and includes it in the common package.
+
+* Build from the repository root with `./scripts/build.py build_external --package=harfbuzz --platform=<platform>`.

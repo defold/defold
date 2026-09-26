@@ -90,8 +90,8 @@
 
 (defn- content [artifact]
   (-> artifact
-    (content-bytes)
-    (String. "UTF-8")))
+      (content-bytes)
+      (String. "UTF-8")))
 
 (defn- pipeline-build! [project build-targets]
   (let [[workspace build-results]
@@ -166,11 +166,11 @@
             dep-1          (make-asserting-build-target workspace "1" called! {})
             dep-2          (make-asserting-build-target workspace "2" called! {})
             dep-3          (make-asserting-build-target workspace "3" called!
-                             {(:resource dep-2) (:resource dep-2)} dep-2)
+                                                        {(:resource dep-2) (:resource dep-2)} dep-2)
             build-targets  [(make-asserting-build-target workspace "4" called!
-                              {(:resource dep-1) (:resource dep-1)
-                               (:resource dep-3) (:resource dep-3)}
-                              dep-1 dep-3)]
+                                                         {(:resource dep-1) (:resource dep-1)
+                                                          (:resource dep-3) (:resource dep-3)}
+                                                         dep-1 dep-3)]
             build-results  (pipeline-build! project build-targets)]
         (is (= 4 @build-fn-calls))
         (is (= #{"1" "2" "3" "4"} (set (map content (:artifacts build-results)))))))))
@@ -201,13 +201,13 @@
           (is (= {:tile-set (-> tile-set-target :resource resource/proj-path)
                   :default-animation "gurka"
                   :material (-> material-target :resource resource/proj-path)}
-                (select-keys pb-data [:tile-set :default-animation :material]))))))))
+                 (select-keys pb-data [:tile-set :default-animation :material]))))))))
 
-(defrecord TestResource [proj-path]
+(defrecord TestResource [workspace proj-path]
   resource/Resource
   (children [_] [])
   (ext [_] (FilenameUtils/getExtension proj-path))
-  (resource-type [this] {:build-ext (str (resource/ext this) "c")})
+  (resource-type* [this _resource-types] {:build-ext (str (resource/ext this) "c")})
   (source-type [_] :file)
   (exists? [_] true)
   (read-only? [_] true)
@@ -216,61 +216,63 @@
   (abs-path [_] proj-path)
   (proj-path [_] proj-path)
   (resource-name [_] (FilenameUtils/getName proj-path))
-  (workspace [_])
+  (workspace [_] workspace)
   (resource-hash [_] (hash proj-path))
   (openable? [_] false)
   (editable? [_] false)
   (loaded? [_] false))
 
-(defn- build-resource [proj-path]
-  (workspace/make-build-resource (->TestResource proj-path)))
+(defn- build-resource [workspace proj-path]
+  (workspace/make-build-resource (->TestResource workspace proj-path)))
 
 (defn- build! [{:keys [build-fn resource user-data]} dep-resources]
   (build-fn resource dep-resources user-data))
 
-(defn- sprite-build-target [pb-map]
-  (pipeline/make-protobuf-build-target 12345 (->TestResource "/foo/bar.sprite") Sprite$SpriteDesc pb-map))
+(defn- sprite-build-target [workspace pb-map]
+  (pipeline/make-protobuf-build-target 12345 (->TestResource workspace "/foo/bar.sprite") Sprite$SpriteDesc pb-map))
 
 (deftest make-protobuf-build-target-errors-test
-  (testing "missing required dep"
-    (is (thrown-with-msg?
-          Exception #"missing a referenced source-resource"
-          (build!
-            (sprite-build-target {:default-animation "required"})
-            ;; deps should include "/builtins/materials/sprite.material" for the default material
-            {})))
-    (is (thrown-with-msg?
-          Exception #"missing a referenced source-resource"
-          (build!
-            (sprite-build-target {:default-animation "required"
-                                  :textures [{:sampler "required"
-                                              ;; deps should include "/foo.png"
-                                              :texture "/foo.png"}]})
-            {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")}))))
-  (testing "Required resource is absent"
-    (testing "(nil value)"
-      (test-util/check-thrown-with-root-cause-msg!
-        #"missing required fields: texture"
-        (build!
-          (sprite-build-target {:default-animation "required"
-                                :textures [{:sampler "required"
-                                            ;; texture is a required resource
-                                            :texture nil}]})
-          {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")})))
-    (testing "(empty string value)"
-      (test-util/check-thrown-with-root-cause-msg!
-        #"missing required fields: texture"
-        (build!
-          (sprite-build-target {:default-animation "required"
-                                :textures [{:sampler "required"
-                                            ;; texture is a required resource
-                                            :texture ""}]})
-          {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")})))
-    (testing "(missing key)"
-      (test-util/check-thrown-with-root-cause-msg!
-        #"missing required fields: texture"
-        (build!
-          (sprite-build-target {:default-animation "required"
-                                ;; texture is a required resource
-                                :textures [{:sampler "required"}]})
-          {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")})))))
+  (ts/with-clean-system
+    (let [workspace (test-util/setup-workspace! project-path)]
+      (testing "missing required dep"
+        (is (thrown-with-msg?
+              Exception #"missing a referenced source-resource"
+              (build!
+                (sprite-build-target workspace {:default-animation "required"})
+                ;; deps should include "/builtins/materials/sprite.material" for the default material
+                {})))
+        (is (thrown-with-msg?
+              Exception #"missing a referenced source-resource"
+              (build!
+                (sprite-build-target workspace {:default-animation "required"
+                                                :textures [{:sampler "required"
+                                                            ;; deps should include "/foo.png"
+                                                            :texture "/foo.png"}]})
+                {(build-resource workspace "/builtins/materials/sprite.material") (build-resource workspace "/builtins/materials/sprite.material")}))))
+      (testing "Required resource is absent"
+        (testing "(nil value)"
+          (test-util/check-thrown-with-root-cause-msg!
+            #"missing required fields: texture"
+            (build!
+              (sprite-build-target workspace {:default-animation "required"
+                                              :textures [{:sampler "required"
+                                                          ;; texture is a required resource
+                                                          :texture nil}]})
+              {(build-resource workspace "/builtins/materials/sprite.material") (build-resource workspace "/builtins/materials/sprite.material")})))
+        (testing "(empty string value)"
+          (test-util/check-thrown-with-root-cause-msg!
+            #"missing required fields: texture"
+            (build!
+              (sprite-build-target workspace {:default-animation "required"
+                                              :textures [{:sampler "required"
+                                                          ;; texture is a required resource
+                                                          :texture ""}]})
+              {(build-resource workspace "/builtins/materials/sprite.material") (build-resource workspace "/builtins/materials/sprite.material")})))
+        (testing "(missing key)"
+          (test-util/check-thrown-with-root-cause-msg!
+            #"missing required fields: texture"
+            (build!
+              (sprite-build-target workspace {:default-animation "required"
+                                              ;; texture is a required resource
+                                              :textures [{:sampler "required"}]})
+              {(build-resource workspace "/builtins/materials/sprite.material") (build-resource workspace "/builtins/materials/sprite.material")})))))))

@@ -1,8 +1,8 @@
 # External
 
-`./scripts/build.py build_ext` builds source dependencies
-with the regular Defold CMake toolchain and installs them into
-`tmp/dynamo_home/ext`. Run it after `install_ext`, before the first engine
+`./scripts/build.py install_ext` installs prepackaged dependencies, then builds
+source dependencies with the regular Defold CMake toolchain and installs them into
+`tmp/dynamo_home/ext`. Run it with the platform SDK set up, before the first engine
 build, and whenever these sources or the toolchain change. Use `--platform`
 for cross-compilation; this builds dependencies for the host tools first,
 then for the target platform. Repeated calls reuse each platform's CMake
@@ -11,6 +11,29 @@ build directory.
 
 The other external libraries are distributed as packages. Rebuild those with
 `build_external`, which writes archives under `defold/packages`.
+
+From the repository root, with the platform SDK set up:
+
+```sh
+./scripts/build.py shell
+./scripts/build.py build_external --package=opus --platform=arm64-macos
+./scripts/build.py install_ext --platform=arm64-macos
+```
+
+The package builds use CMake. The migrated packages retain their existing names
+and installation layout:
+
+| Package selector | Archive prefix | Contents |
+| --- | --- | --- |
+| `glfw` | `glfw-2.7.1` | Platform archive with headers, native libraries, and Android Java or web JavaScript support files. |
+| `opus` | `opus-1.5.2` | Decoder library in the platform archive; headers in the common archive. |
+| `harfbuzz` | `harfbuzz-13.2.1` | Library in the platform archive; headers and Defold's configuration override in the common archive. |
+| `sheenbidi` | `SheenBidi-2.9.0` | Unity-built library in the platform archive; headers in the common archive. |
+| `libunibreak` | `libunibreak-6.1` | Library in the platform archive; headers in the common archive. |
+
+Box2D also produces separate common and platform archives, with both SIMD and
+non-SIMD libraries in the platform archive. `external/rebuild.sh` uses the same
+`build_external` command.
 
 Dawn is a desktop package built by `build_external`, with its revision pinned in
 `external/dawn/CMakeLists.txt`. The first build downloads its sources and
@@ -40,7 +63,7 @@ the commands below also work before the first `install_ext`.
 
 The **Build Dawn** GitHub Actions workflow builds all four
 platforms and uploads the package archives as artifacts, retained for seven days.
-It uses `build_external --package=dawn`; `build_ext` does not build Dawn.
+It uses `build_external --package=dawn`.
 Pushes to `webgpu-dawn-support` build and commit the packages back to the branch
 after all four platforms succeed. Manual dispatch is also supported once the
 workflow exists on the repository's default branch. Manual runs commit packages
@@ -71,7 +94,7 @@ before running `install_ext`.
 All Dawn packages strip debug information while preserving the
 symbols needed for linking; the libraries in the build directories retain their
 debug information. Repeated package builds reuse downloaded sources and compiled
-objects. `build_ext` does not configure or build Dawn.
+objects.
 
 To build the engine with Dawn on macOS, run this in the same build shell:
 
