@@ -475,10 +475,72 @@ namespace dmGraphics
             return false;
         }
 
-        vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
+        VkCommandBuffer command_buffer = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
+        vkCmdEndRenderPass(command_buffer);
         current_rt->m_IsBound = 0;
         context->m_RenderTargetBound = 0;
         return true;
+    }
+
+    static void SuspendRenderPass(VulkanContext* context)
+    {
+        if (EndRenderPass(context))
+        {
+            VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+            rt->m_ResumePass = 1;
+        }
+    }
+
+    static void PrepareStorageBufferAccess(VulkanContext* context, VkCommandBuffer command_buffer,
+        DeviceBuffer* buffer, VkAccessFlags access, VkPipelineStageFlags stages)
+    {
+        const VkAccessFlags writes = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        if (buffer->m_StorageAccess && ((buffer->m_StorageAccess | access) & writes))
+        {
+            SuspendRenderPass(context);
+            VkBufferMemoryBarrier barrier = {};
+            barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+            barrier.srcAccessMask = buffer->m_StorageAccess;
+            barrier.dstAccessMask = access;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.buffer = buffer->m_Handle.m_Buffer;
+            barrier.size = VK_WHOLE_SIZE;
+            // The execution dependency also orders earlier reads before a write.
+            vkCmdPipelineBarrier(command_buffer, buffer->m_StorageStages, stages, 0, 0, 0, 1, &barrier, 0, 0);
+            buffer->m_StorageAccess = 0;
+            buffer->m_StorageStages = 0;
+        }
+        buffer->m_StorageAccess |= access;
+        buffer->m_StorageStages |= stages;
+    }
+
+    static void PrepareProgramStorageBuffers(VulkanContext* context, VkCommandBuffer command_buffer, VkPipelineStageFlags stages)
+    {
+        const dmArray<ShaderResourceBinding>& resources = context->m_CurrentProgram->m_BaseProgram.m_ShaderMeta.m_StorageBuffers;
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            const ShaderResourceBinding& resource = resources[i];
+            DeviceBuffer* buffer = (DeviceBuffer*) context->m_CurrentStorageBuffers[resource.m_Set][resource.m_Binding].m_Buffer;
+            if (!buffer) continue;
+            bool seen = false;
+            uint8_t access = 0;
+            // Merge aliases before tracking this command, so a read binding
+            // cannot hide a simultaneous write through another binding.
+            for (uint32_t j = 0; j < resources.Size(); ++j)
+            {
+                const ShaderResourceBinding& alias = resources[j];
+                if (context->m_CurrentStorageBuffers[alias.m_Set][alias.m_Binding].m_Buffer == (HStorageBuffer) buffer)
+                {
+                    seen |= j < i;
+                    access |= alias.m_AccessFlags ? alias.m_AccessFlags : SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+                }
+            }
+            if (!seen)
+                PrepareStorageBufferAccess(context, command_buffer, buffer,
+                    ((access & SHADER_RESOURCE_ACCESS_READ) ? VK_ACCESS_SHADER_READ_BIT : 0) |
+                    ((access & SHADER_RESOURCE_ACCESS_WRITE) ? VK_ACCESS_SHADER_WRITE_BIT : 0), stages);
+        }
     }
 
     static void BeginRenderPass(VulkanContext* context, HRenderTarget render_target)
@@ -549,10 +611,12 @@ namespace dmGraphics
         {
             vk_render_pass = rt->m_Handle.m_RenderPassClear;
         }
-        else if (is_main_rt && context->m_MainRTBegunThisFrame)
+        else if (rt->m_ResumePass || (is_main_rt && context->m_MainRTBegunThisFrame))
         {
-            vk_render_pass = context->m_MainRenderPassLoad;
+            vk_render_pass = is_main_rt ? context->m_MainRenderPassLoad : rt->m_Handle.m_RenderPassLoad;
         }
+        const bool resumed = rt->m_ResumePass;
+        rt->m_ResumePass = 0;
         rt->m_HasPendingClearColor = 0;
         rt->m_HasPendingClearDepth = 0;
 
@@ -573,9 +637,12 @@ namespace dmGraphics
 
         brt->m_IsBound         = 1;
         rt->m_SubPassIndex     = 0;
-        rt->m_Scissor.extent   = rt->m_Extent;
-        rt->m_Scissor.offset.x = 0;
-        rt->m_Scissor.offset.y = 0;
+        if (!resumed)
+        {
+            rt->m_Scissor.extent   = rt->m_Extent;
+            rt->m_Scissor.offset.x = 0;
+            rt->m_Scissor.offset.y = 0;
+        }
 
         if (is_main_rt)
         {
@@ -852,8 +919,8 @@ namespace dmGraphics
         attachments[0].m_ImageLayoutInitial = attachments[0].m_ImageLayout;
         attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
 
-        // Depth contents are not preserved between begins.
-        attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[1].m_ImageLayoutInitial = attachments[1].m_ImageLayout;
 
         if (context->m_SwapChain->HasMultiSampling())
         {
@@ -1467,6 +1534,7 @@ namespace dmGraphics
 
         limits.m_MaxSamplersPerStage            = vk_limits.maxPerStageDescriptorSamplers;
         limits.m_MaxTexturesPerStage            = vk_limits.maxPerStageDescriptorSampledImages;
+        limits.m_MaxStorageBuffersPerStage      = vk_limits.maxPerStageDescriptorStorageBuffers;
         limits.m_MaxVertexAttributes            = vk_limits.maxVertexInputAttributes;
         limits.m_MaxVertexBuffers               = vk_limits.maxVertexInputBindings;
 
@@ -1836,8 +1904,10 @@ bail:
         // Set framebuffer for the acquired swap chain image
         VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[context->m_SwapChain->m_ImageIndex];
+        rt->m_ResumePass = 0; // A newly acquired image is a new activation.
 
         context->m_FrameBegun            = 1;
+        context->m_ImageAvailableConsumed = 0;
         context->m_MainRTBegunThisFrame  = 0;
         context->m_CurrentPipeline       = 0;
         context->m_PolygonOffsetChanged  = 1;
@@ -1914,7 +1984,7 @@ bail:
         VkPipelineStageFlags waitStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         VkSubmitInfo submitInfo = {};
         submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.waitSemaphoreCount   = 1;
+        submitInfo.waitSemaphoreCount   = context->m_ImageAvailableConsumed ? 0 : 1;
         submitInfo.pWaitSemaphores      = &currentFrame.m_ImageAvailable;
         submitInfo.pWaitDstStageMask    = &waitStages;
         submitInfo.commandBufferCount   = 1;
@@ -2368,6 +2438,94 @@ bail:
         }
 
         delete ubo;
+    }
+
+    static HStorageBuffer VulkanNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        if (data)
+            DeviceBufferUploadHelper(context, data, size, 0, buffer);
+        else
+        {
+            VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, buffer);
+            CHECK_VK_ERROR(result);
+        }
+        return (HStorageBuffer) buffer;
+    }
+
+    static void VulkanDisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+                if (context->m_CurrentStorageBuffers[set][binding].m_Buffer == storage_buffer)
+                    context->m_CurrentStorageBuffers[set][binding] = StorageBufferBinding();
+    }
+
+    static void VulkanDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
+        VulkanDisableStorageBuffer(_context, storage_buffer);
+        if (!buffer->m_Destroyed)
+            DestroyResourceDeferred(context, buffer);
+        delete buffer;
+    }
+
+    static void VulkanSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
+        SetDeviceBuffer(context, buffer, size, 0, data);
+        buffer->m_StorageAccess = 0;
+        buffer->m_StorageStages = 0;
+    }
+
+    static void VulkanSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_Base.m_Size);
+        DeviceBuffer staging(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+        DeviceBufferUploadHelper(context, data, size, 0, &staging);
+        SuspendRenderPass(context);
+        VkCommandBuffer command_buffer = context->m_FrameBegun ? context->m_MainCommandBuffers[context->m_CurrentFrameInFlight] :
+            BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
+        PrepareStorageBufferAccess(context, command_buffer, buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        VkBufferCopy copy = {0, offset, size};
+        vkCmdCopyBuffer(command_buffer, staging.m_Handle.m_Buffer, buffer->m_Handle.m_Buffer, 1, &copy);
+        TouchResource(context, buffer);
+        if (context->m_FrameBegun)
+        {
+            TouchResource(context, &staging);
+            DestroyResourceDeferred(context, &staging);
+        }
+        else
+        {
+            VkFence fence;
+            VkResult result = SubmitCommandBuffer(&context->m_LogicalDevice, command_buffer, &fence);
+            CHECK_VK_ERROR(result);
+            result = vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
+            CHECK_VK_ERROR(result);
+            vkDestroyFence(context->m_LogicalDevice.m_Device, fence, 0);
+            vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, 1, &command_buffer);
+            DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &staging.m_Handle);
+        }
+    }
+
+    static uint32_t VulkanGetStorageBufferSize(HContext _context, HStorageBuffer storage_buffer)
+    {
+        return ((DeviceBuffer*) storage_buffer)->m_Base.m_Size;
+    }
+
+    static void VulkanEnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        VulkanContext* context = (VulkanContext*) _context;
+        context->m_CurrentStorageBuffers[set][binding].m_Buffer = storage_buffer;
+        context->m_CurrentStorageBuffers[set][binding].m_BufferOffset = 0;
     }
 
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2836,9 +2994,10 @@ bail:
                     break;
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
 
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
+                    assert(ssbo_buffer && "A reflected storage buffer must be bound before drawing or dispatching");
                     TouchResource(context, ssbo_buffer);
                     UpdateUniformBufferDescriptor(context,
                         ssbo_buffer->m_Handle.m_Buffer,
@@ -2969,7 +3128,7 @@ bail:
 
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
                     VkBuffer vk_buffer = ssbo_buffer ? ssbo_buffer->m_Handle.m_Buffer : VK_NULL_HANDLE;
                     dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));
@@ -3129,6 +3288,7 @@ bail:
 
     static bool DrawSetupCompute(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer)
     {
+        PrepareProgramStorageBuffers(context, vk_command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
         VkDevice vk_device   = context->m_LogicalDevice.m_Device;
         VulkanProgram* program_ptr = context->m_CurrentProgram;
         assert(program_ptr->m_ComputeModule);
@@ -3151,6 +3311,7 @@ bail:
 
     static bool DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
+        PrepareProgramStorageBuffers(context, vk_command_buffer, STORAGE_BUFFER_GRAPHICS_STAGES);
         VulkanRenderTarget* current_rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
@@ -3341,7 +3502,7 @@ bail:
         // Perhaps it would work if we could run it in a separate command buffer or a dedicated compute queue?
         if (IsRenderTargetbound(context, context->m_CurrentRenderTarget))
         {
-            EndRenderPass(context);
+            SuspendRenderPass(context);
         }
 
         const uint8_t ix = context->m_CurrentFrameInFlight;
@@ -3736,7 +3897,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         VulkanProgram* program = new VulkanProgram;
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
 
         if (ddf_cp)
         {
@@ -3773,7 +3934,7 @@ bail:
                 return false;
 
             DestroyProgram(_context, program);
-            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
             CreateComputeProgram(context, program, program->m_ComputeModule);
         }
         else
@@ -3784,7 +3945,7 @@ bail:
                 return false;
 
             DestroyProgram(_context, program);
-            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
             CreateGraphicsProgram(context, program, program->m_VertexModule, program->m_FragmentModule);
         }
 
@@ -4164,18 +4325,6 @@ bail:
         };
     }
 
-    static inline VkAttachmentStoreOp VulkanStoreOp(AttachmentOp op)
-    {
-        switch(op)
-        {
-            case ATTACHMENT_OP_STORE:     return VK_ATTACHMENT_STORE_OP_STORE;
-            case ATTACHMENT_OP_DONT_CARE: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            default:break;
-        }
-        assert(0);
-        return (VkAttachmentStoreOp) -1;
-    }
-
     static inline VkAttachmentLoadOp VulkanLoadOp(AttachmentOp op)
     {
         switch(op)
@@ -4233,7 +4382,9 @@ bail:
             rp_attachment_color->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
             rp_attachment_color->m_Format             = color_texture_ptr->m_Format;
             rp_attachment_color->m_LoadOp             = VulkanLoadOp(rtOut->m_ColorBufferLoadOps[color_buffer_index]);
-            rp_attachment_color->m_StoreOp            = VulkanStoreOp(rtOut->m_ColorBufferStoreOps[color_buffer_index]);
+            // A logical activation may be split by SSBO dependencies/uploads.
+            // Keep its contents until the next explicit activation's load op.
+            rp_attachment_color->m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
 
             if (rp_attachment_color->m_LoadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
             {
@@ -4334,6 +4485,20 @@ bail:
             }
         }
 
+        for (uint32_t i = 0; i < num_color_textures; ++i)
+        {
+            rp_attachments[i].m_LoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            rp_attachments[i].m_ImageLayoutInitial = rp_attachments[i].m_ImageLayout;
+        }
+        if (rp_attachment_depth_stencil)
+        {
+            rp_attachment_depth_stencil->m_LoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            rp_attachment_depth_stencil->m_ImageLayoutInitial = rp_attachment_depth_stencil->m_ImageLayout;
+        }
+        res = CreateRenderPass(context->m_LogicalDevice.m_Device, vk_sample_count, rp_attachments, num_color_textures,
+            rp_attachment_depth_stencil, has_msaa ? rp_resolve_attachments : 0, &rtOut->m_Handle.m_RenderPassLoad);
+        if (res != VK_SUCCESS) return res;
+
         const bool is_cube_map = rtOut->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP;
         if (is_cube_map)
         {
@@ -4402,6 +4567,8 @@ bail:
         renderTarget->m_Handle.m_RenderPass                = VK_NULL_HANDLE;
         renderTarget->m_Handle.m_RenderPassClear           = VK_NULL_HANDLE;
         renderTarget->m_Handle.m_RenderPassClearColorDepth = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_RenderPassLoad            = VK_NULL_HANDLE;
+        renderTarget->m_ResumePass                        = 0;
         memset(renderTarget->m_Handle.m_CubeMapFramebuffers, 0, sizeof(renderTarget->m_Handle.m_CubeMapFramebuffers));
         memset(renderTarget->m_Handle.m_CubeMapAttachmentViews, 0, sizeof(renderTarget->m_Handle.m_CubeMapAttachmentViews));
         renderTarget->m_HasPendingClearColor               = 0;
@@ -4416,7 +4583,9 @@ bail:
         if (hint_bits & usage_hint) vk_flags |= vk_enum;
 
         APPEND_IF_SET(TEXTURE_USAGE_FLAG_SAMPLE,     VK_IMAGE_USAGE_SAMPLED_BIT);
-        APPEND_IF_SET(TEXTURE_USAGE_FLAG_MEMORYLESS, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
+        // SSBO synchronization can split any logical target activation. Back
+        // attachments with persistent memory so their STORE/LOAD operations also
+        // work on tile GPUs where transient images use memoryless storage.
         APPEND_IF_SET(TEXTURE_USAGE_FLAG_INPUT,      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
         APPEND_IF_SET(TEXTURE_USAGE_FLAG_COLOR,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
         APPEND_IF_SET(TEXTURE_USAGE_FLAG_STORAGE,    VK_IMAGE_USAGE_STORAGE_BIT);
@@ -4677,6 +4846,7 @@ bail:
         }
 
         context->m_CurrentRenderTarget = new_rt;
+        rt->m_ResumePass              = 0;
         rt->m_Base.m_CubeMapFace       = params.m_CubeMapFace;
         context->m_ViewportChanged     = 1;
     }
@@ -5660,6 +5830,16 @@ bail:
 
         assert (buffer_size >= width * height * 4);
 
+        // The swapchain image belongs to the application only between acquire
+        // and present. Readback must include the draws recorded in this frame.
+        if (!context->m_FrameBegun)
+        {
+            dmLogError("VulkanReadPixels requires an active frame before Flip.");
+            return;
+        }
+
+        FlushPendingRenderTargetClear(context, context->m_CurrentRenderTarget);
+
         HRenderTarget currentt_rt_h = context->m_CurrentRenderTarget;
         bool in_render_pass = IsRenderTargetbound(context, currentt_rt_h);
 
@@ -5668,30 +5848,43 @@ bail:
         // this is as good as it gets currently.
         if (in_render_pass)
         {
-            EndRenderPass(context);
+            SuspendRenderPass(context);
         }
 
         // Create a temporary stage buffer that we can map to
-        DeviceBuffer stage_buffer(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+        DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT);
         VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device, buffer_size,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
         CHECK_VK_ERROR(res);
 
-        // Keep the readback in a single temporary command buffer so the swapchain image is restored
-        // to its presentable layout before any later main render pass rebind or final present.
-
-        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
+        // Record the copy after pending draws, then submit and wait before
+        // mapping. A separate copy submission would execute before those draws.
+        VkDevice vk_device = context->m_LogicalDevice.m_Device;
+        FrameResource& frame = context->m_FrameResources[context->m_CurrentFrameInFlight];
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
 
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
 
-        TransitionImageLayoutWithCmdBuffer(
-            vk_command_buffer,
-            tex_sc,
-            VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            0,
-            1);
+        // Render-pass final layouts are implicit and aren't tracked by the
+        // texture helper. Preserve the rendered contents and make color writes
+        // visible to the copy instead of transitioning from UNDEFINED.
+        VkImageMemoryBarrier image_barrier = {};
+        image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        image_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        image_barrier.oldLayout = context->m_MainRTBegunThisFrame ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : tex_sc->m_ImageLayout[0];
+        image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        image_barrier.image = tex_sc->m_Handle.m_Image;
+        image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        image_barrier.subresourceRange.levelCount = 1;
+        image_barrier.subresourceRange.layerCount = 1;
+        vkCmdPipelineBarrier(vk_command_buffer,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0, 0, 0, 0, 0, 1, &image_barrier);
+        tex_sc->m_ImageLayout[0] = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
         VkBufferImageCopy vk_copy_region = {};
         vk_copy_region.imageOffset.x               = x;
@@ -5712,6 +5905,13 @@ bail:
             stage_buffer.m_Handle.m_Buffer,
             1, &vk_copy_region);
 
+        VkMemoryBarrier host_barrier = {};
+        host_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        host_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        host_barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+        vkCmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+            0, 1, &host_barrier, 0, 0, 0, 0);
+
         TransitionImageLayoutWithCmdBuffer(
             vk_command_buffer,
             tex_sc,
@@ -5720,22 +5920,52 @@ bail:
             0,
             1);
 
-        VkFence fence;
-        res = SubmitCommandBuffer(&context->m_LogicalDevice, vk_command_buffer, &fence);
+        res = vkEndCommandBuffer(vk_command_buffer);
+        CHECK_VK_ERROR(res);
+        VkFenceCreateInfo fence_info = {};
+        fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        VkFence fence = VK_NULL_HANDLE;
+        res = vkCreateFence(vk_device, &fence_info, 0, &fence);
         CHECK_VK_ERROR(res);
 
+        VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        VkSubmitInfo submit_info = {};
+        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.waitSemaphoreCount = context->m_ImageAvailableConsumed ? 0 : 1;
+        submit_info.pWaitSemaphores = &frame.m_ImageAvailable;
+        submit_info.pWaitDstStageMask = &wait_stage;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &vk_command_buffer;
+        res = QueueSubmit(&context->m_LogicalDevice, 1, &submit_info, fence);
+        CHECK_VK_ERROR(res);
+        context->m_ImageAvailableConsumed = 1;
+
         // Wait for the copy command to finish
-        vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
-        vkDestroyFence(context->m_LogicalDevice.m_Device, fence, NULL);
+        res = vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
+        CHECK_VK_ERROR(res);
+        vkDestroyFence(vk_device, fence, NULL);
 
         res = stage_buffer.MapMemory(context->m_LogicalDevice.m_Device);
         CHECK_VK_ERROR(res);
 
-        memcpy(buffer, stage_buffer.m_MappedDataPtr, stage_buffer.m_Base.m_Size);
+        memcpy(buffer, stage_buffer.m_MappedDataPtr, width * height * 4);
 
         stage_buffer.UnmapMemory(context->m_LogicalDevice.m_Device);
 
         DestroyResourceDeferred(context, &stage_buffer);
+
+        // Continue the frame with a fresh command buffer. Flip must not wait on
+        // the acquire semaphore again, and dynamic state needs to be rebound.
+        res = vkResetCommandBuffer(vk_command_buffer, 0);
+        CHECK_VK_ERROR(res);
+        VkCommandBufferBeginInfo begin_info = {};
+        begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+        res = vkBeginCommandBuffer(vk_command_buffer, &begin_info);
+        CHECK_VK_ERROR(res);
+        context->m_CurrentPipeline = 0;
+        context->m_ViewportChanged = 1;
+        context->m_PolygonOffsetChanged = 1;
 
         if (in_render_pass)
         {

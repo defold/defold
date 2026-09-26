@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 import com.dynamo.bob.Bob;
@@ -305,12 +307,12 @@ public class ShaderCompilePipeline {
         return null;
     }
 
-    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
+    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) throws CompileExceptionError {
         return generateCrossCompiledShader(shaderType, shaderLanguage, versionOut, null);
     }
 
 // TODO: Try to remove the very language specific rootSignatureOverride
-    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut, String rootSignatureOverride) {
+    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut, String rootSignatureOverride) throws CompileExceptionError {
 
         long compiler = 0;
 
@@ -327,6 +329,34 @@ public class ShaderCompilePipeline {
         }
 
         Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430 ||
+            shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ||
+            shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300) {
+            // GL/ES has one SSBO binding namespace. Rank unique descriptor pairs
+            // across all stages, matching GetStorageBufferBindingIndex in the
+            // runtime. Leave reflection and non-GL shader decorations intact.
+            TreeSet<Long> storageBindings = new TreeSet<>();
+            for (ShaderModule stage : shaderModules) {
+                for (Shaderc.ShaderResource resource : stage.spirvReflector.getSsbos()) {
+                    storageBindings.add(((long) resource.set << 32) | Integer.toUnsignedLong(resource.binding));
+                }
+            }
+            for (ShaderModule stage : shaderModules) {
+                // Shared resources are removed from the fragment reflection
+                // during reconciliation, but still occur in its SPIR-V module.
+                for (Shaderc.ShaderResource resource : stage.spirvReflector.getSsbos()) {
+                    long key = ((long) resource.set << 32) | Integer.toUnsignedLong(resource.binding);
+                    int binding = storageBindings.headSet(key).size();
+                    if (binding > 255) {
+                        ShadercJni.DeleteShaderCompiler(compiler);
+                        throw new CompileExceptionError("Too many shader storage buffer bindings for GLSL");
+                    }
+                    ShadercJni.SetResourceBinding(module.spirvContext, compiler, resource.nameHash, binding);
+                }
+            }
+            if (!storageBindings.isEmpty())
+                versionOut = Math.max(versionOut, shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 310 : 430);
+        }
         opts.version                       = versionOut;
         opts.entryPoint                    = "main";
         opts.removeUnusedVariables         = 1;
@@ -420,7 +450,8 @@ public class ShaderCompilePipeline {
         }
 
         if (vertexModule != null && fragmentModule != null) {
-            ArrayList<Long> mergedResources = new ArrayList<>();
+            validateStorageBufferAccessModes(vertexModule, fragmentModule);
+            HashMap<Long, Integer> mergedResources = new HashMap<>();
             long compilerVs = 0;
             long compilerFs = 0;
             if (this.options != null && this.options.remapVertexFragmentIOForHLSL) {
@@ -443,15 +474,16 @@ public class ShaderCompilePipeline {
                     recompileSpirvModule(fragmentModule, compilerFs);
                 }
 
-                // Stage flags are reflection metadata, not SPIR-V decorations. Re-apply after context regeneration.
-                int mergedStageFlags = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
-                for (Long mergedResource : mergedResources) {
-                    ShadercJni.SetResourceStageFlags(vertexModule.spirvContext, mergedResource, mergedStageFlags);
+                // Stage and access flags are reflection metadata, not SPIR-V decorations. Re-apply after context regeneration.
+                int mergedStageFlags = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() | Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+                for (Map.Entry<Long, Integer> mergedResource : mergedResources.entrySet()) {
+                    ShadercJni.SetResourceStageFlags(vertexModule.spirvContext, mergedResource.getKey(), mergedStageFlags);
+                    ShadercJni.SetResourceAccessFlags(vertexModule.spirvContext, mergedResource.getKey(), mergedResource.getValue());
                 }
                 if (!mergedResources.isEmpty()) {
                     vertexModule.spirvReflector = new SPIRVReflector(vertexModule.spirvContext, vertexModule.desc.type);
                 }
-                for (Long mergedResource : mergedResources) {
+                for (Long mergedResource : mergedResources.keySet()) {
                     fragmentModule.spirvReflector.removeResourceByNameHash(mergedResource);
                 }
             }
@@ -538,6 +570,28 @@ public class ShaderCompilePipeline {
         }
     }
 
+    private void validateStorageBufferAccessModes(ShaderModule vertexModule, ShaderModule fragmentModule) throws CompileExceptionError {
+        for (Shaderc.ShaderResource vertexSsbo : vertexModule.spirvReflector.getSsbos()) {
+            for (Shaderc.ShaderResource fragmentSsbo : fragmentModule.spirvReflector.getSsbos()) {
+                boolean sameBinding = vertexSsbo.set == fragmentSsbo.set && vertexSsbo.binding == fragmentSsbo.binding;
+                boolean sameResource = vertexSsbo.name.equals(fragmentSsbo.name) &&
+                        SPIRVReflector.AreResourceTypesEqual(vertexModule.spirvReflector, fragmentModule.spirvReflector, vertexSsbo, fragmentSsbo);
+                if (!sameBinding && !sameResource) {
+                    continue;
+                }
+
+                int vertexAccess = Byte.toUnsignedInt(vertexSsbo.accessFlags);
+                int fragmentAccess = Byte.toUnsignedInt(fragmentSsbo.accessFlags);
+                if (vertexAccess != fragmentAccess) {
+                    throw new CompileExceptionError(String.format(
+                            "Storage buffer access mismatch for '%s': vertex access flags 0x%x in '%s', fragment access flags 0x%x in '%s'",
+                            vertexSsbo.name, vertexAccess, vertexModule.desc.resourcePath,
+                            fragmentAccess, fragmentModule.desc.resourcePath));
+                }
+            }
+        }
+    }
+
     private void recompileSpirvModule(ShaderModule module, long compiler) throws IOException, CompileExceptionError {
         Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
         opts.entryPoint = "main";
@@ -564,9 +618,9 @@ public class ShaderCompilePipeline {
         module.spirvFile = remappedSpvFile;
     }
 
-    private long mergeResources(ShaderModule vertexModule, ShaderModule fragmentModule, long compiler, ArrayList<Long> mergedResources) throws CompileExceptionError {
+    private long mergeResources(ShaderModule vertexModule, ShaderModule fragmentModule, long compiler, HashMap<Long, Integer> mergedResources) throws CompileExceptionError {
         // Check the resources to see if we can merge resources from one stage to another
-        int mergedStageFlags = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+        int mergedStageFlags = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() | Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
 
         for (Shaderc.ShaderResource vsUbo : vertexModule.spirvReflector.getUBOs()) {
             for (Shaderc.ShaderResource fsUbo : fragmentModule.spirvReflector.getUBOs()) {
@@ -579,7 +633,7 @@ public class ShaderCompilePipeline {
                     ShadercJni.SetResourceSet(fragmentModule.spirvContext, compiler, vsUbo.nameHash, vsUbo.set);
                     ShadercJni.SetResourceStageFlags(vertexModule.spirvContext, vsUbo.nameHash, mergedStageFlags);
 
-                    mergedResources.add(vsUbo.nameHash);
+                    mergedResources.put(vsUbo.nameHash, Byte.toUnsignedInt(vsUbo.accessFlags) | Byte.toUnsignedInt(fsUbo.accessFlags));
                 }
             }
         }
@@ -595,7 +649,7 @@ public class ShaderCompilePipeline {
                     ShadercJni.SetResourceSet(fragmentModule.spirvContext, compiler, vsTexture.nameHash, vsTexture.set);
                     ShadercJni.SetResourceStageFlags(vertexModule.spirvContext, vsTexture.nameHash, mergedStageFlags);
 
-                    mergedResources.add(vsTexture.nameHash);
+                    mergedResources.put(vsTexture.nameHash, Byte.toUnsignedInt(vsTexture.accessFlags) | Byte.toUnsignedInt(fsTexture.accessFlags));
                 }
             }
         }
@@ -611,7 +665,7 @@ public class ShaderCompilePipeline {
                     ShadercJni.SetResourceSet(fragmentModule.spirvContext, compiler, vsSsbo.nameHash, vsSsbo.set);
                     ShadercJni.SetResourceStageFlags(vertexModule.spirvContext, vsSsbo.nameHash, mergedStageFlags);
 
-                    mergedResources.add(vsSsbo.nameHash);
+                    mergedResources.put(vsSsbo.nameHash, Byte.toUnsignedInt(vsSsbo.accessFlags) | Byte.toUnsignedInt(fsSsbo.accessFlags));
                 }
             }
         }

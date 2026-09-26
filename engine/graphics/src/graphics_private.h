@@ -140,7 +140,6 @@ namespace dmGraphics
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
     const static uint8_t MAX_SET_COUNT                 = 4;
-    const static uint8_t MAX_STORAGE_BUFFERS           = 4;
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t UNUSED_BINDING_OR_SET         = 0xFF;
 
@@ -186,6 +185,13 @@ namespace dmGraphics
         SHADER_STAGE_FLAG_COMPUTE  = 0x4,
     };
 
+    enum ShaderResourceAccess
+    {
+        SHADER_RESOURCE_ACCESS_NONE  = 0,
+        SHADER_RESOURCE_ACCESS_READ  = 1,
+        SHADER_RESOURCE_ACCESS_WRITE = 2,
+    };
+
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -220,6 +226,7 @@ namespace dmGraphics
         uint16_t                    m_Binding;
         uint16_t                    m_ElementCount;
         uint8_t                     m_StageFlags;
+        uint8_t                     m_AccessFlags;
     };
 
     struct ShaderMeta
@@ -230,6 +237,25 @@ namespace dmGraphics
         dmArray<ShaderResourceBinding>  m_Inputs;
         dmArray<ShaderResourceTypeInfo> m_TypeInfos;
     };
+
+    // GLSL has one SSBO binding namespace. Match the shader pipeline's dense,
+    // lexicographic (set, binding) mapping, including resources shared by stages.
+    inline uint32_t GetStorageBufferBindingIndex(const dmArray<ShaderResourceBinding>& resources, uint32_t index)
+    {
+        const ShaderResourceBinding& resource = resources[index];
+        uint32_t result = 0;
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            const ShaderResourceBinding& candidate = resources[i];
+            if (candidate.m_Set > resource.m_Set ||
+                (candidate.m_Set == resource.m_Set && candidate.m_Binding >= resource.m_Binding)) continue;
+            bool duplicate = false;
+            for (uint32_t j = 0; j < i; ++j)
+                duplicate |= resources[j].m_Set == candidate.m_Set && resources[j].m_Binding == candidate.m_Binding;
+            if (!duplicate) ++result;
+        }
+        return result;
+    }
 
     struct SetTextureAsyncParams
     {
@@ -345,6 +371,12 @@ namespace dmGraphics
         uint8_t             m_BoundSet;
     };
 
+    struct StorageBuffer
+    {
+        uint32_t    m_Size;
+        BufferUsage m_Usage;
+    };
+
     struct Program
     {
         ProgramResourceBinding       m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
@@ -353,6 +385,7 @@ namespace dmGraphics
         dmArray<UniformBufferLayout> m_UniformBufferLayouts;
         uint8_t                      m_MaxSet;
         uint8_t                      m_MaxBinding;
+        uint8_t                      m_WritesStorageBuffers;
     };
 
     struct ProgramResourceBindingIterator
@@ -419,7 +452,7 @@ namespace dmGraphics
     ShaderDesc::ShaderDataType GraphicsTypeToShaderDataType(Type graphics_type);
     bool                       GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp);
 
-    void                       CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
+    void                       CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, Program* program);
     void                       DestroyShaderMeta(ShaderMeta& meta);
     bool                       GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
     uint32_t                   CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
