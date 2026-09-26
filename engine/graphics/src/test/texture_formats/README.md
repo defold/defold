@@ -54,7 +54,7 @@ python3 engine/graphics/src/test/texture_formats/generate.py \
 ```
 
 The offline tool encodes BC/ETC/PVRTC from UASTC at level 2 without RDO, and
-ASTC at quality 60, using one thread. It independently CPU-decodes the resulting
+ASTC at quality 100 (exhaustive), using one thread. It independently CPU-decodes the resulting
 blocks into `../graphics_reference/texture_<format>.png`. These are format-specific
 references, so lossy compression is not mistaken for a backend rendering defect.
 Review changed source images, payloads and decoded references together.
@@ -67,6 +67,6 @@ unsupported on these Metal/Vulkan devices. The PVRTC4 cases exposed uploads that
 treated swizzled data as rows. Both RGB and RGBA now render with 100% reference
 likeness on Metal and MoltenVK using direct texture uploads. These cases also
 compare a fresh asynchronous upload against the synchronous render. MoltenVK
-requires host-image-copy support to advertise PVRTC formats. The fixtures, CPU
+requires host-image-copy support to advertise PVRTC formats. The PVRTC fixtures, CPU
 references and 99% threshold are unchanged. WebGPU, DX12 and mobile devices have
 not been validated.

@@ -115,7 +115,7 @@ int main(int argc, char** argv)
         astc.m_Data = pixels;
         astc.m_DataCount = sizeof(pixels);
         astc.m_NumThreads = 1;
-        astc.m_QualityLevel = 60.0f;
+        astc.m_QualityLevel = 100.0f;
         astc.m_OutPixelFormat = astc_formats[i].m_Format;
         uint8_t* data = 0;
         uint32_t data_size = 0;
