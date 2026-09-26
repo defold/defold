@@ -22,6 +22,8 @@
 #include <dlib/mutex.h>
 #include <dlib/transform.h>
 
+#include <dmsdk/gameobject/res_collection.h>
+
 #include "gameobject.h"
 #include "gameobject_props.h"
 #include "component.h"
@@ -85,15 +87,26 @@ namespace dmGameObject
         dmArray<void*> m_PropertyResources;
     };
 
-    // Invalid instance index. Implies that maximum number of instances is 65534 (i.e. 0xffff - 1)
-    const uint32_t INVALID_INSTANCE_INDEX = 0xffff;
+    // Invalid index for collection-local game object storage.
+    const uint32_t INVALID_INSTANCE_INDEX = 0xffffffff;
+
+    inline uint16_t WrapIncrementU16(uint16_t value)
+    {
+        value++;
+        return value == 0 ? 1 : value;
+    }
+
+    inline uint32_t WrapIncrementU32(uint32_t value)
+    {
+        value++;
+        return value == 0 ? 1 : value;
+    }
 
     // NOTE: Actual size of Instance is sizeof(Instance) + sizeof(uintptr_t) * m_UserDataCount
     struct Instance
     {
         Instance(Prototype* prototype)
         {
-            m_Collection = 0;
             m_Transform.SetIdentity();
             m_EulerRotation = Vector3(0.0f, 0.0f, 0.0f);
             m_PrevEulerRotation = Vector3(0.0f, 0.0f, 0.0f);
@@ -115,6 +128,7 @@ namespace dmGameObject
             m_NextToAdd = INVALID_INSTANCE_INDEX;
             m_ToBeDeleted = 0;
             m_ToBeAdded = 0;
+            m_InitSnapshot = 0;
         }
 
         ~Instance()
@@ -127,9 +141,6 @@ namespace dmGameObject
         Vector3 m_EulerRotation;
         // Previous euler rotation, used to detect if the euler rotation has changed and should overwrite the real rotation (needed by animation)
         Vector3 m_PrevEulerRotation;
-        // Collection this instances belongs to. Added for GetWorldPosition.
-        // We should consider to remove this (memory footprint)
-        struct Collection* m_Collection;
         Prototype*      m_Prototype;
 
         uint32_t        m_IdentifierIndex;
@@ -152,31 +163,33 @@ namespace dmGameObject
         uint16_t        m_ToBeDeleted : 1;
         // Used for deferred add-to-update
         uint16_t        m_ToBeAdded : 1;
+        // Marks instances that existed when collection initialization began
+        uint16_t        m_InitSnapshot : 1;
         // Padding
-        uint16_t        m_Pad : 3;
+        uint16_t        m_Pad : 2;
 
         // Index to parent
-        uint16_t        m_Parent : 16;
+        uint32_t        m_Parent;
 
         // Index to Collection::m_Instances
-        uint16_t        m_Index : 16;
+        uint32_t        m_Index;
 
         // Index to Collection::m_LevelIndex. Index is relative to current level (m_Depth), eg first object in level L always has level-index 0
         // Level-index is used to reorder Collection::m_LevelIndex entries in O(1). Given an instance we need to find where the
         // instance index is located in Collection::m_LevelIndex
-        uint16_t        m_LevelIndex : 16;
+        uint32_t        m_LevelIndex;
 
         // Index to next instance to delete or INVALID_INSTANCE_INDEX
-        uint16_t        m_NextToDelete : 16;
+        uint32_t        m_NextToDelete;
 
         // Index to next instance to add-to-update or INVALID_INSTANCE_INDEX
-        uint16_t        m_NextToAdd;
+        uint32_t        m_NextToAdd;
 
         // Next sibling index. Index to Collection::m_Instances
-        uint16_t        m_SiblingIndex : 16;
+        uint32_t        m_SiblingIndex;
 
         // First child index. Index to Collection::m_Instances
-        uint16_t        m_FirstChildIndex : 16;
+        uint32_t        m_FirstChildIndex;
 
         uint32_t        m_ComponentInstanceUserDataCount;
         uintptr_t       m_ComponentInstanceUserData[0];
@@ -187,6 +200,18 @@ namespace dmGameObject
 
     #define DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX (512)
 
+    struct Collection;
+
+    // Registry slots retain their generation counters when reused so stale
+    // collection and instance handles do not resolve to newly allocated objects.
+    struct CollectionRegistrySlot
+    {
+        Collection* m_Collection;          // Live collection, or 0 when the slot is free.
+        uint32_t    m_InstanceGeneration;  // Last issued instance generation. Retained when the slot is reused.
+        uint16_t    m_Generation;          // Generation of the current or most recent collection handle.
+        uint16_t    m_NextFree;            // Next slot in the free list, or INVALID_COLLECTION_INDEX.
+    };
+
     struct Register
     {
         uint32_t                    m_ComponentTypeCount;
@@ -196,6 +221,10 @@ namespace dmGameObject
 
         // All collections. Protected by m_Mutex
         dmArray<Collection*>        m_Collections;
+
+        // Generational collection handle registry. Protected by m_Mutex
+        dmArray<CollectionRegistrySlot> m_CollectionRegistry;
+        uint16_t                        m_FirstFreeCollection;
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
         uint32_t                    m_DefaultInputStackCapacity;
@@ -219,22 +248,22 @@ namespace dmGameObject
         // GameObject component register
         HRegister                m_Register;
 
-        struct CollectionHandle* m_HCollection;
+        HCollection              m_HCollection;
+
+        // Borrowed pointer to the owning .collectionc resource, if any.
+        CollectionResource*      m_CollectionResource;
 
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
 
-        // Maximum number of instances
-        uint32_t                 m_MaxInstances;
-
         // Array of instances. Zero values for free slots. Order must
         // always be preserved. Slots are allocated using index-pool
         // m_InstanceIndices below
-        // Size if always = max_instances (at least for now)
+        // Size is always max_instances.
         dmArray<Instance*>       m_Instances;
 
         // Index pool for mapping Instance::m_Index to m_Instances
-        dmIndexPool16            m_InstanceIndices;
+        dmIndexPool32            m_InstanceIndices;
 
         // Resources referenced through property overrides inside the collection
         dmArray<void*>           m_PropertyResources;
@@ -244,16 +273,16 @@ namespace dmGameObject
         // Two dimensional table of indices with stride "max_instances"
         // Level 0 contains root-nodes in [0..m_LevelIndices[0].Size()-1]
         // Level 1 contains level 1 indices in [0..m_LevelIndices[1].Size()-1]
-        dmArray<uint16_t>        m_LevelIndices[MAX_HIERARCHICAL_DEPTH];
+        dmArray<uint32_t>        m_LevelIndices[MAX_HIERARCHICAL_DEPTH];
 
         // Array of world transforms. Calculated using m_LevelIndices above
         dmArray<Matrix4>         m_WorldTransforms;
 
-        // Identifier to Instance mapping
-        dmHashTable64<Instance*> m_IDToInstance;
+        // Identifier to game-object handle mapping
+        dmHashTable64<HGameObject> m_IDToInstance;
 
         // Stack keeping track of which instance has the input focus
-        dmArray<Instance*>       m_InputFocusStack;
+        dmArray<HGameObject>     m_InputFocusStack;
 
         // Array of dynamically created resources (i.e runtime-only resources)
         dmArray<dmhash_t>        m_DynamicResources;
@@ -268,20 +297,18 @@ namespace dmGameObject
 
         dmMutex::HMutex          m_Mutex;
 
-        // Counter for generating instance generations, protected by m_Mutex
-        uint32_t                 m_GenInstanceCounter;
         uint32_t                 m_GenCollectionInstanceCounter;
         dmIndexPool32            m_InstanceIdPool;
 
         // Head of linked list of instances scheduled for deferred deletion
-        uint16_t                 m_InstancesToDeleteHead;
+        uint32_t                 m_InstancesToDeleteHead;
         // Tail of the same list, for O(1) appending
-        uint16_t                 m_InstancesToDeleteTail;
+        uint32_t                 m_InstancesToDeleteTail;
 
         // Head of linked list of instances scheduled to be added to update
-        uint16_t                 m_InstancesToAddHead;
+        uint32_t                 m_InstancesToAddHead;
         // Tail of the same list, for O(1) appending
-        uint16_t                 m_InstancesToAddTail;
+        uint32_t                 m_InstancesToAddTail;
 
         float                    m_FixedAccumTime;  // Accumulated time between fixed updates. Scaled time.
 
@@ -294,33 +321,58 @@ namespace dmGameObject
         uint32_t                 m_FirstUpdate : 1;
     };
 
-    struct CollectionHandle
-    {
-        Collection* m_Collection;
-    };
-
     // Used by res_collection.cpp
-    HInstance NewInstance(Collection* collection, Prototype* proto, const char* prototype_name);
-    HInstance GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier); // TODO: Mostly duplicate: replace with HCollection version
+    Instance* NewInstance(Collection* collection, Prototype* proto, const char* prototype_name);
+    Instance* GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier);
 
+    Collection* GetCollectionFromHandle(HCollection collection);
+    HGameObject GetInstanceHandle(Collection* collection, const Instance* instance);
+    Instance*   GetInstanceFromHandle(HGameObject hinstance, Collection** out_collection = 0);
+    Instance*   GetInstanceFromHandle(Collection* collection, HGameObject hinstance);
+    dmhash_t    GetAbsoluteIdentifier(Instance* instance, const char* identifier);
+
+    PropertyResult GetProperty(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
+    PropertyResult SetProperty(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value);
+    Result GetComponent(Collection* collection, Instance* instance, dmhash_t component_id, uint32_t* component_type, HComponent* out_component, HComponentWorld* out_world);
+
+    void SetPosition(Collection* collection, Instance* instance, Point3 position);
+    Point3 GetPosition(Instance* instance);
+    void SetRotation(Collection* collection, Instance* instance, Quat rotation);
+    Quat GetRotation(Instance* instance);
+    void SetScale(Collection* collection, Instance* instance, float scale);
+    void SetScale(Collection* collection, Instance* instance, Vector3 scale);
+    void SetScaleXY(Collection* collection, Instance* instance, float scale_x, float scale_y);
+    float GetUniformScale(Instance* instance);
+    Vector3 GetScale(Instance* instance);
+    Point3 GetWorldPosition(Collection* collection, Instance* instance);
+    Quat GetWorldRotation(Collection* collection, Instance* instance);
+    float GetWorldUniformScale(Collection* collection, Instance* instance);
+    Vector3 GetWorldScale(Collection* collection, Instance* instance);
+    dmTransform::Transform GetWorldTransform(Collection* collection, Instance* instance);
+    const Matrix4& GetWorldMatrix(Collection* collection, Instance* instance);
+    Instance* GetParent(Collection* collection, Instance* instance);
+    bool IsBone(Instance* instance);
+
+    void CancelAnimations(Collection* collection, HGameObject instance);
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
-    Result SetIdentifier(Collection* collection, HInstance instance, const char* identifier);
-    void ReleaseIdentifier(Collection* collection, HInstance instance);
-    void UndoNewInstance(Collection* collection, HInstance instance);
-    CreateResult CreateComponents(Collection* collection, HInstance instance);
-    void Delete(Collection* collection, HInstance instance, bool recursive);
+    Result SetIdentifier(Collection* collection, Instance* instance, const char* identifier);
+    void ReleaseIdentifier(Collection* collection, Instance* instance);
+    void UndoNewInstance(Collection* collection, Instance* instance);
+    CreateResult CreateComponents(Collection* collection, Instance* instance);
+    Result SetParent(Collection* collection, Instance* child, Instance* parent);
+    void Delete(Collection* collection, Instance* instance, bool recursive);
     void UpdateTransforms(Collection* collection);
     void UpdateTransformsForInstance(Collection* collection, Instance* instance);
     bool IsGameObjectTransformProperty(dmhash_t property_id);
     void DeleteCollection(Collection* collection);
     bool IsCollectionInitialized(Collection* collection);
-    Result AttachCollection(Collection* collection, const char* name, dmResource::HFactory factory, HRegister regist, HCollection hcollection);
-    void DetachCollection(Collection* collection);
+    Result AttachCollection(Collection* collection, const char* name);
+    void DetachCollection(Collection* collection, bool unregister_handle);
 
-    void* GetResource(HInstance instance);
+    void* GetResource(Instance* instance);
 
-    void AcquireInputFocus(Collection* collection, HInstance instance);
-    void ReleaseInputFocus(Collection* collection, HInstance instance);
+    void AcquireInputFocus(Collection* collection, Instance* instance);
+    void ReleaseInputFocus(Collection* collection, Instance* instance);
     UpdateResult DispatchInput(Collection* collection, InputAction* input_actions, uint32_t input_action_count);
 
     // Unit test functions

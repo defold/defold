@@ -486,10 +486,10 @@ TEST_F(MaterialComponentTest, TextureTransformVertexBuffer)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance sprite_go = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/sprite"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, sprite_go);
+    ASSERT_NE(0, sprite_go);
 
     dmGameObject::HInstance model_go = Spawn(m_Factory, m_Collection, "/model/texture_transform_model.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, model_go);
+    ASSERT_NE(0, model_go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -585,7 +585,7 @@ TEST_F(MaterialComponentTest, SpriteTextureTransformMultiAtlasVertexBuffer)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_multi.goc", dmHashString64("/sprite"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1169,7 +1169,7 @@ TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_animate.goc", dmHashString64("/attributes_go_animate"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     for (int i = 0; i < 10; ++i)
     {
@@ -1198,7 +1198,7 @@ TEST_F(MaterialTest, DynamicVertexAttributesWithUninitializedElementIds)
     bool finalized = dmGameObject::Final(m_Collection);
     dmResource::Release(m_Factory, material_res);
 
-    ASSERT_NE((void*) 0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(finalized);
 }
 #endif
@@ -1208,7 +1208,7 @@ TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_set_get_sparse.goc", dmHashString64("/attributes_dynamic_go_set_get_sparse"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1235,7 +1235,7 @@ TEST_F(MaterialTest, DynamicVertexAttributesCount)
         dmSnPrintf(name_buffer, sizeof(name_buffer), "/dynamic_attribute_instance_%d", i);
 
         dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_count.goc", dmHashString64(name_buffer), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-        ASSERT_NE((void*)0, go);
+        ASSERT_NE(0, go);
         instances[i] = go;
 
         ASSERT_EQ((i+1), dynamic_attribute_pool->Size());
@@ -1262,7 +1262,7 @@ TEST_F(MaterialTest, GoGetSetConstants)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/material.goc", dmHashString64("/material"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1272,7 +1272,7 @@ TEST_F(MiscTests, MaterialModule)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/material_compute_modules/material_module.goc", dmHashString64("/material_module"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1287,7 +1287,7 @@ TEST_F(MiscTests, ComputeModule)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/material_compute_modules/compute_module.goc", dmHashString64("/compute_module"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
@@ -1914,7 +1914,7 @@ TEST_F(ShaderTest, ComputeLightBufferAbsent)
 TEST_F(ModelTest, GetAABB)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1925,7 +1925,7 @@ TEST_F(ModelTest, GetAABB)
 TEST_F(ModelTest, PlayAnim)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_anim.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "play_anim_done", 5));
 
@@ -1935,7 +1935,7 @@ TEST_F(ModelTest, PlayAnim)
 TEST_F(ModelTest, PlayAnimMessage)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_anim_message.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "play_anim_message_done", 5));
 
@@ -1945,7 +1945,7 @@ TEST_F(ModelTest, PlayAnimMessage)
 TEST_F(ModelTest, PlayAnimMissingAnimation)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_anim_missing.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "play_anim_missing_done", 5));
 
@@ -1955,7 +1955,7 @@ TEST_F(ModelTest, PlayAnimMissingAnimation)
 TEST_F(ModelTest, BlendWeightsScript)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_blend_weights.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "blend_weights_script_done", 5));
 
@@ -1971,7 +1971,7 @@ TEST_F(ModelTest, MultiMaterialVertexSpaceRenderBatching)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/one_mesh_two_materials.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2001,8 +2001,8 @@ TEST_F(ModelTest, MorphTargetInstancedWeightsBatch)
 
     dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/model/morph_instanced_attr.goc", dmHashString64("/morph_a"), 0, Point3(-1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/model/morph_instanced_attr.goc", dmHashString64("/morph_b"), 0, Point3(1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
-    ASSERT_NE((void*)0, go_b);
+    ASSERT_NE(0, go_a);
+    ASSERT_NE(0, go_b);
 
     uint32_t component_type;
     dmGameObject::HComponent component_a;
@@ -2079,7 +2079,7 @@ TEST_F(ModelTest, InstancedRenderBufferUsesOneBackingPerDispatch)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/morph_instanced_attr.goc", dmHashString64("/model"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2127,8 +2127,8 @@ TEST_F(ModelTest, MorphTargetUniformWeightsSplitInstancedBatches)
 
     dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/model/morph_instanced_legacy.goc", dmHashString64("/morph_a"), 0, Point3(-1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/model/morph_instanced_legacy.goc", dmHashString64("/morph_b"), 0, Point3(1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
-    ASSERT_NE((void*)0, go_b);
+    ASSERT_NE(0, go_a);
+    ASSERT_NE(0, go_b);
 
     uint32_t component_type;
     dmGameObject::HComponent component_a;
@@ -2176,7 +2176,7 @@ TEST_F(ModelTest, MorphTargetInstancedWeightsClampedPerMesh)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/morph_mixed_targets_attr.goc", dmHashString64("/morph"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     uint32_t component_type;
     dmGameObject::HComponent component;
@@ -2240,7 +2240,7 @@ TEST_F(ModelTest, MorphTargetUniformWeightsClampedPerMesh)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/morph_mixed_targets_legacy.goc", dmHashString64("/morph"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     uint32_t component_type;
     dmGameObject::HComponent component;
@@ -2293,7 +2293,7 @@ TEST_F(ModelTest, MorphTargetUniformWeightsClampedPerMesh)
 TEST_F(ModelTest, DynamicVertexAttributes)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2380,7 +2380,7 @@ TEST_F(ModelTest, DynamicVertexAttributes)
 TEST_F(ModelTest, MeshAttributeRenderDataPurge)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     // First frame: update, post-update and render once to create attribute render data
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -2426,7 +2426,7 @@ TEST_F(ModelTest, MeshAttributeRenderDataPurge)
 TEST_F(ModelTest, PbrProperties)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/pbr_properties.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));

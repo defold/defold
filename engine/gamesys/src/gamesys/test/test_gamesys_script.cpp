@@ -31,7 +31,7 @@ TEST_F(BufferMetadataTest, MetadataLuaApi)
     const char* go_path = "/buffer/metadata.goc";
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     DeleteInstance(m_Collection, go);
 
@@ -99,7 +99,7 @@ TEST_P(ScriptComponentTest, GetComponentFromLua)
 
     // Create gameobject
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.m_GOPath, dmHashString64("/go"));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     EXPECT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "test_done"));
 
@@ -193,7 +193,7 @@ TEST_F(ScriptImageTest, TestImageBuffer)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/image/test_image_buffer.goc", dmHashString64("/test_image"));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     if (strlen(DM_HOSTFS) != 0)
     {
@@ -820,7 +820,7 @@ TEST_F(SysTest, LoadBufferSync)
     lua_setglobal(m_Scriptlibcontext.m_LuaState, "test_host_fs");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_sync.goc", dmHashString64("/load_buffer_sync"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -848,7 +848,7 @@ TEST_F(SysTest, LoadBufferASync)
     lua_setglobal(m_Scriptlibcontext.m_LuaState, "test_host_fs");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async.goc", dmHashString64("/load_buffer_async"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     // Test 1
     ASSERT_TRUE(RunTestLoadBufferASync(1, m_Scriptlibcontext, m_Collection, &m_UpdateContext, false));
@@ -885,7 +885,7 @@ TEST_F(SysTest, LoadBufferAsyncFromCoroutine)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async_from_coroutine.goc", dmHashString64("/load_buffer_async_from_coroutine"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done", 3));
 

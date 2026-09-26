@@ -31,7 +31,6 @@ namespace dmGameSystem
     struct B2DLuaJoint
     {
         b2JointId                 m_Joint;
-        dmGameObject::HCollection m_Collection;
     };
 
     static dmHashTable64<uint8_t> g_JointIds;
@@ -172,19 +171,18 @@ namespace dmGameSystem
         *collide_connected = GetBoolField(L, table_index, "collide_connected", *collide_connected);
     }
 
-    void PushJoint(lua_State* L, b2JointId joint_id, dmGameObject::HCollection collection)
+    void PushJoint(lua_State* L, b2JointId joint_id)
     {
         B2DLuaJoint* luajoint = (B2DLuaJoint*)lua_newuserdata(L, sizeof(B2DLuaJoint));
         luajoint->m_Joint = joint_id;
-        luajoint->m_Collection = collection;
         luaL_getmetatable(L, BOX2D_TYPE_NAME_JOINT);
         lua_setmetatable(L, -2);
     }
 
-    static void PushCreatedJoint(lua_State* L, b2JointId joint_id, dmGameObject::HCollection collection)
+    static void PushCreatedJoint(lua_State* L, b2JointId joint_id)
     {
         TrackJoint(joint_id);
-        PushJoint(L, joint_id, collection);
+        PushJoint(L, joint_id);
     }
 
     static B2DLuaJoint* CheckJointInternal(lua_State* L, int index)
@@ -275,20 +273,18 @@ namespace dmGameSystem
     static int Joint_GetBodyA(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DLuaJoint* luajoint = CheckJointInternal(L, 1);
         b2JointId joint = CheckJoint(L, 1);
         b2BodyId body = b2Joint_GetBodyA(joint);
-        PushBody(L, &body, luajoint->m_Collection, 0);
+        PushBody(L, &body, GetBodyInstance(body));
         return 1;
     }
 
     static int Joint_GetBodyB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DLuaJoint* luajoint = CheckJointInternal(L, 1);
         b2JointId joint = CheckJoint(L, 1);
         b2BodyId body = b2Joint_GetBodyB(joint);
-        PushBody(L, &body, luajoint->m_Collection, 0);
+        PushBody(L, &body, GetBodyInstance(body));
         return 1;
     }
 
@@ -978,7 +974,6 @@ namespace dmGameSystem
     static int Joint_CreateDistance(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1001,14 +996,13 @@ namespace dmGameSystem
         def.motorSpeed = GetNumberField(L, def_index, "motor_speed", def.motorSpeed) * GetPhysicsScale();
 
         b2JointId joint = b2CreateDistanceJoint(world, &def);
-        PushCreatedJoint(L, joint, collection);
+        PushCreatedJoint(L, joint);
         return 1;
     }
 
     static int Joint_CreateMouse(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1024,14 +1018,13 @@ namespace dmGameSystem
         def.maxForce = GetNumberField(L, def_index, "max_force", def.maxForce) * GetPhysicsScale();
         def.collideConnected = GetBoolField(L, def_index, "collide_connected", def.collideConnected);
 
-        PushCreatedJoint(L, b2CreateMouseJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateMouseJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreatePrismatic(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1054,14 +1047,13 @@ namespace dmGameSystem
         def.maxMotorForce = GetNumberField(L, def_index, "max_motor_force", def.maxMotorForce) * GetPhysicsScale();
         def.motorSpeed = GetNumberField(L, def_index, "motor_speed", def.motorSpeed) * GetPhysicsScale();
 
-        PushCreatedJoint(L, b2CreatePrismaticJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreatePrismaticJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreateRevolute(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1083,14 +1075,13 @@ namespace dmGameSystem
         def.maxMotorTorque = GetNumberField(L, def_index, "max_motor_torque", def.maxMotorTorque) * GetPhysicsScale();
         def.motorSpeed = GetNumberField(L, def_index, "motor_speed", def.motorSpeed);
 
-        PushCreatedJoint(L, b2CreateRevoluteJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateRevoluteJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreateWeld(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1109,14 +1100,13 @@ namespace dmGameSystem
         def.linearDampingRatio = GetNumberField(L, def_index, "linear_damping_ratio", damping);
         def.angularDampingRatio = GetNumberField(L, def_index, "angular_damping_ratio", damping);
 
-        PushCreatedJoint(L, b2CreateWeldJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateWeldJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreateWheel(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1138,14 +1128,13 @@ namespace dmGameSystem
         def.maxMotorTorque = GetNumberField(L, def_index, "max_motor_torque", def.maxMotorTorque) * GetPhysicsScale();
         def.motorSpeed = GetNumberField(L, def_index, "motor_speed", def.motorSpeed);
 
-        PushCreatedJoint(L, b2CreateWheelJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateWheelJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreateMotor(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1162,14 +1151,13 @@ namespace dmGameSystem
         def.correctionFactor = GetNumberField(L, def_index, "correction_factor", def.correctionFactor);
         def.collideConnected = GetBoolField(L, def_index, "collide_connected", def.collideConnected);
 
-        PushCreatedJoint(L, b2CreateMotorJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateMotorJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreateFilter(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1179,7 +1167,7 @@ namespace dmGameSystem
         def.bodyIdA = *body_a;
         def.bodyIdB = *body_b;
 
-        PushCreatedJoint(L, b2CreateFilterJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateFilterJoint(world, &def));
         return 1;
     }
 

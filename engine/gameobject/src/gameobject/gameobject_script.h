@@ -33,7 +33,8 @@ namespace dmGameObject
 {
     struct Instance;
     struct UpdateContext;
-    typedef Instance* HInstance;
+    struct Collection;
+    struct CompScriptWorld;
 
     enum ScriptResult
     {
@@ -73,8 +74,8 @@ namespace dmGameObject
     struct ScriptInstance
     {
         HScript     m_Script;
-        Instance*   m_Instance;
-        dmScript::HScriptWorld m_ScriptWorld;
+        HInstance   m_Instance;
+        CompScriptWorld* m_World;
         HProperties m_Properties;
 
         int         m_InstanceReference;
@@ -94,9 +95,10 @@ namespace dmGameObject
 
         dmArray<ScriptInstance*> m_Instances;
         dmScript::HScriptWorld m_ScriptWorld;
+        Collection* m_Collection;
     };
 
-    void    InitializeScript(HRegister regist, dmScript::HContext context);
+    void    InitializeScript(dmScript::HContext context);
 
     HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module);
     bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
