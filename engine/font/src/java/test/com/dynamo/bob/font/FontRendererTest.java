@@ -272,14 +272,17 @@ public class FontRendererTest {
             try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
                 renderer.setProperties(properties(100, 1, 0));
                 for (String text : new String[] {"A", "<outline size=1>A</outline>", "<shadow blur=1>A</shadow>",
-                        "<outline size=1><shadow blur=1>A</shadow></outline>", "<sprite/>A", "<ul>A</ul>"}) {
+                        "<outline size=1><shadow blur=1>A</shadow></outline>", "<sprite/>A", "<ul>A</ul>",
+                        "<strike pattern=dashed>A</strike>", "<ul><outline size=1><shadow blur=1>A</shadow></outline></ul>"}) {
                     renderer.setMarkup(text);
                     renderer.beginBatch();
                     renderer.generateTexture(0);
                     FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
                     boolean outline = text.contains("<outline");
                     boolean shadow = text.contains("<shadow");
-                    int vertexCount = 6 * (1 + (outline ? 1 : 0) + (shadow ? 1 : 0));
+                    boolean decoration = text.contains("<ul>") || text.contains("<strike");
+                    int layerVertexCount = decoration ? 12 : 6;
+                    int vertexCount = layerVertexCount * (1 + (outline ? 1 : 0) + (shadow ? 1 : 0));
                     assertEquals(text, vertexCount, requirements.vertexCount);
                     assertEquals(vertexCount * 52, requirements.byteCount);
                     ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
@@ -289,8 +292,20 @@ public class FontRendererTest {
                     for (int i = 0; i < requirements.vertexCount; ++i) {
                         assertTrue(text, Float.isFinite(vertices.getFloat(i * 52)));
                         assertEquals(text, 0.0f, vertices.getFloat(i * 52 + 12), 0.0f);
-                        assertEquals(text, shadow && i < 6 ? 2.0f : outline && i < (shadow ? 12 : 6) ? 1.0f : 0.0f,
+                        assertEquals(text, decoration && i % layerVertexCount >= 6 ? 3.0f :
+                                shadow && i < layerVertexCount ? 2.0f : outline && i < layerVertexCount * (shadow ? 2 : 1) ? 1.0f : 0.0f,
                                 vertices.getFloat(i * 52 + 28), 0.0f);
+                    }
+                    // Faces, effects, and decorations must survive the same culling mode.
+                    for (int i = 0; i < requirements.vertexCount; i += 3) {
+                        float ax = vertices.getFloat(i * 52);
+                        float ay = vertices.getFloat(i * 52 + 4);
+                        float bx = vertices.getFloat((i + 1) * 52);
+                        float by = vertices.getFloat((i + 1) * 52 + 4);
+                        float cx = vertices.getFloat((i + 2) * 52);
+                        float cy = vertices.getFloat((i + 2) * 52 + 4);
+                        assertTrue(text + " triangle " + i / 3,
+                                (bx - ax) * (cy - ay) - (by - ay) * (cx - ax) < 0);
                     }
                 }
             }

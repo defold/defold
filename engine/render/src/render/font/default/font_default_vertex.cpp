@@ -241,6 +241,13 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     config.m_IsSdf = true;
     config.m_MaxVertexCount = num_vertices;
     config.m_FaceOnly = render_layer_mask == FACE;
+    config.m_RenderDecorations = true;
+    config.m_Transform = te.m_Transform;
+    config.m_Width = te.m_Width;
+    config.m_Height = te.m_Height;
+    config.m_Align = te.m_Align;
+    config.m_VerticalAlign = te.m_VAlign;
+    config.m_MonospacePadding = font_map->m_IsMonospaced ? font_map->m_Padding : 0.0f;
 
     FontLayoutVertexMetrics metrics;
     if (!FontGetLayoutVertexMetrics(config, &metrics))
@@ -286,7 +293,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             if ((g->m_Flags & TEXT_GLYPH_FLAG_OBJECT) || dmUtf8::IsWhiteSpace(g->m_Codepoint))
                 continue;
             if (glyph_slot == metrics.m_GlyphQuadCount)
-                return metrics.m_VertexCount;
+                continue;
 
             TextGlyphRenderData render_data;
             TextLayoutGetGlyphRenderData(layout, *g, config.m_FaceColor, &render_data);
@@ -455,6 +462,49 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
         }
     }
 
+    if (metrics.m_DecorationQuadCount)
+    {
+        // Reuse the shared layout geometry for decorations. The glyph loop has
+        // consumed its portion of each layer; only the decoration slots remain.
+        FontLayoutVertexMetrics decoration_metrics = {};
+        decoration_metrics.m_DecorationQuadCount = metrics.m_DecorationQuadCount;
+        decoration_metrics.m_FaceQuadCount = metrics.m_DecorationQuadCount;
+        decoration_metrics.m_ShadowQuadCount = metrics.m_ShadowQuadCount - shadow_vertexindex / 6;
+        decoration_metrics.m_OutlineQuadCount = metrics.m_OutlineQuadCount - (outline_vertexindex / 6 - metrics.m_ShadowQuadCount);
+        decoration_metrics.m_VertexCount = (decoration_metrics.m_FaceQuadCount + decoration_metrics.m_OutlineQuadCount + decoration_metrics.m_ShadowQuadCount) * 6;
+        decoration_metrics.m_LayerCount = metrics.m_LayerCount;
+        dmArray<FontGlyphVertex>& scratch = font_map->m_DecorationVertices;
+        if (scratch.Capacity() < decoration_metrics.m_VertexCount)
+            scratch.SetCapacity(decoration_metrics.m_VertexCount);
+        scratch.SetSize(decoration_metrics.m_VertexCount);
+        memset(scratch.Begin(), 0, scratch.Size() * sizeof(FontGlyphVertex));
+        // Express the reference-size outline limit in layout units, matching
+        // the scaled glyph used to resolve the vector glyph's effects above.
+        FontLayoutVertexConfig decoration_config = config;
+        decoration_config.m_OutlineWidth *= base_scale;
+        decoration_config.m_SdfSpread *= base_scale;
+        FontCreateLayoutVertices(decoration_config, decoration_metrics, scratch.Begin(), scratch.Size());
+        const uint32_t counts[3] = { decoration_metrics.m_ShadowQuadCount * 6, decoration_metrics.m_OutlineQuadCount * 6, decoration_metrics.m_FaceQuadCount * 6 };
+        const uint32_t offsets[3] = { shadow_vertexindex, outline_vertexindex, face_vertexindex };
+        // Shared quads wind counterclockwise; vector glyphs wind clockwise.
+        const uint32_t source_order[6] = { 0, 2, 1, 1, 2, 5 };
+        uint32_t source_index = 0;
+        for (uint32_t layer = 0; layer < 3; ++layer)
+        {
+            for (uint32_t i = 0; i < counts[layer]; ++i)
+            {
+                const FontGlyphVertex& source = scratch[source_index + i / 6 * 6 + source_order[i % 6]];
+                GlyphVertex& destination = vertices[offsets[layer] + i];
+                memcpy(destination.m_Position, source.m_Position, sizeof(source.m_Position));
+                destination.m_Position[3] = source.m_Position[2];
+                destination.m_VectorTexcoord[0] = source.m_LayerMasks[1];
+                destination.m_VectorTexcoord[1] = dmMath::Max(0.0f, -source.m_LayerMasks[2]);
+                destination.m_VectorTexcoord[3] = 3.0f; // Solid or dashed decoration.
+                memcpy(destination.m_VectorColor, layer == 0 ? source.m_ShadowColor : layer == 1 ? source.m_OutlineColor : source.m_FaceColor, 4);
+            }
+            source_index += counts[layer];
+        }
+    }
     return metrics.m_VertexCount;
 }
 

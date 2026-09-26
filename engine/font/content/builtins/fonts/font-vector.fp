@@ -45,7 +45,7 @@ void main()
 {
     vec2 emsPerPixel = fwidth(var_texcoord);
     vec3 effects = vec3(0.0);
-    if (var_mode > 0.5)
+    if (var_mode > 0.5 && var_mode < 2.5)
     {
 #ifdef SLUG_LEGACY_GL
         effects = texture2D(effect_bitmap, var_texcoord).rgb;
@@ -58,7 +58,12 @@ void main()
     // WGSL requires derivative operations outside non-uniform control flow.
     float smoothing = max(0.5 * fwidth(effects.g), 0.0001);
     float coverage;
-    if (var_mode > 0.5)
+    if (var_mode > 2.5)
+    {
+        // Decorations use the shared layout's solid/dashed quad geometry.
+        coverage = var_texcoord.y > 0.0 ? 1.0 - step(var_texcoord.y, fract(var_texcoord.x)) : 1.0;
+    }
+    else if (var_mode > 0.5)
     {
         if (var_mode < 1.5)
         {

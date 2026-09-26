@@ -96,6 +96,10 @@ def cases(full, rich):
         add(source, True, 'depth_overlap', text='Depth', size=80, outline_alpha=0, outline=0)
         if rich:
             add(source, True, 'rich_style', text='<color=#ff8080><size=150%>AB</size></color>CD', markup=True, outline_alpha=0, outline=0)
+            add(source, True, 'decorations', text='<ul>HH HH</ul> <strike>HH HH</strike>', markup=True, outline_alpha=0, outline=0)
+            add(source, True, 'decorations_dashed', text='<ul pattern=dashed>HH HH</ul> <strike pattern=dashed>HH HH</strike>', markup=True, outline_alpha=0, outline=0)
+            for name, size in (('half', 20), ('double', 80)):
+                add(source, True, 'decorations_outline_' + name, text='<outline size=8><ul>H H</ul> <strike>H H</strike></outline>', markup=True, size=size, outline=2)
     if full:
         lorem=json.loads((DATA/'lorem.json').read_text(encoding="utf-8"))
         for language in ('english','arabic'):

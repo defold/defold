@@ -1831,7 +1831,7 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_IsBMFont = renderer->m_Mode == FONTC_MODE_GLYPH_BANK && renderer->m_Channels == 4;
     config->m_ShadowUsesFaceCoverage = renderer->m_Mode == FONTC_MODE_RASTER && renderer->m_OutputBitmap && !renderer->m_HasShadow;
     config->m_ShadowIncludesOutline = renderer->m_Mode == FONTC_MODE_RASTER && renderer->m_OutputBitmap && renderer->m_HasShadow && renderer->m_HasOutline;
-    config->m_RenderDecorations = renderer->m_Mode != FONTC_MODE_VECTOR;
+    config->m_RenderDecorations = true;
     config->m_RenderObjectOutlines = renderer->m_Mode != FONTC_MODE_VECTOR;
     config->m_ResolveGlyphsForMetrics = true;
     config->m_FaceOnly = false;
@@ -1869,6 +1869,16 @@ FontRendererResult FontcGetVertexBufferSize(HFontRenderer renderer,
         *vertex_buffer_size = (uint32_t)byte_count;
     }
     return valid_size ? FONT_RENDERER_RESULT_OK : FONT_RENDERER_RESULT_OUT_OF_MEMORY;
+}
+
+static void WriteVectorDecorationVertex(const FontGlyphVertex& source, const uint8_t* color, VectorPreviewVertex* destination)
+{
+    memcpy(destination->m_Position, source.m_Position, sizeof(source.m_Position));
+    destination->m_Position[3] = source.m_Position[2];
+    destination->m_Texcoord[0] = source.m_LayerMasks[1];
+    destination->m_Texcoord[1] = dmMath::Max(0.0f, -source.m_LayerMasks[2]);
+    destination->m_Texcoord[3] = 3.0f;
+    memcpy(destination->m_Color, color, 4);
 }
 
 FontRendererResult FontcGetVertices(HFontRenderer renderer,
@@ -1934,6 +1944,13 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
         face_config.m_FaceOnly = true;
         FontLayoutVertexMetrics face_metrics;
         FontGetLayoutVertexMetrics(face_config, &face_metrics);
+        FontLayoutVertexMetrics glyph_metrics = metrics;
+        if (metrics.m_DecorationQuadCount)
+        {
+            FontLayoutVertexConfig glyph_config = config;
+            glyph_config.m_RenderDecorations = false;
+            FontGetLayoutVertexMetrics(glyph_config, &glyph_metrics);
+        }
         const uint32_t scratch_count = metrics.m_VertexCount + face_metrics.m_VertexCount;
         if (scratch_count > renderer->m_LayoutVertices.Capacity())
             renderer->m_LayoutVertices.SetCapacity(scratch_count);
@@ -1946,11 +1963,20 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
         VectorPreviewVertex* vector_vertices = (VectorPreviewVertex*)vertex_buffer;
         memset(vector_vertices, 0, required_size);
         const uint32_t effect_count = (metrics.m_ShadowQuadCount + metrics.m_OutlineQuadCount) * 6;
+        // Convert every layer to the same clockwise winding as vector faces.
+        const uint32_t source_order[6] = { 0, 2, 1, 1, 2, 5 };
         for (uint32_t i = 0; i < effect_count; ++i)
         {
-            const FontGlyphVertex& source = layout_vertices[i];
+            const FontGlyphVertex& source = layout_vertices[i / 6 * 6 + source_order[i % 6]];
             VectorPreviewVertex& destination = vector_vertices[i];
             const bool shadow = i < metrics.m_ShadowQuadCount * 6;
+            const bool decoration = shadow ? i >= glyph_metrics.m_ShadowQuadCount * 6
+                                           : i >= (metrics.m_ShadowQuadCount + glyph_metrics.m_OutlineQuadCount) * 6;
+            if (decoration)
+            {
+                WriteVectorDecorationVertex(source, shadow ? source.m_ShadowColor : source.m_OutlineColor, &destination);
+                continue;
+            }
             destination.m_Position[0] = source.m_Position[0];
             destination.m_Position[1] = source.m_Position[1];
             destination.m_Position[3] = source.m_Position[2];
@@ -1962,7 +1988,6 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
         }
         TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
         const uint32_t glyph_count = TextLayoutGetGlyphCount(layout);
-        const uint32_t source_order[6] = { 0, 2, 1, 1, 2, 5 };
         const float texcoords[6][2] = { {0, 0}, {0, 1}, {1, 0}, {1, 0}, {0, 1}, {1, 1} };
         uint32_t quad_index = 0;
         for (uint32_t glyph_index = 0; glyph_index < glyph_count; ++glyph_index)
@@ -1988,6 +2013,11 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
                 memcpy(destination.m_Color, source.m_FaceColor, 4);
             }
             ++quad_index;
+        }
+        for (uint32_t i = face_metrics.m_GlyphQuadCount * 6; i < face_metrics.m_VertexCount; ++i)
+        {
+            const FontGlyphVertex& source = face_vertices[i / 6 * 6 + source_order[i % 6]];
+            WriteVectorDecorationVertex(source, source.m_FaceColor, &vector_vertices[effect_count + i]);
         }
     }
     TextLayoutRelease(layout);

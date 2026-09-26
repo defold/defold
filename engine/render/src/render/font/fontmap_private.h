@@ -17,6 +17,7 @@
 
 #include "font_renderer.h"
 #include <font/font_vector_slug.h>
+#include <font/render/glyph_vertex.h>
 #include "../render_private.h"
 
 namespace dmRender
@@ -68,6 +69,7 @@ namespace dmRender
         dmGraphics::HTexture    m_VectorSdfTexture;
         dmGraphics::HTexture    m_VectorBandTexture;
         FontVectorSlugData*     m_SlugData;
+        dmArray<FontGlyphVertex> m_DecorationVertices;
         bool                    m_VectorBitmapEffects;
         bool                    m_SlugResetPending;
         uint32_t                m_SlugOverflowFrame;

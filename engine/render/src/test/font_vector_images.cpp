@@ -135,6 +135,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
 {
     const bool  baked = strstr(c.m_Source, "_bank") != 0;
     const bool  depth_overlap = strstr(c.m_Name, "_depth_overlap") != 0;
+    const bool  decorations = strstr(c.m_Name, "_decorations") != 0;
     const char* path = strncmp(c.m_Source, "otf", 3) == 0 ? "src/test/data/SourceCodePro-Regular.otf" : "src/test/data/WorkSans.ttf";
     HFont       source = resources.m_Source = FontLoadFromPath(path);
     ASSERT_NE((HFont)0, source);
@@ -347,6 +348,12 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
         dmGraphics::SetDepthFunc(context, dmGraphics::COMPARE_FUNC_LESS);
     }
+    if (decorations)
+    {
+        // Vector glyphs wind clockwise; decorations must remain visible with them.
+        dmGraphics::EnableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::SetCullFace(context, dmGraphics::FACE_TYPE_FRONT);
+    }
     dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
     dmGraphics::EnableProgram(context, program);
     dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
@@ -364,6 +371,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     pixels.SetSize(pixels.Capacity());
     dmGraphics::ReadPixels(context, 0, 0, width, height, pixels.Begin(), pixels.Size());
     dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+    dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
     dmGraphics::DisableVertexDeclaration(context, declaration);
     dmGraphics::DisableVertexBuffer(context, buffer);
     for (uint32_t i = 0; i < 3; ++i)
@@ -388,11 +396,70 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         ASSERT_GT(outline_pixels, 0u);
     if (shadow)
         ASSERT_GT(shadow_pixels, 0u);
+    uint32_t visible_decorations = 0;
+    if (decorations)
+    {
+        const TextDecoration* lines = TextLayoutGetDecorations(layout);
+        const TextLine* text_lines = TextLayoutGetLines(layout);
+        float layout_width, layout_height;
+        TextLayoutGetBounds(layout, &layout_width, &layout_height);
+        for (uint32_t i = 0; i < TextLayoutGetDecorationCount(layout); ++i)
+        {
+            const TextDecoration& line = lines[i];
+            uint32_t space = line.m_GlyphStart;
+            while (space < line.m_GlyphStart + line.m_GlyphCount && glyphs[space].m_Codepoint != ' ')
+                ++space;
+            ASSERT_LT(space + 1, line.m_GlyphStart + line.m_GlyphCount);
+            const float first_x = glyphs[text_lines[line.m_LineIndex].m_Index].m_X;
+            const int x0 = (int)ceilf(g_Capture_vector.m_OriginX + glyphs[space].m_X - first_x + 1);
+            const int x1 = (int)floorf(g_Capture_vector.m_OriginX + glyphs[space + 1].m_X - first_x - 1);
+            const float y = height - g_Capture_vector.m_OriginTop - layout_height + text_lines[line.m_LineIndex].m_Baseline + line.m_Y;
+            bool visible = false;
+            for (int py = (int)floorf(height - y - line.m_Thickness); py <= (int)ceilf(height - y + line.m_Thickness); ++py)
+                for (int px = x0; px <= x1; ++px)
+                    if (px >= 0 && px < (int)width && py >= 0 && py < (int)height)
+                    {
+                        const uint8_t* pixel = pixels.Begin() + (py * width + px) * 4;
+                        visible |= pixel[0] > 127 && pixel[1] > 127 && pixel[2] > 127;
+                    }
+            visible_decorations += visible;
+        }
+    }
     WriteFontTestImage(c, width, height, pixels, metadata);
+    if (strstr(c.m_Name, "_decorations_outline_"))
+    {
+        // The requested 8px outline is capped by the font's 2px reference outline:
+        // rendering a 40px font at 20px permits 1px, and at 80px permits 4px.
+        const float expected_outline = c.m_Size == 20 ? 1.0f : 4.0f;
+        const TextDecoration* lines = TextLayoutGetDecorations(layout);
+        uint32_t outline_count = 0;
+        for (uint32_t i = 0; i < count; i += 6)
+        {
+            const dmRender::FontDefaultVertex& vertex = vertices[i];
+            if (vertex.m_VectorTexcoord[3] != 3 || vertex.m_VectorColor[0] != 0 || vertex.m_VectorColor[2] != 255)
+                continue;
+            float min_y = vertex.m_Position[1];
+            float max_y = min_y;
+            for (uint32_t j = 1; j < 6; ++j)
+            {
+                min_y = dmMath::Min(min_y, vertices[i + j].m_Position[1]);
+                max_y = dmMath::Max(max_y, vertices[i + j].m_Position[1]);
+            }
+            ASSERT_LT(outline_count, TextLayoutGetDecorationCount(layout));
+            ASSERT_NEAR(lines[outline_count].m_Thickness + 2 * expected_outline, max_y - min_y, 0.0001f);
+            ++outline_count;
+        }
+        ASSERT_EQ(2u, outline_count);
+    }
     if (depth_overlap)
     {
         ASSERT_GT(front_pixels, 0u);
         ASSERT_EQ(0u, shadow_pixels);
+    }
+    if (decorations)
+    {
+        ASSERT_EQ(2u, TextLayoutGetDecorationCount(layout));
+        ASSERT_EQ(2u, visible_decorations);
     }
 }
 

@@ -1352,6 +1352,7 @@ namespace dmRender
             size += sizeof(FontVectorSlugData) + font_map->m_SlugData->m_Curves.Capacity() * sizeof(uint16_t) + font_map->m_SlugData->m_Bands.Capacity() * sizeof(uint32_t);
         if (font_map->m_VectorSdfTexture)
             size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture);
+        size += font_map->m_DecorationVertices.Capacity() * sizeof(FontGlyphVertex);
         return size;
     }
 
