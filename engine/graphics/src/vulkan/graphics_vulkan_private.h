@@ -277,6 +277,7 @@ namespace dmGraphics
         VkCommandPool   m_CommandPool;
         VkCommandPool   m_CommandPoolWorker;
         dmMutex::HMutex m_QueueMutex; // Serializes host access to both queue handles (which may alias).
+        PFN_vkCopyMemoryToImageEXT m_CopyMemoryToImage; // E.g. used on Apple, to upload PVRTC textures
     };
 
     struct ShaderModule
@@ -610,7 +611,7 @@ namespace dmGraphics
 
     // Misc functions
     void            TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count);
-    VkResult        TransitionImageLayout(LogicalDevice* logical_device, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
+    VkResult        TransitionImageLayout(LogicalDevice* logical_device, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1, VkCommandPool command_pool = VK_NULL_HANDLE);
     VkResult        WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
     void            DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
     void            FlushResourcesToDestroy(VulkanContext* context, ResourcesToDestroyList* resource_list);
