@@ -1,6 +1,6 @@
 # Graphics capture references
 
-These are actual GPU captures, visually reviewed on 2026-09-17. Ordinary
+The original nine references are actual GPU captures, visually reviewed on 2026-09-17. Ordinary
 test runs only read them. There is deliberately no reference-update switch.
 References use Metal except `stencil_faces`, which uses OpenGL: Metal's
 face-specific state produced an incorrect blank image when the references
@@ -139,3 +139,13 @@ Native Dawn support is absent from this checkout,
 so WebGPU device validation is pending. DX12 passed a Windows SDK syntax
 check; its actual stencil failure still needs to be captured on Windows.
 Native Linux CI execution is also pending.
+
+# Compressed texture references
+
+`texture_*.png` are CPU-decoded references for the precompressed payloads in
+[`../texture_formats`](../texture_formats/README.md), plus the RGBA source baseline.
+Each format has its own capture case and reference at the same 99% likeness
+threshold. Unsupported formats are explicitly skipped before upload. These
+references are generated offline from the blocks, independently of the graphics
+backend, and are never updated by ordinary test runs. Add `--show` to a capture
+command to display the selected case in a window until it is closed.

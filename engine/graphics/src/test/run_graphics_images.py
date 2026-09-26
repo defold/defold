@@ -16,8 +16,12 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / 'scripts'))
 import likeness
 
+TEXTURE_FORMATS = tuple(re.findall(r'^TEXTURE_FORMAT_CASE\((\w+),',
+    Path(__file__).with_name('texture_formats').joinpath('formats.inc').read_text(encoding='utf-8'), re.MULTILINE))
+TEXTURE_CASES = tuple('texture_' + suffix for suffix in TEXTURE_FORMATS)
+
 CASES = ('clear', 'triangle', 'stencil', 'stencil_nested', 'stencil_masks',
-         'stencil_ops', 'stencil_depth', 'stencil_faces', 'cubemap')
+         'stencil_ops', 'stencil_depth', 'stencil_faces', 'cubemap') + TEXTURE_CASES
 CASE_DESCRIPTIONS = {
     'clear': 'Whole-target color clear.',
     'triangle': 'Asymmetric triangle with interpolated vertex colors.',
@@ -29,7 +33,8 @@ CASE_DESCRIPTIONS = {
     'stencil_depth': 'An invisible depth occluder crosses three bands. Front band: orange. Rear band: green with orange center from depth-failure INCR. Bottom band: blue from stencil-failure INVERT, including where depth also fails.',
     'stencil_faces': 'Opposite windings: top orange/cyan tiles check separate front/back operations; bottom magenta/green tiles check separate EQUAL/NOTEQUAL comparisons. Results are read with common face state to expose swapped faces.',
 }
-REFERENCE_BACKENDS = {'stencil_faces': 'OpenGL'}
+CASE_DESCRIPTIONS.update({case: 'Labelled 8×8 grid uploaded in native %s format, sampled at mip 0 with nearest filtering. Unsupported formats are skipped before upload.' % case.removeprefix('texture_') for case in TEXTURE_CASES})
+REFERENCE_BACKENDS = {**dict.fromkeys(TEXTURE_CASES, 'CPU decoded texture'), 'stencil_faces': 'OpenGL', 'texture_rgba': 'Source image'}
 BACKENDS = ('metal', 'opengl', 'webgpu', 'vulkan', 'dx12')
 BACKGROUND = (37, 73, 109)
 THRESHOLD = 99.0
@@ -101,14 +106,20 @@ def capture(executable, root, backend, case, timeout=60):
         identities = re.findall(r'^GRAPHICS_CAPTURE_BACKEND=(\w+)$', process.stdout, re.MULTILINE)
         if identities == [backend]:
             record['actual_backend'] = backend
-        if process.returncode:
+        if process.returncode not in (0, 77):
             raise ValueError('Capture process exited with %s' % process.returncode)
         if record['actual_backend'] != backend:
             raise ValueError('Requested backend identity was not confirmed')
         if GRAPHICS_ERROR.search(process.stdout):
             raise ValueError('Graphics error in capture log')
-        read_png(output)
-        record['status'] = 'pass'
+        skips = re.findall(r'^GRAPHICS_CAPTURE_SKIP=(.+)$', process.stdout, re.MULTILINE)
+        if process.returncode == 77 and case in TEXTURE_CASES and len(skips) == 1:
+            record.update(status='skip', reason=skips[0])
+        elif process.returncode:
+            raise ValueError('Capture process exited with %s' % process.returncode)
+        else:
+            read_png(output)
+            record['status'] = 'pass'
     except subprocess.TimeoutExpired as error:
         log = error.stdout or ''
         record.update(log=log.decode(errors='replace') if isinstance(log, bytes) else log,

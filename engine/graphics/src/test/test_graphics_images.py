@@ -330,6 +330,48 @@ class GraphicsImagesTest(unittest.TestCase):
         with mock.patch.object(report.subprocess, 'run', side_effect=subprocess.TimeoutExpired([], 60, output=b'partial')):
             self.assertIn('partial', report.capture(Path('capture'), self.images, 'metal', 'clear')['log'])
 
+    def test_texture_support_skip_requires_identity_and_explicit_exit(self):
+        log = 'GRAPHICS_CAPTURE_BACKEND=metal\nGRAPHICS_CAPTURE_SKIP=Texture format etc2_r is not supported by metal\n'
+        output = self.images / 'metal/texture_etc2_r.png'
+        output.parent.mkdir(parents=True)
+        self.fixture('clear').save(output)
+        with mock.patch.object(report.subprocess, 'run', return_value=subprocess.CompletedProcess([], 77, log)):
+            result = report.capture(Path('capture'), self.images, 'metal', 'texture_etc2_r')
+        self.assertEqual('skip', result['status'])
+        self.assertIn('etc2_r', result['reason'])
+        self.assertFalse(output.exists())
+        for case, code, text in (
+            ('clear', 77, log), ('texture_etc2_r', 1, log),
+            ('texture_etc2_r', 77, log.replace('BACKEND=metal', 'BACKEND=opengl')),
+            ('texture_etc2_r', 77, 'GRAPHICS_CAPTURE_BACKEND=metal\n'),
+            ('texture_etc2_r', 77, log + 'ERROR:GRAPHICS: upload failed\n'),
+        ):
+            with self.subTest(case=case, code=code, log=text):
+                with mock.patch.object(report.subprocess, 'run', return_value=subprocess.CompletedProcess([], code, text)):
+                    self.assertEqual('fail', report.capture(Path('capture'), self.images, 'metal', case)['status'])
+
+    def test_texture_payload_sizes_and_reference_orientation(self):
+        import re
+        root = Path(report.__file__).with_name('texture_formats')
+        entries = re.findall(r'^TEXTURE_FORMAT_CASE\((\w+), (\w+), (\d+), (\d+), (\d+)\)',
+                             (root / 'formats.inc').read_text(encoding='utf-8'), re.MULTILINE)
+        self.assertEqual(len(report.TEXTURE_CASES), len(entries))
+        for suffix, _, width, height, size in entries:
+            with self.subTest(format=suffix):
+                expected = ((256 + int(width) - 1) // int(width)) * ((256 + int(height) - 1) // int(height)) * int(size)
+                self.assertEqual(expected, (root / ('testimage.' + suffix)).stat().st_size)
+                reference = root.parent / 'graphics_reference' / ('texture_' + suffix + '.png')
+                self.assertEqual(report.SIZE, report.read_png(reference).size)
+        source = report.read_png(root / 'testimage.png')
+        self.assertEqual((85, 139, 123), source.getpixel((0, 0)))
+        self.assertEqual((246, 230, 151), source.getpixel((0, 255)))
+        self.assertEqual(source.convert('RGBA').tobytes(), (root / 'testimage.rgba').read_bytes())
+        for operation in (report.likeness.Image.Transpose.FLIP_TOP_BOTTOM, report.likeness.Image.Transpose.FLIP_LEFT_RIGHT):
+            actual = self.root / 'flipped.png'
+            source.transpose(operation).save(actual)
+            result = report.comparison(actual, root / 'testimage.png', self.root / 'difference.png', 'texture_rgba')
+            self.assertEqual('fail', result['status'])
+
     def test_matrix_continues_after_failure(self):
         def fake_capture(executable, root, backend, case):
             return dict(backend=backend, case=case, status='fail', reason='crashed')
@@ -370,7 +412,7 @@ class GraphicsImagesTest(unittest.TestCase):
         names = [line for line in process.stdout.splitlines() if not line.startswith('INFO:DLIB:')]
         self.assertEqual(list(report.CASES), names)
         for args in (
-            ['--case'], ['--case', 'missing', '--backend', 'metal'],
+            ['--show'], ['--list-cases', '--show'], ['--case'], ['--case', 'missing', '--backend', 'metal'],
             ['--case', 'clear', '--backend', 'unknown'],
             ['--case', 'clear', '--backend', 'metal', '--output', 'a', '--output-file', 'b'],
             ['--list-cases', '--case', 'clear'], ['--backend', 'metal', '--backend', 'vulkan'],

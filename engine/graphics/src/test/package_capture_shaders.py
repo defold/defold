@@ -10,10 +10,11 @@ def main():
     root = Path(__file__).resolve().parent
     sources = {}
     for suffix in ('vp', 'fp', 'vp.msl', 'fp.msl', 'vp.wgsl', 'fp.wgsl', 'hlsl',
-                   'cube.fp', 'cube.fp.msl', 'cube.fp.wgsl'):
+                   'cube.fp', 'cube.fp.msl', 'cube.fp.wgsl',
+                   'texture.fp', 'texture.fp.msl', 'texture.fp.wgsl'):
         sources[suffix.replace('.', '_')] = (root / ('graphics_capture.' + suffix)).read_bytes() + b'\0'
     with tempfile.TemporaryDirectory() as directory:
-        for stage in ('vert', 'frag', 'cube.frag'):
+        for stage in ('vert', 'frag', 'cube.frag', 'texture.frag'):
             output = Path(directory) / (stage + '.spv')
             subprocess.run(['glslangValidator', '-V', str(root / ('graphics_capture.' + stage)),
                             '-o', str(output)], check=True)
