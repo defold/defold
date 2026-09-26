@@ -9,6 +9,7 @@
 # 8. Use ellipsis character (…) instead of triple dots (...)
 
 # Localizations of the Welcome dialog
+welcome.button.open-from-disk = ディスクから開く…
 welcome.button.open-selected = 選択したものを開く
 welcome.button.create-new-project = 新規プロジェクトの作成
 welcome.button.cancel-download = ダウンロードをキャンセル
@@ -58,7 +59,7 @@ welcome.new-project.native-extension.title = ネイティブ拡張機能
 welcome.new-project.native-extension.description = このテンプレートには、ネイティブ拡張機能の作成を開始する場合の基本的なセットアップが含まれています。
 welcome.new-project.basic-3d-project.title = 基本的な3Dプロジェクト
 welcome.new-project.basic-3d-project.description = このテンプレートには、3D レンダリングを行うための基本的な設定が含まれています。
-welcome.new-project.platformer-game.title = プラットフォーマー・ゲーム
+welcome.new-project.platformer-game.title = プラットフォーマーゲーム
 welcome.new-project.platformer-game.description = このテンプレートには、プラットフォーマーゲームの構築を開始する場合の基本的なセットアップが含まれています。
 welcome.new-project.rive-project.title = Riveプロジェクト
 welcome.new-project.rive-project.description = このテンプレートにはrive拡張機能が含まれています。
@@ -71,6 +72,7 @@ welcome.new-project.walking-astronaut-tutorial.description = この初心者用�
 welcome.new-project.movement-tutorial.title = 移動のチュートリアル
 welcome.new-project.movement-tutorial.description = この初心者のチュートリアルでは、ベクターといくつかのシンプルなベクター代数を使用してリアルな動きを作成する方法を学びます。
 welcome.new-project.war-battles-tutorial.title = War Battles チュートリアル
+welcome.new-project.war-battles-tutorial.description = 中級レベルのこのチュートリアルでは、RTSアセットパック「War Battles」をベースにした、トップダウン・シューティングゲームの土台を作成します。
 welcome.new-project.colorslide-tutorial.title = Colorslide チュートリアル
 welcome.new-project.colorslide-tutorial.description = この中級難易度チュートリアルでは、ゲーム内の GUI を構築することを学びます。 レベル選択用のGUIスクリーンと、シンプルなマルチレベルのモバイルゲーム用のスタート画面が含まれます。
 
@@ -80,6 +82,7 @@ welcome.new-project.sample-3d-platformer.description = 応答性の高いキャ�
 welcome.new-project.sample-3d-third-person-playground.title = 3人称視点 3D Playground
 welcome.new-project.sample-3d-third-person-playground.description = キーボードまたはマウス/タッチ入力で3Dキャラクターを動かすことができる三人称3Dゲームのサンプルです。 影を使った基本的な3Dセットアップ方法を説明します。
 welcome.new-project.linker-sample-game.title = Linker サンプルゲーム
+welcome.new-project.linker-sample-game.description = これは、同じ色の魚をクリック＆ドラッグでつなげて消していく、完成されたサンプルゲームです。魚を長くつなげると、ブースターを獲得できます。
 welcome.new-project.roids-sample-game.title = Roidsサンプルゲーム
 welcome.new-project.roids-sample-game.description = これは、あなたが宇宙船を操縦し、隕石の嵐を移動し攻撃するサンプルゲームです。
 welcome.new-project.pixel-line-platformer.title = Pixel Lineプラットフォーマー
@@ -93,8 +96,10 @@ welcome.new-project.hud.description = このサンプルは、スコアカウン
 welcome.new-project.level-complete.title = ステージクリア
 welcome.new-project.level-complete.description = ステージをクリアした際に表示されるスコアカウントのサンプルです。
 welcome.new-project.rpg-map-sample.title = RPG マップサンプル
+welcome.new-project.rpg-map-sample.description = このサンプルは、主人公の進行に合わせて1画面ずつスクロールする大規模なRPGマップを作成する方法を示しています。
 welcome.new-project.shadertoy-sample.title = Shadertoy サンプル
 welcome.new-project.shadertoy-sample.description = このサンプルには、ShadertoyのGLSLシェーダーを、Defold用に変換されたシェーダーが含まれています。 Defoldでの素材やシェーダーとの連携方法を説明します。
+welcome.new-project.3d-treasure-scene.title = 3Dの宝物シーン
 welcome.new-project.3d-treasure-scene.description = このサンプルは、アニメーション付きの様式化された3Dシーンを示しています。
 welcome.new-project.perspective-parallax.title = 透視投影カメラでの視差効果
 welcome.new-project.perspective-parallax.description = このサンプルは透視投影カメラで視差効果を実装する例です。
@@ -102,6 +107,7 @@ welcome.new-project.lightning-vfx.title = Lightning VFX
 welcome.new-project.lightning-vfx.description = このサンプルでは、2d 縦スクロールシューティングゲームでの雷エフェクトと、ゲームプレイ中にメッシュコンポーネントを操作する方法を示します。
 
 # Updater
+updater.button.update-available = 更新可能
 updater.button.restart-to-update = 再起動してアップデート
 updater.download-or-restart-dialog.title = 更新をインストールしますか？
 updater.download-or-restart-dialog.header = アップデートの準備ができていますが、新しいバージョンも利用可能です
@@ -138,6 +144,7 @@ release-notes-tab.title = 更新履歴
 release-notes-tab.tooltip = Defold Release Summary - What''s New in {version}
 
 # Time
+time.vague.just-now = たった今
 time.vague.a-minute-ago = 1分前
 time.vague.a-few-minutes-ago = 数分前
 time.vague.minutes-ago = {count}分前
@@ -179,6 +186,7 @@ dialog.build-error.cycle.detail.generic = これは、リソースがループ�
 
 dialog.clean-build.title = プロジェクトのクリーンビルドを実行しますか？
 dialog.clean-build.header = プロジェクトのクリーンビルドを実行してもよろしいですか？
+dialog.clean-build.button.clean = ビルドを消去
 
 # Defunload Issues Dialog
 
@@ -243,6 +251,7 @@ dialog.search-in-files.button.keep-results = 結果を維持
 dialog.target-discovery-log.title = ターゲット ディスカバリー ログ
 dialog.target-discovery-log.header = ターゲット ディスカバリー ログ
 dialog.target-discovery-log.button.clear-log = ログを消去
+dialog.target-discovery-log.button.restart-discovery = ディスカバリーを再起動
 
 # Generic file/directory dialog titles
 
@@ -380,6 +389,8 @@ notification.reload-editor-scripts.action.reload = エディタスクリプト�
 
 # Reload plugins notification
 
+notification.reload-plugins-failed = ネイティブ拡張プラグインをリロードできませんでした。 Defold を再起動してリロードします。\nファイル\: {file}\n\nOS からの根本的なエラー\:\n{error}
+notification.reload-plugins-failed.action.restart = Defoldを再起動
 
 # Disabled functionality notification
 
@@ -402,7 +413,9 @@ notification.ensure-exists.reason.folder = 設定されたパスはフォルダ�
 
 # Language server notification
 
+notification.lsp.language-server-missing.prompt = {language} 言語用の言語サーバーが実行されていないため、この操作を実行できません。
 notification.lsp.language-server-missing.action.about = DefoldにおけるLSPについて
+notification.lsp.formatting-failed.prompt = Language Serverからの応答がなかったため、{path}をフォーマットできません。
 
 # Asset browser notifications
 
@@ -479,6 +492,7 @@ dialog.rename.error.reserved-name = {name} という名前は予約されてい�
 # Name conflict dialog (appears on conflict during rename)
 
 dialog.name-conflict.title = 名前の競合
+dialog.name-conflict.header = 移動先には、{count, plural, one {同名の項目} other {名前が競合する \# 個の項目}} が存在します。
 dialog.name-conflict.button.name-differently = 名前の違い
 dialog.name-conflict.button.overwrite-files = ファイルの上書き
 
@@ -552,6 +566,7 @@ dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
 dialog.bundle.option.identity.none = なし
 dialog.bundle.label.architectures = アーキテクチャ
+dialog.bundle.label.ios-simulator = シミュレーター
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
@@ -561,13 +576,21 @@ dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
 dialog.bundle.option.architecture.x86_64-android = 64-bit (x86_64)
 dialog.bundle.label.sign-application = アプリケーションに署名
 dialog.bundle.label.code-signing-identity = コード署名のID
+dialog.bundle.label.provisioning-profile = プロビジョニングプロファイル
 dialog.bundle.title.choose-provisioning-profile = プロビジョニングプロファイルを選択
+dialog.bundle.filter.provisioning-profile = プロビジョニングプロファイル (*.mobileprovision)
 dialog.bundle.option.on-bundled.install = 接続されたデバイスにインストール
 dialog.bundle.option.on-bundled.launch = インストール済みのアプリを起動
+dialog.bundle.label.android.keystore = キーストア
+dialog.bundle.label.android.keystore-pass = キーストアのパスワード
 dialog.bundle.label.android.key-pass = キーパスワード
 dialog.bundle.label.android.bundle-format = バンドル形式
 dialog.bundle.option.bundle-format.apk = APK
 dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.title.choose-keystore = キーストアを選択
+dialog.bundle.filter.keystore = キーストア (*.keystore, *.jks)
+dialog.bundle.title.choose-keystore-pass = キーストアのパスワードを選択
+dialog.bundle.filter.keystore-pass = キーストアパスワード (*.txt)
 dialog.bundle.title.choose-key-pass = キーパスワードの選択
 dialog.bundle.filter.key-pass = キーのパスワード (*.txt)
 dialog.bundle.hint.android.keystore = キーストアを設定するか、自動生成されたデバッグ用証明書で署名する場合は空欄のままにしてください。
@@ -646,6 +669,7 @@ breakpoints.column.line = 行
 breakpoints.column.name = 名前
 breakpoints.column.condition = コンディション
 breakpoints.column.path = パス
+breakpoints.context-menu.edit-selected = コンディションを編集
 breakpoints.context-menu.remove-selected = 選択したブレークポイントの削除
 breakpoints.context-menu.toggle-selected-enabled = 選択ブレークポイントの切り替え
 breakpoints.context-menu.go-to-line = 行へ移動
@@ -723,6 +747,7 @@ prefs.keymap.new-shortcut = 新しい "{shortcut}" ショートカット
 prefs.keymap.new-shortcut.press-desired-combination = 任意のキーの組み合わせを押してください
 prefs.keymap.new-shortcut.commit = {enter} を押してコミット
 prefs.keymap.new-shortcut.commit-or-cancel = {enter} を押してコミット、 {escape} をもう一度でキャンセル
+prefs.keymap.warnings = 警告\:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = 入力可能 (テキスト入力に干渉する可能性があります)
 prefs.keymap.warning.conflicts = {shortcuts} と競合しています
@@ -740,6 +765,8 @@ prefs.keymap.inherited-from = {context} から継承
 # Progress
 
 progress.ready = 準備完了
+progress.writing = {resource} の書き込み中
+progress.linting = コードをリント中…
 progress.fetching-engine = エンジンを取得中…
 progress.executing-pre-build-hooks = ビルド前のフックを実行中…
 progress.executing-post-build-hooks = ビルド後のフックを実行中…
@@ -802,6 +829,9 @@ engine.name.with-instance = {name} — インスタンス {instance}
 
 # Search results: overrides
 
+search.overrides.title.all = 次のすべてのプロパティを上書き{qualifier, select, none {} other {"{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { 次の内の}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.list = {list} 次のプロパティを上書きします{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { 次の内の}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.specific = 次の特定のプロパティを上書き{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { 次の内の}}}}{resource, select, none {} other { "{resource}"}}
 search.column.resource = リソース
 
 # Menus
@@ -812,6 +842,7 @@ menu.edit = 編集
 menu.debug = デバッグ
 menu.view = 表示
 menu.help = ヘルプ
+menu.dock.new-window = 新規ウィンドウ
 
 # Commands
 
@@ -894,7 +925,11 @@ command.edit.add-embedded-component.variant.collection = ゲームオブジェ�
 command.edit.add-embedded-component.variant.collision-object = シェイプを追加
 command.edit.add-embedded-component.variant.collision-object.option.box = 四角形
 command.edit.add-embedded-component.variant.collision-object.option.capsule = カプセル
+command.edit.add-embedded-component.variant.collision-object.option.circle = サークル
+command.edit.add-embedded-component.variant.collision-object.option.mesh = メッシュ
+command.edit.add-embedded-component.variant.collision-object.option.rectangle = 長方形
 command.edit.add-embedded-component.variant.collision-object.option.sphere = 球体
+command.edit.add-embedded-component.variant.font = スタイルを追加
 command.edit.add-embedded-component.variant.game-object = コンポーネントを追加
 command.edit.add-embedded-component.variant.gui.option.textures = テクスチャ…
 command.edit.add-embedded-component.variant.gui.option.materials = マテリアル…
@@ -938,7 +973,11 @@ command.edit.reorder-up = 上へ移動
 command.edit.reorder-down = 下へ移動
 command.edit.rename = 名前を変更する
 command.edit.pull-up-overrides = プルアップ・オーバーライド
+command.edit.pull-up-overrides.variant.property = {property} の上書きを上位へ反映
+command.edit.pull-up-overrides.option = 上位へ反映\: {property_count, select, 1 {"{property}" の上書き} other {{property_count} 個の上書き}} 反映先\: {target_count, select, 1 {{target, select, undefined {上位階層} other {"{target}"}}} other {{target_count} 個の上位階層}} {aspect_count, select, 0 {} 1 {{aspect} 内 } other {{aspect} 間 }}{resource_count, select, 1 {{aspect_count, select, 0 {"{resource}" 内} other {"{resource}" にて}}} other {{resource_count} 個のリソース全体}}
 command.edit.push-down-overrides = プッシュダウン・オーバーライド
+command.edit.push-down-overrides.variant.property = {property} の上書きを下位へ反映
+command.edit.push-down-overrides.option = 下位への反映\: {property_count, select, 1 {"{property}" の上書き} other {{property_count} 個の上書き}} 反映先\: {target_count, select, 1 {{target, select, undefined {下位階層} other {"{target}"}}} other {{target_count} 個の下位階層}} {aspect_count, select, 0 {} 1 {{aspect} 内 } other {{aspect} 間 }}{resource_count, select, 1 {{aspect_count, select, 0 {"{resource}" 内} other {"{resource}" にて}}} other {{resource_count} 個のリソース全体}}
 command.edit.show-overrides = 上書きを表示…
 command.code.find-next = 次を検索
 command.code.find-previous = 前を検索
@@ -948,6 +987,7 @@ command.code.toggle-comment = コメントを切り替え
 command.code.reindent-lines = 行を再インデント
 command.code.format = 書式ドキュメント/選択
 command.code.convert-indentation = インデントを変換
+command.code.convert-indentation.to-tabs = タブへ
 command.code.convert-indentation.to-two-spaces = 2つのスペース
 command.code.convert-indentation.to-four-spaces = 4つのスペース
 command.code.sort-lines = 行のソート
@@ -966,23 +1006,71 @@ command.code.toggle-visible-whitespace = ホワイトスペースの表示
 command.code.zoom.increase = フォントサイズを大きくする
 command.code.zoom.decrease = フォントサイズを小さくする
 command.code.zoom.reset = フォントサイズをリセットする
+command.debugger.start = スタート/アタッチ
 command.debugger.continue = 続ける
 command.debugger.break = ブレーク
+command.debugger.step-over = ステップ実行
+command.debugger.step-into = ステップイン
 command.debugger.step-out = ステップ・アウト
+command.debugger.detach = デバッガを無効化する
+command.debugger.stop = デバッガを停止
+command.debugger.toggle-breakpoint = ブレークポイントの切り替え
+command.debugger.toggle-breakpoint-enabled = ブレークポイントの有効/無効
+command.debugger.edit-breakpoint = ブレークポイントの編集
+command.scene.set-manipulator-space.option.world = ワールド座標
+command.scene.set-manipulator-space.option.local = ローカル座標
+command.scene.set-camera-type = カメラタイプの設定
+command.scene.set-camera-type.option.orthographic = 平行投影カメラ
+command.scene.set-camera-type.option.perspective = パースペクティブカメラ
 command.scene.set-gui-layout = GUIレイアウトを設定
+command.scene.toggle-move-whole-pixels = ピクセル全体の移動
+command.scene.visibility.toggle-filters = 表示フィルタの切り替え
+command.scene.visibility.toggle-component-guides = コンポーネントガイドの切り替え
+command.scene.visibility.toggle-grid =  グリッドの切り替え
+command.scene.visibility.toggle-selection = 選択したオブジェクトを表示/非表示
+command.scene.visibility.hide-unselected = 選択されていないオブジェクトを非表示
+command.scene.visibility.show-last-hidden = 最後に非表示にしたオブジェクトを表示
+command.scene.visibility.show-all = 非表示オブジェクトをすべて表示
 command.scene.play = 再生
+command.scene.stop = ストップ
+command.scene.frame-selection = フレームの選択
+command.scene.realign-camera = カメラを再配置
+command.scene.toggle-tile-palette = タイルの選択…
+command.scene.select-erase-tool = 消しゴムを選択
+command.scene.flip-brush-horizontally = ブラシを水平方向に反転
+command.scene.flip-brush-vertically = ブラシを垂直方向に反転
+command.scene.rotate-brush-90-degrees = ブラシを90度回転
+command.window.toggle-left-pane = アセットペインの切り替え
+command.window.toggle-changed-files-pane = 変更されたファイルの切り替え
+command.window.toggle-bottom-pane = ツールペインの切り替え
+command.window.toggle-right-pane = プロパティパネルの表示／非表示
+command.window.show-console = コンソールを表示
+command.window.show-curve-editor = カーブエディターを表示
+command.window.show-build-errors = ビルドエラーを表示
+command.window.show-search-results = 検索結果を表示
+command.dev.reload-css = スタイルシートを再読み込み
 command.help.open-logs = ログを表示
+command.file.create-desktop-entry = デスクトップエントリを作成
 command.help.open-documentation = ドキュメント
 command.help.open-forum = サポートフォーラム
 command.help.open-editor-server = エディタサーバーを開く
 command.help.open-asset-portal = アセットを検索
 command.help.report-issue = 問題を報告
 command.help.report-suggestion = 改善提案を送る
+command.help.open-donations = 開発資金
+command.help.open-release-notes = リリースノート
+command.help.check-for-updates = アップデートを確認
 command.app.about = バージョン情報
 command.vcs.diff = 差分を表示
+command.vcs.revert = 元に戻す
 
 # Code editor – find bar
 
+code.find.word = ワード
+code.find.case = ケース
+code.find.wrap = 折り返し
+code.find.prev = 前へ
+code.find.next = 次へ
 code.replace.next = 置換
 code.replace.all = すべて置換
 
@@ -1018,9 +1106,11 @@ ui.combo-box.not-found = 該当する項目は見つかりませんでした
 
 operation.atlas.add-animation = アニメーションを追加
 operation.atlas.add-images = 画像を追加
+operation.atlas.move-pivot-point = ピボットポイントの移動
 operation.collision-object.add-shape = シェイプを追加
 operation.collection.add-collection = コレクションを追加
 operation.collection.add-game-object = ゲームオブジェクトを追加
+operation.font.add-style = フォントスタイルを追加
 operation.game-object.add-component = コンポーネントを追加
 operation.gui.add-gui-node = GUIノードを追加
 operation.gui.add-layer = レイヤーを追加
@@ -1048,6 +1138,7 @@ operation.tile-map.add-layer = レイヤーを追加
 scene-popup.reset-defaults-button = デフォルトに戻す
 scene-popup.grid.plane = 平面
 scene-popup.grid.color = 色
+scene-popup.grid.opacity = 不透明度
 scene-popup.scene-visibility.gui-bounds = GUIバウンズ
 scene-popup.scene-visibility.gui-shapes = GUIシェイプ
 scene-popup.scene-visibility.gui-particle-effects = GUIパーティクルエフェクト
@@ -1298,6 +1389,7 @@ property.font.characters = 文字
 property.font.characters.tooltip = オフラインフォントの構築時に含める文字です。このセットを制限することで、フォントサイズを削減できます。ランタイムフォントの場合、これらの文字はグリフキャッシュを事前に準備するためにあらかじめ生成されます。フィールドを空にすると、印刷可能なASCII文字の状態に戻ります。
 property.font.all-chars = 全文字
 property.font.all-chars.tooltip = オフラインフォントの場合、指定された「文字」だけでなくソース内のすべてのグリフが含まれるようになり、フォントサイズが大幅に増加する可能性があります。ランタイムフォントの場合、グリフは必要に応じて生成されるため、このオプションを有効にすると「文字」の事前生成がスキップされます。
+property.font.markup = マークアップ
 
 # Properties: gui
 
@@ -1375,6 +1467,7 @@ property.gui.text-leading.tooltip = テキストの行間隔を調整します�
 property.gui.text-tracking = 文字間隔
 property.gui.text-tracking.tooltip = 文字間の間隔を調整します。デフォルトの「0」では、追加の文字間隔は適用されません。
 property.gui.visible = 表示
+property.gui.visible.tooltip = 非表示のノードは描画されませんが、アニメーションは継続し、`gui.pick_node()` で選択することも可能です。ノードを無効にする場合は、**Enabled**（有効）の設定もオフにしてください。
 property.gui.x-anchor = Xアンカー
 property.gui.x-anchor.tooltip = 親要素やシーンのサイズが変更された際の水平方向の配置を制御します。「Left」(左)および「Right」(右)は、その端からの相対的な距離（比率）を維持してピボットを配置します。「None」(なし)は、調整後の中心を基準にピボットを配置します。
 property.gui.y-anchor = Yアンカー
@@ -1426,6 +1519,8 @@ property.mesh.primitive-type.tooltip = 連続する頂点がどのようにジ�
 
 # Properties: model
 
+property.model.create-go-bones = GOボーンを作成
+property.model.create-go-bones.tooltip = スケルトンの各ボーンに対してランタイム用のゲームオブジェクトが生成され、手のボーンと武器などのアタッチメントとの間に親子関係の設定ができるようになります。これらのボーンオブジェクトは `model.get_go()` で取得可能であり、コレクションのゲームオブジェクト上限数にカウントされます。
 
 # Properties: particlefx
 
@@ -1509,16 +1604,68 @@ property.particlefx.particle-key-stretch-factor-y.tooltip = 各パーティク�
 
 # Properties: sound
 
+property.sound.sound.tooltip = このコンポーネントで再生される音声リソースです。対応している形式は WAV、Ogg Vorbis、Ogg Opus です。Opus の再生には、アプリマニフェストにそのデコーダーが含まれている必要があります。
+property.sound.looping = ループ
+property.sound.looping.tooltip = 音声が最後まで再生された後、繰り返し再生します。**Loop Count**（ループ回数）で追加の繰り返し回数を設定します。ループしない場合、音声は1回だけ再生されます。
+property.sound.loopcount = ループ数
+property.sound.loopcount.tooltip = 最初の再生後の追加再生回数です。`0`は明示的に停止されるまでループし、`1`は合計2回再生され、最大値は`127`です。
+property.sound.group = グループ
+property.sound.group.tooltip = 共有のミキシングおよびゲイン制御に使用されるサウンドグループです。同じグループに属するコンポーネントは一括して調整可能です。空欄にする場合は、組み込みの `master` グループが使用されます。
+property.sound.gain = ゲイン
+property.sound.pan = パン
+property.sound.pan.tooltip = ステレオ音場内での音の位置を設定します。`-1` は完全な左、`0` は中央、`1` は完全な右となります。
+property.sound.speed = 再生速度
+property.sound.speed.tooltip = 再生速度の倍率です。`1.0`は通常速度、`0.5`は半分の速度、`2.0`は2倍の速度を表します。速度を変更すると、ピッチも変化します。
 
 # Properties: sprite
 
+property.sprite.default-animation = 既定アニメーション
+property.sprite.default-animation.tooltip = スプライトの開始時に表示される画像またはフリップブックアニメーションです。アニメーションデータは最初のアトラスまたはタイルソースから取得されます。実行時に `sprite.play_flipbook()` を使用して変更可能です。
+property.sprite.offset.tooltip = デフォルトアニメーションの開始位置を `0` から `1` の範囲で正規化した値です。オフセットを変えることで、再生の途中から開始したり、見た目が同じアニメーションスプライトのタイミングをずらしたりすることができます。
+property.sprite.playback-rate = 再生速度
+property.sprite.playback-rate.tooltip = アニメーションに設定された速度に適用される倍率です。「1」は通常の速度、「2」は2倍の速度で再生され、「0」は再生を一時停止します。負の値は「0」に制限されます。
+property.sprite.size-mode = サイズモード
 
 # Properties: tile map
 
+property.tile-map.layer.id.tooltip = `tilemap.get_tile()` や `tilemap.set_tile()` などのタイルマップAPIで使用されるレイヤー識別子です。タイルマップ内で一意である必要があります。
+property.tile-map.layer.visible = 表示
+property.tile-map.layer.visible.tooltip = このレイヤーをレンダリングするかどうかを制御します。タイルマップがコリジョンオブジェクトに形状を供給する場合、非表示のレイヤーはコリジョン判定の対象からも除外されます。
+property.tile-map.layer.z = Z
+property.tile-map.layer.z.tooltip = このレイヤーのすべてのタイルに、ローカルの深度オフセットが適用されます。デフォルトのレンダリング設定では、最終的なZ値が大きいほど手前に表示され、**-1から1**の範囲外の値はレンダリングされません。最終的なZ値は、タイルマップコンポーネント、ゲームオブジェクト、および親のトランスフォームによって決定されます。
+property.tile-map.tile-source = タイルソース
+property.tile-map.tile-source.tooltip = このタイルマップで使用されるタイル画像と、オプションの衝突判定用形状を提供するタイルソース。
 
 # Properties: tile source
 
+property.tile-source.animation.id.tooltip = コンポーネントやランタイムアニメーションAPIでこのフリップブックアニメーションを選択するために使用される識別子です。タイルソース内で一意である必要があります。
+property.tile-source.collision-group.id.tooltip = 選択されたタイル形状に割り当てられた衝突グループ(collision group)の名前です。これは衝突のフィルタリングに使用されるほか、物理演算のメッセージやイベントでも報告されます。
+property.tile-source.end-tile = エンドタイル
+property.tile-source.end-tile.tooltip = アニメーションに含まれる最後のタイルです。タイルには左上を`1`として、左から右へ、続いて下方向へと順に番号が振られています。開始位置よりも終了位置が前の場合は、最後のタイルからタイル`1`へと戻るようにループします。
+property.tile-source.extrude-borders = 境界の押し出し
+property.tile-source.extrude-borders.tooltip = 生成されるテクスチャにおいて、各タイルの端の色を外側へコピーする際のピクセル数です。これにより、タイルの端の近くでサンプリングを行った際に、隣接するタイルの色がそのタイルに混入するのを防ぐことができます。
+property.tile-source.flip-horizontal = 左右反転
+property.tile-source.flip-horizontal.tooltip = 再生中、すべてのアニメーションフレームを水平方向に反転させます。
+property.tile-source.flip-vertical = 上下反転
+property.tile-source.flip-vertical.tooltip = 再生中、すべてのアニメーションフレームを垂直方向に反転させます。
 property.tile-source.fps = FPS
+property.tile-source.fps.tooltip = フレーム毎秒のアニメーション再生速度。値を大きくすると、タイルがより速く表示されます。
+property.tile-source.inner-padding = 内部パディング
+property.tile-source.inner-padding.tooltip = 生成されたランタイムテクスチャにおいて、各タイルの周囲に追加される空のピクセル数です。これは、元の画像に既に存在する間隔を指すものではありません。
+property.tile-source.playback = プレイバック
+property.tile-source.playback.tooltip = アニメーションを最初のタイルで停止させるか、1回再生するか、ループさせるかを選択し、さらにフレームの再生方向を順方向、逆方向、またはピンポン（往復）のいずれかに設定します。 **Once Ping Pong（1回ピンポン） **設定では、アニメーションを連続再生する際に最初のフレームが繰り返されるのを防ぐため、2番目のフレームに戻った時点で停止します。
+property.tile-source.sprite-trim-mode = スプライトトリムモード
+property.tile-source.sprite-trim-mode.tooltip = 各タイルの完全な矩形を描画する代わりに、選択された数以下の頂点を持つポリゴンで、そのタイルの不透明な領域を近似します。これにより、透明部分のオーバードローを削減できますが、9スライススプライトでは使用できません。
+property.tile-source.start-tile = スタートタイル
+property.tile-source.start-tile.tooltip = アニメーションに含まれる最初のタイル。タイルには左上の `1` から順に、左から右へ、続いて下方向へと番号が振られています。
+property.tile-source.tile-height = タイルの高さ
+property.tile-source.tile-height.tooltip = マージンと間隔を除いた、各タイルの画像コンテンツのピクセル単位の高さ。
+property.tile-source.tile-margin = タイルマージン
+property.tile-source.tile-margin.tooltip = 各タイルの周囲にある元画像のピクセル数です。元画像内のタイルの周囲に既に存在する余白に合わせて設定してください。
+property.tile-source.tile-spacing = タイル間隔
+property.tile-source.tile-spacing.tooltip = 隣接するタイル間の余白を除いたソース画像上の追加のピクセル単位の隙間。ソース画像に既に存在する間隔に合わせて設定してください。
+property.tile-source.tile-width = タイル幅
+property.tile-source.tile-width.tooltip = マージンと間隔を除いた、各タイルの画像コンテンツのピクセル単位の幅。
 
 # Outline
 
@@ -1567,7 +1714,17 @@ resource.type.cpp = C++
 resource.type.custom = リソース
 resource.type.data = データ
 resource.type.cubemap = キューブ マップ
+resource.type.gitignore = .gitignore
+resource.type.gui = GUI
+resource.type.h = C/C++ Header
+resource.type.html = HTML
+resource.type.ini = INI
+resource.type.jar = JAR
+resource.type.java = Java
+resource.type.json = JSON
+resource.type.py = Python
 resource.type.xml = XML
+resource.type.zig = Zig
 
 
 # Forms
@@ -1578,8 +1735,20 @@ resource.type.xml = XML
 form.label.project.bootstrap.main_collection = Main Collection
 form.help.project.bootstrap.main_collection = アプリケーションの起動時にエンジンが読み込み、初期化を行う `.collection` リソースのことです。例として `/main/main.collection`のようになります。このリソースに含まれるゲームオブジェクトやコンポーネントが、実行時の初期ワールドを構成します。
 
+form.label.project.project.title = タイトル
+form.help.project.project.title = アプリケーションの表示名です。ウィンドウのタイトルやプラットフォームのバンドルメタデータで使用され、空にすることはできません。
+form.label.project.project.version = バージョン
+form.help.project.project.version = プラットフォームバンドルのメタデータに埋め込まれた、アプリケーションのリリースバージョン。
+form.label.project.project.publisher = パブリッシャー
+form.help.project.project.publisher = アプリケーションを発行する個人または組織の名称。実行時には `project.publisher` として利用可能です。
+form.label.project.project.developer = デベロッパー
+form.help.project.project.developer = アプリケーションを開発する個人または組織の名前。実行時には `project.developer` として利用可能です。
 form.label.project.project.minimum_log_level = 最小ログレベル
 form.help.project.project.minimum_log_level = ログに記録される最低限の重大度です。選択したレベルを下回るメッセージは記録されず、そのレベル以上のメッセージが記録されます。
+form.label.project.project.dependencies_metadata = 依存関係のメタデータ
+form.help.project.project.dependencies_metadata = クラッシュレポートで使用中の依存関係の正確なバージョンを特定できるよう、ランタイムバンドルにライブラリのURLとリビジョンメタデータを含めます。
+form.label.project.project.custom_resources = カスタムリソース
+form.help.project.project.custom_resources = メインのゲームアーカイブに含めるファイルやディレクトリを、カンマ区切りで指定します。ディレクトリは再帰的に含まれます。これらのファイルは、実行時に `sys.load_resource()` で読み込みます。
 
 form.label.project.android = Android
 form.help.project.android = Android関連設定
@@ -1590,9 +1759,53 @@ form.help.project.android.app_icon_48x48 = **mdpi**デバイス（密度1倍）�
 form.help.project.android.app_icon_72x72 = **hdpi**デバイス（密度1.5倍）でランチャーアイコンとして使用される72x72のPNG画像です。設定されていない場合、Defoldは設定済みのAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
 form.label.project.android.app_icon_96x96 = App Icon 96x96
 form.help.project.android.app_icon_96x96 = **xhdpi**デバイス（密度2倍）でランチャーアイコンとして使用される96x96のPNG画像です。設定されていない場合、Defoldは設定されたAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
+form.help.project.android.app_icon_144x144 = **xxhdpi**デバイス（3倍の密度）でランチャーアイコンとして使用される144x144のPNG画像です。設定されていない場合、Defoldは設定済みのAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
+form.help.project.android.app_icon_192x192 = **xxxhdpi**デバイス（4倍の密度）でランチャーアイコンとして使用される192x192のPNG画像です。設定されていない場合、Defoldは構成されたAndroidアプリのアイコンのうち最大のもの、または組み込みのアイコンを拡大縮小して使用します。
+form.label.project.android.push_icon_small = プッシュ通知用スモールアイコン
+form.help.project.android.push_icon_small = 画面密度に応じた適切な小アイコンが見つからない場合、フォールバック用のPNGが小通知アイコンとして使用されます。プッシュ通知用アイコンが設定されていない場合は、アプリケーションアイコンが使用されます。
+form.label.project.android.push_icon_large = プッシュ通知用ラージアイコン
+form.help.project.android.push_icon_large = 画面密度に応じた適切な大型アイコンが見つからない場合、フォールバック用のPNG画像が大型通知アイコンとして使用されます。プッシュ通知用アイコンが設定されていない場合は、アプリケーションアイコンが使用されます。
+form.label.project.android.push_icon_small_ldpi = プッシュ通知用スモールアイコンLDPI
+form.help.project.android.push_icon_small_ldpi = **ldpi** デバイス（密度 0.75x）で小さな通知アイコンとして使用される PNG です。この密度においては、**Push Icon Small**(プッシュ通知用スモールアイコン)よりも優先されます。
+form.label.project.android.push_icon_small_mdpi = プッシュ通知用スモールアイコンMDPI
+form.help.project.android.push_icon_small_mdpi = **mdpi** デバイス（密度 1x）で小さな通知アイコンとして使用される PNG です。この密度においては、**Push Icon Small** (プッシュ通知用スモールアイコン)よりも優先されます。
+form.label.project.android.push_icon_small_hdpi = プッシュ通知用スモールアイコンHDPI
+form.help.project.android.push_icon_small_hdpi = **hdpi** デバイス（密度 1.5 倍）で小さな通知アイコンとして使用される PNG です。この密度においては、**Push Icon Small**(プッシュ通知用スモールアイコン)よりも優先されます。
+form.label.project.android.push_icon_small_xhdpi = プッシュ通知用スモールアイコンXHDPI
+form.help.project.android.push_icon_small_xhdpi = **xhdpi** デバイス（2倍の密度）で、小さな通知アイコンとして使用される PNG 画像です。この密度においては、**Push Icon Small**(プッシュ通知用スモールアイコン)よりも優先して使用されます。
+form.label.project.android.push_icon_small_xxhdpi = プッシュ通知用スモールアイコンXXHDPI
+form.help.project.android.push_icon_small_xxhdpi = **xxhdpi** デバイス（3倍の密度）で小さな通知アイコンとして使用されるPNG画像です。この密度においては、**Push Icon Small**(プッシュ通知用スモールアイコン)よりも優先されます。
+form.label.project.android.push_icon_small_xxxhdpi = プッシュ通知用スモールアイコンXXXHDPI
+form.help.project.android.push_icon_small_xxxhdpi = **xxxhdpi** デバイス（4倍の密度）で小さな通知アイコンとして使用される PNG ファイルです。この密度においては、**Push Icon Small**(プッシュ通知用スモールアイコン)よりも優先されます。
+form.label.project.android.push_icon_large_ldpi = プッシュ通知用ラージアイコンLDPI
+form.help.project.android.push_icon_large_ldpi = **ldpi** デバイス（密度 0.75x）で大きな通知アイコンとして使用される PNG です。この密度においては、**Push Icon Large**(プッシュ通知用ラージアイコン)よりも優先されます。
+form.label.project.android.push_icon_large_mdpi = プッシュ通知用ラージアイコンMDPI
+form.help.project.android.push_icon_large_mdpi = **mdpi** デバイス（密度 1x）で大きな通知アイコンとして使用される PNG です。この密度においては、**Push Icon Large**(プッシュ通知用ラージアイコン)よりも優先されます。
+form.label.project.android.push_icon_large_hdpi = プッシュ通知用ラージアイコンHDPI
+form.help.project.android.push_icon_large_hdpi = **hdpi** デバイス（1.5倍の密度）で大きな通知アイコンとして使用されるPNGファイルです。この密度においては、**Push Icon Large**(プッシュ通知用ラージアイコン)よりも優先されます。
+form.label.project.android.push_icon_large_xhdpi = プッシュ通知用ラージアイコンXHDPI
+form.help.project.android.push_icon_large_xhdpi = **xhdpi** デバイス（2倍の密度）で大きな通知アイコンとして使用されるPNGファイルです。この密度においては、**Push Icon Large**(プッシュ通知用ラージアイコン)の設定よりも優先されます。
+form.label.project.android.push_icon_large_xxhdpi = プッシュ通知用ラージアイコンXXHDPI
+form.help.project.android.push_icon_large_xxhdpi = **xxhdpi** デバイス（3倍の密度）で大きな通知アイコンとして使用されるPNG画像です。この密度においては、**Push Icon Large**(プッシュ通知用ラージアイコン)の設定よりも優先されます。
+form.label.project.android.push_icon_large_xxxhdpi = プッシュ通知用ラージアイコンXXXHDPI
+form.help.project.android.push_icon_large_xxxhdpi = **xxxhdpi** デバイス（4倍の密度）で大きな通知アイコンとして使用される PNG 画像です。この密度においては、**Push Icon Large**(プッシュ通知用ラージアイコン)の設定よりも優先されます。
 
+form.label.project.html5 = HTML5
+form.help.project.html5 = HTML5 関連設定
 
+form.help.project.ios.app_icon_76x76 = iPadのホーム画面アイコンに使用される、正方形の **76 × 76 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.help.project.ios.app_icon_120x120 = iPhoneのホーム画面用2倍サイズアイコンとして使用される、正方形の **120 × 120 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.help.project.ios.app_icon_152x152 = iPadのホーム画面用2倍サイズアイコンとして使用される、正方形の **152 × 152 px PNG** 画像です。指定がない場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.help.project.ios.app_icon_167x167 = iPad Proのホーム画面用2倍サイズアイコンに使用される、正方形の **167 × 167 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOSアイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.help.project.ios.app_icon_180x180 = iPhoneのホーム画面用3倍サイズアイコンとして使用される、正方形の **180 × 180 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大・縮小して使用します。
+form.label.project.ios.icons_asset = アイコンアセット
+form.help.project.ios.icons_asset = App Store用アイコンを含むiOSアイコン一式を収めたXcodeアイコンカタログ（`Assets.car`）を作成しました。汎用iOSデバイス向けにビルドすると、Defoldによってアプリケーションバンドルにコピーされます。
+form.help.project.ios.launch_screen = コンパイル済みのXcode起動画面ディレクトリ（`.storyboardc`）を含めてください。ソースの`.storyboard`ではありません。また、そのファイルが参照している画像はすべて**Bundle Resources**(バンドルリソース)に追加してください。
+form.label.project.ios.pre_renderered_icons = プレレンダラーアイコン
+form.help.project.ios.pre_renderered_icons = レガシーな `UIPrerenderedIcon` メタデータを制御します。iOS 6以前では、完成済みのアイコン画像に対してこれを有効にすることで、自動的に適用される光沢効果を防ぐことができます。
 
+form.label.project.osx = OSX
+form.help.project.osx = Mac OSX 関連の設定
 
 
 
@@ -1653,6 +1866,12 @@ form.label.project.sound.max_sound_buffers = 最大サウンドバッファ
 
 
 
+form.label.project.display.width = 幅
+form.help.project.display.width = アプリケーションウィンドウのピクセル単位幅、およびデフォルトの論理レンダリング幅です。
+form.label.project.display.height = 高さ
+form.help.project.display.height = アプリケーションウィンドウのピクセル単位高さ、およびデフォルトの論理レンダリングの高さです。
+form.label.project.display.high_dpi = 高画素密度
+form.help.project.display.high_dpi = 対応するディスプレイ上で、より高解像度のバックバッファを作成し、グラフィックを鮮明に表示します。**幅**と**高さ**は、スクリプトやプロパティで使用される論理解像度のまま維持されます。
 form.label.project.display.samples = サンプル
 form.help.project.display.samples = レンダリングされたエッジを滑らかにするために使用されるアンチエイリアスサンプルの数。`0` に設定するとアンチエイリアスが無効になります。
 form.label.project.display.fullscreen = フルスクリーン
@@ -1713,18 +1932,82 @@ form.help.gamepads.driver = 特定のゲームパッドモデルをDefoldの入�
 
 
 
+form.label.sound = サウンド
+form.label.sound.sound = サウンド
+form.help.sound.sound = このコンポーネントによって再生される音声リソースです。サポートされているリソースの形式は WAV、Ogg Vorbis、または Ogg Opus です。Ogg Opus を使用する場合、アプリケーションのマニフェストでオプションのデコーダーを指定する必要があります。
+form.label.sound.looping = ループ
+form.help.sound.looping = **Loop Count**(ループ回数)に従って音を繰り返します。無効にすると、音は1回だけ再生されます。
+form.label.sound.loopcount = ループ数
+form.help.sound.loopcount = 最初の再生後の繰り返し回数です。`0`に設定すると、明示的に停止されるまでループします。有効な値の範囲は `0` から`127`です。**Loop**が有効な場合のみ使用されます。
+form.label.sound.group = グループ
+form.help.sound.group = サウンドを名前付きのミキサーグループにルーティングし、サウンドAPIでそのレベルを制御できるようにします。
+form.label.sound.gain = ゲイン
+form.help.sound.gain = 負ではないコンポーネントゲインです。`0.0`は無音、`1.0`はユニティゲインとなります。リニアゲインにおいて`1.0`を超える値を指定すると信号は増幅され、再生、グループ、およびマスターの各ゲインが組み合わさった結果、クリッピングが発生する可能性があります。
+form.label.sound.pan = パン
+form.help.sound.pan = ステレオ位置。左端の `-1.0` から中央の `0.0` を経て、右端の `1.0` まで。
+form.label.sound.speed = 再生速度
+form.help.sound.speed = コンポーネントの再生速度倍率は `0.0` ～ `50.0` の範囲に制限されます。`1.0` が通常速度です。この値は再生開始時に指定された速度に乗算され、その結果得られる速度もサポートされている範囲内に制限されます。
 
 
+form.label.liveupdate.liveupdate = ライブアップデート
+form.label.liveupdate.liveupdate.mode = モード
+form.help.liveupdate.liveupdate.mode = バンドル時に**Publish Live Update Content**(ライブアップデートコンテンツの公開)が有効な場合、除外されたリソースに使用するパブリッシャーを選択します。**Zip**はアーカイブを作成し、**Folder**(フォルダ)はコンパイル済みの各ファイルをステージングし、**Amazon**はそれらをS3にアップロードします。
+form.label.liveupdate.amazon = Amazon
+form.label.liveupdate.liveupdate.amazon-credential-profile = 認証情報プロファイル
+form.help.liveupdate.liveupdate.amazon-credential-profile = アップロードに使用するAWS認証情報プロファイルです。エディターは、`AWS_SHARED_CREDENTIALS_FILE`、次に`AWS_CREDENTIAL_PROFILES_FILE`によって指定されたファイルの内、最初に存在が確認できたものを読み込みます。それらがない場合は `~/.aws/credentials` を代替使用します。パスが未設定または存在しない場合はスキップされます。
+form.label.liveupdate.liveupdate.amazon-bucket = バケット
+form.help.liveupdate.liveupdate.amazon-bucket = 公開時に除外されたLive Update(ライブアップデート)リソースを受け取るAmazon S3バケットの名前です。選択したプロファイルには、このバケットへの確認および書き込み権限が必要です。また、ゲームクライアントが公開されたコンテンツをダウンロードできるよう、別途読み取りアクセス権限も設定してください。
+form.label.liveupdate.liveupdate.amazon-prefix = プレフィックス
+form.help.liveupdate.liveupdate.amazon-prefix = 各リソースハッシュの前に付与する必要があるS3オブジェクトキーのプレフィックス、例えば`my-game/liveupdate`のようになります。単一のバケット内でプロジェクトやリリースを区別するために、それぞれ異なるプレフィックスを使用してください。
+form.label.liveupdate.zip = Zip
+form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = バンドルフォルダに保存
+form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = バンドル処理後、生成されたLive Update Zipアーカイブをアプリケーションバンドルの出力先へ移動します。このオプションを有効にすると、最終的な保存先として**Output Directory**(出力ディレクトリ)の設定よりもこちらが優先されます。
+form.label.liveupdate.liveupdate.zip-filepath = 出力ディレクトリ
+form.help.liveupdate.liveupdate.zip-filepath = 生成されたライブアップデート Zipアーカイブが書き出されるディレクトリです。相対パスはプロジェクトルートを基準として解決されます。プロジェクトルートを使用する場合は、空欄のままにしてください。最終的な保存先としては、**Save in Bundle Folder**（Bundle Folderに保存）の設定が優先されます。
+form.label.liveupdate.liveupdate.zip-filename = ファイル名
+form.help.liveupdate.liveupdate.zip-filename = 生成されるライブアップデートZipアーカイブの名前です。拡張子 `.zip` が省略された場合は自動的に付加されます。自動生成された名前を使用する場合は、空欄のままにしてください。
+form.title.liveupdate.liveupdate.zip-filepath = Zip出力ディレクトリを選択
+form.title.liveupdate.liveupdate.publickey = マニフェスト公開鍵を選択
+form.label.liveupdate.liveupdate.privatekey = 秘密鍵
+form.help.liveupdate.liveupdate.privatekey = 非推奨です。マニフェストの秘密鍵は使用されなくなっており、この設定を行うとプロジェクトで致命的なエラーが発生します。以前は、Live Updateマニフェストに署名するために、検証用公開鍵と対になるPKCS \#8 DERエンコード形式のRSA秘密鍵を指定するものでした。秘密鍵は機密として厳重に管理する必要があります。
+form.title.liveupdate.liveupdate.privatekey = マニフェストの秘密鍵を選択
+form.label.liveupdate.liveupdate.supported-versions = サポートされているエンジンのバージョン
+form.help.liveupdate.liveupdate.supported-versions = このライブアップデート・マニフェストをマウント可能な、追加のエンジンバージョン文字列です。カンマ区切りのリストとして入力してください。ビルド時のエンジンバージョンは常に含まれます。実行中のエンジンがいずれにも一致しない場合、マウントは `ENGINE_VERSION_MISMATCH` エラーで失敗します。
 
+form.label.material.vertex-program = 頂点プログラム
+form.help.material.vertex-program = 各頂点に対して1回実行される `.vp` シェーダーです。このシェーダーは最終的なクリップ空間での位置を生成する必要があり、フラグメントプログラム(fragment program)へ varying（補間）値を渡すことも可能です。
+form.label.material.fragment-program = フラグメントプログラム
+form.help.material.fragment-program = ラスタライズされた各フラグメントに対して実行される `.fp` シェーダーです。通常、テクスチャのサンプリングや、varying（補間）値と定数の合成を行い、出力色を生成します。
+form.label.material.attributes = 頂点属性
+form.help.material.attributes = 頂点プログラム(Vertex Program)が期待する頂点入力です。「セマンティクス・タイプ（Semantic Type）」はエンジンやコンポーネントのデータを識別し、「座標空間（Coordinate Space）」はサポートされるセマンティクスの変換を制御します。また、「値（Value）」は、一致するコンポーネント・ストリームによる上書きがない場合に定数データを提供します。「ステップ関数（Step Function）」は、頂点単位またはインスタンス単位でのデータ供給を選択します。
+form.label.material.attributes.semantic-type = セマンティックタイプ
+form.label.material.attributes.step-function = ステップ関数
+form.label.material.attributes.coordinate-space = 座標空間
+form.label.material.attributes.data-type = データタイプ
+form.label.material.attributes.vector-type = ベクトルタイプ
 form.label.material.attributes.value = 値
 form.label.material.attributes.normalize = 正規化
 form.label.material.vertex-constants = 頂点定数
+form.help.material.vertex-constants = 頂点プログラム(Vertex Program)に渡されるユニフォーム(Uniform)値です。各 `Name` は、シェーダーで使用されるユニフォームと完全に一致している必要があります。組み込み型は変換行列や時間などの値を提供し、ユーザー定義型は初期値を提供します。この初期値は、コンポーネントAPIやレンダー定数バッファによって上書き可能です。コンポーネントごとの値が指定されると、バッチが分割される場合があります。
+form.label.material.fragment-constants = フラグメント定数
+form.help.material.fragment-constants = フラグメントプログラム(fragment program)に渡されるユニフォーム(Uniform)値です。各 `Name` は、シェーダーで使用されるユニフォームと完全に一致している必要があります。組み込み型はエンジンデータを提供し、ユーザー定義型は初期値を提供します。この初期値は、コンポーネントAPIやレンダー定数バッファによって上書き可能です。コンポーネントごとの値は、バッチ分割の原因となる場合があります。
+form.label.material.samplers = サンプラー
+form.help.material.samplers = シェーダーで使用されるテクスチャサンプリング(Texture sampling)設定です。各 `Name` は、サンプラーユニフォームと完全に一致している必要があります。ラップモードはテクスチャ範囲外の座標を処理し、フィルタリングと異方性フィルタリングはテクセルの選択を制御します。テクスチャは、コンポーネントスロットまたはレンダースクリプトのバインディングから供給されます。設定されていないサンプラーは、サポートされている場合、プロジェクトのデフォルトのフィルタリング設定を使用します。
+form.label.material.tags = タグ
+form.help.material.tags = このマテリアルで描画されるコンポーネントを選択するために、レンダー述語（render predicates）が使用する識別子です。複数のタグを含む述語は、それらすべてのタグを持つオブジェクトにのみ一致します。各マテリアルには、最大32個のタグを設定できます。
 
+form.help.compute.samplers = `.cp` プログラムで宣言されたサンプラーユニフォームのサンプリング設定です。これらはストレージイメージには適用されません。**Name** はサンプラーユニフォームと完全に一致している必要があります。また、ディスパッチの前に、レンダースクリプトとは別にテクスチャをバインドしてください。
 
 # Quick Help
 
+quick-help.open-asset = アセットを開く
+quick-help.reopen-closed-file = 閉じたファイルを再度開く
+quick-help.search-in-files = ファイル内検索
+quick-help.build-and-run-project = プロジェクトをビルドして実行
+quick-help.start-or-attach-debugger = デバッガーを起動またはアタッチする
 
 # Error Messages
+error.engine.url-not-reported-before-exit = エンジンがサービスURLを報告する前に終了しました。
 error.engine.url-not-reported-in-time = 15秒以内にエンジンサービスのURLが報告されませんでした。ゲームはまだ実行中である可能性があります。
 error.assigned-image-has-internal-errors = 割り当てられた画像に内部エラーがあります。
 error.sampler-not-defined-in-material = マテリアル内で「{sampler}」が定義されていません。ラベルのコンテキストメニューから「オーバーライドの解除(Clear Override)」コマンドを使用して、このプロパティを削除してください。シェーダーにそのサンプラーが必要な場合は、マテリアルに不足しているサンプラーを追加してください。
@@ -1759,6 +2042,13 @@ error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is =
 error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is = 不適切な深度(depth)/ステンシルアタッチメント(stencil attachment)：高さは0より大きいが、幅が0です。
 error.collision-object-shape-dimensions-must-be-greater-than-zero = すべての寸法は0より大きくなければなりません。
 error.collision-object-has-no-shapes = 衝突オブジェクト(Collision Object)に形状がありません。
+error.collision-object-mesh-shape-scene-required = メッシュまたはハル形状(Hull shape)として、glTFまたはGLBシーンを選択してください。
+error.collision-object-mesh-shape-no-named-meshes = 選択されたシーンには、名前の付いたメッシュが含まれていません。
+error.collision-object-mesh-shape-mesh-required = シーンからメッシュを選択してください。
+error.collision-object-mesh-shape-mesh-missing = 選択されたシーンにおいて、メッシュ「{mesh}」は存在しないか、または曖昧です。
+error.collision-object-mesh-shape-triangle-topology-required = 選択されたメッシュには、三角形以外のプリミティブが含まれています。
+error.collision-object-mesh-shape-empty = 選択されたメッシュには三角形が含まれていません。
+error.collision-object-hull-shape-empty = 選択されたメッシュには頂点が含まれていません。
 error.collision-shape-conflict = 埋め込みシェイプ(embedded shapes)を、参照されているコリジョンシェイプ(Collision Shape)と組み合わせることはできません。いずれか一方を削除してください。
 error.collision-object-shape-not-supported-in-physics = {physics} 物理演算(physics)では、{shape} 形状(shapes)はサポートされていません。
 error.texture-profiles.format-not-supported-by-texture-compressor = テクスチャ形式(Texture format)は、テクスチャ圧縮ツール(texture compressor)でサポートされていません。
@@ -1795,10 +2085,16 @@ error.material-does-not-support-paged-atlases = マテリアルはペ​​ー�
 error.material-max-page-count-insufficient = 選択された {property} のページ数に対して、そのマテリアルの「最大ページ数(Max Page Count)」が不足しています。
 error.model-unsupported-file-format = {property}「{resource}」は、サポートされていない形式 {format} です。Defoldは、{property} に対して {supported_formats} 形式のファイルのみをサポートしています。
 error.model-load-failed = ファイル「{file}」の読み込みに失敗しました\: {error}
+error.model-mesh-selection-file-type = メッシュは、glTF および GLB シーンでのみ利用可能です。
+error.model-mesh-selection-name-required = 選択されたメッシュインデックスには、メッシュ名がありません。
+error.model-mesh-selection-missing = シーン内にメッシュ「{mesh}」が見つかりませんでした。
 error.animation-not-found = "{property}" 内に "{animation}" が見つかりませんでした。
 error.buffer-syntax-error = バッファファイルに構文エラーがあります。
 error.editor-extension-compilation-failed = エディター拡張をコンパイルできませんでした。
 error.font-bitmap-generation-failed = フォントからビットマップを生成できませんでした。{error}
+error.font.style-not-found = フォントスタイル ''{style}'' は存在しません。
+error.font.invalid-style-name = スタイル名は一意かつ空であってはなりません。「default」は予約されています。
+error.font.authored-default-style = デフォルトのスタイルは生成されるものであり、マークアップを含めることはできません。
 error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = リッチテキストのアウトラインおよびシャドウタグは、BMFontフォントではサポートされていません。
 error.font.no-reserved-data-for-rich-text-outlines = このフォントにはリッチテキストのアウトライン用データが含まれていないため、アウトラインは描画されません。
 error.font.bitmap-shadow-blur-includes-outline = このビットマップフォントの影のぼかし処理にはアウトラインも含まれますが、アウトラインタグを使用せずに影を適用したリッチテキストは、くっきりと描画されます。
