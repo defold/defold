@@ -36,6 +36,9 @@
 
 (def ^:const timeout 2000)
 
+(defn debugger-port [target]
+  (+ 8172 (:instance-index target 0)))
+
 (defn- get-connection [^URI uri]
   (doto ^HttpURLConnection (.openConnection (.toURL uri))
     (.setRequestProperty "Connection" "close")
@@ -107,7 +110,9 @@
         instance-index (:instance-index target)
         args (cond-> [(str "--config=resource.uri=" local-url)]
                      debug
-                     (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
+                     (into ["--config=debugger.enabled=1"
+                            (str "--config=debugger.port=" (debugger-port target))
+                            "--config=debugger.wait=1"])
 
                      true
                      (conj (str local-url "/game.projectc"))
@@ -181,6 +186,12 @@
 
 (def ^:private loopback-address "127.0.0.1")
 
+(defn parse-debugger-port [output]
+  (when-let [[_ port] (re-find #"Lua DAP debugger listening on [^\s]+:(\d+)" output)]
+    (let [port (parse-long port)]
+      (when (and port (<= 1 port 65535))
+        port))))
+
 (defn parse-launched-target-info [output]
   (let [log-port (second (re-find #"DLIB: Log server started on port (\d*)" output))
         service-port (second (re-find #"ENGINE: Engine service started on port (\d*)" output))]
@@ -189,7 +200,9 @@
               :address loopback-address})
            (when log-port
              {:log-port log-port
-              :address loopback-address}))))
+              :address loopback-address})
+           (when-let [port (parse-debugger-port output)]
+             {:debugger-port port}))))
 
 ;; Parse a line from engine output to extract engine version info.
 (defn parse-engine-version-line [line]
@@ -313,7 +326,9 @@
                             (format "--config=project.log_dir=%s" defold-log-dir)])
 
                      debug
-                     (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
+                     (into ["--config=debugger.enabled=1"
+                            "--config=debugger.port=0"
+                            "--config=debugger.wait=1"])
 
                      (> instance-index 0)
                      (conj (format "--config=project.instance_index=%d" instance-index))
@@ -342,4 +357,6 @@
     (let [p (apply process/start! opts command args)]
       {:process p
        :name (.getName engine)
-       :log-stream (process/out p)})))
+       :log-stream (process/out p)
+       ;; The log sink replaces zero with the port selected by the engine.
+       :debugger-port (when debug 0)})))

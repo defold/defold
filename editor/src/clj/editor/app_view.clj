@@ -996,10 +996,13 @@
         version-line (atom nil)
         updated-target (atom nil)]
     (fn [line]
+      ;; Runtime activation can happen long after the startup log window.
+      (when-let [port (engine/parse-debugger-port line)]
+        (targets/update-launched-target! launched-target {:debugger-port port}))
       (when (< (count @initial-output) 5000)
         (swap! initial-output str line "\n")
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (let [result-target (targets/update-launched-target! launched-target target-info)]
+          (let [result-target (targets/update-launched-target! launched-target (dissoc target-info :debugger-port))]
             (reset! updated-target result-target)))
         (when (not @version-line)
           (when-let [engine-version-line (engine/parse-engine-version-line line)]
@@ -1024,10 +1027,13 @@
   (try
     (report-build-launch-progress!
       (localization/message "progress.rebooting-engine" {"engine" (targets/target-message target)}))
-    (engine/reboot! target (local-url target web-server) debug focus)
-    (report-build-launch-progress!
-      (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
-    target
+    (let [target (assoc target :debugger-port (when debug (engine/debugger-port target)))]
+      (when (targets/launched-target? target)
+        (targets/update-launched-target! target (select-keys target [:debugger-port])))
+      (engine/reboot! target (local-url target web-server) debug focus)
+      (report-build-launch-progress!
+        (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
+      target)
     (catch Exception e
       (report-build-launch-progress! (localization/message "progress.engine-reboot-failed"))
       (throw e))))
@@ -1560,7 +1566,7 @@
                  (or engine skip-engine))
           (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server true true)]
             (when (and target (nil? (debug-view/current-session debug-view)))
-              (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0)))
+              (debug-view/start-debugger! debug-view project target false))
             (cond-> build-results
               error (assoc :error (exception->target-error error))
               target (assoc :target target)))

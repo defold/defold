@@ -9,14 +9,14 @@ capability. Reference: [Debug Adapter Protocol specification](https://microsoft.
 
 ### Editor DAP integration
 
-Replace the editor's MobDebug client with a DAP client while preserving the
-existing breakpoint, stepping, call-stack, variables, and debug-console UI.
-Integrate runtime activation through `debugger.start()`, listener discovery,
-multiple engine instances, reconnects, and connection/error reporting.
+The editor now uses DAP for startup, runtime attachment, breakpoints, stepping,
+stack and variable inspection, console evaluation, and detachment. See the
+[editor integration notes](../../editor/README_DAP.md).
 
-Acceptance: both starting a project for debugging and attaching to an already
-running project work from the editor; detaching leaves the project running;
-engine exits and failed connections restore a usable editor state.
+Remaining: make the extension's bind address configurable for direct remote
+connections and expose the listener port through engine service/discovery
+metadata for remote dynamic-port discovery. Preserve the loopback default and
+test remote attachment, port conflicts, and reboot discovery.
 
 ### Source discovery and retrieval
 

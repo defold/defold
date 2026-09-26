@@ -27,8 +27,8 @@ To enable DAP in a native debug engine that was started without
 local port = debugger.start()
 ```
 
-The code can be sent through the engine's existing `run_script` service, the same
-mechanism the editor uses to start MobDebug when attaching. No restart or startup
+The code can be sent through the engine's existing `run_script` service, which
+the editor uses when attaching. No restart or startup
 flag is required. `debugger.start([port])` returns the listening port immediately;
 it does not wait for a client or pause the project. An omitted port uses
 `debugger.port` (8172 by default); pass 0 to select an available port. Repeated
@@ -65,8 +65,10 @@ optional when client and runtime use the same paths. Native path strings are
 supported, including Windows separators. URI paths are rejected. Client line and
 column bases are negotiated by `initialize`.
 
-This module provides the DAP server. The editor's existing MobDebug client is
-unchanged; connect with a client that supports DAP TCP servers.
+The editor uses this DAP server for Lua debugging. See the
+[editor integration notes](../../editor/README_DAP.md) for startup, attachment,
+tests, and the engine changes needed for direct remote-device connections.
+Other clients supporting DAP TCP servers can also connect.
 
 ## Supported requests
 
@@ -135,7 +137,7 @@ are offered as completion names.
 
 Table entry names preserve key types: `["name"]`, `[1]`, and `[false]` are
 different keys. Pass the displayed name back to `setVariable`. Inspection avoids
-calling user metamethods. Like MobDebug's Defold serializer, the engine adapter
+calling user metamethods. The engine adapter
 expands game-object, GUI, and render script instances using their backing data
 tables. Their `self` fields support expansion, hover, completion, and editing,
 including in suspended coroutines. Other userdata and functions are displayed

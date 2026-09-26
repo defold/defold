@@ -40,7 +40,7 @@ namespace dmDebugger
             index += top + 1;
         if (!lua_getmetatable(L, index))
             return false;
-        // Match the registered engine metatables, as MobDebug's edn.lua does.
+        // Match the registered engine metatables to access script instance data.
         // Other userdata and application metamethods are not inspected.
         const char* types[] = { "GOScriptInstance", "GuiScriptInstance", "RenderScriptInstance" };
         bool        instance = false;
