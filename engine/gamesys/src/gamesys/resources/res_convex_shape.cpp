@@ -33,7 +33,7 @@ namespace dmGameSystem
         {
             return ResConvexShapeBullet3DCreate(params);
         }
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 
     dmResource::Result ResConvexShapeDestroy(const dmResource::ResourceDestroyParams* params)
@@ -47,7 +47,7 @@ namespace dmGameSystem
         {
             return ResConvexShapeBullet3DDestroy(params);
         }
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 
     dmResource::Result ResConvexShapeRecreate(const dmResource::ResourceRecreateParams* params)
@@ -61,6 +61,6 @@ namespace dmGameSystem
         {
             return ResConvexShapeBullet3DRecreate(params);
         }
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 }

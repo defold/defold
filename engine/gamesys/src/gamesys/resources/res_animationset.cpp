@@ -40,7 +40,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_AnimationSet_DESCRIPTOR, (void**) &AnimationSet);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         *params->m_PreloadData = AnimationSet;
@@ -78,7 +78,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_AnimationSet_DESCRIPTOR, (void**) &spine_scene);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         AnimationSetResource* ss_resource = (AnimationSetResource*)dmResource::GetResource(params->m_Resource);
