@@ -77,14 +77,15 @@ python3 engine/graphics/src/test/test_graphics_images.py
 
 The manual CMake target renders the local backend matrix, records explicit
 skips for adapters absent from the build, and produces
-`engine/graphics/build/graphics-render-report/index.html` and `results.json`.
+`engine/graphics/build/graphics-render-report/<target-platform>/index.html` and `results.json`.
 Capture processes create hidden windows with focus-on-show disabled, so the
 offscreen tests do not activate a window while running.
 Capture PNGs, logs, reproduction commands and platform/adapter metadata
-are in `engine/graphics/build/graphics-test-images/`. Differences are in the
+are in `engine/graphics/build/graphics-test-images/<target-platform>/`. Differences are in the
 report directory; the HTML embeds all images and logs and can be copied alone.
 Unsupported texture formats remain in the capture manifest but are omitted
-from the report and its totals. The overview shows platform and backend totals,
+from the report and its totals. The report header identifies the tested target
+platform, independently of the machine running the Python harness. The overview shows platform and backend totals,
 summaries for basic rendering, stencil, cubemaps and texture formats, then
 links to each failed test. Results default to backend sections, each containing
 basic rendering, stencil, cubemaps and texture formats. One report-wide switch
@@ -103,8 +104,8 @@ For a browser build, pass `webgpu`, `read-pixels` and optionally `msaa` as
 application arguments. The same test accepts the other named app adapters.
 
 The ordinary and sequential runners register the likeness tests. Hosted CI
-automatically captures only on native Linux/Vulkan (Mesa software Vulkan
-under Xvfb); macOS and Windows record explicit policy skips. This does not
+automatically captures on native Linux/Vulkan (Mesa software Vulkan
+under Xvfb) and `arm64_sim-ios`; native macOS and Windows record explicit policy skips. This does not
 disable the manual target. Native macOS WebGPU requires the Apple Silicon
 Dawn build support; configurations without that adapter are explicitly skipped.
 An explicitly requested missing backend fails:
@@ -112,6 +113,48 @@ An explicitly requested missing backend fails:
 ```sh
 python3 engine/graphics/src/test/run_graphics_images.py --executable <test_app_graphics> --capture-dir captures --backend vulkan --available vulkan --output report
 ```
+
+## iOS simulator
+
+Configure CMake with `TARGET_PLATFORM=arm64_sim-ios` on an Apple Silicon Mac
+with Xcode and an installed iOS simulator runtime. Metal is selected by default.
+For Vulkan, install an arm64 **simulator** MoltenVK library in
+`$DYNAMO_HOME/ext/lib/arm64_sim-ios/libMoltenVK.a` and configure with
+`WITH_VULKAN=ON`; see [MoltenVK packaging](../../../../../share/ext/moltenvk/README.md#arm64_sim-ios).
+The SDK also needs the simulator builds of GLFW, Basis Universal and LZ4.
+
+Run the same `generate_graphics_test_images` CMake target, or invoke the harness directly:
+
+```sh
+MTL_DEBUG_LAYER=1 python3 engine/graphics/src/test/run_graphics_images.py \
+  --executable <simulator-test_app_graphics> --target-platform arm64_sim-ios \
+  --matrix metal vulkan --available metal vulkan \
+  --capture-dir build/graphics-test-images/arm64_sim-ios \
+  --output build/graphics-render-report/arm64_sim-ios
+```
+
+Use `--available metal` for a build without Vulkan. `--simulator <name-or-UDID>`
+or `IOS_SIMULATOR_ID` selects a device; otherwise the existing iOS test runner
+prefers a booted simulator. The harness installs a temporary app and fixtures,
+launches the real `test_app_graphics` once per backend/case through UIKit,
+collects captures and logs, then uninstalls its own app. It leaves the simulator
+running. A completion marker is required as well as the backend and target
+platform markers, so an app crash cannot pass based on `simctl`'s exit status.
+Reports record the simulator runtime and device rather than the host macOS version.
+
+Metal ASTC cases are required on `arm64_sim-ios`: reporting those formats as
+unsupported fails the test instead of skipping it. The simulator exposes Apple2,
+which supports 2D ASTC. Metal's array/3D ASTC feature retains its Apple3 requirement
+because it also covers compressed volume textures.
+
+Local validation on 2026-09-26: iPhone 17 Pro simulator, iOS 26.5, Apple M5 Max,
+Xcode 27 beta, `MTL_DEBUG_LAYER=1`, MoltenVK 1.4.2: 26 Metal and 28 Vulkan cases
+passed, with no failures. All nine rendering/stencil/cubemap cases pass on each
+backend. All 14 ASTC formats now pass on Metal. The 16 unsupported format/backend
+combinations remain in the capture manifest and are excluded from the report. Native macOS regression coverage
+also passes all 80 supported cases across Metal, OpenGL and Vulkan.
+
+## Saved captures
 
 Keep `captures.json` and backend directories together when moving captures
 between machines. Rebuild comparisons without rerunning any backend:

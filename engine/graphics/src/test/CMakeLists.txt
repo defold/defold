@@ -58,7 +58,7 @@ if(WITH_METAL AND TARGET graphics_metal)
   defold_register_test_target(test_graphics_metal OFF)
 endif()
 
-if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
+if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
   defold_get_graphics_symbols(_graphics_app_symbols "${TARGET_PLATFORM}")
 
   if(_graphics_app_symbols)
@@ -113,17 +113,24 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
     endif()
     defold_target_link_libraries_web(test_app_graphics "${TARGET_PLATFORM}" library_sys.js library_glfw.js)
     defold_register_test_target(test_app_graphics OFF)
-    if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
+    if((NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$") OR TARGET_PLATFORM STREQUAL "arm64_sim-ios")
       target_sources(test_app_graphics PRIVATE "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.cpp")
+      set(_graphics_texture_dir "${GRAPHICS_TEST_SRC_DIR}/texture_formats")
+      if(TARGET_PLATFORM STREQUAL "arm64_sim-ios")
+        set(_graphics_texture_dir "texture_formats")
+      endif()
       target_compile_definitions(test_app_graphics PRIVATE DM_TEST_GRAPHICS_CAPTURE
-        DM_TEST_TEXTURE_FORMATS_DIR="${GRAPHICS_TEST_SRC_DIR}/texture_formats")
+        DM_TEST_GRAPHICS_PLATFORM="${TARGET_PLATFORM}"
+        DM_TEST_TEXTURE_FORMATS_DIR="${_graphics_texture_dir}")
       if(WIN32)
         target_link_libraries(test_app_graphics PRIVATE d3dcompiler)
       endif()
 
       _defold_find_python(_graphics_python)
       defold_test_run_settings(_graphics_runner _graphics_run_options graphics)
-      if(TARGET_PLATFORM MATCHES "macos$")
+      if(TARGET_PLATFORM STREQUAL "arm64_sim-ios")
+        set(_graphics_matrix metal vulkan)
+      elseif(TARGET_PLATFORM MATCHES "macos$")
         set(_graphics_matrix metal opengl webgpu)
       elseif(TARGET_PLATFORM MATCHES "linux$")
         set(_graphics_matrix vulkan)
@@ -150,13 +157,17 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
           list(APPEND _graphics_available "${_backend}")
         endif()
       endforeach()
-      set(_graphics_python_command "${CMAKE_COMMAND}" -E env
-        "GRAPHICS_CAPTURE_EXECUTABLE=$<TARGET_FILE:test_app_graphics>"
+      set(_graphics_capture_env)
+      if(NOT TARGET_PLATFORM STREQUAL "arm64_sim-ios")
+        list(APPEND _graphics_capture_env "GRAPHICS_CAPTURE_EXECUTABLE=$<TARGET_FILE:test_app_graphics>")
+      endif()
+      set(_graphics_python_command "${CMAKE_COMMAND}" -E env ${_graphics_capture_env}
         "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_images.py")
       set(_graphics_image_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_images.py"
         --executable "$<TARGET_FILE:test_app_graphics>"
-        --capture-dir "${GRAPHICS_ROOT}/build/graphics-test-images"
-        --output "${GRAPHICS_ROOT}/build/graphics-render-report"
+        --target-platform "${TARGET_PLATFORM}"
+        --capture-dir "${GRAPHICS_ROOT}/build/graphics-test-images/${TARGET_PLATFORM}"
+        --output "${GRAPHICS_ROOT}/build/graphics-render-report/${TARGET_PLATFORM}"
         --matrix ${_graphics_matrix} --available ${_graphics_available})
       add_custom_target(run_test_graphics_images_python
         COMMAND ${_graphics_runner} ${_graphics_python_command}
@@ -167,10 +178,10 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
         DEPENDS test_app_graphics run_test_graphics_images_python
         ${_graphics_run_options} COMMENT "Rendering the graphics likeness matrix")
 
-      # Automatic hosted CI coverage is native Linux/Vulkan. The manual target
+      # Automatic hosted CI coverage is Linux/Vulkan and the iOS simulator. The manual target
       # above always remains available, regardless of this policy.
       set(_graphics_ci_command ${_graphics_image_command})
-      if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$")
+      if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$|^arm64_sim-ios$")
         list(APPEND _graphics_ci_command --skip-all "Hosted CI graphics captures explicitly disabled for ${TARGET_PLATFORM}")
         message(STATUS "Graphics captures skipped on hosted ${TARGET_PLATFORM} CI; manual target remains available")
       endif()

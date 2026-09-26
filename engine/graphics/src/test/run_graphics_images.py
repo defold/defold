@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Capture deterministic graphics cases or rebuild a report from saved captures."""
 import argparse
+from contextlib import nullcontext
 import base64
 import html
 import itertools
@@ -261,7 +262,7 @@ def remove_capture_images(output):
                 diagnostic_path(output, suffix).unlink(missing_ok=True)
 
 
-def capture(executable, root, backend, case, timeout=60):
+def capture(executable, root, backend, case, timeout=60, launcher=None, target_platform=None):
     """One fresh process and output file per case, including failed runs."""
     output = root / backend / (case + '.png')
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -269,11 +270,27 @@ def capture(executable, root, backend, case, timeout=60):
     command = [str(executable), '--backend', backend, '--case', case, '--output-file', str(output)]
     record = dict(backend=backend, case=case, status='fail', command=command,
                   platform=platform.platform(), machine=platform.machine(), actual_backend=None)
+    if target_platform:
+        record['target_platform'] = target_platform
+    if launcher:
+        record.update(launcher.metadata)
+        record['command'] = [sys.executable, str(Path(__file__).resolve()), '--executable', str(executable),
+                             '--target-platform', target_platform, '--simulator', launcher.simulator.udid,
+                             '--capture-dir', str(root), '--backend', backend, '--available', backend,
+                             '--output', str(root.parent / 'graphics-render-report')]
     start = time.monotonic()
     try:
-        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                 timeout=timeout, text=True, errors='replace')
+        run = launcher.run if launcher else subprocess.run
+        process = run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                      timeout=timeout, text=True, errors='replace')
         record.update(exit_code=process.returncode, log=process.stdout)
+        if launcher:
+            record['launch_command'] = process.args
+        platforms = re.findall(r'^GRAPHICS_CAPTURE_PLATFORM=([\w-]+)$', process.stdout, re.MULTILINE)
+        if target_platform and platforms != [target_platform]:
+            raise ValueError('Requested target platform identity was not confirmed')
+        if len(platforms) == 1:
+            record['target_platform'] = platforms[0]
         identities = re.findall(r'^GRAPHICS_CAPTURE_BACKEND=(\w+)$', process.stdout, re.MULTILINE)
         if identities == [backend]:
             record['actual_backend'] = backend
@@ -303,7 +320,7 @@ def capture(executable, root, backend, case, timeout=60):
     return record
 
 
-def run_matrix(executable, root, matrix, available, explicit=False, skip_all=None):
+def run_matrix(executable, root, matrix, available, explicit=False, skip_all=None, launcher=None, target_platform=None):
     root.mkdir(parents=True, exist_ok=True)
     (root / 'captures.json').unlink(missing_ok=True)
     records = []
@@ -313,6 +330,12 @@ def run_matrix(executable, root, matrix, available, explicit=False, skip_all=Non
                 record = dict(backend=backend, case=case, status='fail' if explicit and not skip_all else 'skip',
                               reason=skip_all or '%s adapter omitted from this build/configuration' % backend,
                               platform=platform.platform(), machine=platform.machine())
+                if target_platform:
+                    record['target_platform'] = target_platform
+                if target_platform == 'arm64_sim-ios':
+                    record.update(platform='iOS Simulator (not run)', machine='arm64')
+                if launcher:
+                    record.update(launcher.metadata)
                 # A skipped/failed availability check must not reuse an old PNG.
                 path = root / backend / (case + '.png')
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -320,7 +343,12 @@ def run_matrix(executable, root, matrix, available, explicit=False, skip_all=Non
                 path.with_suffix('.log').write_text('', encoding='utf-8')
                 path.with_suffix('.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
             else:
-                record = capture(executable, root, backend, case)
+                options = {}
+                if launcher:
+                    options['launcher'] = launcher
+                if target_platform:
+                    options['target_platform'] = target_platform
+                record = capture(executable, root, backend, case, **options)
             records.append(record)
     (root / 'captures.json').write_text(json.dumps(records, indent=2), encoding='utf-8')
     return records
@@ -486,6 +514,9 @@ def write_report_html(report, output):
     status_label = {'fail': 'Failures found', 'pass': 'All tests passed', 'skip': 'No tests run'}[status]
     if status == 'pass' and counts['skip']:
         status_label = 'Passed with skips'
+    tested_platforms = list(dict.fromkeys(record.get('target_platform') or record.get('platform') or 'Unknown platform'
+                                        for record in captures))
+    platform_title = ' · '.join(tested_platforms) or 'No platform recorded'
     platforms = {}
     for record in captures:
         key = (record.get('platform') or 'Platform not recorded', record.get('machine') or 'Architecture not recorded')
@@ -509,7 +540,7 @@ def write_report_html(report, output):
              '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Graphics likeness tests</title>',
              '<style>' + STYLE + '</style></head><body><header id="overview">',
              '<div class="eyebrow">Graphics · Regression tests</div>',
-             '<div class="title-row"><h1>Graphics likeness tests</h1><span class="badge %s">%s</span></div>' % (status, status_label),
+             '<div class="title-row"><h1>Graphics likeness tests · %s</h1><span class="badge %s">%s</span></div>' % (esc(platform_title), status, status_label),
              '<p class="muted">Rendering results across graphics backends.</p><div class="counts">']
     for key, label, value in (('', 'Total tests', len(captures)), ('pass', 'Passed', counts['pass']),
                               ('fail', 'Failed', counts['fail']), ('skip', 'Skipped', counts['skip'])):
@@ -631,6 +662,8 @@ def make_report(roots, references, output):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--executable', type=Path)
+    parser.add_argument('--target-platform', help='Defold platform tuple; arm64_sim-ios launches in the iOS simulator')
+    parser.add_argument('--simulator', help='Simulator name or UDID (defaults to IOS_SIMULATOR_ID or the booted device)')
     parser.add_argument('--capture-dir', type=Path)
     parser.add_argument('--images', type=Path, action='append', default=[])
     parser.add_argument('--matrix', choices=BACKENDS, nargs='+', default=list(BACKENDS))
@@ -640,11 +673,20 @@ def main(argv=None):
     parser.add_argument('--references', type=Path, default=Path(__file__).with_name('graphics_reference'))
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args(argv)
+    if args.simulator and (not args.executable or args.target_platform != 'arm64_sim-ios'):
+        parser.error('--simulator requires --executable and --target-platform arm64_sim-ios')
     if args.executable:
         if not args.capture_dir or args.images:
             parser.error('--executable requires --capture-dir and cannot be combined with --images')
-        run_matrix(args.executable.resolve(), args.capture_dir.resolve(), args.backend or args.matrix,
-                   args.available, explicit=bool(args.backend), skip_all=args.skip_all)
+        matrix = args.backend or args.matrix
+        session = nullcontext()
+        if args.target_platform == 'arm64_sim-ios' and not args.skip_all and set(matrix).intersection(args.available):
+            from graphics_capture_simulator import simulator_capture
+            session = simulator_capture(args.executable.resolve(), args.simulator)
+        with session as launcher:
+            run_matrix(args.executable.resolve(), args.capture_dir.resolve(), matrix,
+                       args.available, explicit=bool(args.backend), skip_all=args.skip_all,
+                       launcher=launcher, target_platform=args.target_platform)
         args.images = [args.capture_dir]
     elif not args.images:
         parser.error('Use --executable with --capture-dir, or one or more --images directories')

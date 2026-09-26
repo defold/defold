@@ -909,8 +909,7 @@ static int CloseCaptureWindow(void* user_data)
     return 0; // Keep the context alive until its resources have been deleted.
 }
 
-// Returns -1 when the original interactive test app should handle the arguments.
-int RunGraphicsCapture(int argc, char** argv)
+static int CaptureMain(int argc, char** argv)
 {
     bool selected = false;
     for (int i = 1; i < argc; ++i)
@@ -973,6 +972,7 @@ int RunGraphicsCapture(int argc, char** argv)
         return 1;
     }
     printf("GRAPHICS_CAPTURE_BACKEND=%s\n", backend->m_Name);
+    printf("GRAPHICS_CAPTURE_PLATFORM=%s\n", DM_TEST_GRAPHICS_PLATFORM);
     fflush(stdout);
     char filename[1024];
     int length = output_file ? dmSnPrintf(filename, sizeof(filename), "%s", output_file) :
@@ -1033,9 +1033,16 @@ int RunGraphicsCapture(int argc, char** argv)
     GetAdapterVersion(context, version_major, version_minor);
     bool required_rgtc = texture && backend->m_Family == ADAPTER_FAMILY_OPENGL && version_major >= 3 &&
         (texture->m_Format == TEXTURE_FORMAT_R_BC4 || texture->m_Format == TEXTURE_FORMAT_RG_BC5);
+    // The arm64 iOS simulator exposes Apple2, which supports the 2D ASTC formats tested here.
+    bool required_astc = texture && backend->m_Family == ADAPTER_FAMILY_METAL &&
+        strcmp(DM_TEST_GRAPHICS_PLATFORM, "arm64_sim-ios") == 0 && IsTextureFormatASTC(texture->m_Format);
     if (skipped && required_rgtc)
     {
         dmLogError("Desktop OpenGL 3.0+ must support BC4 and BC5 textures");
+    }
+    else if (skipped && required_astc)
+    {
+        dmLogError("The arm64 iOS simulator Metal backend must support 2D ASTC textures");
     }
     else if (skipped)
     {
@@ -1071,5 +1078,58 @@ int RunGraphicsCapture(int argc, char** argv)
     JobSystemDestroy(jobs);
     dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);
-    return skipped && !required_rgtc ? 77 : success ? 0 : 1;
+    return skipped && !required_rgtc && !required_astc ? 77 : success ? 0 : 1;
+}
+
+#if defined(DM_PLATFORM_IOS)
+struct IOSCaptureState
+{
+    int    m_Argc;
+    char** m_Argv;
+    int    m_Result;
+};
+
+static void* CreateIOSCapture(int argc, char** argv)
+{
+    static IOSCaptureState state;
+    state.m_Argc = argc;
+    state.m_Argv = argv;
+    return &state;
+}
+
+static int UpdateIOSCapture(void* context)
+{
+    IOSCaptureState* state = (IOSCaptureState*)context;
+    state->m_Result = CaptureMain(state->m_Argc, state->m_Argv);
+    return -1;
+}
+
+static void DestroyIOSCapture(void*) {}
+
+static void GetIOSCaptureResult(void* context, int* run_action, int* exit_code, int*, char***)
+{
+    *run_action = -1;
+    *exit_code = ((IOSCaptureState*)context)->m_Result;
+    // simctl's exit status alone does not establish that the app completed.
+    printf("GRAPHICS_CAPTURE_RESULT=%d\n", *exit_code);
+    fflush(stdout);
+}
+#endif
+
+// Returns -1 when the original interactive test app should handle the arguments.
+int RunGraphicsCapture(int argc, char** argv)
+{
+#if defined(DM_PLATFORM_IOS)
+    for (int i = 1; i < argc; ++i)
+    {
+        if (strcmp(argv[i], "--case") == 0)
+        {
+            // UIKit and the GLFW scene must be ready before creating GPU surfaces.
+            AppBootstrap(argc, argv, 0, 0, 0, CreateIOSCapture, DestroyIOSCapture,
+                         UpdateIOSCapture, GetIOSCaptureResult);
+            return 1;
+        }
+    }
+#endif
+    return CaptureMain(argc, argv);
 }

@@ -350,6 +350,43 @@ class GraphicsImagesTest(unittest.TestCase):
                 with mock.patch.object(report.subprocess, 'run', return_value=subprocess.CompletedProcess([], code, text)):
                     self.assertEqual('fail', report.capture(Path('capture'), self.images, 'metal', case)['status'])
 
+    def test_simulator_requires_an_explicit_completion_result(self):
+        from graphics_capture_simulator import completed_capture
+        for code, log, expected in (
+            (0, 'GRAPHICS_CAPTURE_RESULT=0\n', 0),
+            (0, 'GRAPHICS_CAPTURE_RESULT=77\n', 77),
+            (0, 'GRAPHICS_CAPTURE_RESULT=1\n', 1),
+            (0, 'app crashed\n', 1),
+            (1, 'GRAPHICS_CAPTURE_RESULT=0\n', 1),
+            (0, 'GRAPHICS_CAPTURE_RESULT=0\nGRAPHICS_CAPTURE_RESULT=0\n', 1),
+        ):
+            with self.subTest(code=code, log=log):
+                result = completed_capture(subprocess.CompletedProcess(['simctl'], code, log))
+                self.assertEqual(expected, result.returncode)
+
+    def test_capture_requires_the_requested_target_platform(self):
+        log = 'GRAPHICS_CAPTURE_BACKEND=metal\nGRAPHICS_CAPTURE_PLATFORM=arm64-macos\n'
+        with mock.patch.object(report.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, log)):
+            result = report.capture(Path('capture'), self.images, 'metal', 'clear', target_platform='arm64_sim-ios')
+        self.assertEqual('fail', result['status'])
+        self.assertIn('target platform identity', result['reason'])
+
+    def test_report_header_uses_tested_platform_not_host(self):
+        self.add_backend('metal')
+        for record in self.records:
+            record.update(target_platform='arm64_sim-ios', platform='iOS Simulator 26.5', machine='arm64')
+        (self.images / 'captures.json').write_text(json.dumps(self.records))
+        self.make_report()
+        page = (self.output / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('<h1>Graphics likeness tests · arm64_sim-ios</h1>', page)
+        self.assertIn('iOS Simulator 26.5', page)
+
+    def test_skipped_simulator_does_not_use_host_platform(self):
+        records = report.run_matrix(Path('capture'), self.images, ['metal', 'vulkan'], [],
+                                    target_platform='arm64_sim-ios')
+        self.assertTrue(all(record['target_platform'] == 'arm64_sim-ios' for record in records))
+        self.assertTrue(all(record['platform'] == 'iOS Simulator (not run)' for record in records))
+
     def test_texture_payload_sizes_and_reference_orientation(self):
         import re
         root = Path(report.__file__).with_name('texture_formats')

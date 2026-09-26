@@ -64,6 +64,9 @@ case $PLATFORM in
     arm64-ios)
 		cp $MOLTENVK_FRAMEWORK_PATH/ios-arm64/libMoltenVK.a lib/$PLATFORM/
         ;;
+    arm64_sim-ios)
+        lipo -thin arm64 $MOLTENVK_FRAMEWORK_PATH/ios-arm64_x86_64-simulator/libMoltenVK.a -o lib/$PLATFORM/libMoltenVK.a
+        ;;
 esac
 
 popd
