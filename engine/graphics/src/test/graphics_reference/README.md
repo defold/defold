@@ -83,6 +83,16 @@ offscreen tests do not activate a window while running.
 Capture PNGs, logs, reproduction commands and platform/adapter metadata
 are in `engine/graphics/build/graphics-test-images/`. Differences are in the
 report directory; the HTML embeds all images and logs and can be copied alone.
+Unsupported texture formats remain in the capture manifest but are omitted
+from the report and its totals. The overview shows platform and backend totals,
+summaries for basic rendering, stencil, cubemaps and texture formats, then
+links to each failed test. Results default to backend sections, each containing
+basic rendering, stencil, cubemaps and texture formats. One report-wide switch
+changes to category sections with tests/formats and their backends underneath.
+Category summary links select the category view; backend links select the backend
+view. Switching groups preserves open comparisons and failure links. Passing
+results and the separate skipped-tests section are collapsed by default. Without
+JavaScript, the backend/category hierarchy is used.
 Keep any diagnostic PNGs alongside the original capture when copying a
 capture directory. Capture attempts and skips remove stale diagnostic images.
 

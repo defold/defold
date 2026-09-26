@@ -27,7 +27,7 @@ Run a capture, or keep the texture visible until the window is closed:
 Use `--list-cases` for the full list. Every texture case queries
 `IsTextureFormatSupported` before creating or loading the texture. Unsupported
 formats print `GRAPHICS_CAPTURE_SKIP` and exit with code 77; the capture manifest
-records the reason. Missing/corrupt supported fixtures and rendering errors
+records the reason, while the report omits them. Missing/corrupt supported fixtures and rendering errors
 remain failures. The capture uses nearest filtering at mip 0, with opaque
 output; R/RG textures retain their native red/red-green sampled channels.
 

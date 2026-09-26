@@ -401,7 +401,7 @@ class GraphicsImagesTest(unittest.TestCase):
         (self.images / 'captures.json').write_text(json.dumps(self.records))
         self.make_report()
         page = (self.output / 'index.html').read_text(encoding='utf-8')
-        self.assertNotIn('<script>', page)
+        self.assertNotIn('<script>alert(1)</script>', page)
         self.assertIn('&lt;script&gt;', page)
 
     @unittest.skipUnless(os.environ.get('GRAPHICS_CAPTURE_EXECUTABLE'), 'Capture executable not supplied')
