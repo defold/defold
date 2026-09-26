@@ -35,7 +35,8 @@
 (deftest stale-session-callback-test
   (test-support/with-clean-system
     (let [old {:state (atom {:status :closed})}
-          current {:state (atom {:status :suspended :generation 1})}
+          current {:state (atom {:status :suspended
+                                 :generation 1})}
           view (g/make-node! debug-view/DebugView
                  :debug-session current
                  :suspension-state {:stack []}
@@ -53,24 +54,32 @@
 
 (deftest stale-stack-response-test
   (test-support/with-clean-system
-    (let [session {:state (atom {:status :suspended :generation 1 :thread-id 7})}
+    (let [session {:state (atom {:status :suspended
+                                 :generation 1
+                                 :thread-id 7})}
           view (g/make-node! debug-view/DebugView
                  :debug-session session
                  :state-changed-fn (constantly nil))
           started (promise)
           response (promise)]
-      (with-redefs [dap/stack (fn [_ _] (deliver started true) (await! response))]
+      (with-redefs [dap/stack (fn [_ _]
+                                (deliver started true)
+                                (await! response))]
         (let [work (#'debug-view/update-suspension-state! view session)]
           (await! started)
           (swap! (:state session) assoc :status :running :generation 2)
-          (deliver response [{:id 42 :file "/main.script" :line 5}])
+          (deliver response [{:id 42
+                              :file "/main.script"
+                              :line 5}])
           (await! work)
           (ui/run-now
             (is (nil? (g/node-value view :suspension-state)))))))))
 
 (deftest selected-frame-variables-test
   (test-support/with-clean-system
-    (let [session {:state (atom {:status :suspended :generation 1 :thread-id 7})}
+    (let [session {:state (atom {:status :suspended
+                                 :generation 1
+                                 :thread-id 7})}
           ^ListView call-stack (ui/run-now (ListView.))
           ^TreeView variables (ui/run-now (TreeView.))
           view (g/make-node! debug-view/DebugView
@@ -84,22 +93,28 @@
         (.add (.getItems call-stack) {:id 99})
         (.select (.getSelectionModel call-stack) (int 0)))
       (with-redefs [dap/frame-variables (fn [_ _ frame-id]
-                                         (if (= 42 frame-id)
-                                           (do (deliver started true) (await! response))
-                                           [{:name "second" :value "false" :variablesReference 0}]))]
+                                          (if-not (= 42 frame-id)
+                                            [{:name "second"
+                                              :value "false"
+                                              :variablesReference 0}]
+                                            (do
+                                              (deliver started true)
+                                              (await! response))))]
         (let [first-work (ui/run-now (#'debug-view/load-frame-variables! view))]
           (await! started)
           (let [second-work (ui/run-now
                               (.select (.getSelectionModel call-stack) (int 1))
                               (#'debug-view/load-frame-variables! view))]
             (await! second-work)
-            (deliver response [{:name "first" :value "1" :variablesReference 0}])
+            (deliver response [{:name "first"
+                                :value "1"
+                                :variablesReference 0}])
             (await! first-work)
             (ui/run-now
               (let [items (.getChildren (.getRoot variables))]
                 (is (= 1 (count items)))
-                (is (= "second" (:display-name (.getValue ^javafx.scene.control.TreeItem (first items)))))
-                (is (= "false" (:display-value (.getValue ^javafx.scene.control.TreeItem (first items)))))))))))))
+                (is (= "second" (:display-name (.getValue ^TreeItem (first items)))))
+                (is (= "false" (:display-value (.getValue ^TreeItem (first items)))))))))))))
 
 (deftest frame-selection-listener-test
   (test-support/with-clean-system
@@ -124,7 +139,9 @@
 
 (deftest stepping-refreshes-frame-variables-test
   (test-support/with-clean-system
-    (let [session {:state (atom {:status :suspended :generation 0 :thread-id 7})}
+    (let [session {:state (atom {:status :suspended
+                                 :generation 0
+                                 :thread-id 7})}
           ^ListView call-stack (ui/run-now (ListView.))
           ^TreeView variables (ui/run-now (TreeView.))
           view (g/make-node! debug-view/DebugView
@@ -135,10 +152,12 @@
           requests (atom [])
           errors (atom [])]
       (with-redefs [dap/frame-variables (fn [_ snapshot frame-id]
-                                         (swap! requests conj [snapshot frame-id])
-                                         (when-not (= (:generation snapshot) frame-id)
-                                           (throw (ex-info "Invalid frameId" {})))
-                                         [{:name "count" :value (str frame-id) :variablesReference 0}])
+                                          (swap! requests conj [snapshot frame-id])
+                                          (when-not (= (:generation snapshot) frame-id)
+                                            (throw (ex-info "Invalid frameId" {})))
+                                          [{:name "count"
+                                            :value (str frame-id)
+                                            :variablesReference 0}])
                     console/append-console-entry! (fn [type text] (swap! errors conj [type text]))]
         (ui/run-now
           (ui/observe-selection call-stack
@@ -163,7 +182,13 @@
 
 (deftest breakpoint-conversion-test
   (with-redefs [resource/proj-path :path]
-    (is (= {"/main.script" [{:line 1} {:line 6 :condition "self.count > 2"}]}
+    (is (= {"/main.script" [{:line 1}
+                            {:line 6
+                             :condition "self.count > 2"}]}
            (#'debug-view/breakpoints-by-path
-             #{{:resource {:path "/main.script"} :row 5 :condition "self.count > 2"}
-               {:resource {:path "/main.script"} :row 0 :condition ""}})))))
+             #{{:resource {:path "/main.script"}
+                :row 5
+                :condition "self.count > 2"}
+               {:resource {:path "/main.script"}
+                :row 0
+                :condition ""}})))))

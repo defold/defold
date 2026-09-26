@@ -38,8 +38,9 @@
             (.append header (char ch))
             (when (> (.length header) max-header-size)
               (throw (IOException. "Debugger message header is too large")))
-            (if (and (>= (.length header) 4)
-                     (= "\r\n\r\n" (.substring header (- (.length header) 4))))
+            (if-not (and (>= (.length header) 4)
+                         (= "\r\n\r\n" (.substring header (- (.length header) 4))))
+              (recur)
               (let [lengths (into []
                                   (keep #(second (re-matches #"(?i)Content-Length:\s*(\d+)" %)))
                                   (string/split (.toString header) #"\r\n"))]
@@ -48,8 +49,7 @@
                 (let [length (Long/parseLong (first lengths))]
                   (when-not (<= 1 length max-message-size)
                     (throw (IOException. "Invalid debugger message size")))
-                  length))
-              (recur))))
+                  length)))))
         bytes (.readNBytes in (int content-length))]
     (when-not (= content-length (alength bytes))
       (throw (EOFException. "Incomplete debugger message")))
@@ -87,7 +87,9 @@
     (let [[old] (swap-vals! (:state session) assoc :status :closed)]
       (when-not (= :closed (:status old))
         (when-let [^Socket socket @(:socket session)]
-          (try (.close socket) (catch IOException _)))
+          (try
+            (.close socket)
+            (catch IOException _)))
         (let [error (IOException. "Debugger disconnected")
               [pending] (reset-vals! (:pending session) {})]
           (deliver (:initialized session) error)
@@ -136,7 +138,8 @@
 
       :else
       (throw (ex-info (or (:message result) (str "Debugger request failed: " command))
-                      {:command command :response result})))))
+                      {:command command
+                       :response result})))))
 
 (defn request!
   "Make a blocking DAP request. Call off the UI and reader threads."
@@ -147,20 +150,34 @@
   (locking write-lock
     (when-not (= :closed (state session))
       (case event
-        "initialized" (deliver (:initialized session) true)
-        "stopped" (do
-                    (swap! (:state session)
-                           #(-> %
-                                (assoc :status :suspended :thread-id (:threadId body))
-                                (update :generation inc)))
-                    (notify! session :on-suspended body))
-        "continued" (do
-                      (swap! (:state session)
-                             #(-> % (assoc :status :running) (update :generation inc)))
-                      (notify! session :on-resumed))
-        "output" (notify! session :on-output body)
-        "invalidated" (notify! session :on-invalidated body)
-        ("terminated" "exited") (close! session)
+        "initialized"
+        (deliver (:initialized session) true)
+
+        "stopped"
+        (do
+          (swap! (:state session)
+                 #(-> %
+                      (assoc :status :suspended :thread-id (:threadId body))
+                      (update :generation inc)))
+          (notify! session :on-suspended body))
+
+        "continued"
+        (do
+          (swap! (:state session)
+                 #(-> %
+                      (assoc :status :running)
+                      (update :generation inc)))
+          (notify! session :on-resumed))
+
+        "output"
+        (notify! session :on-output body)
+
+        "invalidated"
+        (notify! session :on-invalidated body)
+
+        ("terminated" "exited")
+        (close! session)
+
         nil))))
 
 (defn- read-messages! [{:keys [write-lock] :as session} ^Socket socket]
@@ -171,17 +188,23 @@
           (when-not (= :closed (state session))
             (let [message (read-message! in)]
               (case (:type message)
-                "response" (when-let [response (get @(:pending session) (:request_seq message))]
-                             (deliver response message))
-                "event" (handle-event! session message)
-                "request" (locking write-lock
-                            (write-message! (.getOutputStream socket)
-                                            {:seq (swap! (:next-seq session) inc)
-                                             :type "response"
-                                             :request_seq (:seq message)
-                                             :command (:command message)
-                                             :success false
-                                             :message "Client request is not supported"}))
+                "response"
+                (when-let [response (get @(:pending session) (:request_seq message))]
+                  (deliver response message))
+
+                "event"
+                (handle-event! session message)
+
+                "request"
+                (locking write-lock
+                  (write-message! (.getOutputStream socket)
+                                  {:seq (swap! (:next-seq session) inc)
+                                   :type "response"
+                                   :request_seq (:seq message)
+                                   :command (:command message)
+                                   :success false
+                                   :message "Client request is not supported"}))
+
                 (throw (IOException. "Unknown debugger message type"))))
             (recur))))
       (catch EOFException exception
@@ -192,7 +215,8 @@
         (if (= :connecting (state session))
           (fail! session exception)
           (close! session)))
-      (catch Exception exception (fail! session exception)))))
+      (catch Exception exception
+        (fail! session exception)))))
 
 (defn- sync-breakpoints! [{:keys [breakpoint-lock] :as session}]
   ;; setBreakpoints replaces a source's complete set, including an empty set
@@ -204,7 +228,8 @@
       (doseq [path (set/union (set (coll/keys old)) (set (coll/keys new)))
               :let [breakpoints (get new path [])]
               :when (not= (get old path []) breakpoints)]
-        (request! session "setBreakpoints" {:source {:path path} :breakpoints breakpoints}))
+        (request! session "setBreakpoints" {:source {:path path}
+                                            :breakpoints breakpoints}))
       (reset! (:breakpoints session) new))))
 
 (defn set-breakpoints!
@@ -215,7 +240,8 @@
     (when (#{:running :suspended} (state session))
       (try
         (sync-breakpoints! session)
-        (catch Exception exception (fail! session exception))))))
+        (catch Exception exception
+          (fail! session exception))))))
 
 (defn- connect-socket! [session address resolve-port]
   (let [deadline (+ (System/nanoTime) (* 1000000 request-timeout-ms))]
@@ -235,20 +261,25 @@
                       (.close socket)
                       exception))]
         (if-not error
-          (if (= :closed (state session))
-            (do (.close socket) (throw (IOException. "Debugger connection cancelled")))
-            socket)
+          (if-not (= :closed (state session))
+            socket
+            (do
+              (.close socket)
+              (throw (IOException. "Debugger connection cancelled"))))
           (if (>= (System/nanoTime) deadline)
             (throw (IOException. (str "Failed to connect to DAP debugger on " address
-                                     (when port (str ":" port))) error))
-            (do (Thread/sleep 100) (recur))))))))
+                                      (when port (str ":" port))) error))
+            (do
+              (Thread/sleep 100)
+              (recur))))))))
 
 (defn connect!
   "Connect and configure asynchronously. Callbacks must not block the reader.
   Returns a session immediately, including during connection retries."
   [address resolve-port {:keys [local-root breakpoints stop-on-entry target]} callbacks]
   (let [session {:socket (atom nil)
-                 :state (atom {:status :connecting :generation 0})
+                 :state (atom {:status :connecting
+                               :generation 0})
                  :next-seq (atom 0)
                  :pending (atom {})
                  :initialized (promise)
@@ -272,7 +303,7 @@
                                       :supportsVariableType true
                                       :supportsInvalidatedEvent true})
               attach-response (send-request! session "attach" {:localRoot local-root
-                                                                :stopOnEntry (boolean stop-on-entry)})
+                                                               :stopOnEntry (boolean stop-on-entry)})
               initialized (deref (:initialized session) request-timeout-ms ::timeout)]
           (when-not (true? initialized)
             (throw (if (instance? Throwable initialized)
@@ -283,11 +314,15 @@
             (request! session "configurationDone" {}))
           (await-response! session "attach" attach-response)
           ;; A stopped event may already have arrived after configurationDone.
-          (swap! (:state session) #(if (= :connecting (:status %)) (assoc % :status :running) %))
+          (swap! (:state session)
+                 #(cond-> %
+                    (= :connecting (:status %))
+                    (assoc :status :running)))
           (when-not (= :closed (state session))
             (sync-breakpoints! session)
             (notify! session :on-connected)))
-        (catch Exception exception (fail! session exception))))
+        (catch Exception exception
+          (fail! session exception))))
     session))
 
 (defn disconnect! [session]
@@ -295,7 +330,8 @@
     (try
       (when (#{:running :suspended} (state session))
         (request! session "disconnect" {:terminateDebuggee false}))
-      (finally (close! session)))))
+      (finally
+        (close! session)))))
 
 (defn control! [session command]
   (future/io
@@ -315,9 +351,9 @@
           ;; Native DAP normalizes Windows drive letters to lower case.
           normalized-path (string/replace path #"^[A-Z]:" string/lower-case)
           normalized-root (string/replace root #"^[A-Z]:" string/lower-case)]
-      (if (string/starts-with? normalized-path (str normalized-root "/"))
-        (subs path (count root))
-        path))))
+      (if-not (string/starts-with? normalized-path (str normalized-root "/"))
+        path
+        (subs path (count root))))))
 
 (defn stack [session snapshot]
   (when (and snapshot (= snapshot (suspension session)))
@@ -346,7 +382,10 @@
             (mapcat (fn [{:keys [name variablesReference expensive]}]
                       (cond
                         (= "Globals" name)
-                        [{:name "_G" :value "table" :type "table" :variablesReference variablesReference}]
+                        [{:name "_G"
+                          :value "table"
+                          :type "table"
+                          :variablesReference variablesReference}]
 
                         expensive
                         []
@@ -356,5 +395,7 @@
             scopes))))
 
 (defn evaluate! [session frame-id expression]
-  (request! session "evaluate" (cond-> {:expression expression :context "repl"}
-                                 frame-id (assoc :frameId frame-id))))
+  (request! session "evaluate" (cond-> {:expression expression
+                                        :context "repl"}
+                                 frame-id
+                                 (assoc :frameId frame-id))))

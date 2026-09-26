@@ -60,11 +60,18 @@
   (.flush out))
 
 (defn- respond! [out request body]
-  (send! out {:seq 1 :type "response" :request_seq (:seq request)
-              :command (:command request) :success true :body body}))
+  (send! out {:seq 1
+              :type "response"
+              :request_seq (:seq request)
+              :command (:command request)
+              :success true
+              :body body}))
 
 (defn- event! [out event body]
-  (send! out {:seq 1 :type "event" :event event :body body}))
+  (send! out {:seq 1
+              :type "event"
+              :event event
+              :body body}))
 
 (defn- with-adapter [handler f]
   (with-open [server (ServerSocket. 0 1 (InetAddress/getLoopbackAddress))]
@@ -82,17 +89,33 @@
                                   command (:command request)]
                               (swap! requests conj request)
                               (case command
-                                "initialize" (respond! out request {:supportsConfigurationDoneRequest true})
-                                "attach" (event! out "initialized" {})
-                                "configurationDone" (do (respond! out request {}) (respond! out attach {}))
-                                "setBreakpoints" (respond! out request {:breakpoints []})
-                                "disconnect" (do (respond! out request {}) (event! out "terminated" {}))
+                                "initialize"
+                                (respond! out request {:supportsConfigurationDoneRequest true})
+
+                                "attach"
+                                (event! out "initialized" {})
+
+                                "configurationDone"
+                                (do
+                                  (respond! out request {})
+                                  (respond! out attach {}))
+
+                                "setBreakpoints"
+                                (respond! out request {:breakpoints []})
+
+                                "disconnect"
+                                (do
+                                  (respond! out request {})
+                                  (event! out "terminated" {}))
+
                                 (handler request in out socket))
                               (when-not (or (= "disconnect" command) (.isClosed socket))
                                 (recur (if (= "attach" command) request attach)))))
                           (catch EOFException _)))))
           session (dap/connect! "127.0.0.1" #(.getLocalPort server)
-                                {:local-root "/project" :breakpoints {"/main.script" [{:line 5 :condition "x > 2"}]}}
+                                {:local-root "/project"
+                                 :breakpoints {"/main.script" [{:line 5
+                                                                :condition "x > 2"}]}}
                                 {:on-connected #(deliver ready %)
                                  :on-suspended (fn [session body] (.add events [:stopped (dap/suspension session) body]))
                                  :on-resumed (fn [_] (.add events [:continued]))
@@ -107,7 +130,10 @@
           (await! adapter))))))
 
 (deftest framing-test
-  (let [message {:seq 1 :type "event" :event "output" :body {:output "héj 🦊\n"}}
+  (let [message {:seq 1
+                 :type "event"
+                 :event "output"
+                 :body {:output "héj 🦊\n"}}
         bytes (wire-bytes message)
         out (ByteArrayOutputStream.)]
     (#'dap/write-message! out message)
@@ -117,9 +143,9 @@
             twice (byte-array (into (vec bytes) bytes))
             next-byte (fn []
                         (let [i (swap! index inc)]
-                          (if (< i (alength twice))
-                            (bit-and 255 (aget twice i))
-                            -1)))
+                          (if (>= i (alength twice))
+                            -1
+                            (bit-and 255 (aget twice i)))))
             in (proxy [java.io.InputStream] []
                  (read
                    ([] (next-byte))
@@ -129,7 +155,9 @@
                       (let [value (next-byte)]
                         (if (= -1 value)
                           -1
-                          (do (aset-byte buffer offset (unchecked-byte value)) 1)))))))]
+                          (do
+                            (aset-byte buffer offset (unchecked-byte value))
+                            1)))))))]
         (is (= message (#'dap/read-message! in)))
         (is (= message (#'dap/read-message! in)))
         (is (thrown? EOFException (#'dap/read-message! in))))))
@@ -140,18 +168,22 @@
 
 (deftest configuration-and-breakpoints-test
   (with-adapter
-    (fn [request _ out _] (respond! out request {:threads [{:id 7 :name "Lua"}]}))
+    (fn [request _ out _]
+      (respond! out request {:threads [{:id 7
+                                        :name "Lua"}]}))
     (fn [session requests events]
       (is (= ["initialize" "attach" "setBreakpoints" "configurationDone"]
              (mapv :command @requests)))
-      (is (= {:localRoot "/project" :stopOnEntry false} (:arguments (second @requests))))
+      (is (= {:localRoot "/project"
+              :stopOnEntry false}
+             (:arguments (second @requests))))
       (is (= :running (dap/state session)))
       (testing "Replace changed sources and clear the last breakpoint without pausing Lua"
         (await! (dap/set-breakpoints! session {"/other.lua" [{:line 9}]}))
         (let [updates (subvec @requests 4)]
           (is (= #{["/main.script" []] ["/other.lua" [{:line 9}]]}
                  (into #{} (map #(vector (get-in % [:arguments :source :path])
-                                        (get-in % [:arguments :breakpoints]))) updates)))
+                                         (get-in % [:arguments :breakpoints]))) updates)))
           (is (coll/every? #(= "setBreakpoints" (:command %)) updates)))
         (await! (dap/set-breakpoints! session {"/other.lua" [{:line 9}]}))
         (is (= 6 (count @requests))))
@@ -165,35 +197,84 @@
   (with-adapter
     (fn [{:keys [command arguments] :as request} _ out _]
       (case command
-        "threads" (respond! out request {:threads [{:id 7 :name "Lua"}]})
-        "pause" (do (respond! out request {})
-                    (event! out "stopped" {:threadId 7 :reason "pause"}))
-        "stackTrace" (respond! out request {:stackFrames [{:id 42 :name "update" :line 5 :source {:path "/project/main.script"}}
-                                                          {:id 99 :name "native" :line 0}]})
-        "scopes" (do (is (= 42 (:frameId arguments)))
-                     (respond! out request {:scopes [{:name "Locals" :variablesReference 10 :expensive false}
-                                                     {:name "Upvalues" :variablesReference 11 :expensive false}
-                                                     {:name "Globals" :variablesReference 12 :expensive true}]}))
-        "variables" (respond! out request {:variables (case (long (:variablesReference arguments))
-                                                        10 [{:name "self" :value "table: 1" :variablesReference 20}]
-                                                        11 [{:name "flag" :value "false" :variablesReference 0}]
-                                                        12 [{:name "_VERSION" :value "\"Lua 5.1\"" :variablesReference 0}]
-                                                        20 [{:name "[\"café\"]" :value "42" :variablesReference 0}])})
-        "evaluate" (do (is (= 42 (:frameId arguments)))
-                       (is (= "repl" (:context arguments)))
-                       (respond! out request {:result "false" :variablesReference 0}))
-        ("next" "stepIn" "stepOut") (do
-                                      (is (= 7 (:threadId arguments)))
-                                      (respond! out request {})
-                                      (event! out "continued" {:threadId 7})
-                                      (event! out "stopped" {:threadId 7 :reason "step"}))
-        "continue" (do (respond! out request {}) (event! out "continued" {:threadId 7}))))
+        "threads"
+        (respond! out request {:threads [{:id 7
+                                          :name "Lua"}]})
+
+        "pause"
+        (do
+          (respond! out request {})
+          (event! out "stopped" {:threadId 7
+                                 :reason "pause"}))
+
+        "stackTrace"
+        (respond! out request {:stackFrames [{:id 42
+                                              :name "update"
+                                              :line 5
+                                              :source {:path "/project/main.script"}}
+                                             {:id 99
+                                              :name "native"
+                                              :line 0}]})
+
+        "scopes"
+        (do
+          (is (= 42 (:frameId arguments)))
+          (respond! out request {:scopes [{:name "Locals"
+                                           :variablesReference 10
+                                           :expensive false}
+                                          {:name "Upvalues"
+                                           :variablesReference 11
+                                           :expensive false}
+                                          {:name "Globals"
+                                           :variablesReference 12
+                                           :expensive true}]}))
+
+        "variables"
+        (respond! out request {:variables (case (long (:variablesReference arguments))
+                                            10 [{:name "self"
+                                                 :value "table: 1"
+                                                 :variablesReference 20}]
+                                            11 [{:name "flag"
+                                                 :value "false"
+                                                 :variablesReference 0}]
+                                            12 [{:name "_VERSION"
+                                                 :value "\"Lua 5.1\""
+                                                 :variablesReference 0}]
+                                            20 [{:name "[\"café\"]"
+                                                 :value "42"
+                                                 :variablesReference 0}])})
+
+        "evaluate"
+        (do
+          (is (= 42 (:frameId arguments)))
+          (is (= "repl" (:context arguments)))
+          (respond! out request {:result "false"
+                                 :variablesReference 0}))
+
+        ("next" "stepIn" "stepOut")
+        (do
+          (is (= 7 (:threadId arguments)))
+          (respond! out request {})
+          (event! out "continued" {:threadId 7})
+          (event! out "stopped" {:threadId 7
+                                 :reason "step"}))
+
+        "continue"
+        (do
+          (respond! out request {})
+          (event! out "continued" {:threadId 7}))))
     (fn [session requests events]
       (await! (dap/control! session "pause"))
       (let [[event snapshot] (take-event! events)]
         (is (= :stopped event))
-        (is (= [{:id 42 :function "update" :file "/main.script" :line 5}
-                {:id 99 :function "native" :file nil :line 0}]
+        (is (= [{:id 42
+                 :function "update"
+                 :file "/main.script"
+                 :line 5}
+                {:id 99
+                 :function "native"
+                 :file nil
+                 :line 0}]
                (dap/stack session snapshot)))
         (let [frame-variables (dap/frame-variables session snapshot 42)
               globals (peek frame-variables)]
@@ -205,7 +286,9 @@
                          (comp (filter #(= "variables" (:command %)))
                                (map #(get-in % [:arguments :variablesReference])))
                          @requests)))
-            (is (= [{:name "_VERSION" :value "\"Lua 5.1\"" :variablesReference 0}]
+            (is (= [{:name "_VERSION"
+                     :value "\"Lua 5.1\""
+                     :variablesReference 0}]
                    (dap/variables session snapshot (:variablesReference globals))))))
         (is (= "42" (:value (first (dap/variables session snapshot 20)))))
         (is (= "false" (:result (dap/evaluate! session 42 "flag"))))
@@ -223,13 +306,22 @@
   (with-adapter
     (fn [request in out ^Socket socket]
       (case (:command request)
-        "first" (let [second-request (receive! in)]
-                  (event! out "output" {:output "héj 🦊"})
-                  (respond! out second-request {:result "second"})
-                  (respond! out request {:result "first"}))
-        "bad" (send! out {:seq 1 :type "response" :request_seq (:seq request)
-                           :command "bad" :success false :message "Evaluation failed"})
-        "close" (.close socket)))
+        "first"
+        (let [second-request (receive! in)]
+          (event! out "output" {:output "héj 🦊"})
+          (respond! out second-request {:result "second"})
+          (respond! out request {:result "first"}))
+
+        "bad"
+        (send! out {:seq 1
+                    :type "response"
+                    :request_seq (:seq request)
+                    :command "bad"
+                    :success false
+                    :message "Evaluation failed"})
+
+        "close"
+        (.close socket)))
     (fn [session _ events]
       (let [first-response (#'dap/send-request! session "first" {})
             second-response (#'dap/send-request! session "second" {})]
@@ -245,17 +337,18 @@
 
 (deftest source-paths-test
   (doseq [[root path expected] [["/project" "/project/a.script" "/a.script"]
-                              ["/project/" "/project/a.script" "/a.script"]
-                              ["/project" "/project-other/a.lua" "/project-other/a.lua"]
-                              ["C:\\project" "c:/project/main.script" "/main.script"]
-                              ["/project" nil nil]]]
+                                ["/project/" "/project/a.script" "/a.script"]
+                                ["/project" "/project-other/a.lua" "/project-other/a.lua"]
+                                ["C:\\project" "c:/project/main.script" "/main.script"]
+                                ["/project" nil nil]]]
     (is (= expected (#'dap/source-path->project-path root path)))))
 
 (deftest connection-cancellation-test
   (let [closed (promise)
         errors (atom [])
         session (dap/connect! "127.0.0.1" (constantly nil)
-                              {:local-root "/project" :breakpoints {}}
+                              {:local-root "/project"
+                               :breakpoints {}}
                               {:on-closed #(deliver closed %)
                                :on-error (fn [_ error] (swap! errors conj error))})]
     (await! (dap/disconnect! session))
@@ -263,7 +356,8 @@
     (is (= :closed (dap/state session)))
     (is (= [] @errors))
     (testing "A queued stopped event cannot reopen a cancelled session"
-      (#'dap/handle-event! session {:event "stopped" :body {:threadId 7}})
+      (#'dap/handle-event! session {:event "stopped"
+                                    :body {:threadId 7}})
       (is (= :closed (dap/state session))))))
 
 (deftest handshake-disconnect-test
@@ -274,7 +368,8 @@
           closed (promise)
           error (promise)
           session (dap/connect! "127.0.0.1" #(.getLocalPort server)
-                                {:local-root "/project" :breakpoints {}}
+                                {:local-root "/project"
+                                 :breakpoints {}}
                                 {:on-closed #(deliver closed %)
                                  :on-error (fn [_ exception] (deliver error exception))})]
       (try
@@ -305,7 +400,7 @@
       (try
         (let [^"[Ljava.lang.String;" command (into-array String [binary (.getAbsolutePath source)])
               process (.start (doto (ProcessBuilder. command)
-                               (.redirectErrorStream true)))]
+                                (.redirectErrorStream true)))]
           (try
             (with-open [^java.io.BufferedReader reader (io/reader (.getInputStream process))]
               (let [port (loop []
@@ -327,7 +422,7 @@
                         locals (dap/frame-variables session snapshot (:id frame))
                         globals (coll/first-where #(= "_G" (:name %)) locals)
                         global-variables (dap/variables session snapshot (:variablesReference globals))
-                        data (first (filterv #(= "data" (:name %)) locals))
+                        data (coll/first-where #(= "data" (:name %)) locals)
                         nested (first (dap/variables session snapshot (:variablesReference data)))]
                     (is (= "/main.lua" (:file frame)))
                     (is (= 8 (:line frame)))
@@ -348,8 +443,10 @@
                   (await! (dap/disconnect! session))
                   (is (.waitFor process 10 TimeUnit/SECONDS))
                   (is (zero? (.exitValue process)))
-                  (finally (dap/close! session)))))
-            (finally (.destroyForcibly process))))
+                  (finally
+                    (dap/close! session)))))
+            (finally
+              (.destroyForcibly process))))
         (finally
           (.delete source)
           (.delete directory))))))

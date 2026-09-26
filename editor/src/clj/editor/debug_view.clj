@@ -391,11 +391,13 @@
 
 (defn- breakpoints-by-path [breakpoints]
   (reduce (fn [result {:keys [resource row condition]}]
-            (if-let [path (resource/proj-path resource)]
-              (update result path (fnil conj [])
-                      (cond-> {:line (inc row)}
-                        (not (string/blank? condition)) (assoc :condition condition)))
-              result))
+            (let [path (resource/proj-path resource)]
+              (if-not path
+                result
+                (update result path (fnil conj [])
+                        (cond-> {:line (inc row)}
+                          (not (string/blank? condition))
+                          (assoc :condition condition))))))
           {}
           (sort-by (juxt #(resource/proj-path (:resource %)) :row) breakpoints)))
 
@@ -515,21 +517,20 @@
   [debug-view project target stop-on-entry]
   (let [workspace (project/workspace project)
         resolve-port (fn []
-                       (let [port (:debugger-port (latest-target target))]
-                         (if port
-                           (when (pos? port) port)
-                           (engine/debugger-port target))))]
+                       (if-let [port (:debugger-port (latest-target target))]
+                         (when (pos? port) port)
+                         (engine/debugger-port target)))]
     (ui/run-now
       (when-let [old (g/node-value debug-view :debug-session)]
         (dap/close! old))
       (let [session (dap/connect! (:address target "localhost") resolve-port
-                                  {:target target
-                                   :local-root (.getAbsolutePath (workspace/project-directory workspace))
-                                   :stop-on-entry stop-on-entry
-                                   :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
-                                  (assoc (make-debugger-callbacks debug-view)
-                                         :on-error (fn [_session exception]
-                                                     (show-connect-failed-info! exception workspace))))]
+                                 {:target target
+                                  :local-root (.getAbsolutePath (workspace/project-directory workspace))
+                                  :stop-on-entry stop-on-entry
+                                  :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
+                                 (assoc (make-debugger-callbacks debug-view)
+                                        :on-error (fn [_session exception]
+                                                    (show-connect-failed-info! exception workspace))))]
         (g/transact
           {:undoable false}
           (g/set-properties debug-view :debug-session session :suspension-state nil))

@@ -28,7 +28,10 @@
   (is (nil? (engine/parse-debugger-port "Lua DAP debugger listening on 127.0.0.1:0")))
   (is (nil? (engine/parse-debugger-port "Lua DAP debugger listening on 127.0.0.1:65536")))
   (is (nil? (engine/parse-debugger-port "ordinary game output")))
-  (is (= {:address "127.0.0.1" :url "http://127.0.0.1:8001" :log-port "8002" :debugger-port 49152}
+  (is (= {:address "127.0.0.1"
+          :url "http://127.0.0.1:8001"
+          :log-port "8002"
+          :debugger-port 49152}
          (engine/parse-launched-target-info
            (str "INFO:DLIB: Log server started on port 8002\n"
                 "INFO:ENGINE: Engine service started on port 8001\n"
@@ -37,14 +40,21 @@
 (deftest debug-launch-test
   (let [launches (atom [])
         binary (.getAbsoluteFile (io/file "dmengine"))]
-    (with-redefs [prefs/get (fn [_ path] (case path [:run :engine-arguments] "" [:run :quit-on-escape] false))
+    (with-redefs [prefs/get (fn [_ path]
+                              (case path
+                                [:run :engine-arguments] ""
+                                [:run :quit-on-escape] false))
                   system/defold-log-dir (constantly nil)
-                  process/start! (fn [& args] (swap! launches conj args) ::process)
+                  process/start! (fn [& args]
+                                   (swap! launches conj args)
+                                   ::process)
                   process/out (constantly ::stream)]
       (let [target (engine/launch! binary (io/file "/project") nil true 3 true)
             [_ command & args] (peek @launches)]
         (is (= (.getAbsolutePath binary) command))
-        (is (= ["--config=debugger.enabled=1" "--config=debugger.port=0" "--config=debugger.wait=1"
+        (is (= ["--config=debugger.enabled=1"
+                "--config=debugger.port=0"
+                "--config=debugger.wait=1"
                 "--config=project.instance_index=3"] args))
         (is (= 0 (:debugger-port target))))
       (engine/launch! binary (io/file "/project") nil false 0 true)
