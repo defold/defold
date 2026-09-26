@@ -14,8 +14,9 @@ Start a native debug engine with:
 dmengine --config=debugger.enabled=1 --config=debugger.port=8172 --config=debugger.wait=1
 ```
 
-The debugger listens on `127.0.0.1`. It is disabled by default. The default port is
-8172; port 0 selects an available port and prints it in the engine log.
+The debugger listens on `debugger.address` (`127.0.0.1` by default). It is disabled
+by default. The default port is 8172; port 0 selects an available port and prints
+it in the engine log.
 `debugger.wait=1` waits for a client to finish configuration before running startup
 scripts. Without that setting the engine starts immediately and can be attached
 to later. A disconnect while waiting releases the engine.
@@ -28,14 +29,33 @@ local port = debugger.start()
 ```
 
 The code can be sent through the engine's existing `run_script` service, which
-the editor uses when attaching. No restart or startup
-flag is required. `debugger.start([port])` returns the listening port immediately;
+the editor uses when attaching. No restart or startup flag is required.
+`debugger.start([port [, address]])` returns the listening port immediately;
 it does not wait for a client or pause the project. An omitted port uses
-`debugger.port` (8172 by default); pass 0 to select an available port. Repeated
-calls return the existing listener's port. Invalid ports or a bind failure raise
-a Lua error and allow retrying with another port.
+`debugger.port` (8172 by default); pass 0 to select an available port. An omitted
+address uses `debugger.address`; pass `nil` as the port to override only the
+address. Repeated calls return the existing listener's port without changing its
+address or port. Invalid arguments or a bind failure raise a Lua error and allow
+retrying with another address or port.
 If the configured listener fails during engine startup, the engine logs the
 reason and continues; `debugger.start(0)` can retry on an available port.
+
+For a direct connection from an editor on another device, bind to `0.0.0.0`
+(all IPv4 interfaces) or a specific IPv4 interface address:
+
+```sh
+dmengine --config=debugger.enabled=1 --config=debugger.address=0.0.0.0 --config=debugger.port=8172
+```
+
+The same setting applies to late activation. To enable remote attachment without
+changing startup configuration, send `debugger.start(8172, "0.0.0.0")` through
+the existing `run_script` service. The client connects to the device's actual IP
+address and listening port. `0.0.0.0` is only the bind address. The engine log
+reports the selected bind address and actual port. Use a known port for remote
+targets until their discovery metadata exposes the debugger port.
+
+The debugger can evaluate Lua and has no authentication. Enable a network
+listener only on a trusted development network.
 
 Runtime activation registers all live script contexts and discovers existing
 coroutines through reachable Lua references, including frame locals and function
@@ -206,7 +226,9 @@ also checks restored hooks after detach. A separate compiled-artifact check
 ensures `DM_RELEASE` contains neither debugger code nor extension registration.
 The engine host additionally tests runtime activation after scripts and
 coroutines have run, activation across existing contexts, reconnecting, and
-retrying failed starts.
+retrying failed starts. Listener tests verify the loopback default, startup and
+runtime address configuration, explicit interface overrides, and recovery from
+invalid addresses. Network-interface tests skip on hosts with only loopback.
 The suite also checks combined conditions/hit counts, global evaluation,
 expression assignment, inspection without side effects, metadata negotiation,
 completion positions, known breakpoint locations, and invalidation events.

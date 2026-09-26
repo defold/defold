@@ -36,8 +36,8 @@ ENGINE_SOURCE_ROOT = pathlib.Path(__file__).resolve().parents[3] / "engine/src/t
 
 
 class Client:
-    def __init__(self, port):
-        self.socket = socket.create_connection(("127.0.0.1", port), timeout=5)
+    def __init__(self, port, address="127.0.0.1"):
+        self.socket = socket.create_connection((address, port), timeout=5)
         self.socket.settimeout(5)
         self.sequence = 0
         self.server_sequence = 0
@@ -137,6 +137,7 @@ class DAPTestCase(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="defold-dap-")
         self.process = None
         self.clients = []
+        self.address = "127.0.0.1"
 
     def tearDown(self):
         for client in self.clients:
@@ -150,10 +151,10 @@ class DAPTestCase(unittest.TestCase):
                 self.process.stderr.close()
         self.temp.cleanup()
 
-    def start(self, source, second=None, late_attach=False, updates=0, prelude=None, startup_port=None, no_wait=False):
+    def start(self, source, second=None, late_attach=False, updates=0, prelude=None, startup_port=None, no_wait=False, startup_address=None):
         if not DEBUGGEE:
             self.skipTest("Requires a Lua test host")
-        if (late_attach or startup_port is not None) and pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
+        if (late_attach or startup_port is not None or startup_address is not None) and pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
             self.skipTest("Runtime activation requires the engine extension host")
         self.source = textwrap.dedent(source).lstrip("\n")
         self.path = pathlib.Path(self.temp.name) / "main.lua"
@@ -175,6 +176,8 @@ class DAPTestCase(unittest.TestCase):
             options.append("--no-wait")
         if startup_port is not None:
             options.extend(["--startup-port", str(startup_port)])
+        if startup_address is not None:
+            options.extend(["--startup-address", startup_address])
         if late_attach:
             options.append("--late-attach")
         return self.start_process([DEBUGGEE, *options, *paths])
@@ -205,15 +208,17 @@ class DAPTestCase(unittest.TestCase):
                 errors = self.process.stderr.read() if self.process.stderr else ""
                 self.fail(f"Debuggee exited during startup: {''.join(startup_output)}{errors}")
             startup_output.append(line)
-            if "Lua DAP debugger listening on 127.0.0.1:" in line:
-                line = "PORT " + line.rsplit(":", 1)[1].strip()
+            if "Lua DAP debugger listening on " in line:
+                endpoint = line.split("Lua DAP debugger listening on ", 1)[1].strip()
+                self.listener_address, port = endpoint.rsplit(":", 1)
+                line = "PORT " + port
             if line.startswith("PORT "):
                 self.port = int(line.split()[1])
                 return self.connect()
         self.fail(f"Debuggee did not start: {''.join(startup_output)}")
 
     def connect(self):
-        client = Client(self.port)
+        client = Client(self.port, self.address)
         self.clients.append(client)
         self.client = client
         return client
@@ -264,6 +269,124 @@ class DAPTestCase(unittest.TestCase):
         self.fail("No completion status")
 
 class DAPTests(DAPTestCase):
+    def network_address(self):
+        if not DEBUGGEE or pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
+            self.skipTest("Listener configuration requires the engine extension host")
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            try:
+                # Select an outbound interface without sending any packets.
+                probe.connect(("192.0.2.1", 9))
+                address = probe.getsockname()[0]
+            except OSError as error:
+                self.skipTest(f"No IPv4 network interface: {error}")
+        if address == "0.0.0.0" or address.startswith("127."):
+            self.skipTest("Requires an IPv4 network interface other than loopback")
+        return address
+
+    # The default listener must remain local even on hosts with a network
+    # interface, so adding remote configuration does not expose normal sessions.
+    def test_default_listener_is_loopback_only(self):
+        address = self.network_address()
+        c = self.start("assert(true)\n")
+        self.assertEqual(self.listener_address, "127.0.0.1")
+        with self.assertRaises(OSError):
+            with socket.create_connection((address, self.port), timeout=1):
+                pass
+        c.initialize()
+        c.attach()
+        c.configured()
+        self.finished()
+
+    # Startup must honor debugger.address and publish that address; a complete
+    # DAP session over the network interface catches accidental loopback binding.
+    def test_startup_listener_uses_configured_address(self):
+        self.address = self.network_address()
+        c = self.start("assert(true)\n", startup_address="0.0.0.0")
+        self.assertEqual(self.listener_address, "0.0.0.0")
+        c.initialize()
+        c.attach()
+        c.configured()
+        self.finished()
+
+    # Late activation must retain the configured address. Repeated start calls
+    # return the existing port and must not rebind an active remote listener.
+    def test_late_attach_uses_configured_address(self):
+        self.address = self.network_address()
+        c = self.start('''
+            local port = debugger.start()
+            assert(port > 0 and debugger.start(0, "127.0.0.1") == port)
+            ready = false
+            while not ready do pump() end
+        ''', late_attach=True, startup_address="0.0.0.0")
+        self.assertEqual(self.listener_address, "0.0.0.0")
+        c.initialize()
+        c.attach(stopOnEntry=True)
+        c.configured()
+        self.stopped("entry")
+        self.evaluate("ready = true", context="repl")
+        self.resume()
+        self.finished()
+
+    # An explicit Lua address must override the loopback default and bind the
+    # requested interface while a nil port still uses the configured free port.
+    def test_late_attach_address_override(self):
+        self.address = self.network_address()
+        c = self.start(f'''
+            assert(debugger.start(nil, "{self.address}") > 0)
+            ready = false
+            while not ready do pump() end
+        ''', late_attach=True)
+        self.assertEqual(self.listener_address, self.address)
+        c.initialize()
+        c.attach(stopOnEntry=True)
+        c.configured()
+        self.stopped("entry")
+        self.evaluate("ready = true", context="repl")
+        self.resume()
+        self.finished()
+
+    # Invalid addresses must fail without changing hooks or coroutine functions;
+    # rejecting embedded NUL bytes prevents silently binding a truncated address.
+    def test_late_attach_address_failure_can_retry(self):
+        c = self.start('''
+            local old_hook = debug.gethook()
+            local old_create, old_resume, old_wrap = coroutine.create, coroutine.resume, coroutine.wrap
+            for _, address in ipairs({"", "::1", "127.0.0.1\\000ignored", false, {}}) do
+                assert(not pcall(debugger.start, nil, address))
+            end
+            assert(debug.gethook() == old_hook)
+            assert(coroutine.create == old_create and coroutine.resume == old_resume and coroutine.wrap == old_wrap)
+            assert(debugger.start() > 0)
+            ready = false
+            while not ready do pump() end
+        ''', late_attach=True)
+        c.initialize()
+        c.attach(stopOnEntry=True)
+        c.configured()
+        self.stopped("entry")
+        self.evaluate("ready = true", context="repl")
+        self.resume()
+        self.finished()
+
+    # A failed configured address must leave updates enabled and preserve the
+    # Lua default, allowing an explicit valid address to recover without restart.
+    def test_invalid_startup_address_can_retry(self):
+        c = self.start('''
+            assert(debug.gethook() == nil)
+            assert(not pcall(debugger.start))
+            assert(debugger.start(0, "127.0.0.1") > 0)
+            ready = false
+            while not ready do pump() end
+        ''', startup_address="::1")
+        self.assertEqual(self.listener_address, "127.0.0.1")
+        c.initialize()
+        c.attach(stopOnEntry=True)
+        c.configured()
+        self.stopped("entry")
+        self.evaluate("ready = true", context="repl")
+        self.resume()
+        self.finished()
+
     # Starts DAP after ordinary Lua execution and a coroutine have already run,
     # then inspects and edits their preserved locals. Starting the listener must
     # return immediately and leave hooks/JIT alone until the client attaches.
