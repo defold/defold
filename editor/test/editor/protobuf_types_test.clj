@@ -150,7 +150,7 @@
    "/test.cubemap" []
    "/test.display_profiles" []
    "/test.factory" []
-   "/test.font" []
+   "/test.font" ["/builtins/fonts/font-vector.fp"]
    "/test.fp" []
    "/test.gamepads" []
    "/test.gltf" []

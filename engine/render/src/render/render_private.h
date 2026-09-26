@@ -176,6 +176,7 @@ namespace dmRender
         float               m_Height;
         float               m_Leading;
         float               m_Tracking;
+        float               m_FontSize;
         int32_t             m_Next;
         int32_t             m_Tail;
         dmVMath::Point3     m_FrustumCullingCenter;
@@ -189,7 +190,7 @@ namespace dmRender
     {
         dmArray<dmRender::RenderObject>         m_RenderObjects;
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
-        dmArray<uint8_t>                        m_ClientBuffer;
+        void*                                   m_ClientBuffer;
         dmArray<char>                           m_TextBuffer;
         // Map from batch id (hash of font-map etc) to index into m_TextEntries
         dmArray<TextEntry>                      m_TextEntries;

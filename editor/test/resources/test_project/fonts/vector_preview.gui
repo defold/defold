@@ -1,0 +1,27 @@
+fonts {
+  name: "vector"
+  font: "/fonts/vector_implicit_dynamic.font"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_DISABLED
+nodes {
+  position { x: 100.0 y: 100.0 }
+  size { x: 60.0 y: 120.0 }
+  type: TYPE_BOX
+  id: "clip"
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+}
+nodes {
+  position { x: 40.0 y: 0.0 z: 10.0 }
+  size { x: 160.0 y: 120.0 }
+  type: TYPE_TEXT
+  id: "text"
+  parent: "clip"
+  text: "OO"
+  font: "vector"
+  font_size: 80.0
+  color { x: 1.0 y: 0.0 z: 1.0 w: 1.0 }
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}

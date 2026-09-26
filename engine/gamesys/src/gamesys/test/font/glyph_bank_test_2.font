@@ -5,3 +5,5 @@ antialias: 4
 alpha: 0.25
 shadow_alpha: 0.5
 shadow_blur: 4
+vector_font_mode: VECTOR_FONT_MODE_SDF
+runtime: true

@@ -43,6 +43,13 @@ namespace dmGameSystem
         {
             return false;
         }
+        if (glyph.m_VectorDataSize > 0 &&
+            (glyph.m_VectorDataOffset > glyph_bank->m_VectorData.m_Count ||
+             glyph.m_VectorDataSize > glyph_bank->m_VectorData.m_Count - glyph.m_VectorDataOffset ||
+             glyph.m_VectorDataSize % (sizeof(float) * 8) != 0))
+        {
+            return false;
+        }
 
         memset(output, 0, sizeof(*output));
         output->m_Codepoint = glyph.m_Character;
@@ -51,6 +58,15 @@ namespace dmGameSystem
         output->m_LeftBearing = glyph.m_LeftBearing;
         output->m_Ascent = glyph.m_Ascent;
         output->m_Descent = glyph.m_Descent;
+        output->m_OutlineWidth = glyph.m_OutlineWidth;
+        output->m_OutlineLeftBearing = glyph.m_OutlineLeftBearing;
+        output->m_OutlineAscent = glyph.m_OutlineAscent;
+        output->m_OutlineDescent = glyph.m_OutlineDescent;
+        if (glyph.m_VectorDataSize != 0)
+        {
+            output->m_VectorData = glyph_bank->m_VectorData.m_Data + glyph.m_VectorDataOffset;
+            output->m_VectorDataSize = (uint32_t)glyph.m_VectorDataSize;
+        }
         if (glyph.m_GlyphDataSize != 0)
         {
             const uint8_t* glyph_data = glyph_bank->m_GlyphData.m_Data + glyph.m_GlyphDataOffset;
@@ -69,7 +85,8 @@ namespace dmGameSystem
         resource->m_Provider.m_Destroy = 0;
         resource->m_Provider.m_ResourceSize = sizeof(*glyph_bank) +
                                               (uint64_t)glyph_bank->m_Glyphs.m_Count * sizeof(dmFontDDF::GlyphBank::Glyph) +
-                                              glyph_bank->m_GlyphData.m_Count;
+                                              glyph_bank->m_GlyphData.m_Count +
+                                              glyph_bank->m_VectorData.m_Count;
         resource->m_Provider.m_GlyphCount = glyph_bank->m_Glyphs.m_Count;
         resource->m_Provider.m_GlyphPadding = (uint32_t)glyph_bank->m_GlyphPadding;
         resource->m_Provider.m_GlyphChannels = glyph_bank->m_GlyphChannels;
@@ -80,6 +97,11 @@ namespace dmGameSystem
     HFont GetFont(GlyphBankResource* resource)
     {
         return resource->m_Font;
+    }
+
+    void SetGlyphBankReferenceSize(GlyphBankResource* resource, float size)
+    {
+        resource->m_Provider.m_ReferenceSize = size;
     }
 
     dmFontDDF::GlyphBank* GetGlyphBank(GlyphBankResource* resource)

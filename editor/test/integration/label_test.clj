@@ -50,7 +50,7 @@
       (test-util/with-prop [node-id :font nil]
         (is (nil? (g/node-value node-id :font-map)))
         (let [text-layout (g/node-value node-id :text-layout)]
-          (is (= [] (:lines text-layout)))
+          (is (= 0 (:line-count text-layout)))
           (is (= 0 (:height text-layout))))
         (let [scene (g/node-value node-id :scene)]
           (is (map? scene))
@@ -93,7 +93,7 @@
         (is (= node-id (:node-id scene)))
         (is (= node-id (some-> scene :renderable :select-batch-key)))
         (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
-        (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :lines first)))
+        (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :text)))
         (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
         (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
 
@@ -260,6 +260,33 @@
           (verify-referenced-component "/scale_migration/referenced_unscaled_label.collection" [0 0] [2.0 3.0 4.0] false)
           (verify-referenced-component "/scale_migration/referenced_unscaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] false))))))
 
+(deftest label-effect-controls-follow-font-support
+  (test-util/with-loaded-project
+    (let [font-node (project/get-resource-node project "/editor1/test.font")
+          label-node (project/get-resource-node project "/label/test.label")
+          original-outline (g/node-value label-node :outline)
+          original-shadow (g/node-value label-node :shadow)]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A")
+         (g/set-property font-node :size 20)
+         (g/set-property label-node :font (workspace/find-resource workspace "/editor1/test.font"))])
+      (doseq [[mode material] [[:vector-font-mode-sdf "/builtins/fonts/font-df.material"]
+                               [:vector-font-mode-vector "/builtins/fonts/font-vector.material"]]
+              runtime [false true]
+              [outline shadow] [[false false] [true false] [false true] [true true]]]
+        (g/transact {:undoable false}
+          [(g/set-property font-node :vector-font-mode mode)
+           (g/set-property font-node :material (workspace/find-resource workspace material))
+           (g/set-property font-node :runtime runtime)
+           (g/set-property font-node :outline-alpha (if outline 1.0 0.0))
+           (g/set-property font-node :shadow-alpha (if shadow 1.0 0.0))])
+        (let [properties (:properties (g/node-value label-node :_properties))]
+          (is (= (not outline) (get-in properties [:outline :read-only?])))
+          (is (= (not shadow) (get-in properties [:shadow :read-only?])))))
+      (is (= original-outline (g/node-value label-node :outline)))
+      (is (= original-shadow (g/node-value label-node :shadow))))))
+
 (deftest selected-font-style-validation-and-preview
   (test-util/with-scratch-project test-util/project-path
     (let [node (project/get-resource-node project "/label/test.label")]
@@ -277,3 +304,66 @@
       (test-util/with-prop [node :style "missing"]
         (is (g/error-fatal? (test-util/prop-error node :style)))
         (is (g/error-fatal? (g/node-value node :build-targets)))))))
+
+(deftest vector-font-size-and-style-survive-build
+  (test-util/with-temp-project-content
+    {"/styled.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
+                      :material "/builtins/fonts/font-vector.material"
+                      :vector-font-mode :vector-font-mode-vector
+                      :runtime false
+                      :size 37
+                      :outline-alpha 1.0
+                      :outline-width 2.0
+                      :characters "A"
+                      :styles [{:name "default"}
+                               {:name "notice" :markup "<color=#ff6600>"}]}
+     "/styled.label" {:font "/styled.font"
+                       :material "/builtins/fonts/label-vector.material"
+                       :text "A"
+                       :size [128.0 32.0 0.0 0.0]
+                       :font-size 64.0
+                       :style "notice"}}
+    (let [font-node (test-util/resource-node project "/styled.font")
+          label-node (test-util/resource-node project "/styled.label")]
+      (doseq [runtime [false true]]
+        (test-util/prop! font-node :runtime runtime)
+        (is (= "notice" (:style (g/node-value label-node :text-layout))))
+        (let [width (:width (g/node-value label-node :text-layout))]
+          (test-util/with-prop [label-node :font-size 32.0]
+            (is (= width (* 2.0 (:width (g/node-value label-node :text-layout)))))))
+        (with-open [_ (test-util/build! label-node)]
+          (let [built-label (test-util/built-pb label-node Label$LabelDesc)
+                built-font (test-util/built-pb font-node com.dynamo.render.proto.Font$FontMap)]
+            (is (= 64.0 (.getFontSize built-label)))
+            (is (= (murmur/hash64 "notice") (.getStyleHash built-label)))
+            (is (= 37 (.getSize built-font)))
+            (is (= ["default" "notice"] (mapv #(.getName %) (.getStylesList built-font))))))))))
+
+(deftest legacy-bitmap-font-and-label-materials-are-preserved
+  (test-util/with-temp-project-content
+    {"/legacy.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
+                     :material "/builtins/fonts/font.material"
+                     :size 24
+                     :antialias 0
+                     :characters "A"}
+     "/legacy.label" {:font "/legacy.font"
+                      :material "/builtins/fonts/label.material"
+                      :size [128.0 32.0 0.0 0.0]
+                      :text "A"}}
+    (let [font-node (test-util/resource-node project "/legacy.font")
+          label-node (test-util/resource-node project "/legacy.label")]
+      (is (= :vector-font-mode-bitmap (g/node-value font-node :vector-font-mode)))
+      (is (= :defold (g/node-value font-node :type)))
+      (is (false? (g/node-value font-node :antialias)))
+      (is (= "/builtins/fonts/font.material" (:material (g/node-value font-node :save-value))))
+      (with-open [_ (test-util/build! label-node)]
+        (is (= "/builtins/fonts/label.materialc" (.getMaterial (test-util/built-pb label-node Label$LabelDesc))))
+        (let [built-font (test-util/built-pb font-node com.dynamo.render.proto.Font$FontMap)]
+          (is (= com.dynamo.render.proto.Font$FontTextureFormat/TYPE_BITMAP (.getOutputFormat built-font)))
+          (is (= 0 (.getAntialias built-font)))
+          (is (not (string/blank? (.getGlyphBank built-font))))))
+      (test-util/save-project! project)
+      (workspace/resource-sync! workspace)
+      (is (= :vector-font-mode-bitmap (g/node-value font-node :vector-font-mode)))
+      (is (= "/builtins/fonts/font.material" (:material (g/node-value font-node :save-value))))
+      (is (false? (g/node-value font-node :antialias))))))

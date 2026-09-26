@@ -25,6 +25,8 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   engine_service_null
   extension
   font
+  font_gen
+  font_gen_null
   font_richtext
   font_richtext_null
   font_render
@@ -395,6 +397,16 @@ function(defold_get_font_libraries out_var)
     list(APPEND _font_libs font_richtext)
   endif()
   set(${out_var} ${_font_libs} PARENT_SCOPE)
+endfunction()
+
+function(defold_get_font_gen_library out_var)
+  defold_feature_disabled(font_gen _without_font_gen)
+  if(_without_font_gen)
+    set(_font_gen_lib font_gen_null)
+  else()
+    set(_font_gen_lib font_gen)
+  endif()
+  set(${out_var} ${_font_gen_lib} PARENT_SCOPE)
 endfunction()
 
 function(defold_get_gamesys_libraries out_var)

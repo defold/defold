@@ -132,7 +132,8 @@ function update(self, dt)
     --  shadow_alpha: 1.0
     --  shadow_blur: 2
     -- The 96 glyph advances total 809.15625 pixels. Layout padding adds
-    -- 6 pixels for bitmap fonts and 7 pixels for distance-field fonts.
+    -- 6 pixels for the migrated legacy bitmap font and 7 pixels for the
+    -- distance-field font, preserving the original spacing of each format.
 
     local function test_label_metrics(label_name, test_metrics)
         -- Test that we are getting the expected value back from get_text_metrics

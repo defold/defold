@@ -1826,6 +1826,69 @@ public class FontRendererFFM extends FontRendererSymbols {
         }
     }
 
+    private static class FontcGetVectorTextures {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_INT,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_LONG_LONG,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontcGetVectorTextures");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known_atlas_version, FontcTexture *curves, FontcTexture *bands)
+     * }
+     */
+    public static FunctionDescriptor FontcGetVectorTextures$descriptor() {
+        return FontcGetVectorTextures.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known_atlas_version, FontcTexture *curves, FontcTexture *bands)
+     * }
+     */
+    public static MethodHandle FontcGetVectorTextures$handle() {
+        return FontcGetVectorTextures.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known_atlas_version, FontcTexture *curves, FontcTexture *bands)
+     * }
+     */
+    public static MemorySegment FontcGetVectorTextures$address() {
+        return FontcGetVectorTextures.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known_atlas_version, FontcTexture *curves, FontcTexture *bands)
+     * }
+     */
+    public static int FontcGetVectorTextures(MemorySegment renderer, long known_atlas_version, MemorySegment curves, MemorySegment bands) {
+        var mh$ = FontcGetVectorTextures.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontcGetVectorTextures", renderer, known_atlas_version, curves, bands);
+            }
+            return (int)mh$.invokeExact(renderer, known_atlas_version, curves, bands);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class FontcFreeTexture {
         public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
             FontRendererFFM.C_POINTER

@@ -500,6 +500,14 @@ namespace dmShaderc
             if (!image_name || !image_name[0] || !sampler_name || !sampler_name[0])
                 continue;
 
+            // texelFetch on a separate texture creates a synthetic sampler in
+            // GLSL. Preserve the reflected texture name for material lookup.
+            if (strcmp(sampler_name, "SPIRV_Cross_DummySampler") == 0)
+            {
+                spvc_compiler_set_name(compiler->m_SPVCCompiler, sampler.m_CombinedId, image_name);
+                continue;
+            }
+
             const size_t combined_name_size = strlen(prefix) + strlen(image_name) + strlen(sampler_name) + 1;
             if (combined_name.Capacity() < combined_name_size)
                 combined_name.SetCapacity(combined_name_size);
@@ -678,6 +686,8 @@ namespace dmShaderc
         uint32_t workgroup_size_z = 0;
 
         spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
+        spvc_variable_id dummy_sampler_id = 0;
+        spvc_compiler_build_dummy_sampler_for_combined_images(compiler->m_SPVCCompiler, &dummy_sampler_id);
         spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
 
         // SPIRV-Cross may leave synthetic combined samplers with an ID-based

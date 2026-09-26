@@ -134,6 +134,7 @@
                                    :blend-mode :blend-mode-alpha,
                                    :leading 1.0,
                                    :font "/builtins/fonts/default.fontc",
+                                   :font-size 16.0,
                                    :size [128.0 32.0 0.0 0.0],
                                    :style "default",
                                    :style-hash (murmur/hash64 "default"),

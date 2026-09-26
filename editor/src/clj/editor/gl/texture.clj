@@ -286,7 +286,9 @@
     :bgr  GL2/GL_RGB
     :abgr GL2/GL_RGBA
     :rgb  GL2/GL_RGB
-    :rgba GL2/GL_RGBA))
+    :rgba GL2/GL_RGBA
+    :rgba16f GL2/GL_RGBA16F
+    :rgba32f GL2/GL_RGBA32F))
 
 (defn- data-format->pixel-format
   ^long [data-format]
@@ -296,7 +298,7 @@
     :bgr  GL2/GL_BGR
     :abgr GL2/GL_RGBA ;; There is no GL_ABGR, so this is swizzled into ABGR by the GL_UNSIGNED_INT_8_8_8_8 type returned by data-format->type.
     :rgb  GL2/GL_RGB
-    :rgba GL2/GL_RGBA))
+    (:rgba :rgba16f :rgba32f) GL2/GL_RGBA))
 
 (defn- data-format->type
   ^long [data-format]
@@ -306,7 +308,9 @@
     :bgr  GL2/GL_UNSIGNED_BYTE
     :abgr GL2/GL_UNSIGNED_INT_8_8_8_8
     :rgb  GL2/GL_UNSIGNED_BYTE
-    :rgba GL2/GL_UNSIGNED_BYTE))
+    :rgba GL2/GL_UNSIGNED_BYTE
+    :rgba16f GL2/GL_HALF_FLOAT
+    :rgba32f GL2/GL_FLOAT))
 
 (defn- image-type->data-format [^long image-type]
   (condp = image-type
@@ -326,7 +330,16 @@
         pixel-format (data-format->pixel-format data-format)
         type (data-format->type data-format)
         border 0]
-    (TextureData. (GLProfile/getGL2GL3) internal-format width height border pixel-format type mipmap false false data nil)))
+    (if (contains? #{:rgba16f :rgba32f} data-format)
+      ;; JOGL's PixelFormat describes packed image pixels and rejects float
+      ;; channels. Texture uploads use getPixelType, so retain the RGBA channel
+      ;; layout while supplying the numeric type and its actual allocation size.
+      (let [estimated-memory-size (int (* (long width) (long height) 4 (if (= :rgba16f data-format) 2 4)))]
+        (proxy [TextureData] [(GLProfile/getGL2GL3) internal-format width height border
+                             pixel-format GL2/GL_UNSIGNED_BYTE mipmap false false data nil]
+          (getPixelType [] type)
+          (getEstimatedMemorySize [] estimated-memory-size)))
+      (TextureData. (GLProfile/getGL2GL3) internal-format width height border pixel-format type mipmap false false data nil))))
 
 (defn texture-data-topology-hash
   ^long [^TextureData texture-data]
@@ -549,6 +562,12 @@
   (let [tex (->texture texture gl page-index)
         data (make-texture-data data data-format w h false)]
     (.updateSubImage tex gl data 0 x y)))
+
+(defn update-image!
+  "Replaces a generated texture image, allowing its dimensions to change."
+  [^TextureLifecycle texture ^GL2 gl data data-format width height]
+  (.updateImage (->texture texture gl 0) gl
+                (make-texture-data data data-format width height false)))
 
 (def default-cubemap-texture-params
   ^{:doc "If you do not supply parameters to `cubemap-texture-images->gpu-texture`, these will be used as defaults."}

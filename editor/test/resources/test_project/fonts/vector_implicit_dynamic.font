@@ -1,0 +1,4 @@
+font: "/fonts/vera_mo_bd.ttf"
+material: "/builtins/fonts/font-vector.material"
+vector_font_mode: VECTOR_FONT_MODE_VECTOR
+characters: "Vector prewarm"
