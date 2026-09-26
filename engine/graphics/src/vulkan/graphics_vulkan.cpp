@@ -4940,10 +4940,11 @@ bail:
             params.m_MipMap, texture->m_LayerCount, command_pool);
         CHECK_VK_ERROR(res);
 
-        uint8_t* zero_data = data ? 0 : new uint8_t[size]();
+        uint32_t layer_count = params.m_LayerCount ? params.m_LayerCount : texture->m_LayerCount;
         uint32_t slice_size = size / texture->m_LayerCount;
-        VkMemoryToImageCopyEXT* regions = new VkMemoryToImageCopyEXT[texture->m_LayerCount];
-        for (uint32_t layer = 0; layer < texture->m_LayerCount; ++layer)
+        uint8_t* zero_data = data ? 0 : new uint8_t[slice_size * layer_count]();
+        VkMemoryToImageCopyEXT* regions = new VkMemoryToImageCopyEXT[layer_count];
+        for (uint32_t layer = 0; layer < layer_count; ++layer)
         {
             VkMemoryToImageCopyEXT& region = regions[layer];
             memset(&region, 0, sizeof(region));
@@ -4953,7 +4954,7 @@ bail:
             region.pHostPointer = (const uint8_t*) (data ? data : zero_data) + layer * slice_size;
             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.imageSubresource.mipLevel = params.m_MipMap;
-            region.imageSubresource.baseArrayLayer = layer;
+            region.imageSubresource.baseArrayLayer = params.m_Slice + layer;
             region.imageSubresource.layerCount = 1;
             region.imageOffset.x = params.m_X;
             region.imageOffset.y = params.m_Y;
@@ -4966,7 +4967,7 @@ bail:
         copy.sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO_EXT;
         copy.dstImage = texture->m_Handle.m_Image;
         copy.dstImageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        copy.regionCount = texture->m_LayerCount;
+        copy.regionCount = layer_count;
         copy.pRegions = regions;
         res = device->m_CopyMemoryToImage(device->m_Device, &copy);
         CHECK_VK_ERROR(res);
