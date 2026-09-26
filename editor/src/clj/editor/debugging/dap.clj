@@ -341,11 +341,18 @@
 (defn frame-variables [session snapshot frame-id]
   (when (and snapshot (= snapshot (suspension session)))
     (let [scopes (:scopes (request! session "scopes" {:frameId frame-id}))]
-      ;; Preserve the flat locals/upvalues view. Large global scopes remain
-      ;; available through console evaluation without eagerly downloading them.
+      ;; Keep locals/upvalues flat and fetch globals only when _G is expanded.
       (into []
-            (comp (remove :expensive)
-                  (mapcat #(variables session snapshot (:variablesReference %))))
+            (mapcat (fn [{:keys [name variablesReference expensive]}]
+                      (cond
+                        (= "Globals" name)
+                        [{:name "_G" :value "table" :type "table" :variablesReference variablesReference}]
+
+                        expensive
+                        []
+
+                        :else
+                        (variables session snapshot variablesReference))))
             scopes))))
 
 (defn evaluate! [session frame-id expression]
