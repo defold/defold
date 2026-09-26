@@ -177,6 +177,7 @@
         "variables" (respond! out request {:variables (case (long (:variablesReference arguments))
                                                         10 [{:name "self" :value "table: 1" :variablesReference 20}]
                                                         11 [{:name "flag" :value "false" :variablesReference 0}]
+                                                        12 [{:name "_VERSION" :value "\"Lua 5.1\"" :variablesReference 0}]
                                                         20 [{:name "[\"café\"]" :value "42" :variablesReference 0}])})
         "evaluate" (do (is (= 42 (:frameId arguments)))
                        (is (= "repl" (:context arguments)))
@@ -187,14 +188,25 @@
                                       (event! out "continued" {:threadId 7})
                                       (event! out "stopped" {:threadId 7 :reason "step"}))
         "continue" (do (respond! out request {}) (event! out "continued" {:threadId 7}))))
-    (fn [session _ events]
+    (fn [session requests events]
       (await! (dap/control! session "pause"))
       (let [[event snapshot] (take-event! events)]
         (is (= :stopped event))
         (is (= [{:id 42 :function "update" :file "/main.script" :line 5}
                 {:id 99 :function "native" :file nil :line 0}]
                (dap/stack session snapshot)))
-        (is (= ["self" "flag"] (mapv :name (dap/frame-variables session snapshot 42))))
+        (let [frame-variables (dap/frame-variables session snapshot 42)
+              globals (peek frame-variables)]
+          (is (= ["self" "flag" "_G"] (mapv :name frame-variables)))
+          (is (= 12 (:variablesReference globals)))
+          (testing "Globals are fetched only on expansion"
+            (is (= [10 11]
+                   (into []
+                         (comp (filter #(= "variables" (:command %)))
+                               (map #(get-in % [:arguments :variablesReference])))
+                         @requests)))
+            (is (= [{:name "_VERSION" :value "\"Lua 5.1\"" :variablesReference 0}]
+                   (dap/variables session snapshot (:variablesReference globals))))))
         (is (= "42" (:value (first (dap/variables session snapshot 20)))))
         (is (= "false" (:result (dap/evaluate! session 42 "flag"))))
         (doseq [command ["next" "stepIn" "stepOut"]]
@@ -313,10 +325,14 @@
                   (let [snapshot (take-event! stopped)
                         frame (first (dap/stack session snapshot))
                         locals (dap/frame-variables session snapshot (:id frame))
+                        globals (coll/first-where #(= "_G" (:name %)) locals)
+                        global-variables (dap/variables session snapshot (:variablesReference globals))
                         data (first (filterv #(= "data" (:name %)) locals))
                         nested (first (dap/variables session snapshot (:variablesReference data)))]
                     (is (= "/main.lua" (:file frame)))
                     (is (= 8 (:line frame)))
+                    (is (= "\"Lua 5.1\"" (:value (coll/first-where #(= "_VERSION" (:name %)) global-variables))))
+                    (is (pos? (:variablesReference (coll/first-where #(= "math" (:name %)) global-variables))))
                     (is (= "42" (:result (dap/evaluate! session (:id frame) "data.nested.value"))))
                     (is (= "42" (:value (first (dap/variables session snapshot (:variablesReference nested)))))))
                   (await! (dap/control! session "stepIn"))

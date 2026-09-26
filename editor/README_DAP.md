@@ -26,8 +26,9 @@ use the per-instance port. Attachment stops at the next Lua line. Rebooted engin
 also use the per-instance port.
 
 The selected stack frame's DAP ID is used for console evaluation. Locals and
-upvalues load when selecting a frame; table children load when expanding a
-variable. The console accepts expressions and Lua statements. Inspection runs
+upvalues load when selecting a frame. The global scope appears as an expandable
+`_G` entry; globals and table children load when expanded. The console accepts
+expressions and Lua statements. Inspection runs
 off the JavaFX thread, and responses from a previous stop or frame selection are
 discarded. Engine console output still uses the existing log stream; DAP output
 events supply debugger messages and logpoints.
