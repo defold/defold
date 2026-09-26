@@ -66,10 +66,13 @@
                                                           "/test.tilemap"
                                                           "/test.wav"]
    "/test.collectionfactory" ["/test.collection"]
-   "/test.collectionproxy" ["/test.collection"]   
+   "/test.collectionproxy" ["/test.collection"]
    "/test.collisionobject" ["/test.tilemap"]
    "/test.cubemap" ["/builtins/graphics/particle_blob.png"]
    "/test.gltf" []
+   "/test.gltf/meshes/Cube.001_0" []
+   "/test.gltf/materials/default_0.material" ["/defold-pbr/shaders/pbr.fp"
+                                              "/defold-pbr/shaders/pbr.vp"]
    "/test.display_profiles" []
    "/test.factory" ["/test2.go"]
    "/test.font" ["/builtins/fonts/vera_mo_bd.ttf"
@@ -153,7 +156,9 @@
    "/test.font" []
    "/test.fp" []
    "/test.gamepads" []
-   "/test.gltf" []
+   "/test.gltf" ["/test.gltf/materials/default_0.material"]
+   "/test.gltf/meshes/Cube.001_0" ["/test.gltf"]
+   "/test.gltf/materials/default_0.material" []
    "/test.go" []
    "/test.gui" ["/builtins/fonts/default.font"]
    "/test.gui_script" []
@@ -203,9 +208,9 @@
           resource-nodes (g/node-value project :nodes-by-resource-path)
           basis (g/now)]
       (doseq [[resource-path node-id] resource-nodes
-              :when (.startsWith resource-path "/test")]
-        (let [resource (resource-node/resource basis node-id)
-              resource-type (resource/resource-type resource)
+              :when (.startsWith resource-path "/test")
+              :let [resource (resource-node/resource basis node-id)]]
+        (let [resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
               save-value (g/node-value node-id :save-value)
               expected-dependencies (expected-dependencies resource-path)

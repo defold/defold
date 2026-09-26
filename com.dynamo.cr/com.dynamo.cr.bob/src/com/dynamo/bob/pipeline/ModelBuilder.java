@@ -57,7 +57,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
     private int resolveMeshIndex(ModelDesc.Builder modelDescBuilder, IResource modelResource) throws CompileExceptionError {
         String meshName = modelDescBuilder.getMeshName();
         if (meshName.isEmpty()) {
-            if (modelDescBuilder.hasMeshIndex()) {
+            if (modelDescBuilder.getMeshIndex() != ModelDesc.getDefaultInstance().getMeshIndex()) {
                 throw new CompileExceptionError(modelResource, 0, "Model mesh has an index but no name");
             }
             return -1;
@@ -73,7 +73,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         try {
             IResource meshSetResource = sceneResource.changeExt(".meshsetc");
             MeshSet meshSet = MeshSet.parseFrom(meshSetResource.getContent());
-            int requestedMeshIndex = modelDescBuilder.hasMeshIndex() ? modelDescBuilder.getMeshIndex() : -1;
+            int requestedMeshIndex = modelDescBuilder.getMeshIndex();
             return ModelUtil.resolveNamedMesh(meshSet, meshName, requestedMeshIndex).getMeshIndex();
         } catch (IllegalArgumentException e) {
             throw new CompileExceptionError(sceneResource, 0, e.getMessage());

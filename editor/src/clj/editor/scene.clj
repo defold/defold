@@ -2446,7 +2446,7 @@
              workspace (project/workspace project evaluation-context)
              resource (or (workspace/find-resource (:basis evaluation-context) workspace (str "/" (:path (:path-params request))))
                           (throw (http-server/error http-server/not-found)))
-             resource-type (resource/lookup-resource-type (:basis evaluation-context) workspace resource)
+             resource-type (resource/resource-type resource (:basis evaluation-context))
              resource-node (or (project/get-resource-node project resource evaluation-context)
                                (throw (http-server/error (http-server/response 422 "Resource is not loaded\n"))))
              view-type (or (coll/first-where #(= :scene (:id %)) (:view-types resource-type))

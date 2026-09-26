@@ -49,10 +49,14 @@ struct AabbJNI {
 struct ImageJNI {
     jclass cls;
     jfieldID name;
+    jfieldID nameIsGenerated;
     jfieldID uri;
     jfieldID mimeType;
     jfieldID buffer;
     jfieldID index;
+    jfieldID bufferIndex;
+    jfieldID bufferOffset;
+    jfieldID bufferSize;
 };
 struct SamplerJNI {
     jclass cls;
@@ -156,6 +160,7 @@ struct IridescenceJNI {
 struct MaterialJNI {
     jclass cls;
     jfieldID name;
+    jfieldID nameIsGenerated;
     jfieldID index;
     jfieldID isSkinned;
     jfieldID pbrMetallicRoughness;
@@ -291,6 +296,9 @@ struct SceneJNI {
 struct OptionsJNI {
     jclass cls;
     jfieldID dummy;
+    jfieldID loadMaterialsOnly;
+    jfieldID loadMeshMetadata;
+    jfieldID skipImageData;
 };
 struct TypeInfos {
     Vector3JNI m_Vector3JNI;

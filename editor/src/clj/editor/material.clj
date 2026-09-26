@@ -241,6 +241,7 @@
                            (pair resolved-sampler-name nil))))
                   samplers))]
 
+    ;; OpenGL programs retain uniform values, including constants omitted by a material.
     (shader/make-shader-lifecycle _node-id shader-request-data attribute-reflection-infos uniform-values-by-name)))
 
 (g/defnk produce-samplers [^:raw samplers default-sampler-filter-modes]

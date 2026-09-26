@@ -341,6 +341,19 @@
          :is_file false
          :is_directory false}))))
 
+(def ^:private resource-children-args-coercer
+  (coerce/regex :resource-path graph/resource-path-coercer))
+
+(defn- make-ext-resource-children-fn [project]
+  (rt/varargs-lua-fn ext-resource-children [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [resource-path]} (rt/->clj rt resource-children-args-coercer varargs)
+          basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          resource (workspace/find-resource basis workspace resource-path)]
+      (when-not resource
+        (throw (LuaError. (str resource-path " not found"))))
+      (mapv resource/proj-path (resource/children resource)))))
+
 (def ^:private empty-lua-string
   (rt/->lua ""))
 
@@ -1106,6 +1119,7 @@
                                   "create_resources" (make-ext-create-resources-fn project reload-resources!)
                                   "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
                                   "resource_attributes" (make-ext-resource-attributes-fn project)
+                                  "resource_children" (make-ext-resource-children-fn project)
                                   "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
                                   "execute" (make-ext-execute-fn project-path reload-resources!)
                                   "bob" (make-ext-bob-fn invoke-bob!)

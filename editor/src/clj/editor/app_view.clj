@@ -2554,7 +2554,7 @@
         project (project/get-project basis)
         resource (resource-node/resource basis resource-node)
         workspace (resource/workspace resource)
-        resource-type (resource/lookup-resource-type basis workspace resource)
+        resource-type (resource/resource-type resource basis)
 
         camera-opts (when (= :scene (:id view-type))
                       (if-some [stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))]
@@ -3626,7 +3626,7 @@
               [lib-results false]
               (ui/run-now
                 (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
-                (project/update-fetch-libraries-notification! project)
+                (project/update-library-notifications! project [])
                 [lib-results true]))))
         (catch Throwable error
           (error-reporting/report-exception! error)

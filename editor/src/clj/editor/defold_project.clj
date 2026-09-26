@@ -204,19 +204,14 @@
     of the bytes consumed during the read operation.
 
   :dependency-proj-paths (optional)
-    Whe the resource-type specifies both a :read-fn and a :dependencies-fn, this
-    will be a vector of proj-paths reported as dependencies by the
-    :dependencies-fn when we give it the source-value returned by the :read-fn."
+    When the resource-type specifies a :dependencies-fn, this will be a vector
+    of proj-paths reported as dependencies. Resource types without a :read-fn
+    pass nil as the source-value."
   [read-opts node-id resource]
   {:pre [(g/node-id? node-id)]}
   (let [resource-metrics (:resource-metrics read-opts)
-        editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
-        editable (resource/editable-resource? resource)
-        type-ext->resource-type (editable->type-ext->resource-type editable)
-
         {:keys [lazy-loaded read-fn] :as resource-type}
-        (or (type-ext->resource-type (resource/type-ext resource))
-            (type-ext->resource-type resource/placeholder-resource-type-ext))
+        (resource/resource-type* resource (:editable->type-ext->resource-type read-opts))
 
         ;; Seeing as how we're operating on a list of resources that we got from
         ;; the file system itself, you might assume that every resource will
@@ -256,7 +251,9 @@
           read-result)
 
         dependency-proj-paths
-        (when (some? source-value)
+        (when (and (nil? read-error)
+                   (or (some? source-value)
+                       (nil? read-fn)))
           (when-let [dependencies-fn (:dependencies-fn resource-type)]
             (try
               (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
@@ -271,10 +268,10 @@
              :owner-resource resource
              :resource resource
              :resource-type resource-type}
-            read-error (assoc :read-error read-error)
-            source-value (assoc :source-value source-value)
-            disk-sha256 (assoc :disk-sha256 disk-sha256)
-            dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths))))
+      read-error (assoc :read-error read-error)
+      source-value (assoc :source-value source-value)
+      disk-sha256 (assoc :disk-sha256 disk-sha256)
+      dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths))))
 
 (defn- sort-node-ids-for-loading-impl
   ([node-ids in-progress queue queued batch node-id->dependency-node-ids]
@@ -515,9 +512,9 @@
 
                             (cond-> [save-data-endpoint+cached-value]
 
-                                    is-save-value-output-cached
-                                    (conj (pair (g/endpoint node-id :save-value)
-                                                (or read-error source-value))))))))
+                              is-save-value-output-cached
+                              (conj (pair (g/endpoint node-id :save-value)
+                                          (or read-error source-value))))))))
               node-load-infos)]
 
     (g/cache-output-values! endpoint+cached-value-pairs)
@@ -1259,10 +1256,10 @@
   (reduce (fn [m [old new]]
             (if-let [v (get m old)]
               (-> m
-                (dissoc old)
-                (assoc new (val-fn [new v])))
+                  (dissoc old)
+                  (assoc new (val-fn [new v])))
               m))
-    m key-m))
+          m key-m))
 
 (def ^:private make-resource-nodes-by-path-map
   (partial into {} (map (juxt (comp resource/proj-path second) first))))
@@ -1526,38 +1523,56 @@
    (when-let [settings (settings project evaluation-context)]
      (settings ["project" "dependencies"]))))
 
-(defn update-fetch-libraries-notification
-  "Create transaction steps for showing or hiding a 'Fetch Libraries' suggestion
-  when the project dependency list differs from the currently installed
-  dependencies in the workspace."
-  [project evaluation-context]
+(defn update-library-notifications
+  "Creates notification updates for dependency changes and newly imported materials."
+  [project added-resources evaluation-context]
   (when-let [workspace (workspace project evaluation-context)]
     (let [ignored-dep (:default (:element (settings-core/get-meta-setting gpc/meta-settings ["project" "dependencies"])))
           desired-deps (disj (set (project-dependencies project evaluation-context)) ignored-dep)
           installed-deps (set (workspace/dependencies workspace evaluation-context))
           notifications (workspace/notifications workspace evaluation-context)
-          notification-id ::dependencies-changed]
-      (if (not= desired-deps installed-deps)
-        (notifications/show
-          notifications
-          {:id notification-id
-           :type :info
-           :message (localization/message "notification.fetch-libraries.changed")
-           :actions [{:message (localization/message "notification.fetch-libraries.action.fetch")
-                      :on-action #(ui/execute-command
-                                    (ui/contexts (ui/main-scene) true)
-                                    :project.fetch-libraries
-                                    nil)}]})
-        (notifications/close notifications notification-id)))))
+          resources (g/node-value workspace :resource-map evaluation-context)]
+      [(if (coll/every? resources ["/defold-pbr/shaders/pbr.vp" "/defold-pbr/shaders/pbr.fp"])
+         (notifications/close notifications ::pbr-library)
+         (when (coll/any? (fn [resource]
+                            (and (= "material" (resource/ext resource))
+                                 (loop [parent-path (resource/parent-proj-path (resource/proj-path resource))]
+                                   (when-let [parent (resources parent-path)]
+                                     (if (= :file (resource/source-type parent))
+                                       (and (resource/file-resource? parent)
+                                            (#{"gltf" "glb"} (resource/ext parent)))
+                                       (recur (resource/parent-proj-path parent-path)))))))
+                          added-resources)
+           (notifications/show
+             notifications
+             {:id ::pbr-library
+              :type :info
+              :message (localization/message "notification.gltf-pbr-library")
+              :actions [{:message (localization/message "notification.gltf-pbr-library.action.add")
+                         :on-action #(ui/execute-command
+                                       (ui/contexts (ui/main-scene) true)
+                                       :private/add-dependency
+                                       {:dep-url "https://github.com/defold/asset-pbr/archive/refs/heads/master.zip"})}]})))
+       (if (not= desired-deps installed-deps)
+         (notifications/show
+           notifications
+           {:id ::dependencies-changed
+            :type :info
+            :message (localization/message "notification.fetch-libraries.changed")
+            :actions [{:message (localization/message "notification.fetch-libraries.action.fetch")
+                       :on-action #(ui/execute-command
+                                     (ui/contexts (ui/main-scene) true)
+                                     :project.fetch-libraries
+                                     nil)}]})
+         (notifications/close notifications ::dependencies-changed))])))
 
-(defn update-fetch-libraries-notification!
-  "Show or hide a 'Fetch Libraries' suggestion when the project dependency list
-  differs from the currently installed dependencies in the workspace."
-  [project]
+(defn update-library-notifications!
+  "Updates notifications for dependency changes and newly imported materials."
+  [project added-resources]
   (g/transact
     {:undoable false}
     (g/with-auto-evaluation-context evaluation-context
-      (update-fetch-libraries-notification project evaluation-context)))
+      (update-library-notifications project added-resources evaluation-context)))
   nil)
 
 (defn- handle-resource-changes [project changes render-progress!]
@@ -1577,8 +1592,8 @@
     ;; (resource-update/print-plan resource-change-plan)
     (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
     (lsp/apply-resource-changes! (lsp/get-lsp) changes)
-    ;; Suggest fetching libraries if dependencies changed externally.
-    (update-fetch-libraries-notification! project)))
+    ;; Update library offers after imported resources and external dependency edits load.
+    (update-library-notifications! project (:added changes))))
 
 (defn parse-filter-param
   [_node-id ^String s]
@@ -1652,20 +1667,20 @@
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
                                                                (->> all-selections
-                                                                 (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
-                                                                 (into {})))))
+                                                                    (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
+                                                                    (into {})))))
   (output selected-node-properties-by-resource-node g/Any :cached (g/fnk [all-selected-node-properties all-selections]
                                                                     (let [props (->> all-selected-node-properties
-                                                                                  (map (fn [p] [(:node-id p) p]))
-                                                                                  (into {}))]
+                                                                                     (map (fn [p] [(:node-id p) p]))
+                                                                                     (into {}))]
                                                                       (->> all-selections
-                                                                        (map (fn [[key vals]] [key (vec (keep props vals))]))
-                                                                        (into {})))))
+                                                                           (map (fn [[key vals]] [key (vec (keep props vals))]))
+                                                                           (into {})))))
   (output sub-selections-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
-                                                               (let [selected-node-id-set (set all-selected-node-ids)]
-                                                                 (->> all-sub-selections
-                                                                   (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
-                                                                   (into {})))))
+                                                          (let [selected-node-id-set (set all-selected-node-ids)]
+                                                            (->> all-sub-selections
+                                                                 (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
+                                                                 (into {})))))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv :save-value save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
@@ -1679,15 +1694,15 @@
   (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
   (output use-rich-text g/Bool (g/fnk [use-rich-text] (not (false? use-rich-text))))
   (output display-width g/Num (g/fnk [settings]
-                                 (double (or (get settings ["display" "width"]) 0))))
+                                (double (or (get settings ["display" "width"]) 0))))
   (output display-height g/Num (g/fnk [settings]
-                                  (double (or (get settings ["display" "height"]) 0))))
+                                 (double (or (get settings ["display" "height"]) 0))))
   (output render-clear-color g/Any (g/fnk [settings]
                                      (vector-of :double
-                                       (get settings ["render" "clear_color_red"] 0.0)
-                                       (get settings ["render" "clear_color_green"] 0.0)
-                                       (get settings ["render" "clear_color_blue"] 0.0)
-                                       (get settings ["render" "clear_color_alpha"] 1.0))))
+                                                (get settings ["render" "clear_color_red"] 0.0)
+                                                (get settings ["render" "clear_color_green"] 0.0)
+                                                (get settings ["render" "clear_color_blue"] 0.0)
+                                                (get settings ["render" "clear_color_alpha"] 1.0))))
   (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
   (output glsl-es-default-precision-float g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_float"])))
   (output glsl-es-default-precision-int g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_int"])))
@@ -1736,8 +1751,8 @@
 
 (defn project-title [project]
   (some-> project
-    (settings)
-    (get ["project" "title"])))
+          (settings)
+          (get ["project" "title"])))
 
 (defn- disconnect-from-inputs [basis src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* basis src)))
@@ -1933,7 +1948,7 @@
              (let [node-id (gt/source-id arc)]
                (when-not (g/defective? basis node-id)
                  (let [node-type (g/node-type* basis node-id)
-                     output-cached? (g/cached-outputs node-type)]
+                       output-cached? (g/cached-outputs node-type)]
                    (eduction
                      (filter output-cached?)
                      (map #(g/endpoint node-id %))

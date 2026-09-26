@@ -1,0 +1,1129 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+package com.dynamo.bob.fs;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.commons.io.FilenameUtils;
+
+import com.dynamo.bob.pipeline.ModelImporterJni;
+import com.dynamo.bob.pipeline.ModelUtil;
+import com.dynamo.bob.pipeline.Modelimporter;
+import com.dynamo.gamesys.proto.ModelProto;
+import com.dynamo.render.proto.Material.MaterialDesc;
+import com.google.protobuf.TextFormat;
+
+/**
+ * Immutable virtual-resource view of one glTF source resource.
+ *
+ * The native model importer is authoritative for glTF enumeration and material
+ * semantics. Java only resolves encoded image bytes that are not supplied by
+ * the importer and adapts the native scene to Bob resources.
+ */
+public final class GltfContainer {
+
+    /** The kind of virtual asset extracted from a glTF container. */
+    public enum AssetKind {
+        MATERIAL,
+        IMAGE,
+        MESH
+    }
+
+    /** Immutable metadata for a glTF texture and its selected image. */
+    public record TextureMetadata(int index, String name, int samplerIndex, int minFilter, int magFilter,
+                                  int wrapS, int wrapT, boolean basisu) {}
+
+    /**
+     * Immutable native-backed relationship from a generated material sampler to
+     * the image that supplies it. Embedded image paths are container-relative;
+     * external image paths are project-absolute (starting with a slash).
+     */
+    public record SamplerBinding(String samplerName, int materialIndex, int textureIndex,
+                                 int imageIndex, String imagePath) {}
+
+    /**
+     * Immutable, file-system-independent description of one virtual glTF asset.
+     * The path is relative to the source glTF resource.
+     */
+    public abstract static class Asset {
+        private final String path;
+        private final AssetKind kind;
+        private final int index;
+        private final String name;
+        private final byte[] content;
+
+        Asset(String path, AssetKind kind, int index, String name, byte[] content) {
+            this.path = path;
+            this.kind = kind;
+            this.index = index;
+            this.name = name;
+            this.content = content.clone();
+        }
+
+        public final String getPath() {
+            return path;
+        }
+
+        public final AssetKind getKind() {
+            return kind;
+        }
+
+        public final int getIndex() {
+            return index;
+        }
+
+        public final String getName() {
+            return name;
+        }
+
+        public final byte[] getContent() {
+            return content.clone();
+        }
+    }
+
+    /** A virtual Defold material backed by native ModelImporter material data. */
+    public static final class MaterialAsset extends Asset {
+        private final MaterialDesc materialDesc;
+        private final Modelimporter.Material sourceMaterial;
+        private final Map<String, SamplerBinding> samplerBindings;
+
+        MaterialAsset(String path, Modelimporter.Material sourceMaterial, MaterialDesc materialDesc,
+                      Map<String, SamplerBinding> samplerBindings) {
+            super(path, AssetKind.MATERIAL, sourceMaterial.index, sourceMaterial.name,
+                    TextFormat.printToString(materialDesc).getBytes(StandardCharsets.UTF_8));
+            this.materialDesc = materialDesc;
+            this.sourceMaterial = sourceMaterial;
+            this.samplerBindings = immutableSamplerBindings(samplerBindings);
+        }
+
+        public MaterialDesc getMaterialDesc() {
+            return materialDesc;
+        }
+
+        public Map<String, SamplerBinding> getSamplerBindings() {
+            return samplerBindings;
+        }
+
+        Modelimporter.Material getSourceMaterial() {
+            return sourceMaterial;
+        }
+    }
+
+    /** A virtual encoded image plus metadata for textures that select it. */
+    public static final class ImageAsset extends Asset {
+        private final String uri;
+        private final String mimeType;
+        private final String sourceKind;
+        private final List<TextureMetadata> textures;
+        private final ImageLocation location;
+
+        ImageAsset(String path, int index, String name, String uri, String mimeType, String sourceKind,
+                   byte[] content, List<TextureMetadata> textures, ImageLocation location) {
+            super(path, AssetKind.IMAGE, index, name, content);
+            this.uri = uri;
+            this.mimeType = mimeType;
+            this.sourceKind = sourceKind;
+            this.textures = Collections.unmodifiableList(
+                    new ArrayList<TextureMetadata>(textures));
+            this.location = location;
+        }
+
+        public String getUri() {
+            return uri;
+        }
+
+        public String getMimeType() {
+            return mimeType;
+        }
+
+        public String getSourceKind() {
+            return sourceKind;
+        }
+
+        /** Textures selecting this image; each extracted texture belongs to one image. */
+        public List<TextureMetadata> getTextures() {
+            return textures;
+        }
+
+        /** Non-null when inspection defers reading this image's bytes. */
+        public ImageLocation getLocation() {
+            return location;
+        }
+    }
+
+    /** Project-relative encoded image location; length -1 denotes the whole resource. */
+    public record ImageLocation(String path, long offset, long length) {}
+
+    /** A virtual glTF mesh plus its immutable native-backed summary metadata. */
+    public static final class MeshMetadata extends Asset {
+        private final boolean nameGenerated;
+        private final int primitiveCount;
+        private final int vertexCount;
+
+        MeshMetadata(String path, int index, String name, boolean nameGenerated,
+                     int primitiveCount, int vertexCount, ModelProto.ModelDesc model) {
+            super(path, AssetKind.MESH, index, name, TextFormat.printToString(model).getBytes(StandardCharsets.UTF_8));
+            this.nameGenerated = nameGenerated;
+            this.primitiveCount = primitiveCount;
+            this.vertexCount = vertexCount;
+        }
+
+        public boolean isNameGenerated() { return nameGenerated; }
+        public int getPrimitiveCount() { return primitiveCount; }
+        public int getVertexCount() { return vertexCount; }
+    }
+
+    /** An ordinary external image reference, not a resource inside this container. */
+    public record ImageReference(int index, String name, String path, String uri, String mimeType,
+                                 List<TextureMetadata> textures) {
+        public ImageReference {
+            textures = List.copyOf(textures);
+        }
+    }
+
+    /** Immutable result from the native-backed, file-system-independent extractor. */
+    public record Extraction(List<Asset> assets, List<MeshMetadata> meshes, List<String> diagnostics,
+                             List<ImageReference> externalImages) {
+        public Extraction {
+            assets = List.copyOf(assets);
+            meshes = List.copyOf(meshes);
+            diagnostics = List.copyOf(diagnostics);
+            externalImages = List.copyOf(externalImages);
+        }
+    }
+
+    private static final long MAX_IMAGE_BYTES = 256L * 1024L * 1024L;
+    private static final long MAX_TOTAL_IMAGE_BYTES = 512L * 1024L * 1024L;
+    private static final int MAX_EXTERNAL_URI_CHARACTERS = 8192;
+    private static final int MAX_DATA_URI_METADATA_CHARACTERS = 1024;
+    private static final long MAX_DATA_URI_BASE64_CHARACTERS = ((MAX_IMAGE_BYTES + 2L) / 3L) * 4L;
+    private static final int MAX_RESOURCE_PATH_SEGMENT_BYTES = 255;
+    private static final int MAX_IMAGE_PATH_NAME_BYTES = MAX_RESOURCE_PATH_SEGMENT_BYTES - ".png".length();
+    private static final int MAX_MATERIAL_PATH_NAME_BYTES = MAX_RESOURCE_PATH_SEGMENT_BYTES - ".material".length();
+    // Leave room for the .model suffix when a mesh is copied out.
+    private static final int MAX_MESH_PATH_NAME_BYTES = MAX_RESOURCE_PATH_SEGMENT_BYTES - ".model".length();
+
+    private final IResource sourceResource;
+    private final List<GltfResource> resources;
+    private final Map<String, GltfResource> resourcesByPath;
+    private final List<String> diagnostics;
+    private final Map<String, byte[]> dependencyDigests;
+
+    private GltfContainer(IResource sourceResource, List<GltfResource> resources, List<String> diagnostics,
+                          Map<String, byte[]> dependencyDigests) {
+        this.sourceResource = sourceResource;
+        this.resources = Collections.unmodifiableList(new ArrayList<GltfResource>(resources));
+        this.diagnostics = Collections.unmodifiableList(new ArrayList<String>(diagnostics));
+        this.dependencyDigests = immutableDigestMap(dependencyDigests);
+
+        Map<String, GltfResource> resourcesByPath = new LinkedHashMap<String, GltfResource>();
+        for (GltfResource resource : resources) {
+            resourcesByPath.put(resource.getPath(), resource);
+            String childPath = resource.getPath().substring(sourceResource.getPath().length() + 1);
+            resourcesByPath.put(childPath, resource);
+        }
+        this.resourcesByPath = Collections.unmodifiableMap(resourcesByPath);
+    }
+
+    public static GltfContainer load(IFileSystem fileSystem, IResource sourceResource) throws IOException {
+        byte[] sourceBytes = sourceResource.getContent();
+        if (sourceBytes == null) {
+            throw new IOException(String.format("glTF source '%s' does not exist", sourceResource.getPath()));
+        }
+
+        DependencyTracker dependencyTracker = new DependencyTracker();
+        dependencyTracker.record(sourceResource.getPath(), sourceBytes);
+        ResourceDataResolver dataResolver = new ResourceDataResolver(fileSystem, sourceResource, dependencyTracker);
+        Extraction extraction = extract(sourceBytes, sourceResource.getPath(), dataResolver);
+
+        List<GltfResource> resources = new ArrayList<GltfResource>();
+        for (Asset asset : extraction.assets()) {
+            String path = sourceResource.getPath() + "/" + asset.getPath();
+            if (asset instanceof MaterialAsset) {
+                MaterialAsset material = (MaterialAsset)asset;
+                resources.add(new GltfMaterialResource(fileSystem, sourceResource, path,
+                        material.getSourceMaterial(), material.getMaterialDesc(), material.getSamplerBindings()));
+            } else if (asset instanceof ImageAsset) {
+                ImageAsset image = (ImageAsset)asset;
+                resources.add(new GltfImageResource(fileSystem, sourceResource, path, image.getIndex(),
+                        image.getName(), image.getUri(), image.getMimeType(), image.getSourceKind(),
+                        image.getContent(), image.getTextures()));
+            } else if (asset instanceof MeshMetadata) {
+                resources.add(new GltfMeshResource(fileSystem, sourceResource, path,
+                        (MeshMetadata)asset));
+            }
+        }
+
+        return new GltfContainer(sourceResource, resources, extraction.diagnostics(),
+                dependencyTracker.getDigests());
+    }
+
+    /**
+     * Extracts virtual glTF assets without requiring Bob's file-system API.
+     *
+     * The supplied resolver is used by native ModelImporter for external buffers
+     * containing embedded image buffer views. External images remain references.
+     * Asset paths are relative to {@code sourcePath}; external image paths are
+     * project-absolute. Returned byte arrays are defensive copies.
+     */
+    public static Extraction extract(byte[] sourceBytes, String sourcePath,
+                                     ModelImporterJni.DataResolver dataResolver) throws IOException {
+        if (sourceBytes == null) {
+            throw new IllegalArgumentException("sourceBytes cannot be null");
+        }
+        if (sourcePath == null || sourcePath.isEmpty()) {
+            throw new IllegalArgumentException("sourcePath cannot be null or empty");
+        }
+
+        Modelimporter.Options options = new Modelimporter.Options();
+        options.loadMaterialsOnly = true;
+        options.loadMeshMetadata = true;
+        Modelimporter.Scene scene = ModelUtil.loadScene(
+                sourceBytes, sourcePath, options, dataResolver);
+
+        return extractAssets(scene, sourcePath, GltfContainer::resolveImage);
+    }
+
+    /** Builds the same asset paths and bindings for eager extraction and deferred inspection. */
+    private static Extraction extractAssets(Modelimporter.Scene scene, String sourcePath, ImageResolver imageResolver) {
+        List<Asset> assets = new ArrayList<>();
+        List<String> diagnostics = new ArrayList<>();
+        List<ImageReference> externalImages = new ArrayList<>();
+        Map<Integer, String> imagePaths = extractImages(scene, sourcePath, imageResolver, assets, diagnostics, externalImages);
+        extractMaterials(scene, imagePaths, assets);
+        List<MeshMetadata> meshes = extractMeshMetadata(scene, sourcePath, assets);
+        assets.addAll(meshes);
+        assets.sort(Comparator.comparing(Asset::getKind).thenComparingInt(Asset::getIndex));
+        return new Extraction(assets, meshes, diagnostics, externalImages);
+    }
+
+    /**
+     * Enumerates assets without reading external payloads or the GLB BIN chunk.
+     * External images are returned as references regardless of their format or existence.
+     */
+    public static Extraction inspect(InputStream stream, String sourcePath) throws IOException {
+        ModelUtil.ModelSource source = ModelUtil.readModelSource(stream);
+        Modelimporter.Options options = new Modelimporter.Options();
+        options.loadMaterialsOnly = true;
+        options.loadMeshMetadata = true;
+        options.skipImageData = true;
+        // The importer accepts JSON for both suffixes; sourcePath still anchors image URIs.
+        Modelimporter.Scene scene = ModelUtil.loadScene(source.json(), sourcePath, options, null);
+        Map<Integer, byte[]> dataBuffers = new LinkedHashMap<>();
+        return extractAssets(scene, sourcePath, image -> {
+            if (isDataUri(image.uri)) {
+                return resolveImage(image);
+            }
+            String mimeType = normalizedMimeType(image.mimeType);
+            if (image.bufferIndex >= 0) {
+                String bufferUri = scene.buffers[image.bufferIndex].uri;
+                if (isDataUri(bufferUri)) {
+                    byte[] buffer = dataBuffers.get(image.bufferIndex);
+                    if (buffer == null) {
+                        buffer = decodeDataUri(bufferUri).content;
+                        dataBuffers.put(image.bufferIndex, buffer);
+                    }
+                    if ((long)image.bufferOffset + image.bufferSize > buffer.length) {
+                        throw new IOException("image buffer view exceeds its buffer");
+                    }
+                    return new ResolvedImage(null, mimeType, "buffer-view",
+                            Arrays.copyOfRange(buffer, image.bufferOffset, image.bufferOffset + image.bufferSize), null);
+                }
+                ImageLocation location;
+                if (bufferUri != null) {
+                    location = new ImageLocation(resolveExternalResourcePath(sourcePath, bufferUri),
+                            image.bufferOffset, image.bufferSize);
+                } else {
+                    if (source.binaryOffset() < 0 || (long)image.bufferOffset + image.bufferSize > source.binaryLength()) {
+                        throw new IOException("image buffer view exceeds the GLB BIN chunk");
+                    }
+                    location = new ImageLocation(sourcePath, source.binaryOffset() + image.bufferOffset, image.bufferSize);
+                }
+                if (mimeType == null) {
+                    throw new IOException("embedded image has no mimeType");
+                }
+                return new ResolvedImage(null, mimeType, "buffer-view", null, location);
+            }
+            throw new IOException("image has neither embedded data nor a buffer view");
+        });
+    }
+
+    /**
+     * Resolves a glTF external-resource URI to a normalized project-relative path.
+     *
+     * {@link ModelImporterJni.DataResolver} implementations can use this helper
+     * before looking up an external buffer or image in their own resource system.
+     * It rejects absolute URIs, authorities, queries, fragments, backslashes,
+     * project-root traversal, and control or format characters.
+     */
+    public static String resolveExternalResourcePath(String sourcePath, String rawUri) throws IOException {
+        if (sourcePath == null || sourcePath.isEmpty()) {
+            throw new IllegalArgumentException("sourcePath cannot be null or empty");
+        }
+        if (rawUri == null) {
+            throw new IllegalArgumentException("rawUri cannot be null");
+        }
+        if (rawUri.length() > MAX_EXTERNAL_URI_CHARACTERS) {
+            throw new IOException("external resource URI exceeds the length limit");
+        }
+
+        final String decodedPath;
+        try {
+            URI uri = new URI(rawUri.replace(" ", "%20"));
+            if (uri.isAbsolute() || uri.getRawAuthority() != null || uri.getRawQuery() != null
+                    || uri.getRawFragment() != null) {
+                throw new IOException(String.format("unsupported external URI '%s'", uriForDiagnostic(rawUri)));
+            }
+            decodedPath = uri.getPath();
+        } catch (URISyntaxException e) {
+            throw new IOException(String.format("invalid external URI '%s'", uriForDiagnostic(rawUri)), e);
+        }
+
+        if (decodedPath == null || decodedPath.isEmpty() || decodedPath.indexOf('\\') >= 0
+                || FilenameUtils.getPrefixLength(decodedPath) != 0) {
+            throw new IOException(String.format("invalid external resource path '%s'", uriForDiagnostic(rawUri)));
+        }
+        for (int i = 0; i < decodedPath.length(); ++i) {
+            char c = decodedPath.charAt(i);
+            if (Character.isISOControl(c) || Character.getType(c) == Character.FORMAT) {
+                throw new IOException(String.format("invalid external resource path '%s'", uriForDiagnostic(rawUri)));
+            }
+        }
+
+        String basePath = FilenameUtils.getPath(sourcePath);
+        String path = FilenameUtils.normalize(FilenameUtils.concat(basePath, decodedPath), true);
+        if (path == null || path.startsWith("../") || path.startsWith("/")) {
+            throw new IOException(String.format("external resource escapes the project root: '%s'",
+                    uriForDiagnostic(rawUri)));
+        }
+        return path;
+    }
+
+    public IResource getSourceResource() {
+        return sourceResource;
+    }
+
+    public Collection<GltfResource> getResources() {
+        return resources;
+    }
+
+    public List<String> getDiagnostics() {
+        return diagnostics;
+    }
+
+    public GltfResource getResource(String path) {
+        String normalizedPath = FilenameUtils.normalize(path, true);
+        if (normalizedPath == null) {
+            return null;
+        }
+        while (normalizedPath.startsWith("/")) {
+            normalizedPath = normalizedPath.substring(1);
+        }
+        return resourcesByPath.get(normalizedPath);
+    }
+
+    public boolean isStale(IFileSystem fileSystem) {
+        for (Map.Entry<String, byte[]> entry : dependencyDigests.entrySet()) {
+            IResource resource = fileSystem.get(entry.getKey());
+            boolean exists = resource != null && resource.exists() && resource.isFile();
+            byte[] expectedDigest = entry.getValue();
+            if (expectedDigest == null) {
+                if (exists) {
+                    return true;
+                }
+                continue;
+            }
+            if (!exists) {
+                return true;
+            }
+            try {
+                if (!Arrays.equals(expectedDigest, resource.sha1())) {
+                    return true;
+                }
+            } catch (IOException | RuntimeException e) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Map<String, byte[]> immutableDigestMap(Map<String, byte[]> dependencyDigests) {
+        Map<String, byte[]> result = new LinkedHashMap<String, byte[]>();
+        for (Map.Entry<String, byte[]> entry : dependencyDigests.entrySet()) {
+            byte[] digest = entry.getValue();
+            result.put(entry.getKey(), digest == null ? null : digest.clone());
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    static Map<String, SamplerBinding> immutableSamplerBindings(
+            Map<String, SamplerBinding> samplerBindings) {
+        return Collections.unmodifiableMap(
+                new LinkedHashMap<String, SamplerBinding>(samplerBindings));
+    }
+
+    private static List<MeshMetadata> extractMeshMetadata(Modelimporter.Scene scene, String sourcePath, List<Asset> assets) {
+        var meshes = new ArrayList<MeshMetadata>();
+        if (scene.models == null) {
+            return meshes;
+        }
+
+        var sourceResourcePath = sourcePath.startsWith("/") ? sourcePath : "/" + sourcePath;
+        var materials = new LinkedHashMap<Integer, MaterialAsset>();
+        for (var asset : assets) {
+            if (asset instanceof MaterialAsset material) {
+                materials.put(material.getIndex(), material);
+            }
+        }
+        var models = Arrays.stream(scene.models)
+                .filter(model -> !model.nameIsGenerated && !isBlank(model.name))
+                .toArray(Modelimporter.Model[]::new);
+        var pathNameCandidates = new ArrayList<PathNameCandidate>(models.length);
+        for (var model : models) {
+            pathNameCandidates.add(new PathNameCandidate(model.index, model.name));
+        }
+        Map<Integer, String> pathNames = resourcePathNames(pathNameCandidates, MAX_MESH_PATH_NAME_BYTES);
+        for (var model : models) {
+            int primitiveCount = model.meshes == null ? 0 : model.meshes.length;
+            long vertexCount = 0;
+            if (model.meshes != null) {
+                for (Modelimporter.Mesh mesh : model.meshes) {
+                    vertexCount += Math.max(0, mesh.vertexCount);
+                    if (vertexCount >= Integer.MAX_VALUE) {
+                        vertexCount = Integer.MAX_VALUE;
+                        break;
+                    }
+                }
+            }
+            var modelDesc = ModelProto.ModelDesc.newBuilder()
+                    .setMesh(sourceResourcePath)
+                    .setMeshIndex(model.index)
+                    .setMeshName(model.name);
+            var usedMaterials = new LinkedHashSet<Integer>();
+            if (model.meshes != null) {
+                for (var primitive : model.meshes) {
+                    if (primitive.material != null) {
+                        usedMaterials.add(primitive.material.index);
+                    }
+                }
+            }
+            for (var materialIndex : usedMaterials) {
+                var material = materials.get(materialIndex);
+                var binding = ModelProto.Material.newBuilder()
+                        .setName(material.getMaterialDesc().getName())
+                        .setMaterial(sourceResourcePath + "/" + material.getPath());
+                for (var sampler : material.getSamplerBindings().values()) {
+                    var imagePath = sampler.imagePath();
+                    binding.addTextures(ModelProto.Texture.newBuilder()
+                            .setSampler(sampler.samplerName())
+                            .setTexture(imagePath.startsWith("/") ? imagePath : sourceResourcePath + "/" + imagePath));
+                }
+                modelDesc.addMaterials(binding);
+            }
+            String path = "meshes/" + pathNames.get(model.index);
+            meshes.add(new MeshMetadata(path, model.index, model.name, model.nameIsGenerated,
+                    primitiveCount, (int)vertexCount, modelDesc.build()));
+        }
+        return meshes;
+    }
+
+    private record PathNameCandidate(int index, String name) {}
+
+    private static Map<Integer, String> resourcePathNames(List<PathNameCandidate> candidates,
+                                                          int maxPathNameBytes) {
+        var names = new LinkedHashMap<Integer, String>();
+        var occurrenceCounts = new LinkedHashMap<String, Integer>();
+        var maxNameBytesByComparisonName = new LinkedHashMap<String, Integer>();
+        for (var candidate : candidates) {
+            String name = sanitizeResourceName(candidate.name());
+            if (name == null) {
+                continue;
+            }
+            names.put(candidate.index(), name);
+            String comparisonName = resourcePathComparisonName(name);
+            occurrenceCounts.put(comparisonName, occurrenceCounts.getOrDefault(comparisonName, 0) + 1);
+            maxNameBytesByComparisonName.put(
+                    comparisonName,
+                    Math.max(maxNameBytesByComparisonName.getOrDefault(comparisonName, 0), utf8Length(name)));
+        }
+
+        var portableComparisonNames = new LinkedHashSet<String>();
+        for (var entry : occurrenceCounts.entrySet()) {
+            int maxOccurrenceDigits = Integer.toString(entry.getValue() - 1).length();
+            if (maxNameBytesByComparisonName.get(entry.getKey()) + 1 + maxOccurrenceDigits <= maxPathNameBytes) {
+                portableComparisonNames.add(entry.getKey());
+            }
+        }
+
+        var pathNames = new LinkedHashMap<Integer, String>();
+        var occurrences = new LinkedHashMap<String, Integer>();
+        int unnamedOccurrence = 0;
+        for (var candidate : candidates) {
+            String name = names.get(candidate.index());
+            String comparisonName = name == null ? null : resourcePathComparisonName(name);
+            if (!portableComparisonNames.contains(comparisonName)) {
+                pathNames.put(candidate.index(), Integer.toString(unnamedOccurrence++));
+                continue;
+            }
+            int occurrence = occurrences.getOrDefault(comparisonName, 0);
+            occurrences.put(comparisonName, occurrence + 1);
+            pathNames.put(candidate.index(), name + "_" + occurrence);
+        }
+        return pathNames;
+    }
+
+    private static String resourcePathComparisonName(String name) {
+        String normalizedName = Normalizer.normalize(name, Normalizer.Form.NFC);
+        return Normalizer.normalize(normalizedName.toLowerCase(Locale.ROOT), Normalizer.Form.NFC);
+    }
+
+    private static boolean isBlank(String name) {
+        if (name == null || name.isEmpty()) {
+            return true;
+        }
+        for (int offset = 0; offset < name.length();) {
+            int codePoint = name.codePointAt(offset);
+            if (!Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return true;
+    }
+
+    private static String sanitizeResourceName(String name) {
+        if (isBlank(name)) {
+            return null;
+        }
+
+        String normalizedName = Normalizer.normalize(name, Normalizer.Form.NFC);
+        int leadingWhitespaceEnd = 0;
+        while (leadingWhitespaceEnd < normalizedName.length()) {
+            int codePoint = normalizedName.codePointAt(leadingWhitespaceEnd);
+            if (!Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)) {
+                break;
+            }
+            leadingWhitespaceEnd += Character.charCount(codePoint);
+        }
+        int trailingDotsAndWhitespaceStart = normalizedName.length();
+        while (trailingDotsAndWhitespaceStart > leadingWhitespaceEnd) {
+            int codePoint = normalizedName.codePointBefore(trailingDotsAndWhitespaceStart);
+            if (codePoint != '.' && !Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)) {
+                break;
+            }
+            trailingDotsAndWhitespaceStart -= Character.charCount(codePoint);
+        }
+
+        var result = new StringBuilder(normalizedName.length());
+        boolean previousReplacement = false;
+        for (int offset = 0; offset < normalizedName.length();) {
+            int codePoint = normalizedName.codePointAt(offset);
+            int characterType = Character.getType(codePoint);
+            if (offset < leadingWhitespaceEnd || offset >= trailingDotsAndWhitespaceStart
+                    || Character.isISOControl(codePoint) || characterType == Character.FORMAT
+                    || characterType == Character.SURROGATE || codePoint == '/'
+                    || codePoint == '\\' || codePoint == '<' || codePoint == '>'
+                    || codePoint == ':' || codePoint == '"' || codePoint == '|'
+                    || codePoint == '?' || codePoint == '*') {
+                if (!previousReplacement) {
+                    result.append('_');
+                    previousReplacement = true;
+                }
+            } else {
+                result.appendCodePoint(codePoint);
+                previousReplacement = false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+
+        String sanitizedName = result.toString();
+        String deviceName = sanitizedName;
+        int extensionSeparator = deviceName.indexOf('.');
+        if (extensionSeparator >= 0) {
+            deviceName = deviceName.substring(0, extensionSeparator);
+        }
+        deviceName = deviceName.toUpperCase(Locale.ROOT);
+        if ("CON".equals(deviceName) || "PRN".equals(deviceName)
+                || "AUX".equals(deviceName) || "NUL".equals(deviceName)
+                || "CLOCK$".equals(deviceName)) {
+            return "_" + sanitizedName;
+        }
+        return deviceName.matches("(?:COM|LPT)[1-9]") ? "_" + sanitizedName : sanitizedName;
+    }
+
+    private static int utf8Length(String value) {
+        return value.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    private static void extractMaterials(Modelimporter.Scene scene, Map<Integer, String> imagePaths,
+                                         List<Asset> assets) {
+        if (scene.materials == null) {
+            return;
+        }
+
+        Set<Modelimporter.Material> dynamicMaterials = Collections.newSetFromMap(
+                new IdentityHashMap<Modelimporter.Material, Boolean>());
+        if (scene.dynamicMaterials != null) {
+            Collections.addAll(dynamicMaterials, scene.dynamicMaterials);
+        }
+        var pathNameCandidates = new ArrayList<PathNameCandidate>();
+        for (Modelimporter.Material material : scene.materials) {
+            if (!dynamicMaterials.contains(material)) {
+                pathNameCandidates.add(new PathNameCandidate(
+                        material.index, material.nameIsGenerated ? null : material.name));
+            }
+        }
+        Map<Integer, String> pathNames = resourcePathNames(pathNameCandidates, MAX_MATERIAL_PATH_NAME_BYTES);
+        for (Modelimporter.Material material : scene.materials) {
+            if (dynamicMaterials.contains(material)) {
+                continue;
+            }
+            String path = "materials/" + pathNames.get(material.index) + ".material";
+            assets.add(new MaterialAsset(path, material, GltfMaterialResource.createMaterialDesc(material),
+                    samplerBindings(material, imagePaths)));
+        }
+    }
+
+    private static Map<Integer, String> extractImages(
+            Modelimporter.Scene scene, String sourcePath, ImageResolver imageResolver,
+            List<Asset> assets, List<String> diagnostics, List<ImageReference> externalImages) {
+        Map<Integer, String> imagePaths = new LinkedHashMap<Integer, String>();
+        if (scene.images == null) {
+            return imagePaths;
+        }
+
+        var pathNameCandidates = new ArrayList<PathNameCandidate>();
+        for (var image : scene.images) {
+            if (!isExternalImage(image)) {
+                pathNameCandidates.add(new PathNameCandidate(
+                        image.index, image.nameIsGenerated ? null : imageResourceName(image.name)));
+            }
+        }
+        Map<Integer, String> pathNames = resourcePathNames(pathNameCandidates, MAX_IMAGE_PATH_NAME_BYTES);
+        Map<Integer, ResolvedImage> resolvedImages = new LinkedHashMap<Integer, ResolvedImage>();
+        ExtractionBudget extractionBudget = new ExtractionBudget();
+        for (Modelimporter.Image image : scene.images) {
+            try {
+                if (isExternalImage(image)) {
+                    imagePaths.put(image.index, "/" + resolveExternalResourcePath(sourcePath, image.uri));
+                    continue;
+                }
+                ResolvedImage resolvedImage = imageResolver.resolve(image);
+                extractionBudget.include(resolvedImage.content);
+                String extension = extensionForImage(
+                        resolvedImage.mimeType, resolvedImage.uri, resolvedImage.content);
+                String mimeType = resolvedImage.mimeType == null
+                        ? mimeTypeForExtension(extension)
+                        : resolvedImage.mimeType;
+                String path = "images/" + pathNames.get(image.index) + "." + extension;
+                imagePaths.put(image.index, path);
+                resolvedImages.put(image.index, new ResolvedImage(resolvedImage.uri, mimeType,
+                        resolvedImage.sourceKind, resolvedImage.content, resolvedImage.location));
+            } catch (IOException e) {
+                diagnostics.add(String.format("Image %d: %s", image.index, e.getMessage()));
+            }
+        }
+        // Select texture images after collecting both embedded assets and external references.
+        for (Modelimporter.Image image : scene.images) {
+            String imagePath = imagePaths.get(image.index);
+            if (imagePath != null && imagePath.startsWith("/")) {
+                externalImages.add(new ImageReference(image.index, image.name, imagePath, image.uri,
+                        normalizedMimeType(image.mimeType), textureMetadata(scene, image.index, imagePaths)));
+                continue;
+            }
+            ResolvedImage resolvedImage = resolvedImages.remove(image.index);
+            if (resolvedImage == null) {
+                continue;
+            }
+            assets.add(new ImageAsset(imagePaths.get(image.index), image.index, image.name,
+                    resolvedImage.uri, resolvedImage.mimeType, resolvedImage.sourceKind,
+                    resolvedImage.content == null ? new byte[0] : resolvedImage.content,
+                    textureMetadata(scene, image.index, imagePaths), resolvedImage.location));
+        }
+        return imagePaths;
+    }
+
+    private static boolean isExternalImage(Modelimporter.Image image) {
+        return image.uri != null && !image.uri.isEmpty() && !isDataUri(image.uri);
+    }
+
+    private static String imageResourceName(String name) {
+        if (name == null) {
+            return null;
+        }
+        String lowerCaseName = name.toLowerCase(Locale.ROOT);
+        for (String extension : List.of(".jpeg", ".png", ".jpg")) {
+            if (lowerCaseName.endsWith(extension)) {
+                return name.substring(0, name.length() - extension.length());
+            }
+        }
+        return name;
+    }
+
+    private static Map<String, SamplerBinding> samplerBindings(
+            Modelimporter.Material material, Map<Integer, String> imagePaths) {
+        Map<String, SamplerBinding> result = new LinkedHashMap<String, SamplerBinding>();
+        for (Map.Entry<String, Modelimporter.TextureView> entry
+                : GltfMaterialResource.samplerTextureViews(material).entrySet()) {
+            Modelimporter.Texture texture = entry.getValue().texture;
+            Modelimporter.Image image = referencedImage(texture, imagePaths);
+            if (image == null) {
+                continue;
+            }
+
+            String imagePath = imagePaths.get(image.index);
+            result.put(entry.getKey(), new SamplerBinding(
+                    entry.getKey(), material.index, texture.index, image.index, imagePath));
+        }
+        return result;
+    }
+
+    private static Modelimporter.Image referencedImage(
+            Modelimporter.Texture texture, Map<Integer, String> imagePaths) {
+        if (texture.basisuImage != null && imagePaths.containsKey(texture.basisuImage.index)) {
+            return texture.basisuImage;
+        }
+        if (texture.image != null && imagePaths.containsKey(texture.image.index)) {
+            return texture.image;
+        }
+        return null;
+    }
+
+    @FunctionalInterface
+    private interface ImageResolver {
+        ResolvedImage resolve(Modelimporter.Image image) throws IOException;
+    }
+
+    private record ResolvedImage(String uri, String mimeType, String sourceKind,
+                                 byte[] content, ImageLocation location) {}
+
+    private static ResolvedImage resolveImage(Modelimporter.Image image) throws IOException {
+        String uri = image.uri;
+        String mimeType = normalizedMimeType(image.mimeType);
+        if (isDataUri(uri)) {
+            DataUri dataUri = decodeDataUri(uri);
+            if (mimeType != null && dataUri.mimeType != null && !mimeType.equals(dataUri.mimeType)) {
+                throw new IOException(String.format("image MIME type '%s' conflicts with data URI MIME type '%s'",
+                        mimeType, dataUri.mimeType));
+            }
+            return new ResolvedImage(uri, mimeType == null ? dataUri.mimeType : mimeType,
+                    "data-uri", dataUri.content, null);
+        }
+
+        if (image.buffer == null || image.buffer.buffer == null || image.buffer.buffer.length == 0) {
+            throw new IOException("embedded image bytes were not supplied by the model importer");
+        }
+        if (mimeType == null || mimeType.isEmpty()) {
+            throw new IOException("embedded image has no mimeType");
+        }
+        return new ResolvedImage(null, mimeType, "buffer-view", image.buffer.buffer, null);
+    }
+
+    private static List<TextureMetadata> textureMetadata(Modelimporter.Scene scene, int imageIndex,
+                                                        Map<Integer, String> imagePaths) {
+        List<TextureMetadata> result = new ArrayList<TextureMetadata>();
+        if (scene.textures == null) {
+            return result;
+        }
+
+        for (Modelimporter.Texture texture : scene.textures) {
+            Modelimporter.Image image = referencedImage(texture, imagePaths);
+            if (image == null || image.index != imageIndex) {
+                continue;
+            }
+
+            Modelimporter.Sampler sampler = texture.sampler;
+            int samplerIndex = sampler == null ? -1 : sampler.index;
+            int minFilter = sampler == null ? 0 : sampler.minFilter;
+            int magFilter = sampler == null ? 0 : sampler.magFilter;
+            int wrapS = sampler == null ? 10497 : sampler.wrapS;
+            int wrapT = sampler == null ? 10497 : sampler.wrapT;
+            result.add(new TextureMetadata(texture.index, texture.name, samplerIndex,
+                    minFilter, magFilter, wrapS, wrapT, image == texture.basisuImage));
+        }
+        result.sort(Comparator.comparingInt(TextureMetadata::index));
+        return result;
+    }
+
+    private static final class ExtractionBudget {
+        private long totalImageBytes;
+
+        void include(byte[] content) throws IOException {
+            if (content == null) {
+                return;
+            }
+            if (content.length > MAX_IMAGE_BYTES) {
+                throw new IOException("encoded image exceeds the virtual image size limit");
+            }
+            if (content.length > MAX_TOTAL_IMAGE_BYTES - totalImageBytes) {
+                throw new IOException("container exceeds the total virtual image size limit");
+            }
+            totalImageBytes += content.length;
+        }
+    }
+
+    private record DataUri(String mimeType, byte[] content) {}
+
+    private static DataUri decodeDataUri(String uri) throws IOException {
+        int comma = uri.indexOf(',');
+        if (comma < 5) {
+            throw new IOException("malformed data URI");
+        }
+        if (comma - 5 > MAX_DATA_URI_METADATA_CHARACTERS) {
+            throw new IOException("data URI metadata exceeds the length limit");
+        }
+
+        String metadata = uri.substring(5, comma);
+        String[] parts = metadata.split(";");
+        String mimeType = parts.length > 0 && parts[0].contains("/")
+                ? normalizedMimeType(parts[0])
+                : null;
+        boolean base64 = false;
+        for (int i = 1; i < parts.length; ++i) {
+            if ("base64".equalsIgnoreCase(parts[i])) {
+                base64 = true;
+            }
+        }
+
+        int payloadLength = uri.length() - comma - 1;
+        long maximumPayloadCharacters = base64 ? MAX_DATA_URI_BASE64_CHARACTERS : MAX_IMAGE_BYTES;
+        if (payloadLength > maximumPayloadCharacters) {
+            throw new IOException("data URI payload exceeds the encoded image size limit");
+        }
+        String payload = uri.substring(comma + 1);
+
+        try {
+            byte[] encodedPayload = percentDecode(payload);
+            byte[] content = base64 ? Base64.getDecoder().decode(encodedPayload) : encodedPayload;
+            return new DataUri(mimeType, content);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("invalid data URI encoding", e);
+        }
+    }
+
+    private static byte[] percentDecode(String value) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream(value.length());
+        int segmentStart = 0;
+        for (int i = 0; i < value.length(); ++i) {
+            if (value.charAt(i) != '%') {
+                continue;
+            }
+
+            if (segmentStart < i) {
+                byte[] bytes = value.substring(segmentStart, i).getBytes(StandardCharsets.UTF_8);
+                output.write(bytes, 0, bytes.length);
+            }
+            if (i + 2 >= value.length()) {
+                throw new IOException("truncated percent encoding");
+            }
+            int high = Character.digit(value.charAt(i + 1), 16);
+            int low = Character.digit(value.charAt(i + 2), 16);
+            if (high < 0 || low < 0) {
+                throw new IOException("invalid percent encoding");
+            }
+            output.write((high << 4) | low);
+            i += 2;
+            segmentStart = i + 1;
+        }
+        if (segmentStart < value.length()) {
+            byte[] bytes = value.substring(segmentStart).getBytes(StandardCharsets.UTF_8);
+            output.write(bytes, 0, bytes.length);
+        }
+        return output.toByteArray();
+    }
+
+    private static String normalizedMimeType(String mimeType) {
+        return mimeType == null ? null : mimeType.replace("\\/", "/").toLowerCase(Locale.ROOT);
+    }
+
+    private static String extensionForImage(String mimeType, String uri, byte[] content) throws IOException {
+        String mimeExtension = null;
+        if (mimeType != null) {
+            switch (mimeType) {
+                case "image/png":
+                    mimeExtension = "png";
+                    break;
+                case "image/jpeg":
+                    mimeExtension = "jpg";
+                    break;
+                default:
+                    throw new IOException(String.format("unsupported image MIME type '%s'", mimeType));
+            }
+        }
+
+        String uriExtension = null;
+        if (uri != null && !isDataUri(uri)) {
+            uriExtension = FilenameUtils.getExtension(new String(percentDecode(uri), StandardCharsets.UTF_8)).toLowerCase(Locale.ROOT);
+            if ("jpeg".equals(uriExtension)) {
+                uriExtension = "jpg";
+            }
+            if (!"png".equals(uriExtension) && !"jpg".equals(uriExtension)) {
+                uriExtension = null;
+            }
+        }
+        // Discovery can use declarations without fetching the image payload.
+        if (content == null) {
+            if (mimeExtension != null && uriExtension != null && !mimeExtension.equals(uriExtension)) {
+                throw new IOException(String.format("image URI '%s' does not match MIME type '%s'",
+                        uriForDiagnostic(uri), mimeType));
+            }
+            return mimeExtension == null ? uriExtension : mimeExtension;
+        }
+
+        String signatureExtension = null;
+        if (content.length >= 8
+                && (content[0] & 0xff) == 0x89
+                && content[1] == 0x50
+                && content[2] == 0x4e
+                && content[3] == 0x47
+                && content[4] == 0x0d
+                && content[5] == 0x0a
+                && content[6] == 0x1a
+                && content[7] == 0x0a) {
+            signatureExtension = "png";
+        } else if (content.length >= 3
+                && (content[0] & 0xff) == 0xff
+                && (content[1] & 0xff) == 0xd8
+                && (content[2] & 0xff) == 0xff) {
+            signatureExtension = "jpg";
+        }
+
+        if (signatureExtension == null) {
+            throw new IOException("unsupported encoded image format; expected PNG or JPEG");
+        }
+        if (mimeExtension != null && !mimeExtension.equals(signatureExtension)) {
+            throw new IOException(String.format("image MIME type '%s' does not match encoded bytes", mimeType));
+        }
+
+        if (uriExtension != null && !uriExtension.equals(signatureExtension)) {
+            throw new IOException(String.format("image URI '%s' does not match encoded bytes", uriForDiagnostic(uri)));
+        }
+        return signatureExtension;
+    }
+
+    private static String mimeTypeForExtension(String extension) {
+        return "png".equals(extension) ? "image/png" : "image/jpeg";
+    }
+
+    private static boolean isDataUri(String uri) {
+        return uri != null && uri.regionMatches(true, 0, "data:", 0, 5);
+    }
+
+    private static String resolveExternalResourcePath(IResource sourceResource, String rawUri) throws IOException {
+        return resolveExternalResourcePath(sourceResource.getPath(), rawUri);
+    }
+
+    private static byte[] resolveExternalResource(IFileSystem fileSystem, IResource sourceResource, String rawUri,
+                                                  DependencyTracker dependencyTracker) throws IOException {
+        String path = resolveExternalResourcePath(sourceResource, rawUri);
+        IResource resource = fileSystem.get(path);
+        if (resource == null || !resource.exists() || !resource.isFile()) {
+            dependencyTracker.recordMissing(path);
+            throw new IOException(String.format("external resource does not exist: '%s'",
+                    uriForDiagnostic(rawUri)));
+        }
+        dependencyTracker.recordMissing(path);
+        byte[] content = resource.getContent();
+        if (content == null) {
+            throw new IOException(String.format("external resource has no content: '%s'",
+                    uriForDiagnostic(rawUri)));
+        }
+        dependencyTracker.record(path, content);
+        return content;
+    }
+
+    private static String uriForDiagnostic(String uri) {
+        if (uri == null) {
+            return "";
+        }
+
+        String trimmed = uri.trim();
+        if (isDataUri(trimmed)) {
+            return "<data URI>";
+        }
+
+        StringBuilder sanitized = new StringBuilder();
+        int limit = Math.min(uri.length(), 160);
+        for (int i = 0; i < limit; ++i) {
+            char c = uri.charAt(i);
+            sanitized.append(Character.isISOControl(c) || Character.getType(c) == Character.FORMAT ? '?' : c);
+        }
+        if (uri.length() > limit) {
+            sanitized.append("...");
+        }
+        return sanitized.toString();
+    }
+
+    private static final class DependencyTracker {
+        private final Map<String, byte[]> digests = new LinkedHashMap<String, byte[]>();
+
+        void record(String path, byte[] content) {
+            digests.put(path, sha1(content));
+        }
+
+        void recordMissing(String path) {
+            digests.put(path, null);
+        }
+
+        Map<String, byte[]> getDigests() {
+            return digests;
+        }
+
+        private static byte[] sha1(byte[] content) {
+            try {
+                MessageDigest digest = MessageDigest.getInstance("SHA-1");
+                return digest.digest(content);
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private record ResourceDataResolver(IFileSystem fileSystem, IResource sourceResource,
+                                        DependencyTracker dependencyTracker) implements ModelImporterJni.DataResolver {
+        @Override
+        public byte[] getData(String path, String uri) {
+            if (uri == null || uri.isEmpty()) {
+                return null;
+            }
+            try {
+                return resolveExternalResource(fileSystem, sourceResource, uri, dependencyTracker);
+            } catch (IOException e) {
+                return null;
+            }
+        }
+    }
+}

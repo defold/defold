@@ -44,18 +44,18 @@
 
 (defn user-name->key [name]
   (->> name
-    (str "__")
-    keyword))
+       (str "__")
+       keyword))
 
 (defn key->user-name [k]
   (-> k
-    name
-    (subs 2)))
+      name
+      (subs 2)))
 
 (defn ->spline [points]
   (->> points
-    (sort-by first)
-    vec))
+       (sort-by first)
+       vec))
 
 (declare round-scalar round-scalar-float)
 
@@ -235,31 +235,31 @@
 (def default-curve-spread (->curve-spread default-control-points default-spread))
 
 (core/register-read-handler!
- (.getName Curve)
- (transit/read-handler
-  (fn [{:keys [points]}]
-    (->curve points))))
+  (.getName Curve)
+  (transit/read-handler
+    (fn [{:keys [points]}]
+      (->curve points))))
 
 (core/register-write-handler!
- Curve
- (transit/write-handler
-  (constantly (.getName Curve))
-  (fn [^Curve c]
-    {:points (curve-vals c)})))
+  Curve
+  (transit/write-handler
+    (constantly (.getName Curve))
+    (fn [^Curve c]
+      {:points (curve-vals c)})))
 
 (core/register-read-handler!
- (.getName CurveSpread)
- (transit/read-handler
-  (fn [{:keys [points spread]}]
-    (->curve-spread points spread))))
+  (.getName CurveSpread)
+  (transit/read-handler
+    (fn [{:keys [points spread]}]
+      (->curve-spread points spread))))
 
 (core/register-write-handler!
- CurveSpread
- (transit/write-handler
-  (constantly (.getName CurveSpread))
-  (fn [^CurveSpread c]
-    {:points (curve-vals c)
-     :spread (:spread c)})))
+  CurveSpread
+  (transit/write-handler
+    (constantly (.getName CurveSpread))
+    (fn [^CurveSpread c]
+      {:points (curve-vals c)
+       :spread (:spread c)})))
 
 (defn- q-round [^double v]
   (let [f 10e6]
@@ -362,8 +362,8 @@
                     :else entry)]
         (recur (rest go-props)
                (-> decl
-                 (update entry-key conj! entry)
-                 (update values-key append-values! values))))
+                   (update entry-key conj! entry)
+                   (update values-key append-values! values))))
       (into {}
             (map (fn [[k v]]
                    [k (persistent! v)]))
@@ -528,8 +528,8 @@
                                                                  original-value))
                                                              v)
                                        prop (cond-> prop
-                                                    (not-every? nil? original-values)
-                                                    (assoc :original-values original-values))]
+                                              (not-every? nil? original-values)
+                                              (assoc :original-values original-values))]
                                    (pair k prop)))))
                         visible-prop-colls)]
     {:properties coalesced
@@ -692,9 +692,14 @@
    (when (not (read-only? property))
      (let [evaluation-context (g/make-evaluation-context)
            set-operations (resolve-set-operations property values)
-           edited-endpoints (edited-endpoints set-operations)]
+           prepare-user-edit-fn (get-in property [:edit-type :prepare-user-edit-fn])
+           edited-endpoints (edited-endpoints set-operations)
+           tx-data-context-map
+           (-> (when prepare-user-edit-fn
+                 (prepare-user-edit-fn evaluation-context property set-operations))
+               (assoc :edited-endpoints edited-endpoints))]
        (g/transact
-         {:tx-data-context-map {:edited-endpoints edited-endpoints}}
+         {:tx-data-context-map tx-data-context-map}
          (concat
            (g/operation-label (localization/message "operation.property.set" {"property" (label property)}))
            (g/operation-sequence op-seq)
@@ -972,13 +977,13 @@
               build-resource-path (some-> build-resource resource/proj-path)
               go-prop (cond-> go-prop
 
-                              (and (contains? go-prop :error)
-                                   (nil? (:error go-prop)))
-                              (dissoc :error)
+                        (and (contains? go-prop :error)
+                             (nil? (:error go-prop)))
+                        (dissoc :error)
 
-                              (some? build-resource)
-                              (assoc :clj-value build-resource
-                                     :value build-resource-path))]
+                        (some? build-resource)
+                        (assoc :clj-value build-resource
+                               :value build-resource-path))]
           (recur (next go-props-with-source-resources)
                  (conj! go-props-with-build-resources go-prop)
                  (if (and (some? dep-build-target)
@@ -1061,8 +1066,8 @@
   [source-node-id source-prop-kws evaluation-context]
   (let [source-prop-infos-by-prop-kw
         (cond-> (:properties (g/node-value source-node-id :_properties evaluation-context))
-                (not= :all source-prop-kws)
-                (select-keys source-prop-kws))]
+          (not= :all source-prop-kws)
+          (select-keys source-prop-kws))]
     (coll/not-empty
       (coll/into-> source-prop-infos-by-prop-kw {}
         (filter (fn [[_prop-kw prop-info]]
@@ -1177,9 +1182,9 @@
                                                     :target-prop-node-id target-prop-node-id
                                                     :target-prop-kw target-prop-kw)
 
-                                                  target-set-fn
-                                                  (assoc :target-set-fn target-set-fn
-                                                         :target-value (:value target-prop-info))))
+                                            target-set-fn
+                                            (assoc :target-set-fn target-set-fn
+                                                   :target-value (:value target-prop-info))))
 
                                         ;; The resource owning the target node is not editable.
                                         (assoc property-transfer-target
@@ -1213,22 +1218,22 @@
          (map (fn [{:keys [source-node-id] :as property-transfer}]
                 {:pre [(g/node-id? source-node-id)]}
                 (as-> property-transfer property-transfer
-                      (merge (sorted-map
-                               :source-node-type-kw (g/node-type-kw basis source-node-id)
-                               :source-node-path (node-util/node-debug-label-path source-node-id evaluation-context))
-                             property-transfer)
-                      (update property-transfer :targets
-                              (fn [property-transfer-targets]
-                                (coll/into-> property-transfer-targets (coll/empty-with-meta property-transfer-targets)
-                                  (map (fn [{:keys [target-node-id target-prop-node-id] :as property-transfer-target}]
-                                         {:pre [(g/node-id? target-node-id)
-                                                (g/node-id? target-prop-node-id)]}
-                                         (merge (sorted-map
-                                                  :target-node-type-kw (g/node-type-kw basis target-node-id)
-                                                  :target-node-path (node-util/node-debug-label-path target-node-id evaluation-context)
-                                                  :target-prop-node-type-kw (g/node-type-kw basis target-prop-node-id)
-                                                  :target-prop-node-path (node-util/node-debug-label-path target-prop-node-id evaluation-context))
-                                                property-transfer-target))))))))))))))
+                  (merge (sorted-map
+                           :source-node-type-kw (g/node-type-kw basis source-node-id)
+                           :source-node-path (node-util/node-debug-label-path source-node-id evaluation-context))
+                         property-transfer)
+                  (update property-transfer :targets
+                          (fn [property-transfer-targets]
+                            (coll/into-> property-transfer-targets (coll/empty-with-meta property-transfer-targets)
+                              (map (fn [{:keys [target-node-id target-prop-node-id] :as property-transfer-target}]
+                                     {:pre [(g/node-id? target-node-id)
+                                            (g/node-id? target-prop-node-id)]}
+                                     (merge (sorted-map
+                                              :target-node-type-kw (g/node-type-kw basis target-node-id)
+                                              :target-node-path (node-util/node-debug-label-path target-node-id evaluation-context)
+                                              :target-prop-node-type-kw (g/node-type-kw basis target-prop-node-id)
+                                              :target-prop-node-path (node-util/node-debug-label-path target-prop-node-id evaluation-context))
+                                            property-transfer-target))))))))))))))
 
 (defn transfer-overrides-status
   "Returns :ok if the supplied transfer-overrides-plan can be executed,

@@ -16,6 +16,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.form :as form]
+            [editor.material]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
@@ -107,6 +108,11 @@
     (let [node-id-material-1 (test-util/resource-node project "/materials/test_combined_shader_1.material")
           node-id-material-2 (test-util/resource-node project "/materials/test_combined_shader_2.material")
           node-id-material-3 (test-util/resource-node project "/materials/test_combined_shader_3.material")
+          node-id-material-with-uniforms (test-util/resource-node project "/materials/test.material")
+          shader-material-1 (g/node-value node-id-material-1 :shader)
+          shader-material-2 (g/node-value node-id-material-2 :shader)
+          shader-material-3 (g/node-value node-id-material-3 :shader)
+          shader-material-with-uniforms (g/node-value node-id-material-with-uniforms :shader)
           build-targets-material-1 (g/node-value node-id-material-1 :build-targets)
           build-targets-material-2 (g/node-value node-id-material-2 :build-targets)
           build-targets-material-3 (g/node-value node-id-material-3 :build-targets)
@@ -119,6 +125,17 @@
       (is (= (g/node-value node-id-material-1 :fragment-program)
              (g/node-value node-id-material-2 :fragment-program)
              (g/node-value node-id-material-3 :fragment-program)))
+      (is (= (:request-data shader-material-1)
+             (:request-data shader-material-2)
+             (:request-data shader-material-3)
+             (:request-data shader-material-with-uniforms)))
+      ;; Each material needs its own mutable OpenGL uniform state.
+      (is (distinct? (:request-id shader-material-1)
+                     (:request-id shader-material-2)
+                     (:request-id shader-material-3)
+                     (:request-id shader-material-with-uniforms)))
+      (is (not= (:uniforms shader-material-1)
+                (:uniforms shader-material-with-uniforms)))
       ;; Check that the material content is different between the three materials
       (is (not (= (get-in build-targets-material-1 [0 :content-hash])
                   (get-in build-targets-material-2 [0 :content-hash])

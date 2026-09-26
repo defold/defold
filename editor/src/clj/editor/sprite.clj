@@ -234,8 +234,8 @@
                                                   :quad-count (quad-count size-mode slice9)}
                                       :passes [pass/outline]}}]}
 
-            (< 1 (count (:frames first-animation)))
-            (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" first-animation)))))
+      (< 1 (count (:frames first-animation)))
+      (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" first-animation)))))
 
 (def ^:private material-message (properties/label-message :material))
 (def ^:private default-animation-message (properties/label-message :sprite :default-animation))
@@ -298,7 +298,7 @@
   (reify resource/Resource
     (children [_])
     (ext [_] "")
-    (resource-type [_])
+    (resource-type* [_ _resource-types])
     (source-type [_])
     (exists? [_] false)
     (read-only? [_] true)
@@ -481,9 +481,9 @@
                                                        (get (:anim-data info) new-value))
                                                      texture-binding-infos)]
                            (g/set-property self :manual-size
-                                           [(double (:width animation))
-                                            (double (:height animation))
-                                            0.0])))))))
+                             [(double (:width animation))
+                              (double (:height animation))
+                              0.0])))))))
             (dynamic label (properties/label-dynamic :sprite :default-animation))
             (dynamic tooltip (properties/tooltip-dynamic :sprite :default-animation))
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
@@ -623,22 +623,22 @@
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
   (cond-> (dissoc sprite-desc :tile-set)
 
-          (= protobuf/vector4-zero slice9)
-          (dissoc :slice9)
+    (= protobuf/vector4-zero slice9)
+    (dissoc :slice9)
 
-          (= :size-mode-auto size-mode)
-          (dissoc :size-mode :size)
+    (= :size-mode-auto size-mode)
+    (dissoc :size-mode :size)
 
-          (= protobuf/vector4-zero size)
-          (dissoc :size)
+    (= protobuf/vector4-zero size)
+    (dissoc :size)
 
-          (nil? material)
-          (assoc :material default-material-proj-path)
+    (nil? material)
+    (assoc :material default-material-proj-path)
 
-          (and (zero? (count textures))
-               (pos? (count tile-set)))
-          (assoc :textures [{:sampler "texture_sampler"
-                             :texture tile-set}])))
+    (and (zero? (count textures))
+         (pos? (count tile-set)))
+    (assoc :textures [{:sampler "texture_sampler"
+                       :texture tile-set}])))
 
 (defn- load-sprite [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id sprite-desc :source-value}]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.

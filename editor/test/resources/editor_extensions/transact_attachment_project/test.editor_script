@@ -876,6 +876,26 @@ function M.get_commands()
                 })
                 print("After transaction (add font styles after clear):")
                 print_font(font)
+
+                print("glTF lists:")
+                local gltf = "/assets/triangle.gltf"
+                for _, list in ipairs({"meshes", "materials", "textures"}) do
+                    print(("  %s: %d, can add: %s, can set: %s, can reorder: %s"):format(
+                        list, #editor.get(gltf, list), tostring(editor.can_add(gltf, list)),
+                        tostring(editor.can_set(gltf, list)), tostring(editor.can_reorder(gltf, list))))
+                end
+                local mesh = editor.get(gltf, "meshes")[1]
+                print(("  mesh: %s, %s, index: %d, primitives: %d, vertices: %d"):format(
+                    editor.get(mesh, "type"), editor.get(mesh, "name"), editor.get(mesh, "index"),
+                    editor.get(mesh, "primitive_count"), editor.get(mesh, "vertex_count")))
+                local material = editor.get(gltf, "materials")[1]
+                print(("  material: %s, %s, %s"):format(editor.get(material, "type"),
+                    editor.get(material, "name"), editor.get(material, "material")))
+                local texture = editor.get(gltf, "textures")[1]
+                print(("  texture: %s, %s, %s"):format(editor.get(texture, "type"),
+                    editor.get(texture, "name"), editor.get(texture, "image")))
+                print("  mesh name writable: " .. tostring(editor.can_set(mesh, "name")))
+                print("  image path: " .. editor.get(editor.get(texture, "image"), "path"))
             end
         })
     }

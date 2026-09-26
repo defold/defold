@@ -18,9 +18,10 @@
             [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
             [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
-            [editor.gl.texture :as texture]
+            [editor.gltf :as gltf]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
             [editor.image :as image]
@@ -34,11 +35,11 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
-            [editor.texture-util :as texture-util]
             [editor.validation :as validation]
+            [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
            [editor.gl.shader ShaderLifecycle]))
 
@@ -56,28 +57,110 @@
 
 (def ^:private mesh-selection-file-types #{"glb" "gltf"})
 
+(defn- gltf-source-resource?
+  "True for glTF or GLB resources that support mesh selection."
+  [resource]
+  (and (resource/resource? resource)
+       (contains? mesh-selection-file-types (resource/type-ext resource))))
+
+(defn- resolve-selected-mesh
+  "Finds mesh metadata by index, returning nil when metadata or the selection is unavailable."
+  [collision-meshes mesh-index]
+  (when-not (g/error-value? collision-meshes)
+    (coll/first-where #(= mesh-index (:index %))
+                      (model-loader/named-meshes collision-meshes))))
+
+(defn- gltf-auto-fill-candidate
+  "Prepares available material bindings and records whether applying them would replace existing ones."
+  [evaluation-context node-id source-resource material-indices]
+  (when-let [descriptors (and (gltf-source-resource? source-resource)
+                              (coll/not-empty
+                                (gltf/material-binding-descriptors
+                                  source-resource material-indices
+                                  (workspace/make-proj-path->resource-fn (resource/workspace source-resource) evaluation-context))))]
+    (let [material-binding-infos (g/node-value node-id :material-binding-infos evaluation-context)]
+      {:node-id node-id
+       :source-resource source-resource
+       :descriptors descriptors
+       :replaces-existing (boolean (and (not (g/error-value? material-binding-infos))
+                                        (coll/not-empty material-binding-infos)))})))
+
+(defn- confirm-gltf-auto-fill?
+  "Asks once whether to auto-fill materials for all candidate models."
+  [evaluation-context candidates]
+  (let [{:keys [source-resource]} (candidates 0)
+        replaces-existing (coll/any? :replaces-existing candidates)]
+    (true?
+      (dialogs/make-confirmation-dialog
+        (workspace/localization (resource/workspace source-resource) evaluation-context)
+        {:title (localization/message "dialog.model-auto-fill.title")
+         :icon :icon/circle-question
+         :header (localization/message "dialog.model-auto-fill.header"
+                                       {"file" (resource/resource-name source-resource)})
+         :content (localization/message (if replaces-existing
+                                          "dialog.model-auto-fill.content-replace"
+                                          "dialog.model-auto-fill.content"))
+         :buttons [{:text (localization/message "dialog.model-auto-fill.button.keep-current")
+                    :cancel-button true
+                    :result false}
+                   {:text (localization/message "dialog.model-auto-fill.button.auto-fill")
+                    :default-button true
+                    :result true}]}))))
+
+(defn- prepare-gltf-auto-fill
+  "Returns transaction context containing approved auto-fill descriptors, or nil if declined."
+  [evaluation-context candidates]
+  (when (and (coll/not-empty candidates)
+             (confirm-gltf-auto-fill? evaluation-context candidates))
+    {::auto-fill-gltf-material-descriptors-by-node
+     (into {}
+           (map (juxt :node-id :descriptors))
+           candidates)}))
+
+(defn- prepare-mesh-user-edit
+  "Offers all source materials when selecting a glTF file."
+  [evaluation-context _property set-operations]
+  (let [candidates
+        (into []
+              (keep
+                (fn [[node-id _prop-kw old-value new-value]]
+                  (when (and (not= old-value new-value)
+                             (gltf-source-resource? new-value))
+                    (gltf-auto-fill-candidate evaluation-context node-id new-value nil))))
+              set-operations)]
+    (prepare-gltf-auto-fill evaluation-context candidates)))
+
+(defn- prepare-mesh-index-user-edit
+  "Offers the selected mesh's materials, or all materials when clearing the selection."
+  [evaluation-context _property set-operations]
+  (let [candidates
+        (into []
+              (keep
+                (fn [[node-id _prop-kw old-value new-value]]
+                  (when (not= old-value new-value)
+                    (let [source-resource (g/node-value node-id :mesh evaluation-context)
+                          collision-meshes (g/node-value node-id :collision-meshes evaluation-context)
+                          selected-mesh (resolve-selected-mesh collision-meshes new-value)]
+                      (when (and (gltf-source-resource? source-resource)
+                                 (or (= -1 new-value) selected-mesh))
+                        (gltf-auto-fill-candidate
+                          evaluation-context
+                          node-id
+                          source-resource
+                          (when selected-mesh
+                            (into #{} (keep :material-index) (:primitives selected-mesh)))))))))
+              set-operations)]
+    (prepare-gltf-auto-fill evaluation-context candidates)))
+
+(defn- auto-fill-material-descriptors
+  "Retrieves the material bindings approved for this model in the current user edit."
+  [evaluation-context node-id]
+  (when-let [tx-data-context (:tx-data-context evaluation-context)]
+    (get-in @tx-data-context [::auto-fill-gltf-material-descriptors-by-node node-id])))
+
 (defn- model-mesh-choicebox [collision-meshes]
   {:type :choicebox
    :options (model-loader/named-mesh-choicebox-options collision-meshes)})
-
-(defn- set-mesh-index [evaluation-context self _old-value new-value]
-  (when (properties/user-edit? self :mesh-index evaluation-context)
-    (let [collision-meshes (g/node-value self :collision-meshes evaluation-context)
-          selected-mesh (when-not (g/error-value? collision-meshes)
-                          (coll/first-where #(= new-value (:index %))
-                                            (model-loader/named-meshes collision-meshes)))]
-      (g/set-property self :mesh-name (or (:name selected-mesh) "")))))
-
-(defn- set-mesh [evaluation-context self old-value new-value]
-  (into (project/resource-setter evaluation-context self old-value new-value
-                                 [:resource :mesh-resource]
-                                 [:mesh-set-build-target :mesh-set-build-target]
-                                 [:content :mesh-content]
-                                 [:material-ids :mesh-material-ids]
-                                 [:collision-meshes :collision-meshes]
-                                 [:scene :scene])
-        (when (properties/user-edit? self :mesh evaluation-context)
-          (g/set-properties self :mesh-name "" :mesh-index -1))))
 
 (defn- model-mesh-selection-error [node-id mesh mesh-name mesh-index collision-meshes]
   (cond
@@ -239,33 +322,6 @@
             dep-build-targets (into [rig-scene-build-target] (flatten dep-build-targets))]
         [(pipeline/make-protobuf-build-target _node-id resource ModelProto$Model rt-pb-msg dep-build-targets)])))
 
-(g/defnk produce-gpu-textures [_node-id samplers texture-binding-infos :as m]
-  (let [sampler-name->gpu-texture-generator (into {}
-                                                  (keep (fn [{:keys [sampler gpu-texture-generator]}]
-                                                          (when gpu-texture-generator
-                                                            (pair sampler gpu-texture-generator))))
-                                                  texture-binding-infos)
-        explicit-textures (into {}
-                                (keep-indexed
-                                  (fn [unit-index {:keys [name] :as sampler}]
-                                    (when-let [gpu-texture-generator (sampler-name->gpu-texture-generator name)]
-                                      (let [gpu-texture (texture-util/generate-gpu-texture gpu-texture-generator)]
-                                        (pair name
-                                              (-> (if (g/error-value? gpu-texture)
-                                                    @texture/placeholder
-                                                    gpu-texture)
-                                                  (texture/set-params (material/sampler->tex-params sampler))
-                                                  (texture/set-base-unit unit-index)))))))
-                                samplers)
-        fallback-texture (if (pos? (count explicit-textures))
-                           (val (first explicit-textures))
-                           @texture/black-pixel)]
-    (reduce
-      (fn [acc {:keys [name]}]
-        (cond-> acc (not (acc name)) (assoc name fallback-texture)))
-      explicit-textures
-      samplers)))
-
 (g/defnk produce-scene [_node-id scene mesh-name mesh-index ^:try collision-meshes material-name->material-scene-info skeleton-resource]
   (if scene
     (let [selected-mesh-index (if (str/blank? mesh-name)
@@ -341,7 +397,7 @@
   (input material-resource resource/Resource)
   (input material-attribute-infos g/Any)
   (input texture-binding-infos g/Any :array)
-  (output gpu-textures g/Any :cached produce-gpu-textures)
+  (output gpu-textures g/Any :cached model-scene/produce-gpu-textures)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
   (output material-scene-info g/Any (g/fnk [shader vertex-space gpu-textures name material-attribute-infos vertex-attribute-bytes :as info] info))
   (output material-binding-info g/Any (g/fnk [_node-id name
@@ -353,10 +409,10 @@
                                               ^:try texture-binding-infos
                                               :as info]
                                         (let [info (cond-> info
-                                                           (g/error-value? material-attribute-infos)
-                                                           (assoc :material-attribute-infos [])
-                                                           (g/error-value? vertex-attribute-bytes)
-                                                           (assoc :vertex-attribute-bytes {}))]
+                                                     (g/error-value? material-attribute-infos)
+                                                     (assoc :material-attribute-infos [])
+                                                     (g/error-value? vertex-attribute-bytes)
+                                                     (assoc :vertex-attribute-bytes {}))]
                                           (cond
                                             (g/error-value? texture-binding-infos) (assoc info :texture-binding-infos [])
                                             (g/error-value? samplers) (dissoc info :samplers)
@@ -400,14 +456,62 @@
     (g/connect material-binding :dep-build-targets model-node-id :dep-build-targets)
     (g/connect material-binding :material-scene-info model-node-id :material-scene-infos)
     (g/connect material-binding :material-binding-info model-node-id :material-binding-infos)
-    (for [{:keys [sampler texture]} textures]
-      (create-texture-binding-tx material-binding sampler texture))))
+    (into []
+          (map (fn [{:keys [sampler texture]}]
+                 (create-texture-binding-tx material-binding sampler texture)))
+          textures)))
+
+(defn- replace-gltf-material-bindings-tx
+  "Creates transaction data replacing all model material bindings with the approved descriptors."
+  [evaluation-context model-node-id descriptors]
+  (let [material-binding-infos (g/node-value model-node-id :material-binding-infos evaluation-context)
+        material-binding-node-ids (if (g/error-value? material-binding-infos)
+                                    []
+                                    (mapv :_node-id material-binding-infos))
+        initial-tx-data (cond-> []
+                          (coll/not-empty material-binding-node-ids)
+                          (into (g/delete-nodes material-binding-node-ids)))]
+    (into initial-tx-data
+          (mapcat
+            (fn [{:keys [name material material-index textures]}]
+              (create-material-binding-tx model-node-id name material material-index textures {})))
+          descriptors)))
+
+(defn- set-mesh-index [evaluation-context self _old-value new-value]
+  (when (properties/user-edit? self :mesh-index evaluation-context)
+    (let [collision-meshes (g/node-value self :collision-meshes evaluation-context)
+          selected-mesh (resolve-selected-mesh collision-meshes new-value)
+          tx-data (g/set-property self :mesh-name (or (:name selected-mesh) ""))]
+      (if-let [descriptors (auto-fill-material-descriptors evaluation-context self)]
+        (into tx-data
+              (replace-gltf-material-bindings-tx evaluation-context self descriptors))
+        tx-data))))
+
+(defn- set-mesh [evaluation-context self old-value new-value]
+  (let [user-edit (properties/user-edit? self :mesh evaluation-context)
+        resource-setter-tx-data
+        (into []
+              (project/resource-setter evaluation-context self old-value new-value
+                                       [:resource :mesh-resource]
+                                       [:mesh-set-build-target :mesh-set-build-target]
+                                       [:content :mesh-content]
+                                       [:material-ids :mesh-material-ids]
+                                       [:collision-meshes :collision-meshes]
+                                       [:source-scene :scene]))
+        tx-data (into resource-setter-tx-data
+                      (when user-edit
+                        (g/set-properties self :mesh-name "" :mesh-index -1)))]
+    (if-let [descriptors (and user-edit
+                              (auto-fill-material-descriptors evaluation-context self))]
+      (into tx-data
+            (replace-gltf-material-bindings-tx evaluation-context self descriptors))
+      tx-data)))
 
 (def ^:private fake-resource
   (reify resource/Resource
     (children [_])
     (ext [_] "")
-    (resource-type [_])
+    (resource-type* [_ _resource-types])
     (source-type [_])
     (exists? [_] false)
     (read-only? [_] true)
@@ -422,9 +526,23 @@
     (editable? [_] false)
     (loaded? [_] false)))
 
-(g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids]
+(defn- relevant-mesh-material-ids
+  "Returns material names used by the selected mesh, or all names when selection cannot be resolved."
+  [mesh-material-ids collision-meshes mesh-name mesh-index]
+  (if (or (str/blank? mesh-name)
+          (g/error-value? collision-meshes))
+    (set mesh-material-ids)
+    (if-let [selected-mesh (resolve-selected-mesh collision-meshes mesh-index)]
+      (into #{}
+            (keep :material-name)
+            (:primitives selected-mesh))
+      (set mesh-material-ids))))
+
+(g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids collision-meshes mesh-name mesh-index]
   (let [model-node-id _node-id
-        mesh-material-names (if (g/error-value? mesh-material-ids) #{} (set mesh-material-ids))
+        mesh-material-names (if (g/error-value? mesh-material-ids)
+                              #{}
+                              (relevant-mesh-material-ids mesh-material-ids collision-meshes mesh-name mesh-index))
         proto-material-name->material-binding-info (into {} (map (juxt :name identity)) material-binding-infos)
         proto-material-names (into #{} (map :name) material-binding-infos)
         all-material-names (set/union mesh-material-names proto-material-names)
@@ -459,8 +577,8 @@
                                                                       :ext "material"
                                                                       :clear-fn (fn [_ _]
                                                                                   (g/delete-node material-binding-node-id))}}
-                                                         should-be-deleted
-                                                         (assoc :original-value fake-resource))]
+                                                   should-be-deleted
+                                                   (assoc :original-value fake-resource))]
                               combined-material-properties (into [material-property]
                                                                  (map-indexed
                                                                    (fn [binding-index sampler-name+order]
@@ -481,8 +599,8 @@
                                                                                      :edit-type {:type resource/Resource
                                                                                                  :ext supported-image-exts
                                                                                                  :clear-fn (fn [_ _] (g/delete-node _node-id))}}
-                                                                                    texture-binding-should-be-deleted
-                                                                                    (assoc :original-value fake-resource))])
+                                                                              texture-binding-should-be-deleted
+                                                                              (assoc :original-value fake-resource))])
                                                                          ;; texture binding does not exist
                                                                          (let [sampler (key sampler-name+order)]
                                                                            [texture-binding-prop-key
@@ -527,17 +645,25 @@
                                (or (prop-resource-error :fatal _node-id :mesh mesh scene-message)
                                    (prop-resource-format-error _node-id :mesh mesh scene-message model-scene/model-file-types)))))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext model-scene/model-file-types}))
+                                              :ext model-scene/model-file-types
+                                              :prepare-user-edit-fn prepare-mesh-user-edit}))
             (dynamic label (properties/label-dynamic :model :scene))
             (dynamic tooltip (properties/tooltip-dynamic :model :scene)))
   (property mesh-name g/Str
-            (default "")
+            (default (protobuf/default ModelProto$ModelDesc :mesh-name))
             (dynamic visible (g/constantly false)))
   (property mesh-index g/Int
-            (default -1)
+            (default (protobuf/default ModelProto$ModelDesc :mesh-index))
             (value (g/fnk [^:try collision-meshes mesh-index mesh-name]
-                     (if (g/error-value? collision-meshes)
+                     (cond
+                       (and (str/blank? mesh-name)
+                            (= mesh-index (protobuf/default ModelProto$ModelDesc :mesh-index)))
+                       -1
+
+                       (g/error-value? collision-meshes)
                        mesh-index
+
+                       :else
                        (or (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index))
                            mesh-index))))
             (set set-mesh-index)
@@ -547,9 +673,10 @@
                                   (or (nil? mesh)
                                       (g/error-value? collision-meshes))))
             (dynamic edit-type (g/fnk [^:try collision-meshes]
-                                 (if (g/error-value? collision-meshes)
-                                   (model-mesh-choicebox [])
-                                   (model-mesh-choicebox collision-meshes))))
+                                 (assoc (if (g/error-value? collision-meshes)
+                                          (model-mesh-choicebox [])
+                                          (model-mesh-choicebox collision-meshes))
+                                   :prepare-user-edit-fn prepare-mesh-index-user-edit)))
             (dynamic error (g/fnk [_node-id mesh mesh-name mesh-index ^:try collision-meshes]
                              (model-mesh-selection-error _node-id mesh mesh-name mesh-index collision-meshes)))
             (dynamic label (properties/label-dynamic :model :mesh-name))
@@ -618,9 +745,9 @@
   (property default-animation g/Str
             (default (protobuf/default ModelProto$ModelDesc :default-animation))
             (dynamic error (g/fnk [_node-id default-animation animation-ids]
-                                  (validate-default-animation _node-id default-animation animation-ids)))
+                             (validate-default-animation _node-id default-animation animation-ids)))
             (dynamic edit-type (g/fnk [animation-ids]
-                                      (properties/->choicebox (into [""] animation-ids))))
+                                 (properties/->choicebox (into [""] animation-ids))))
             (dynamic label (properties/label-dynamic :model :default-animation))
             (dynamic tooltip (properties/tooltip-dynamic :model :default-animation)))
 
@@ -685,7 +812,7 @@
         default-animation :default-animation
         mesh (resolve-resource :mesh)
         mesh-name :mesh-name
-        mesh-index (:mesh-index :or -1)
+        mesh-index :mesh-index
         skeleton (resolve-resource :skeleton)
         animations (resolve-resource :animations)
         create-go-bones :create-go-bones)
@@ -707,16 +834,16 @@
       (cond-> (and (zero? (count materials))
                    (or (pos? (count material))
                        (pos? (count textures))))
-              (assoc :materials [(protobuf/make-map-without-defaults ModelProto$Material
-                                   :name "default"
-                                   :material material
-                                   :textures (into []
-                                                   (map-indexed
-                                                     (fn [i tex-name]
-                                                       (protobuf/make-map-without-defaults ModelProto$Texture
-                                                         :sampler (.intern (str "tex" i))
-                                                         :texture tex-name)))
-                                                   textures))]))))
+        (assoc :materials [(protobuf/make-map-without-defaults ModelProto$Material
+                             :name "default"
+                             :material material
+                             :textures (into []
+                                             (map-indexed
+                                               (fn [i tex-name]
+                                                 (protobuf/make-map-without-defaults ModelProto$Texture
+                                                   :sampler (.intern (str "tex" i))
+                                                   :texture tex-name)))
+                                             textures))]))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

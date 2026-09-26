@@ -108,7 +108,7 @@
   resource/Resource
   (children [_] nil)
   (ext [_] "json")
-  (resource-type [_]
+  (resource-type* [_ _resource-types]
     {:ext "json"
      :label (localization/message "resource.type.custom")
      :build-ext "json"})
@@ -137,7 +137,7 @@
   resource/Resource
   (children [this] (resource/children resource))
   (ext [this] (resource/ext resource))
-  (resource-type [this]
+  (resource-type* [this _resource-types]
     (let [ext (resource/ext this)]
       {:ext ext
        :label (localization/message "resource.type.custom")
@@ -208,7 +208,7 @@
                                  [:lines :gamepad-database-lines]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]
    ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]
-                                          [:use-rich-text :use-rich-text]]})
+                                        [:use-rich-text :use-rich-text]]})
 
 (g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets custom-resources-setting resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
