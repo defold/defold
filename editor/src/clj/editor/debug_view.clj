@@ -27,6 +27,7 @@
             [editor.console :as console]
             [editor.core :as core]
             [editor.debugging.dap :as dap]
+            [editor.debugging.variables :as debugger-variables]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
@@ -44,11 +45,12 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll])
-  (:import [com.dynamo.lua.proto Lua$LuaModule]
+  (:import [com.defold.control ExtendedTreeView]
+           [com.dynamo.lua.proto Lua$LuaModule]
            [java.nio.file Files]
            [java.util Collection]
            [javafx.scene Parent]
-           [javafx.scene.control Button ListView TextField TreeItem TreeView]
+           [javafx.scene.control Button ListView TextField TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [org.apache.commons.io FilenameUtils]))
 
@@ -102,7 +104,7 @@
             (ui/select! call-stack-view top-frame)))
         (do
           (.clear items)
-          (.setRoot variables-view nil))))))
+          (debugger-variables/clear! variables-view))))))
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props fx.list-view/props))
@@ -243,46 +245,13 @@
     (ui/bind-action! step-over-debugger-button :debugger.step-over)
     (ui/bind-action! stop-debugger-button :debugger.stop)))
 
-(defn- make-variable-tree-item
-  [debug-session snapshot {:keys [name value variablesReference] :as variable}]
-  (let [tree-item (TreeItem. (assoc variable :display-name name :display-value value))
-        children (.getChildren tree-item)]
-    (when (pos? variablesReference)
-      (.add children (TreeItem.))
-      (ui/observe-once (.expandedProperty tree-item)
-        (fn [_ _ _]
-          (future/io
-            (try
-              (let [variables (dap/variables debug-session snapshot variablesReference)]
-                (ui/run-later
-                  (when (= snapshot (dap/suspension debug-session))
-                    (.setAll children ^Collection
-                             (mapv #(make-variable-tree-item debug-session snapshot %) variables)))))
-              (catch Exception exception
-                (when (= snapshot (dap/suspension debug-session))
-                  (console/append-console-entry! :eval-error (ex-message exception)))))))))
-    tree-item))
-
 (defn- load-frame-variables!
   [debug-view]
   (let [debug-session (g/node-value debug-view :debug-session)
         frame (current-stack-frame debug-view)
         snapshot (when debug-session (dap/suspension debug-session))
-        variables-view ^TreeView (g/node-value debug-view :variables-view)
-        root (TreeItem.)]
-    (.setRoot variables-view root)
-    (when (and frame snapshot)
-      (future/io
-        (try
-          (let [variables (dap/frame-variables debug-session snapshot (:id frame))]
-            (ui/run-later
-              (when (and (identical? root (.getRoot variables-view))
-                         (= snapshot (dap/suspension debug-session)))
-                (.setAll (.getChildren root) ^Collection
-                         (mapv #(make-variable-tree-item debug-session snapshot %) variables)))))
-          (catch Exception exception
-            (when (= snapshot (dap/suspension debug-session))
-              (console/append-console-entry! :eval-error (ex-message exception)))))))))
+        variables-view (g/node-value debug-view :variables-view)]
+    (debugger-variables/show-frame! variables-view debug-session snapshot (:id frame))))
 
 (defn- switch-text! [^TextField text-field text]
   (doto text-field
@@ -455,7 +424,7 @@
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         call-stack-view (doto (ListView.)
                           (.setId "debugger-call-stack"))
-        variables-view (doto (TreeView.)
+        variables-view (doto (ExtendedTreeView.)
                          (.setId "debugger-variables")
                          (ui/customize-tree-view! {:double-click-expand true})
                          (.setShowRoot false))
