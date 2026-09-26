@@ -41,12 +41,13 @@ def _likeness(squared_error, samples):
     return normalized, 100.0 * (1.0 - normalized)
 
 
-def compare(actual, reference, difference_path, background=(0, 0, 0), region=None):
+def compare(actual, reference, difference_path, background=(0, 0, 0), region=None, foreground=True):
     """Compare equal-sized RGB images and write a 4x absolute difference PNG.
 
     Inputs must already be composited onto their background. Foreground RMSE
     uses the union in region, so extra pixels and missing effects count fully;
     whole-image RMSE is reported separately. No reference files are modified.
+    Set foreground=False for whole-image tests, including uniform clears.
     """
     if actual.size != reference.size:
         raise ValueError("Image dimensions must match")
@@ -54,6 +55,9 @@ def compare(actual, reference, difference_path, background=(0, 0, 0), region=Non
     difference = ImageChops.difference(actual, reference)
     difference.point(lambda value: min(255, value * 4)).save(difference_path)
     _, whole = _likeness(sum(ImageStat.Stat(difference).sum2), actual.width * actual.height * 3)
+    if not foreground:
+        return dict(normalized_difference=1.0 - whole / 100.0, likeness_percent=whole,
+                    whole_likeness_percent=whole, foreground_pixels=None)
     a, b = actual.crop(region), reference.crop(region)
     mask = ImageChops.lighter(foreground_mask(a, background), foreground_mask(b, background))
     count = mask.histogram()[255]

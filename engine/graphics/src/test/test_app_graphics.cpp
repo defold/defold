@@ -723,34 +723,37 @@ struct DrawTriangleTest : ITest
 
 struct ReadPixelsTest : ITest
 {
-    uint8_t m_Buffer[512 * 512 * 4];
-    bool m_DidRead;
-
     void Initialize(EngineCtx* engine) override
     {
-        m_DidRead = false;
-        memset(m_Buffer, 0, sizeof(m_Buffer));
     }
 
     void Execute(EngineCtx* engine) override
     {
-        static uint8_t color_r = 0;
-        static uint8_t color_g = 80;
-        static uint8_t color_b = 140;
-        static uint8_t color_a = 255;
-
-        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
-                                    (float) color_r,
-                                    (float) color_g,
-                                    (float) color_b,
-                                    (float) color_a,
-                                    1.0f, 0);
-
-        int32_t x = 0, y = 0;
-        uint32_t w = 0, h = 0;
-        dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &w, &h);
-        dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, w, h, m_Buffer, 512 * 512 * 4);
-        dmLogInfo("%d, %d, %d, %d", m_Buffer[0], m_Buffer[1], m_Buffer[2], m_Buffer[3]);
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+        // Zero and full-intensity channels match on linear and sRGB surfaces.
+        const uint8_t colors[][4] = { {255, 0, 0, 255}, {0, 255, 255, 255} };
+        for (uint32_t clear = 0; clear < DM_ARRAY_SIZE(colors); ++clear)
+        {
+            const uint8_t* color = colors[clear];
+            dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+                color[0], color[1], color[2], color[3], 1.0f, 0);
+            // An unaligned subregion checks row packing and BGRA conversion.
+            uint8_t pixels[13 * 3 * 4] = {};
+            dmGraphics::ReadPixels(context, 2, 3, 13, 3, pixels, sizeof(pixels));
+            for (uint32_t i = 0; i < sizeof(pixels); i += 4)
+            {
+                if (pixels[i] != color[2] || pixels[i + 1] != color[1] ||
+                    pixels[i + 2] != color[0] || pixels[i + 3] != color[3])
+                {
+                    dmLogError("Backbuffer readback mismatch after clear %u at pixel %u: %u, %u, %u, %u",
+                        clear, i / 4, pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]);
+                    engine->m_Failed = true;
+                    break;
+                }
+            }
+        }
+        engine->m_Running = 0;
     }
 };
 
@@ -1610,6 +1613,12 @@ static void* EngineCreate(int argc, char** argv)
     window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_VULKAN;
     window_params.m_CloseCallback          = OnWindowClose;
     window_params.m_CloseCallbackUserData  = (void*) engine;
+    if (HasArgument("read-pixels"))
+    {
+        window_params.m_Hidden = 1;
+        window_params.m_FocusOnShow = 0;
+        window_params.m_Samples = HasArgument("msaa") ? 4 : 1;
+    }
 
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
@@ -1635,7 +1644,8 @@ static void* EngineCreate(int argc, char** argv)
         return 0;
     }
 
-    dmPlatform::ShowWindow(engine->m_Window);
+    if (!window_params.m_Hidden)
+        dmPlatform::ShowWindow(engine->m_Window);
 
     JobSystemCreateParams job_thread_create_param = {0};
     job_thread_create_param.m_ThreadCount = HasArgument("issue-12878") &&
@@ -1673,7 +1683,12 @@ static void* EngineCreate(int argc, char** argv)
         engine->m_Failed = true;
     }
 
-    if (HasArgument("depth-texture"))
+    if (HasArgument("read-pixels"))
+    {
+        dmLogInfo("test_app_graphics: running ReadPixelsTest");
+        engine->m_Test = new ReadPixelsTest();
+    }
+    else if (HasArgument("depth-texture"))
     {
         dmLogInfo("test_app_graphics: running DepthTextureTest");
         engine->m_Test = new DepthTextureTest();
@@ -1723,7 +1738,6 @@ static void* EngineCreate(int argc, char** argv)
     {
         //engine->m_Test = new ComputeTest();
         //engine->m_Test = new StorageBufferTest();
-        //engine->m_Test = new ReadPixelsTest();
         //engine->m_Test = new AsyncTextureUploadTest();
         //engine->m_Test = new ClearBackbufferTest();
         dmLogInfo("test_app_graphics: running ClearBackbufferTest");
@@ -1920,6 +1934,9 @@ TEST(App, Run)
 }
 
 extern "C" void dmExportedSymbols();
+#if defined(DM_TEST_GRAPHICS_CAPTURE)
+int RunGraphicsCapture(int argc, char** argv);
+#endif
 
 int main(int argc, char **argv)
 {
@@ -1932,6 +1949,11 @@ int main(int argc, char **argv)
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 
+#if defined(DM_TEST_GRAPHICS_CAPTURE)
+    int capture_result = RunGraphicsCapture(argc, argv);
+    if (capture_result >= 0)
+        return capture_result;
+#endif
     InstallAdapter(argc, argv);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
