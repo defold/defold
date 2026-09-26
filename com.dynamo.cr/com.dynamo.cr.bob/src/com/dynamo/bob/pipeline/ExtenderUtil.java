@@ -461,6 +461,28 @@ public class ExtenderUtil {
         return false;
     }
 
+    @SuppressWarnings("unchecked")
+    private static boolean migrateSimulatorGraphics(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        boolean modified = false;
+        for (String key : List.of("libs", "engineLibs", "excludeLibs", "symbols", "excludeSymbols")) {
+            Object value = context.get(key);
+            if (value instanceof List<?>) {
+                List<Object> entries = new ArrayList<>((List<?>) value);
+                if (entries.removeAll(List.of("graphics", "graphics_metal", "graphics_vulkan",
+                        "platform_vulkan", "MoltenVK", "GraphicsAdapterOpenGL",
+                        "GraphicsAdapterMetal", "GraphicsAdapterVulkan"))) {
+                    context.put(key, entries);
+                    modified = true;
+                }
+            }
+        }
+        return modified;
+    }
+
     // Complete legacy Bullet3D exclusions, Windows library names, and macOS
     // Vulkan platform selection before upload, even without opening the editor.
     private static byte[] migrateAppManifest(byte[] content) {
@@ -483,6 +505,9 @@ public class ExtenderUtil {
                 if (platformValue instanceof Map<?, ?>) {
                     Object context = ((Map<?, ?>) platformValue).get("context");
                     modified |= addBullet3DCompatibilityExclusions(context);
+                    if ("arm64_sim-ios".equals(platform.getKey())) {
+                        modified |= migrateSimulatorGraphics(context);
+                    }
                     if ("osx".equals(platform.getKey())
                             || "arm64-osx".equals(platform.getKey())
                             || "x86_64-osx".equals(platform.getKey())) {

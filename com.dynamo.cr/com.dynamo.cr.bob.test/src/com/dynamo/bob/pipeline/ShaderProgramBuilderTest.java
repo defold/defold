@@ -525,7 +525,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
-            { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.WasmWeb,        new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
@@ -586,6 +586,17 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         } catch (CompileExceptionError e) {
             assertTrue(e.getMessage(), e.getMessage().contains("uniform control flow"));
         }
+    }
+
+    @Test
+    public void testSimulatorAlwaysUsesMetal() throws Exception {
+        String adapters = Project.getShaderAdaptersOption(Platform.Arm64IosSim, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterOpenGL", "GraphicsAdapterVulkan"),
+                             "excludeSymbols", List.of("GraphicsAdapterMetal"))));
+        assertEquals("metal", adapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.Arm64IosSim, "opengles,vulkan", "simulator_metal"),
+            ShaderDesc.Language.LANGUAGE_MSL_22);
     }
 
     @Test
