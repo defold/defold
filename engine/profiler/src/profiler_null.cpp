@@ -26,6 +26,11 @@ void ToggleProfiler()
     // nop
 }
 
+HProfile EndFrame()
+{
+    return ProfileFrameBegin();
+}
+
 ProfileResult EndFrame(HProfile profile)
 {
     return ProfileFrameEnd(profile);
