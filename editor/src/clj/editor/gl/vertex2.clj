@@ -23,7 +23,7 @@
             [util.coll :as coll]
             [util.defonce :as defonce])
   (:import [clojure.lang Counted]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [java.nio Buffer ByteBuffer]))
 
 (set! *warn-on-reflection* true)
@@ -195,7 +195,7 @@
 
 ;; GL stuff
 
-(defn- assign-attributes! [^GL2 gl attributes attribute-locations]
+(defn- assign-attributes! [^GL3 gl attributes attribute-locations]
   {:pre [(vector? attributes)
          (vector? attribute-locations)]}
   (let [attribute-count (count attributes)
@@ -220,7 +220,7 @@
       (range attribute-count))))
 
 (defn- clear-attributes!
-  [^GL2 gl attribute-locations]
+  [^GL3 gl attribute-locations]
   (doseq [^int location attribute-locations
           :when (not= location -1)]
     (gl/gl-disable-vertex-attrib-array gl location)))
@@ -264,7 +264,7 @@
 
     [expanded-attributes expanded-attribute-locations]))
 
-(defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
+(defn- bind-vertex-buffer-with-shader! [^GL3 gl request-id ^VertexBuffer vertex-buffer shader]
   (let [[vbo attribute-locations] (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader})
         attributes (:attributes (.vertex-description vertex-buffer))
         [expanded-attributes expanded-attribute-locations] (expand-attributes+locations attributes attribute-locations)]
@@ -273,7 +273,7 @@
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)
     expanded-attribute-locations))
 
-(defn- unbind-vertex-buffer-with-shader! [^GL2 gl expanded-attribute-locations]
+(defn- unbind-vertex-buffer-with-shader! [^GL3 gl expanded-attribute-locations]
   (clear-attributes! gl expanded-attribute-locations))
 
 (defonce/type VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader ^:unsynchronized-mutable expanded-attribute-locations]
@@ -291,7 +291,7 @@
          (satisfies? shader/ShaderVariables shader)]}
   (->VertexBufferShaderLink request-id vertex-buffer shader nil))
 
-(defn- update-vbo [^GL2 gl [vbo _] data]
+(defn- update-vbo [^GL3 gl [vbo _] data]
   (let [^VertexBuffer vbuf (:vertex-buffer data)
         ^Buffer buf (.buf vbuf)
         shader (:shader data)
@@ -304,11 +304,11 @@
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)
     [vbo attribute-locations]))
 
-(defn- make-vbo [^GL2 gl data]
+(defn- make-vbo [^GL3 gl data]
   (let [vbo (gl/gl-gen-buffer gl)]
     (update-vbo gl [vbo nil] data)))
 
-(defn- destroy-vbos [^GL2 gl objs _]
+(defn- destroy-vbos [^GL3 gl objs _]
   (gl/gl-delete-buffers gl (mapv first objs)))
 
 (scene-cache/register-object-cache! ::vbo2 make-vbo update-vbo destroy-vbos)

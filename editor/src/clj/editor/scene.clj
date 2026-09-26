@@ -70,7 +70,7 @@
             [util.eduction :as e]
             [util.http-server :as http-server]
             [util.profiler :as profiler])
-  (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
+  (:import [com.jogamp.opengl GL GL3 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [editor.pose Pose]
            [editor.types AABB Camera Rect Region]
@@ -86,6 +86,7 @@
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
+           [javafx.scene.shape Rectangle]
            [javafx.stage Window]
            [javax.imageio ImageIO]
            [javax.vecmath Matrix4d Point3d Quat4d Tuple3d Vector3d Vector4d]
@@ -198,10 +199,10 @@
                                  (reset! cache-ref (BufferedImage. w h BufferedImage/TYPE_INT_ARGB_PRE)))
                                @cache-ref)
         glc (GLContext/getCurrent)
-        gl (.getGL glc)
+        gl (.getGL3 (.getGL glc))
         psm (GLPixelStorageModes.)]
     (.setPackAlignment psm gl 1)
-    (.glReadPixels gl 0 0 w h GL2/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage ^IntegerComponentRaster (.getRaster image))))
+    (.glReadPixels gl 0 0 w h GL3/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage ^IntegerComponentRaster (.getRaster image))))
     (.restore psm gl)
     image))
 
@@ -253,37 +254,34 @@
 (defn vp-dims [^Region viewport]
   (types/dimensions viewport))
 
-(defn- render-camera-inset-border! [^GL2 gl ^Region viewport]
+(defn- render-camera-inset-border! [^GL3 gl ^Region viewport]
   (let [border-shader shaders/basic-color-local-space
         vertex-description (shaders/vertex-description border-shader)
         [^double viewport-width ^double viewport-height] (vp-dims viewport)
-        border-inset-pixels 1.0
-        border-min-x (- 1.0 (/ (* 2.0 border-inset-pixels) viewport-width))
+        border-inset-pixels 2.0
+        border-min-x (max 0.0 (- 1.0 (/ (* 2.0 border-inset-pixels) viewport-width)))
         border-max-x (- border-min-x)
-        border-min-y (- 1.0 (/ (* 2.0 border-inset-pixels) viewport-height))
+        border-min-y (max 0.0 (- 1.0 (/ (* 2.0 border-inset-pixels) viewport-height)))
         border-max-y (- border-min-y)
         border-z 0.0
         [border-r border-g border-b border-a] colors/selected-outline-color
-        border-vbuf (vtx/make-vertex-buffer vertex-description :stream 8)
+        border-vbuf (vtx/make-vertex-buffer vertex-description :stream 24)
         border-buf (vtx/buf border-vbuf)
-        border-line-points [[border-min-x border-min-y border-z]
-                            [border-max-x border-min-y border-z]
-                            [border-max-x border-min-y border-z]
-                            [border-max-x border-max-y border-z]
-                            [border-max-x border-max-y border-z]
-                            [border-min-x border-max-y border-z]
-                            [border-min-x border-max-y border-z]
-                            [border-min-x border-min-y border-z]]
+        border-rects [[-1.0 border-min-y 1.0 1.0]
+                      [-1.0 -1.0 1.0 border-max-y]
+                      [-1.0 border-max-y border-max-x border-min-y]
+                      [border-min-x border-max-y 1.0 border-min-y]]
         border-binding (vtx/use-with ::camera-inset-border border-vbuf border-shader)
         render-args (math/derive-render-transforms geom/Identity4d geom/Identity4d geom/Identity4d geom/Identity4d)]
-    (doseq [[x y z] border-line-points]
-      (vtx/buf-push-floats! border-buf [x y z border-r border-g border-b border-a]))
+    ;; Core contexts may support only one-pixel lines. Draw four filled strips
+    ;; to keep a two-pixel border without relying on wide-line support.
+    (doseq [[x0 y0 x1 y1] border-rects
+            [x y] [[x0 y0] [x1 y0] [x1 y1] [x1 y1] [x0 y1] [x0 y0]]]
+      (vtx/buf-push-floats! border-buf [x y border-z border-r border-g border-b border-a]))
     (vtx/flip! border-vbuf)
     (.glDisable gl GL/GL_DEPTH_TEST)
-    (.glLineWidth gl 2.0)
     (gl/with-gl-bindings gl render-args [border-shader border-binding]
-      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count border-vbuf)))
-    (.glLineWidth gl 1.0)))
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count border-vbuf)))))
 
 (defn- find-selected-camera-renderable [scene-render-data]
   (let [selected-cameras (into []
@@ -337,15 +335,15 @@
            0)]
         (render-key view-matrix world-translation index is-topmost)))
 
-(defn gl-viewport [^GL2 gl ^Region viewport]
+(defn gl-viewport [^GL3 gl ^Region viewport]
   (.glViewport gl (.left viewport) (.top viewport) (- (.right viewport) (.left viewport)) (- (.bottom viewport) (.top viewport))))
 
 (defn- setup-pass
-  [^GL2 gl pass]
+  [^GL3 gl pass]
   (pass/prepare-gl pass gl))
 
 (defn- render-nodes
-  [^GL2 gl render-args [first-renderable :as renderables] count]
+  [^GL3 gl render-args [first-renderable :as renderables] count]
   (when-let [render-fn (:render-fn first-renderable)]
     (try
       (let [shared-world-transform (:world-transform first-renderable math/identity-mat4) ; rulers apparently don't have world-transform
@@ -489,7 +487,7 @@
 
 (defn- render!
   [^GLContext context render-mode renderables updatable-states viewport pass->render-args [clear-r clear-g clear-b clear-a]]
-  (let [^GL2 gl (.getGL context)
+  (let [gl (.getGL3 (.getGL context))
         batch-key (render-mode-batch-key render-mode)]
     (gl/gl-clear gl clear-r clear-g clear-b clear-a)
     (gl-viewport gl viewport)
@@ -525,7 +523,7 @@
                                  (render-camera-inset-border! gl camera-inset-viewport)
                                  (.glActiveTexture gl GL/GL_TEXTURE0)
                                  (.glBindTexture gl GL/GL_TEXTURE_2D 0)
-                                 (.glUseProgram ^GL2 gl 0)
+                                 (.glUseProgram ^GL3 gl 0)
                                  (let [[w h] (vp-dims camera-inset-viewport)
                                        buffered-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
                                    (scene-cache/prune-context! gl)
@@ -1207,8 +1205,8 @@
           (.glFlush gl)
           (.glFinish gl)
           ;; Pixels read back are like 0xAARRGGBB
-          (.glReadPixels ^GL2 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
-                         GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
+          (.glReadPixels ^GL3 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
+                         GL3/GL_BGRA GL3/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
           (transduce (comp (map scene-picking/argb->picking-id)
                            (keep picking-id->picking-node-id)
                            (take 1))
@@ -1249,8 +1247,8 @@
         (.glFlush gl)
         (.glFinish gl)
         ;; Pixels read back are like 0xAARRGGBB
-        (.glReadPixels ^GL2 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
-                       GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
+        (.glReadPixels ^GL3 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
+                       GL3/GL_BGRA GL3/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
         (transduce (comp (map scene-picking/argb->picking-id)
                          (keep picking-id->renderable)
                          (take 1))
@@ -2000,9 +1998,10 @@
                        width (.getWidth this)
                        height (.getHeight this)]
                    (try
-                     (.setFitWidth image-view width)
-                     (.setFitHeight image-view height)
-                     (proxy-super layoutInArea ^Node image-view 0.0 0.0 width height 0.0 HPos/CENTER VPos/CENTER)
+                     ;; Keep the last frame at native resolution until its
+                     ;; replacement is ready. Stretching a provisional frame
+                     ;; causes a blurred flash; clearing it causes flicker.
+                     (proxy-super layoutInArea ^Node image-view 0.0 0.0 width height 0.0 HPos/LEFT VPos/TOP)
                      (when (and (> width 0) (> height 0))
                        (let [viewport (types/->Region 0 width 0 height)]
                          (g/transact
@@ -2013,6 +2012,11 @@
                              (doto drawable
                                (.setSurfaceSize width height))
                              (let [async-copy-state-atom (g/node-value view-id :async-copy-state)]
+                               (when (or (not= (int width) (int (:width @async-copy-state-atom)))
+                                         (not= (int height) (int (:height @async-copy-state-atom))))
+                                 ;; Resize invalidates the framebuffer even if
+                                 ;; the renderables themselves did not change.
+                                 (ui/user-data! image-view ::last-renderables nil))
                                (reset! async-copy-state-atom (scene-async/request-resize! @async-copy-state-atom width height))))
                            (let [drawable (gl/offscreen-drawable width height)
                                  picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)
@@ -2045,6 +2049,11 @@
                        (error-reporting/report-exception! error)))
                    (proxy-super layoutChildren))))]
     (.setFocusTraversable pane true)
+    ;; Old frames can be larger than the viewport during a resize.
+    (let [clip (Rectangle.)]
+      (.bind (.widthProperty clip) (.widthProperty pane))
+      (.bind (.heightProperty clip) (.heightProperty pane))
+      (.setClip pane clip))
     (.add (.getChildren pane) image-view)
     (g/transact
       {:undoable false}

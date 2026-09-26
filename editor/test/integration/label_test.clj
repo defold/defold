@@ -84,18 +84,21 @@
         (is (< 0.0 y))
         (is (= 0.0 z))))))
 
-(deftest label-scene-test
+(deftest label-scene-data-test
   (test-util/with-loaded-project
-    (let [node-id (project/get-resource-node project "/label/test.label")]
-      (let [scene (g/node-value node-id :scene)
-            aabb (g/node-value node-id :aabb)]
-        (is (= aabb (:aabb scene)))
-        (is (= node-id (:node-id scene)))
-        (is (= node-id (some-> scene :renderable :select-batch-key)))
-        (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
-        (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :lines first)))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
+    (let [node-id (project/get-resource-node project "/label/test.label")
+          scene (g/node-value node-id :scene)
+          aabb (g/node-value node-id :aabb)]
+      (is (= aabb (:aabb scene)))
+      (is (= node-id (:node-id scene)))
+      (is (= node-id (some-> scene :renderable :select-batch-key)))
+      (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
+      (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :text)))
+      (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
+      (let [fragment-source (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source)]
+        (is (string/starts-with? fragment-source "#version 330"))
+        (is (re-find #"\bout vec4 \w+;" fragment-source))
+        (is (not (re-find #"\bgl_FragColor\b" fragment-source)))))))
 
 (deftest native-label-text-box-alignment-test
   (test-util/with-loaded-project

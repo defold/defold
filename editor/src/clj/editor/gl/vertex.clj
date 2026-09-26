@@ -46,7 +46,7 @@ the `do-gl` macro from `editor.gl`."
             [util.eduction :as e])
   (:import [clojure.lang IEditableCollection IPersistentVector ITransientVector]
            [com.jogamp.common.nio Buffers]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [java.nio ByteBuffer]
            [java.util.concurrent.atomic AtomicBoolean AtomicLong]))
 
@@ -108,9 +108,9 @@ the `do-gl` macro from `editor.gl`."
    'ushort  GL/GL_UNSIGNED_SHORT
    'short   GL/GL_SHORT
    'uint    GL/GL_UNSIGNED_INT
-   'int     GL2/GL_INT
+   'int     GL3/GL_INT
    'float   GL/GL_FLOAT
-   'double  GL2/GL_DOUBLE})
+   'double  GL3/GL_DOUBLE})
 
 (defn- sizesof [[name size type & _]]
   (repeat size (type-sizes type)))
@@ -451,7 +451,7 @@ the `do-gl` macro from `editor.gl`."
     (shader/attribute-locations shader attribute-infos)))
 
 (defn- vertex-attrib-pointers
-  [^GL2 gl shader attribs]
+  [^GL3 gl shader attribs]
   (let [offsets (reductions + 0 (attribute-sizes attribs))
         ^int stride (vertex-size attribs)
         attribute-locations (vertex-locate-attribs shader attribs)]
@@ -466,18 +466,18 @@ the `do-gl` macro from `editor.gl`."
           attribute-locations)))
 
 (defn- vertex-enable-attribs
-  [^GL2 gl locs]
+  [^GL3 gl locs]
   (doseq [l locs
           :when (not= l -1)]
     (gl/gl-enable-vertex-attrib-array gl l)))
 
 (defn- vertex-disable-attribs
-  [^GL2 gl locs]
+  [^GL3 gl locs]
   (doseq [l locs
           :when (not= l -1)]
     (gl/gl-disable-vertex-attrib-array gl l)))
 
-(defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer shader]
+(defn- bind-vertex-buffer-with-shader! [^GL3 gl request-id ^PersistentVertexBuffer vertex-buffer shader]
   (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
     (let [attributes (:attributes (.layout vertex-buffer))
@@ -485,7 +485,7 @@ the `do-gl` macro from `editor.gl`."
       (vertex-attrib-pointers gl shader attributes)
       (vertex-enable-attribs gl attrib-locs))))
 
-(defn- unbind-vertex-buffer-with-shader! [^GL2 gl ^PersistentVertexBuffer vertex-buffer shader]
+(defn- unbind-vertex-buffer-with-shader! [^GL3 gl ^PersistentVertexBuffer vertex-buffer shader]
   (let [attributes (:attributes (.layout vertex-buffer))
         attrib-locs (vertex-locate-attribs shader attributes)]
     (vertex-disable-attribs gl attrib-locs)
@@ -510,17 +510,17 @@ the `do-gl` macro from `editor.gl`."
          (satisfies? shader/ShaderVariables shader)]}
   (->VertexBufferShaderLink request-id vertex-buffer shader))
 
-(defn- update-vbo [^GL2 gl vbo data]
+(defn- update-vbo [^GL3 gl vbo data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
   (let [^PersistentVertexBuffer vertex-buffer data]
-    (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit ^ByteBuffer (.buffer vertex-buffer)) (.buffer vertex-buffer) GL2/GL_STATIC_DRAW))
+    (gl/gl-buffer-data ^GL3 gl GL/GL_ARRAY_BUFFER (.limit ^ByteBuffer (.buffer vertex-buffer)) (.buffer vertex-buffer) GL3/GL_STATIC_DRAW))
   vbo)
 
-(defn- make-vbo [^GL2 gl data]
+(defn- make-vbo [^GL3 gl data]
   (let [vbo (gl/gl-gen-buffer gl)]
     (update-vbo gl vbo data)))
 
-(defn- destroy-vbos [^GL2 gl vbos _]
+(defn- destroy-vbos [^GL3 gl vbos _]
   (gl/gl-delete-buffers gl vbos))
 
 (scene-cache/register-object-cache! ::vbo make-vbo update-vbo destroy-vbos)

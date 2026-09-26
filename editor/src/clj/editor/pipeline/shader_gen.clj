@@ -107,12 +107,6 @@
      :location reflected-location
      :array-size array-size}))
 
-(defn- transpile-target-pb-shader-language
-  ^Graphics$ShaderDesc$Language [target-language]
-  ;; TODO: We need both shader targets during preparation. Later PRs will use
-  ;; SM330 for editor rendering instead of SM120.
-  (shader-language->pb-shader-language target-language))
-
 (defn- decorate-transpile-error
   [^Exception cause shader-type ^String shader-proj-path ^String shader-source max-page-count & extra-key-value-pairs]
   (let [ex-message
@@ -177,22 +171,19 @@
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
   reflection info. The precision strings should be either \"highp\" or \"mediump\".
-  The target-language selects SM120 for editor previews or SM330 for
-  development and tests. Both targets expose uniform-buffer members as ordinary
+  Editor previews use SM330 and expose uniform-buffer members as ordinary
   uniforms for editor binding."
-  [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str target-language]
+  [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str]
   {:pre [(string? shader-path)
          (pos? (count shader-path))
          (string? shader-source)
-         (pos? (count shader-source))
-         (contains? #{:language-glsl-sm120 :language-glsl-sm330} target-language)]}
+         (pos? (count shader-source))]}
   (let [shader-type (graphics.types/filename-shader-type shader-path)
-        pb-shader-language (transpile-target-pb-shader-language target-language)
         pb-shader-type (graphics.types/shader-type-pb-shader-type shader-type)
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
-          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type pb-shader-language ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
+          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330 ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
           (catch CompileExceptionError cause
             (let [error-line-number (.getLineNumber cause)
                   error-proj-path (or (some-> cause .getResource .getPath (str "/"))

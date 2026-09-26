@@ -57,7 +57,7 @@
            [com.dynamo.font.proto GlyphBankProto$GlyphBank]
            [com.dynamo.render.proto Font$CompiledStyle Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$StyleDesc]
            [com.google.protobuf ByteString]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB Region]
@@ -967,7 +967,7 @@
           text-entries))
 
 (defn- fill-vertex-buffer
-  [^GL2 gl vbuf {:keys [type font-map texture] :as font-data} text-entries glyph-cache]
+  [^GL3 gl vbuf {:keys [type font-map texture] :as font-data} text-entries glyph-cache]
   (let [put-glyph-quad-fn (make-put-glyph-quad-fn font-map)
         is-distance-field (= type :distance-field)
         put-pos-uv-fn put-pos-uv!
@@ -1120,7 +1120,7 @@
     (.setText native-renderer ^String (:text native-entry-state))))
 
 (defn- generate-native-texture!
-  [^GL2 gl ^FontRenderer native-renderer texture ^long known-atlas-version]
+  [^GL3 gl ^FontRenderer native-renderer texture ^long known-atlas-version]
   (let [^FontRenderer$Texture generated-texture
         (.generateTexture native-renderer known-atlas-version)]
     (when-let [^ByteBuffer pixels (.-pixels generated-texture)]
@@ -1131,7 +1131,7 @@
     (.-atlasVersion generated-texture)))
 
 (defn- prepare-native-render-batch!
-  [^GL2 gl ^FontRenderer native-renderer texture native-entry-states atlas-state]
+  [^GL3 gl ^FontRenderer native-renderer texture native-entry-states atlas-state]
   (let [atlas-key (mapv :atlas-key native-entry-states)
         previous-state @atlas-state
         known-atlas-version (:atlas-version previous-state)
@@ -1219,9 +1219,9 @@
 (scene-cache/register-object-cache! ::native-vb make-native-vb update-native-vb destroy-native-vbs)
 
 (defn gen-vertex-buffer
-  ([^GL2 gl font-data text-entries]
+  ([^GL3 gl font-data text-entries]
    (gen-vertex-buffer gl font-data text-entries nil))
-  ([^GL2 gl {:keys [type font-map] :as font-data} text-entries render-args]
+  ([^GL3 gl {:keys [type font-map] :as font-data} text-entries render-args]
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
          native-renderer-spec (:native-renderer-spec font-map)]
      (if native-renderer-spec
@@ -1236,9 +1236,9 @@
          (vtx/flip! (fill-vertex-buffer gl vbuf font-data text-entries glyph-cache)))))))
 
 (defn request-vertex-buffer
-  ([^GL2 gl request-id font-data text-entries]
+  ([^GL3 gl request-id font-data text-entries]
    (request-vertex-buffer gl request-id font-data text-entries nil))
-  ([^GL2 gl request-id font-data text-entries render-args]
+  ([^GL3 gl request-id font-data text-entries render-args]
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
          native-renderer-spec (get-in font-data [:font-map :native-renderer-spec])]
      (if native-renderer-spec
@@ -1265,7 +1265,7 @@
         cache-cell-height-ratio (/ (:cache-cell-height font-map) cache-height)]
     (Vector4d. cache-width-recip cache-height-recip cache-cell-width-ratio cache-cell-height-ratio)))
 
-(defn render-font [^GL2 gl render-args renderables rcount]
+(defn render-font [^GL3 gl render-args renderables rcount]
   (let [user-data (get (first renderables) :user-data)
         gpu-texture (:texture user-data)
         font-map (:font-map user-data)
@@ -2151,7 +2151,7 @@
       :view-types [:default])]))
 
 (defn- make-glyph-cache
-  [^GL2 gl params]
+  [^GL3 gl params]
   (let [{:keys [font-map texture]} params
         {:keys [cache-width cache-height cache-cell-width cache-cell-height cache-cell-max-ascent]} font-map
         data-format (glyph-channels->data-format (:glyph-channels font-map))
@@ -2183,24 +2183,24 @@
                                    (assoc m glyph {:x x :y y})))))))
             glyph)))))
 
-(defn- update-glyph-cache [^GL2 gl glyph-cache params]
+(defn- update-glyph-cache [^GL3 gl glyph-cache params]
   (make-glyph-cache gl params))
 
-(defn- destroy-glyph-caches [^GL2 gl font-caches _])
+(defn- destroy-glyph-caches [^GL3 gl font-caches _])
 
 (scene-cache/register-object-cache! ::glyph-caches make-glyph-cache update-glyph-cache destroy-glyph-caches)
 
 (defn- update-vb
-  [^GL2 gl ^VertexBuffer vb {:keys [font-data text-entries glyph-cache]}]
+  [^GL3 gl ^VertexBuffer vb {:keys [font-data text-entries glyph-cache]}]
   (vtx/clear! vb)
   (vtx/flip! (fill-vertex-buffer gl vb font-data text-entries glyph-cache)))
 
 (defn- make-vb
-  [^GL2 gl {:keys [font-data text-entries glyph-cache] :as data}]
+  [^GL3 gl {:keys [font-data text-entries glyph-cache] :as data}]
   (let [vb (make-vbuf (:type font-data) text-entries (:layer-mask (:font-map font-data)))]
     (vtx/flip! (fill-vertex-buffer gl vb font-data text-entries glyph-cache))))
 
 (defn- destroy-vbs
-  [^GL2 gl vbs _])
+  [^GL3 gl vbs _])
 
 (scene-cache/register-object-cache! ::vb make-vb update-vb destroy-vbs)
