@@ -151,6 +151,8 @@ public class ProjectBuildTest {
         return count;
     }
 
+    // Verify a debug archive builds without legacy Lua debugger modules, guarding
+    // against reintroducing MobDebug as an implicit game.project dependency.
     @Test
     public void testDebugBuildWithoutLuaDebuggerModules() throws Exception {
         createFile(contentRoot, "logic/main.collection", "name: \"default\"\nscale_along_z: 0\n");

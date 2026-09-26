@@ -23,10 +23,10 @@
            [java.nio.charset StandardCharsets]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private request-timeout-ms 10000)
-(def ^:private max-message-size (* 1024 1024))
-(def ^:private max-header-size 4096)
+(def ^:private ^:const request-timeout-ms 10000)
+(def ^:private ^:const max-message-size (* 1024 1024))
 
 (defn- read-message! [^InputStream in]
   (let [header (StringBuilder.)
@@ -36,7 +36,7 @@
             (when (= -1 ch)
               (throw (EOFException. "Debugger disconnected")))
             (.append header (char ch))
-            (when (> (.length header) max-header-size)
+            (when (> (.length header) 4096)
               (throw (IOException. "Debugger message header is too large")))
             (if-not (and (>= (.length header) 4)
                          (= "\r\n\r\n" (.substring header (- (.length header) 4))))
