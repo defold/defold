@@ -320,10 +320,71 @@
   (coll/first-index-where #(= [:values] (:path %))
                           vertex-attribute-fields))
 
+(defn- table-2panel-form [form localization-key]
+  (-> form
+      (assoc :type :table-2panel :full-width true)
+      (update :panel-key assoc :localization-key (str localization-key ".name") :pref-width 110)))
+
+(defn- constant-form-with-summary [localization-key path-key]
+  (let [form (render-program-utils/gen-form-data-constants localization-key path-key)
+        type-field (-> ((:panel-form-fn form) nil) :sections first :fields first)]
+    (assoc (table-2panel-form form localization-key)
+      :summary-columns
+      [(assoc type-field :pref-width 130)
+       {:path [:value] :localization-key (str localization-key ".value") :type :vec4
+        :value-fn (fn [{:keys [type value]}]
+                    (when (render-program-utils/editable-constant-type? (or type (:default type-field))) value))
+        :pref-width 180}])))
+
+(defn- vertex-attribute-form-with-summary []
+  (table-2panel-form
+    {:path [:attributes]
+     :localization-key "material.attributes"
+     :summary-columns (let [fields-by-path (coll/into-> vertex-attribute-fields {} (map (juxt :path identity)))
+                            column (fn [path pref-width]
+                                     (let [field (fields-by-path path)]
+                                       (assoc field :pref-width pref-width
+                                              :value-fn #(get-in % path (:default field)))))]
+                        [(column [:semantic-type] 130)
+                         (column [:vector-type] 90)
+                         (column [:data-type] 90)
+                         {:path [:values] :localization-key "material.attributes.value" :type :vec4
+                          :value-fn #(when-not (graphics/engine-provided-attribute? %) (:values %))
+                          :pref-width 180}])
+     :panel-key {:path [:name]
+                 :type :string
+                 :default "new_attribute"}
+     :panel-form-fn
+     (fn panel-form-fn [selected-attribute]
+       {:sections
+        [{:fields
+          (cond
+            (nil? selected-attribute)
+            vertex-attribute-fields
+
+            (graphics/engine-provided-attribute? selected-attribute)
+            (coll/remove-index vertex-attribute-fields value-vertex-attribute-field-index)
+
+            :else
+            (assoc vertex-attribute-fields
+              value-vertex-attribute-field-index
+              (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
+                    vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
+                    data-type (:data-type selected-attribute graphics/default-attribute-data-type)
+                    normalize (:normalize selected-attribute false)
+                    type (vector-type->form-field-type semantic-type vector-type data-type normalize)
+                    default (graphics.types/default-attribute-doubles semantic-type vector-type)]
+                {:path [:values]
+                 :localization-key "material.attributes.value"
+                 :type type
+                 :default default})))}]})}
+    "material.attributes"))
+
 (def ^:private form-data
   {:navigation false
    :sections
-   [{:localization-key "material"
+   [{:localization-key "material.programs"
+     :title-style-class "cljfx-form-group-title"
      :fields
      [{:path [:name]
        :localization-key "material.name"
@@ -331,44 +392,38 @@
        :default "New Material"}
       {:path [:vertex-program]
        :localization-key "material.vertex-program"
-       :type :resource :filter "vp"}
+       :type :resource :filter "vp" :max-width 800}
       {:path [:fragment-program]
        :localization-key "material.fragment-program"
-       :type :resource :filter "fp"}
-      {:path [:attributes]
-       :localization-key "material.attributes"
-       :type :2panel
-       :panel-key {:path [:name]
-                   :type :string
-                   :default "new_attribute"}
-       :panel-form-fn
-       (fn panel-form-fn [selected-attribute]
-         {:sections
-          [{:fields
-            (cond
-              (nil? selected-attribute)
-              vertex-attribute-fields
-
-              (graphics/engine-provided-attribute? selected-attribute)
-              (coll/remove-index vertex-attribute-fields value-vertex-attribute-field-index)
-
-              :else
-              (assoc vertex-attribute-fields
-                value-vertex-attribute-field-index
-                (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
-                      vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
-                      data-type (:data-type selected-attribute graphics/default-attribute-data-type)
-                      normalize (:normalize selected-attribute false)
-                      type (vector-type->form-field-type semantic-type vector-type data-type normalize)
-                      default (graphics.types/default-attribute-doubles semantic-type vector-type)]
-                  {:path [:values]
-                   :localization-key "material.attributes.value"
-                   :type type
-                   :default default})))}]})}
-      (render-program-utils/gen-form-data-constants "material.vertex-constants" :vertex-constants)
-      (render-program-utils/gen-form-data-constants "material.fragment-constants" :fragment-constants)
-      (render-program-utils/gen-form-data-samplers "material.samplers" :samplers)
-      {:path [:tags]
+       :type :resource :filter "fp" :max-width 800}]}
+    {:localization-key "material.attributes"
+     :title-style-class "cljfx-form-group-title"
+     :help-icon true
+     :fields [(vertex-attribute-form-with-summary)]}
+    {:localization-key "material.vertex-constants"
+     :title-style-class "cljfx-form-group-title"
+     :help-icon true
+     :fields [(constant-form-with-summary "material.vertex-constants" :vertex-constants)]}
+    {:localization-key "material.fragment-constants"
+     :title-style-class "cljfx-form-group-title"
+     :help-icon true
+     :fields [(constant-form-with-summary "material.fragment-constants" :fragment-constants)]}
+    {:localization-key "material.samplers"
+     :title-style-class "cljfx-form-group-title"
+     :help-icon true
+     :fields [(let [form (render-program-utils/gen-form-data-samplers "material.samplers" :samplers)
+                    fields (-> form :panel-form :sections first :fields)
+                    summary-paths #{[:wrap-u] [:wrap-v] [:filter-min] [:filter-mag]}]
+                (assoc (table-2panel-form form "material.samplers")
+                  :summary-columns
+                  (into []
+                        (comp (filter #(summary-paths (:path %)))
+                              (map #(assoc % :pref-width (if (= :choicebox (:type %)) 95 110))))
+                        fields)))]}
+    {:localization-key "material.render-settings"
+     :title-style-class "cljfx-form-group-title"
+     :fields
+     [{:path [:tags]
        :localization-key "material.tags"
        :type :list
        :element {:type :string :default "New Tag"}}
@@ -376,6 +431,8 @@
        :localization-key "material.vertex-space"
        :type :choicebox
        :options (protobuf-forms/make-enum-options Material$MaterialDesc$VertexSpace)
+       :pref-width 200
+       :max-width 200
        :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}
       {:path [:max-page-count]
        :localization-key "material.max-page-count"
@@ -454,7 +511,9 @@
     (g/set-property node-id property processed-value)))
 
 (g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count ^:raw samplers tags vertex-space :as args]
-  (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
+  (let [values (select-keys args (coll/into-> (:sections form-data) []
+                                   (mapcat :fields)
+                                   (mapcat :path)))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
