@@ -38,11 +38,6 @@ public class ArchiveReader {
 
     private ArrayList<ArchiveEntry> entries = null;
 
-    private int entryCount = 0;
-    private int entryOffset = 0;
-    private int hashOffset = 0;
-    private int hashLength = 0;
-
     private final String archiveIndexFilepath;
     private final String archiveDataFilepath;
     private final String manifestFilepath;
@@ -82,10 +77,10 @@ public class ArchiveReader {
         // INDEX
         archiveIndexFile.readInt(); // Pad
         archiveIndexFile.readLong(); // UserData
-        entryCount = archiveIndexFile.readInt();
-        entryOffset = archiveIndexFile.readInt();
-        hashOffset = archiveIndexFile.readInt();
-        hashLength = archiveIndexFile.readInt();
+        int entryCount = archiveIndexFile.readInt();
+        int entryOffset = archiveIndexFile.readInt();
+        int hashOffset = archiveIndexFile.readInt();
+        int hashLength = archiveIndexFile.readInt();
 
         entries = new ArrayList<ArchiveEntry>(entryCount);
 
@@ -119,7 +114,7 @@ public class ArchiveReader {
 
         // Read entries
         archiveIndexFile.seek(entryOffset);
-        for (int i=0; i<entryCount; ++i) {
+        for (int i = 0; i< entryCount; ++i) {
             ArchiveEntry e = entries.get(i);
 
             long offsetAndFlags = archiveIndexFile.readLong();

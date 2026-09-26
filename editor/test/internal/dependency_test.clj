@@ -36,15 +36,15 @@
 (deftest single-connection
   (testing "results include inputs"
     (ts/with-clean-system
-      (let [[a] (ts/tx-nodes (g/make-node world SingleOutput))
+      (let [[a] (ts/tx-nodes (g/make-node SingleOutput))
             deps (dependencies a :out-from-inline)]
         (is (= deps
                #{(gt/endpoint a :out-from-inline)})))))
 
   (testing "without outputs, nobody cares"
     (ts/with-clean-system
-      (let [[a b] (ts/tx-nodes (g/make-node world SingleOutput)
-                               (g/make-node world InputNoOutput))
+      (let [[a b] (ts/tx-nodes (g/make-node SingleOutput)
+                               (g/make-node InputNoOutput))
             _     (g/transact (g/connect a :out-from-inline b :unused-input))
             deps  (dependencies a :out-from-inline)]
         (is (= deps
@@ -52,8 +52,8 @@
 
   (testing "direct dependent outputs appear"
     (ts/with-clean-system
-      (let [[a b] (ts/tx-nodes (g/make-node world SingleOutput)
-                               (g/make-node world InputUsedByOutput))
+      (let [[a b] (ts/tx-nodes (g/make-node SingleOutput)
+                               (g/make-node InputUsedByOutput))
             _     (g/transact (g/connect a :out-from-inline b :string-input))
             deps  (dependencies a :out-from-inline)]
         (is (= deps
@@ -63,15 +63,15 @@
 (deftest fan-in
   (testing "results include inputs"
     (ts/with-clean-system
-      (let [[a b c d] (ts/tx-nodes (g/make-node world SingleOutput)
-                                   (g/make-node world SingleOutput)
-                                   (g/make-node world SingleOutput)
-                                   (g/make-node world SingleOutput))
+      (let [[a b c d] (ts/tx-nodes (g/make-node SingleOutput)
+                                   (g/make-node SingleOutput)
+                                   (g/make-node SingleOutput)
+                                   (g/make-node SingleOutput))
             deps (dependencies
-                               a :out-from-inline
-                               b :out-from-inline
-                               c :out-from-inline
-                               d :out-from-inline)]
+                   a :out-from-inline
+                   b :out-from-inline
+                   c :out-from-inline
+                   d :out-from-inline)]
         (is (= deps
                #{(gt/endpoint a :out-from-inline)
                  (gt/endpoint b :out-from-inline)
@@ -80,21 +80,21 @@
 
   (testing "multi-path dependency only appears once"
     (ts/with-clean-system
-      (let [[a b c d x] (ts/tx-nodes (g/make-node world SingleOutput)
-                                     (g/make-node world SingleOutput)
-                                     (g/make-node world SingleOutput)
-                                     (g/make-node world SingleOutput)
-                                     (g/make-node world InputUsedByOutput))
+      (let [[a b c d x] (ts/tx-nodes (g/make-node SingleOutput)
+                                     (g/make-node SingleOutput)
+                                     (g/make-node SingleOutput)
+                                     (g/make-node SingleOutput)
+                                     (g/make-node InputUsedByOutput))
             _           (g/transact
-                         (concat (g/connect a :out-from-inline x :string-input)
-                                 (g/connect b :out-from-inline x :string-input)
-                                 (g/connect c :out-from-inline x :string-input)
-                                 (g/connect d :out-from-inline x :string-input)))
+                          (concat (g/connect a :out-from-inline x :string-input)
+                                  (g/connect b :out-from-inline x :string-input)
+                                  (g/connect c :out-from-inline x :string-input)
+                                  (g/connect d :out-from-inline x :string-input)))
             deps        (dependencies
-                                      a :out-from-inline
-                                      b :out-from-inline
-                                      c :out-from-inline
-                                      d :out-from-inline)]
+                          a :out-from-inline
+                          b :out-from-inline
+                          c :out-from-inline
+                          d :out-from-inline)]
         (is (= deps
                #{(gt/endpoint a :out-from-inline)
                  (gt/endpoint b :out-from-inline)
@@ -102,21 +102,20 @@
                  (gt/endpoint d :out-from-inline)
                  (gt/endpoint x :out-from-input)}))))))
 
-
 (deftest fan-out
   (testing "all dependents are marked"
     (ts/with-clean-system
-      (let [[a w x y z] (ts/tx-nodes (g/make-node world SingleOutput)
-                                     (g/make-node world InputUsedByOutput)
-                                     (g/make-node world InputUsedByOutput)
-                                     (g/make-node world InputUsedByOutput)
-                                     (g/make-node world InputUsedByOutput))
+      (let [[a w x y z] (ts/tx-nodes (g/make-node SingleOutput)
+                                     (g/make-node InputUsedByOutput)
+                                     (g/make-node InputUsedByOutput)
+                                     (g/make-node InputUsedByOutput)
+                                     (g/make-node InputUsedByOutput))
             _           (g/transact
-                         (concat
-                          (g/connect a :out-from-inline x :string-input)
-                          (g/connect a :out-from-inline y :string-input)
-                          (g/connect a :out-from-inline z :string-input)
-                          (g/connect a :out-from-inline w :string-input)))
+                          (concat
+                            (g/connect a :out-from-inline x :string-input)
+                            (g/connect a :out-from-inline y :string-input)
+                            (g/connect a :out-from-inline z :string-input)
+                            (g/connect a :out-from-inline w :string-input)))
             deps        (dependencies a :out-from-inline)]
         (is (= deps
                #{(gt/endpoint a :out-from-inline)
@@ -145,15 +144,15 @@
 (deftest one-step-multipath
   (testing "one output to several inputs"
     (ts/with-clean-system
-      (let [[a x] (ts/tx-nodes (g/make-node world SingleOutput)
-                               (g/make-node world MultipleInputsIntoOneOutput))
+      (let [[a x] (ts/tx-nodes (g/make-node SingleOutput)
+                               (g/make-node MultipleInputsIntoOneOutput))
             _     (g/transact
-                   (concat
-                    (g/connect a :out-from-inline x :input-1)
-                    (g/connect a :out-from-inline x :input-2)
-                    (g/connect a :out-from-inline x :input-3)
-                    (g/connect a :out-from-inline x :input-4)
-                    (g/connect a :out-from-inline x :input-5)))
+                    (concat
+                      (g/connect a :out-from-inline x :input-1)
+                      (g/connect a :out-from-inline x :input-2)
+                      (g/connect a :out-from-inline x :input-3)
+                      (g/connect a :out-from-inline x :input-4)
+                      (g/connect a :out-from-inline x :input-5)))
             deps  (dependencies a :out-from-inline)]
         (is (= deps
                #{(gt/endpoint a :out-from-inline)
@@ -161,15 +160,15 @@
 
   (testing "several outputs to one input"
     (ts/with-clean-system
-      (let [[a x] (ts/tx-nodes (g/make-node world MultipleOutputs)
-                               (g/make-node world MultipleInputsIntoOneOutput))
+      (let [[a x] (ts/tx-nodes (g/make-node MultipleOutputs)
+                               (g/make-node MultipleInputsIntoOneOutput))
             _     (g/transact
-                   (concat
-                    (g/connect a :output-1 x :input-1)
-                    (g/connect a :output-2 x :input-2)
-                    (g/connect a :output-3 x :input-3)
-                    (g/connect a :output-4 x :input-4)
-                    (g/connect a :output-5 x :input-5)))
+                    (concat
+                      (g/connect a :output-1 x :input-1)
+                      (g/connect a :output-2 x :input-2)
+                      (g/connect a :output-3 x :input-3)
+                      (g/connect a :output-4 x :input-4)
+                      (g/connect a :output-5 x :input-5)))
             deps  (dependencies a :output-1 a :output-2 a :output-3 a :output-4 a :output-5)]
         (is (= deps
                #{(gt/endpoint a :output-1)
@@ -192,10 +191,10 @@
 (deftest with-self-dependencies
   (testing "dependencies propagate through fnks"
     (ts/with-clean-system
-      (let [[a x] (ts/tx-nodes (g/make-node world SingleOutput)
-                               (g/make-node world SelfDependent))
+      (let [[a x] (ts/tx-nodes (g/make-node SingleOutput)
+                               (g/make-node SelfDependent))
             _     (g/transact
-                   (g/connect a :out-from-inline x :string-input))
+                    (g/connect a :out-from-inline x :string-input))
             deps  (dependencies a :out-from-inline)]
         (is (= deps
                #{(gt/endpoint a :out-from-inline)
@@ -204,10 +203,10 @@
 
   (testing "outputs can depend on inputs with the same name"
     (ts/with-clean-system
-      (let [[a x] (ts/tx-nodes (g/make-node world SingleOutput)
-                               (g/make-node world BadlyWrittenSelfDependent))
+      (let [[a x] (ts/tx-nodes (g/make-node SingleOutput)
+                               (g/make-node BadlyWrittenSelfDependent))
             _     (g/transact
-                   (g/connect a :out-from-inline x :string-value))
+                    (g/connect a :out-from-inline x :string-value))
             deps  (dependencies a :out-from-inline)]
         (is (= deps
                #{(gt/endpoint a :out-from-inline)
@@ -216,16 +215,16 @@
 (deftest diamond-pattern
   (testing "multipath reaching the same node"
     (ts/with-clean-system
-      (let [[a b c d] (ts/tx-nodes (g/make-node world SingleOutput)
-                                   (g/make-node world InputUsedByOutput)
-                                   (g/make-node world InputUsedByOutput)
-                                   (g/make-node world InputUsedByOutput))
+      (let [[a b c d] (ts/tx-nodes (g/make-node SingleOutput)
+                                   (g/make-node InputUsedByOutput)
+                                   (g/make-node InputUsedByOutput)
+                                   (g/make-node InputUsedByOutput))
             _           (g/transact
-                         (concat
-                          (g/connect a :out-from-inline b :string-input)
-                          (g/connect a :out-from-inline c :string-input)
-                          (g/connect b :out-from-input  d :string-input)
-                          (g/connect c :out-from-input  d :string-input)))
+                          (concat
+                            (g/connect a :out-from-inline b :string-input)
+                            (g/connect a :out-from-inline c :string-input)
+                            (g/connect b :out-from-input  d :string-input)
+                            (g/connect c :out-from-input  d :string-input)))
             deps        (dependencies a :out-from-inline)]
         (is (= deps
                #{(gt/endpoint a :out-from-inline)
@@ -243,13 +242,13 @@
 (deftest independence-of-outputs
   (testing "output is only marked when its specific inputs are  affected"
     (ts/with-clean-system
-      (let [[a b x] (ts/tx-nodes (g/make-node world SingleOutput)
-                                 (g/make-node world SingleOutput)
-                                 (g/make-node world TwoIndependentOutputs))
+      (let [[a b x] (ts/tx-nodes (g/make-node SingleOutput)
+                                 (g/make-node SingleOutput)
+                                 (g/make-node TwoIndependentOutputs))
             _       (g/transact
-                     (concat
-                      (g/connect a :out-from-inline x :input-1)
-                      (g/connect b :out-from-inline x :input-2)))
+                      (concat
+                        (g/connect a :out-from-inline x :input-1)
+                        (g/connect b :out-from-inline x :input-2)))
             a-deps  (dependencies a :out-from-inline)
             b-deps  (dependencies b :out-from-inline)]
         (is (= a-deps

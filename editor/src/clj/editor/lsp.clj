@@ -203,7 +203,6 @@
           (keys (:resource->view-node state)))
         state))))
 
-
 (defonce/protocol ServerResponse
   (server-response-value [response])
   (server-response-update-state [response server state]))
@@ -857,19 +856,12 @@
                                    (do-open-view view-node to (g/node-value resource-node :lines evaluation-context)))))
                            $ viewed-moved)))))))
 
-(defn get-graph-lsp
-  "Given a project's graph id, return the LSP manager"
-  ([graph-id]
-   (get-graph-lsp (g/now) graph-id))
-  ([basis graph-id]
-   (g/graph-value basis graph-id :lsp)))
-
-(defn get-node-lsp
-  "Given a node id in a project graph, return the LSP manager"
-  ([node]
-   (get-node-lsp (g/now) node))
-  ([basis node]
-   (get-graph-lsp basis (g/node-id->graph-id node))))
+(defn get-lsp
+  "Returns the LSP manager from the current or supplied basis."
+  ([]
+   (get-lsp (g/now)))
+  ([basis]
+   (g/graph-value basis :lsp)))
 
 (defn- notify-workspace-diagnostics-callback! [resources callback]
   (fn [state]
@@ -1145,18 +1137,18 @@
 
   (val (first @running-lsps))
   ;; Restart all servers:
-  ((g/graph-value 0 :lsp) (fn [state]
-                            (let [servers (set (keys (:server->server-state state)))]
-                              (-> state
-                                  ((set-servers #{}))
-                                  ((set-servers servers))))))
+  ((g/graph-value :lsp) (fn [state]
+                          (let [servers (set (keys (:server->server-state state)))]
+                            (-> state
+                                ((set-servers #{}))
+                                ((set-servers servers))))))
   ;; Stop all LSP servers
-  (set-servers! (g/graph-value 0 :lsp) #{})
+  (set-servers! (g/graph-value :lsp) #{})
   ;; Pull diagnostics
-  (pull-workspace-diagnostics! (g/graph-value 0 :lsp) tap>)
+  (pull-workspace-diagnostics! (g/graph-value :lsp) tap>)
   ;; Start json LSP server (install: npm install -g vscode-json-languageserver)
   (set-servers!
-    (g/graph-value 0 :lsp)
+    (g/graph-value :lsp)
     #{{:languages #{"json" "jsonc"}
        :launcher {:command ["/opt/homebrew/bin/vscode-json-languageserver" "--stdio"]}}
       {:languages #{"lua"}

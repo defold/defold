@@ -13,8 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #import "AppDelegateProxy.h"
-
-@class AppDelegate;
+#import "AppDelegate.h"
 
 #include "internal.h"
 
@@ -45,12 +44,6 @@ AppDelegate* g_ApplicationDelegate = 0;
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: @selector(applicationDidFinishLaunching:)]) {
-            [g_AppDelegates[i] applicationDidFinishLaunching: application];
-        }
-    }
-
     BOOL handled = NO;
     for (int i = 0; i < g_AppDelegatesCount; ++i) {
         if ([g_AppDelegates[i] respondsToSelector: @selector(application:didFinishLaunchingWithOptions:)]) {
@@ -61,42 +54,10 @@ AppDelegate* g_ApplicationDelegate = 0;
     return handled;
 }
 
-// NOTE: Don't understand why this special case is required. "forwardInvocation" et al
-// should be able to intercept all invocations but for some unknown reason not handleOpenURL
--(BOOL) application:(UIApplication *)application handleOpenURL:(NSURL *)url {
-    SEL sel = @selector(application:handleOpenURL:);
-    BOOL handled = NO;
-
-    if ([g_ApplicationDelegate respondsToSelector:sel]) {
-        if ([g_ApplicationDelegate application: application handleOpenURL: url])
-            handled = YES;
-    }
-
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: sel]) {
-            if ([g_AppDelegates[i] application: application handleOpenURL: url])
-                handled = YES;
-        }
-    }
-    return handled;
-}
-
--(BOOL) application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation{
-    SEL sel = @selector(application:openURL:sourceApplication:annotation:);
-    BOOL handled = NO;
-
-   for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: sel])  {
-            if ([g_AppDelegates[i] application: application openURL: url sourceApplication:sourceApplication annotation:(id)annotation])
-                handled = YES;
-        }
-    }
-
-    // handleOpenURL is deprecated. We call it from here as if openURL is implemented, handleOpenURL won't be called.
-    if ([self application: application handleOpenURL:url])
-        handled = YES;
-
-    return handled;
+- (UISceneConfiguration*)application:(UIApplication*)application configurationForConnectingSceneSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options
+{
+    // Keep engine-owned configuration out of generic extension forwarding.
+    return [g_ApplicationDelegate application:application configurationForConnectingSceneSession:session options:options];
 }
 
 - (void)forwardInvocation:(NSInvocation *)anInvocation {
@@ -119,6 +80,9 @@ AppDelegate* g_ApplicationDelegate = 0;
 }
 
 - (BOOL)respondsToSelector:(SEL)aSelector {
+    if ([super respondsToSelector:aSelector]) {
+        return YES;
+    }
     if ([g_ApplicationDelegate respondsToSelector: aSelector]) {
         return YES;
     }
@@ -134,13 +98,16 @@ AppDelegate* g_ApplicationDelegate = 0;
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
 {
-    NSMethodSignature* signature = [g_ApplicationDelegate methodSignatureForSelector:aSelector];
+    NSMethodSignature* signature = [super methodSignatureForSelector:aSelector];
+    if (!signature)
+        signature = [g_ApplicationDelegate methodSignatureForSelector:aSelector];
 
     if (!signature)
     {
         for (int i = 0; i < g_AppDelegatesCount; ++i) {
-            if ([g_AppDelegates[i] respondsToSelector: aSelector]) {
-                return [g_AppDelegates[i] methodSignatureForSelector:aSelector];
+            id delegate = g_AppDelegates[i];
+            if ([delegate respondsToSelector: aSelector]) {
+                return [delegate methodSignatureForSelector:aSelector];
             }
         }
     }

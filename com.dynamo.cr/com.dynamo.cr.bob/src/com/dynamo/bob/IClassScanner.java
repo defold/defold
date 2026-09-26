@@ -14,7 +14,6 @@
 
 package com.dynamo.bob;
 
-import java.lang.ClassLoader;
 import java.io.File;
 import java.util.Set;
 

@@ -34,6 +34,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -55,48 +56,11 @@
   (vec3 position)
   (vec4 color))
 
-(shader/defshader vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
+(def shader shaders/basic-color-straight-alpha-world-space)
 
-(shader/defshader fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
+(def line-shader shader)
 
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
-
-(shader/defshader line-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
-
-(shader/defshader label-id-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))))
-
-(shader/defshader label-id-fragment-shader
-  (uniform vec4 id)
-  (defn void main []
-    (setq gl_FragColor id)))
-
-(def id-shader (shader/make-shader ::label-id-shader label-id-vertex-shader label-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+(def id-shader shaders/uniform-color-world-space)
 
 ; Vertex generation
 
@@ -157,7 +121,8 @@
 
         pass/selection
         (let [vertex-binding (vtx/use-with ::tris-selection vb id-shader)]
-          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable)) [id-shader vertex-binding gpu-texture]
+          (gl/with-gl-bindings gl render-args [id-shader vertex-binding gpu-texture]
+            (shader/set-uniform id-shader gl "color" (scene-picking/renderable-picking-id-uniform renderable))
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
 ; Node defs
@@ -384,10 +349,9 @@
   (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture tex-params]
                                       (texture/set-params gpu-texture tex-params))))
 
-(defn load-label [_project self resource label]
+(defn load-label [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id label :source-value}]
   {:pre [(map? label)]} ; Label$LabelDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (gu/set-properties-from-pb-map self Label$LabelDesc label
       text :text
       style :style
@@ -404,7 +368,7 @@
       font (resolve-resource :font)
       material (resolve-resource :material))))
 
-(defn- sanitize-label [label-desc]
+(defn- sanitize-label [_read-opts _owner-resource label-desc]
   (let [legacy-scale-v3 (some-> label-desc :scale protobuf/vector4->vector3)
         sanitized-label (protobuf/sanitize label-desc :size protobuf/sanitize-required-vector4-zero-as-vector3)
         sanitized-label (if (scene/significant-scale? legacy-scale-v3)

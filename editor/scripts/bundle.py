@@ -747,7 +747,7 @@ def init_editor(options, platform, jdk):
 
 def run_tests(jdk):
     invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
-    invoke_lein(['test'], jdk_path=jdk)
+    invoke_lein(['with-profile', '+headless', 'test'], jdk_path=jdk)
     # test that docs can be successfully produced
     write_docs('target/docs', jdk_path=jdk)
 

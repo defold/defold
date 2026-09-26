@@ -15,6 +15,8 @@
 #include <dlib/array.h>
 #include <dlib/configfile.h>
 #include <dlib/log.h>
+#include <dlib/profile.h>
+#include <dlib/thread.h>
 #include <extension/extension.hpp>
 #include <script/script.h>
 #include <testmain/testmain.h>
@@ -31,6 +33,11 @@ namespace
     public:
         void SetUp() override
         {
+            SetUp("");
+        }
+
+        void SetUp(const char* config)
+        {
             m_ExtensionInitialized = false;
             m_AppInitialized = false;
             s_LogCaptureContext = this;
@@ -39,7 +46,7 @@ namespace
             dmLog::LogInitialize(&log_params);
             dmLogRegisterListener(LogListener);
 
-            dmConfigFile::Result config_result = dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_ConfigFile);
+            dmConfigFile::Result config_result = dmConfigFile::LoadFromBuffer(config, strlen(config), 0, 0, &m_ConfigFile);
             ASSERT_EQ(dmConfigFile::RESULT_OK, config_result);
 
             dmScript::ContextParams script_context_params = {};
@@ -108,6 +115,8 @@ namespace
             m_ExtensionInitialized = false;
         }
 
+        void ReinitializeWhileProfiling();
+
         char* GetLog()
         {
             if (s_LogCaptureContext)
@@ -151,7 +160,94 @@ namespace
         static ProfilerExtLuaTest* s_LogCaptureContext;
     };
 
+    class ProfilerExtLuaInvalidSampleLimitTest : public ProfilerExtLuaTest
+    {
+    public:
+        void SetUp() override
+        {
+            ProfilerExtLuaTest::SetUp("[profiler]\nmax_sample_count=invalid\n");
+        }
+    };
+
     ProfilerExtLuaTest* ProfilerExtLuaTest::s_LogCaptureContext = 0;
+
+    static void ProfileOnWorkerThread(void* arg)
+    {
+        uint32_t* completed_frames = (uint32_t*) arg;
+        uint64_t name_hash = 0;
+        for (uint32_t i = 0; i < 128; ++i)
+        {
+            HProfile frame = ProfileFrameBegin();
+            if (ProfileScopeBegin("worker_scope", &name_hash) != PROFILE_RESULT_OK)
+                return;
+            if (ProfileScopeEnd("worker_scope", name_hash) != PROFILE_RESULT_OK)
+                return;
+            if (ProfileFrameEnd(frame) != PROFILE_RESULT_OK)
+                return;
+            ++*completed_frames;
+        }
+    }
+}
+
+void ProfilerExtLuaTest::ReinitializeWhileProfiling()
+{
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        FinalizeExtension();
+        m_AppParams.m_ExitStatus = EXTENSION_APP_EXIT_CODE_REBOOT;
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&m_AppParams));
+        m_AppInitialized = false;
+        ASSERT_TRUE(ProfileIsInitialized());
+
+        // A reboot keeps the profiler and log thread alive. A fresh worker also
+        // allocates its sample pool while app initialization updates the limit.
+        uint32_t completed_frames = 0;
+        dmThread::Thread thread = dmThread::New(ProfileOnWorkerThread, 0x80000, &completed_frames, "profiler_test");
+        m_AppParams.m_ExitStatus = EXTENSION_APP_EXIT_CODE_NONE;
+        dmExtension::Result app_result = dmExtension::AppInitialize(&m_AppParams);
+        m_AppInitialized = app_result == dmExtension::RESULT_OK;
+        dmExtension::Result extension_result = dmExtension::Initialize(&m_Params);
+        m_ExtensionInitialized = extension_result == dmExtension::RESULT_OK;
+        bool script_result = RunString(
+            "profiler.enable(false)\n"
+            "profiler.enable(true)\n"
+            "profiler.scope_begin(\"after_reinitialize\")\n"
+            "profiler.scope_end()\n");
+        dmThread::Join(thread);
+
+        ASSERT_EQ(dmExtension::RESULT_OK, app_result);
+        ASSERT_EQ(dmExtension::RESULT_OK, extension_result);
+        ASSERT_TRUE(script_result);
+        ASSERT_EQ(128u, completed_frames);
+    }
+}
+
+// Verify that app reinitialization and profiler.enable() changes are safe while
+// a worker collects samples and property frames. Every worker must finish all
+// frames, and ThreadSanitizer must report no races on the sample limit or the
+// sample/property callback pointers and their contexts.
+TEST_F(ProfilerExtLuaTest, AppReinitializeWhileProfiling)
+{
+    if (!dmThread::PlatformHasThreadSupport())
+    {
+        SKIP();
+    }
+
+    ReinitializeWhileProfiling();
+}
+
+// Verify that an invalid sample limit logs a warning and app reinitialization
+// completes while a worker collects samples. Reading config under the backend
+// lock would invert the lock order when logging re-enters the profiler.
+TEST_F(ProfilerExtLuaInvalidSampleLimitTest, AppReinitializeWhileProfiling)
+{
+    if (!dmThread::PlatformHasThreadSupport())
+    {
+        SKIP();
+    }
+
+    ReinitializeWhileProfiling();
+    ASSERT_NE((char*) 0, strstr(GetLog(), "Unable to convert 'invalid' to int"));
 }
 
 TEST_F(ProfilerExtLuaTest, ScopeEndWithoutBeginRaisesLuaError)

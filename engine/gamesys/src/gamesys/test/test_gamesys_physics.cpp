@@ -187,6 +187,12 @@ TEST_F(ComponentTest, JointTest)
 
 }
 
+TEST_F(ComponentTest, Box2DApiTest)
+{
+    RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext,
+                         "/collision_object/box2d_test.goc", "/box2d_test");
+}
+
 TEST_F(ComponentTest, Box2DWorldApiTest)
 {
     /* Intent: verify b2d.world query and cast wrappers.

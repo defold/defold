@@ -36,7 +36,6 @@
             [editor.rig :as rig]
             [editor.texture-util :as texture-util]
             [editor.validation :as validation]
-            [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]])
@@ -384,19 +383,19 @@
           texture-binding-name-index)))
 
 (defn- create-texture-binding-tx [material-binding sampler texture]
-  (g/make-nodes (g/node-id->graph-id material-binding) [texture-binding [TextureBinding
-                                                                         :sampler sampler
-                                                                         :texture texture]]
+  (g/make-nodes [texture-binding [TextureBinding
+                                  :sampler sampler
+                                  :texture texture]]
     (g/connect texture-binding :_node-id material-binding :copied-nodes)
     (g/connect texture-binding :texture-binding-info material-binding :texture-binding-infos)
     (g/connect texture-binding :build-targets material-binding :dep-build-targets)))
 
 (defn- create-material-binding-tx [model-node-id name material material-index textures vertex-attribute-overrides]
-  (g/make-nodes (g/node-id->graph-id model-node-id) [material-binding [MaterialBinding
-                                                                       :name name
-                                                                       :material material
-                                                                       :material-index material-index
-                                                                       :vertex-attribute-overrides vertex-attribute-overrides]]
+  (g/make-nodes [material-binding [MaterialBinding
+                                   :name name
+                                   :material material
+                                   :material-index material-index
+                                   :vertex-attribute-overrides vertex-attribute-overrides]]
     (g/connect material-binding :_node-id model-node-id :copied-nodes)
     (g/connect material-binding :dep-build-targets model-node-id :dep-build-targets)
     (g/connect material-binding :material-scene-info model-node-id :material-scene-infos)
@@ -678,9 +677,8 @@
   (when (migrated? model-node-id model-desc evaluation-context)
     (g/flag-nodes-as-migrated! evaluation-context [model-node-id])))
 
-(defn load-model [_project self resource {:keys [materials] :as model-desc}]
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+(defn load-model [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id {:keys [materials] :as model-desc} :source-value}]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (gu/set-properties-from-pb-map self ModelProto$ModelDesc model-desc
         name :name
@@ -702,7 +700,7 @@
         materials)
       (g/callback-ec detect-and-flag-migrated! self model-desc))))
 
-(defn- sanitize-model [{:keys [material textures materials] :as model-desc}]
+(defn- sanitize-model [_read-opts _owner-resource {:keys [material textures materials] :as model-desc}]
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
   (-> model-desc
       (dissoc :material :textures)

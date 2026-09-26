@@ -575,7 +575,7 @@ public class LuaScanner {
                 case 'a' -> bytes.write(0x07);
                 case 'b' -> bytes.write('\b');
                 case 'f' -> bytes.write('\f');
-                case 'n' -> bytes.write('\n');
+                case 'n', '\n' -> bytes.write('\n');
                 case 'r' -> bytes.write('\r');
                 case 't' -> bytes.write('\t');
                 case 'v' -> bytes.write(0x0b);
@@ -596,7 +596,6 @@ public class LuaScanner {
                     }
                     bytes.write('\n');
                 }
-                case '\n' -> bytes.write('\n');
                 case 'x' -> {
                     // Hex byte escapes are exactly two hex digits: \xXX.
                     if (i + 2 >= value.length()) {

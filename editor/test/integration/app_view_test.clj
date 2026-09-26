@@ -136,7 +136,7 @@
 
 (deftest revert-rename-of-opened-file
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/reload_project")
           project (test-util/setup-project! workspace)
           app-view (test-util/setup-app-view! project)
           atlas-path "/atlas/single.atlas"
@@ -164,7 +164,7 @@
 
 (deftest rename-directory-handles-all-files-in-directory
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/small_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/small_project")
           project (test-util/setup-project! workspace)
           game-project (test-util/resource-node project "/game.project")
           main-dir (workspace/find-resource workspace "/main")]
@@ -199,7 +199,7 @@
                      (set/intersection cached-outputs retained-labels))))]
       (with-clean-system {:cache-size cache-size
                           :cache-retain? project/cache-retain?}
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               artifact-map (workspace/artifact-map workspace)
               game-project (test-util/resource-node project "/game.project")

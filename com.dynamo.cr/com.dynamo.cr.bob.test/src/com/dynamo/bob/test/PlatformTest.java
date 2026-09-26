@@ -14,8 +14,10 @@
 
 package com.dynamo.bob.test;
 
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 import org.junit.Test;
 
@@ -28,7 +30,7 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 public class PlatformTest {
 
     static void testPlatformGet(Platform p) {
-        assertTrue(p == Platform.get(p.getPair()));
+        assertSame(p, Platform.get(p.getPair()));
     }
 
     @Test
@@ -50,22 +52,22 @@ public class PlatformTest {
 
     @Test
     public void testPlatformOS() {
-        assertTrue(Platform.get("x86_64-win32").getOsID() == PlatformProfile.OS.OS_ID_WINDOWS);
+        assertSame(PlatformProfile.OS.OS_ID_WINDOWS, Platform.get("x86_64-win32").getOsID());
 
-        assertTrue(Platform.get("x86_64-macos").getOsID() == PlatformProfile.OS.OS_ID_OSX);
-        assertTrue(Platform.get("arm64-macos").getOsID() == PlatformProfile.OS.OS_ID_OSX);
+        assertSame(PlatformProfile.OS.OS_ID_OSX, Platform.get("x86_64-macos").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_OSX, Platform.get("arm64-macos").getOsID());
 
-        assertTrue(Platform.get("arm64-ios").getOsID() == PlatformProfile.OS.OS_ID_IOS);
-        assertTrue(Platform.get("arm64_sim-ios").getOsID() == PlatformProfile.OS.OS_ID_IOS);
+        assertSame(PlatformProfile.OS.OS_ID_IOS, Platform.get("arm64-ios").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_IOS, Platform.get("arm64_sim-ios").getOsID());
 
-        assertTrue(Platform.get("armv7-android").getOsID() == PlatformProfile.OS.OS_ID_ANDROID);
-        assertTrue(Platform.get("arm64-android").getOsID() == PlatformProfile.OS.OS_ID_ANDROID);
+        assertSame(PlatformProfile.OS.OS_ID_ANDROID, Platform.get("armv7-android").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_ANDROID, Platform.get("arm64-android").getOsID());
 
-        assertTrue(Platform.get("wasm-web").getOsID() == PlatformProfile.OS.OS_ID_WEB);
-        assertTrue(Platform.get("wasm_pthread-web").getOsID() == PlatformProfile.OS.OS_ID_WEB);
+        assertSame(PlatformProfile.OS.OS_ID_WEB, Platform.get("wasm-web").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_WEB, Platform.get("wasm_pthread-web").getOsID());
 
-        assertTrue(Platform.get("x86_64-linux").getOsID() == PlatformProfile.OS.OS_ID_LINUX);
-        assertTrue(Platform.get("arm64-linux").getOsID() == PlatformProfile.OS.OS_ID_LINUX);
+        assertSame(PlatformProfile.OS.OS_ID_LINUX, Platform.get("x86_64-linux").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_LINUX, Platform.get("arm64-linux").getOsID());
 
         assertNull(Platform.get(""));
     }
@@ -77,8 +79,8 @@ public class PlatformTest {
             List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
             if (!availableArchitectures.contains(platform.getPair()))
             {
-                System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", platform.getPair(), platform.getPair(), String.join(", ", availableArchitectures)));
-                assertTrue(false);
+                System.out.printf("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s%n", platform.getPair(), platform.getPair(), String.join(", ", availableArchitectures));
+                fail();
             }
         }
     }

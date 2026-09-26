@@ -24,14 +24,11 @@
             [internal.graph.types :as gt]
             [internal.system :as isys]))
 
-
 (defn load-test-project!
-  [world]
-  (let [[workspace project app-view] (test-util/setup! world)
-        project-graph        (g/node-id->graph-id project)
+  []
+  (let [[workspace project app-view] (test-util/setup!)
         [atlas-node view]    (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
-    {:project-graph project-graph
-     :app-view      app-view
+    {:app-view      app-view
      :resource-node atlas-node
      :resource-view view}))
 
@@ -74,44 +71,44 @@
 
   (output scene g/Int :cached (g/fnk [omega view] (+ omega view))))
 
-(defn pile-of-nodes [where tp n] (tx-nodes (repeatedly (int n) #(g/make-node where tp))))
+(defn pile-of-nodes [tp n] (tx-nodes (repeatedly (int n) #(g/make-node tp))))
 (defn connection-targets [how-many from] (partition how-many (repeatedly #(rand-nth from))))
 
 (defn build-fake-graph!
-  [graph resource-count view-node-count]
-  (let [workspace      (first (tx-nodes (g/make-node graph FWorkspace)))
-        bottom-layer   (pile-of-nodes graph FResource resource-count)
-        middle-layer   (pile-of-nodes graph FEditable resource-count)
-        top-layer      (pile-of-nodes graph FEditable (bit-shift-right resource-count 2))
-        view-layer     (pile-of-nodes graph FView     view-node-count)]
+  [resource-count view-node-count]
+  (let [workspace      (first (tx-nodes (g/make-node FWorkspace)))
+        bottom-layer   (pile-of-nodes FResource resource-count)
+        middle-layer   (pile-of-nodes FEditable resource-count)
+        top-layer      (pile-of-nodes FEditable (bit-shift-right resource-count 2))
+        view-layer     (pile-of-nodes FView     view-node-count)]
 
     (g/transact
-     [(for [b bottom-layer] (g/connect b :_node-id workspace :children))
-      (for [m middle-layer] (g/connect m :_node-id workspace :children))
-      (for [t top-layer]    (g/connect t :_node-id workspace :children))])
+      [(for [b bottom-layer] (g/connect b :_node-id workspace :children))
+       (for [m middle-layer] (g/connect m :_node-id workspace :children))
+       (for [t top-layer]    (g/connect t :_node-id workspace :children))])
 
     (g/transact
-     (mapcat #(g/set-property % :path (rand-int 10000)) bottom-layer))
+      (mapcat #(g/set-property % :path (rand-int 10000)) bottom-layer))
 
     (g/transact
-     (mapcat (fn [m [a b c]]
-               [(g/connect a :contents m :alpha)
-                (g/connect b :contents m :beta)
-                (g/connect c :contents m :gamma)])
-             middle-layer (connection-targets 3 bottom-layer)))
+      (mapcat (fn [m [a b c]]
+                [(g/connect a :contents m :alpha)
+                 (g/connect b :contents m :beta)
+                 (g/connect c :contents m :gamma)])
+              middle-layer (connection-targets 3 bottom-layer)))
 
     (g/transact
-     (mapcat (fn [t [o e o2]]
-               [(g/connect o :omega   t :alpha)
-                (g/connect e :epsilon t :beta)
-                (g/connect e :omega   t :gamma)])
-             top-layer (connection-targets 3 middle-layer)))
+      (mapcat (fn [t [o e o2]]
+                [(g/connect o :omega   t :alpha)
+                 (g/connect e :epsilon t :beta)
+                 (g/connect e :omega   t :gamma)])
+              top-layer (connection-targets 3 middle-layer)))
 
     (g/transact
-     (mapcat (fn [v [o e]]
-               [(g/connect o :omega    v :omega)
-                (g/connect e :epsilon  v :view)])
-             view-layer (connection-targets 2 top-layer)))
+      (mapcat (fn [v [o e]]
+                [(g/connect o :omega    v :omega)
+                 (g/connect e :epsilon  v :view)])
+              view-layer (connection-targets 2 top-layer)))
 
     [bottom-layer view-layer]))
 
@@ -125,20 +122,20 @@
 (defn network-creation []
   (do-benchmark "Whole Graph Network Creation"
                 (with-clean-system
-                  (load-test-project! world))))
+                  (load-test-project!))))
 
 (defn add-one-node []
   (println "Benching: Adding one node")
   (with-clean-system
-    (load-test-project! world)
+    (load-test-project!)
     (do-benchmark "Add One Node"
-                  (g/transact (g/make-node world AThing)))))
+                  (g/transact (g/make-node AThing)))))
 
 (defn add-one-node-delete-one-node []
   (with-clean-system
-    (load-test-project! world)
+    (load-test-project!)
     (do-benchmark "Add One Node and Delete One Node"
-                  (let [[new-node] (g/tx-nodes-added (g/transact (g/make-node world AThing)))]
+                  (let [[new-node] (g/tx-nodes-added (g/transact (g/make-node AThing)))]
                     (g/transact (g/delete-node new-node))))))
 
 (defn- safe-rand-nth [coll]
@@ -147,10 +144,10 @@
 
 (defn set-property-some-nodes []
   (with-clean-system
-    (let [r               (load-test-project! world)
-          project-graph   (isys/graph @g/*the-system* (:project-graph r))
+    (let [r               (load-test-project!)
+          basis           (isys/basis @g/*the-system*)
           affected-num    100
-          chosen-node-ids (repeatedly affected-num (partial rand-nth (ig/node-ids project-graph)))
+          chosen-node-ids (repeatedly affected-num (partial rand-nth (vec (ig/node-ids basis))))
           chosen-props    (mapv (fn [node-id]  (safe-rand-nth (vec (disj (-> node-id g/node-type g/declared-property-labels) :id)))) chosen-node-ids)]
       (str "Set Property on " affected-num " Nodes")
       (do-benchmark (str "Set Property on " affected-num " Nodes")
@@ -158,32 +155,32 @@
 
 (defn add-two-nodes-and-connect-them []
   (with-clean-system
-    (load-test-project! world)
+    (load-test-project!)
     (do-benchmark "Add Two Nodes and Connect Them"
-                  (let [txn-results (g/transact [(g/make-node world AThing)
-                                                 (g/make-node world Container)])
+                  (let [txn-results (g/transact [(g/make-node AThing)
+                                                 (g/make-node Container)])
                         [new-input-node new-output-node] (g/tx-nodes-added txn-results)]
                     (g/transact (g/connect new-input-node :a-property new-output-node :nodes))))))
 
 (defn add-two-nodes-and-connect-and-disconnect-them []
   (with-clean-system
-    (load-test-project! world)
+    (load-test-project!)
     (do-benchmark "Add Two Nodes Connect and Disconnect Them"
-     (let [txn-results (g/transact [(g/make-node world AThing)
-                                    (g/make-node world Container)])
-           [new-input-node new-output-node] (g/tx-nodes-added txn-results)]
-       (g/transact (g/connect new-input-node :a-property new-output-node :nodes))
-       (g/transact (g/disconnect new-input-node :a-property new-output-node :nodes))))))
+                  (let [txn-results (g/transact [(g/make-node AThing)
+                                                 (g/make-node Container)])
+                        [new-input-node new-output-node] (g/tx-nodes-added txn-results)]
+                    (g/transact (g/connect new-input-node :a-property new-output-node :nodes))
+                    (g/transact (g/disconnect new-input-node :a-property new-output-node :nodes))))))
 
 (defn one-node-value []
   (with-clean-system
-    (let [txn-results (g/transact [(g/make-node world AThing)])
+    (let [txn-results (g/transact [(g/make-node AThing)])
           [new-input-node] (g/tx-nodes-added txn-results)]
       (g/node-value new-input-node :an-output))))
 
 (defn one-node-value-bench []
   (with-clean-system {:cache-size 0}
-    (let [txn-results (g/transact [(g/make-node world AThing)])
+    (let [txn-results (g/transact [(g/make-node AThing)])
           [new-input-node] (g/tx-nodes-added txn-results)]
       (do-benchmark "Pull :an-output"
                     (g/node-value new-input-node :an-output)))))
@@ -206,7 +203,7 @@
 
 (defn do-transactions-for-tracing [n]
   (with-clean-system
-    (let [[resources views] (build-fake-graph! world 1000 100)
+    (let [[resources views] (build-fake-graph! 1000 100)
           actions           (map (fn [& a] a)
                                  (repeatedly n #(rand-nth resources))
                                  (repeat n :path)
@@ -218,7 +215,7 @@
 
 (defn do-transactions [n]
   (with-clean-system
-    (let [[resources views] (build-fake-graph! world 1000 100)
+    (let [[resources views] (build-fake-graph! 1000 100)
           actions           (map (fn [& a] a)
                                  (repeatedly n #(rand-nth resources))
                                  (repeat n :path)

@@ -60,14 +60,12 @@ static float GlyphBankGetScaleFromSize(HFont hfont, uint32_t size)
 
 static float GlyphBankGetAscent(HFont hfont, float scale)
 {
-    (void)scale;
-    return GetProvider(hfont)->m_MaxAscent;
+    return GetProvider(hfont)->m_MaxAscent * scale;
 }
 
 static float GlyphBankGetDescent(HFont hfont, float scale)
 {
-    (void)scale;
-    return GetProvider(hfont)->m_MaxDescent;
+    return GetProvider(hfont)->m_MaxDescent * scale;
 }
 
 static float GlyphBankGetLineGap(HFont hfont, float scale)

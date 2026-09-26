@@ -64,8 +64,8 @@
 (deftest test-schema-validations-on-connect
   (testing "matching schemas connect"
     (with-clean-system
-      (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
-                                      (g/make-node world ArrayNode))]
+      (let [[b-node a-node] (tx-nodes (g/make-node BaseNode)
+                                      (g/make-node ArrayNode))]
         (is (not (nil? (g/transact (g/connect b-node :str-output b-node :str-input)))))
         (is (not (nil? (g/transact (g/connect b-node :int-output b-node :int-input)))))
         (is (not (nil? (g/transact (g/connect b-node :str-output a-node :str-array-input)))))
@@ -73,8 +73,8 @@
 
   (testing "mismatched schemas do not connect"
     (with-clean-system
-      (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
-                                      (g/make-node world ArrayNode))]
+      (let [[b-node a-node] (tx-nodes (g/make-node BaseNode)
+                                      (g/make-node ArrayNode))]
         (is (thrown? AssertionError (g/transact (g/connect b-node :int-output b-node :str-input))))
         (is (thrown? AssertionError (g/transact (g/connect b-node :str-output b-node :int-input))))
         (is (thrown? AssertionError (g/transact (g/connect b-node :int-output a-node :str-array-input))))
@@ -83,12 +83,12 @@
 (deftest test-schema-validations-on-value-production
   (testing "values that match input schemas produce values"
     (with-clean-system
-      (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
-                                      (g/make-node world ArrayNode))]
-        (g/transact [ (g/connect b-node :str-output b-node :str-input)
-                      (g/connect b-node :int-output b-node :int-input)
-                      (g/connect b-node :str-output a-node :str-array-input)
-                      (g/connect b-node :int-output a-node :int-array-input)])
+      (let [[b-node a-node] (tx-nodes (g/make-node BaseNode)
+                                      (g/make-node ArrayNode))]
+        (g/transact [(g/connect b-node :str-output b-node :str-input)
+                     (g/connect b-node :int-output b-node :int-input)
+                     (g/connect b-node :str-output a-node :str-array-input)
+                     (g/connect b-node :int-output a-node :int-array-input)])
         (is (= "I am a string." (g/node-value b-node :str-pass-through)))
         (is (= 99 (g/node-value b-node :int-pass-through)))
         (is (= ["I am a string."] (g/node-value a-node :str-array-pass-through)))
@@ -97,9 +97,9 @@
   (testing "values that do not match input schemas produce errors"
     (with-clean-system
       (binding [internal.node/*suppress-schema-warnings* true]
-        (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
-                                (g/make-node world ArrayNode))]
-          (g/transact [ (g/connect b-node :bad-str-output b-node :str-input)
+        (let [[b-node a-node] (tx-nodes (g/make-node BaseNode)
+                                        (g/make-node ArrayNode))]
+          (g/transact [(g/connect b-node :bad-str-output b-node :str-input)
                        (g/connect b-node :bad-int-output b-node :int-input)
                        (g/connect b-node :bad-str-output a-node :str-array-input)
                        (g/connect b-node :bad-int-output a-node :int-array-input)])
@@ -111,8 +111,8 @@
 
   (testing "disconnected mismatched values do not produce errors"
     (with-clean-system
-      (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
-                                      (g/make-node world ArrayNode))]
+      (let [[b-node a-node] (tx-nodes (g/make-node BaseNode)
+                                      (g/make-node ArrayNode))]
         (is (nil? (g/node-value b-node :str-pass-through)))
         (is (nil? (g/node-value b-node :int-pass-through)))
         (is (= [] (g/node-value a-node :str-array-pass-through)))
@@ -121,12 +121,12 @@
   (testing "values that do not match input schemas produce errors with cascades"
     (with-clean-system
       (binding [internal.node/*suppress-schema-warnings* true]
-        (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
-                                        (g/make-node world ArrayNode))]
-          (g/transact [ (g/connect b-node :bad-str-output b-node :str-input)
-                        (g/connect b-node :bad-int-output b-node :int-input)
-                        (g/connect b-node :bad-str-output a-node :str-array-input)
-                        (g/connect b-node :bad-int-output a-node :int-array-input)])
+        (let [[b-node a-node] (tx-nodes (g/make-node BaseNode)
+                                        (g/make-node ArrayNode))]
+          (g/transact [(g/connect b-node :bad-str-output b-node :str-input)
+                       (g/connect b-node :bad-int-output b-node :int-input)
+                       (g/connect b-node :bad-str-output a-node :str-array-input)
+                       (g/connect b-node :bad-int-output a-node :int-array-input)])
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :cascade-str-pass-through)))
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :cascade-int-pass-through)))
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :cascade-str-array-pass-through)))
@@ -135,12 +135,12 @@
   (testing "values that do not match input schemas with substitutions produce errors not substitutes"
     (with-clean-system
       (binding [internal.node/*suppress-schema-warnings* true]
-        (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
-                                        (g/make-node world ArrayNode))]
-          (g/transact [ (g/connect b-node :bad-str-output b-node :sub-str-input)
-                        (g/connect b-node :bad-int-output b-node :sub-int-input)
-                        (g/connect b-node :bad-str-output a-node :sub-str-array-input)
-                        (g/connect b-node :bad-int-output a-node :sub-int-array-input)])
+        (let [[b-node a-node] (tx-nodes (g/make-node BaseNode)
+                                        (g/make-node ArrayNode))]
+          (g/transact [(g/connect b-node :bad-str-output b-node :sub-str-input)
+                       (g/connect b-node :bad-int-output b-node :sub-int-input)
+                       (g/connect b-node :bad-str-output a-node :sub-str-array-input)
+                       (g/connect b-node :bad-int-output a-node :sub-int-array-input)])
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :sub-str-pass-through)))
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :sub-int-pass-through)))
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :sub-str-array-pass-through)))
@@ -149,12 +149,12 @@
   (testing "values that do not match input schemas with substitutions produce substitue values with cascades"
     (with-clean-system
       (binding [internal.node/*suppress-schema-warnings* true]
-        (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
-                                        (g/make-node world ArrayNode))]
-          (g/transact [ (g/connect b-node :bad-str-output b-node :sub-str-input)
-                        (g/connect b-node :bad-int-output b-node :sub-int-input)
-                        (g/connect b-node :bad-str-output a-node :sub-str-array-input)
-                        (g/connect b-node :bad-int-output a-node :sub-int-array-input)])
+        (let [[b-node a-node] (tx-nodes (g/make-node BaseNode)
+                                        (g/make-node ArrayNode))]
+          (g/transact [(g/connect b-node :bad-str-output b-node :sub-str-input)
+                       (g/connect b-node :bad-int-output b-node :sub-int-input)
+                       (g/connect b-node :bad-str-output a-node :sub-str-array-input)
+                       (g/connect b-node :bad-int-output a-node :sub-int-array-input)])
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :cascade-sub-str-pass-through)))
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :cascade-sub-int-pass-through)))
           (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :cascade-sub-str-array-pass-through)))
@@ -168,7 +168,7 @@
 (deftest test-schema-validation-on-property-access
   (with-clean-system
     (binding [internal.node/*suppress-schema-warnings* true]
-      (let [[bsn] (tx-nodes (g/make-nodes world [bsn [BadSchemaPropNode]]))]
+      (let [[bsn] (tx-nodes (g/make-nodes [bsn [BadSchemaPropNode]]))]
         (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value bsn :bad-schema-prop)))))))
 
 (g/defnode MultiValuedPropertyNode
@@ -176,7 +176,7 @@
 
 (deftest test-schema-validation-on-multi-valued-property-assignment
   (with-clean-system
-    (let [[node-id] (tx-nodes (g/make-node world MultiValuedPropertyNode))
+    (let [[node-id] (tx-nodes (g/make-node MultiValuedPropertyNode))
           values ["one" "two"]]
       (g/set-property! node-id :values values)
       (is (= values (g/node-value node-id :values)))

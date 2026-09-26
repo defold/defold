@@ -109,7 +109,8 @@ bool TextLayoutResolveMarkup(HFontCollection, HMarkup, TextLayoutSettings*, Reso
     return false;
 }
 
-bool TextLayoutCompileStyleFragment(const char*, uint32_t, TextRenderStyle*, dmArray<TextEffect>*, TextNamedStyleDecoration*, MarkupError*)
+bool TextLayoutCompileStyleFragment(const char*, uint32_t, TextRenderStyle*, dmArray<TextEffect>*, TextNamedStyleDecoration*, MarkupError* error)
 {
+    MarkupUnsupported(0, error);
     return false;
 }

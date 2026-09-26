@@ -153,7 +153,14 @@ function(sound_configure_test target run_test)
   elseif(TARGET_PLATFORM MATCHES "win32$")
     target_link_libraries(${target} PRIVATE opengl32.lib glu32.lib ole32.lib)
   endif()
-  defold_register_test_target(${target} ${run_test} "${SOUND_ROOT}")
+  # Audio tests share a device; the remaining automatic engine tests use sound_null.
+  # The macOS sound suite takes about a minute; overlap it with shared tests.
+  set(_run_priority 0)
+  if(target STREQUAL "test_sound" AND TARGET_PLATFORM MATCHES "macos$")
+    set(_run_priority 1)
+  endif()
+  defold_register_test_target(${target} ${run_test} "${SOUND_ROOT}"
+    RUN_GROUP sound RUN_PRIORITY ${_run_priority})
 endfunction()
 
 if(SOUND_TEST_HAS_TREMOLO)

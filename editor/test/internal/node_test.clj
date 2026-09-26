@@ -88,35 +88,35 @@
 
 (deftest node-intrinsics
   (testing "the _properties output delivers properties (except the 'internal' properties)"
-           (with-clean-system
-             (let [[n1]         (tx-nodes     (g/make-node world SimpleTestNode))
-                   foo-before   (g/node-value n1 :foo)
-                   tx-result    (g/transact   (g/set-property n1 :foo "quux"))
-                   foo-after    (g/node-value n1 :foo)
-                   [n2]         (tx-nodes     (g/make-node world SimpleTestNode :foo "bar"))
-                   foo-override (g/node-value n2 :foo)]
-               (is (= "FOO!" foo-before))
-               (is (= "quux" foo-after))
-               (is (= "bar"  foo-override))
-               (let [properties (g/node-value n1 :_properties)]
-                 (is (not (empty? (:properties properties))))
+    (with-clean-system
+      (let [[n1]         (tx-nodes     (g/make-node SimpleTestNode))
+            foo-before   (g/node-value n1 :foo)
+            tx-result    (g/transact   (g/set-property n1 :foo "quux"))
+            foo-after    (g/node-value n1 :foo)
+            [n2]         (tx-nodes     (g/make-node SimpleTestNode :foo "bar"))
+            foo-override (g/node-value n2 :foo)]
+        (is (= "FOO!" foo-before))
+        (is (= "quux" foo-after))
+        (is (= "bar"  foo-override))
+        (let [properties (g/node-value n1 :_properties)]
+          (is (not (empty? (:properties properties))))
 
-                 (is (every? in/value-type? (map (comp deref :type) (vals (:properties properties)))))
-                 (is (empty? (filter (fn [k] (some k #{:_output-jammers :_node-id})) (keys (:properties properties)))))
-                 (is (not (empty? (:display-order properties))))))))
+          (is (every? in/value-type? (map (comp deref :type) (vals (:properties properties)))))
+          (is (empty? (filter (fn [k] (some k #{:_output-jammers :_node-id})) (keys (:properties properties)))))
+          (is (not (empty? (:display-order properties))))))))
 
   (testing "the _node-id output delivers the node's id."
     (with-clean-system
-      (let [[source sink] (tx-nodes (g/make-node world EmptyNode)
-                                    (g/make-node world SinkNode))]
+      (let [[source sink] (tx-nodes (g/make-node EmptyNode)
+                                    (g/make-node SinkNode))]
         (g/transact
-         (g/connect source :_node-id sink :a-node-id))
+          (g/connect source :_node-id sink :a-node-id))
         (is (= source (g/node-value source :_node-id)))
         (is (= source (g/node-value sink   :a-node-id))))))
 
   (testing "the _output-jammers property overrides ordinary output values"
     (with-clean-system
-      (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
+      (let [[source] (tx-nodes (g/make-node OverrideOutputNode))]
         (is (= "a-property" (g/node-value source :overridden)))
 
         (g/transact (g/set-property source :_output-jammers {:overridden "Raspberry"}))
@@ -133,7 +133,7 @@
 
   (testing "jamming with an error value does not cause exceptions in g/node-value"
     (with-clean-system
-      (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
+      (let [[source] (tx-nodes (g/make-node OverrideOutputNode))]
         (is (= "a-property" (g/node-value source :overridden)))
 
         (g/transact (g/set-property source :_output-jammers {:overridden (g/error-fatal "jammed")}))
@@ -143,23 +143,23 @@
 
 (deftest construct-with-maps
   (testing "supplying a map to make-nodes"
-           (let [params {:foo "foo"}]
-             (with-clean-system
-               (let [[n] (tx-nodes (g/make-node world SimpleTestNode params))]
-                 (is (= "foo" (g/node-value n :foo))))
-               (let [[n] (tx-nodes (g/make-nodes world [n [SimpleTestNode params]]))]
-                 (is (= "foo" (g/node-value n :foo))))))))
+    (let [params {:foo "foo"}]
+      (with-clean-system
+        (let [[n] (tx-nodes (g/make-node SimpleTestNode params))]
+          (is (= "foo" (g/node-value n :foo))))
+        (let [[n] (tx-nodes (g/make-nodes [n [SimpleTestNode params]]))]
+          (is (= "foo" (g/node-value n :foo))))))))
 
 (deftest invalid-property-type
   (testing "supplying a map to make-nodes but property type is invalid"
-           (with-clean-system
-             (binding [in/*suppress-schema-warnings* true]
-               (is (thrown? ExceptionInfo (tx-nodes (g/make-node world SimpleTestNode :foo 1))))))))
+    (with-clean-system
+      (binding [in/*suppress-schema-warnings* true]
+        (is (thrown? ExceptionInfo (tx-nodes (g/make-node SimpleTestNode :foo 1))))))))
 
 (defn- expect-modified
   [node-type properties f]
   (with-clean-system
-    (let [[node-id] (tx-nodes (g/make-node world node-type :foo "one"))
+    (let [[node-id] (tx-nodes (g/make-node node-type :foo "one"))
           tx-result (g/transact (f node-id))]
       (let [modified (into #{} (map gt/endpoint-label) (:outputs-modified tx-result))]
         (is (= properties modified))))))
@@ -174,13 +174,12 @@
   (expect-modified SimpleTestNode #{} (fn [node-id] (g/set-property    node-id :foo "one")))
   (expect-modified SimpleTestNode #{} (fn [node-id] (g/update-property node-id :foo identity))))
 
-
 (deftest invalidation-affects-dynamics
   (with-clean-system
     (let [[source target]               (tx-nodes
-                                         (g/make-nodes world [source SimpleTestNode
-                                                              target VisibilityTestNode]
-                                                       (g/connect source :foo target :bar)))
+                                          (g/make-nodes [source SimpleTestNode
+                                                         target VisibilityTestNode]
+                                            (g/connect source :foo target :bar)))
           tx-result                     (g/set-property! source :foo "hi")
           properties-modified-on-target (set (keep #(when (= (gt/endpoint-node-id %) target)
                                                       (gt/endpoint-label %))
@@ -189,8 +188,8 @@
 
 (deftest visibility-properties
   (with-clean-system
-    (let [[snode vnode] (tx-nodes (g/make-node world SimpleTestNode)
-                                  (g/make-node world VisibilityTestNode))]
+    (let [[snode vnode] (tx-nodes (g/make-node SimpleTestNode)
+                                  (g/make-node VisibilityTestNode))]
       (g/transact (g/connect snode :foo vnode :bar))
       (is (= true (get-in (g/node-value vnode :_properties) [:properties :baz :visible])))
       (g/transact (g/set-property snode :foo nil))
@@ -198,8 +197,8 @@
 
 (deftest invalidating-enablement-properties
   (with-clean-system
-    (let [[snode enode] (tx-nodes (g/make-node world SimpleIntTestNode)
-                                  (g/make-node world EnablementTestNode))]
+    (let [[snode enode] (tx-nodes (g/make-node SimpleIntTestNode)
+                                  (g/make-node EnablementTestNode))]
       (g/transact (g/connect snode :foo enode :bar))
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
             enode-results (filter #(= (gt/endpoint-node-id %) enode) (:outputs-modified tx-result))
@@ -208,8 +207,8 @@
 
 (deftest enablement-properties
   (with-clean-system
-    (let [[snode enode] (tx-nodes (g/make-node world SimpleIntTestNode :foo 1)
-                                  (g/make-node world EnablementTestNode))]
+    (let [[snode enode] (tx-nodes (g/make-node SimpleIntTestNode :foo 1)
+                                  (g/make-node EnablementTestNode))]
       (g/transact (g/connect snode :foo enode :bar))
       (is (= true (get-in (g/node-value enode :_properties) [:properties :baz :enabled])))
       (g/transact (g/set-property snode :foo -1))
@@ -227,7 +226,7 @@
 
 (deftest node-property-dynamics-evaluation
   (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world PropertyDynamicsTestNode :three-dynamics "You?"))]
+    (let [[node] (tx-nodes (g/make-node PropertyDynamicsTestNode :three-dynamics "You?"))]
       (let [props (get (g/node-value node :_properties) :properties)]
         (is (= true  (get-in props [:one-dynamic :emphatic?])))
         (is (= false (get-in props [:three-dynamics :emphatic?])))
@@ -235,19 +234,18 @@
         (is (= false (get-in props [:three-dynamics :mistake?]))))
 
       (g/transact
-       (g/set-property node :one-dynamic "bar?"))
+        (g/set-property node :one-dynamic "bar?"))
 
       (let [props (get (g/node-value node :_properties) :properties)]
         (is (= false (get-in props [:one-dynamic :emphatic?]))))
 
       (g/transact
-       (g/set-property node :three-dynamics "I've made a huge mistake!"))
+        (g/set-property node :three-dynamics "I've made a huge mistake!"))
 
       (let [props (get (g/node-value node :_properties) :properties)]
         (is (= true  (get-in props [:three-dynamics :emphatic?])))
         (is (= false (get-in props [:three-dynamics :querulous?])))
         (is (= true  (get-in props [:three-dynamics :mistake?])))))))
-
 
 (g/defnode ProductionFunctionInputsNode
   (input in       g/Keyword)
@@ -261,17 +259,17 @@
 (deftest production-function-inputs
   (with-clean-system
     (let [[node0 node1 node2] (tx-nodes
-                               (g/make-node world ProductionFunctionInputsNode :prop :node0)
-                               (g/make-node world ProductionFunctionInputsNode :prop :node1)
-                               (g/make-node world ProductionFunctionInputsNode :prop :node2))
+                                (g/make-node ProductionFunctionInputsNode :prop :node0)
+                                (g/make-node ProductionFunctionInputsNode :prop :node1)
+                                (g/make-node ProductionFunctionInputsNode :prop :node2))
           _                   (g/transact
-                               (concat
-                                (g/connect node0 :defnk-prop node1 :in)
-                                (g/connect node0 :defnk-prop node2 :in)
-                                (g/connect node1 :defnk-prop node2 :in)
-                                (g/connect node0 :defnk-prop node1 :in-multi)
-                                (g/connect node0 :defnk-prop node2 :in-multi)
-                                (g/connect node1 :defnk-prop node2 :in-multi)))]
+                                (concat
+                                  (g/connect node0 :defnk-prop node1 :in)
+                                  (g/connect node0 :defnk-prop node2 :in)
+                                  (g/connect node1 :defnk-prop node2 :in)
+                                  (g/connect node0 :defnk-prop node1 :in-multi)
+                                  (g/connect node0 :defnk-prop node2 :in-multi)
+                                  (g/connect node1 :defnk-prop node2 :in-multi)))]
       (testing "'special' defnk inputs"
         (is (identical? (g/node-by-id node0) (g/node-value node0 :defnk-this))))
       (testing "defnk inputs from node properties"
@@ -288,14 +286,14 @@
   (testing "every property automatically creates an output that produces the property's value"
     (with-clean-system
       (let [[node0 node1] (tx-nodes
-                            (g/make-node world ProductionFunctionInputsNode :prop :node0)
-                            (g/make-node world ProductionFunctionInputsNode :prop :node1))
+                            (g/make-node ProductionFunctionInputsNode :prop :node0)
+                            (g/make-node ProductionFunctionInputsNode :prop :node1))
             _ (g/transact  (g/connect node0 :prop node1 :in))]
         (is (= :node0 (g/node-value node1 :defnk-in))))))
   (testing "the output has the same type as the property"
     (is (= g/Keyword
-          (-> ProductionFunctionInputsNode (g/output-type :prop))
-          (-> ProductionFunctionInputsNode g/declared-properties :prop :value-type)))))
+           (-> ProductionFunctionInputsNode (g/output-type :prop))
+           (-> ProductionFunctionInputsNode g/declared-properties :prop :value-type)))))
 
 (g/defnode AKeywordNode
   (property prop g/Keyword))
@@ -318,22 +316,22 @@
 (deftest dependency-loops
   (testing "output dependent on itself"
     (with-clean-system
-      (let [[node] (tx-nodes (g/make-node world DependencyNode))]
+      (let [[node] (tx-nodes (g/make-node DependencyNode))]
         (is (thrown? ExceptionInfo (g/node-value node :out-from-self))))))
   (testing "output dependent on itself connected to downstream input"
     (with-clean-system
-      (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
+      (let [[node0 node1] (tx-nodes (g/make-node DependencyNode) (g/make-node DependencyNode))]
         (g/transact
-         (g/connect node0 :out-from-self node1 :in))
+          (g/connect node0 :out-from-self node1 :in))
         (is (thrown? ExceptionInfo (g/node-value node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-system
-      (let [[node] (tx-nodes (g/make-node world DependencyNode))]
+      (let [[node] (tx-nodes (g/make-node DependencyNode))]
         (g/transact (g/connect node :out-from-in node :in))
         (is (thrown? ExceptionInfo (g/node-value node :out-from-in))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-system
-      (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
+      (let [[node0 node1] (tx-nodes (g/make-node DependencyNode) (g/make-node DependencyNode))]
         (g/transact [(g/connect node0 :out-from-in node1 :in)
                      (g/connect node1 :out-from-in node0 :in)])
         (is (thrown? ExceptionInfo (g/node-value node1 :out-from-in)))))))
@@ -399,21 +397,21 @@
 (deftest error-on-bad-source-label
   (testing "AssertionError on bad source label"
     (with-clean-system
-      (let [[node1 node2] (tx-nodes (g/make-node world Dummy)
-                                    (g/make-node world Dummy))]
+      (let [[node1 node2] (tx-nodes (g/make-node Dummy)
+                                    (g/make-node Dummy))]
         (is (thrown? AssertionError (g/connect! node1 :no-such-label node2 :i)))))))
 
 (deftest error-on-bad-target-label
   (testing "AssertionError on bad target label"
     (with-clean-system
-      (let [[node1 node2] (tx-nodes (g/make-node world Dummy)
-                                    (g/make-node world Dummy))]
+      (let [[node1 node2] (tx-nodes (g/make-node Dummy)
+                                    (g/make-node Dummy))]
         (is (thrown? AssertionError (g/connect! node1 :o node2 :no-such-label)))))))
 
 (deftest error-on-bad-property
   (testing "AssertionError on setting bad property"
     (with-clean-system
-      (let [[node] (tx-nodes (g/make-node world Dummy))]
+      (let [[node] (tx-nodes (g/make-node Dummy))]
         (is (thrown? AssertionError (g/set-property! node :no-such-property 4711)))))))
 
 (g/defnode AlwaysNode
@@ -423,15 +421,15 @@
 (deftest dynamics-allow-constant-values
   (testing "Always works as a shortcut for fnk constant values"
     (with-clean-system
-      (let [[node] (tx-nodes (g/make-node world AlwaysNode))]
+      (let [[node] (tx-nodes (g/make-node AlwaysNode))]
         (= 99 (g/node-value node :always-99))
         (is (= true (get-in (g/node-value node :_properties) [:properties :foo :visible])))))))
 
 (deftest test-node-type*
   (testing "node type from node-id"
-           (with-clean-system
-             (let [[nid] (tx-nodes (g/make-node world AlwaysNode))]
-               (is (= AlwaysNode (g/node-type* nid)))))))
+    (with-clean-system
+      (let [[nid] (tx-nodes (g/make-node AlwaysNode))]
+        (is (= AlwaysNode (g/node-type* nid)))))))
 
 (g/defnode SetPropertyNode
   (property bar g/Str)
@@ -447,14 +445,14 @@
 
 (deftest test-set-property-recursive
   (testing "node type from node-id"
-           (with-clean-system
-             (let [[nid] (tx-nodes (g/make-node world SetPropertyNode))]
-               (g/transact (g/set-property nid :foo "foo"))
-               (is (= "foo" (g/node-value nid :foo)))
-               (is (= "foo" (g/node-value nid :bar)))
-               (is (= "foo-foo" (g/node-value nid :multi-prop)))
-               (let [p (get-in (g/node-value nid :_properties) [:properties :multi-prop])]
-                 (is (= "foo-foo" (:visible p))))))))
+    (with-clean-system
+      (let [[nid] (tx-nodes (g/make-node SetPropertyNode))]
+        (g/transact (g/set-property nid :foo "foo"))
+        (is (= "foo" (g/node-value nid :foo)))
+        (is (= "foo" (g/node-value nid :bar)))
+        (is (= "foo-foo" (g/node-value nid :multi-prop)))
+        (let [p (get-in (g/node-value nid :_properties) [:properties :multi-prop])]
+          (is (= "foo-foo" (:visible p))))))))
 
 (g/defnode DynamicGetterNode
   (property suffixed g/Str
@@ -469,18 +467,18 @@
 (deftest test-dynamic-getter
   (testing "input collection for dynamic getters"
     (with-clean-system
-      (let [[_ nid] (tx-nodes (g/make-nodes world [from [SimpleTestNode :foo "directory"]
-                                                   to [DynamicGetterNode :suffixed "file"]]
-                                            (g/connect from :foo to :prefix)))]
+      (let [[_ nid] (tx-nodes (g/make-nodes [from [SimpleTestNode :foo "directory"]
+                                             to [DynamicGetterNode :suffixed "file"]]
+                                (g/connect from :foo to :prefix)))]
         (is (= "directory/file" (g/node-value nid :suffixed)))
         (g/transact (g/set-property nid :suffixed "unnamed"))
         (is (= "directory/unnamed" (g/node-value nid :suffixed)))
         (is (= "directory/unnamed" (get-in (g/node-value nid :_properties) [:properties :suffixed :value]))))))
   (testing "input collection for dynamic getters with overloaded outputs"
     (with-clean-system
-      (let [[_ nid] (tx-nodes (g/make-nodes world [from [SimpleTestNode :foo "directory"]
-                                                   to [DynamicGetterOutputNode :suffixed "file"]]
-                                            (g/connect from :foo to :prefix)))]
+      (let [[_ nid] (tx-nodes (g/make-nodes [from [SimpleTestNode :foo "directory"]
+                                             to [DynamicGetterOutputNode :suffixed "file"]]
+                                (g/connect from :foo to :prefix)))]
         (is (= "irectory/file" (g/node-value nid :suffixed)))
         (g/transact (g/set-property nid :suffixed "unnamed"))
         (is (= "irectory/unnamed" (g/node-value nid :suffixed)))))))
@@ -503,7 +501,7 @@
 
 (deftest cached-booleans
   (with-clean-system
-    (let [[nid] (tx-nodes (g/make-nodes world [n [CachedBoolean :counter (atom 0)]]))]
+    (let [[nid] (tx-nodes (g/make-nodes [n [CachedBoolean :counter (atom 0)]]))]
       (is (false? (g/node-value nid :cached-boolean)))
       (is (= 1 @(g/node-value nid :counter)))
       (is (false? (g/node-value nid :cached-boolean)))
@@ -515,7 +513,7 @@
 (deftest make-nodes-complains-about-missing-properties
   (with-clean-system
     (is (thrown? AssertionError
-                 (eval `(dynamo.graph/make-nodes ~world [new-node# [MyNode :no-such-property 1]]))))))
+                 (eval `(dynamo.graph/make-nodes [new-node# [MyNode :no-such-property 1]]))))))
 
 (deftest construct-complains-about-missing-properties
   (with-clean-system
@@ -533,7 +531,7 @@
 
 (deftest grandchild-property-inheritance
   (with-clean-system
-    (let [[resource-node] (tx-nodes (g/make-node world PlaceholderNode))]
+    (let [[resource-node] (tx-nodes (g/make-node PlaceholderNode))]
       (is (= "Hello" (g/node-value resource-node :resource))))))
 
 (g/defnode GetterFromSetter
@@ -546,7 +544,7 @@
 
 (deftest test-getter-from-setter
   (with-clean-system
-    (let [[nid] (tx-nodes (g/make-node world GetterFromSetter :foo 1))]
+    (let [[nid] (tx-nodes (g/make-node GetterFromSetter :foo 1))]
       ;; (set ...) will have been called with old = nil, new = 1 since it's the constructor
       (is (= nil (g/node-value nid :old-foo)))
       (g/transact (g/set-property nid :foo 3))
@@ -568,9 +566,9 @@
 
 (deftest non-cached-produced-once
   (with-clean-system
-    (let [[wat-producer nil-producer consumer] (tx-nodes (g/make-node world Producer :val "wat")
-                                                         (g/make-node world Producer :val nil)
-                                                         (g/make-node world Consumer))]
+    (let [[wat-producer nil-producer consumer] (tx-nodes (g/make-node Producer :val "wat")
+                                                         (g/make-node Producer :val nil)
+                                                         (g/make-node Consumer))]
 
       ;; NOTE! If we're seriously unlucky a gc could make these tests
       ;; fail by collecting the result held in a WeakReference
@@ -594,7 +592,6 @@
         (reset! production-count 0)
         (is (= (g/node-value consumer :result) ""))
         (is (= @production-count 1)))
-
 
       (testing "check :no-local-temp is respected"
         (reset! production-count 0)
@@ -682,10 +679,10 @@
              regular-input-producer
              array-input-producer-one
              array-input-producer-two]
-            (tx-nodes (g/make-node world CachedDependencyTestNode)
-                      (g/make-node world CachedDependencyTestNode)
-                      (g/make-node world CachedDependencyTestNode)
-                      (g/make-node world CachedDependencyTestNode))
+            (tx-nodes (g/make-node CachedDependencyTestNode)
+                      (g/make-node CachedDependencyTestNode)
+                      (g/make-node CachedDependencyTestNode)
+                      (g/make-node CachedDependencyTestNode))
 
             [ov-consumer]
             (tx-nodes (g/override consumer))]
@@ -1010,13 +1007,13 @@
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes
-                world [referenced-scene [OverrideSuccessorsTestNode :property "referenced-scene"]
-                       referenced-scene-node-tree [OverrideSuccessorsTestNode :property "referenced-scene-node-tree"]
-                       referenced-scene-text [OverrideSuccessorsTestNode :property "referenced-scene-text"]
-                       referenced-scene-added-text [OverrideSuccessorsTestNode :property "referenced-scene-added-text"]
-                       referencing-scene [OverrideSuccessorsTestNode :property "referencing-scene"]
-                       referencing-scene-node-tree [OverrideSuccessorsTestNode :property "referencing-scene-node-tree"]
-                       referencing-scene-button [OverrideSuccessorsTestNode :property "referencing-scene-button"]]
+                [referenced-scene [OverrideSuccessorsTestNode :property "referenced-scene"]
+                 referenced-scene-node-tree [OverrideSuccessorsTestNode :property "referenced-scene-node-tree"]
+                 referenced-scene-text [OverrideSuccessorsTestNode :property "referenced-scene-text"]
+                 referenced-scene-added-text [OverrideSuccessorsTestNode :property "referenced-scene-added-text"]
+                 referencing-scene [OverrideSuccessorsTestNode :property "referencing-scene"]
+                 referencing-scene-node-tree [OverrideSuccessorsTestNode :property "referencing-scene-node-tree"]
+                 referencing-scene-button [OverrideSuccessorsTestNode :property "referencing-scene-button"]]
                 (g/connect referenced-scene-text :_node-id referenced-scene-node-tree :owning-input)
                 (g/connect referenced-scene-node-tree :_node-id referenced-scene :owning-input)
                 (g/connect referenced-scene :output<=property referenced-scene-node-tree :external-input)

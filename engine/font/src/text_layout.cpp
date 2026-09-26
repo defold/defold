@@ -400,6 +400,15 @@ static dmhash_t GetObjectDefaultStyle(HTextLayout layout, const TextLayoutObject
     return object.m_Tag;
 }
 
+static float ResolveFontSize(const TextRenderStyle* style, float base_size)
+{
+    if (!style || !(style->m_Flags & TEXT_RENDER_STYLE_FONT_SIZE))
+        return base_size;
+    const float size = style->m_FontSizeUnit == TEXT_FONT_SIZE_EM ? base_size * style->m_FontSize
+                     : style->m_FontSizeUnit == TEXT_FONT_SIZE_OFFSET ? base_size + style->m_FontSize : style->m_FontSize;
+    return isfinite(size) && size > 0.0f ? size : base_size;
+}
+
 static void OverlayStyle(TextRenderStyle* target, const TextRenderStyle& overlay)
 {
     if (overlay.m_Flags & TEXT_RENDER_STYLE_FACE_COLOR)
@@ -410,6 +419,7 @@ static void OverlayStyle(TextRenderStyle* target, const TextRenderStyle& overlay
     if (overlay.m_Flags & TEXT_RENDER_STYLE_FONT_SIZE)
     {
         target->m_FontSize = overlay.m_FontSize;
+        target->m_FontSizeUnit = overlay.m_FontSizeUnit;
     }
 
     if (overlay.m_Flags & TEXT_RENDER_STYLE_OUTLINE_COLOR)
@@ -451,11 +461,11 @@ static void OverlayStyle(TextRenderStyle* target, const TextRenderStyle& overlay
     target->m_Flags |= overlay.m_Flags;
 }
 
-static uint16_t AddLayoutStyle(HTextLayout layout, const TextRenderStyle& style)
+static uint16_t AddLayoutStyle(HTextLayout layout, const TextRenderStyle& style, uint32_t override_flags)
 {
     for (uint32_t i = 0; i < layout->m_Styles.Size(); ++i)
     {
-        if (memcmp(&layout->m_Styles[i], &style, sizeof(style)) == 0)
+        if (layout->m_StyleOverrideFlags[i] == override_flags && memcmp(&layout->m_Styles[i], &style, sizeof(style)) == 0)
         {
             return (uint16_t)i;
         }
@@ -471,7 +481,10 @@ static uint16_t AddLayoutStyle(HTextLayout layout, const TextRenderStyle& style)
         layout->m_Styles.OffsetCapacity(1);
     }
 
+    if (layout->m_StyleOverrideFlags.Full())
+        layout->m_StyleOverrideFlags.OffsetCapacity(1);
     layout->m_Styles.Push(style);
+    layout->m_StyleOverrideFlags.Push(override_flags);
 
     return (uint16_t)(layout->m_Styles.Size() - 1);
 }
@@ -547,13 +560,28 @@ static void ApplyBaseStyle(HTextLayout layout)
     if (!base)
         return;
 
+    const TextNamedStyleDecoration* decoration = FontCollectionGetNamedStyleDecoration(layout->m_FontCollection, layout->m_BaseStyleName);
+    for (uint32_t i = 0; i < layout->m_BaseResolvedSpanCount; ++i)
+    {
+        TextResolvedSpan& span = layout->m_ResolvedSpans[i];
+        span.m_DecorationFlags = span.m_InlineDecorationFlags;
+        if (decoration)
+        {
+            span.m_DecorationFlags |= decoration->m_Flags;
+            if (!(span.m_InlineDecorationFlags & TEXT_RESOLVED_DECORATION_UNDERLINE))
+                span.m_UnderlinePattern = decoration->m_UnderlinePattern;
+            if (!(span.m_InlineDecorationFlags & TEXT_RESOLVED_DECORATION_STRIKE))
+                span.m_StrikePattern = decoration->m_StrikePattern;
+        }
+    }
+
     dmArray<uint16_t> styles;
     styles.SetCapacity(layout->m_BaseStyleCount);
     for (uint32_t i = 0; i < layout->m_BaseStyleCount; ++i)
     {
         TextRenderStyle style = *base;
         OverlayStyle(&style, layout->m_Styles[i]);
-        const uint16_t style_index = AddLayoutStyle(layout, style);
+        const uint16_t style_index = AddLayoutStyle(layout, style, layout->m_StyleOverrideFlags[i]);
         styles.Push(style_index != MARKUP_INVALID_INDEX ? style_index : (uint16_t)i);
     }
     for (uint32_t i = 0; i < layout->m_Glyphs.Size(); ++i)
@@ -633,6 +661,7 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
     if (restore_base)
     {
         layout->m_Styles.SetSize(layout->m_BaseStyleCount);
+        layout->m_StyleOverrideFlags.SetSize(layout->m_BaseStyleCount);
         layout->m_Effects.SetSize(layout->m_BaseEffectCount);
         layout->m_SpanEffects.SetSize(layout->m_BaseSpanEffectCount);
         layout->m_ResolvedSpans.SetSize(layout->m_BaseResolvedSpanCount);
@@ -735,7 +764,7 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
         TextRenderStyle        style = layout->m_Styles[glyph.m_StyleIndex];
         OverlayStyle(&style, object_style.m_Style);
         OverlayStyle(&style, layout->m_Styles[glyph.m_BaseStyleIndex]);
-        const uint16_t style_index = AddLayoutStyle(layout, style);
+        const uint16_t style_index = AddLayoutStyle(layout, style, object_style.m_Style.m_Flags | layout->m_StyleOverrideFlags[glyph.m_BaseStyleIndex]);
 
         if (style_index != MARKUP_INVALID_INDEX)
         {
@@ -899,6 +928,10 @@ void TextLayoutInitializeObjectStyles(HTextLayout layout)
     if (layout->m_BaseStyleName && !FontCollectionGetNamedStyle(layout->m_FontCollection, layout->m_BaseStyleName))
         dmLogWarning("Font style '%s' is unavailable; using no base style", dmHashReverseSafe64(layout->m_BaseStyleName));
     layout->m_BaseStyleCount = (uint16_t)layout->m_Styles.Size();
+    layout->m_StyleOverrideFlags.SetCapacity(layout->m_Styles.Size());
+    layout->m_StyleOverrideFlags.SetSize(layout->m_Styles.Size());
+    for (uint32_t i = 0; i < layout->m_Styles.Size(); ++i)
+        layout->m_StyleOverrideFlags[i] = layout->m_Styles[i].m_Flags;
     layout->m_BaseEffectCount = (uint16_t)layout->m_Effects.Size();
     layout->m_BaseSpanEffectCount = (uint16_t)layout->m_SpanEffects.Size();
     layout->m_BaseResolvedSpanCount = (uint16_t)layout->m_ResolvedSpans.Size();
@@ -982,7 +1015,9 @@ void TextLayoutAdoptResolvedMarkup(HTextLayout layout, ResolvedMarkup* resolved,
     }
 
     TextRenderStyle style = {};
-    style.m_FontSize = settings->m_Size;
+    style.m_FontSize = ResolveFontSize(FontCollectionGetNamedStyle(layout->m_FontCollection, layout->m_BaseStyleName), settings->m_Size);
+    if (style.m_FontSize != settings->m_Size)
+        style.m_Flags |= TEXT_RENDER_STYLE_FONT_SIZE;
     layout->m_Styles.EnsureSize(1);
     layout->m_Styles[0] = style;
     TextResolvedSpan span = {};

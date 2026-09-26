@@ -962,13 +962,12 @@
   (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [graph workspace tree-view prefs localization]
+(defn make-asset-browser [workspace tree-view prefs localization]
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
                             {:undoable false}
-                            (g/make-nodes graph
-                                          [asset-browser [AssetBrowser :raw-tree-view tree-view :prefs prefs]]
-                                          (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
+                            (g/make-nodes [asset-browser [AssetBrowser :raw-tree-view tree-view :prefs prefs]]
+                              (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
     (setup-asset-browser asset-browser workspace tree-view localization)
     asset-browser))

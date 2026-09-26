@@ -87,11 +87,11 @@
       (println "Skipping" `reindent-agrees-with-language-server-test
                "- no Lua language server at" (str root))
       (test-util/with-scratch-project "test/resources/lua_indent_project"
-        (let [lsp (lsp/get-node-lsp project)
+        (let [lsp (lsp/get-lsp)
               view-node (first (g/tx-nodes-added
                                  (g/transact
                                    {:undoable false}
-                                   (g/make-node (g/node-id->graph-id app-view) LuaIndentViewNode))))
+                                   (g/make-node LuaIndentViewNode))))
               resource (test-util/resource workspace "/indent_test_cases.lua")
               lines (g/node-value (project/get-resource-node project resource) :lines)]
           (try

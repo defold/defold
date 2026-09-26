@@ -65,7 +65,7 @@ local function test_v2_world(body)
     assert(world == b2d.body.get_world(body))
     assert(b2d.world ~= nil)
 
-    local target = vmath.vector3(100000, 100000, 0)
+    local target = vmath.vector3(100, 100, 0)
     local query_filter = {
         category_bits = 2,
         mask_bits = 2,
@@ -203,10 +203,11 @@ local function test_v3_world(body)
     b2d.world.enable_speculative(world, false)
     b2d.world.enable_speculative(world, true)
 
-    local target = vmath.vector3(100000, 100000, 0)
+    local target = vmath.vector3(100, 100, 0)
     local query_filter = {
         category_bits = 2,
         mask_bits = 2,
+        group_index = 0,
     }
     local shape = b2d.body.create_shape(body, {
         type = b2d.shape.SHAPE_TYPE_CIRCLE,
@@ -297,7 +298,12 @@ local function test_v3_world(body)
     b2d.body.destroy_shape(body, shape.index)
 end
 
-function init(self)
+-- Collision objects are enabled when added to update, after init().
+function update(self, dt)
+    if tests_done then
+        return
+    end
+
     if b2d ~= nil then
         local body = b2d.get_body("#collisionobject")
         assert(body ~= nil)

@@ -172,17 +172,16 @@
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
                                                                               [1.0 1.0 1.0 0.0]])))
-          proj-graph (g/node-id->graph-id project)
-          [model] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]]))
+          [model] (tx-nodes (g/make-nodes [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]]))
           view (-> (->view (fn [s] (select! app-view s)))
-                 (render-all [model emitter]))
+                   (render-all [model emitter]))
           box [[0.5 0.5] [0.9 0.9]]]
       (box-select! view box)
       (is (not (empty? (selection app-view))))
       (delete! app-view)
       (let [view (-> view
-                   render-clear
-                   (render-all [model emitter]))]
+                     render-clear
+                     (render-all [model emitter]))]
         (box-select! view box)
         (is (empty? (selection app-view)))))))
 
@@ -193,24 +192,24 @@
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
                                                                               [1.0 1.0 1.0 0.0]])))
-          model (-> (g/make-nodes (g/node-id->graph-id project) [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]])
-                  tx-nodes
-                  first)
-          manip (-> (g/make-nodes (g/node-id->graph-id app-view) [manip MoveManip]
+          model (-> (g/make-nodes [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]])
+                    tx-nodes
+                    first)
+          manip (-> (g/make-nodes [manip MoveManip]
                       (g/connect app-view :sub-selection manip :selection))
-                  tx-nodes
-                  first)
+                    tx-nodes
+                    first)
           view (-> (->view (fn [s] (select! app-view s)))
-                 (render-all [model emitter]))
+                   (render-all [model emitter]))
           box [[0.5 0.5] [0.9 0.9]]]
       (box-select! view box)
       (is (not (empty? (selection app-view))))
       (is (= [(/ 2.0 3.0) (/ 2.0 3.0) 0.0] (g/node-value manip :position)))
       (-> (start-move (selection app-view) (g/node-value manip :position))
-        (move! [2.0 2.0 0.0]))
+          (move! [2.0 2.0 0.0]))
       (let [view (-> view
-                   render-clear
-                   (render-all [model emitter]))]
+                     render-clear
+                     (render-all [model emitter]))]
         (box-select! view box)
         (is (empty? (selection app-view)))))))
 
@@ -221,17 +220,16 @@
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 0.5 0.5]
                                                                               [0.5 0.5 0.5 0.5]
                                                                               [1.0 1.0 0.5 0.5]])))
-          proj-graph (g/node-id->graph-id project)
           view (-> (->view (fn [s] (select! app-view s)))
-                 (render-all [emitter]))
+                   (render-all [emitter]))
           box [[0.5 0.5] [1.0 1.0]]
           half-sq-2 (* 0.5 (Math/sqrt 2.0))]
       (g/transact
         (g/update-property emitter :particle-key-alpha types/geom-insert [[0.25 0.25 0.0]]))
       (let [[x y tx ty] (-> (g/node-value emitter :particle-key-alpha)
-                          :points
-                          (iv/iv-filter-ids [4])
-                          iv/iv-vals
-                          first)]
+                            :points
+                            (iv/iv-filter-ids [4])
+                            iv/iv-vals
+                            first)]
         (is (math/near? half-sq-2 tx))
         (is (math/near? half-sq-2 ty))))))

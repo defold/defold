@@ -120,13 +120,14 @@ def _extract_md5_from_headers(headers):
             md5_hex = etag
     return md5_hex
 
-def download(url, cb=None, cb_count=10, retries=8, timeout=60):
+def download(url, cb=None, cb_count=10, retries=8, timeout=60, cache_root=None):
     """
     Download with retries and validation.
     Returns absolute cache file path on success.
     Raises RuntimeError on failure.
+    cache_root overrides the shared download cache when isolated storage is needed.
     """
-    c = Cache('~/.dcache', 10**9 * 4)
+    c = Cache(cache_root if cache_root is not None else '~/.dcache', 10**9 * 4)
     attempt = 0
     last_err = None
 

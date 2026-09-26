@@ -72,8 +72,6 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *project-graph*)
-
 (def the-root (atom nil))
 
 (defn initialize-systems! [prefs]
@@ -82,11 +80,10 @@
 
 (defn initialize-project! [system-config]
   (when (nil? @the-root)
-    (g/initialize! (assoc system-config :cache-retain? project/cache-retain?))
-    (alter-var-root #'*project-graph* (fn [_] (g/last-graph-added)))))
+    (g/initialize! (assoc system-config :cache-retain? project/cache-retain?))))
 
 (defn- setup-workspace! [project-path build-settings workspace-config localization]
-  (let [workspace (workspace/make-workspace *project-graph* project-path build-settings workspace-config localization)]
+  (let [workspace (workspace/make-workspace project-path build-settings workspace-config localization)]
     (g/transact
       {:undoable false}
       (concat
@@ -184,7 +181,7 @@
 
     (.setFullScreenExitKeyCombination stage KeyCombination/NO_MATCH)
     (app-view/restore-window-dimensions stage prefs)
-    
+
     (ui/show! stage localization)
     (targets/start)
 
@@ -198,41 +195,40 @@
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
-          [app-view ui-timer]  (app-view/make-app-view *project-graph* project stage menu-bar editor-tabs-split right-split tool-tabs prefs localization)
-          scene-visibility     (scene-visibility/make-scene-visibility-node! *project-graph* prefs app-view)
-          outline-view         (outline-view/make-outline-view *project-graph* project app-view localization)
-          asset-browser        (asset-browser/make-asset-browser *project-graph* workspace assets prefs localization)
+          [app-view ui-timer]  (app-view/make-app-view project stage menu-bar editor-tabs-split right-split tool-tabs prefs localization)
+          scene-visibility     (scene-visibility/make-scene-visibility-node! prefs app-view)
+          outline-view         (outline-view/make-outline-view project app-view localization)
+          asset-browser        (asset-browser/make-asset-browser workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
-          console-view         (console/make-console! *project-graph* workspace console-tab console-grid-pane open-resource prefs localization)
+          console-view         (console/make-console! workspace console-tab console-grid-pane open-resource prefs localization)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          localization
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
                                                                              (app-view/select! app-view selected-node-ids))))
-          search-results-view  (search-results-view/make-search-results-view! *project-graph*
-                                                                              (.lookup root "#search-results-container")
+          search-results-view  (search-results-view/make-search-results-view! (.lookup root "#search-results-container")
                                                                               open-resource)
-          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *project-graph* prefs)
-          changes-view         (changes-view/make-changes-view *project-graph* workspace prefs localization (.lookup root "#changes-container")
+          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view prefs)
+          changes-view         (changes-view/make-changes-view workspace prefs localization (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))
           git                  (g/node-value changes-view :git)
           curve-tab            (find-tab tool-tabs "curve-editor-tab")
-          curve-view           (curve-view/make-view! app-view *project-graph*
+          curve-view           (curve-view/make-view! app-view
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       localization
                                                       {:tab curve-tab})
-          debug-view           (debug-view/make-view! app-view *project-graph*
+          debug-view           (debug-view/make-view! app-view
                                                       project
                                                       root
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs)
                                                       localization)
 
-          breakpoints-view (breakpoints-view/make-breakpoints-view workspace project open-resource *project-graph* prefs (.lookup root "#breakpoints-container"))
+          breakpoints-view (breakpoints-view/make-breakpoints-view workspace project open-resource prefs (.lookup root "#breakpoints-container"))
           token (web-server/make-token)
           server-handler (web-server/make-dynamic-handler
                            (into []
@@ -382,7 +378,6 @@
 
       (let [context-env {:app-view            app-view
                          :project             project
-                         :project-graph       (project/graph project)
                          :prefs               prefs
                          :localization        localization
                          :workspace           (g/node-value project :workspace)
@@ -490,8 +485,8 @@
           workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
           workspace (setup-workspace! project-path build-settings workspace-config localization)
           game-project-res (workspace/file-resource workspace "/game.project")
-          extensions (extensions/make *project-graph*)
-          project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
+          extensions (extensions/make)
+          project (project/open-project! extensions workspace game-project-res render-progress!)]
       (ui/run-now
         (icons/initialize! workspace)
         (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))

@@ -15,7 +15,7 @@
 
 
 
-import re, subprocess, sys, os
+import argparse, json, re, subprocess, sys, os
 from datetime import datetime
 
 def git_sha1():
@@ -30,12 +30,18 @@ def git_sha1():
     return sha1
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--channel', default='dev', help='Release channel to embed in Bob')
+    args = parser.parse_args()
+    channel = json.dumps(args.channel)
+
     engine_version_java = """
         package com.dynamo.bob.archive;
         public class EngineVersion {
             public static final String version = "%(version)s";
             public static final String sha1 = "%(sha1)s";
             public static final String timestamp = "%(timestamp)s";
+            public static final String channel = %(channel)s;
         }
     """
 
@@ -51,12 +57,14 @@ if __name__ == '__main__':
         current_version = re.search(r'public static final String version = "([^"]*)";', current)
         current_sha1 = re.search(r'public static final String sha1 = "([^"]*)";', current)
         current_timestamp = re.search(r'public static final String timestamp = "([^"]*)";', current)
+        current_channel = re.search(r'public static final String channel = (".*");', current)
         if (current_version and current_version.group(1) == version and
                 current_sha1 and current_sha1.group(1) == sha1 and
+                current_channel and current_channel.group(1) == channel and
                 current_timestamp):
             timestamp = current_timestamp.group(1)
 
-    content = engine_version_java % {"version": version, "sha1": sha1, "timestamp": timestamp}
+    content = engine_version_java % {"version": version, "sha1": sha1, "timestamp": timestamp, "channel": channel}
     if os.path.exists(fullpath_java):
         with open(fullpath_java, 'r') as f:
             if f.read() == content:

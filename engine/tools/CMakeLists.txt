@@ -23,7 +23,6 @@ add_compile_definitions(DEFOLD_SHA1="${TOOLS_DEFOLD_SHA1}")
 
 install(FILES
   "${TOOLS_ROOT}/scripts/output_stream_fast.py"
-  "${TOOLS_ROOT}/scripts/watch.py"
   DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 

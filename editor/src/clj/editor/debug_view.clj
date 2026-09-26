@@ -462,7 +462,7 @@
   debug-view)
 
 (defn make-view!
-  [app-view graph project ^Parent root open-resource-fn state-changed-fn localization]
+  [app-view project ^Parent root open-resource-fn state-changed-fn localization]
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         call-stack-view (doto (ListView.)
                           (.setId "debugger-call-stack"))
@@ -474,10 +474,10 @@
                   (g/tx-nodes-added
                     (g/transact
                       {:undoable false}
-                      (g/make-node graph DebugView
-                                   :localization localization
-                                   :open-resource-fn (make-open-resource-fn project open-resource-fn)
-                                   :state-changed-fn state-changed-fn))))
+                      (g/make-node DebugView
+                        :localization localization
+                        :open-resource-fn (make-open-resource-fn project open-resource-fn)
+                        :state-changed-fn state-changed-fn))))
         view-id (setup-view! view-id app-view)
         timer (make-update-timer project view-id)]
     (setup-controls! view-id console-grid-pane call-stack-view variables-view localization)
@@ -952,17 +952,16 @@
                {:label :separator
                 :id ::debug-end}]}])
 
-
 (comment
   (defn get-all-script-nodes [project]
-    (keep (fn [node-id]
-            (when (g/node-instance? editor.code.script/ScriptNode node-id)
-              (g/node-by-id node-id)))
-          (g/node-ids (g/graph (g/node-id->graph-id project)))))
+    (into []
+          (keep (fn [node-id]
+                  (when (g/node-instance? editor.code.script/ScriptNode node-id)
+                    (g/node-by-id node-id))))
+          (g/node-ids (g/now))))
 
   (->> (g/node-value (dev/project) :breakpoints)
        (group-by #(get-in % [:resource :project-path])))
 
-  (g/targets-of (dev/project) :breakpoints)
-  (g/sources-of (dev/project) :breakpoints)
-  ,)
+  (g/outputs (g/now) (dev/project) :breakpoints)
+  (g/inputs (g/now) (dev/project) :breakpoints))

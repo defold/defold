@@ -52,12 +52,12 @@
 (defn- repaint! [view-node]
   (ui/advance-graph-user-data-component! view-node :view (g/node-value view-node :desc)))
 
-(defn- make-view [graph ^Parent parent html-node {:keys [project ^Tab tab]}]
+(defn- make-view [^Parent parent html-node {:keys [project ^Tab tab]}]
   (let [view-node (first
                     (g/tx-nodes-added
                       (g/transact
                         {:undoable false}
-                        (g/make-nodes graph [view [HtmlViewNode :parent parent]]
+                        (g/make-nodes [view [HtmlViewNode :parent parent]]
                           (g/connect html-node :html view :html)
                           (g/connect html-node :resource view :resource)
                           (g/connect project :_node-id view :project)))))

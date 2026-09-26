@@ -64,9 +64,7 @@ public class IconExe {
 			try {
 				//An ICO should contain 7 images, a BMP will contain 1
 				ImageData[] current = loader.load(args[i]);
-				for (int j = 0; j < current.length; j++) {
-					images.add(current[j]);
-				}
+                images.addAll(Arrays.asList(current));
 			} catch (RuntimeException e) {
 				//ignore so that we process the other images
 			}
@@ -250,7 +248,7 @@ public class IconExe {
 		}
 		for (int i = 0; i < imageResourceDirectoryEntries.length; i++) {
 			if (imageResourceDirectoryEntries[i].DataIsDirectory) {
-				dumpResourceDirectory(raf, imageResourceDirectoryEntries[i].OffsetToDirectory + resourceBase, resourceBase, delta, imageResourceDirectoryEntries[i].Id, level + 1, rt_icon_root ? true : type == RT_ICON);
+				dumpResourceDirectory(raf, imageResourceDirectoryEntries[i].OffsetToDirectory + resourceBase, resourceBase, delta, imageResourceDirectoryEntries[i].Id, level + 1, rt_icon_root || type == RT_ICON);
 			} else {
 				// Resource found
 				/// pResDirEntry->Name

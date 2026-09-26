@@ -24,6 +24,7 @@ import com.dynamo.bob.util.TimeProfiler;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -119,7 +120,7 @@ public final class EngineArtifactsProvider {
         String[] exeSuffixes = platform.getExeSuffixes();
         String defaultDmengineExeName = getDefaultDmengineExeName(variant);
         OS os = platform.getOsID();
-        // Match the stripped native engines packaged by scripts/copy.sh. Keeping
+        // Match the stripped native engines selected by artifacts.gradle. Keeping
         // the same subdirectory in the cache also separates Android symbols.
         boolean stripped = os == OS.OS_ID_LINUX || os == OS.OS_ID_OSX || os == OS.OS_ID_IOS || os == OS.OS_ID_ANDROID;
         for (String exeSuffix : exeSuffixes) {
@@ -139,7 +140,7 @@ public final class EngineArtifactsProvider {
 
     private static URL buildArtifactURL(String artifactsURL, String platformKey, String filename) throws IOException {
         try {
-            return new URL(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platformKey, filename));
+            return URI.create(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platformKey, filename)).toURL();
         } catch (Exception e) {
             throw new IOException(e);
         }

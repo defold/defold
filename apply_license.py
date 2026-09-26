@@ -99,8 +99,6 @@ excluded_paths = [
     "./.git",
     "./.github",
     "./external",
-    "./engine/dlib/src/basis/encoder",
-    "./engine/dlib/src/basis/transcoder",
     "./engine/dlib/src/dlib/jsmn",
     "./engine/dlib/src/lz4",
     "./engine/dlib/src/mbedtls/include",

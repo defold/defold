@@ -90,9 +90,9 @@
 (def ^:private imagelib1-uri (second lib-uris)) ; /images/{pow,paddle}.png
 
 (defn- setup-scratch
-  ([ws-graph] (setup-scratch ws-graph reload-project-path))
-  ([ws-graph project-path]
-   (let [workspace (test-util/setup-scratch-workspace! ws-graph project-path)
+  ([] (setup-scratch reload-project-path))
+  ([project-path]
+   (let [workspace (test-util/setup-scratch-workspace! project-path)
          project (test-util/setup-project! workspace)]
      [workspace project])))
 
@@ -175,11 +175,11 @@
     (do-until-new-mtime (fn [^File f] (ImageIO/write img type f)) f)
     (sync! workspace)))
 
-(defn- graph-nodes [node-id] (set (g/node-ids (g/graph (g/node-id->graph-id node-id)))))
+(defn- graph-nodes [node-id] (set (g/node-ids (g/now))))
 
 (deftest internal-file
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-count (fn [] (count (graph-nodes project)))
           initial-node-count (node-count)]
       (testing "Add internal file"
@@ -209,7 +209,7 @@
 
 (deftest external-file
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           atlas-node-id (project/get-resource-node project "/atlas/empty.atlas")
           img-path "/test_img.png"
           anim-id (FilenameUtils/getBaseName img-path)]
@@ -251,7 +251,7 @@
 
 (deftest save-no-reload
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
+    (let [[workspace project] (setup-scratch)]
       (test-util/run-event-loop!
         (fn [exit-event-loop!]
           (testing "Add internal file"
@@ -280,31 +280,30 @@
 
 (deftest external-file-errors
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           atlas-node-id (project/get-resource-node project "/atlas/single.atlas")
           img-path "/test_img.png"]
       (log/without-logging
-       (is (error? :file-not-found (g/node-value atlas-node-id :anim-data))))
+        (is (error? :file-not-found (g/node-value atlas-node-id :anim-data))))
       (add-img workspace img-path 64 64)
       (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
       (delete-file workspace img-path)
       (log/without-logging
-       (is (error? :file-not-found (g/node-value atlas-node-id :anim-data))))
+        (is (error? :file-not-found (g/node-value atlas-node-id :anim-data))))
       (add-img workspace img-path 64 64)
       (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
       (write-file workspace img-path "this is not png format")
       (is (error? :invalid-content (g/node-value atlas-node-id :anim-data))))))
 
-
 (defn- first-child [parent]
   (get-in (g/node-value parent :node-outline) [:children 0 :node-id]))
 
 (defn- raw-tile-source [node]
-  (project/get-resource-node (project/get-project node) (g/node-value node :tile-source-resource)))
+  (project/get-resource-node (project/get-project) (g/node-value node :tile-source-resource)))
 
 (deftest resource-reference-error
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
+    (let [[workspace project] (setup-scratch)]
       (testing "Tile source ok before writing broken content"
         (let [pfx-node (project/get-resource-node project "/test.particlefx")
               ts-node (raw-tile-source (first-child pfx-node))]
@@ -323,12 +322,12 @@
 
 (deftest internal-file-errors
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-id (project/get-resource-node project "/main/main.go")
           img-path "/test_img.png"
           atlas-path "/atlas/single.atlas"]
       (log/without-logging
-       (is (error? :file-not-found (g/node-value node-id :scene))))
+        (is (error? :file-not-found (g/node-value node-id :scene))))
       (add-img workspace img-path 64 64)
       (is (no-error? (g/node-value node-id :scene)))
       (copy-file workspace atlas-path "/tmp.atlas")
@@ -347,7 +346,7 @@
 
 (deftest refactoring
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-id (project/get-resource-node project "/atlas/single.atlas")
           img-path "/test_img.png"
           img-res (workspace/resolve-workspace-resource workspace img-path)
@@ -362,7 +361,7 @@
 
 (deftest move-external-removed-added
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           pow (project/get-resource-node project "/graphics/pow.png")
           initial-graph-nodes (graph-nodes project)]
 
@@ -378,7 +377,7 @@
 
 (deftest move-internal-removed-added
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           main (project/get-resource-node project "/main/main.script")
           initial-graph-nodes (graph-nodes project)]
 
@@ -402,7 +401,7 @@
   ;; /atlas/powball.atlas has images /graphics/{pow, ball}.png
   ;; /atlas/[pow | ball].atlas has image /graphics/[pow | ball].png
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           atlas>powball (project/get-resource-node project "/atlas/powball.atlas")
           atlas>pow (project/get-resource-node project "/atlas/pow.atlas")
           atlas>ball (project/get-resource-node project "/atlas/ball.atlas")
@@ -446,7 +445,7 @@
   ;; /standalone/props.go has a script component /standalone/props.script
   ;; /standalone/main.go has a script component /standalone/main.script
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           props-go (project/get-resource-node project "/standalone/props.go")
           props-go-scripts (game-object-script-nodes props-go)
           props-go-script-properties (into [] (mapcat script-property-nodes) props-go-scripts)
@@ -522,7 +521,7 @@
   ;; /graphics to /images - a plain removed/added move case.
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (setup-scratch world)
+      (let [[workspace project] (setup-scratch)
             atlas>powball (project/get-resource-node project "/atlas/powball.atlas")
             graphics>pow (project/get-resource-node project "/graphics/pow.png")
             graphics>ball (project/get-resource-node project "/graphics/ball.png")
@@ -572,7 +571,7 @@
   ;; script component /scripts/main.script
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (setup-scratch world)]
+      (let [[workspace project] (setup-scratch)]
         (copy-file workspace "/main/main.script" "/scripts/main.script")
         (write-file workspace
                     "/game_object/main.go"
@@ -610,7 +609,7 @@
   ;; /atlas/images_powball.atlas that refers to {pow, ball}.png under /images
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (setup-scratch world)
+      (let [[workspace project] (setup-scratch)
             graphics>pow (project/get-resource-node project "/graphics/pow.png")
             graphics>ball (project/get-resource-node project "/graphics/ball.png")]
         (copy-directory workspace "/graphics" "/images")
@@ -648,7 +647,7 @@
   ;; Setup creates /scripts/main.script + go /game_object/main.go with corresponding component
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (setup-scratch world)
+      (let [[workspace project] (setup-scratch)
             main>main-script (project/get-resource-node project "/main/main.script")]
         (copy-file workspace "/main/main.script" "/scripts/main.script")
         (write-file workspace
@@ -688,7 +687,7 @@
 
 (deftest rename-file-changing-case
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           graphics>ball (project/get-resource-node project "/graphics/ball.png")
           nodes-by-path (g/node-value project :nodes-by-resource-path)]
       (asset-browser/rename [(resource graphics>ball)] "Ball" test-util/localization)
@@ -701,7 +700,7 @@
 
 (deftest rename-directory-with-dotfile
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
+    (let [[workspace project] (setup-scratch)]
       (touch-file workspace "/graphics/.dotfile")
       (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
         ;; This used to throw: java.lang.AssertionError: Assert failed: move of unknown resource "/graphics/.dotfile"
@@ -710,7 +709,7 @@
 (deftest move-external-removed-added-replacing-deleted
   ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           initial-node-resources (test-util/project-node-resources project)]
       (copy-file workspace "/graphics/ball.png" "/ball.png")
       (delete-file workspace "/graphics/ball.png")
@@ -723,7 +722,7 @@
 
 (deftest refactoring-sub-collection
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-id (project/get-resource-node project "/collection/sub_defaults.collection")
           coll-path "/collection/props.collection"
           coll-res (workspace/resolve-workspace-resource workspace coll-path)
@@ -736,17 +735,17 @@
 (deftest project-with-missing-parts-can-be-saved
   ;; missing embedded game object, sub collection
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/missing_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch "test/resources/missing_project"))]
       (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest project-with-nil-parts-can-be-saved
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/nil_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch "test/resources/nil_project"))]
       (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest broken-project-can-be-saved
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/broken_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch "test/resources/broken_project"))]
       (is (not (g/error? (project/all-save-data project)))))))
 
 (defn- gui-node [scene id]
@@ -756,7 +755,7 @@
 
 (deftest gui-templates
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-id (project/get-resource-node project "/gui/scene.gui")
           sub-node-id (project/get-resource-node project "/gui/sub_scene.gui")
           or-node (gui-node node-id "sub_scene/sub_box")]
@@ -766,7 +765,7 @@
 
 (deftest label
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
+    (let [[workspace project] (setup-scratch)]
       (let [node-id (project/get-resource-node project "/label/label.label")]
         (is (= "Original" (g/node-value node-id :text)))
         (is (= [1.0 1.0 1.0 1.0] (g/node-value node-id :color)))
@@ -791,7 +790,7 @@
 
 (deftest game-project
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-id (project/get-resource-node project "/game.project")
           p ["display" "display_profiles"]
           disp-profs (get (g/node-value node-id :settings-map) p)
@@ -805,7 +804,7 @@
 
 (deftest all-project-files
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
+    (let [[workspace project] (setup-scratch)]
       (let [all-files (->>
                         (workspace/resolve-workspace-resource workspace "/")
                         (tree-seq (fn [r] (and (resource/editable? r) (not (resource/read-only? r)) (resource/children r))) resource/children)
@@ -827,7 +826,7 @@
 (deftest new-collection-modified-script
   ;; used to provoke exception because load steps of collection tried to access non-loaded script
   (with-clean-system
-    (let [[workspace project] (setup-scratch world "test/resources/load_order_project")]
+    (let [[workspace project] (setup-scratch "test/resources/load_order_project")]
       (bulk-change workspace
                    (->> (read-file workspace "/referenced.collection")
                         (write-file workspace "/referenced2.collection"))

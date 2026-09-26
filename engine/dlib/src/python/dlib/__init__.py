@@ -240,13 +240,17 @@ def dmLZ4CompressBuffer(buf, buf_len, max_out_len):
         raise Exception('dlib.LZ4CompressBuffer failed! Error code: ' % res)
     return ctypes.string_at(outbuf.raw, outlen.value)
 
+class LZ4Error(Exception):
+    pass
+
 def dmLZ4DecompressBuffer(buf, max_out_len):
     _require_dlib('dmLZ4DecompressBuffer')
+    buf = _to_bytes(buf)
     outbuf = ctypes.create_string_buffer(max_out_len)
     outlen = ctypes.c_int()
     res = dlib.LZ4DecompressBuffer(buf, len(buf), outbuf, max_out_len, ctypes.byref(outlen))
     if res != 0:
-        raise Exception('dlib.LZ4DecompressBuffer failed! Error code: ' % res)
+        raise LZ4Error('dlib.LZ4DecompressBuffer failed! Error code: %s' % res)
     return ctypes.string_at(outbuf.raw, outlen.value)
 
 def dmEncryptXTeaCTR(buf, key):

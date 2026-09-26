@@ -32,6 +32,8 @@ namespace dmGameSystem
     void  PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
     void  PushBox2DVersion(struct lua_State* L);
 
+    dmhash_t GetBodyInstanceId(struct lua_State* L, int index);
+
     void  ScriptBox2DInitializeBody(struct lua_State* L);
     void  ScriptBox2DInvalidateBody(void* body);
     void  ScriptBox2DFinalizeBody();

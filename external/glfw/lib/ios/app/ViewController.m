@@ -63,6 +63,7 @@ static int g_view_type = GLFW_NO_API;
 
     [[self view] insertSubview:baseView atIndex:0];
     [baseView setCurrentContext];
+    [baseView startDisplayLink];
 }
 
 - (void)viewDidLoad
@@ -174,11 +175,6 @@ static int g_view_type = GLFW_NO_API;
     [baseView setCurrentContext];
 
     [super viewDidAppear: animated];
-}
-
-- (void)viewDidUnload
-{
-    [super viewDidUnload];
 }
 
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {

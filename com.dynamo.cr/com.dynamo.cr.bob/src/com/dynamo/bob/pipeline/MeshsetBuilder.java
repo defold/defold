@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -30,7 +29,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TextureUtil;
 
-import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;

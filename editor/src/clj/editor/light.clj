@@ -638,7 +638,7 @@
   (output own-build-errors g/Any (gu/passthrough ambient-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "ambient_light"])))
 
-(defn load-ambient-light [_project self _resource data-desc]
+(defn load-ambient-light [_load-opts {self :node-id data-desc :source-value}]
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (g/set-properties self
@@ -663,8 +663,8 @@
   (output own-build-errors g/Any (gu/passthrough directional-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "directional_light"])))
 
-(defn load-directional-light [project self resource data-desc]
-  (load-ambient-light project self resource data-desc))
+(defn load-directional-light [load-opts node-load-info]
+  (load-ambient-light load-opts node-load-info))
 
 ;; -----------------------------------------------------------------------------
 ;; PointLightNode
@@ -702,11 +702,11 @@
   (output own-build-errors g/Any (gu/passthrough point-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "point_light"])))
 
-(defn load-point-light [project self resource data-desc]
+(defn load-point-light [load-opts {self :node-id data-desc :source-value :as node-load-info}]
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (concat
-      (load-directional-light project self resource data-desc)
+      (load-directional-light load-opts node-load-info)
       (g/set-property self :range (get data "range")))))
 
 (defmethod scene-tools/manip-scalable? ::PointLightNode [_node-id] true)
@@ -793,11 +793,11 @@
                 (update "inner_cone_angle" math/deg->rad)
                 (update "outer_cone_angle" math/deg->rad)))))
 
-(defn load-spot-light [project self resource data-desc]
+(defn load-spot-light [load-opts {self :node-id data-desc :source-value :as node-load-info}]
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (concat
-      (load-point-light project self resource data-desc)
+      (load-point-light load-opts node-load-info)
       (g/set-properties self
         :inner-cone-angle (get data "inner_cone_angle")
         :outer-cone-angle (get data "outer_cone_angle")))))

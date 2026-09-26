@@ -37,10 +37,10 @@
 (def ^:dynamic *project-path* "test/resources/empty_project")
 
 (defn- setup-scratch
-  ([ws-graph]
-   (setup-scratch ws-graph *project-path*))
-  ([ws-graph project-path]
-   (let [workspace (test-util/setup-scratch-workspace! ws-graph project-path)
+  ([]
+   (setup-scratch *project-path*))
+  ([project-path]
+   (let [workspace (test-util/setup-scratch-workspace! project-path)
          project (test-util/setup-project! workspace)]
      [workspace project])))
 
@@ -65,7 +65,7 @@
 (deftest initial-state
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (log/without-logging (setup-scratch world))]
+      (let [[workspace project] (log/without-logging (setup-scratch))]
         (testing "initially no library files"
           (let [files (test-support/library-files (workspace/project-directory workspace))]
             (is (= 0 (count files)))))
@@ -77,7 +77,7 @@
 (deftest libraries-present
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace _project] (log/without-logging (setup-scratch world))
+      (let [[workspace _project] (log/without-logging (setup-scratch))
             project-directory (workspace/project-directory workspace)]
         ;; copy to proper place
         (FileUtils/copyDirectory
@@ -108,12 +108,12 @@
   (with-clean-system
     (test-util/with-ui-run-later-rebound
       (with-open [server (http-server/start! test-util/lib-server-handler)]
-        (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
+        (let [workspace (test-util/setup-scratch-workspace! "test/resources/test_project")
               uri (test-util/lib-server-uri server "lib_resource_project")
               game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
           (write-deps! game-project-res uri)
-          (let [extensions (extensions/make world)
-                project (project/open-project! world extensions workspace game-project-res progress/null-render-progress!)
+          (let [extensions (extensions/make)
+                project (project/open-project! extensions workspace game-project-res progress/null-render-progress!)
                 ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
                 int-gui (test-util/resource-node project "/gui/empty.gui")]
             (is (some? ext-gui))
@@ -132,7 +132,7 @@
 (deftest fetch-libraries
   (with-clean-system
     (with-open [server (http-server/start! test-util/lib-server-handler)]
-      (let [[workspace project] (log/without-logging (setup-scratch world))
+      (let [[workspace project] (log/without-logging (setup-scratch))
             dependency-metadata-file (.toFile
                                        (DependencyMetadata/metadataPath
                                          (library/directory (workspace/project-directory workspace))))
@@ -159,7 +159,7 @@
 (deftest fetch-libraries-from-library-archive-with-nesting
   (with-clean-system
     (with-open [server (http-server/start! test-util/lib-server-handler)]
-      (let [[workspace project] (log/without-logging (setup-scratch world))
+      (let [[workspace project] (log/without-logging (setup-scratch))
             uri (test-util/lib-server-uri server "lib_resource_project_with_nesting")
             game-project (project/get-resource-node project "/game.project")]
         ;; make sure we don't have library file to begin with
@@ -171,7 +171,7 @@
 
 (deftest fetch-libraries-from-local-extension-dir
   (with-clean-system
-    (let [[workspace _project] (log/without-logging (setup-scratch world))
+    (let [[workspace _project] (log/without-logging (setup-scratch))
           project-directory (workspace/project-directory workspace)
           original-uri (URI/create "https://example.com/local-extension-dir.zip")
           property-prefix "defold.extension.test-local"

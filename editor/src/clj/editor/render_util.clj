@@ -46,6 +46,29 @@
   [p0 p1 p2
    p2 p3 p0])
 
+(defn- quad->line-segments
+  "Expands four ordered quad vertices into four independent line segments."
+  [[p0 p1 p2 p3 :as positions]]
+  {:pre [(= 4 (count positions))]}
+  [p0 p1
+   p1 p2
+   p2 p3
+   p3 p0])
+
+(defmacro emit-quad!
+  "Threads a vertex buffer through four vertex-emission forms, expanding the
+  quad into two triangles while preserving its winding."
+  [vertex-buffer v0 v1 v2 v3]
+  `(-> ~vertex-buffer
+       ~@(quad->triangles [v0 v1 v2 v3])))
+
+(defmacro emit-quad-outline!
+  "Threads a vertex buffer through four vertex-emission forms, expanding the
+  quad into four independent line segments."
+  [vertex-buffer v0 v1 v2 v3]
+  `(-> ~vertex-buffer
+       ~@(quad->line-segments [v0 v1 v2 v3])))
+
 (defn- make-color-geometry-vertex-buffer
   [color positions]
   (let [vertex-description (shaders/vertex-description streamed-color-geometry-shader)

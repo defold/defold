@@ -1246,13 +1246,15 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
     const float padding_outline_width = dmMath::Max(base_outline_width, markup_outline_width);
     const float shadow_blur = apply_properties ? viewer->m_Properties.m_ShadowBlur : 0.0f;
     const float padding = 6.0f + padding_outline_width + shadow_blur;
-    const float sdf_outline = (0.75f * 255.0f - (191.0f / padding) * base_outline_width) / 255.0f;
-    const float sdf_shadow = shadow_blur > 0.0f ? (0.75f * 255.0f - (191.0f / padding) * shadow_blur) / 255.0f : 1.0f;
+    const float sdf_distance_scale = FONT_SDF_DISTANCE_SCALE;
+    const float sdf_outline = 0.75f - sdf_distance_scale * base_outline_width / padding;
+    const float sdf_shadow = shadow_blur > 0.0f ? 0.75f - sdf_distance_scale * shadow_blur / padding : 1.0f;
     // The editable field uses a slightly lower edge threshold and a narrower
     // transition, making small SDF text stronger while keeping it crisp.
     const bool    crisp_ui_text = !apply_properties && clip_box.m_Width < WINDOW_WIDTH;
-    const float   sdf_face = bold ? 0.69f : (crisp_ui_text ? 0.72f : 0.75f);
-    const float   sdf_smoothing = (crisp_ui_text ? 0.125f : 0.25f) / padding;
+    // Preserve the UI emboldening distance from the original 191/255 encoding.
+    const float   sdf_face = 0.75f - (bold ? 0.06f : (crisp_ui_text ? 0.03f : 0.0f)) * sdf_distance_scale / (191.0f / 255.0f);
+    const float   sdf_smoothing = (crisp_ui_text ? 0.5f : 1.0f) * sdf_distance_scale / padding;
     const Vector4 face_color(apply_properties ? viewer->m_Properties.m_FaceColor[0] : 1.0f,
                              apply_properties ? viewer->m_Properties.m_FaceColor[1] : 1.0f,
                              apply_properties ? viewer->m_Properties.m_FaceColor[2] : 1.0f,
@@ -1307,7 +1309,7 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
 
             if (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH)
             {
-                glyph_sdf_outline = (0.75f * 255.0f - (191.0f / padding) * glyph_render_data.m_OutlineWidth / text_glyph.m_RenderScale) / 255.0f;
+                glyph_sdf_outline = 0.75f - sdf_distance_scale * glyph_render_data.m_OutlineWidth / (padding * text_glyph.m_RenderScale);
             }
 
             const uint32_t shadow_flags = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR;
@@ -1331,7 +1333,7 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
                 }
                 else if (shadow_blur > 0.0f && requested_shadow_blur < shadow_blur)
                 {
-                    glyph_sdf_shadow = (0.75f * 255.0f - (191.0f / padding) * requested_shadow_blur) / 255.0f;
+                    glyph_sdf_shadow = 0.75f - sdf_distance_scale * requested_shadow_blur / padding;
                 }
             }
 

@@ -19,18 +19,13 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
-import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
-import java.lang.StringBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +45,6 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.TimeProfiler;
 
@@ -61,7 +55,6 @@ import com.dynamo.bob.tools.ToolsHelper;
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
-    private static String stripToolName = "strip_android";
     private static final String VKQUALITY_DATA_FILE = "vkqualitydata.vkq";
 
     private static Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
@@ -159,7 +152,7 @@ public class AndroidBundler implements IBundler {
         String keystorePassword = getKeystorePassword(project);
         String alias = project.option("keystore-alias", "");
         if (alias.length() == 0) {
-            try (FileInputStream is = new FileInputStream(new File(keystorePath))) {
+            try (FileInputStream is = new FileInputStream(keystorePath)) {
                 KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keystore.load(is, keystorePassword.toCharArray());
                 Enumeration<String> enumeration = keystore.aliases();
@@ -216,6 +209,7 @@ public class AndroidBundler implements IBundler {
         final boolean strip_executable = project.hasOption("strip-executable");
         if (strip_executable) {
             // llvm-strip reads every Android ABI, so a single tool covers armv7/arm64/x86_64
+            String stripToolName = "strip_android";
             String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolName);
             AndroidTools.exec(stripTool, binary.getAbsolutePath());
             BundleHelper.throwIfCanceled(canceled);
@@ -446,7 +440,7 @@ public class AndroidBundler implements IBundler {
             for (File resDir : compiledResourcesDir.listFiles(File::isDirectory)) {
                 for (File file : resDir.listFiles()) {
                     if (file.getAbsolutePath().endsWith(".flat")) {
-                        sb.append(file.getAbsolutePath() + " ");
+                        sb.append(file.getAbsolutePath()).append(" ");
                     }
                 }
             }
@@ -941,7 +935,7 @@ public class AndroidBundler implements IBundler {
             Map<String, Object> propGroup = propertiesMap.get("android");
             if (propGroup != null && propGroup.containsKey("debuggable")) {
                 boolean debuggable = project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG);
-                propGroup.put("debuggable", debuggable ? "true":"false");
+                propGroup.put("debuggable", Boolean.toString(debuggable));
             }
         }
     }

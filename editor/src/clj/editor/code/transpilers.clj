@@ -198,8 +198,7 @@
                         (let [^ILuaTranspiler transpiler (java/invoke-no-arg-constructor transpiler-plugin-class)
                               build-file-proj-path (.getBuildFileResourcePath transpiler)
                               source-ext (.getSourceExt transpiler)]
-                          (when (or (not (string? build-file-proj-path))
-                                    (not (string/starts-with? build-file-proj-path "/")))
+                          (when-not (resource/proj-path? build-file-proj-path)
                             (throw (Exception. (str "Invalid build file resource path: " build-file-proj-path))))
                           (when (or (not (string? source-ext))
                                     (string/starts-with? source-ext "."))
@@ -235,7 +234,7 @@
               (for [removed-class removed]
                 (g/delete-node (old-transpiler-class->node-id removed-class)))
               (for [{:keys [source-ext build-file-proj-path instance]} (create-lua-transpilers added)]
-                (g/make-nodes (g/node-id->graph-id code-transpilers) [transpiler TranspilerNode]
+                (g/make-nodes [transpiler TranspilerNode]
                   (r/register-code-resource-type
                     workspace
                     :ext source-ext
@@ -243,8 +242,8 @@
                     :icon-class :script
                     :node-type SourceNode
                     :view-types [:code :default]
-                    :additional-load-fn (fn [_ self _]
-                                          (g/connect self :save-data transpiler :source-code-save-datas)))
+                    :connect-fn (fn connect-fn [_project self _resource]
+                                  (g/connect self :save-data transpiler :source-code-save-datas)))
                   (g/set-properties transpiler :build-file-proj-path build-file-proj-path :instance instance)
                   (g/connect code-transpilers :lua-preprocessors transpiler :lua-preprocessors)
                   (g/connect workspace :root transpiler :root)

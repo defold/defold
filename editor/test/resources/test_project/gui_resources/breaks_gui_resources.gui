@@ -187,7 +187,7 @@ nodes {
   }
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
-  text: "<text>"
+  text: "-text-"
   font: "missing_font"
   id: "gui_resources/text"
   xanchor: XANCHOR_NONE

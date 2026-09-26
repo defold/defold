@@ -344,15 +344,12 @@
                                 (selection [_this _evaluation-context])
                                 (succeeding-selection [_this _evaluation-context])
                                 (alt-selection [_this _evaluation-context]))))
-          view-graph (g/node-id->graph-id app-view)
-
           [_console console-view]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes view-graph
-                [console console/ConsoleNode
-                 console-view [view/CodeEditorView :gutter-view (console/->ConsoleGutterView)]]
+              (g/make-nodes [console console/ConsoleNode
+                             console-view [view/CodeEditorView :gutter-view (console/->ConsoleGutterView)]]
                 (g/connect console :_node-id console-view :resource-node))))]
 
       (binding [ui/*main-stage* (atom @(fx/on-fx-thread (doto (Stage.) (.setScene (Scene. root)))))]
@@ -400,8 +397,8 @@
             (let [{:keys [status]} @(http/request (str url "/command/run?focus=invalid") :method "POST")]
               (is (= 400 status)))
             (let [{:keys [status headers body]} @(http/request
-                                                    (str url "/preview/collection/components/test.gui?width=32&height=32")
-                                                    :as :byte-array)]
+                                                   (str url "/preview/collection/components/test.gui?width=32&height=32")
+                                                   :as :byte-array)]
               (is (= 200 status))
               (is (= "image/png" (get headers "content-type")))
               (let [image (ImageIO/read (ByteArrayInputStream. body))]

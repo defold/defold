@@ -163,7 +163,7 @@
             :scope :project
             :properties
             {:lint-code {:type :boolean
-                         :default true}
+                         :default false}
              :texture-compression {:type :boolean}
              :open-html5-build {:type :boolean
                                 :default true}}}

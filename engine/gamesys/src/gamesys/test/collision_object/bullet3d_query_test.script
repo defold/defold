@@ -270,6 +270,7 @@ local function test_overlap_queries(world, objects)
     local aabb_items = bullet3d.world.overlap_aabb(world, near_aabb, filter_a, 8)
     assert(#aabb_items == 1)
     assert(aabb_items[1] == objects.near)
+    assert(bullet3d.get_gameobject_id(aabb_items[1]) == hash("/bullet3d_query_near"))
 
     local capped = bullet3d.world.overlap_aabb(world, {
         lower = vmath.vector3(-2, -2, -2),
@@ -372,6 +373,7 @@ local function test_overlap_queries(world, objects)
     local trigger_items = bullet3d.world.overlap_aabb(world, trigger_aabb, nil, 0)
     assert(#trigger_items == 1)
     assert(trigger_items[1] == objects.trigger)
+    assert(bullet3d.get_gameobject_id(trigger_items[1]) == hash("/bullet3d_query_trigger"))
     assert(#bullet3d.world.overlap_aabb(world, trigger_aabb, filter_a, 0) == 0)
 end
 
@@ -409,6 +411,7 @@ local function test_ray_queries(world, objects)
     local closest = bullet3d.world.cast_ray_closest(world, origin, translation)
     assert(closest ~= nil)
     assert(closest.object == objects.near)
+    assert(bullet3d.get_gameobject_id(closest.object) == hash("/bullet3d_query_near"))
     assert_near(closest.fraction, 0.16, 0.002)
 
     local capped = bullet3d.world.cast_ray(world, origin, translation, nil, 2)

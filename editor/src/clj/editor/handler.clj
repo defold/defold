@@ -20,7 +20,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.localization :as localization]
             [editor.util :as util]
-            [internal.graph.types :as gt]
+            [internal.graph :as ig]
             [plumbing.core :refer [fnk]]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
@@ -553,7 +553,7 @@
   (if (empty? selection)
     selection
     (let [basis (:basis evaluation-context)
-          _ (assert (gt/basis? basis))
+          _ (assert (ig/graph? basis))
           selection (if (g/node-type? t)
                       (adapt selection Long evaluation-context)
                       selection)

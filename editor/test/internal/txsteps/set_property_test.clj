@@ -24,7 +24,7 @@
 
 (deftest basic-property-undo-redo-test
   (test-support/with-clean-system
-    (let [original-node-id (first (g/take-node-ids world 1))
+    (let [original-node-id (first (g/take-node-ids 1))
 
           override-node-id
           (second
@@ -110,7 +110,7 @@
 
 (deftest effecting-property-undo-redo-test
   (test-support/with-clean-system
-    (let [original-node-id (g/make-node! world helpers/PropertyTestNode)
+    (let [original-node-id (g/make-node! helpers/PropertyTestNode)
 
           override-node-id
           (second
@@ -258,7 +258,7 @@
 
 (deftest validation-test
   (test-support/with-clean-system
-    (let [node-id (g/make-node! world helpers/PropertyTestNode)]
+    (let [node-id (g/make-node! helpers/PropertyTestNode)]
 
       (testing "Before transaction attempt."
         (is (= nil
@@ -284,9 +284,8 @@
            override-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world
-                [consumer-node-id helpers/OverriddenPropertiesConsumer
-                 original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
+              (g/make-nodes [consumer-node-id helpers/OverriddenPropertiesConsumer
+                             original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
                 (g/override original-node-id {}
                   (fn [_evaluation-context id-lookup]
                     (let [override-node-id (id-lookup original-node-id)]
@@ -332,9 +331,8 @@
            override-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world
-                [consumer-node-id helpers/OverriddenPropertiesConsumer
-                 original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
+              (g/make-nodes [consumer-node-id helpers/OverriddenPropertiesConsumer
+                             original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
                 (g/override original-node-id {}
                   (fn [_evaluation-context id-lookup]
                     (let [override-node-id (id-lookup original-node-id)]

@@ -98,6 +98,21 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int B2D_GetGameObjectId(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmhash_t instance_id = GetBodyInstanceId(L, 1);
+        if (instance_id)
+        {
+            dmScript::PushHash(L, instance_id);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
     static int B2D_GetVersion(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -109,6 +124,7 @@ namespace dmGameSystem
     {
         {"get_world", B2D_GetWorld},
         {"get_body", B2D_GetBody},
+        {"get_gameobject_id", B2D_GetGameObjectId},
         {"get_version", B2D_GetVersion},
 
         {0, 0}
@@ -667,6 +683,22 @@ namespace dmGameSystem
  * @name b2d.get_body
  * @param url [type: string|hash|url] the url to the game object collision component
  * @return body [type: b2Body|nil] the body if successful. Otherwise `nil`.
+ */
+
+/*# Get the game object id associated with a Box2D body
+ *
+ * Returns the id of the game object that owns the body's collision-object component.
+ * Raises a Lua error if the body handle is invalid or its game object has been deleted.
+ *
+ * @name b2d.get_gameobject_id
+ * @param body [type:b2Body] the Box2D body
+ * @return id [type:hash|nil] the game object id, or `nil` if the body has no associated game object
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ * local id = b2d.get_gameobject_id(body)
+ * ```
  */
 
 /*# Get the Box2D version information for the active backend.

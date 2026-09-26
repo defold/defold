@@ -61,7 +61,7 @@
     ;; Remove deprecated fields
     (dissoc migrated-format :compression-level :compression-type)))
 
-(defn- sanitize-texture-profiles [pb]
+(defn- sanitize-texture-profiles [_read-opts _owner-resource pb]
   (protobuf/sanitize-repeated
     pb :profiles
     (fn [profile]
@@ -149,7 +149,7 @@
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-pb [def _project self _resource pb-map-without-defaults]
+(defn load-pb [def _load-opts {self :node-id pb-map-without-defaults :source-value}]
   (let [pb-class (:pb-class def)
         pb-map-with-defaults (protobuf/inject-defaults pb-class pb-map-without-defaults)]
     (g/set-properties self

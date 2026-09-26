@@ -349,3 +349,14 @@ defold_add_executable(test_resource_archive
   ${RESOURCE_ARCHIVE_EMBED_SOURCES})
 resource_configure_test(test_resource_archive ON)
 defold_target_link_app(test_resource_archive "${TARGET_PLATFORM}" SCOPE PRIVATE)
+
+set(RESOURCE_TEST_PROTO_CPP "${CMAKE_CURRENT_BINARY_DIR}/test/test_resource_ddf.cpp")
+defold_protoc_gen_cpp("${RESOURCE_TEST_PROTO_CPP}" "${RESOURCE_TEST_ROOT}/test_resource_ddf.proto"
+  INCLUDES "${RESOURCE_TEST_ROOT}")
+defold_add_executable(test_resource
+  "${RESOURCE_TEST_ROOT}/test_resource.cpp"
+  "${RESOURCE_TEST_PROTO_CPP}"
+  ${RESOURCE_ARCHIVE_EMBED_SOURCES})
+target_include_directories(test_resource PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+resource_configure_test(test_resource ON ResourceProviderFile ResourceProviderArchive)
+defold_target_link_app(test_resource "${TARGET_PLATFORM}" SCOPE PRIVATE)

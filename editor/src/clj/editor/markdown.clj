@@ -412,7 +412,7 @@
     (when (and size (> (long (:width size)) (long max-image-decode-width)))
       (double max-image-decode-width))))
 
-(defn- construct-image [src base-resource]
+(defn- construct-image [^String src base-resource]
   (when-not (coll/empty? src)
     (when-let [^URI uri (try (URI. src) (catch URISyntaxException _))]
       (if (or (.getAuthority uri) (.getScheme uri))
@@ -420,11 +420,11 @@
         (when-let [base-resource base-resource]
           (let [resource (workspace/resolve-resource base-resource (.getPath uri))]
             (when (resource/exists? resource)
-              (let [width (decode-width resource)]
-                (with-open [is (io/input-stream resource)]
-                  (if width
-                    (Image. is (double width) 0.0 #_preserve-ratio true #_smooth true)
-                    (Image. is)))))))))))
+              (let [width (decode-width resource)
+                    input-stream (io/input-stream resource)]
+                (if width
+                  (Image. input-stream (double width) 0.0 #_preserve-ratio true #_smooth true #_background-loading true)
+                  (Image. input-stream #_background-loading true))))))))))
 
 (def ^:private prop-image-width-cap
   (fx/make-binding-prop
@@ -440,7 +440,7 @@
               :key :image}]}
   [{:keys [image]}]
   (if image
-    ;; Remote images may load in the background, so natural width is 0 until ready.
+    ;; Images load in the background, so natural width is 0 until ready.
     ;; Bind the cap to the live width so a fill-width parent shrinks a too-wide
     ;; image but never upscales a smaller one.
     {:fx/type fx.h-box/lifecycle

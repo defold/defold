@@ -139,7 +139,7 @@
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn- load-image
-  [project self _resource]
+  [{:keys [project]} {self :node-id}]
   (concat
     (g/connect project :build-settings self :build-settings)
     (g/connect project :texture-profiles self :texture-profiles)))

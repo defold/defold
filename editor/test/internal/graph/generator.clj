@@ -103,10 +103,8 @@
 
 (defn connect-arc
   [graph arc]
-  (let [basis (ig/multigraph-basis [graph])
-        {:keys [arc->source+target-pkids]} (ig/basis-plan-connect-arc basis arc)
-        basis (ig/basis-perform-connect-arcs basis arc->source+target-pkids)]
-    (nth (:graphs basis) 0)))
+  (let [{:keys [arc->source+target-pkids]} (ig/basis-plan-connect-arc graph arc)]
+    (ig/basis-perform-connect-arcs graph arc->source+target-pkids)))
 
 (defn- remove-arcs
   [dead-arcs]
@@ -116,13 +114,9 @@
 
 (defn remove-arc
   [graph arc]
-  (let [basis (ig/multigraph-basis [graph])]
-    (if-let [{:keys [arc->source+target-pkids]} (ig/basis-plan-disconnect-arc basis arc)]
-      (-> basis
-          (ig/basis-perform-disconnect-arcs arc->source+target-pkids)
-          :graphs
-          (nth 0))
-      graph)))
+  (if-let [{:keys [arc->source+target-pkids]} (ig/basis-plan-disconnect-arc graph arc)]
+    (ig/basis-perform-disconnect-arcs graph arc->source+target-pkids)
+    graph))
 
 (defn subselect
   [coll fraction]
@@ -154,7 +148,6 @@
 (defn make-random-graph-builder
   []
   (eval (random-graph-sexps)))
-
 
 (comment
 

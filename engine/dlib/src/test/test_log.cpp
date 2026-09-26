@@ -374,28 +374,39 @@ static void LogThreadWithLogCallsListener(LogSeverity severity, const char* doma
 
 TEST(dmLog, TestLogThreadWithLogCalls)
 {
+    // Writers can pass the initialized check just before finalization. Keep one
+    // logging across repeated restarts to exercise delayed lock acquisition and
+    // verify that each new logger still dispatches messages to its listener.
     int32_atomic_t run = 1;
     dLib::SetDebugMode(false); // avoid spam in the unit tests
 
     dmThread::Thread log_thread = dmThread::New(LogThreadWithLogCalls, 0x80000, (void*)&run, "test");
 
-    dmLog::LogParams params;
-    dmLog::LogInitialize(&params);
+    bool received_logs = true;
+    for (int cycle = 0; cycle < 16; ++cycle)
+    {
+        dmLog::LogParams params;
+        dmLog::LogInitialize(&params);
 
-    g_LogThreadWithLogCallsCount = 0;
-    dmLogRegisterListener(LogThreadWithLogCallsListener);
+        dmAtomicStore32(&g_LogThreadWithLogCallsCount, 0);
+        dmLogRegisterListener(LogThreadWithLogCallsListener);
 
-    while (dmAtomicGet32(&g_LogThreadWithLogCallsCount) < 40)
-        dmTime::Sleep(1000);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (dmAtomicGet32(&g_LogThreadWithLogCallsCount) < 40 && dmTime::GetMonotonicTime() < deadline)
+            dmTime::Sleep(1000);
+        received_logs = dmAtomicGet32(&g_LogThreadWithLogCallsCount) >= 40;
 
-    dmLog::LogFinalize();
-
-    dmTime::Sleep(1000); // make sure we write some more logs
+        dmLog::LogFinalize();
+        dmTime::Sleep(1000); // make sure we write some more logs after finalization
+        if (!received_logs)
+            break;
+    }
 
     // wait for thread to join
     dmAtomicStore32(&run, 0);
     dmThread::Join(log_thread);
     dLib::SetDebugMode(true);
+    ASSERT_TRUE(received_logs);
 }
 
 int main(int argc, char **argv)

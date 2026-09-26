@@ -73,7 +73,8 @@ static uint32_t       g_MaxSampleCount = 4096;
 static Property       g_Properties[g_MaxPropertyCount];
 static PropertyData   g_PropertyData[g_MaxPropertyCount];
 
-// At global scope as they're set _before_ the profiler is started
+// At global scope as they can be set before the profiler is started.
+// Changes while profiling must hold g_Lock, like the callback invocations.
 static dmProfiler::FSampleTreeCallback   g_SampleTreeCallback = 0;
 static void*                             g_SampleTreeCallbackCtx = 0;
 static dmProfiler::FPropertyTreeCallback g_PropertyTreeCallback = 0;
@@ -415,14 +416,15 @@ namespace dmProfiler
 {
     void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
     {
-        // NOTE: Called _before_ initialization
+        // The lock is optional before initialization, when no samples can be emitted.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Lock);
         g_SampleTreeCallback = callback;
         g_SampleTreeCallbackCtx = ctx;
     }
 
     void SetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback)
     {
-        // NOTE: Called _before_ initialization
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Lock);
         g_PropertyTreeCallback = callback;
         g_PropertyTreeCallbackCtx = ctx;
     }
@@ -1023,7 +1025,13 @@ static ProfileListenerInitializer g_ProfileListenerInitializer;
 
 static dmExtension::Result ProfilerBasic_AppInitialize(dmExtension::AppParams* params)
 {
-    g_MaxSampleCount = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.max_sample_count", g_MaxSampleCount);
+    // Reading an invalid value can log a warning and re-enter the profiler.
+    uint32_t max_sample_count = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.max_sample_count", g_MaxSampleCount);
+    {
+        // The profiler can still be collecting samples during an engine reboot.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Lock);
+        g_MaxSampleCount = max_sample_count;
+    }
 
     if (!IsProfileInitialized())
     {

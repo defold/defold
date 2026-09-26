@@ -28,6 +28,7 @@
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.types :as types]
+            [editor.workspace :as workspace]
             [schema.core :as s]
             [util.coll :as coll]
             [util.eduction :as e]))
@@ -400,7 +401,7 @@
 (g/defnk produce-script-property-entries [^:unsafe _evaluation-context _this _node-id deleted? name resource-kind type value]
   (when-not deleted?
     (let [basis (:basis _evaluation-context)
-          project (project/get-project basis _node-id)
+          project (project/get-project basis)
           workspace (project/workspace project _evaluation-context)
           prop-kw (properties/user-name->key name)
           prop-type (script-compilation/script-property-type->property-type type)
@@ -468,7 +469,7 @@
                    ;; When assigning a resource property, we must make sure the
                    ;; assigned resource is built and included in the game.
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)]
+                         project (project/get-project basis)]
                      (concat
                        (g/disconnect-sources basis self :resource)
                        (g/disconnect-sources basis self :resource-build-targets)
@@ -515,7 +516,7 @@
   (g/set-properties node-id :type type :resource-kind resource-kind :value value))
 
 (defn- create-script-property [script-node-id name type resource-kind value]
-  (g/make-nodes (g/node-id->graph-id script-node-id) [node-id [ScriptPropertyNode :name name]]
+  (g/make-nodes [node-id [ScriptPropertyNode :name name]]
     (edit-script-property node-id type resource-kind value)
     (g/connect node-id :_node-id script-node-id :nodes)
     (g/connect node-id :build-targets script-node-id :resource-property-build-targets)
@@ -574,7 +575,7 @@
 
 (g/defnk produce-script-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets]
   (let [basis (:basis _evaluation-context)
-        project (project/get-project basis _node-id)]
+        project (project/get-project basis)]
     (script-compilation/build-targets
       _node-id
       resource
@@ -588,7 +589,7 @@
 
 (g/defnk produce-lua-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors]
   (let [basis (:basis _evaluation-context)
-        project (project/get-project basis _node-id)]
+        project (project/get-project basis)]
     (script-compilation/build-targets
       _node-id
       resource
@@ -613,6 +614,10 @@
     (filter data/breakpoint-region?)
     (map (partial region->breakpoint resource))))
 
+(def ^:private xform-required-modules-to-proj-paths
+  (comp (remove lua/preinstalled-modules)
+        (map lua/lua-module->path)))
+
 (g/defnode LuaCodeNode
   (inherits r/CodeEditorResourceNode)
 
@@ -632,8 +637,7 @@
              (resource/proj-path resource)
              (with-open [reader (data/lines-reader lines)]
                (coll/into-> (lua-parser/modules reader) []
-                 (remove lua/preinstalled-modules)
-                 (map lua/lua-module->path)))]))
+                 xform-required-modules-to-proj-paths))]))
   (output resource-with-lines script-annotations/ResourceWithLines (g/fnk [resource lines :as ret] ret)))
 
 (g/defnode LuaNode
@@ -658,11 +662,12 @@
                    (let [resource (g/node-value self :resource evaluation-context)
                          basis (:basis evaluation-context)
                          source-value (g/node-value self :source-value evaluation-context)
-                         lsp (lsp/get-node-lsp basis self)
+                         lsp (lsp/get-lsp basis)
                          workspace (resource/workspace resource)
+                         proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
                          lua-info (with-open [reader (data/lines-reader new-value)]
-                                    (lua-parser/lua-info basis workspace script-compilation/valid-resource-kind? reader))
-                         script-properties (script-compilation/lua-info->script-properties lua-info)]
+                                    (lua-parser/lua-info reader script-compilation/valid-resource-kind?))
+                         script-properties (script-compilation/lua-info->script-properties lua-info proj-path->resource)]
                      (lsp/notify-lines-modified! lsp resource source-value new-value)
                      (g/set-property self :script-properties script-properties)))))
 
@@ -671,7 +676,7 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)]
+                         project (project/get-project basis)]
                      (concat
                        (update-script-properties evaluation-context self old-value new-value)
                        (g/disconnect-sources basis self :original-resource-property-build-targets)
@@ -731,13 +736,28 @@
         (when (and annotations (resource/zip-resource? resource))
           (g/connect self :resource-with-lines script-annotations :script-annotations))))))
 
-(defn- additional-load-fn [project self _resource]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [code-preprocessors (project/code-preprocessors project evaluation-context)
-          script-intelligence (project/script-intelligence project evaluation-context)]
-      (e/concat
-        (g/connect code-preprocessors :lua-preprocessors self :lua-preprocessors)
-        (g/connect script-intelligence :lua-completions self :script-intelligence-completions)))))
+(defn- script-dependencies [_read-opts _owner-resource lines]
+  (let [lua-info
+        (with-open [reader (data/lines-reader lines)]
+          (lua-parser/lua-info reader script-compilation/valid-resource-kind?))
+
+        script-property-resource-proj-paths
+        (coll/into-> (:script-properties lua-info) :eduction
+          (filter #(= :script-property-type-resource (:type %)))
+          (keep :value))
+
+        required-module-proj-paths
+        (coll/into-> (:modules lua-info) :eduction
+          xform-required-modules-to-proj-paths)]
+
+    (coll/into-> [required-module-proj-paths script-property-resource-proj-paths] []
+      cat
+      (distinct))))
+
+(defn- additional-load-fn [{:keys [code-preprocessor script-intelligence]} {self :node-id}]
+  (e/concat
+    (g/connect code-preprocessor :lua-preprocessors self :lua-preprocessors)
+    (g/connect script-intelligence :lua-completions self :script-intelligence-completions)))
 
 (defn register-resource-types [workspace]
   (for [def script-defs
@@ -745,6 +765,7 @@
                        (dissoc :annotations :reference-completions)
                        (assoc
                          :built-pb-class script-compilation/built-pb-class
+                         :dependencies-fn script-dependencies
                          :language "lua"
                          :lazy-loaded false
                          :connect-fn (partial connect-fn (:annotations def) (:reference-completions def))

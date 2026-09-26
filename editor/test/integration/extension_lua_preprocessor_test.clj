@@ -28,7 +28,7 @@
 
 (deftest extension-lua-preprocessor-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)

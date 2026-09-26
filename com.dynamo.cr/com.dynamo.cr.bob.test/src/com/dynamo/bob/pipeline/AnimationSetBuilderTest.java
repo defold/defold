@@ -15,7 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -81,7 +81,7 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
             IOUtils.closeQuietly(is);
         }
 
-        String gltf = new String(os.toByteArray(), StandardCharsets.UTF_8);
+        String gltf = os.toString(StandardCharsets.UTF_8);
         String dataUriPrefix = "data:application/octet-stream;base64,";
         int dataStart = gltf.indexOf(dataUriPrefix);
         int dataEnd = gltf.indexOf('"', dataStart);
@@ -105,14 +105,13 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testAnimationSet() throws Exception {
         addTestFile("bend2bones.gltf", "testanim.gltf");
-        StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.gltf\" }");
-        src.append("skeleton: \"/testanim.gltf\"");
-        List<Message> outputs = build("/test.animationset", src.toString());
+        String src = "animations { animation : \"/testanim.gltf\" }" +
+                "skeleton: \"/testanim.gltf\"";
+        List<Message> outputs = build("/test.animationset", src);
 
         Map<Long, RigAnimation> anims = getAnims(getMessage(outputs, AnimationSet.class));
         assertEquals(1,anims.size());
-        assertTrue(null != getAnim(anims, "testanim"));
+        assertNotNull(getAnim(anims, "testanim"));
     }
 
     @Test
@@ -136,7 +135,7 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
         AnimationSet animationSet = AnimationSet.parseFrom(animationSetTask.output(0).getContent());
         Map<Long, RigAnimation> animations = getAnims(animationSet);
         assertEquals(1, animations.size());
-        assertTrue(null != getAnim(animations, "testanim"));
+        assertNotNull(getAnim(animations, "testanim"));
     }
 
     @Test
@@ -164,29 +163,27 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
 
         Map<Long, RigAnimation> anims = getAnims(getMessage(outputs, AnimationSet.class));
         assertEquals(4,anims.size());
-        assertTrue(null != getAnim(anims, "testanim1"));
-        assertTrue(null != getAnim(anims, "testanim2"));
-        assertTrue(null != getAnim(anims, "testset1/testanim3"));
-        assertTrue(null != getAnim(anims, "testset2/testanim3"));
+        assertNotNull(getAnim(anims, "testanim1"));
+        assertNotNull(getAnim(anims, "testanim2"));
+        assertNotNull(getAnim(anims, "testset1/testanim3"));
+        assertNotNull(getAnim(anims, "testset2/testanim3"));
     }
 
     @Test(expected=CompileExceptionError.class)
     public void testAnimationSetMultipleAnimationReference() throws Exception {
         addTestFile("bend2bones.gltf", "testanim.gltf");
-        StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.gltf\" }");
-        src.append("animations { animation : \"/testanim.gltf\" }");
-        build("/test.animationset", src.toString());
+        String src = "animations { animation : \"/testanim.gltf\" }" +
+                "animations { animation : \"/testanim.gltf\" }";
+        build("/test.animationset", src);
     }
 
     @Test(expected=CompileExceptionError.class)
     public void testAnimationSetMultipleAnimationId() throws Exception {
         addTestFile("bend2bones.gltf", "1/testanim.gltf");
         addTestFile("bend2bones.gltf", "2/testanim.gltf");
-        StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/1/testanim.gltf\" }");
-        src.append("animations { animation : \"/2/testanim.gltf\" }");
-        build("/test.animationset", src.toString());
+        String src = "animations { animation : \"/1/testanim.gltf\" }" +
+                "animations { animation : \"/2/testanim.gltf\" }";
+        build("/test.animationset", src);
     }
 
     @Test(expected=CompileExceptionError.class)
@@ -204,17 +201,14 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
     @Test(expected=CompileExceptionError.class)
     public void testAnimationSetDaeUnsupported() throws Exception {
         addFile("testanim.dae", "unsupported");
-        StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.dae\" }");
-        src.append("skeleton: \"/testanim.dae\"");
-        build("/test.animationset", src.toString());
+        String src = "animations { animation : \"/testanim.dae\" }" +
+                "skeleton: \"/testanim.dae\"";
+        build("/test.animationset", src);
     }
 
     @Test(expected=CompileExceptionError.class)
     public void testAnimationSetCircularReference() throws Exception {
-        StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/test.animationset\" }");
-        build("/test.animationset", src.toString());
+        build("/test.animationset", "animations { animation : \"/test.animationset\" }");
     }
 
 }

@@ -124,14 +124,13 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output samplers [g/KeywordMap] (gu/passthrough samplers)))
 
-(defn- sanitize-compute [compute-desc]
+(defn- sanitize-compute [_read-opts _owner-resource compute-desc]
   {:pre [(map? compute-desc)]} ; Compute$ComputeDesc in map format.
   (protobuf/sanitize-repeated compute-desc :constants render-program-utils/sanitize-constant))
 
-(defn load-compute [project self resource compute-desc]
+(defn load-compute [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id compute-desc :source-value}]
   {:pre [(map? compute-desc)]} ; Compute$ComputeDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (g/connect project :glsl-es-default-precision-float self :glsl-es-default-precision-float)
       (g/connect project :glsl-es-default-precision-int self :glsl-es-default-precision-int)

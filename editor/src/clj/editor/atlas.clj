@@ -53,6 +53,7 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll]
@@ -317,8 +318,8 @@
                                                               :icon image-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
 
-                                                             (resource/resource? maybe-image-resource)
-                                                             (assoc :link maybe-image-resource :outline-show-link? true))))
+                                                       (resource/resource? maybe-image-resource)
+                                                       (assoc :link maybe-image-resource :outline-show-link? true))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode pivot-x pivot-y]
                               (-> (protobuf/make-map-without-defaults AtlasProto$AtlasImage
                                     :image (resource/resource->proj-path maybe-image-resource)
@@ -667,7 +668,7 @@
   ;; contain the animation metadata since it was produced from fake animations.
   ;; In order to produce a valid TextureSetResult, we complete the protobuf
   ;; animations inside the embedded TextureSet with our animation properties.
-  [animations layout-data atlas-images-variants rename-patterns]
+  [animations layout-data rename-patterns]
   (let [incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
         animation-present-in-ddf? (comp coll/not-empty :images)
@@ -684,11 +685,12 @@
         ;; them here. The same image (i.e. rect) might be referenced multiple
         ;; times if it's used in different animations, that's fine and this is
         ;; how Bob does it in TextureSetGenerator. See also: comments in
-        ;; texture_set_ddf.proto about `image_name_hashes` field
+        ;; texture_set_ddf.proto about `image_name_hashes` field.
+        ;; The initial hashes must follow geometry/frame order, not atlas entry order.
         fixed-image-name-hashes (-> []
                                     (into
                                       (map #(-> % :path (texture-set-gen/resource-id rename-patterns) murmur/hash64))
-                                      atlas-images-variants)
+                                      (:geometry-images layout-data))
                                     (into
                                       (mapcat
                                         (fn [{:keys [id images]}]
@@ -799,7 +801,6 @@
   (output atlas-images-variants [Image] :cached (g/fnk [animation-images]
                                                   (into [] (distinct) (flatten animation-images))))
 
-
   (output layout-data-generator g/Any          produce-layout-data-generator)
   (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output layout-data      g/Any               :cached (g/fnk [layout-data-generator] (texture-util/call-generator layout-data-generator)))
@@ -870,17 +871,15 @@
 
 (defn- make-image-nodes
   [attach-fn parent image-msgs]
-  (let [graph-id (g/node-id->graph-id parent)]
-    (for [image-msg image-msgs]
-      (g/make-nodes
-        graph-id
-        [atlas-image AtlasImage]
-        (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
-          image :image
-          sprite-trim-mode :sprite-trim-mode
-          pivot-x :pivot-x
-          pivot-y :pivot-y)
-        (attach-fn parent atlas-image)))))
+  (for [image-msg image-msgs]
+    (g/make-nodes
+      [atlas-image AtlasImage]
+      (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
+        image :image
+        sprite-trim-mode :sprite-trim-mode
+        pivot-x :pivot-x
+        pivot-y :pivot-y)
+      (attach-fn parent atlas-image))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))
 (def ^:private make-image-nodes-in-animation (partial make-image-nodes attach-image-to-animation))
@@ -891,26 +890,21 @@
   (let [image-msgs (map #(assoc default-image-msg :image %) image-resources)]
     (make-image-nodes-in-atlas atlas-node image-msgs)))
 
-(defn- resolve-image-msgs [workspace image-msgs remove-duplicates]
-  (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource (g/now) workspace)]
+(defn- resolve-image-msgs [resolve-resource-fn owner-resource image-msgs remove-duplicates]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (into []
           (comp (remove (comp empty? :image))
                 (if remove-duplicates
                   (util/distinct-by :image)
                   identity)
                 (map (fn [atlas-image-msg]
-                       (update atlas-image-msg :image resolve-workspace-resource))))
+                       (update atlas-image-msg :image resolve-resource))))
           image-msgs)))
 
-(defn- make-atlas-animation [atlas-node atlas-animation]
+(defn- make-atlas-animation [atlas-node resolve-resource-fn owner-resource atlas-animation]
   {:pre [(map? atlas-animation)]} ; AtlasProto$AtlasAnimation in map format.
-  (let [graph-id (g/node-id->graph-id atlas-node)
-        project (project/get-project atlas-node)
-        workspace (project/workspace project)
-        image-msgs (resolve-image-msgs workspace (:images atlas-animation) false)]
-    (g/make-nodes
-      graph-id
-      [animation-node AtlasAnimation]
+  (let [image-msgs (resolve-image-msgs resolve-resource-fn owner-resource (:images atlas-animation) false)]
+    (g/make-nodes [animation-node AtlasAnimation]
       (gu/set-properties-from-pb-map animation-node AtlasProto$AtlasAnimation atlas-animation
         id :id
         flip-horizontal (protobuf/int->boolean :flip-horizontal)
@@ -920,10 +914,9 @@
       (attach-animation-to-atlas atlas-node animation-node)
       (make-image-nodes-in-animation animation-node image-msgs))))
 
-(defn load-atlas [project self resource atlas]
+(defn load-atlas [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id atlas :source-value}]
   {:pre [(map? atlas)]} ; AtlasProto$Atlas in map format.
-  (let [workspace (resource/workspace resource)
-        image-msgs (resolve-image-msgs workspace (:images atlas) true)]
+  (let [image-msgs (resolve-image-msgs resolve-resource-fn owner-resource (:images atlas) true)]
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
@@ -938,7 +931,7 @@
           (g/set-property self :max-page-size [(or max-page-width (default-max-page-size 0))
                                                (or max-page-height (default-max-page-size 1))])))
       (make-image-nodes-in-atlas self image-msgs)
-      (map (partial make-atlas-animation self)
+      (map (partial make-atlas-animation self resolve-resource-fn owner-resource)
            (:animations atlas)))))
 
 (defn- selection->atlas [selection evaluation-context] (handler/adapt-single selection AtlasNode evaluation-context))
@@ -958,13 +951,16 @@
       (app-view/select app-view nodes))))
 
 (defn- add-animation-group-handler [app-view atlas-node]
-  (let [op-seq (gensym)
+  (let [basis (g/now)
+        owner-resource (resource-node/owner-resource basis atlas-node)
+        resolve-resource-fn #(workspace/resolve-resource basis %)
+        op-seq (gensym)
         [animation-node] (g/tx-nodes-added
                            (g/transact
                              (concat
                                (g/operation-sequence op-seq)
                                (g/operation-label (localization/message "operation.atlas.add-animation"))
-                               (make-atlas-animation atlas-node default-animation))))]
+                               (make-atlas-animation atlas-node resolve-resource-fn owner-resource default-animation))))]
     (select! app-view [animation-node] op-seq)))
 
 (handler/defhandler :edit.add-embedded-component :workbench
@@ -1030,10 +1026,10 @@
   (let [parent (core/scope node-id)
         children (vec (g/node-value parent :nodes))
         new-children (vec-move children node-id offset)
-        connections (keep (fn [[source source-label target target-label]]
-                            (when (and (= source node-id)
-                                       (= target parent))
-                              [source-label target-label]))
+        connections (keep (fn [arc]
+                            (when (and (= (gt/source-id arc) node-id)
+                                       (= (gt/target-id arc) parent))
+                              [(gt/source-label arc) (gt/target-label arc)]))
                           (g/outputs node-id))]
     (g/transact
       (concat

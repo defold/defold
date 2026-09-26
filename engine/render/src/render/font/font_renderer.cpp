@@ -31,6 +31,7 @@
 #include "font_renderer.h"          // for FontGlyphCompression
 
 #include <dmsdk/font/text_layout.h>
+#include <font/font.h>
 #include <font_render.h>
 #include <font/render/glyph_vertex.h>
 #include <layout_vertex.h>
@@ -324,9 +325,10 @@ namespace dmRender
         te.m_Tail = -1;
 
         te.m_FaceColor = dmGraphics::PackRGBA(Vector4(params.m_FaceColor.getXYZ(), params.m_FaceColor.getW() * font_map->m_Alpha));
-        const float outline_alpha = params.m_OutlineColor.getW() * (text_layout && text_layout->m_UseRichText ? 1.0f : font_map->m_OutlineAlpha);
-        te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), outline_alpha));
-        te.m_ShadowColor = dmGraphics::PackRGBA(params.m_ShadowColor);
+        te.m_OutlineAlpha = params.m_OutlineColor.getW() * (text_layout && text_layout->m_UseRichText ? 1.0f : font_map->m_OutlineAlpha);
+        te.m_ShadowAlpha = params.m_ShadowColor.getW();
+        te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), 1.0f));
+        te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(params.m_ShadowColor.getXYZ(), 1.0f));
         te.m_RenderOrder = params.m_RenderOrder;
         te.m_Width = params.m_Width;
         te.m_Height = params.m_Height;
@@ -438,6 +440,8 @@ namespace dmRender
         config.m_Transform = te.m_Transform;
         config.m_OutlineColor = dmGraphics::UnpackRGBA(te.m_OutlineColor);
         config.m_ShadowColor = dmGraphics::UnpackRGBA(te.m_ShadowColor);
+        config.m_OutlineColor.setW(te.m_OutlineAlpha);
+        config.m_ShadowColor.setW(te.m_ShadowAlpha);
         config.m_FaceColor[0] = face_color.getX();
         config.m_FaceColor[1] = face_color.getY();
         config.m_FaceColor[2] = face_color.getZ();
@@ -450,7 +454,7 @@ namespace dmRender
         config.m_DecorationV = decoration_cache ? (decoration_cache->m_Y + 0.5f) * recip_h : 0.0f;
         config.m_SdfEdge = 0.75f;
         config.m_SdfOutline = font_map->m_SdfOutline;
-        config.m_SdfSmoothing = 0.25f / (font_map->m_SdfSpread * sdf_scale);
+        config.m_SdfSmoothing = FONT_SDF_DISTANCE_SCALE / (font_map->m_SdfSpread * sdf_scale);
         config.m_SdfShadow = font_map->m_SdfShadow;
         config.m_SdfSpread = font_map->m_SdfSpread;
         config.m_OutlineWidth = font_map->m_OutlineWidth;
