@@ -109,24 +109,32 @@
         conn ^HttpURLConnection (get-connection uri)
         instance-index (:instance-index target)
         args (cond-> [(str "--config=resource.uri=" local-url)]
-                     debug
-                     (into ["--config=debugger.enabled=1"
-                            (str "--config=debugger.port=" (debugger-port target))
-                            "--config=debugger.wait=1"])
+               debug
+               (into ["--config=debugger.enabled=1"
+                      (str "--config=debugger.port=" (debugger-port target))
+                      "--config=debugger.wait=1"])
 
-               true
-               (conj (str local-url "/game.projectc"))
+               ;; Targets without a local process are reached over the network.
+               (and debug (not (contains? target :process)))
+               (conj "--config=debugger.address=0.0.0.0")
 
-               (and instance-index (> instance-index 0))
+               (and instance-index (pos? (long instance-index)))
                (conj (format "--config=project.instance_index=%d" instance-index))
 
                (not focus)
-               (conj "--config=display.focus_on_show=0"))]
+               (conj "--config=display.focus_on_show=0")
+
+               ;; The engine recognizes a project file only as the final argument.
+               true
+               (conj (str local-url "/game.projectc")))]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
                             com.dynamo.system.proto.System$Reboot
-                            (zipmap (map #(keyword (str "arg" (inc %))) (range)) args))))
+                            (into {}
+                                  (map-indexed (fn [index argument]
+                                                 [(keyword (str "arg" (inc (long index)))) argument]))
+                                  args))))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       :ok
@@ -187,7 +195,7 @@
 (def ^:private loopback-address "127.0.0.1")
 
 (defn parse-debugger-port [output]
-  (when-let [[_ port] (re-find #"Lua DAP debugger listening on [^\s]+:(\d+)" output)]
+  (when-let [[_ port] (re-find #"Lua DAP debugger (?:listening on [^\s]+:|port: )(\d+)" output)]
     (let [port (parse-long port)]
       (when (and port (<= 1 port 65535))
         port))))
@@ -325,12 +333,12 @@
                (into ["--config=project.write_log=1"
                       (format "--config=project.log_dir=%s" defold-log-dir)])
 
-                     debug
-                     (into ["--config=debugger.enabled=1"
-                            "--config=debugger.port=0"
-                            "--config=debugger.wait=1"])
+               debug
+               (into ["--config=debugger.enabled=1"
+                      "--config=debugger.port=0"
+                      "--config=debugger.wait=1"])
 
-               (> instance-index 0)
+               (pos? (long instance-index))
                (conj (format "--config=project.instance_index=%d" instance-index))
 
                (not focus)

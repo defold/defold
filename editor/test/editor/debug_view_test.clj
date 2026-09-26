@@ -13,16 +13,19 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.debug-view-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.debugging.dap :as dap]
+            [editor.engine :as engine]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [support.test-support :as test-support])
   (:import [java.util Collection]
-           [javafx.scene.control ListView TreeItem TreeView]))
+           [javafx.scene.control ListView TreeItem TreeView]
+           [org.luaj.vm2.lib.jse JsePlatform]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -205,3 +208,40 @@
                {:resource {:path "/main.script"}
                 :row 0
                 :condition ""}})))))
+
+;; Verify attachment chooses the local or remote startup module before opening
+;; the DAP session, guarding against accidentally exposing locally launched games.
+(deftest attach-startup-module-test
+  (doseq [[target expected-path]
+          [[{:process ::process} "/_defold/debugger/start.lua"]
+           [{:address "192.168.1.20"} "/_defold/debugger/start_remote.lua"]]]
+    (let [calls (atom [])]
+      (with-redefs-fn {#'debug-view/built-lua-module (fn [artifacts path]
+                                                       (is (= ::artifacts artifacts))
+                                                       {:path path})
+                       #'engine/run-script! (fn [received-target module]
+                                              (swap! calls conj [:run received-target module]))
+                       #'debug-view/start-debugger! (fn [view project received-target stop-on-entry]
+                                                      (swap! calls conj [:connect view project received-target stop-on-entry]))}
+        #(debug-view/attach! ::view ::project target ::artifacts))
+      (is (= [[:run target {:path expected-path}]
+              [:connect ::view ::project target true]]
+             @calls)))))
+
+;; Execute the shipped Lua scripts to verify per-instance ports and remote
+;; binding, and ensure discovery reports the returned port of an existing listener.
+(deftest attach-startup-script-test
+  (doseq [[filename expected-address] [["start.lua" "nil"]
+                                       ["start_remote.lua" "0.0.0.0"]]]
+    (let [globals (JsePlatform/standardGlobals)
+          source (slurp (io/file "bundle-resources/_defold/debugger" filename))]
+      (.call (.load globals (str "sys = {get_config_int = function() return 3 end}\n"
+                                 "debugger = {start = function(port, address)\n"
+                                 "  requested_port, requested_address = port, address\n"
+                                 "  return 49152\n"
+                                 "end}\n"
+                                 "print = function(value) output = value end\n"
+                                 source)))
+      (is (= 8175 (.toint (.get globals "requested_port"))))
+      (is (= expected-address (.tojstring (.get globals "requested_address"))))
+      (is (= 49152 (engine/parse-debugger-port (.tojstring (.get globals "output"))))))))

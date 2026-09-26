@@ -18,7 +18,11 @@
             [editor.engine :as engine]
             [editor.prefs :as prefs]
             [editor.process :as process]
-            [editor.system :as system]))
+            [editor.protobuf :as protobuf]
+            [editor.system :as system])
+  (:import [com.dynamo.system.proto System$Reboot]
+           [java.io ByteArrayInputStream ByteArrayOutputStream]
+           [java.net HttpURLConnection URI]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -30,6 +34,9 @@
   (is (= 8175 (engine/debugger-port {:instance-index 3})))
   (doseq [address ["127.0.0.1" "0.0.0.0" "192.168.1.20"]]
     (is (= 49152 (engine/parse-debugger-port (str "INFO:DEBUGGER: Lua DAP debugger listening on " address ":49152")))))
+  (is (= 49152 (engine/parse-debugger-port "DEBUG:SCRIPT: Lua DAP debugger port: 49152")))
+  (is (nil? (engine/parse-debugger-port "Lua DAP debugger port: 0")))
+  (is (nil? (engine/parse-debugger-port "Lua DAP debugger port: 65536")))
   (is (nil? (engine/parse-debugger-port "Lua DAP debugger listening on 127.0.0.1:0")))
   (is (nil? (engine/parse-debugger-port "Lua DAP debugger listening on 127.0.0.1:65536")))
   (is (nil? (engine/parse-debugger-port "ordinary game output")))
@@ -66,3 +73,38 @@
         (is (= 0 (:debugger-port target))))
       (engine/launch! binary (io/file "/project") nil false 0 true)
       (is (= [] (into [] (drop 2) (peek @launches)))))))
+
+;; Verify actual reboot messages enable network binding only for remote debug
+;; targets, preserve instance ports, and keep the project URL last within six slots.
+(deftest debug-reboot-test
+  (doseq [[target debug focus expected]
+          [[{:address "192.168.1.20"} true true
+            ["--config=resource.uri=http://editor:8000"
+             "--config=debugger.enabled=1"
+             "--config=debugger.port=8172"
+             "--config=debugger.wait=1"
+             "--config=debugger.address=0.0.0.0"
+             "http://editor:8000/game.projectc"]]
+           [{:process ::process
+             :instance-index 3} true true
+            ["--config=resource.uri=http://editor:8000"
+             "--config=debugger.enabled=1"
+             "--config=debugger.port=8175"
+             "--config=debugger.wait=1"
+             "--config=project.instance_index=3"
+             "http://editor:8000/game.projectc"]]
+           [{:address "192.168.1.20"} false false
+            ["--config=resource.uri=http://editor:8000"
+             "--config=display.focus_on_show=0"
+             "http://editor:8000/game.projectc"]]]]
+    (let [output (ByteArrayOutputStream.)
+          target (assoc target :url "http://target:8001")]
+      (with-redefs-fn {#'engine/get-connection
+                       (fn [^URI uri]
+                         (proxy [HttpURLConnection] [(.toURL uri)]
+                           (getOutputStream [] output)
+                           (getInputStream [] (ByteArrayInputStream. (byte-array 0)))
+                           (disconnect [] nil)))}
+        #(is (= :ok (engine/reboot! target "http://editor:8000" debug focus))))
+      (let [arguments (protobuf/bytes->map-without-defaults System$Reboot (.toByteArray output))]
+        (is (= expected (into [] (keep arguments) [:arg1 :arg2 :arg3 :arg4 :arg5 :arg6])))))))
