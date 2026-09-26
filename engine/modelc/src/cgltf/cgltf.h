@@ -3,6 +3,11 @@
  *
  * Version: 1.15
  *
+ * DEFOLD: This copy contains local changes, marked with DEFOLD comments.
+ * Compression changes add KHR Meshopt metadata, Draco unique attribute IDs,
+ * and validation through decoded buffer-view overrides. The version above
+ * identifies the upstream base, not a new upstream release.
+ *
  * Website: https://github.com/jkuhlmann/cgltf
  *
  * Distributed under the MIT License, see notice at the end of this file.
@@ -296,6 +301,7 @@ typedef enum cgltf_meshopt_compression_filter {
 	cgltf_meshopt_compression_filter_octahedral,
 	cgltf_meshopt_compression_filter_quaternion,
 	cgltf_meshopt_compression_filter_exponential,
+	cgltf_meshopt_compression_filter_color, /* DEFOLD: KHR Meshopt COLOR filter. */
 	cgltf_meshopt_compression_filter_max_enum
 } cgltf_meshopt_compression_filter;
 
@@ -308,6 +314,7 @@ typedef struct cgltf_meshopt_compression
 	cgltf_size count;
 	cgltf_meshopt_compression_mode mode;
 	cgltf_meshopt_compression_filter filter;
+	cgltf_bool is_khr; /* DEFOLD: Distinguish KHR and EXT bitstream/filter rules. */
 } cgltf_meshopt_compression;
 
 typedef struct cgltf_buffer_view
@@ -590,11 +597,18 @@ typedef struct cgltf_morph_target {
 	cgltf_size attributes_count;
 } cgltf_morph_target;
 
+/* DEFOLD: Begin Draco attribute representation using unique IDs, not accessor indices. */
+typedef struct cgltf_draco_attribute {
+	char* name;
+	cgltf_uint unique_id;
+} cgltf_draco_attribute;
+
 typedef struct cgltf_draco_mesh_compression {
 	cgltf_buffer_view* buffer_view;
-	cgltf_attribute* attributes;
+	cgltf_draco_attribute* attributes;
 	cgltf_size attributes_count;
 } cgltf_draco_mesh_compression;
+/* DEFOLD: End Draco attribute representation. */
 
 typedef struct cgltf_mesh_gpu_instancing {
 	cgltf_attribute* attributes;
@@ -1547,7 +1561,8 @@ cgltf_result cgltf_load_buffers(const cgltf_options* options, cgltf_data* data, 
 
 static cgltf_size cgltf_calc_index_bound(cgltf_buffer_view* buffer_view, cgltf_size offset, cgltf_component_type component_type, cgltf_size count)
 {
-	char* data = (char*)buffer_view->buffer->data + offset + buffer_view->offset;
+	/* DEFOLD: Read decoded overrides instead of compressed/fallback buffer bytes. */
+	const uint8_t* data = cgltf_buffer_view_data(buffer_view) + offset;
 	cgltf_size bound = 0;
 
 	switch (component_type)
@@ -1622,7 +1637,8 @@ cgltf_result cgltf_validate(cgltf_data* data)
 							sparse->indices_component_type != cgltf_component_type_r_16u &&
 							sparse->indices_component_type != cgltf_component_type_r_32u, cgltf_result_invalid_gltf);
 
-			if (sparse->indices_buffer_view->buffer->data)
+			/* DEFOLD: Validate sparse indices even when only decoded view data exists. */
+			if (cgltf_buffer_view_data(sparse->indices_buffer_view))
 			{
 				cgltf_size index_bound = cgltf_calc_index_bound(sparse->indices_buffer_view, sparse->indices_byte_offset, sparse->indices_component_type, sparse->count);
 
@@ -1709,7 +1725,8 @@ cgltf_result cgltf_validate(cgltf_data* data)
 			CGLTF_ASSERT_IF(indices && indices->type != cgltf_type_scalar, cgltf_result_invalid_gltf);
 			CGLTF_ASSERT_IF(indices && indices->stride != cgltf_component_size(indices->component_type), cgltf_result_invalid_gltf);
 
-			if (indices && indices->buffer_view && indices->buffer_view->buffer->data)
+			/* DEFOLD: Validate decoded Meshopt/Draco indices through their view overrides. */
+			if (indices && indices->buffer_view && cgltf_buffer_view_data(indices->buffer_view))
 			{
 				cgltf_size index_bound = cgltf_calc_index_bound(indices->buffer_view, indices->offset, indices->component_type, indices->count);
 
@@ -2332,7 +2349,8 @@ const uint8_t* cgltf_buffer_view_data(const cgltf_buffer_view* view)
 	if (view->data)
 		return (const uint8_t*)view->data;
 
-	if (!view->buffer->data)
+	/* DEFOLD: Private decoded Draco views need not have a backing glTF buffer. */
+	if (!view->buffer || !view->buffer->data)
 		return NULL;
 
 	const uint8_t* result = (const uint8_t*)view->buffer->data;
@@ -3065,7 +3083,38 @@ static int cgltf_parse_json_draco_mesh_compression(cgltf_options* options, jsmnt
 
 		if (cgltf_json_strcmp(tokens + i, json_chunk, "attributes") == 0)
 		{
-			i = cgltf_parse_json_attribute_list(options, tokens, i + 1, json_chunk, &out_draco_mesh_compression->attributes, &out_draco_mesh_compression->attributes_count);
+			/* DEFOLD: Begin Draco unique-ID parsing in place of accessor-index parsing. */
+			++i;
+			CGLTF_CHECK_TOKTYPE(tokens[i], JSMN_OBJECT);
+			if (out_draco_mesh_compression->attributes)
+				return CGLTF_ERROR_JSON;
+			cgltf_size count = tokens[i].size;
+			out_draco_mesh_compression->attributes = (cgltf_draco_attribute*)cgltf_calloc(options, sizeof(cgltf_draco_attribute), count);
+			if (!out_draco_mesh_compression->attributes)
+				return CGLTF_ERROR_NOMEM;
+			out_draco_mesh_compression->attributes_count = count;
+			++i;
+			for (cgltf_size k = 0; k < count; ++k)
+			{
+				cgltf_draco_attribute* attribute = &out_draco_mesh_compression->attributes[k];
+				CGLTF_CHECK_KEY(tokens[i]);
+				i = cgltf_parse_json_string(options, tokens, i, json_chunk, &attribute->name);
+				if (i < 0)
+					return i;
+				CGLTF_CHECK_TOKTYPE(tokens[i], JSMN_PRIMITIVE);
+				/* Parse the unsigned ID without treating it as an accessor pointer. */
+				cgltf_size id = 0;
+				for (int c = tokens[i].start; c < tokens[i].end; ++c)
+				{
+					unsigned int digit = (unsigned int)(json_chunk[c] - '0');
+					if (digit > 9 || id > (UINT32_MAX - digit) / 10)
+						return CGLTF_ERROR_JSON;
+					id = id * 10 + digit;
+				}
+				attribute->unique_id = (cgltf_uint)id;
+				++i;
+			}
+			/* DEFOLD: End Draco unique-ID parsing. */
 		}
 		else if (cgltf_json_strcmp(tokens + i, json_chunk, "bufferView") == 0)
 		{
@@ -5068,6 +5117,16 @@ static int cgltf_parse_json_meshopt_compression(cgltf_options* options, jsmntok_
 			{
 				out_meshopt_compression->filter = cgltf_meshopt_compression_filter_exponential;
 			}
+			/* DEFOLD: Begin KHR COLOR support and rejection of unknown filters. */
+			else if (cgltf_json_strcmp(tokens+i, json_chunk, "COLOR") == 0)
+			{
+				out_meshopt_compression->filter = cgltf_meshopt_compression_filter_color;
+			}
+			else
+			{
+				out_meshopt_compression->filter = cgltf_meshopt_compression_filter_max_enum;
+			}
+			/* DEFOLD: End extended filter parsing. */
 			++i;
 		}
 		else
@@ -5173,11 +5232,17 @@ static int cgltf_parse_json_buffer_view(cgltf_options* options, jsmntok_t const*
 			{
 				CGLTF_CHECK_KEY(tokens[i]);
 
-				if (cgltf_json_strcmp(tokens+i, json_chunk, "EXT_meshopt_compression") == 0)
+				/* DEFOLD: Begin shared EXT/KHR parsing; reject duplicate compression entries. */
+				if (cgltf_json_strcmp(tokens+i, json_chunk, "EXT_meshopt_compression") == 0 ||
+					cgltf_json_strcmp(tokens+i, json_chunk, "KHR_meshopt_compression") == 0)
 				{
+					if (out_buffer_view->has_meshopt_compression)
+						return CGLTF_ERROR_JSON;
 					out_buffer_view->has_meshopt_compression = 1;
+					out_buffer_view->meshopt_compression.is_khr = cgltf_json_strcmp(tokens+i, json_chunk, "KHR_meshopt_compression") == 0;
 					i = cgltf_parse_json_meshopt_compression(options, tokens, i + 1, json_chunk, &out_buffer_view->meshopt_compression);
 				}
+				/* DEFOLD: End shared EXT/KHR parsing. */
 				else
 				{
 					i = cgltf_parse_json_unprocessed_extension(options, tokens, i, json_chunk, &(out_buffer_view->extensions[out_buffer_view->extensions_count++]));
@@ -6647,10 +6712,7 @@ static int cgltf_fixup_pointers(cgltf_data* data)
 			if (data->meshes[i].primitives[j].has_draco_mesh_compression)
 			{
 				CGLTF_PTRFIXUP_REQ(data->meshes[i].primitives[j].draco_mesh_compression.buffer_view, data->buffer_views, data->buffer_views_count);
-				for (cgltf_size m = 0; m < data->meshes[i].primitives[j].draco_mesh_compression.attributes_count; ++m)
-				{
-					CGLTF_PTRFIXUP_REQ(data->meshes[i].primitives[j].draco_mesh_compression.attributes[m].data, data->accessors, data->accessors_count);
-				}
+				/* DEFOLD: Attribute IDs are Draco unique IDs; accessor pointer fixup is removed. */
 			}
 
 			for (cgltf_size k = 0; k < data->meshes[i].primitives[j].mappings_count; ++k)
