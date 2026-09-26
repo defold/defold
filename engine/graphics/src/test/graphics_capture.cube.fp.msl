@@ -1,0 +1,10 @@
+#include <metal_stdlib>
+using namespace metal;
+struct Input { float3 color [[user(locn0)]]; };
+struct CubeArguments {
+    texturecube<float> cubemap [[id(0)]];
+    sampler cube_sampler [[id(1)]];
+};
+fragment float4 main0(Input in [[stage_in]], constant CubeArguments& args [[buffer(0)]]) {
+    return args.cubemap.sample(args.cube_sampler, in.color, level(0.0));
+}

@@ -71,7 +71,7 @@ namespace dmGraphics
     static void           CopyToTexture(VulkanContext* context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, VulkanTexture* textureOut);
     static VkFormat       GetVulkanFormatFromTextureFormat(TextureFormat format);
     static bool           EndRenderPass(VulkanContext* context);
-    static void           BeginRenderPass(VulkanContext* context, HRenderTarget render_target);
+    static void           BeginRenderPass(VulkanContext* context, HRenderTarget render_target, bool resume_readback = false);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
@@ -481,7 +481,7 @@ namespace dmGraphics
         return true;
     }
 
-    static void BeginRenderPass(VulkanContext* context, HRenderTarget render_target)
+    static void BeginRenderPass(VulkanContext* context, HRenderTarget render_target, bool resume_readback)
     {
         // Lock-free fast path: avoid mutex when already bound to the same render target (common in heavy draw-call scenes)
         if (context->m_CurrentRenderTarget == render_target && context->m_RenderTargetBound)
@@ -533,6 +533,7 @@ namespace dmGraphics
         }
 
         // Render pass selection:
+        // Readback resumes with LOAD on every attachment. Otherwise:
         // 1. Both color and depth pending clears: use the color+depth CLEAR variant so both
         //    attachments are initialized via load op with the requested clear values.
         // 2. Color-only pending clear: use the color CLEAR variant (depth stays DONT_CARE).
@@ -541,7 +542,11 @@ namespace dmGraphics
         // 4. Otherwise use the RT's default render pass (honoring user-configured load ops).
         VkRenderPass vk_render_pass = rt->m_Handle.m_RenderPass;
         const bool is_main_rt = (render_target == context->m_MainRenderTarget);
-        if (rt->m_HasPendingClearColor && rt->m_HasPendingClearDepth && rt->m_Handle.m_RenderPassClearColorDepth != VK_NULL_HANDLE)
+        if (resume_readback)
+        {
+            vk_render_pass = rt->m_Handle.m_RenderPassLoad;
+        }
+        else if (rt->m_HasPendingClearColor && rt->m_HasPendingClearDepth && rt->m_Handle.m_RenderPassClearColorDepth != VK_NULL_HANDLE)
         {
             vk_render_pass = rt->m_Handle.m_RenderPassClearColorDepth;
         }
@@ -782,6 +787,7 @@ namespace dmGraphics
         // avoids a double-destroy.
         rt->m_Handle.m_RenderPassClear           = context->m_MainRenderPass;
         rt->m_Handle.m_RenderPassClearColorDepth = context->m_MainRenderPass;
+        rt->m_Handle.m_RenderPassLoad = context->m_MainRenderPassLoad;
         rt->m_Handle.m_Framebuffer     = context->m_MainFrameBuffers[0];
         rt->m_Extent                   = context->m_SwapChain->m_ImageExtent;
         RenderTarget* brt              = &rt->m_Base;
@@ -852,8 +858,9 @@ namespace dmGraphics
         attachments[0].m_ImageLayoutInitial = attachments[0].m_ImageLayout;
         attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
 
-        // Depth contents are not preserved between begins.
-        attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        // Readback also resumes through this pass and must retain depth/stencil.
+        attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[1].m_ImageLayoutInitial = attachments[1].m_ImageLayout;
 
         if (context->m_SwapChain->HasMultiSampling())
         {
@@ -1838,6 +1845,7 @@ bail:
         rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[context->m_SwapChain->m_ImageIndex];
 
         context->m_FrameBegun            = 1;
+        context->m_ReadPixelsSubmitted   = 0;
         context->m_MainRTBegunThisFrame  = 0;
         context->m_CurrentPipeline       = 0;
         context->m_PolygonOffsetChanged  = 1;
@@ -1914,7 +1922,7 @@ bail:
         VkPipelineStageFlags waitStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         VkSubmitInfo submitInfo = {};
         submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.waitSemaphoreCount   = 1;
+        submitInfo.waitSemaphoreCount   = context->m_ReadPixelsSubmitted ? 0 : 1;
         submitInfo.pWaitSemaphores      = &currentFrame.m_ImageAvailable;
         submitInfo.pWaitDstStageMask    = &waitStages;
         submitInfo.commandBufferCount   = 1;
@@ -4334,6 +4342,23 @@ bail:
             }
         }
 
+        // Readback must resume the current target without repeating its initial
+        // load/clear policy or discarding the depth and stencil masks.
+        for (int i = 0; i < num_color_textures; ++i)
+        {
+            rp_attachments[i].m_LoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            rp_attachments[i].m_ImageLayoutInitial = rp_attachments[i].m_ImageLayout;
+        }
+        if (rp_attachment_depth_stencil)
+        {
+            rp_attachment_depth_stencil->m_LoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            rp_attachment_depth_stencil->m_ImageLayoutInitial = rp_attachment_depth_stencil->m_ImageLayout;
+        }
+        res = CreateRenderPass(context->m_LogicalDevice.m_Device, vk_sample_count, rp_attachments, num_color_textures,
+            rp_attachment_depth_stencil, has_msaa ? rp_resolve_attachments : 0, &rtOut->m_Handle.m_RenderPassLoad);
+        if (res != VK_SUCCESS)
+            return res;
+
         const bool is_cube_map = rtOut->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP;
         if (is_cube_map)
         {
@@ -4402,6 +4427,7 @@ bail:
         renderTarget->m_Handle.m_RenderPass                = VK_NULL_HANDLE;
         renderTarget->m_Handle.m_RenderPassClear           = VK_NULL_HANDLE;
         renderTarget->m_Handle.m_RenderPassClearColorDepth = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_RenderPassLoad            = VK_NULL_HANDLE;
         memset(renderTarget->m_Handle.m_CubeMapFramebuffers, 0, sizeof(renderTarget->m_Handle.m_CubeMapFramebuffers));
         memset(renderTarget->m_Handle.m_CubeMapAttachmentViews, 0, sizeof(renderTarget->m_Handle.m_CubeMapAttachmentViews));
         renderTarget->m_HasPendingClearColor               = 0;
@@ -4500,6 +4526,8 @@ bail:
                 VulkanTexture* new_texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_handle);
 
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color->m_UsageFlags;
+                if (!has_msaa && !IsTextureMemoryless(new_texture_color))
+                    vk_usage_flags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
                 if (IsTextureMemoryless(new_texture_color))
@@ -4541,7 +4569,7 @@ bail:
                     HTexture new_texture_color_resolve_handle = NewTexture((HContext) context, params.m_ColorBufferCreationParams[i]);
                     VulkanTexture* new_texture_color_resolve = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_resolve_handle);
 
-                    VkImageUsageFlags vk_resolve_usage_flags = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color_resolve->m_UsageFlags) & ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+                    VkImageUsageFlags vk_resolve_usage_flags = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | new_texture_color_resolve->m_UsageFlags) & ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
                     VkResult resolve_res = CreateTexture(
                         context->m_PhysicalDevice.m_Device,
                         context->m_LogicalDevice.m_Device,
@@ -4701,6 +4729,8 @@ bail:
                 VkSampleCountFlagBits vk_sample_count = (VkSampleCountFlagBits) brt->m_SampleCount;
                 const bool has_msaa = vk_sample_count > VK_SAMPLE_COUNT_1_BIT;
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
+                if (rt->m_Base.m_SampleCount == 1 && !IsTextureMemoryless(texture_color))
+                    vk_usage_flags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
                 if (IsTextureMemoryless(texture_color))
@@ -4743,7 +4773,7 @@ bail:
             if (brt->m_TextureColorResolve[i])
             {
                 VulkanTexture* texture_color_resolve = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColorResolve[i]);
-                VkImageUsageFlags vk_resolve_usage_flags = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color_resolve->m_UsageFlags) & ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+                VkImageUsageFlags vk_resolve_usage_flags = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | texture_color_resolve->m_UsageFlags) & ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
 
                 texture_color_resolve->m_ImageLayout[0] = VK_IMAGE_LAYOUT_PREINITIALIZED;
 
@@ -5658,89 +5688,105 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        assert (buffer_size >= width * height * 4);
-
-        HRenderTarget currentt_rt_h = context->m_CurrentRenderTarget;
-        bool in_render_pass = IsRenderTargetbound(context, currentt_rt_h);
-
-        // We can't copy an image if we are inside a render pass.
-        // This is considered an expensive operation, but unless we have user facing functionality to begin/end render passes,
-        // this is as good as it gets currently.
-        if (in_render_pass)
+        if (!buffer || !width || !height || uint64_t(width) * height * 4 > buffer_size || x < 0 || y < 0)
         {
-            EndRenderPass(context);
+            dmLogError("VulkanReadPixels: invalid destination or region");
+            return;
         }
 
-        // Create a temporary stage buffer that we can map to
-        DeviceBuffer stage_buffer(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
-        VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device, buffer_size,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
-        CHECK_VK_ERROR(res);
-
-        // Keep the readback in a single temporary command buffer so the swapchain image is restored
-        // to its presentable layout before any later main render pass rebind or final present.
-
-        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
-
+        const HRenderTarget target = context->m_CurrentRenderTarget;
+        FlushPendingRenderTargetClear(context, target);
+        EndRenderPass(context);
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
-
-        TransitionImageLayoutWithCmdBuffer(
-            vk_command_buffer,
-            tex_sc,
-            VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            0,
-            1);
-
-        VkBufferImageCopy vk_copy_region = {};
-        vk_copy_region.imageOffset.x               = x;
-        vk_copy_region.imageOffset.y               = y;
-        vk_copy_region.imageExtent.width           = width;
-        vk_copy_region.imageExtent.height          = height;
-        vk_copy_region.imageExtent.depth           = 1;
-        vk_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        vk_copy_region.imageSubresource.layerCount = 1;
-
-        TouchResource(context, tex_sc);
-        TouchResource(context, &stage_buffer);
-
-        vkCmdCopyImageToBuffer(
-            vk_command_buffer,
-            context->m_SwapChain->Image(),
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            stage_buffer.m_Handle.m_Buffer,
-            1, &vk_copy_region);
-
-        TransitionImageLayoutWithCmdBuffer(
-            vk_command_buffer,
-            tex_sc,
-            VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            0,
-            1);
-
-        VkFence fence;
-        res = SubmitCommandBuffer(&context->m_LogicalDevice, vk_command_buffer, &fence);
-        CHECK_VK_ERROR(res);
-
-        // Wait for the copy command to finish
-        vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
-        vkDestroyFence(context->m_LogicalDevice.m_Device, fence, NULL);
-
-        res = stage_buffer.MapMemory(context->m_LogicalDevice.m_Device);
-        CHECK_VK_ERROR(res);
-
-        memcpy(buffer, stage_buffer.m_MappedDataPtr, stage_buffer.m_Base.m_Size);
-
-        stage_buffer.UnmapMemory(context->m_LogicalDevice.m_Device);
-
-        DestroyResourceDeferred(context, &stage_buffer);
-
-        if (in_render_pass)
+        VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, target);
+        const bool backbuffer = target == context->m_MainRenderTarget;
+        HTexture color = backbuffer ? context->m_CurrentSwapchainTexture :
+            (rt->m_Base.m_TextureColorResolve[0] ? rt->m_Base.m_TextureColorResolve[0] : rt->m_Base.m_TextureColor[0]);
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, color);
+        if (!texture || uint64_t(x) + width > texture->m_Base.m_Width || uint64_t(y) + height > texture->m_Base.m_Height ||
+            (texture->m_Format != VK_FORMAT_R8G8B8A8_UNORM && texture->m_Format != VK_FORMAT_R8G8B8A8_SRGB &&
+             texture->m_Format != VK_FORMAT_B8G8R8A8_UNORM && texture->m_Format != VK_FORMAT_B8G8R8A8_SRGB))
         {
-            BeginRenderPass(context, currentt_rt_h);
+            dmLogError("VulkanReadPixels: expected an RGBA8/BGRA8 color attachment and an in-bounds region");
+            return;
         }
+
+        VkDevice device = context->m_LogicalDevice.m_Device;
+        const VkRect2D scissor = rt->m_Scissor;
+        DeviceBuffer staging(VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, device, width * height * 4,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging);
+        CHECK_VK_ERROR(res);
+
+        // Copy in the frame command buffer, after the rendering that produced
+        // this attachment. Render-pass final layouts are implicit transitions.
+        VkCommandBuffer cmd = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
+        const VkImageLayout layout = backbuffer ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        texture->m_ImageLayout[0] = layout;
+        TransitionImageLayoutWithCmdBuffer(cmd, texture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 0, 1);
+        VkBufferImageCopy region = {};
+        region.imageOffset.x = x;
+        region.imageOffset.y = y;
+        region.imageExtent.width = width;
+        region.imageExtent.height = height;
+        region.imageExtent.depth = 1;
+        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.layerCount = 1;
+        vkCmdCopyImageToBuffer(cmd, texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.m_Handle.m_Buffer, 1, &region);
+        TransitionImageLayoutWithCmdBuffer(cmd, texture, VK_IMAGE_ASPECT_COLOR_BIT, layout, 0, 1);
+        res = vkEndCommandBuffer(cmd);
+        CHECK_VK_ERROR(res);
+
+        FrameResource& frame = context->m_FrameResources[context->m_CurrentFrameInFlight];
+        VkPipelineStageFlags stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        VkSubmitInfo submit = {};
+        submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit.waitSemaphoreCount = context->m_ReadPixelsSubmitted ? 0 : 1;
+        submit.pWaitSemaphores = &frame.m_ImageAvailable;
+        submit.pWaitDstStageMask = &stage;
+        submit.commandBufferCount = 1;
+        submit.pCommandBuffers = &cmd;
+        VkFenceCreateInfo fence_info = {};
+        fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        VkFence fence;
+        res = vkCreateFence(device, &fence_info, 0, &fence);
+        CHECK_VK_ERROR(res);
+        res = QueueSubmit(&context->m_LogicalDevice, 1, &submit, fence);
+        CHECK_VK_ERROR(res);
+        res = vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+        CHECK_VK_ERROR(res);
+        vkDestroyFence(device, fence, 0);
+        context->m_ReadPixelsSubmitted = 1;
+
+        res = staging.MapMemory(device);
+        CHECK_VK_ERROR(res);
+        memcpy(buffer, staging.m_MappedDataPtr, width * height * 4);
+        staging.UnmapMemory(device);
+        DestroyDeviceBuffer(device, &staging.m_Handle);
+        if (texture->m_Format == VK_FORMAT_R8G8B8A8_UNORM || texture->m_Format == VK_FORMAT_R8G8B8A8_SRGB)
+        {
+            uint8_t* pixels = (uint8_t*) buffer;
+            for (uint32_t i = 0; i < width * height * 4; i += 4)
+            {
+                uint8_t red = pixels[i];
+                pixels[i] = pixels[i + 2];
+                pixels[i + 2] = red;
+            }
+        }
+
+        // Continue recording the same frame. Do not reset its scratch buffers
+        // or descriptor pools: subsequent draws still refer to their contents.
+        res = vkResetCommandBuffer(cmd, 0);
+        CHECK_VK_ERROR(res);
+        VkCommandBufferBeginInfo begin = {};
+        begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        res = vkBeginCommandBuffer(cmd, &begin);
+        CHECK_VK_ERROR(res);
+        context->m_CurrentPipeline = 0;
+        context->m_ViewportChanged = 1;
+        context->m_PolygonOffsetChanged = 1;
+        BeginRenderPass(context, target, true);
+        rt->m_Scissor = scissor;
     }
 
     static HWindow VulkanGetWindow(HContext context)
