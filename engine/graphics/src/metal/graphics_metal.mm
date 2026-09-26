@@ -5024,6 +5024,53 @@ namespace dmGraphics
         const uint32_t copyHeight = params.m_Height ? params.m_Height : mipHeight;
         const uint32_t copyDepth  = is_3d_texture ? (params.m_Depth ? params.m_Depth : mipDepth) : 1;
 
+        if (format_src == TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 || format_src == TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 ||
+            format_src == TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 || format_src == TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1)
+        {
+            // replaceRegion accepts native swizzled PVRTC with zero pitches. Upload to a
+            // shared texture, then copy to the private destination without reordering blocks.
+            MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
+            desc->setTextureType(layerCount > 1 ? MTL::TextureType2DArray : MTL::TextureType2D);
+            desc->setPixelFormat(texture->m_Texture->pixelFormat());
+            desc->setWidth(copyWidth);
+            desc->setHeight(copyHeight);
+            desc->setArrayLength(layerCount);
+            desc->setStorageMode(MTL::StorageModeShared);
+            desc->setUsage(MTL::TextureUsageShaderRead);
+            MTL::Texture* upload_texture = device->newTexture(desc);
+            desc->release();
+            if (!upload_texture)
+            {
+                dmLogError("MetalCopyToTexture: failed to create PVRTC upload texture");
+                return;
+            }
+
+            const uint32_t slice_size = GetTextureFormatDataSize(format_src, copyWidth, copyHeight);
+            const MTL::Origin source_origin = {0, 0, 0};
+            const MTL::Origin destination_origin = {params.m_X, params.m_Y, params.m_Z};
+            const MTL::Size size = {copyWidth, copyHeight, 1};
+            const MTL::Region region = MTL::Region::Make2D(0, 0, copyWidth, copyHeight);
+            for (uint32_t slice = 0; slice < layerCount; ++slice)
+            {
+                upload_texture->replaceRegion(region, 0, slice, pixels + (uint64_t)slice * slice_size, 0, 0);
+            }
+
+            NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+            MTL::CommandBuffer* command = context->m_CommandQueue->commandBuffer();
+            MTL::BlitCommandEncoder* blit = command->blitCommandEncoder();
+            for (uint32_t slice = 0; slice < layerCount; ++slice)
+            {
+                blit->copyFromTexture(upload_texture, slice, 0, source_origin, size,
+                    texture->m_Texture, baseSlice + slice, target_mip, destination_origin);
+            }
+            blit->endEncoding();
+            command->commit();
+            command->waitUntilCompleted();
+            upload_texture->release();
+            pool->release();
+            return;
+        }
+
         const bool is_block_compressed = MetalIsBlockCompressed(format_src);
         uint64_t unpaddedRowSize = 0;
         uint32_t rows = copyHeight;
