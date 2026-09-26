@@ -20,6 +20,7 @@
 #include <dmsdk/extension/extension.hpp>
 #include <script_extension.h>
 #include <stdio.h>
+#include <string.h>
 
 namespace dmDebugger
 {
@@ -89,17 +90,17 @@ namespace dmDebugger
         AddLuaState(g_Debugger, state.m_L, name);
     }
 
-    static bool Start(int port)
+    static bool Start(int port, const char* address)
     {
         if (g_Debugger)
             return true;
-        g_Debugger = New((uint16_t)port);
+        g_Debugger = New((uint16_t)port, address);
         if (!g_Debugger)
             return false;
         SetUserdataTableResolver(g_Debugger, ResolveUserdataTable);
         for (uint32_t i = 0; i < g_States.Size(); ++i)
             AddState(g_States[i]);
-        dmLogInfo("Lua DAP debugger listening on 127.0.0.1:%u", GetPort(g_Debugger));
+        dmLogInfo("Lua DAP debugger listening on %s:%u", address, GetPort(g_Debugger));
         // Publish an ephemeral port to piped clients before startup waits.
         fflush(stdout);
         return true;
@@ -110,8 +111,12 @@ namespace dmDebugger
         lua_Number port = luaL_optnumber(L, 1, lua_tointeger(L, lua_upvalueindex(1)));
         if (!(port >= 0 && port <= 65535 && port == (int)port))
             return luaL_argerror(L, 1, "port must be an integer between 0 and 65535");
-        if (!Start((int)port))
-            return luaL_error(L, "Unable to start Lua DAP debugger on port %d", (int)port);
+        size_t      address_length;
+        const char* address = luaL_optlstring(L, 2, lua_tostring(L, lua_upvalueindex(2)), &address_length);
+        if (address_length == 0 || strlen(address) != address_length)
+            return luaL_argerror(L, 2, "address must be a non-empty string without NUL bytes");
+        if (!Start((int)port, address))
+            return luaL_error(L, "Unable to start Lua DAP debugger on %s:%d", address, (int)port);
         lua_pushinteger(L, GetPort(g_Debugger));
         return 1;
     }
@@ -143,7 +148,8 @@ namespace dmDebugger
 
     static dmExtension::Result Initialize(dmExtension::Params* params)
     {
-        int port = ConfigFileGetInt(params->m_ConfigFile, "debugger.port", 8172);
+        int         port = ConfigFileGetInt(params->m_ConfigFile, "debugger.port", 8172);
+        const char* address = ConfigFileGetString(params->m_ConfigFile, "debugger.address", "127.0.0.1");
         // Retain only the context until debugging is requested. Normal startup
         // does not open a listener, replace coroutine functions, or install hooks.
         ScriptState state = { params->m_L, ++g_NextStateId };
@@ -157,7 +163,8 @@ namespace dmDebugger
         static const luaL_Reg methods[] = { { 0, 0 } };
         luaL_register(params->m_L, "debugger", methods);
         lua_pushinteger(params->m_L, port);
-        lua_pushcclosure(params->m_L, LuaStart, 1);
+        lua_pushstring(params->m_L, address);
+        lua_pushcclosure(params->m_L, LuaStart, 2);
         lua_setfield(params->m_L, -2, "start");
         lua_pop(params->m_L, 1);
 
@@ -169,9 +176,9 @@ namespace dmDebugger
             {
                 dmLogError("Invalid debugger.port: %d", port);
             }
-            else if (!Start(port))
+            else if (!Start(port, address))
             {
-                dmLogError("Unable to start Lua DAP debugger on port %d", port);
+                dmLogError("Unable to start Lua DAP debugger on %s:%d", address, port);
             }
             // The Lua module and lifecycle callbacks are initialized even when
             // the listener cannot start. Keep UpdateExtension enabled so a later
