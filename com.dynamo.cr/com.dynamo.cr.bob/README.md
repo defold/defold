@@ -1,5 +1,7 @@
 # Bob the builder
 
+For local build and test commands, see the [Bob guide](../README.md). For IntelliJ IDEA setup and debugging, see the [IDEA guide](../README_IDEA.md).
+
 ## Packaging
 
 Bob and Bob Light package tools directly from `$DYNAMO_HOME/ext` and use the
