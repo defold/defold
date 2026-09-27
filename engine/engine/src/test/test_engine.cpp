@@ -12,6 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
 #include <testmain/testmain.h>
 #include <dlib/testutil.h>
 
@@ -31,9 +34,6 @@
 #if defined(DM_PLATFORM_IOS)
 #include <stdlib.h>
 #endif
-
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 
 extern "C" void dmExportedSymbols();
 
