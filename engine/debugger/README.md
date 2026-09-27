@@ -6,6 +6,11 @@ Debug and headless engines link the `LuaDebugger` extension. Release engines and
 Extender release variants exclude the library and its registration symbol. The
 implementation also compiles out when `DM_RELEASE` is defined.
 
+The Defold editor now uses this server for Lua debugging. Its MobDebug client
+and bundled MobDebug Lua scripts have been removed.
+The editor can start a project for debugging or attach to a running local or
+remote engine; other DAP clients can also connect over TCP.
+
 ## Connecting
 
 Start a native debug engine with:
@@ -52,8 +57,9 @@ The same setting applies to late activation. To enable remote attachment without
 changing startup configuration, send `debugger.start(8172, "0.0.0.0")` through
 the existing `run_script` service. The client connects to the device's actual IP
 address and listening port. `0.0.0.0` is only the bind address. The engine log
-reports the selected bind address and actual port. Use a known port for remote
-targets until their discovery metadata exposes the debugger port.
+reports the selected bind address and actual port. The Defold editor currently
+uses port `8172 + project.instance_index` for remote targets because it cannot
+discover a dynamically selected remote listener port.
 
 The debugger can evaluate Lua and has no authentication. Enable a network
 listener only on a trusted development network.
@@ -86,10 +92,14 @@ optional when client and runtime use the same paths. Native path strings are
 supported, including Windows separators. URI paths are rejected. Client line and
 column bases are negotiated by `initialize`.
 
-The editor uses this DAP server for Lua debugging. See the
-[editor integration notes](../../editor/README_DAP.md) for startup, attachment,
-tests, and the engine changes needed for direct remote-device connections.
-Other clients supporting DAP TCP servers can also connect.
+For local debug launches, the Defold editor enables the listener with port 0 and
+reads the selected port from engine output. To attach to a running engine, it
+activates the listener through `run_script`. For a remote target, the script
+requests a `0.0.0.0` bind and the editor connects to the device's address. An
+existing listener keeps its original address and port, so a remote listener
+started on localhost or an unknown port must be restarted before editor
+attachment. The [editor integration notes](../../editor/README_DAP.md) cover the
+editor workflow, tests, and remote connection limits.
 
 ### VS Code
 

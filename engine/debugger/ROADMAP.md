@@ -4,13 +4,25 @@ This roadmap tracks remaining features that need broader engine, editor, or Lua
 runtime integration. Implement and test each feature before advertising its DAP
 capability. Reference: [Debug Adapter Protocol specification](https://microsoft.github.io/debug-adapter-protocol/specification).
 
+## Current state
+
+The native DAP server supports attachment, breakpoints, line stepping, Lua stack
+and variable inspection, evaluation, and detachment in debug and headless engines.
+The editor now uses it to start debugging or attach to running local and remote
+engines. The MobDebug client and bundled MobDebug Lua scripts have been removed.
+Release and Web builds do not include the debugger. See the
+[server README](README.md) and
+[editor integration notes](../../editor/README_DAP.md) for supported requests and
+editor behavior.
+
+Local editor launches discover the engine's dynamically selected listener port.
+Remote editor attachment requests a network bind and assumes a known
+per-instance port. An existing listener on localhost or an unknown port must be
+restarted; discovering a dynamic remote port remains open work.
+
 ## Next priorities
 
 ### Remote debugger port discovery
-
-The editor now uses DAP for startup, runtime attachment, and direct remote
-connections. The engine can bind to a chosen interface and select an available
-port. See the [editor integration notes](../../editor/README_DAP.md).
 
 Expose the active listener port through engine service or discovery metadata so
 the editor can find a remote listener using a dynamic port, including after an

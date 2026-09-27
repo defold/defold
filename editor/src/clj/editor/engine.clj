@@ -208,9 +208,7 @@
               :address loopback-address})
            (when log-port
              {:log-port log-port
-              :address loopback-address})
-           (when-let [port (parse-debugger-port output)]
-             {:debugger-port port}))))
+              :address loopback-address}))))
 
 ;; Parse a line from engine output to extract engine version info.
 (defn parse-engine-version-line [line]
