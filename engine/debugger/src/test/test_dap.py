@@ -151,10 +151,10 @@ class DAPTestCase(unittest.TestCase):
                 self.process.stderr.close()
         self.temp.cleanup()
 
-    def start(self, source, second=None, late_attach=False, updates=0, prelude=None, startup_port=None, no_wait=False, startup_address=None):
+    def start(self, source, second=None, late_attach=False, updates=0, prelude=None, startup_port=None, no_wait=False, startup_address=None, minimum_log_level=None):
         if not DEBUGGEE:
             self.skipTest("Requires a Lua test host")
-        if (late_attach or startup_port is not None or startup_address is not None) and pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
+        if (late_attach or startup_port is not None or startup_address is not None or minimum_log_level is not None) and pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
             self.skipTest("Runtime activation requires the engine extension host")
         self.source = textwrap.dedent(source).lstrip("\n")
         self.path = pathlib.Path(self.temp.name) / "main.lua"
@@ -165,6 +165,8 @@ class DAPTestCase(unittest.TestCase):
             self.second_path.write_text(textwrap.dedent(second).lstrip("\n"), encoding="utf-8")
             paths.append(str(self.second_path))
         options = []
+        if minimum_log_level is not None:
+            options.extend(["--minimum-log-level", str(minimum_log_level)])
         if updates:
             options.extend(["--updates", str(updates)])
         if prelude is not None:
@@ -269,6 +271,31 @@ class DAPTestCase(unittest.TestCase):
         self.fail("No completion status")
 
 class DAPTests(DAPTestCase):
+    # Port discovery must still complete startup's debugger.wait when INFO logs
+    # are suppressed, without lowering the project's configured log level.
+    def test_startup_listener_port_with_filtered_logs(self):
+        c = self.start("assert(true)\n", minimum_log_level=5)
+        c.initialize()
+        c.attach()
+        c.configured()
+        self.finished()
+
+    # The editor also needs the actual port when runtime activation occurs after
+    # startup. Filtering ordinary logs must not prevent this attachment either.
+    def test_late_attach_listener_port_with_filtered_logs(self):
+        c = self.start('''
+            debugger.start(0)
+            finish = false
+            while not finish do pump() end
+        ''', late_attach=True, minimum_log_level=5)
+        c.initialize()
+        c.attach(stopOnEntry=True)
+        c.configured()
+        self.stopped("entry")
+        self.evaluate("finish = true", context="repl")
+        self.resume()
+        self.finished()
+
     def network_address(self):
         if not DEBUGGEE or pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
             self.skipTest("Listener configuration requires the engine extension host")
