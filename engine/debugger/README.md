@@ -17,6 +17,7 @@ dmengine --config=debugger.enabled=1 --config=debugger.port=8172 --config=debugg
 The debugger listens on `debugger.address` (`127.0.0.1` by default). It is disabled
 by default. The default port is 8172; port 0 selects an available port and prints
 it in the engine log.
+
 `debugger.wait=1` waits for a client to finish configuration before running startup
 scripts. Without that setting the engine starts immediately and can be attached
 to later. A disconnect while waiting releases the engine.
@@ -89,6 +90,35 @@ The editor uses this DAP server for Lua debugging. See the
 [editor integration notes](../../editor/README_DAP.md) for startup, attachment,
 tests, and the engine changes needed for direct remote-device connections.
 Other clients supporting DAP TCP servers can also connect.
+
+### VS Code
+
+Install [Lua Debug](https://marketplace.visualstudio.com/items?itemName=actboy168.lua-debug)
+to register a Lua debug configuration in VS Code. Open the folder containing
+`game.project` and add `.vscode/launch.json`:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to Defold Lua",
+      "type": "lua",
+      "request": "attach",
+      "address": "127.0.0.1:8172",
+      "debugServer": 8172,
+      "localRoot": "${workspaceFolder}",
+      "stopOnEntry": false
+    }
+  ]
+}
+```
+
+Run the project with the listener enabled as above, then select **Attach to
+Defold Lua** in Run and Debug. `debugServer` connects VS Code directly to
+Defold's DAP listener; `address` satisfies Lua Debug's attach configuration.
+For a remote engine, forward its DAP port to localhost before attaching from
+VS Code, or use another DAP client that connects to the remote host directly.
 
 ## Supported requests
 
@@ -202,7 +232,7 @@ logpoints and debugger expression errors. The TCP server is excluded on Web.
 
 ## Tests
 
-After configuring the repository with CMake and `BUILD_TESTS=ON`, run:
+In a full native host build configured with `BUILD_TESTS=ON`, run:
 
 ```sh
 cmake --build <build-directory> --target test_debugger_dap test_debugger_dap_lua test_debugger_release
