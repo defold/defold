@@ -16,12 +16,14 @@ description: Draft a pull request title and description from the current Git bra
 python3 .agents/skills/draft-pr-description/scripts/branch_pr_context.py --base <base-branch>
 ```
 
-3. Review the helper output, then inspect additional files or diffs directly when the patch preview is truncated or a change is unclear.
+3. Review the helper output, then inspect additional files or diffs directly when the patch preview is truncated or a change is unclear. If the diff adds or changes a public API, check its declaration and tests or documentation to confirm how callers use it.
 4. Follow the user's requested template or format. Otherwise, use the default format below.
 
 ## Output Contract
 
 By default, return one fenced Markdown code block with the PR title and body. Include relevant issue links in the body when supplied; use a closing keyword only for an issue the PR resolves.
+
+When the PR adds or changes a public API, include an `### API usage` section with a short example of the new or changed call, command, or configuration. Show enough context for a reviewer to understand the usage, and base the example on the verified API rather than an assumed signature. Omit this section when no public API changes. If the example needs a fenced code block, use a longer fence around the full PR draft so the inner fence renders correctly.
 
 ```markdown
 # Short title for PR
