@@ -85,6 +85,13 @@ static dmConfigFile::HConfig Config(const char* text)
 // --late-attach, scripts run without enabling or waiting for the debugger.
 int main(int argc, char** argv)
 {
+    LogSeverity minimum_log_level = LOG_SEVERITY_USER_DEBUG;
+    if (argc > 2 && strcmp(argv[1], "--minimum-log-level") == 0)
+    {
+        minimum_log_level = (LogSeverity)atoi(argv[2]);
+        argc -= 2;
+        argv += 2;
+    }
     int updates = 0;
     if (argc > 2 && strcmp(argv[1], "--updates") == 0)
     {
@@ -130,6 +137,7 @@ int main(int argc, char** argv)
     dmSocket::Initialize();
     dmLog::LogParams log;
     dmLog::LogInitialize(&log);
+    dmLogSetLevel(minimum_log_level);
     dmLogRegisterListener(LogListener);
     ExtensionParamsInitialize(&g_Params);
     LuaDebugger();
@@ -152,6 +160,7 @@ int main(int argc, char** argv)
     dmScript::HContext    contexts[2];
     for (int i = 1; i < argc; ++i)
         contexts[i - 1] = Create(config, prelude);
+    Check(dmLogGetLevel() == minimum_log_level, "Debugger changed the minimum log level");
     int result = 0;
     for (int i = 1; i < argc; ++i)
     {
@@ -180,6 +189,7 @@ int main(int argc, char** argv)
     }
     for (int i = 1; i < argc; ++i)
         Destroy(contexts[i - 1]);
+    Check(dmLogGetLevel() == minimum_log_level, "Debugger changed the minimum log level");
     dmConfigFile::Delete(config);
     ExtensionParamsFinalize(&g_Params);
     dmLog::LogFinalize();
