@@ -101,7 +101,9 @@ namespace dmDebugger
         for (uint32_t i = 0; i < g_States.Size(); ++i)
             AddState(g_States[i]);
         dmLogInfo("Lua DAP debugger listening on %s:%u", address, GetPort(g_Debugger));
-        // Publish an ephemeral port to piped clients before startup waits.
+        // Piped clients need the selected port even when INFO logs are filtered.
+        if (dmLogGetLevel() > LOG_SEVERITY_INFO)
+            printf("Lua DAP debugger listening on %s:%u\n", address, GetPort(g_Debugger));
         fflush(stdout);
         return true;
     }
