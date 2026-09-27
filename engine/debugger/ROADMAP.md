@@ -1,22 +1,36 @@
-# DAP work requiring broader integration
+# Native Lua debugger roadmap
 
-This roadmap records the harder work from the DAP coverage review. These are
-future features, separate from the protocol fixes and inspection improvements in
-the current branch. Implement and test a feature before advertising its DAP
+This roadmap tracks remaining features that need broader engine, editor, or Lua
+runtime integration. Implement and test each feature before advertising its DAP
 capability. Reference: [Debug Adapter Protocol specification](https://microsoft.github.io/debug-adapter-protocol/specification).
+
+## Current state
+
+The native DAP server supports attachment, breakpoints, line stepping, Lua stack
+and variable inspection, evaluation, and detachment in debug and headless engines.
+The editor now uses it to start debugging or attach to running local and remote
+engines. The MobDebug client and bundled MobDebug Lua scripts have been removed.
+Release and Web builds do not include the debugger. See the
+[server README](README.md) and
+[editor integration notes](../../editor/README_DAP.md) for supported requests and
+editor behavior.
+
+Local editor launches discover the engine's dynamically selected listener port.
+Remote editor attachment requests a network bind and assumes a known
+per-instance port. An existing listener on localhost or an unknown port must be
+restarted; discovering a dynamic remote port remains open work.
 
 ## Next priorities
 
-### Editor DAP integration
+### Remote debugger port discovery
 
-The editor now uses DAP for startup, runtime attachment, breakpoints, stepping,
-stack and variable inspection, console evaluation, and detachment. See the
-[editor integration notes](../../editor/README_DAP.md).
+Expose the active listener port through engine service or discovery metadata so
+the editor can find a remote listener using a dynamic port, including after an
+engine reboot. Handle port conflicts and listener restarts without relying on a
+fixed per-instance port.
 
-Remaining: make the extension's bind address configurable for direct remote
-connections and expose the listener port through engine service/discovery
-metadata for remote dynamic-port discovery. Preserve the loopback default and
-test remote attachment, port conflicts, and reboot discovery.
+Acceptance: the editor can attach and reconnect to a remote engine whose DAP
+listener uses a dynamically selected port.
 
 ### Source discovery and retrieval
 

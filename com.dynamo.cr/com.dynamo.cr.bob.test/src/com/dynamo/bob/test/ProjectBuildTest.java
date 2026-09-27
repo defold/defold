@@ -151,26 +151,6 @@ public class ProjectBuildTest {
         return count;
     }
 
-    // Verify a debug archive builds without legacy Lua debugger modules, guarding
-    // against reintroducing MobDebug as an implicit game.project dependency.
-    @Test
-    public void testDebugBuildWithoutLuaDebuggerModules() throws Exception {
-        createFile(contentRoot, "logic/main.collection", "name: \"default\"\nscale_along_z: 0\n");
-        createFile(contentRoot, "input/game.input_binding", "");
-
-        Bob.InvocationResult result = Bob.invoke(null, Progress.discarding(), null, new String[]{
-                "--root", contentRoot,
-                "--variant", Bob.VARIANT_DEBUG,
-                "--archive",
-                "build"
-        });
-
-        assertTrue(result.success);
-        assertTrue(new File(contentRoot, "build/default/game.projectc").isFile());
-        assertTrue(new File(contentRoot, "build/default/game.arci").isFile());
-        assertFalse(new File(contentRoot, "build/default/builtins/scripts").exists());
-    }
-
     @Test
     public void testBuildInputFileWithoutGameProject() throws Exception {
         Files.delete(new File(contentRoot, "game.project").toPath());

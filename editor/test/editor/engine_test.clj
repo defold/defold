@@ -42,8 +42,7 @@
   (is (nil? (engine/parse-debugger-port "ordinary game output")))
   (is (= {:address "127.0.0.1"
           :url "http://127.0.0.1:8001"
-          :log-port "8002"
-          :debugger-port 49152}
+          :log-port "8002"}
          (engine/parse-launched-target-info
            (str "INFO:DLIB: Log server started on port 8002\n"
                 "INFO:ENGINE: Engine service started on port 8001\n"

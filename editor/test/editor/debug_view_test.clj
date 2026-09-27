@@ -19,9 +19,12 @@
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.debugging.dap :as dap]
+            [editor.defold-project :as project]
             [editor.engine :as engine]
             [editor.resource :as resource]
+            [editor.targets :as targets]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [support.test-support :as test-support])
   (:import [java.util Collection]
            [javafx.scene.control ListView TreeItem TreeView]
@@ -209,8 +212,8 @@
                 :row 0
                 :condition ""}})))))
 
-;; Verify attachment chooses the local or remote startup module before opening
-;; the DAP session, guarding against accidentally exposing locally launched games.
+;; Verify attachment enables local port discovery before running the
+;; script, and chooses the remote startup module only for remote targets.
 (deftest attach-startup-module-test
   (doseq [[target expected-path]
           [[{:process ::process} "/_defold/debugger/start.lua"]
@@ -219,14 +222,48 @@
       (with-redefs-fn {#'debug-view/built-lua-module (fn [artifacts path]
                                                        (is (= ::artifacts artifacts))
                                                        {:path path})
+                       #'targets/update-launched-target! (fn [received-target target-info]
+                                                            (swap! calls conj [:port-update received-target target-info]))
                        #'engine/run-script! (fn [received-target module]
                                               (swap! calls conj [:run received-target module]))
                        #'debug-view/start-debugger! (fn [view project received-target stop-on-entry]
                                                       (swap! calls conj [:connect view project received-target stop-on-entry]))}
         #(debug-view/attach! ::view ::project target ::artifacts))
-      (is (= [[:run target {:path expected-path}]
-              [:connect ::view ::project target true]]
+      (is (= (cond-> []
+               (targets/launched-target? target)
+               (conj [:port-update target {:debugger-port 0
+                                          :debugger-port-pending true}])
+
+               true
+               (conj [:run target {:path expected-path}]
+                     [:connect ::view ::project target true]))
              @calls)))))
+
+;; INFO logging suppresses the startup script's print when a listener already
+;; exists. Reattachment must still connect using the last discovered port.
+(deftest reattach-without-port-announcement-test
+  (test-support/with-clean-system
+    (let [target {:id "engine"
+                  :process ::process}
+          current (atom (assoc target :debugger-port 49152))
+          connected-ports (atom [])
+          view (g/make-node! debug-view/DebugView
+                 :state-changed-fn (constantly nil))]
+      (with-redefs-fn {#'debug-view/built-lua-module (constantly {})
+                       #'debug-view/collect-enabled-breakpoints (constantly #{})
+                       #'project/workspace (constantly ::workspace)
+                       #'workspace/project-directory (constantly (io/file "."))
+                       #'targets/all-launched-targets (fn [] [@current])
+                       #'targets/update-launched-target! (fn [_ target-info]
+                                                            (swap! current merge target-info))
+                       #'engine/run-script! (constantly :ok)
+                       #'dap/connect! (fn [_ resolve-port _ _]
+                                        (swap! connected-ports conj (resolve-port))
+                                        nil)}
+        (fn []
+          (dotimes [_ 2]
+            (debug-view/attach! view ::project target ::artifacts))
+          (is (= [49152 49152] @connected-ports)))))))
 
 ;; Execute the shipped Lua scripts to verify per-instance ports and remote
 ;; binding, and ensure discovery reports the returned port of an existing listener.

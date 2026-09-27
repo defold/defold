@@ -996,13 +996,20 @@
         version-line (atom nil)
         updated-target (atom nil)]
     (fn [line]
-      ;; Runtime activation can happen long after the startup log window.
-      (when-let [port (engine/parse-debugger-port line)]
-        (targets/update-launched-target! launched-target {:debugger-port port}))
+      ;; A debug launch or local attach can announce its port after startup.
+      ;; Parse only debugger messages while waiting for that port.
+      (let [current-target (coll/first-where #(= (:id launched-target) (:id %))
+                                             (targets/all-launched-targets))]
+        (when (and (or (= 0 (:debugger-port current-target))
+                       (:debugger-port-pending current-target))
+                   (string/includes? line "Lua DAP debugger"))
+          (when-let [port (engine/parse-debugger-port line)]
+            (targets/update-launched-target! launched-target {:debugger-port port
+                                                             :debugger-port-pending false}))))
       (when (< (count @initial-output) 5000)
         (swap! initial-output str line "\n")
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (let [result-target (targets/update-launched-target! launched-target (dissoc target-info :debugger-port))]
+          (let [result-target (targets/update-launched-target! launched-target target-info)]
             (reset! updated-target result-target)))
         (when (not @version-line)
           (when-let [engine-version-line (engine/parse-engine-version-line line)]

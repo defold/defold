@@ -584,14 +584,24 @@
 
 (defn attach!
   [debug-view project target build-artifacts]
-  (let [lua-module (built-lua-module build-artifacts (if (targets/launched-target? target)
+  (let [launched (targets/launched-target? target)
+        lua-module (built-lua-module build-artifacts (if launched
                                                        debugger-init-script
-                                                       debugger-remote-init-script))]
+                                                       debugger-remote-init-script))
+        previous-port (when launched (:debugger-port (latest-target target)))]
     (assert lua-module)
+    (when launched
+      ;; Keep the known port usable if log filtering suppresses the announcement.
+      (targets/update-launched-target! target {:debugger-port (or previous-port 0)
+                                              :debugger-port-pending true}))
     (let [attach-successful? (try
                                (engine/run-script! target lua-module)
                                true
                                (catch Exception exception
+                                 (when (and launched
+                                            (:debugger-port-pending (latest-target target)))
+                                   (targets/update-launched-target! target {:debugger-port previous-port
+                                                                           :debugger-port-pending false}))
                                  (show-connect-failed-info! exception (project/workspace project))
                                  false))]
       (when attach-successful?

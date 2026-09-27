@@ -7,8 +7,10 @@ the `debugger` Lua module. Release engines exclude the library and its
 registration symbol through the CMake targets and the Extender release
 manifest. The TCP server is excluded on Web.
 
-The extension provides a DAP server. The Defold editor uses MobDebug; connect
-with a client that supports DAP over TCP, such as [VS Code](#vs-code).
+The Defold editor uses this server to start projects for debugging or attach
+to running local and remote engines. Its MobDebug client and bundled MobDebug
+Lua scripts have been removed. Other DAP clients, such as [VS Code](#vs-code),
+can also connect over TCP.
 
 ## Connecting
 
@@ -21,10 +23,6 @@ native debug engine with these arguments:
 dmengine --config=debugger.enabled=1 \
   --config=debugger.port=8172 --config=debugger.wait=1
 ```
-
-When launching from the Defold editor, put each `--config` argument on its own
-line in **Preferences > General > Engine Arguments**, then use **Project > Build**.
-The editor's Debug action starts MobDebug, which uses the same default port.
 
 | Setting | Default | Behavior |
 | --- | --- | --- |
@@ -76,10 +74,26 @@ dmengine --config=debugger.enabled=1 \
 
 For runtime activation, use `debugger.start(8172, "0.0.0.0")`. The client connects
 to the device's actual IP address and listening port; `0.0.0.0` is only the bind
-address.
+address. The Defold editor uses port `8172 + project.instance_index` for remote
+targets because it cannot discover a dynamically selected remote listener port.
 
 The debugger can evaluate Lua and has no authentication. Enable a network
 listener only on a trusted development network.
+
+### Defold editor
+
+For local debug launches, the editor enables the listener with
+`debugger.enabled=1`, `debugger.wait=1`, and `debugger.port=0`, then reads the
+selected port from engine output. To attach to a running engine, it activates
+the listener through `run_script`. For a remote target, the script requests a
+`0.0.0.0` bind and the editor connects to the device's address using the
+per-instance port described above.
+
+An existing listener keeps its original address and port, so a remote engine
+whose listener was started on localhost or an unknown port must be restarted
+before editor attachment. The
+[editor integration notes](../../editor/README_DAP.md) cover the editor
+workflow, tests, and remote connection limits.
 
 ### VS Code
 
@@ -111,10 +125,6 @@ connects directly to Defold's DAP listener; `address` satisfies Lua Debug's
 attach configuration. If you change the listening port, update both values.
 For a remote engine, forward its DAP port to localhost before attaching from
 VS Code, or use a DAP client that connects to the remote host directly.
-
-The editor uses this DAP server for Lua debugging. See the
-[editor integration notes](../../editor/README_DAP.md) for startup, attachment,
-tests, and remote connections. Other DAP clients can also connect.
 
 ## DAP support
 
@@ -338,6 +348,9 @@ Launch, reverse execution, instruction/function/data breakpoints, source-content
 fetching, and native stack inspection are not implemented or advertised. Console
 output from the engine keeps its existing destination; DAP output is used for
 logpoints and breakpoint-condition errors.
+
+See [ROADMAP.md](ROADMAP.md) for features requiring broader engine, editor, or
+Lua runtime integration.
 
 ## Tests
 
