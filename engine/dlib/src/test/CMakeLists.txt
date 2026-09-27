@@ -146,6 +146,55 @@ dlib_add_test(test_dstrings)
 
 if(NOT DLIB_TEST_SKIP_HTTP)
   dlib_add_test(test_http C SKIP_RUN)
+  if(NOT DLIB_TEST_SKIP_HTTP_RUN AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
+    # The C HTTP tests use endpoints provided by dlib's Java server.
+    set(_http_server_classes "${CMAKE_CURRENT_BINARY_DIR}/http_server")
+    set(_http_server_classpath
+      "${DLIB_ROOT}/ext/*:${DLIB_ROOT}/ext/jetty/*:${DLIB_ROOT}/ext/jetty/logging/*:${_http_server_classes}")
+    file(GLOB _http_server_jars CONFIGURE_DEPENDS
+      "${DLIB_ROOT}/ext/*.jar"
+      "${DLIB_ROOT}/ext/jetty/*.jar"
+      "${DLIB_ROOT}/ext/jetty/logging/*.jar")
+    add_custom_command(
+      OUTPUT "${_http_server_classes}/TestHttpServer.class"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_http_server_classes}"
+      COMMAND "${DEFOLD_JAVAC_EXECUTABLE}" -g --release 8 -Xlint:-options
+        -cp "${_http_server_classpath}" -d "${_http_server_classes}"
+        "${DLIB_TEST_ROOT}/http_server/TestHttpServer.java"
+      DEPENDS "${DLIB_TEST_ROOT}/http_server/TestHttpServer.java" ${_http_server_jars}
+      VERBATIM)
+    add_custom_target(test_http_server
+      DEPENDS "${_http_server_classes}/TestHttpServer.class")
+    add_dependencies(test_http test_http_server)
+
+    _defold_find_python(_http_test_python)
+    set(_http_test_command
+      "${_http_test_python}" "${DLIB_ROOT}/scripts/run_test_http.py"
+      --java "${DEFOLD_JAVA_EXECUTABLE}"
+      --classpath "${_http_server_classpath}"
+      --keystore "${DLIB_TEST_ROOT}/data/keystore"
+      "$<TARGET_FILE:test_http>")
+    defold_test_run_settings(_http_test_runner _http_test_options shared)
+    add_custom_target(run_test_http
+      COMMAND ${_http_test_runner} ${_http_test_command}
+      DEPENDS test_http
+      ${_http_test_options}
+      VERBATIM
+      COMMENT "Running test_http with dlib's HTTP test server")
+    set(_http_test_dependency test_http)
+    if(CMAKE_GENERATOR STREQUAL "Xcode")
+      add_custom_target(prepare_run_test_http DEPENDS test_http)
+      set(_http_test_dependency prepare_run_test_http)
+    endif()
+    defold_register_sequential_test_command(run_test_http
+      COMMAND ${_http_test_command}
+      DEPENDS ${_http_test_dependency})
+    if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+      defold_add_to_run_tests(run_test_http
+        COMMAND ${_http_test_command}
+        DEPENDS test_http)
+    endif()
+  endif()
   dlib_add_test(test_httpclient SKIP_RUN)
   dlib_add_test(test_httpcache SKIP_RUN)
   dlib_add_test(test_httpserver SKIP_RUN)
