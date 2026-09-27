@@ -32,8 +32,9 @@
 (deftest dap-listener-discovery-test
   (is (= 8172 (engine/debugger-port {})))
   (is (= 8175 (engine/debugger-port {:instance-index 3})))
-  (doseq [address ["127.0.0.1" "0.0.0.0" "192.168.1.20"]]
-    (is (= 49152 (engine/parse-debugger-port (str "INFO:DEBUGGER: Lua DAP debugger listening on " address ":49152")))))
+  (doseq [address ["127.0.0.1" "0.0.0.0" "192.168.1.20"]
+          prefix ["INFO:DEBUGGER: " ""]]
+    (is (= 49152 (engine/parse-debugger-port (str prefix "Lua DAP debugger listening on " address ":49152")))))
   (is (= 49152 (engine/parse-debugger-port "DEBUG:SCRIPT: Lua DAP debugger port: 49152")))
   (is (nil? (engine/parse-debugger-port "Lua DAP debugger port: 0")))
   (is (nil? (engine/parse-debugger-port "Lua DAP debugger port: 65536")))
