@@ -2,21 +2,25 @@
 
 `debugger` is a separate C++ library for debugging Lua 5.1 and LuaJIT through the
 [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/overview).
-Debug and headless engines link the `LuaDebugger` extension. Release engines and
-Extender release variants exclude the library and its registration symbol. The
-implementation also compiles out when `DM_RELEASE` is defined.
+Native debug and headless engines link the `LuaDebugger` extension. Release
+engines do not link it, and defining `DM_RELEASE` compiles out the implementation.
 
 ## Connecting
 
-Start a native debug engine with:
+Start a built project with a native debug engine and these arguments:
 
 ```sh
 dmengine --config=debugger.enabled=1 --config=debugger.port=8172 --config=debugger.wait=1
 ```
 
+When launching from the Defold editor, put each `--config` argument on its own
+line in **Preferences > General > Engine Arguments**, then use **Project > Build**.
+The editor's Debug action starts MobDebug on the same default port.
+
 The debugger listens on `debugger.address` (`127.0.0.1` by default). It is disabled
 by default. The default port is 8172; port 0 selects an available port and prints
 it in the engine log.
+
 `debugger.wait=1` waits for a client to finish configuration before running startup
 scripts. Without that setting the engine starts immediately and can be attached
 to later. A disconnect while waiting releases the engine.
@@ -51,8 +55,7 @@ The same setting applies to late activation. To enable remote attachment without
 changing startup configuration, send `debugger.start(8172, "0.0.0.0")` through
 the existing `run_script` service. The client connects to the device's actual IP
 address and listening port. `0.0.0.0` is only the bind address. The engine log
-reports the selected bind address and actual port. Use a known port for remote
-targets until their discovery metadata exposes the debugger port.
+reports the selected bind address and actual port.
 
 The debugger can evaluate Lua and has no authentication. Enable a network
 listener only on a trusted development network.
@@ -87,6 +90,35 @@ column bases are negotiated by `initialize`.
 
 This module provides the DAP server. The editor's existing MobDebug client is
 unchanged; connect with a client that supports DAP TCP servers.
+
+### VS Code
+
+Install [Lua Debug](https://marketplace.visualstudio.com/items?itemName=actboy168.lua-debug)
+to register a Lua debug configuration in VS Code. Open the folder containing
+`game.project` and add `.vscode/launch.json`:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to Defold Lua",
+      "type": "lua",
+      "request": "attach",
+      "address": "127.0.0.1:8172",
+      "debugServer": 8172,
+      "localRoot": "${workspaceFolder}",
+      "stopOnEntry": false
+    }
+  ]
+}
+```
+
+Run the project with the listener enabled as above, then select **Attach to
+Defold Lua** in Run and Debug. `debugServer` connects VS Code directly to
+Defold's DAP listener; `address` satisfies Lua Debug's attach configuration.
+For a remote engine, forward its DAP port to localhost before attaching from
+VS Code, or use another DAP client that connects to the remote host directly.
 
 ## Supported requests
 
@@ -200,7 +232,7 @@ logpoints and debugger expression errors. The TCP server is excluded on Web.
 
 ## Tests
 
-After configuring the repository with CMake and `BUILD_TESTS=ON`, run:
+In a full native host build configured with `BUILD_TESTS=ON`, run:
 
 ```sh
 cmake --build <build-directory> --target test_debugger_dap test_debugger_dap_lua test_debugger_release
@@ -249,9 +281,6 @@ python3 engine/debugger/src/test/test_dap.py --engine <path-to-dmengine_headless
 
 The engine script suite additionally checks that the generic `ScriptExtension`
 error callback sees the original error value and live locals before unwinding.
-
-See [ROADMAP.md](ROADMAP.md) for features requiring broader engine, editor, or
-Lua runtime integration.
 
 ## Embedding
 
