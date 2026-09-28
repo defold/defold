@@ -1255,6 +1255,8 @@ union SaveLoadBuffer
     * @param [arg4] [type:string] argument 4
     * @param [arg5] [type:string] argument 5
     * @param [arg6] [type:string] argument 6
+    * @param [arg7] [type:string] argument 7
+    * @param [arg8] [type:string] argument 8
     * @examples
     *
     * How to reboot engine with a specific bootstrap collection.
@@ -1282,6 +1284,8 @@ union SaveLoadBuffer
         PUSH_FIELD("arg4", 4);
         PUSH_FIELD("arg5", 5);
         PUSH_FIELD("arg6", 6);
+        PUSH_FIELD("arg7", 7);
+        PUSH_FIELD("arg8", 8);
 
 #undef PUSH_FIELD
 
