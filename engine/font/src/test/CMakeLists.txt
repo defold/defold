@@ -1,3 +1,17 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 cmake_minimum_required(VERSION 4.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/cmake")
@@ -125,7 +139,10 @@ defold_target_link_libraries(test_markup_null "${TARGET_PLATFORM}"
   font
   font_richtext_null)
 defold_target_link_socket(test_markup_null "${TARGET_PLATFORM}" PRIVATE)
-defold_register_test_target(test_markup_null ON "${FONT_ROOT}" RUN_GROUP font)
+defold_register_test_target(test_markup_null ON "${FONT_ROOT}"
+  RUN_GROUP font
+  STAGE_FILES
+    "src/test/data" "src/test/data")
 
 if(FONT_RENDERER_IS_DESKTOP)
   defold_add_executable(test_fontc_markup_api "${FONT_TEST_ROOT}/test_fontc_markup_api.cpp")
