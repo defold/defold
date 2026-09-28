@@ -1,3 +1,17 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 defold_log("functions_graphics.cmake:")
 
 # Returns a CMake list of exported graphics adapter symbols for a given
@@ -161,9 +175,9 @@ function(defold_target_link_graphics target platform)
     if(_PLAT_OS MATCHES "^(macos|linux|win32)$")
         set(_STLIB_DMGLFW glfw3)
     else()
-        set(_STLIB_DMGLFW dmglfw)
+        set(_STLIB_DMGLFW)
     endif()
-    set(_STLIB_DMGLFW_VULKAN dmglfw_vulkan)
+    set(_STLIB_DMGLFW_VULKAN)
 
     # GL/GLES
     unset(OPENGL)
@@ -397,13 +411,4 @@ function(defold_target_link_graphics target platform)
         target_link_options(${target} ${DGL_SCOPE} ${_link_opts})
     endif()
 
-    # For web targets, also include the GLFW JS shim library from the SDK
-    if("${platform}" MATCHES "^(wasm-web|wasm_pthread-web)$")
-        set(_glfw_js "${DEFOLD_SDK_ROOT}/ext/lib/${platform}/js/library_glfw.js")
-        if(EXISTS "${_glfw_js}")
-            target_link_options(${target} ${DGL_SCOPE} "--js-library" "${_glfw_js}")
-        else()
-            message(STATUS "functions_graphics: library_glfw.js not found at ${_glfw_js}")
-        endif()
-    endif()
 endfunction()

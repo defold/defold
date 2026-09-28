@@ -14,8 +14,8 @@
 
 #include "platform_app.h"
 
-#include <glfw/glfw.h>
-#include <glfw/glfw_native.h>
+#include "native/native.h"
+#include "native/native_handles.h"
 
 namespace dmPlatform
 {

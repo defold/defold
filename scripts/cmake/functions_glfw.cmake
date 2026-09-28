@@ -1,3 +1,17 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 defold_log("functions_glfw.cmake:")
 
 # Determine GLFW major version (2 or 3) for a given target platform.
@@ -31,7 +45,7 @@ endfunction()
 
 # Link the appropriate GLFW library for a given platform tuple.
 # - For platforms that use GLFW 3 in Waf (macOS, Linux, Win32) link against 'glfw3'.
-# - Otherwise link against 'dmglfw'.
+# - Mobile and web implementations are part of the platform library.
 # Usage:
 #   defold_target_link_glfw(<target> <platform> [SCOPE <PRIVATE|PUBLIC|INTERFACE>])
 function(defold_target_link_glfw target platform)
@@ -57,7 +71,7 @@ function(defold_target_link_glfw target platform)
     if(_GLFW_VER EQUAL 3)
         set(_glfw_lib glfw3)
     else()
-        set(_glfw_lib dmglfw)
+        return()
     endif()
 
     # If platform OS is win32, our prebuilt static libs are prefixed with "lib"

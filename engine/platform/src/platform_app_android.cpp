@@ -15,7 +15,7 @@
 #include "platform_app.h"
 
 #include <android_native_app_glue.h>
-#include <glfw/glfw.h>
+#include "native/native.h"
 
 extern "C" void _glfwPreMain(android_app* app);
 

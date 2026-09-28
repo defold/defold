@@ -1,5 +1,16 @@
 # Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
 
 import contextlib
 import io
@@ -89,24 +100,6 @@ class ExternalPackageTests(unittest.TestCase):
                 self.build_package(package, 'arm64-macos', headers | libraries)
                 self.assertEqual(headers, self.read_package(archive_name + '-common.tar.gz'))
                 self.assertEqual(libraries, self.read_package(archive_name + '-arm64-macos.tar.gz'))
-
-    def test_glfw_keeps_headers_and_support_files_in_platform_archive(self):
-        cases = (
-            ('arm64-android', {
-                'lib/arm64-android/libdmglfw_vulkan.a': 'Vulkan archive',
-                'share/java/glfw_android.jar': 'Android Java classes',
-            }),
-            ('wasm-web', {'lib/wasm-web/js/library_glfw.js': 'JavaScript glue'}),
-        )
-        for platform, support_files in cases:
-            with self.subTest(platform=platform):
-                files = {
-                    'include/glfw/glfw.h': 'GLFW header',
-                    'lib/' + platform + '/libdmglfw.a': 'GLFW archive',
-                } | support_files
-                self.build_package('glfw', platform, files)
-                self.assertEqual(files, self.read_package('glfw-2.7.1-' + platform + '.tar.gz'))
-                self.assertFalse((self.root / 'packages/glfw-2.7.1-common.tar.gz').exists())
 
 
 if __name__ == '__main__':

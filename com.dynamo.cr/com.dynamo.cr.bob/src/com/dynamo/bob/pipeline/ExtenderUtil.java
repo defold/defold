@@ -407,7 +407,7 @@ public class ExtenderUtil {
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean migrateWindowsLibraryNames(Object contextValue) {
+    private static boolean migrateLibraryNames(Object contextValue, Map<String, String> names) {
         if (!(contextValue instanceof Map<?, ?>)) {
             return false;
         }
@@ -423,7 +423,7 @@ public class ExtenderUtil {
             List<?> libraries = (List<?>) librariesValue;
             List<Object> migratedLibraries = new ArrayList<>(libraries.size());
             for (Object library : libraries) {
-                String migratedLibrary = AppManifestMigration.WINDOWS_LIBRARY_NAMES.get(library);
+                String migratedLibrary = names.get(library);
                 migratedLibraries.add(migratedLibrary == null ? library : migratedLibrary);
             }
             if (!libraries.equals(migratedLibraries)) {
@@ -505,6 +505,10 @@ public class ExtenderUtil {
                 if (platformValue instanceof Map<?, ?>) {
                     Object context = ((Map<?, ?>) platformValue).get("context");
                     modified |= addBullet3DCompatibilityExclusions(context);
+                    if (List.of("android", "armv7-android", "arm64-android", "x86_64-android",
+                            "ios", "arm64-ios", "arm64_sim-ios", "web", "wasm-web", "wasm_pthread-web").contains(platform.getKey())) {
+                        modified |= migrateLibraryNames(context, AppManifestMigration.NATIVE_PLATFORM_LIBRARY_NAMES);
+                    }
                     if ("arm64_sim-ios".equals(platform.getKey())) {
                         modified |= migrateSimulatorGraphics(context);
                     }
@@ -516,7 +520,7 @@ public class ExtenderUtil {
                     if ("win32".equals(platform.getKey())
                             || "x86-win32".equals(platform.getKey())
                             || "x86_64-win32".equals(platform.getKey())) {
-                        modified |= migrateWindowsLibraryNames(context);
+                        modified |= migrateLibraryNames(context, AppManifestMigration.WINDOWS_LIBRARY_NAMES);
                     }
                 }
             }

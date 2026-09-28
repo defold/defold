@@ -353,6 +353,28 @@
             (is (= exclude-bullet-script
                    (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt")))))))))
 
+;; Migrates legacy mobile backend libraries without changing desktop libraries,
+;; custom inputs, invalid fields, or the meaning of Vulkan-only exclusions.
+(deftest mobile-platform-library-migration-test
+  (doseq [platform (into #{:android :ios :web} cat [app-manifest/android app-manifest/ios app-manifest/web])]
+    (let [context {:libs ["graphics_vulkan" "dmglfw_vulkan" "custom"]
+                   :excludeLibs ["graphics_opengles" "dmglfw"]
+                   :engineLibs ["dmglfw" nil 42]
+                   :symbols ["dmglfw"]}
+          manifest {:platforms {platform {:context context}
+                                :x86_64-linux {:context context}}}
+          migrated (#'app-manifest/migrate-mobile-library-names manifest)]
+      (is (= {:libs ["graphics_vulkan" "platform_vulkan" "custom"]
+              :excludeLibs ["graphics_opengles" "platform"]
+              :engineLibs ["platform" nil 42]
+              :symbols ["dmglfw"]}
+             (get-in migrated [:platforms platform :context])))
+      (is (= context (get-in migrated [:platforms :x86_64-linux :context])))
+      (is (= migrated (#'app-manifest/migrate-mobile-library-names migrated)))))
+  (doseq [manifest [true {} {:platforms {:android {:context {:libs "dmglfw"}}}}]]
+    (is (= manifest (#'app-manifest/migrate-mobile-library-names manifest)))))
+
+;; Verifies each Android renderer choice selects a single native platform variant.
 (deftest android-graphics-setting-test
   (testing "OpenGL-only Android excludes Vulkan link inputs"
     (let [manifest (-> {}
@@ -361,8 +383,8 @@
       (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_opengles"} (:libs context)))
-          (is (some #{"dmglfw"} (:libs context)))
-          (is (some #{"dmglfw_vulkan"} (:excludeLibs context)))
+          (is (coll/any? #{"platform"} (:libs context)))
+          (is (coll/any? #{"platform_vulkan"} (:excludeLibs context)))
           (is (not-any? #{"graphics"} (:libs context)))
           (is (not-any? #{"vulkan"} (:excludeLibs context)))
           (is (some #{"vulkan"} (:excludeDynamicLibs context)))
@@ -374,9 +396,9 @@
       (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_vulkan"} (:libs context)))
-          (is (some #{"dmglfw_vulkan"} (:libs context)))
+          (is (coll/any? #{"platform_vulkan"} (:libs context)))
           (is (some #{"graphics_opengles"} (:excludeLibs context)))
-          (is (some #{"dmglfw"} (:excludeLibs context)))
+          (is (coll/any? #{"platform"} (:excludeLibs context)))
           (is (some #{"GraphicsAdapterOpenGLES"} (:excludeSymbols context)))
           (is (some #{"vulkan"} (:excludeDynamicLibs context)))
           (is (some #{"EGL"} (:excludeDynamicLibs context)))
