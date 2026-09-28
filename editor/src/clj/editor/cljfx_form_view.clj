@@ -1364,6 +1364,24 @@
            :focus-request (when focus-request [focus-request map-event-handler state-path])}
    :desc desc})
 
+(defn- summary-table-cell-description [column state-path item-field-paths [index item]]
+  (if (nil? item)
+    {:text ""}
+    (let [value (if-let [value-fn (:value-fn column)]
+                  (value-fn item)
+                  (get-in item (:path column)))
+          label (if (some? value) (display-value-text column value) "")]
+      (cond-> {:text label}
+        ;; Only cells with a matching detail field can request focus.
+        (contains? (item-field-paths item) (:path column))
+        (assoc :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
+                                  :index index
+                                  :path (:path column)
+                                  :state-path state-path})
+
+        (not (string/blank? label))
+        (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label})))))
+
 (defn- summary-table-input [{:keys [value summary-columns full-width localization-state state-path state
                                     on-value-changed default-row key-path item-field-paths]}]
   (let [selected-index (-> state :selected-indices util/only)
@@ -1406,24 +1424,8 @@
                                                   ;; The :describe form lets cells dispatch map events.
                                                   :cell-factory
                                                   {:fx/cell-type :table-cell
-                                                   :describe
-                                                   (fn [[index item]]
-                                                     (if (nil? item)
-                                                       {:text ""}
-                                                       (let [value (if-let [value-fn (:value-fn column)]
-                                                                     (value-fn item)
-                                                                     (get-in item (:path column)))
-                                                             label (if (some? value) (display-value-text column value) "")]
-                                                         (cond-> {:text label}
-                                                           ;; Only cells with a matching detail field can request focus.
-                                                           (contains? (item-field-paths item) (:path column))
-                                                           (assoc :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
-                                                                                     :index index
-                                                                                     :path (:path column)
-                                                                                     :state-path state-path})
-
-                                                           (not (string/blank? label))
-                                                           (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label})))))}})
+                                                   :describe (fn/partial summary-table-cell-description
+                                                                         column state-path item-field-paths)}})
                                                summary-columns)
                                 :items (into [] (map-indexed vector) value)
                                 :context-menu {:fx/type fx.context-menu/lifecycle
@@ -1574,6 +1576,13 @@
                  [item-list selected-item-fields]
                  [item-list])}))
 
+(defn- two-panel-item-field-paths [key-path panel-form-fn panel-form item]
+  (into #{key-path}
+        (comp (mapcat :fields) (map :path))
+        (:sections (if panel-form-fn
+                     (panel-form-fn item)
+                     panel-form))))
+
 (defmethod form-input-view :table-2panel [{:keys [value on-value-changed state state-path panel-key summary-columns full-width localization-state] :as field}]
   (let [default-row (form/two-panel-defaults field)
         state (cond-> state (not (coll/empty? value)) (update :key update :selected-indices #(if (coll/empty? %) [0] %)))
@@ -1590,12 +1599,10 @@
                               :on-value-changed on-value-changed
                               :default-row default-row
                               :key-path (:path panel-key)
-                              :item-field-paths (fn [item]
-                                                  (into #{(:path panel-key)}
-                                                        (comp (mapcat :fields) (map :path))
-                                                        (:sections (if-let [panel-form-fn (:panel-form-fn field)]
-                                                                     (panel-form-fn item)
-                                                                     (:panel-form field)))))})
+                              :item-field-paths (fn/partial two-panel-item-field-paths
+                                                            (:path panel-key)
+                                                            (:panel-form-fn field)
+                                                            (:panel-form field))})
 
         selected-item-fields
         (when selected-index
