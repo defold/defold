@@ -408,8 +408,8 @@
               0 (coerce (.getRed color))
               1 (coerce (.getGreen color))
               2 (coerce (.getBlue color)))
-            (= 4 (count value))
-            (assoc 3 (coerce (.getOpacity color))))))
+      (= 4 (count value))
+      (assoc 3 (coerce (.getOpacity color))))))
 
 ;; The color picker calls :on-value-changed directly, so we need the
 ;; map-event-handler to dispatch the form event ourselves.
@@ -1365,7 +1365,7 @@
    :desc desc})
 
 (defn- summary-table-input [{:keys [value summary-columns full-width localization-state state-path state
-                                   on-value-changed default-row key-path item-field-paths]}]
+                                    on-value-changed default-row key-path item-field-paths]}]
   (let [selected-index (-> state :selected-indices util/only)
         add-event {:event-type :2panel-summary-added
                    :value value
@@ -1388,50 +1388,51 @@
                                  :on-selected-indices-changed {:event-type :table-select
                                                                :state-path state-path}}
                          :desc {:fx/type fx.table-view/lifecycle
-                         :style-class ["table-view" "cljfx-table-view"]
-                         :editable false
-                         :max-width (if full-width ##Inf large-field-width)
-                         :pref-width 400
-                         :fixed-cell-size line-height
-                         :pref-height (+ line-height 11 (* line-height (max 1 (count value))))
-                         :column-resize-policy custom-table-resize-policy
-                         :columns (mapv (fn [column]
-                                          {:fx/type fx.table-column/lifecycle
-                                           :reorderable false
-                                           :sortable false
-                                           :min-width 60
-                                           :pref-width (:pref-width column 100)
-                                           :text (get-label-text localization-state column)
-                                           :cell-value-factory (fn [[index item]] [index item])
-                                           ;; The :describe form lets cells dispatch map events.
-                                           :cell-factory
-                                           {:fx/cell-type :table-cell
-                                            :describe (fn [[index item]]
-                                                        (let [value (if-let [value-fn (:value-fn column)]
-                                                                      (value-fn item)
-                                                                      (get-in item (:path column)))
-                                                              label (if (some? value) (display-value-text column value) "")]
-                                                          (cond-> {:text label}
-                                                            ;; Only cells with a matching detail field can request focus.
-                                                            (contains? (item-field-paths item) (:path column))
-                                                            (assoc :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
-                                                                                      :index index
-                                                                                      :path (:path column)
-                                                                                      :state-path state-path})
+                                :style-class ["table-view" "cljfx-table-view"]
+                                :editable false
+                                :max-width (if full-width ##Inf large-field-width)
+                                :pref-width 400
+                                :fixed-cell-size line-height
+                                :pref-height (+ line-height 11 (* line-height (max 1 (count value))))
+                                :column-resize-policy custom-table-resize-policy
+                                :columns (mapv (fn [column]
+                                                 {:fx/type fx.table-column/lifecycle
+                                                  :reorderable false
+                                                  :sortable false
+                                                  :min-width 60
+                                                  :pref-width (:pref-width column 100)
+                                                  :text (get-label-text localization-state column)
+                                                  :cell-value-factory (fn [[index item]] [index item])
+                                                  ;; The :describe form lets cells dispatch map events.
+                                                  :cell-factory
+                                                  {:fx/cell-type :table-cell
+                                                   :describe
+                                                   (fn [[index item]]
+                                                     (let [value (if-let [value-fn (:value-fn column)]
+                                                                   (value-fn item)
+                                                                   (get-in item (:path column)))
+                                                           label (if (some? value) (display-value-text column value) "")]
+                                                       (cond-> {:text label}
+                                                         ;; Only cells with a matching detail field can request focus.
+                                                         (contains? (item-field-paths item) (:path column))
+                                                         (assoc :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
+                                                                                   :index index
+                                                                                   :path (:path column)
+                                                                                   :state-path state-path})
 
-                                                            (not (string/blank? label))
-                                                            (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label}))))}})
-                                        summary-columns)
-                         :items (into [] (map-indexed vector) value)
-                         :context-menu {:fx/type fx.context-menu/lifecycle
-                                        :items [{:fx/type fx.menu-item/lifecycle
-                                                 :text (localization-state add-message)
-                                                 :disable (nil? default-row)
-                                                 :on-action add-event}
-                                                {:fx/type fx.menu-item/lifecycle
-                                                 :text (localization-state remove-message)
-                                                 :disable (nil? selected-index)
-                                                 :on-action remove-event}]}}}}]}
+                                                         (not (string/blank? label))
+                                                         (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label}))))}})
+                                               summary-columns)
+                                :items (into [] (map-indexed vector) value)
+                                :context-menu {:fx/type fx.context-menu/lifecycle
+                                               :items [{:fx/type fx.menu-item/lifecycle
+                                                        :text (localization-state add-message)
+                                                        :disable (nil? default-row)
+                                                        :on-action add-event}
+                                                       {:fx/type fx.menu-item/lifecycle
+                                                        :text (localization-state remove-message)
+                                                        :disable (nil? selected-index)
+                                                        :on-action remove-event}]}}}}]}
      {:fx/type fx.h-box/lifecycle
       :spacing 4
       :children [{:fx/type icon-button
@@ -1701,31 +1702,31 @@
 
       :always
       (conj (cond-> {:fx/type fx.v-box/lifecycle
-             :fx/key [:control path]
-             :style-class (case (:severity error)
-                            :fatal ["cljfx-form-error"]
-                            :warning ["cljfx-form-warning"]
-                            [])
-             :grid-pane/row row
-             :grid-pane/column (if full-width 0 2)
-             :visible visible
-             :managed visible
-             :min-height line-height
-             :alignment :center-left
-             :children [(cond-> field
-                          :always
-                          (assoc :fx/type form-input-view
-                                 :localization-state localization-state
-                                 :resource-string-converter resource-string-converter
-                                 :value (if (= ::no-value value)
-                                          (form/field-default field)
-                                          value)
-                                 :on-value-changed {:event-type :set
-                                                    :path path}
-                                 :state-path state-path)
+                     :fx/key [:control path]
+                     :style-class (case (:severity error)
+                                    :fatal ["cljfx-form-error"]
+                                    :warning ["cljfx-form-warning"]
+                                    [])
+                     :grid-pane/row row
+                     :grid-pane/column (if full-width 0 2)
+                     :visible visible
+                     :managed visible
+                     :min-height line-height
+                     :alignment :center-left
+                     :children [(cond-> field
+                                  :always
+                                  (assoc :fx/type form-input-view
+                                         :localization-state localization-state
+                                         :resource-string-converter resource-string-converter
+                                         :value (if (= ::no-value value)
+                                                  (form/field-default field)
+                                                  value)
+                                         :on-value-changed {:event-type :set
+                                                            :path path}
+                                         :state-path state-path)
 
-                          (not= ::no-value state)
-                          (assoc :state state))]}
+                                  (not= ::no-value state)
+                                  (assoc :state state))]}
               full-width
               (assoc :grid-pane/column-span 3
                      :grid-pane/hgrow :always))))))
