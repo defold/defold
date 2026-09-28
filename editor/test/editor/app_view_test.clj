@@ -16,52 +16,33 @@
   (:require [clojure.test :refer :all]
             [editor.app-view :as app-view]
             [editor.console :as console]
-            [editor.engine :as engine]
             [editor.targets :as targets]))
 
-;; Parse each listener announcement once while a launched target is waiting for
-;; its port, including announcements after the startup log window.
 (deftest launched-log-sink-port-discovery-test
-  (let [target {:id "engine"
-                :debugger-port 0
-                :log-stream ::stream}
+  (let [target {:id "engine" :debugger-port 0 :log-stream ::stream}
         current (atom target)
-        parsed (atom [])
-        parse-debugger-port engine/parse-debugger-port
-        announcement "INFO:DEBUGGER: Lua DAP debugger listening on 127.0.0.1:49152"
-        replacement-announcement "DEBUG:SCRIPT: Lua DAP debugger port: 49153"]
-    (with-redefs [targets/all-launched-targets (fn [] [@current])
-                  targets/update-launched-target! (fn [_ target-info]
+        updates (atom [])]
+    (with-redefs [targets/update-launched-target! (fn [_ target-info]
+                                                    (swap! updates conj target-info)
                                                     (swap! current merge target-info))
-                  engine/parse-debugger-port (fn [line]
-                                               (swap! parsed conj line)
-                                               (parse-debugger-port line))
                   console/current-stream? (constantly false)]
       (let [sink (#'app-view/make-launched-log-sink target (constantly nil))]
-        (sink announcement)
-        (is (= [announcement] @parsed))
+        (sink "INFO:DLIB: Log server started on port 8002")
+        (sink "INFO:ENGINE: Engine service started on port 8001")
+        (sink "INFO:DEBUGGER: Lua DAP debugger listening on 127.0.0.1:49152")
         (is (= 49152 (:debugger-port @current)))
-
-        (sink (.repeat "x" 5001))
-        (sink announcement)
-        (is (= [announcement] @parsed))
-
-        (swap! current assoc :debugger-port 0)
-        (sink "ordinary game output")
-        (is (= [announcement] @parsed))
-        (sink announcement)
-        (is (= [announcement announcement] @parsed))
-        (is (= 49152 (:debugger-port @current)))
-
-        (sink announcement)
-        (is (= [announcement announcement] @parsed))
-
+        (is (= "http://127.0.0.1:8001" (:url @current)))
+        (is (= "8002" (:log-port @current)))
+        (let [before @updates]
+          (sink (.repeat "x" 5001))
+          (sink "ordinary game output")
+          (is (= before @updates)))
         (swap! current assoc :debugger-port-pending true)
-        (sink "ordinary game output")
-        (is (= [announcement announcement] @parsed))
-        (sink replacement-announcement)
+        (sink "DEBUG:SCRIPT: Lua DAP debugger port: 49153")
         (is (= 49153 (:debugger-port @current)))
         (is (false? (:debugger-port-pending @current)))
-
-        (sink replacement-announcement)
-        (is (= [announcement announcement replacement-announcement] @parsed))))))
+        (is (= "http://127.0.0.1:8001" (:url @current)))
+        (is (= "8002" (:log-port @current)))
+        (sink "INFO:ENGINE: Engine service started on port 8003")
+        (is (= "http://127.0.0.1:8003" (:url @current)))
+        (is (= 49153 (:debugger-port @current)))))))

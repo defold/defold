@@ -281,4 +281,4 @@
                                  source)))
       (is (= 8175 (.toint (.get globals "requested_port"))))
       (is (= expected-address (.tojstring (.get globals "requested_address"))))
-      (is (= 49152 (engine/parse-debugger-port (.tojstring (.get globals "output"))))))))
+      (is (= 49152 (:debugger-port (engine/parse-launched-target-info (.tojstring (.get globals "output")))))))))

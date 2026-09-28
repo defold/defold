@@ -34,16 +34,22 @@
   (is (= 8175 (engine/debugger-port {:instance-index 3})))
   (doseq [address ["127.0.0.1" "0.0.0.0" "192.168.1.20"]
           prefix ["INFO:DEBUGGER: " ""]]
-    (is (= 49152 (engine/parse-debugger-port (str prefix "Lua DAP debugger listening on " address ":49152")))))
-  (is (= 49152 (engine/parse-debugger-port "DEBUG:SCRIPT: Lua DAP debugger port: 49152")))
-  (is (nil? (engine/parse-debugger-port "Lua DAP debugger port: 0")))
-  (is (nil? (engine/parse-debugger-port "Lua DAP debugger port: 65536")))
-  (is (nil? (engine/parse-debugger-port "Lua DAP debugger listening on 127.0.0.1:0")))
-  (is (nil? (engine/parse-debugger-port "Lua DAP debugger listening on 127.0.0.1:65536")))
-  (is (nil? (engine/parse-debugger-port "ordinary game output")))
+    (is (= {:debugger-port 49152 :debugger-port-pending false}
+           (engine/parse-launched-target-info (str prefix "Lua DAP debugger listening on " address ":49152")))))
+  (is (= {:debugger-port 49152 :debugger-port-pending false}
+         (engine/parse-launched-target-info "DEBUG:SCRIPT: Lua DAP debugger port: 49152")))
+  (doseq [line ["Lua DAP debugger port: 0"
+                "Lua DAP debugger port: 65536"
+                "Lua DAP debugger port: 9999999999999999999999999999999"
+                "Lua DAP debugger listening on 127.0.0.1:0"
+                "Lua DAP debugger listening on 127.0.0.1:65536"
+                "ordinary game output"]]
+    (is (nil? (engine/parse-launched-target-info line))))
   (is (= {:address "127.0.0.1"
           :url "http://127.0.0.1:8001"
-          :log-port "8002"}
+          :log-port "8002"
+          :debugger-port 49152
+          :debugger-port-pending false}
          (engine/parse-launched-target-info
            (str "INFO:DLIB: Log server started on port 8002\n"
                 "INFO:ENGINE: Engine service started on port 8001\n"
