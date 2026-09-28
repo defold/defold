@@ -164,7 +164,7 @@ namespace dmDebugger
         value.Add("\"");
     }
 
-    void FormatValue(lua_State* L, int index, Buffer& value)
+    void FormatValue(Debugger* d, lua_State* L, int index, Buffer& value)
     {
         switch (lua_type(L, index))
         {
@@ -184,6 +184,17 @@ namespace dmDebugger
                 QuoteLuaString(text, (uint32_t)length, value);
                 break;
             }
+            case LUA_TUSERDATA:
+                if (d->m_UserdataFormatter)
+                {
+                    char text[1024];
+                    if (d->m_UserdataFormatter(L, index, text, sizeof(text)))
+                    {
+                        value.Add(text);
+                        break;
+                    }
+                }
+                // Unknown userdata retains its identity without calling __tostring.
             default:
                 value.Format("%s: %p", lua_typename(L, lua_type(L, index)), lua_topointer(L, index));
                 break;
@@ -206,7 +217,7 @@ namespace dmDebugger
         if (index < 0)
             index = lua_gettop(L) + index + 1;
         Buffer value;
-        FormatValue(L, index, value);
+        FormatValue(d, L, index, value);
         body.String(value_key);
         body.Add(":");
         body.String(value.Data(), value.Size());
@@ -608,7 +619,7 @@ namespace dmDebugger
         return lua_getinfo(frame.m_L, "nSl", ar) != 0;
     }
 
-    static void KeyName(lua_State* L, int index, Buffer& name)
+    static void KeyName(Debugger* d, lua_State* L, int index, Buffer& name)
     {
         size_t length = 0;
         const char* key = lua_type(L, index) == LUA_TSTRING ? lua_tolstring(L, index, &length) : 0;
@@ -617,7 +628,11 @@ namespace dmDebugger
         else
         {
             name.Add("[");
-            FormatValue(L, index, name);
+            // Equal vector components do not imply equal userdata table keys.
+            if (lua_type(L, index) == LUA_TUSERDATA)
+                name.Format("userdata: %p", lua_topointer(L, index));
+            else
+                FormatValue(d, L, index, name);
             name.Add("]");
         }
     }
@@ -693,7 +708,7 @@ namespace dmDebugger
                 if (include && Page(ordinal++, start, count))
                 {
                     Buffer name;
-                    KeyName(L, -2, name);
+                    KeyName(d, L, -2, name);
                     Buffer expression;
                     if (r.m_Kind == REFERENCE_VALUE)
                     {
@@ -780,7 +795,7 @@ namespace dmDebugger
             while (lua_next(L, table))
             {
                 Buffer key;
-                KeyName(L, -2, key);
+                KeyName(d, L, -2, key);
                 lua_pop(L, 1);
                 if (!strcmp(key.Data(), name))
                 {
