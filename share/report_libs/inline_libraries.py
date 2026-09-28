@@ -54,7 +54,7 @@ for entry in os.listdir(IMAGES_DIR):
     file_name, file_extension = os.path.splitext(entry)
     mime_string = mimetypes.types_map[file_extension]
     with open(full_path, "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read())
+        encoded_string = base64.b64encode(image_file.read()).decode("ascii")
         url_data_string = "url(data:" + mime_string + ";base64," + encoded_string + ")"
         css_concat = url_re.sub(url_data_string, css_concat)
 
