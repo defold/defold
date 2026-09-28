@@ -42,6 +42,9 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket:
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
 }
 
+// WebSocket emulation cannot exercise native listeners and socket options.
+// Address parsing and conversion tests below remain available on web builds.
+#if !defined(DM_TEST_NO_NATIVE_SOCKETS)
 const uint16_t CONST_TEST_PORT = 8008;
 
 struct ServerThreadInfo
@@ -157,6 +160,7 @@ inline dmSocket::Socket GetSocket(dmSocket::Domain domain)
 
     return instance;
 }
+#endif
 
 TEST(Socket, BitDifference_Difference)
 {
@@ -211,6 +215,7 @@ TEST(Socket, IPv6)
 }
 #endif
 
+#if !defined(DM_TEST_NO_NATIVE_SOCKETS)
 TEST(Socket, New_IPv4)
 {
     dmSocket::Socket instance = 0;
@@ -558,6 +563,8 @@ TYPED_TEST(SocketTyped, SetTimeout)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#endif
+
 TEST(Socket, AddressToIPString_IPv4)
 {
     dmSocket::Address address;
@@ -656,6 +663,7 @@ TEST(Socket, GetHostByName_IPv6_Localhost)
 }
 #endif
 
+#if !defined(DM_TEST_NO_NATIVE_SOCKETS)
 TEST(Socket, GetHostByName_IPv4_External)
 {
     SKIP_NETWORK_DNS_TEST();
@@ -700,6 +708,7 @@ TYPED_TEST(SocketTyped, GetHostByName_Unavailable)
     result = dmSocket::GetHostByName(hostname, &address, true, false);
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, result);
 }
+#endif
 
 TEST(Socket, GetHostByName_NoValidAddressFamily)
 {
@@ -711,6 +720,7 @@ TEST(Socket, GetHostByName_NoValidAddressFamily)
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, result);
 }
 
+#if !defined(DM_TEST_NO_NATIVE_SOCKETS)
 TYPED_TEST(SocketTyped, ServerSocket)
 {
     dmSocket::Socket socket;
@@ -906,6 +916,7 @@ TEST(Socket, Timeout)
     dmSocket::Delete(server_socket);
     dmSocket::Delete(client_socket);
 }
+#endif
 #endif
 
 int main(int argc, char **argv)
