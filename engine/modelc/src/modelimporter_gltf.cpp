@@ -500,13 +500,6 @@ static char* CreateNameFromHash(const char* prefix, uint32_t hash)
     return strdup(buffer);
 }
 
-static char* CreateNameFromIndex(const char* prefix, uint32_t index)
-{
-    char buffer[128];
-    dmSnPrintf(buffer, sizeof(buffer), "%s_%u", prefix, index);
-    return strdup(buffer);
-}
-
 static char* CreateCgltfName(const char* prefix, uint32_t index)
 {
     char buffer[128];
@@ -671,7 +664,7 @@ static void LoadImages(Scene* scene, cgltf_data* gltf_data, bool skip_image_data
         image->m_NameIsGenerated = gltf_image->name == 0;
         image->m_Name = gltf_image->name
             ? DuplicateObjectName(gltf_image)
-            : CreateNameFromIndex("image", i);
+            : CreateCgltfName("image", i);
         image->m_Uri = gltf_image->uri ? strdup(gltf_image->uri): 0;
         image->m_MimeType = gltf_image->mime_type ? strdup(gltf_image->mime_type): 0;
 
@@ -879,7 +872,7 @@ static void LoadMaterials(Scene* scene, cgltf_data* gltf_data, dmHashTable64<voi
         material->m_NameIsGenerated = gltf_material->name == 0;
         material->m_Name = gltf_material->name
             ? DuplicateObjectName(gltf_material)
-            : CreateNameFromIndex("material", i);
+            : CreateCgltfName("material", i);
         material->m_Index = i;
 
         // a helper to avoid typos
