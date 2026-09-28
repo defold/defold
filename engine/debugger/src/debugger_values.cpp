@@ -608,10 +608,12 @@ namespace dmDebugger
         return lua_getinfo(frame.m_L, "nSl", ar) != 0;
     }
 
-    static void KeyName(lua_State* L, int index, bool globals, Buffer& name)
+    static void KeyName(lua_State* L, int index, Buffer& name)
     {
-        if (globals && lua_type(L, index) == LUA_TSTRING)
-            name.Add(lua_tostring(L, index));
+        size_t length = 0;
+        const char* key = lua_type(L, index) == LUA_TSTRING ? lua_tolstring(L, index, &length) : 0;
+        if (key && strlen(key) == length && IsIdentifier(key))
+            name.Add(key);
         else
         {
             name.Add("[");
@@ -691,7 +693,7 @@ namespace dmDebugger
                 if (include && Page(ordinal++, start, count))
                 {
                     Buffer name;
-                    KeyName(L, -2, r.m_Kind == REFERENCE_GLOBALS, name);
+                    KeyName(L, -2, name);
                     Buffer expression;
                     if (r.m_Kind == REFERENCE_VALUE)
                     {
@@ -778,7 +780,7 @@ namespace dmDebugger
             while (lua_next(L, table))
             {
                 Buffer key;
-                KeyName(L, -2, r.m_Kind == REFERENCE_GLOBALS, key);
+                KeyName(L, -2, key);
                 lua_pop(L, 1);
                 if (!strcmp(key.Data(), name))
                 {
