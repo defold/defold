@@ -471,9 +471,10 @@
     (is (= :closed (dap/status session)))
     (is (= [] @errors))
     (testing "A queued stopped event cannot reopen a cancelled session"
-      (#'dap/handle-event! session
-                           {:event "stopped"
-                            :body {:threadId 7}})
+      (#'dap/handle-message! session
+                             {:type "event"
+                              :event "stopped"
+                              :body {:threadId 7}})
       (is (= :closed (dap/status session))))))
 
 ;; Verify a server closing during initialization reports connection failure and

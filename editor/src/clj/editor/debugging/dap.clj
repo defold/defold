@@ -137,37 +137,36 @@
   (await-response! session command (send-request! session command arguments)))
 
 (defn- handle-event! [session {:keys [event body]}]
-  (when-not (= :closed (status session))
-    (case event
-      "initialized"
-      (future/complete! (:initialized session) true)
+  (case event
+    "initialized"
+    (future/complete! (:initialized session) true)
 
-      "stopped"
-      (do
-        (swap! (:state session)
-               #(-> %
-                    (assoc :status :suspended :thread-id (:threadId body))
-                    (update :generation inc)))
-        (notify! session :on-suspended body))
+    "stopped"
+    (do
+      (swap! (:state session)
+             #(-> %
+                  (assoc :status :suspended :thread-id (:threadId body))
+                  (update :generation inc)))
+      (notify! session :on-suspended body))
 
-      "continued"
-      (do
-        (swap! (:state session)
-               #(-> %
-                    (assoc :status :running)
-                    (update :generation inc)))
-        (notify! session :on-resumed))
+    "continued"
+    (do
+      (swap! (:state session)
+             #(-> %
+                  (assoc :status :running)
+                  (update :generation inc)))
+      (notify! session :on-resumed))
 
-      "output"
-      (notify! session :on-output body)
+    "output"
+    (notify! session :on-output body)
 
-      "invalidated"
-      (notify! session :on-invalidated body)
+    "invalidated"
+    (notify! session :on-invalidated body)
 
-      ("terminated" "exited")
-      (close-session! session nil)
+    ("terminated" "exited")
+    (close-session! session nil)
 
-      nil)))
+    nil))
 
 (defn- read-messages! [^InputStream in protocol]
   (future/io
@@ -193,28 +192,29 @@
         (a/>!! protocol [:fail exception])))))
 
 (defn- handle-message! [session {:keys [type request_seq command success body message] :as response}]
-  (case type
-    "response"
-    (let [[old] (swap-vals! (:state session) update :pending dissoc request_seq)]
-      (when-let [pending (get-in old [:pending request_seq])]
-        (if success
-          (future/complete! pending body)
-          (future/fail! pending (IOException. (str (or message (str "Debugger request failed: " command))))))))
+  (when-not (= :closed (status session))
+    (case type
+      "response"
+      (let [[old] (swap-vals! (:state session) update :pending dissoc request_seq)]
+        (when-let [pending (get-in old [:pending request_seq])]
+          (if success
+            (future/complete! pending body)
+            (future/fail! pending (IOException. (str (or message (str "Debugger request failed: " command))))))))
 
-    "event"
-    (handle-event! session response)
+      "event"
+      (handle-event! session response)
 
-    "request"
-    (let [state (swap! (:state session) update :next-seq inc)]
-      (a/put! (:outgoing session)
-              {:seq (:next-seq state)
-               :type "response"
-               :request_seq (:seq response)
-               :command command
-               :success false
-               :message "Client request is not supported"}))
+      "request"
+      (let [state (swap! (:state session) update :next-seq inc)]
+        (a/put! (:outgoing session)
+                {:seq (:next-seq state)
+                 :type "response"
+                 :request_seq (:seq response)
+                 :command command
+                 :success false
+                 :message "Client request is not supported"}))
 
-    (throw (IOException. "Unknown debugger message type"))))
+      (throw (IOException. "Unknown debugger message type")))))
 
 (defn- run-protocol! [session]
   (future/io
@@ -270,8 +270,7 @@
             (close-session! session (when (= :connecting (status session)) x))
 
             :message
-            (when-not (= :closed (status session))
-              (handle-message! session x)))
+            (handle-message! session x))
           (catch Exception exception
             (close-session! session exception)))
         (recur)))))
