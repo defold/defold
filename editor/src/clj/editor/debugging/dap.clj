@@ -118,7 +118,8 @@
         (throw exception)))))
 
 (defn close!
-  "Close once, cancel pending requests, and release any suspended Lua execution."
+  "Close once, cancel pending requests, and release any suspended Lua execution.
+  Blocks until the protocol loop has closed the session. Call off the UI thread."
   [session]
   (let [closed (future/make)]
     (when (a/>!! (:protocol session) [:close closed])
