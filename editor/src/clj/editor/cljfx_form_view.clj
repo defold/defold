@@ -1408,20 +1408,22 @@
                                                   {:fx/cell-type :table-cell
                                                    :describe
                                                    (fn [[index item]]
-                                                     (let [value (if-let [value-fn (:value-fn column)]
-                                                                   (value-fn item)
-                                                                   (get-in item (:path column)))
-                                                           label (if (some? value) (display-value-text column value) "")]
-                                                       (cond-> {:text label}
-                                                         ;; Only cells with a matching detail field can request focus.
-                                                         (contains? (item-field-paths item) (:path column))
-                                                         (assoc :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
-                                                                                   :index index
-                                                                                   :path (:path column)
-                                                                                   :state-path state-path})
+                                                     (if (nil? item)
+                                                       {:text ""}
+                                                       (let [value (if-let [value-fn (:value-fn column)]
+                                                                     (value-fn item)
+                                                                     (get-in item (:path column)))
+                                                             label (if (some? value) (display-value-text column value) "")]
+                                                         (cond-> {:text label}
+                                                           ;; Only cells with a matching detail field can request focus.
+                                                           (contains? (item-field-paths item) (:path column))
+                                                           (assoc :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
+                                                                                     :index index
+                                                                                     :path (:path column)
+                                                                                     :state-path state-path})
 
-                                                         (not (string/blank? label))
-                                                         (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label}))))}})
+                                                           (not (string/blank? label))
+                                                           (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label})))))}})
                                                summary-columns)
                                 :items (into [] (map-indexed vector) value)
                                 :context-menu {:fx/type fx.context-menu/lifecycle
