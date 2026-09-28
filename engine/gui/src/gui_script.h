@@ -27,6 +27,10 @@ namespace dmGui
 {
     lua_State* InitializeScript(dmScript::HContext script_context);
     void FinalizeScript(lua_State* L, dmScript::HContext script_context);
+
+    // Read a live node's subtype name without invoking Lua or changing the stack.
+    // Returns false for non-nodes, deleted nodes, and nodes outside the current scene.
+    bool GetNodeTypeName(lua_State* L, int index, char* buffer, uint32_t buffer_size);
 }
 
 #endif

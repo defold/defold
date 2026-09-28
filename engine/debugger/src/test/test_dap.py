@@ -19,6 +19,7 @@ import configparser
 import json
 import pathlib
 import queue
+import re
 import socket
 import subprocess
 import sys
@@ -2583,6 +2584,102 @@ class EngineUserdataDAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    def check_registered_userdata_display(self, yielded=False):
+        c = self.start('''
+            local yielded = YIELDED
+            local calls = 0
+            native_tostring_calls = 0
+            local function run()
+                local global_type = new_userdata("DAPGlobalType", 41)
+                local local_type = new_userdata("DAPLocalType", 42, true)
+                assert(rawget(debug.getmetatable(global_type), "__name") == "DAPGlobalType")
+                assert(rawget(debug.getmetatable(local_type), "__name") == "DAPLocalType")
+                assert(rawget(debug.getmetatable(hash("name-test")), "__name") == "hash")
+                local lua_type = new_userdata("DAPLuaType", 43)
+                debug.getmetatable(lua_type).__tostring = function()
+                    calls = calls + 1
+                    return "unexpected"
+                end
+                local error_type = new_userdata("DAPErrorType", 44)
+                debug.getmetatable(error_type).__tostring = math.abs
+                local untagged = newproxy(true)
+                local mt = getmetatable(untagged)
+                mt.__tostring = type
+                setmetatable(mt, {__index = function() calls = calls + 1; return 123 end})
+                debug.getregistry().DAPUntaggedType = mt
+                local named = newproxy(true)
+                getmetatable(named).__name = 'Widget "界"'
+                getmetatable(named).__tostring = function() calls = calls + 1; return "unexpected" end
+                local inherited = newproxy(true)
+                setmetatable(getmetatable(inherited), {__index = {__name = "Inherited"}})
+                local function_name = newproxy(true)
+                getmetatable(function_name).__name = function() calls = calls + 1; return "Function" end
+                local number_name = newproxy(true)
+                getmetatable(number_name).__name = 123
+                local empty_name = newproxy(true)
+                getmetatable(empty_name).__name = ""
+                local values = {global_type = global_type, local_type = local_type,
+                    lua_type = lua_type, error_type = error_type, untagged = untagged,
+                    named = named, inherited = inherited, function_name = function_name,
+                    number_name = number_name, empty_name = empty_name}
+                if yielded then coroutine.yield() end
+                local marker = 1 -- registered-inspect
+                assert(calls == 0 and native_tostring_calls == 0 and marker == 1 and values.untagged == untagged)
+                assert(tostring(global_type) == "registered(41)" and tostring(local_type) == "registered(42)")
+            end
+            if yielded then
+                local co = coroutine.create(run)
+                assert(coroutine.resume(co))
+                local marker = 1 -- registered-suspended
+                assert(calls == 0 and coroutine.status(co) == "suspended" and marker == 1)
+                assert(coroutine.resume(co))
+            else
+                run()
+            end
+        '''.replace("YIELDED", "true" if yielded else "false"))
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("registered-suspended" if yielded else "registered-inspect")})
+        c.configured()
+        self.stopped()
+        frames = None
+        if yielded:
+            coroutine = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
+            frames = c.request("stackTrace", {"threadId": coroutine["id"]})["stackFrames"]
+            self.frame = frames[0]["id"]
+        locals_ = {v["name"]: v for v in self.variables(self.scopes()["Locals"])}
+        values = self.variables(locals_["values"]["variablesReference"])
+        self.assertEqual(len(values), 10)
+        expected = {"global_type": "DAPGlobalType", "local_type": "DAPLocalType",
+                    "lua_type": "DAPLuaType", "error_type": "DAPErrorType", "named": 'Widget "界"'}
+        for value in values:
+            name = value["name"]
+            with self.subTest(name=name):
+                self.assertEqual(value["type"], "userdata")
+                self.assertEqual(value["variablesReference"], 0)
+                self.assertEqual(value["value"], locals_[name]["value"])
+                self.assertEqual(value["value"], self.evaluate("values." + name, context="hover")["result"])
+                if name in expected:
+                    self.assertRegex(value["value"], "^" + re.escape(expected[name]) + r": 0x[0-9a-f]+$")
+                else:
+                    self.assertTrue(value["value"].startswith("userdata: "))
+        self.assertEqual(self.evaluate("calls", context="hover")["result"], "0")
+        self.assertEqual(self.evaluate("native_tostring_calls", context="hover")["result"], "0")
+        if frames:
+            self.assertEqual(c.request("stackTrace", {"threadId": coroutine["id"]})["stackFrames"], frames)
+        self.resume()
+        self.finished()
+
+    # Registrations supply __name; raw string names also identify untagged types.
+    # Neither C/Lua __tostring nor inherited/function-valued names are evaluated.
+    def test_registered_userdata_display(self):
+        self.check_registered_userdata_display()
+
+    # Automatic type recognition must not invoke Lua metamethods or change the
+    # inspected coroutine's suspended state.
+    def test_registered_userdata_display_in_yielded_coroutine(self):
+        self.check_registered_userdata_display(yielded=True)
+
     # Userdata keys keep distinct identities even when their formatted component
     # values match, so setVariable continues to address the intended entry.
     def test_engine_userdata_key_identity(self):
@@ -2610,11 +2707,11 @@ class EngineUserdataDAPTests(DAPTestCase):
 
 
 class EngineDAPTests(DAPTestCase):
-    # Run the existing headless app against Bob-built engine test content. The
+    # Run the engine with null graphics against Bob-built engine test content. The
     # app owns script loading, callbacks, contexts, and instance destruction.
-    def start_engine(self, kind, yielded=False, case="inspect", shared_state=False):
+    def start_engine(self, kind, yielded=False, case="inspect", shared_state=False, physics="2D"):
         if not ENGINE:
-            self.skipTest("Requires dmengine_headless and engine test content")
+            self.skipTest("Requires an engine test host and engine test content")
         self.path = ENGINE_SOURCE_ROOT / "debugger/inspection.lua"
         self.source = self.path.read_text(encoding="utf-8")
         settings = {
@@ -2626,6 +2723,7 @@ class EngineDAPTests(DAPTestCase):
             "debugger.port": 0,
             "debugger.wait": int(case != "reboot"),
             "script.shared_state": int(shared_state),
+            "physics.type": physics,
             "test.debugger_instance": kind,
             "test.debugger_yielded": int(yielded),
             "test.debugger_case": case,
@@ -2671,6 +2769,9 @@ class EngineDAPTests(DAPTestCase):
         locals_ = {v["name"]: v for v in self.variables(scopes["Locals"])}
         value = locals_["self"]
         self.assertEqual(value["type"], "userdata")
+        label = {"go": "GOScriptInstance", "gui": "GuiScriptInstance", "render": "RenderScriptInstance"}[kind]
+        self.assertRegex(value["value"], "^" + label + r": 0x[0-9a-f]+$")
+        self.assertEqual(self.evaluate("self", context="hover")["result"], value["value"])
         self.assertEqual(value["evaluateName"], "self")
         self.assertEqual(value["namedVariables"], 4)
         reference = value["variablesReference"]
@@ -2709,6 +2810,118 @@ class EngineDAPTests(DAPTestCase):
 
     def test_yielded_render_self(self):
         self.check_instance("render", yielded=True)
+
+    def check_gui_node_display(self, yielded=False):
+        c = self.start_engine("gui", yielded, case="gui_nodes")
+        c.initialize()
+        c.attach(localRoot=str(ENGINE_SOURCE_ROOT))
+        self.breakpoints({"line": self.line("gui-nodes-suspended" if yielded else "gui-nodes-inspect")})
+        c.configured()
+        self.stopped()
+        frames = None
+        if yielded:
+            coroutine = next(t for t in c.request("threads")["threads"] if " / coroutine " in t["name"])
+            frames = c.request("stackTrace", {"threadId": coroutine["id"]})["stackFrames"]
+            self.frame = frames[0]["id"]
+        values = {v["name"]: v for v in self.variables(self.scopes()["Locals"])}
+        nodes = {v["name"]: v for v in self.variables(self.evaluate("self.nodes")["variablesReference"])}
+        for name, label in (("box", "gui.box"), ("text", "gui.text"), ("pie", "gui.pie"),
+                            ("custom", "gui.DAPCustom"), ("deleted", "NodeProxy")):
+            with self.subTest(name=name):
+                value = values[name]
+                self.assertEqual(value["type"], "userdata")
+                self.assertEqual(value["variablesReference"], 0)
+                self.assertEqual(value["value"], nodes[name]["value"])
+                self.assertEqual(value["value"], self.evaluate(name, context="hover")["result"])
+                self.assertRegex(value["value"], "^" + re.escape(label) + r": 0x[0-9a-f]+$")
+        self.assertNotEqual(values["box"]["value"].split(": ")[1], values["deleted"]["value"].split(": ")[1])
+        self.assertTrue(values["unknown"]["value"].startswith("userdata: "))
+        # Subtype names are independent of the metatable's __tostring and __name.
+        for formatter in ("replacement", "math.abs", "nil"):
+            self.evaluate("mt.__tostring = " + formatter, context="repl")
+            self.assertEqual(self.evaluate("box", context="hover")["result"], values["box"]["value"])
+        self.evaluate('mt.__name = "Other"', context="repl")
+        self.assertEqual(self.evaluate("box", context="hover")["result"], values["box"]["value"])
+        self.evaluate('mt.__name = "NodeProxy"', context="repl")
+        self.evaluate("mt.__tostring = original", context="repl")
+        self.assertEqual(self.evaluate("box", context="hover")["result"], values["box"]["value"])
+        self.assertEqual(self.evaluate("calls", context="hover")["result"], "0")
+        if frames:
+            self.assertEqual(c.request("stackTrace", {"threadId": coroutine["id"]})["stackFrames"], frames)
+        self.resume()
+        self.finished()
+
+    # GUI subtype names survive pre-engine custom registration without invoking
+    # metamethods; deleted nodes fall back without accessing stale data.
+    def test_gui_node_display(self):
+        self.check_gui_node_display()
+
+    # Suspended coroutine inspection must show the same node details without
+    # resuming the coroutine or executing its application's metamethods.
+    def test_gui_node_display_in_yielded_coroutine(self):
+        self.check_gui_node_display(yielded=True)
+
+    def check_native_userdata_display(self, kind, physics="2D", yielded=False):
+        c = self.start_engine(kind, yielded, case="native_types", physics=physics)
+        c.initialize()
+        c.attach(localRoot=str(ENGINE_SOURCE_ROOT))
+        self.breakpoints({"line": self.line("native-types-suspended" if yielded else "native-types-inspect")})
+        c.configured()
+        self.stopped()
+        frames = None
+        if yielded:
+            coroutine = next(t for t in c.request("threads")["threads"] if " / coroutine " in t["name"])
+            frames = c.request("stackTrace", {"threadId": coroutine["id"]})["stackFrames"]
+            self.frame = frames[0]["id"]
+        values = {v["name"]: v for v in self.variables(self.evaluate("values")["variablesReference"])}
+        if kind == "render":
+            expected = {"constants": "RenderScriptConstantBuffer", "predicate": "RenderScriptPredicate"}
+        else:
+            expected = {"buffer": "buffer", "stream": "bufferstream", "file": "FILE*", "closed_file": "FILE*",
+                        "tcp": "tcp{master}", "server": "tcp{server}", "client": "tcp{client}",
+                        "udp": "udp{unconnected}", "connected_udp": "udp{connected}"}
+            if physics == "3D":
+                expected.update(world="bullet3d_world", body="bullet3d_collision_object",
+                                shape="bullet3d_shape", constraint="bullet3d_constraint")
+            else:
+                expected.update(body="b2body", joint="b2joint")
+                if "world" in values:
+                    expected.update(world="b2world", shape="b2shape", chain="b2chain")
+        self.assertEqual(values.keys(), expected.keys())
+        for name, value in values.items():
+            with self.subTest(name=name):
+                self.assertEqual(value["type"], "userdata")
+                self.assertEqual(value["variablesReference"], 0)
+                self.assertRegex(value["value"], "^" + re.escape(expected[name]) + r": 0x[0-9a-f]+$")
+                self.assertEqual(self.evaluate("values." + name, context="hover")["result"], value["value"])
+        if frames:
+            self.assertEqual(c.request("stackTrace", {"threadId": coroutine["id"]})["stackFrames"], frames)
+        self.resume()
+        self.finished()
+
+    # Buffers, files, sockets, and Box2D objects show names with stable identities.
+    def test_native_userdata_display(self):
+        self.check_native_userdata_display("go")
+
+    # Name inspection must also work without resuming a yielded thread.
+    def test_native_userdata_display_in_yielded_coroutine(self):
+        self.check_native_userdata_display("go", yielded=True)
+
+    # Bullet3D objects use their registered names and userdata identities.
+    def test_bullet3d_userdata_display(self):
+        self.check_native_userdata_display("go", physics="3D")
+
+    # Bullet3D inspection must also preserve a suspended coroutine's state.
+    def test_bullet3d_userdata_display_in_yielded_coroutine(self):
+        self.check_native_userdata_display("go", physics="3D", yielded=True)
+
+    # Render objects show their native type names and one identity each.
+    def test_render_userdata_display(self):
+        self.check_native_userdata_display("render")
+
+    # Render object formatting must work on a suspended coroutine too.
+    def test_render_userdata_display_in_yielded_coroutine(self):
+        self.check_native_userdata_display("render", yielded=True)
 
     # Regression for https://github.com/defold/defold/issues/7750: reboot the
     # actual app while attached, then attach to its new Lua contexts in the same
