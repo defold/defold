@@ -331,12 +331,12 @@
 
 (defn setup-prompt-field! [debug-view ^TextField text-field]
   (.addEventFilter text-field KeyEvent/KEY_PRESSED
-                   (ui/event-handler e
-                     (condp = (.getCode ^KeyEvent e)
-                       KeyCode/ENTER (eval-input! text-field debug-view e)
-                       KeyCode/UP (prev-history-entry! text-field debug-view e)
-                       KeyCode/DOWN (next-history-entry! text-field debug-view e)
-                       nil))))
+    (ui/event-handler e
+      (condp = (.getCode ^KeyEvent e)
+        KeyCode/ENTER (eval-input! text-field debug-view e)
+        KeyCode/UP (prev-history-entry! text-field debug-view e)
+        KeyCode/DOWN (next-history-entry! text-field debug-view e)
+        nil))))
 
 (defn- setup-controls!
   [debug-view ^Parent console-grid-pane ^ListView call-stack-view ^TreeView variables-view localization]
@@ -404,13 +404,19 @@
   [project debug-view]
   (let [state (volatile! nil)
         tick-fn (fn [_timer _ _]
-                  (when-not (ui/ui-disabled?)
-                    (when-let [debug-session (g/node-value debug-view :debug-session)]
-                      (let [breakpoints (collect-enabled-breakpoints project)
-                            snapshot [debug-session breakpoints]]
-                        (when-not (= snapshot @state)
-                          (vreset! state snapshot)
-                          (dap/set-breakpoints! debug-session (breakpoints-by-path breakpoints)))))))]
+                  (let [{:keys [snapshot task]} @state]
+                    ;; Serialize background updates so an older UI snapshot cannot
+                    ;; overwrite newer breakpoints after waiting for the I/O thread.
+                    (when (and (not (ui/ui-disabled?))
+                               (or (not task) (future/done? task)))
+                      (when-let [debug-session (g/node-value debug-view :debug-session)]
+                        (let [breakpoints (collect-enabled-breakpoints project)
+                              new-snapshot [debug-session breakpoints]]
+                          (when-not (= new-snapshot snapshot)
+                            (let [breakpoints (breakpoints-by-path breakpoints)]
+                              (vreset! state {:snapshot new-snapshot
+                                              :task (future/io
+                                                      (dap/set-breakpoints! debug-session breakpoints))}))))))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
 (defn- setup-view! [debug-view app-view]
@@ -589,7 +595,7 @@
     (when launched
       ;; Keep the known port usable if log filtering suppresses the announcement.
       (targets/update-launched-target! target {:debugger-port (or previous-port 0)
-                                              :debugger-port-pending true}))
+                                               :debugger-port-pending true}))
     (let [attach-successful? (try
                                (engine/run-script! target lua-module)
                                true
@@ -597,7 +603,7 @@
                                  (when (and launched
                                             (:debugger-port-pending (latest-target target)))
                                    (targets/update-launched-target! target {:debugger-port previous-port
-                                                                           :debugger-port-pending false}))
+                                                                            :debugger-port-pending false}))
                                  (show-connect-failed-info! exception (project/workspace project))
                                  false))]
       (when attach-successful?
@@ -605,13 +611,21 @@
 
 (defn detach!
   [debug-view]
-  (when-some [debug-session (current-session debug-view)]
-    (dap/disconnect! debug-session)))
+  (when-let [debug-session (current-session debug-view)]
+    (future/io (dap/disconnect! debug-session))))
+
+(defn- control-debugger! [debug-view command]
+  (let [session (current-session debug-view)]
+    (future/io
+      (try
+        (dap/control! session command)
+        (catch Exception exception
+          (console/append-console-entry! :eval-error (ex-message exception)))))))
 
 (handler/defhandler :debugger.break :global
   (enabled? [debug-view evaluation-context]
     (= :running (some-> (current-session debug-view evaluation-context) dap/status)))
-  (run [debug-view] (dap/control! (current-session debug-view) "pause")))
+  (run [debug-view] (control-debugger! debug-view "pause")))
 
 (handler/defhandler :debugger.continue :global
   ;; NOTE: Shares a shortcut with :app-view/start-debugger.
@@ -621,27 +635,29 @@
     (debugging? debug-view evaluation-context))
   (enabled? [debug-view evaluation-context]
     (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
-  (run [debug-view] (dap/control! (current-session debug-view) "continue")))
+  (run [debug-view] (control-debugger! debug-view "continue")))
 
 (handler/defhandler :debugger.step-over :global
   (enabled? [debug-view evaluation-context]
     (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
-  (run [debug-view] (dap/control! (current-session debug-view) "next")))
+  (run [debug-view] (control-debugger! debug-view "next")))
 
 (handler/defhandler :debugger.step-into :global
   (enabled? [debug-view evaluation-context]
     (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
-  (run [debug-view] (dap/control! (current-session debug-view) "stepIn")))
+  (run [debug-view] (control-debugger! debug-view "stepIn")))
 
 (handler/defhandler :debugger.step-out :global
   (enabled? [debug-view evaluation-context]
     (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
-  (run [debug-view] (dap/control! (current-session debug-view) "stepOut")))
+  (run [debug-view] (control-debugger! debug-view "stepOut")))
 
 (handler/defhandler :debugger.detach :global
   (enabled? [debug-view evaluation-context]
     (current-session debug-view evaluation-context))
-  (run [debug-view] (dap/disconnect! (current-session debug-view))))
+  (run [debug-view]
+    (let [session (current-session debug-view)]
+      (future/io (dap/disconnect! session)))))
 
 (handler/defhandler :debugger.stop :global
   (enabled? [debug-view evaluation-context]
@@ -653,7 +669,7 @@
         ;; The in-process adapter only detaches. Resume Lua before asking the
         ;; engine service to exit so a paused engine can process the request.
         (try
-          (future/unwrap (dap/disconnect! session))
+          (dap/disconnect! session)
           (finally
             (if (targets/launched-target? target)
               (targets/kill-launched-target! target)
@@ -903,17 +919,17 @@
 (handler/defhandler :run.reset-resolution :global
   (enabled? [prefs] (prefs/get prefs [:run :simulated-resolution]))
   (run [project prefs]
-       (prefs/set! prefs [:run :simulated-resolution] nil)
-       (prefs/set! prefs [:run :simulate-rotated-device] false)
-       (let [project-settings-data (project-settings-screen-data project)]
-         (change-resolution! prefs (:width project-settings-data) (:height project-settings-data)))))
+    (prefs/set! prefs [:run :simulated-resolution] nil)
+    (prefs/set! prefs [:run :simulate-rotated-device] false)
+    (let [project-settings-data (project-settings-screen-data project)]
+      (change-resolution! prefs (:width project-settings-data) (:height project-settings-data)))))
 
 (handler/defhandler :run.toggle-device-rotated :global
   (run [project app-view prefs build-errors-view selection user-data workspace]
-       (prefs/set! prefs [:run :simulate-rotated-device] (not (simulate-rotated-device? prefs)))
-       (let [data (prefs/get prefs [:run :simulated-resolution])]
-         (when data
-           (change-resolution! prefs (:width data) (:height data)))))
+    (prefs/set! prefs [:run :simulate-rotated-device] (not (simulate-rotated-device? prefs)))
+    (let [data (prefs/get prefs [:run :simulated-resolution])]
+      (when data
+        (change-resolution! prefs (:width data) (:height data)))))
   (state [app-view user-data prefs workspace] (simulate-rotated-device? prefs)))
 
 (handler/defhandler :private/disabled-menu-label :global
