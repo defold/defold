@@ -34,6 +34,10 @@ namespace dmGui
         return 0;
     }
 
+    void LuaPushNode(lua_State* L, HScene scene, HNode node)
+    {
+    }
+
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         return 0;
