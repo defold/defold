@@ -1657,19 +1657,25 @@
        :style-class ["split-pane" "cljfx-form-summary-split"]
        :divider-positions [0.62]
        :items [(assoc table :min-width 200)
-               {:fx/type fx.v-box/lifecycle
+               {:fx/type fx.scroll-pane/lifecycle
                 :style-class "cljfx-form-detail-panel"
-                :spacing line-spacing
-                :min-width 300
-                :children (if selected-item-fields
-                            [selected-item-fields]
-                            [{:fx/type fx.label/lifecycle
-                              :opacity 0.6
-                              :text (localization-state
-                                      (localization/message
-                                        (if (coll/empty? value)
-                                          "form.table-2panel.add-row"
-                                          "form.table-2panel.select-row")))}])}]}
+                :fit-to-width true
+                :fit-to-height true
+                :vbar-policy :never
+                :min-width 160
+                :content {:fx/type fx.v-box/lifecycle
+                          :min-width 375
+                          :padding 10
+                          :spacing line-spacing
+                          :children (if selected-item-fields
+                                      [selected-item-fields]
+                                      [{:fx/type fx.label/lifecycle
+                                        :opacity 0.6
+                                        :text (localization-state
+                                                (localization/message
+                                                  (if (coll/empty? value)
+                                                    "form.table-2panel.add-row"
+                                                    "form.table-2panel.select-row")))}])}}]}
       buttons]}))
 
 ;; endregion
