@@ -19,6 +19,7 @@
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.debugging.dap :as dap]
+            [editor.debugging.variables :as debugger-variables]
             [editor.defold-project :as project]
             [editor.engine :as engine]
             [editor.resource :as resource]
@@ -94,7 +95,7 @@
                                  :generation 1
                                  :thread-id 7})}
           ^ListView call-stack (ui/run-now (ListView.))
-          ^TreeView variables (ui/run-now (TreeView.))
+          ^TreeView variables (ui/run-now (debugger-variables/make-view!))
           view (g/make-node! debug-view/DebugView
                  :debug-session session
                  :call-stack-view call-stack
@@ -160,7 +161,7 @@
                                  :generation 0
                                  :thread-id 7})}
           ^ListView call-stack (ui/run-now (ListView.))
-          ^TreeView variables (ui/run-now (TreeView.))
+          ^TreeView variables (ui/run-now (debugger-variables/make-view!))
           view (g/make-node! debug-view/DebugView
                  :debug-session session
                  :call-stack-view call-stack

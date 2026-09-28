@@ -45,8 +45,7 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll])
-  (:import [com.defold.control ExtendedTreeView]
-           [com.dynamo.lua.proto Lua$LuaModule]
+  (:import [com.dynamo.lua.proto Lua$LuaModule]
            [java.nio.file Files]
            [java.util Collection]
            [javafx.scene Parent]
@@ -426,10 +425,7 @@
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         call-stack-view (doto (ListView.)
                           (.setId "debugger-call-stack"))
-        variables-view (doto (ExtendedTreeView.)
-                         (.setId "debugger-variables")
-                         (ui/customize-tree-view! {:double-click-expand true})
-                         (.setShowRoot false))
+        variables-view (debugger-variables/make-view!)
         view-id (first
                   (g/tx-nodes-added
                     (g/transact

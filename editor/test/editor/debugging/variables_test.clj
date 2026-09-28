@@ -18,7 +18,7 @@
             [editor.debugging.variables :as variables]
             [editor.ui :as ui]
             [util.coll :as coll])
-  (:import [com.defold.control ExtendedTreeView ExtendedTreeViewSkin]
+  (:import [com.defold.control ExtendedTreeViewSkin]
            [javafx.geometry Orientation]
            [javafx.scene Scene]
            [javafx.scene.control ScrollBar TreeCell TreeItem TreeView]
@@ -35,7 +35,7 @@
       (if-let [result (ui/run-now (f))]
         result
         (if (> (System/nanoTime) deadline)
-          (throw (ex-info "Timed out waiting for debugger variables" {}))
+          (throw (IllegalStateException. "Timed out waiting for debugger variables"))
           (do
             (Thread/sleep 10)
             (recur)))))))
@@ -63,7 +63,7 @@
 ;; Verify opened paths reload fresh values/references across stops, unopened and
 ;; collapsed branches stay closed, and cycles reopen only to the saved depth.
 (deftest restore-expanded-paths-test
-  (let [view (ui/run-now (doto (ExtendedTreeView.) (.setShowRoot false)))
+  (let [view (ui/run-now (variables/make-view!))
         session {:state (atom {:status :suspended
                                :generation 1
                                :thread-id 7})}
@@ -88,12 +88,14 @@
                                       [(variable "global" (str generation) 0)]
 
                                       :else
-                                      (throw (ex-info "Unexpected or expired table reference" {:reference reference})))))]
+                                      (throw (IllegalArgumentException. (str "Unexpected or expired table reference: " reference))))))]
       (pause! view session 1 42)
       (await-ui! #(item-at view ["self"]))
       (is (= [] @requests))
-      (ui/run-now (.setExpanded (item-at view ["self"]) true))
-      (await-ui! #(item-at view ["self" "[\"nested\"]"]))
+      (let [^TreeItem self (ui/run-now (item-at view ["self"]))]
+        (ui/run-now (.setExpanded self true))
+        (await-ui! #(item-at view ["self" "[\"nested\"]"]))
+        (is (identical? self (ui/run-now (item-at view ["self"])))))
       (ui/run-now
         (.setExpanded (item-at view ["self" "[\"nested\"]"]) true)
         (.setExpanded (item-at view ["self" "[\"cycle\"]"]) true)
@@ -129,7 +131,7 @@
 ;; Verify a saved path survives a variable becoming scalar or disappearing,
 ;; without fetching children until a table with that name returns.
 (deftest changing-variable-shapes-test
-  (let [view (ui/run-now (ExtendedTreeView.))
+  (let [view (ui/run-now (variables/make-view!))
         session {:state (atom {:status :suspended
                                :generation 1
                                :thread-id 7})}
@@ -150,7 +152,7 @@
       (testing "A scalar or absent variable does not fetch children"
         (doseq [generation [2 3]]
           (pause! view session generation 42)
-          (await-ui! #(zero? (long @(:pending (ui/user-data view :editor.debugging.variables/context))))))
+          (await-ui! #(coll/empty? (:pending @(ui/user-data view :editor.debugging.variables/state)))))
         (is (= [[1 1]] @requests)))
 
       (testing "The path reopens if a table with that name appears again"
@@ -164,7 +166,7 @@
 ;; Verify a table response from an earlier stop cannot overwrite the refreshed
 ;; tree, even when that old request completes after the new one.
 (deftest stale-table-response-test
-  (let [view (ui/run-now (ExtendedTreeView.))
+  (let [view (ui/run-now (variables/make-view!))
         session {:state (atom {:status :suspended
                                :generation 1
                                :thread-id 7})}
@@ -181,14 +183,16 @@
       (try
         (pause! view session 1 42)
         (await-ui! #(item-at view ["self"]))
-        (let [old-context (ui/run-now
-                            (.setExpanded (item-at view ["self"]) true)
-                            (ui/user-data view :editor.debugging.variables/context))]
+        (let [old-load (ui/run-now
+                         (let [item (item-at view ["self"])]
+                           (.setExpanded item true)
+                           (get-in @(ui/user-data view :editor.debugging.variables/state)
+                                   [:pending (:path (.getValue item))])))]
           (is (= true (deref started 10000 ::timeout)))
           (pause! view session 2 99)
           (await-ui! #(item-at view ["self" "new"]))
           (deliver response [(variable "old" "1" 0)])
-          (await-ui! #(zero? (long @(:pending old-context))))
+          (is (nil? (deref old-load 10000 ::timeout)))
           (ui/run-now
             (is (nil? (item-at view ["self" "old"])))
             (is (= "2" (:value (.getValue (item-at view ["self" "new"])))))))
@@ -212,7 +216,7 @@
 (deftest restore-scroll-position-test
   (let [[^TreeView view ^Stage stage]
         (ui/run-now
-          (let [view (doto (ExtendedTreeView.)
+          (let [view (doto (variables/make-view!)
                        (.setShowRoot false)
                        (.setFixedCellSize 24.0))
                 pane (doto (StackPane.)
@@ -227,7 +231,8 @@
         started (promise)
         response (promise)]
     (with-redefs [dap/frame-variables (fn [_ {:keys [generation]} _]
-                                        [(variable "self" "table" generation)])
+                                        [(variable "self" "table" generation)
+                                         (variable "other" "scalar" 0)])
                   dap/variables (fn [_ {:keys [generation]} _]
                                   (when (= 3 generation)
                                     (deliver started true)
@@ -256,9 +261,8 @@
           (is (= "field-44" (:selection before)))
           (is (= 20.0 (:horizontal before)))
           (pause! view session 2 99)
-          (await-ui! #(let [context (ui/user-data view :editor.debugging.variables/context)]
-                        (and (item-at view ["self" "field-99"])
-                             (nil? @(:scroll-to-restore context)))))
+          (await-ui! #(and (item-at view ["self" "field-99"])
+                           (nil? (:scroll-to-restore @(ui/user-data view :editor.debugging.variables/state)))))
           (ui/run-now
             (let [after (viewport view)]
               (is (= (:name before) (:name after)))
@@ -269,15 +273,19 @@
           (testing "User navigation takes precedence over a delayed scroll restoration"
             (pause! view session 3 111)
             (is (= true (deref started 10000 ::timeout)))
+            (await-ui! #(= 3 (some-> (item-at view ["self"]) .getValue :variablesReference)))
             (ui/run-now
-              (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" KeyCode/HOME false false false false))
-              (is (nil? @(:scroll-to-restore (ui/user-data view :editor.debugging.variables/context)))))
+              (.applyCss view)
+              (.layout view)
+              (.select (.getSelectionModel view) (item-at view ["self"]))
+              (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" KeyCode/END false false false false))
+              (is (= "other" (:name (first (ui/selection view))))))
             (deliver response true)
             (await-ui! #(and (item-at view ["self" "field-99"])
-                             (zero? (long @(:pending (ui/user-data view :editor.debugging.variables/context))))))
+                             (coll/empty? (:pending @(ui/user-data view :editor.debugging.variables/state)))))
             (ui/run-now
               (.layout view)
-              (is (= "self" (:name (viewport view)))))))
+              (is (= "other" (:name (first (ui/selection view))))))))
         (finally
           (deliver response true)
           (ui/run-now
