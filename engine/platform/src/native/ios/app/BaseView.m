@@ -52,7 +52,7 @@ NSString *const FAKE_STRING = @"Abcd";
         fakeText = FAKE_STRING;
     }
 
-    _glfwInput.MouseEmulationTouch = 0;
+    dmNativeInput.MouseEmulationTouch = 0;
     return self;
 }
 
@@ -69,12 +69,12 @@ NSString *const FAKE_STRING = @"Abcd";
     markedText = [[NSMutableString alloc] initWithCapacity:128];
     fakeText = FAKE_STRING;
 
-    _glfwInput.MouseEmulationTouch = 0;
-    for (int i = 0; i < GLFW_MAX_TOUCH; ++i)
+    dmNativeInput.MouseEmulationTouch = 0;
+    for (int i = 0; i < NATIVE_MAX_TOUCH; ++i)
     {
-        _glfwInput.Touch[i].Id = i;
-        _glfwInput.Touch[i].Reference = 0x0;
-        _glfwInput.Touch[i].Phase = GLFW_PHASE_IDLE;
+        dmNativeInput.Touch[i].Id = i;
+        dmNativeInput.Touch[i].Reference = 0x0;
+        dmNativeInput.Touch[i].Phase = NATIVE_PHASE_IDLE;
     }
 
     return self;
@@ -113,7 +113,7 @@ NSString *const FAKE_STRING = @"Abcd";
         [inputDelegate textWillChange: self];
         [markedText setString: @""];
         [inputDelegate textDidChange: self];
-        _glfwSetMarkedText("");
+        dmNativeSetMarkedText("");
     }
 }
 
@@ -229,12 +229,12 @@ NSString *const FAKE_STRING = @"Abcd";
 
 - (void)newFrame
 {
-    if (!_glfwPlatformIsSceneActive() || _glfwWin.iconified)
+    if (!dmNativeOSIsSceneActive() || dmNativeWin.iconified)
         return;
 
     countDown--;
 
-    [g_ApplicationDelegate appUpdate]; // will eventually call glfwSwapBuffers -> swapBuffers
+    [g_ApplicationDelegate appUpdate]; // will eventually call dmNativeSwapBuffers -> swapBuffers
 }
 
 - (void) setSwapInterval: (int) interval
@@ -251,21 +251,21 @@ NSString *const FAKE_STRING = @"Abcd";
 {
 }
 
-- (GLFWTouch*) touchById: (UITouch*) ref
+- (NativeTouch*) touchById: (UITouch*) ref
 {
     int32_t i;
 
-    GLFWTouch* freeTouch = 0x0;
-    for (i=0;i!=GLFW_MAX_TOUCH;i++)
+    NativeTouch* freeTouch = 0x0;
+    for (i=0;i!=NATIVE_MAX_TOUCH;i++)
     {
-        _glfwInput.Touch[i].Id = i;
-        if (_glfwInput.Touch[i].Reference == ref) {
-            return &_glfwInput.Touch[i];
+        dmNativeInput.Touch[i].Id = i;
+        if (dmNativeInput.Touch[i].Reference == ref) {
+            return &dmNativeInput.Touch[i];
         }
 
         // Save touch entry for later if we need to "alloc" one in case we don't find the current reference.
-        if (freeTouch == 0x0 && _glfwInput.Touch[i].Reference == 0x0) {
-            freeTouch = &_glfwInput.Touch[i];
+        if (freeTouch == 0x0 && dmNativeInput.Touch[i].Reference == 0x0) {
+            freeTouch = &dmNativeInput.Touch[i];
         }
     }
 
@@ -278,15 +278,15 @@ NSString *const FAKE_STRING = @"Abcd";
 
 - (void) updateGlfwMousePos: (int32_t) x y: (int32_t) y
 {
-    _glfwInput.MousePosX = x;
-    _glfwInput.MousePosY = y;
+    dmNativeInput.MousePosX = x;
+    dmNativeInput.MousePosY = y;
 }
 
-- (void) touchStart: (GLFWTouch*) glfwt withTouch: (UITouch*) t
+- (void) touchStart: (NativeTouch*) dmNativet withTouch: (UITouch*) t
 {
     // When a new touch starts, and there was no previous one, this will be our mouse emulation touch.
-    if (_glfwInput.MouseEmulationTouch == 0x0) {
-        _glfwInput.MouseEmulationTouch = glfwt;
+    if (dmNativeInput.MouseEmulationTouch == 0x0) {
+        dmNativeInput.MouseEmulationTouch = dmNativet;
     }
 
     CGPoint touchLocation = [t locationInView:self];
@@ -296,14 +296,14 @@ NSString *const FAKE_STRING = @"Abcd";
     int x = touchLocation.x * scaleFactor;
     int y = touchLocation.y * scaleFactor;
 
-    glfwt->Phase = GLFW_PHASE_BEGAN;
-    glfwt->X = x;
-    glfwt->Y = y;
-    glfwt->DX = 0;
-    glfwt->DY = 0;
+    dmNativet->Phase = NATIVE_PHASE_BEGAN;
+    dmNativet->X = x;
+    dmNativet->Y = y;
+    dmNativet->DX = 0;
+    dmNativet->DY = 0;
 }
 
-- (void) touchUpdate: (GLFWTouch*) glfwt withTouch: (UITouch*) t
+- (void) touchUpdate: (NativeTouch*) dmNativet withTouch: (UITouch*) t
 {
     CGPoint touchLocation = [t locationInView:self];
     CGPoint prevTouchLocation = [t previousLocationInView:self];
@@ -314,44 +314,44 @@ NSString *const FAKE_STRING = @"Abcd";
     int px = prevTouchLocation.x * scaleFactor;
     int py = prevTouchLocation.y * scaleFactor;
 
-    int prevPhase = glfwt->Phase;
+    int prevPhase = dmNativet->Phase;
     int newPhase = t.phase;
 
     // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
-    if (prevPhase == GLFW_PHASE_TAPPED) {
+    if (prevPhase == NATIVE_PHASE_TAPPED) {
         return;
     }
 
     // If this touch is currently used for mouse emulation, and it ended, unset the mouse emulation pointer.
-    if (newPhase == GLFW_PHASE_ENDED && _glfwInput.MouseEmulationTouch == glfwt) {
-        _glfwInput.MouseEmulationTouch = 0x0;
+    if (newPhase == NATIVE_PHASE_ENDED && dmNativeInput.MouseEmulationTouch == dmNativet) {
+        dmNativeInput.MouseEmulationTouch = 0x0;
     }
 
     // This is an invalid touch order, we need to recieve a began or moved
     // phase before moving pushing any more move inputs.
-    if (prevPhase == GLFW_PHASE_ENDED && newPhase == GLFW_PHASE_MOVED) {
+    if (prevPhase == NATIVE_PHASE_ENDED && newPhase == NATIVE_PHASE_MOVED) {
         return;
     }
 
-    glfwt->TapCount = t.tapCount;
-    glfwt->X = x;
-    glfwt->Y = y;
-    glfwt->DX = x - px;
-    glfwt->DY = y - py;
+    dmNativet->TapCount = t.tapCount;
+    dmNativet->X = x;
+    dmNativet->Y = y;
+    dmNativet->DX = x - px;
+    dmNativet->DY = y - py;
 
     // If we recieved both a began and moved for the same touch during one frame/update,
     // just update the coordinates but leave the phase as began.
-    if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_MOVED) {
+    if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_MOVED) {
         return;
 
     // If a touch both began and ended during one frame/update, set the phase as
     // tapped and we will send the released event during next update (see input.c).
-    } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
-        glfwt->Phase = GLFW_PHASE_TAPPED;
+    } else if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_ENDED) {
+        dmNativet->Phase = NATIVE_PHASE_TAPPED;
         return;
     }
 
-    glfwt->Phase = t.phase;
+    dmNativet->Phase = t.phase;
 
 }
 
@@ -361,25 +361,25 @@ NSString *const FAKE_STRING = @"Abcd";
 
     for (UITouch *t in touches)
     {
-        if (GLFW_PHASE_BEGAN == t.phase) {
-            GLFWTouch* glfwt = [self touchById: t];
-            if (glfwt == 0x0) {
-                // Could not find corresponding GLFWTouch.
+        if (NATIVE_PHASE_BEGAN == t.phase) {
+            NativeTouch* dmNativet = [self touchById: t];
+            if (dmNativet == 0x0) {
+                // Could not find corresponding NativeTouch.
                 // Possibly due to too many touches at once,
-                // we only support GLFW_MAX_TOUCH.
+                // we only support NATIVE_MAX_TOUCH.
                 continue;
             }
 
             // We can't start/begin a new touch if it already has an ongoing phase (ie not idle).
-            if (glfwt->Phase != GLFW_PHASE_IDLE) {
+            if (dmNativet->Phase != NATIVE_PHASE_IDLE) {
                 continue;
             }
 
-            [self touchStart: glfwt withTouch: t];
+            [self touchStart: dmNativet withTouch: t];
 
-            if (glfwt == _glfwInput.MouseEmulationTouch) {
-                [self updateGlfwMousePos: glfwt->X y: glfwt->Y];
-                _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
+            if (dmNativet == dmNativeInput.MouseEmulationTouch) {
+                [self updateGlfwMousePos: dmNativet->X y: dmNativet->Y];
+                dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS );
             }
         }
     }
@@ -392,29 +392,29 @@ NSString *const FAKE_STRING = @"Abcd";
     for (UITouch *t in touches)
     {
         if (phase == t.phase) {
-            GLFWTouch* glfwt = [self touchById: t];
-            if (glfwt == 0x0) {
-                // Could not find corresponding GLFWTouch.
+            NativeTouch* dmNativet = [self touchById: t];
+            if (dmNativet == 0x0) {
+                // Could not find corresponding NativeTouch.
                 // Possibly due to too many touches at once,
-                // we only support GLFW_MAX_TOUCH.
+                // we only support NATIVE_MAX_TOUCH.
                 continue;
             }
 
             // We can only update previous touches that has been initialized (began, moved etc).
-            if (glfwt->Phase == GLFW_PHASE_IDLE) {
-                glfwt->Reference = 0x0;
+            if (dmNativet->Phase == NATIVE_PHASE_IDLE) {
+                dmNativet->Reference = 0x0;
                 continue;
             }
 
-            [self touchUpdate: glfwt withTouch: t];
+            [self touchUpdate: dmNativet withTouch: t];
 
-            if (glfwt == _glfwInput.MouseEmulationTouch || !_glfwInput.MouseEmulationTouch) {
-                [self updateGlfwMousePos: glfwt->X y: glfwt->Y];
-                if ((phase == GLFW_PHASE_ENDED || phase == GLFW_PHASE_CANCELLED)) {
-                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+            if (dmNativet == dmNativeInput.MouseEmulationTouch || !dmNativeInput.MouseEmulationTouch) {
+                [self updateGlfwMousePos: dmNativet->X y: dmNativet->Y];
+                if ((phase == NATIVE_PHASE_ENDED || phase == NATIVE_PHASE_CANCELLED)) {
+                    dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 } else {
-                    if (_glfwWin.mousePosCallback) {
-                        _glfwWin.mousePosCallback(glfwt->X, glfwt->Y);
+                    if (dmNativeWin.mousePosCallback) {
+                        dmNativeWin.mousePosCallback(dmNativet->X, dmNativet->Y);
                     }
                 }
             }
@@ -431,7 +431,7 @@ NSString *const FAKE_STRING = @"Abcd";
 {
     if (self.keyboardActive && self.autoCloseKeyboard) {
         // Implicitly hide keyboard
-        _glfwShowKeyboard(0, 0, 0);
+        dmNativeShowKeyboard(0, 0, 0);
     }
 
     [self fillTouchStart: event];
@@ -459,7 +459,7 @@ NSString *const FAKE_STRING = @"Abcd";
 
 - (void)setMarkedText:(NSString *)newMarkedText selectedRange:(NSRange)selectedRange {
     [markedText setString:newMarkedText];
-    _glfwSetMarkedText((char*)[markedText UTF8String]);
+    dmNativeSetMarkedText((char*)[markedText UTF8String]);
 }
 
 - (void)insertText:(NSString *)theText
@@ -467,15 +467,15 @@ NSString *const FAKE_STRING = @"Abcd";
     int length = [theText length];
 
     if (length == 1 && [theText characterAtIndex: 0] == 10) {
-        _glfwInputKey( GLFW_KEY_ENTER, GLFW_PRESS );
+        dmNativeInputKey( NATIVE_KEY_ENTER, NATIVE_PRESS );
         self.textkeyActive = TEXT_KEY_COOLDOWN;
         return;
     }
 
     for(int i = 0;  i < length;  i++) {
-        // Trick to "fool" glfw. Otherwise repeated characters will be filtered due to repeat
-        _glfwInputChar( [theText characterAtIndex:i], GLFW_RELEASE );
-        _glfwInputChar( [theText characterAtIndex:i], GLFW_PRESS );
+        // Trick to "fool" dmNative. Otherwise repeated characters will be filtered due to repeat
+        dmNativeInputChar( [theText characterAtIndex:i], NATIVE_RELEASE );
+        dmNativeInputChar( [theText characterAtIndex:i], NATIVE_PRESS );
     }
 }
 
@@ -484,10 +484,10 @@ NSString *const FAKE_STRING = @"Abcd";
     if (markedText.length > 0)
     {
         [markedText setString:@""];
-        _glfwSetMarkedText("");
+        dmNativeSetMarkedText("");
     } else {
-        _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
-        _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
+        dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_RELEASE );
+        dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_PRESS );
         self.textkeyActive = TEXT_KEY_COOLDOWN;
     }
 }
@@ -497,7 +497,7 @@ NSString *const FAKE_STRING = @"Abcd";
     [inputDelegate textWillChange: self];
     [markedText setString: @""];
     [inputDelegate textDidChange: self];
-    _glfwSetMarkedText("");
+    dmNativeSetMarkedText("");
 }
 
 - (UIKeyboardType) keyboardType
@@ -598,9 +598,9 @@ NSString *const FAKE_STRING = @"Abcd";
 // Reset keyboard input state (clears marked text)
 //========================================================================
 
-void _glfwResetKeyboard( void )
+void dmNativeResetKeyboard( void )
 {
-    BaseView* view = (BaseView*) _glfwWin.view;
+    BaseView* view = (BaseView*) dmNativeWin.view;
     [view clearMarkedText];
 }
 
@@ -608,23 +608,23 @@ void _glfwResetKeyboard( void )
 // Get physical accelerometer
 //========================================================================
 
-int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
+int dmNativeOSGetAcceleration(float* x, float* y, float* z)
 {
     if (g_AccelerometerEnabled) {
         CMAccelerometerData* data = g_MotionManager.accelerometerData;
         if (data) {
-            _glfwInput.AccX = data.acceleration.x;
-            _glfwInput.AccY = data.acceleration.y;
-            _glfwInput.AccZ = data.acceleration.z;
+            dmNativeInput.AccX = data.acceleration.x;
+            dmNativeInput.AccY = data.acceleration.y;
+            dmNativeInput.AccZ = data.acceleration.z;
         }
-        *x = _glfwInput.AccX;
-        *y = _glfwInput.AccY;
-        *z = _glfwInput.AccZ;
+        *x = dmNativeInput.AccX;
+        *y = dmNativeInput.AccY;
+        *z = dmNativeInput.AccZ;
     }
     return g_AccelerometerEnabled;
 }
 
-GLFWAPI void glfwAccelerometerEnable()
+void dmNativeAccelerometerEnable()
 {
     if (!g_MotionManager)
         g_MotionManager = [[CMMotionManager alloc] init];
@@ -640,21 +640,21 @@ GLFWAPI void glfwAccelerometerEnable()
 // Keyboard
 //========================================================================
 
-void _glfwShowKeyboard( int show, int type, int auto_close )
+void dmNativeShowKeyboard( int show, int type, int auto_close )
 {
-    BaseView* view = (BaseView*) _glfwWin.view;
+    BaseView* view = (BaseView*) dmNativeWin.view;
     view.secureTextEntry = NO;
     switch (type) {
-        case GLFW_KEYBOARD_DEFAULT:
+        case NATIVE_KEYBOARD_DEFAULT:
             view.keyboardType = UIKeyboardTypeDefault;
             break;
-        case GLFW_KEYBOARD_NUMBER_PAD:
+        case NATIVE_KEYBOARD_NUMBER_PAD:
             view.keyboardType = UIKeyboardTypeNumberPad;
             break;
-        case GLFW_KEYBOARD_EMAIL:
+        case NATIVE_KEYBOARD_EMAIL:
             view.keyboardType = UIKeyboardTypeEmailAddress;
             break;
-        case GLFW_KEYBOARD_PASSWORD:
+        case NATIVE_KEYBOARD_PASSWORD:
             view.secureTextEntry = YES;
             view.keyboardType = UIKeyboardTypeDefault;
             break;
@@ -664,16 +664,16 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     view.autoCloseKeyboard = auto_close;
     if (show) {
         view.keyboardActive = YES;
-        [_glfwWin.view becomeFirstResponder];
+        [dmNativeWin.view becomeFirstResponder];
     } else {
         view.keyboardActive = NO;
-        [_glfwWin.view resignFirstResponder];
+        [dmNativeWin.view resignFirstResponder];
     }
     // check if there are any active special keys and immediately release
     // them when the keyboard is manipulated
     if (view.textkeyActive > 0) {
-        _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
-        _glfwInputKey( GLFW_KEY_ENTER, GLFW_RELEASE );
+        dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_RELEASE );
+        dmNativeInputKey( NATIVE_KEY_ENTER, NATIVE_RELEASE );
         view.textkeyActive = 0;
     }
 }
@@ -683,21 +683,21 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
 // Poll for new window and input events
 //========================================================================
 
-void _glfwPlatformPollEvents( void )
+void dmNativeOSPollEvents( void )
 {
-    BaseView* view = (BaseView*) _glfwWin.view;
+    BaseView* view = (BaseView*) dmNativeWin.view;
     if (view.keyboardActive > 0) {
         view.textkeyActive--;
         if (view.textkeyActive == 0) {
-            _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
-            _glfwInputKey( GLFW_KEY_ENTER, GLFW_RELEASE );
+            dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_RELEASE );
+            dmNativeInputKey( NATIVE_KEY_ENTER, NATIVE_RELEASE );
         }
     }
 }
 
-int _glfwPlatformGetWindowRefreshRate( void )
+int dmNativeOSGetWindowRefreshRate( void )
 {
-    BaseView* view = (BaseView*) _glfwWin.view;
+    BaseView* view = (BaseView*) dmNativeWin.view;
     CADisplayLink* displayLink = view->displayLink;
 
     @try { // displayLink.preferredFramesPerSecond only supported on iOS 10.0 and higher, default to 0 for older versions.

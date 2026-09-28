@@ -28,28 +28,26 @@
 //
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #ifndef _internal_h_
 #define _internal_h_
 
 //========================================================================
-// GLFWGLOBAL is a macro that places all global variables in the init.c
+// NativeGLOBAL is a macro that places all global variables in the init.c
 // module (all other modules reference global variables as 'extern')
 //========================================================================
 
 #if defined( _init_c_ )
-#define GLFWGLOBAL
+#define NativeGLOBAL
 #else
-#define GLFWGLOBAL extern
+#define NativeGLOBAL extern
 #endif
 
 
-//========================================================================
-// Input handling definitions
-//========================================================================
-
 // Internal key and button state/action definitions
-#define GLFW_STICK 2
-#define GLFW_CLICKED 3
+#define NATIVE_STICK 2
+#define NATIVE_CLICKED 3
 
 
 //========================================================================
@@ -60,37 +58,6 @@
 #include <string.h>
 #include <stdio.h>
 
-
-//------------------------------------------------------------------------
-// Window opening hints (set by glfwOpenWindowHint)
-// A bucket of semi-random stuff bunched together for historical reasons
-// This is used only by the platform independent code and only to store
-// parameters passed to us by glfwOpenWindowHint
-//------------------------------------------------------------------------
-typedef struct {
-    int         refreshRate;
-    int         accumRedBits;
-    int         accumGreenBits;
-    int         accumBlueBits;
-    int         accumAlphaBits;
-    int         auxBuffers;
-    int         stereo;
-    int         windowNoResize;
-    int         samples;
-    int         glMajor;
-    int         glMinor;
-    int         glForward;
-    int         glDebug;
-    int         glProfile;
-    int         highDPI;
-    int         clientAPI;
-} _GLFWhints;
-
-
-//------------------------------------------------------------------------
-// Platform specific definitions goes in platform.h (which also includes
-// glfw.h)
-//------------------------------------------------------------------------
 
 #include "platform.h"
 
@@ -112,7 +79,7 @@ typedef struct {
     int         glProfile;
     int         highDPI;
     int         clientAPI;
-} _GLFWwndconfig;
+} Nativewndconfig;
 
 
 //------------------------------------------------------------------------
@@ -136,162 +103,89 @@ typedef struct {
     int         auxBuffers;
     int         stereo;
     int         samples;
-    GLFWintptr  platformID;
-} _GLFWfbconfig;
+    Nativeintptr  platformID;
+} Nativefbconfig;
 
 
-//========================================================================
-// System independent global variables (GLFW internals)
-//========================================================================
-
-// Flag indicating if GLFW has been initialized
+// Flag indicating if Native has been initialized
 #if defined( _init_c_ )
-int _glfwInitialized = 0;
+int dmNativeInitialized = 0;
 #else
-GLFWGLOBAL int _glfwInitialized;
+NativeGLOBAL int dmNativeInitialized;
 #endif
 
 
-//------------------------------------------------------------------------
-// Abstract data stream (for image I/O)
-//------------------------------------------------------------------------
-typedef struct {
-    FILE*   file;
-    void*   data;
-    long    position;
-    long    size;
-} _GLFWstream;
-
-
-//========================================================================
-// Prototypes for platform specific implementation functions
-//========================================================================
-
 // Init/terminate
-int _glfwPlatformInit( void );
-int _glfwPlatformTerminate( void );
-
-// Enable/Disable
-void _glfwPlatformEnableSystemKeys( void );
-void _glfwPlatformDisableSystemKeys( void );
-
-// Fullscreen
-int  _glfwPlatformGetVideoModes( GLFWvidmode *list, int maxcount );
-void _glfwPlatformGetDesktopMode( GLFWvidmode *mode );
+int dmNativeOSInit( void );
+int dmNativeOSTerminate( void );
 
 // OpenGL extensions
-int _glfwPlatformExtensionSupported( const char *extension );
-void * _glfwPlatformGetProcAddress( const char *procname );
+int dmNativeOSExtensionSupported( const char *extension );
+void * dmNativeOSGetProcAddress( const char *procname );
 
 // Joystick
-int _glfwPlatformGetJoystickParam( int joy, int param );
-int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes );
-int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
-int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats );
-int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id );
-
-// Threads
-GLFWthread _glfwPlatformCreateThread( GLFWthreadfun fun, void *arg );
-void _glfwPlatformDestroyThread( GLFWthread ID );
-int _glfwPlatformWaitThread( GLFWthread ID, int waitmode );
-GLFWthread _glfwPlatformGetThreadID( void );
-GLFWmutex _glfwPlatformCreateMutex( void );
-void _glfwPlatformDestroyMutex( GLFWmutex mutex );
-void _glfwPlatformLockMutex( GLFWmutex mutex );
-void _glfwPlatformUnlockMutex( GLFWmutex mutex );
-GLFWcond _glfwPlatformCreateCond( void );
-void _glfwPlatformDestroyCond( GLFWcond cond );
-void _glfwPlatformWaitCond( GLFWcond cond, GLFWmutex mutex, double timeout );
-void _glfwPlatformSignalCond( GLFWcond cond );
-void _glfwPlatformBroadcastCond( GLFWcond cond );
-int _glfwPlatformGetNumberOfProcessors( void );
-
-// Time
-double _glfwPlatformGetTime( void );
-void _glfwPlatformSetTime( double time );
-void _glfwPlatformSleep( double time );
+int dmNativeOSGetJoystickParam( int joy, int param );
+int dmNativeOSGetJoystickPos( int joy, float *pos, int numaxes );
+int dmNativeOSGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
+int dmNativeOSGetJoystickHats( int joy, unsigned char *hats, int numhats );
+int dmNativeOSGetJoystickDeviceId( int joy, char** device_id );
 
 // Window management
-int  _glfwPlatformOpenWindow( int width, int height, const _GLFWwndconfig *wndconfig, const _GLFWfbconfig *fbconfig );
-int  _glfwPlatformOpenWindowVulkan( int width, int height, const _GLFWwndconfig *wndconfig, const _GLFWfbconfig *fbconfig );
-int  _glfwPlatformOpenWindowOpenGL( int width, int height, const _GLFWwndconfig *wndconfig, const _GLFWfbconfig *fbconfig );
-void _glfwPlatformCloseWindow( void );
-int  _glfwPlatformGetWindowRefreshRate( void );
-int  _glfwPlatformGetDefaultFramebuffer( void );
-void _glfwPlatformSetWindowTitle( const char *title );
-void _glfwPlatformSetWindowSize( int width, int height );
-void _glfwPlatformSetWindowPos( int x, int y );
-void _glfwPlatformIconifyWindow( void );
-void _glfwPlatformRestoreWindow( void );
-void _glfwPlatformSwapBuffers( void );
-void _glfwPlatformSwapInterval( int interval );
-void _glfwPlatformRefreshWindowParams( void );
-void _glfwPlatformPollEvents( void );
-void _glfwPlatformWaitEvents( void );
-void _glfwPlatformHideMouseCursor( void );
-void _glfwPlatformShowMouseCursor( void );
-void _glfwPlatformSetMouseCursorPos( int x, int y );
+int  dmNativeOSOpenWindow( int width, int height, const Nativewndconfig *wndconfig, const Nativefbconfig *fbconfig );
+int  dmNativeOSOpenWindowVulkan( int width, int height, const Nativewndconfig *wndconfig, const Nativefbconfig *fbconfig );
+int  dmNativeOSOpenWindowOpenGL( int width, int height, const Nativewndconfig *wndconfig, const Nativefbconfig *fbconfig );
+void dmNativeOSCloseWindow( void );
+int  dmNativeOSGetWindowRefreshRate( void );
+int  dmNativeOSGetDefaultFramebuffer( void );
+void dmNativeOSSetWindowTitle( const char *title );
+void dmNativeOSSetWindowSize( int width, int height );
+void dmNativeOSSetWindowPos( int x, int y );
+void dmNativeOSIconifyWindow( void );
+void dmNativeOSRestoreWindow( void );
+void dmNativeOSSwapBuffers( void );
+void dmNativeOSSwapInterval( int interval );
+void dmNativeOSRefreshWindowParams( void );
+void dmNativeOSPollEvents( void );
+void dmNativeOSWaitEvents( void );
+void dmNativeOSHideMouseCursor( void );
+void dmNativeOSShowMouseCursor( void );
+void dmNativeOSSetMouseCursorPos( int x, int y );
 
 // Defold extensions
-int _glfwPlatformGetAcceleration(float* x, float* y, float* z);
-int _glfwPlatformQueryAuxContext();
-int _glfwPlatformQueryAuxContextVulkan();
-int _glfwPlatformQueryAuxContextOpenGL();
-void* _glfwPlatformAcquireAuxContext();
-void* _glfwPlatformAcquireAuxContextVulkan();
-void* _glfwPlatformAcquireAuxContextOpenGL();
-void _glfwPlatformUnacquireAuxContext(void* context);
-void _glfwPlatformUnacquireAuxContextVulkan(void* context);
-void _glfwPlatformUnacquireAuxContextOpenGL(void* context);
-void _glfwPlatformSetViewType(int view_type);
-void _glfwPlatformSetWindowBackgroundColor(unsigned int color);
-float _glfwPlatformGetDisplayScaleFactor();
-
-//========================================================================
-// Prototypes for platform independent internal functions
-//========================================================================
+int dmNativeOSGetAcceleration(float* x, float* y, float* z);
+int dmNativeOSQueryAuxContext();
+int dmNativeOSQueryAuxContextVulkan();
+int dmNativeOSQueryAuxContextOpenGL();
+void* dmNativeOSAcquireAuxContext();
+void* dmNativeOSAcquireAuxContextVulkan();
+void* dmNativeOSAcquireAuxContextOpenGL();
+void dmNativeOSUnacquireAuxContext(void* context);
+void dmNativeOSUnacquireAuxContextVulkan(void* context);
+void dmNativeOSUnacquireAuxContextOpenGL(void* context);
+void dmNativeOSSetViewType(int view_type);
+void dmNativeOSSetWindowBackgroundColor(unsigned int color);
+float dmNativeOSGetDisplayScaleFactor();
 
 // Window management (window.c)
-void _glfwClearWindowHints( void );
+
 
 // Input handling (window.c)
-void _glfwClearInput( void );
-void _glfwInputDeactivation( void );
-void _glfwInputKey( int key, int action );
-void _glfwInputChar( int character, int action );
-void _glfwInputMouseClick( int button, int action );
-void _glfwSetMarkedText( char* str );
-void _glfwShowKeyboard(int show, int type, int auto_close);
-void _glfwResetKeyboard( void );
-
-// Threads (thread.c)
-_GLFWthread * _glfwGetThreadPointer( int ID );
-void _glfwAppendThread( _GLFWthread * t );
-void _glfwRemoveThread( _GLFWthread * t );
+void dmNativeClearInput( void );
+void dmNativeInputDeactivation( void );
+void dmNativeInputKey( int key, int action );
+void dmNativeInputChar( int character, int action );
+void dmNativeInputMouseClick( int button, int action );
+void dmNativeSetMarkedText( char* str );
+void dmNativeShowKeyboard(int show, int type, int auto_close);
+void dmNativeResetKeyboard( void );
 
 // OpenGL extensions (glext.c)
-void _glfwParseGLVersion( int *major, int *minor, int *rev );
-int _glfwStringInExtensionString( const char *string, const GLubyte *extensions );
-void _glfwRefreshContextParams( void );
-
-// Abstracted data streams (stream.c)
-int _glfwOpenFileStream( _GLFWstream *stream, const char *name, const char *mode );
-int _glfwOpenBufferStream( _GLFWstream *stream, void *data, long size );
-long _glfwReadStream( _GLFWstream *stream, void *data, long size );
-long _glfwTellStream( _GLFWstream *stream );
-int _glfwSeekStream( _GLFWstream *stream, long offset, int whence );
-void _glfwCloseStream( _GLFWstream *stream );
-
-// Targa image I/O (tga.c)
-int _glfwReadTGA( _GLFWstream *s, GLFWimage *img, int flags );
-
-// Framebuffer configs
-const _GLFWfbconfig *_glfwChooseFBConfig( const _GLFWfbconfig *desired,
-                                          const _GLFWfbconfig *alternatives,
-                                          unsigned int count );
+void dmNativeParseGLVersion( int *major, int *minor, int *rev );
+int dmNativeStringInExtensionString( const char *string, const GLubyte *extensions );
+void dmNativeRefreshContextParams( void );
 
 // Joystick
-int _glfwInitJoysticks( void );
-void _glfwTerminateJoysticks( void );
+int dmNativeInitJoysticks( void );
+void dmNativeTerminateJoysticks( void );
 
 #endif // _internal_h_

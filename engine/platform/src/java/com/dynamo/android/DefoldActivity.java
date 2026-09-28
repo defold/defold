@@ -66,14 +66,14 @@ public class DefoldActivity extends NativeActivity {
     }
 
 
-    // Must match values from glfw.h
-    public enum GLFWKeyboardType {
-        GLFW_KEYBOARD_DEFAULT    (0),
-        GLFW_KEYBOARD_NUMBER_PAD (1),
-        GLFW_KEYBOARD_EMAIL      (2),
-        GLFW_KEYBOARD_PASSWORD   (3);
+    // Must match values from native.h
+    public enum NativeKeyboardType {
+        NATIVE_KEYBOARD_DEFAULT    (0),
+        NATIVE_KEYBOARD_NUMBER_PAD (1),
+        NATIVE_KEYBOARD_EMAIL      (2),
+        NATIVE_KEYBOARD_PASSWORD   (3);
         private final int value;
-        private GLFWKeyboardType(int value) { this.value = value; };
+        private NativeKeyboardType(int value) { this.value = value; };
         public int getValue() { return this.value; };
     }
 
@@ -144,13 +144,13 @@ public class DefoldActivity extends NativeActivity {
     /**
      * NOTE! This method only exists because of a known bug in the NDK where the KeyEvent characters are
      * not copied over to the corresponding native AInputEvent.
-     * Therefore it is implemented in android_window.c so that the characters can be sent to glfw.
+     * Therefore it is implemented in android_window.c so that the characters can be sent to dmNative.
      */
     public native void FakeBackspace();
     public native void FakeEnter();
-    public native void glfwInputBackButton();
-    public native void glfwInputCharNative(int unicode);
-    public native void glfwSetMarkedTextNative(String text);
+    public native void dmNativeInputBackButton();
+    public native void dmNativeInputCharNative(int unicode);
+    public native void dmNativeSetMarkedTextNative(String text);
 
     private boolean keyboardActive;
 
@@ -236,18 +236,18 @@ public class DefoldActivity extends NativeActivity {
         int charCount = text.length();
         for (int i = 0; i < charCount; ++i) {
             int c = text.codePointAt(i);
-            glfwInputCharNative(c);
+            dmNativeInputCharNative(c);
         }
 
         sendMarkedText("");
     }
 
     public synchronized void sendMarkedText(final String text) {
-        glfwSetMarkedTextNative(text);
+        dmNativeSetMarkedTextNative(text);
     }
 
     public static native void nativeOnCreate(Activity activity);
-    public static native void glfwSetPendingResizeBecauseOfInsets();
+    public static native void dmNativeSetPendingResizeBecauseOfInsets();
 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -280,7 +280,7 @@ public class DefoldActivity extends NativeActivity {
                     if (keyboardActive) {
                         hideSoftInput();
                     }
-                    glfwInputBackButton();
+                    dmNativeInputBackButton();
                 }
             });
         }
@@ -292,7 +292,7 @@ public class DefoldActivity extends NativeActivity {
             decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
                 @Override
                 public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-                    glfwSetPendingResizeBecauseOfInsets();
+                    dmNativeSetPendingResizeBecauseOfInsets();
                     return v.onApplyWindowInsets(insets);
                 }
             });
@@ -334,7 +334,7 @@ public class DefoldActivity extends NativeActivity {
     }
 
     /**
-     * See comment above (glfwInputCharNative) why this is needed.
+     * See comment above (dmNativeInputCharNative) why this is needed.
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
@@ -343,7 +343,7 @@ public class DefoldActivity extends NativeActivity {
             int charCount = chars.length();
             for (int i = 0; i < charCount; ++i) {
                 int c = chars.codePointAt(i);
-                glfwInputCharNative(c);
+                dmNativeInputCharNative(c);
             }
         }
         return super.dispatchKeyEvent(event);
@@ -373,13 +373,13 @@ public class DefoldActivity extends NativeActivity {
 
                 if (mUseHiddenInputField) {
 
-                    // Convert GLFW input enum into EditText enum
+                    // Convert Native input enum into EditText enum
                     final int input_type;
-                    if (keyboardType == GLFWKeyboardType.GLFW_KEYBOARD_PASSWORD.getValue()) {
+                    if (keyboardType == NativeKeyboardType.NATIVE_KEYBOARD_PASSWORD.getValue()) {
                         input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
-                    } else if (keyboardType == GLFWKeyboardType.GLFW_KEYBOARD_EMAIL.getValue()) {
+                    } else if (keyboardType == NativeKeyboardType.NATIVE_KEYBOARD_EMAIL.getValue()) {
                         input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
-                    } else if (keyboardType == GLFWKeyboardType.GLFW_KEYBOARD_NUMBER_PAD.getValue()) {
+                    } else if (keyboardType == NativeKeyboardType.NATIVE_KEYBOARD_NUMBER_PAD.getValue()) {
                         input_type = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_NORMAL;
                     } else {
                         input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
@@ -563,7 +563,7 @@ public class DefoldActivity extends NativeActivity {
 
     /**
      * Method to get device ids for any connected gamepads, joysticks etc
-     * Called from glfwAndroid.
+     * Called from dmNativeAndroid.
      * @return Array of device ids
      */
     public int[] getGameControllerDeviceIds() {
@@ -595,7 +595,7 @@ public class DefoldActivity extends NativeActivity {
 
     /**
      * Method to get controller name
-     * Called from glfwAndroid.
+     * Called from dmNativeAndroid.
      * @param deviceId
      * @return Device name
      */
@@ -613,7 +613,7 @@ public class DefoldActivity extends NativeActivity {
 
     /**
      * Method to get controller descriptor
-     * Called from glfwAndroid.
+     * Called from dmNativeAndroid.
      * @param deviceId
      * @return Device descriptor
      */
@@ -634,7 +634,7 @@ public class DefoldActivity extends NativeActivity {
 
     /**
      * Method to get controller vendor id
-     * Called from glfwAndroid.
+     * Called from dmNativeAndroid.
      * @param deviceId
      * @return Device vendor id
      */
@@ -648,7 +648,7 @@ public class DefoldActivity extends NativeActivity {
 
     /**
      * Method to get controller product id
-     * Called from glfwAndroid.
+     * Called from dmNativeAndroid.
      * @param deviceId
      * @return Device product id
      */

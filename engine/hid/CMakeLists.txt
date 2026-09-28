@@ -146,7 +146,6 @@ if(BUILD_TESTS)
 
     if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
         target_link_options(test_hid PRIVATE
-            "SHELL:--js-library=${CMAKE_CURRENT_LIST_DIR}/../platform/src/native/web/library_platform.js"
             "SHELL:--js-library=${DEFOLD_LIB_DIR}/js/library_sys.js")
     endif()
 

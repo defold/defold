@@ -14,7 +14,7 @@
 
 defold_log("functions_glfw.cmake:")
 
-# Determine GLFW major version (2 or 3) for a given target platform.
+# Determine GLFW major version (3 for desktop, 0 for native backends) for a given target platform.
 # Mirrors build_tools/waf_dynamo.py: platform_glfw_version(platform)
 #
 # Usage:
@@ -27,7 +27,7 @@ function(defold_get_glfw_version OUT_VAR PLATFORM)
         message(FATAL_ERROR "defold_get_glfw_version: PLATFORM argument is required")
     endif()
 
-    # Platforms using GLFW 3 in Waf
+    # Platforms using GLFW 3
     set(_DEFOLD_GLFW3_PLATFORMS
         x86_64-macos
         arm64-macos
@@ -38,13 +38,13 @@ function(defold_get_glfw_version OUT_VAR PLATFORM)
     if("${PLATFORM}" IN_LIST _DEFOLD_GLFW3_PLATFORMS)
         set(${OUT_VAR} 3 PARENT_SCOPE)
     else()
-        set(${OUT_VAR} 2 PARENT_SCOPE)
+        set(${OUT_VAR} 0 PARENT_SCOPE)
     endif()
 endfunction()
 
 
 # Link the appropriate GLFW library for a given platform tuple.
-# - For platforms that use GLFW 3 in Waf (macOS, Linux, Win32) link against 'glfw3'.
+# - For platforms that use GLFW 3 (macOS, Linux, Win32) link against 'glfw3'.
 # - Mobile and web implementations are part of the platform library.
 # Usage:
 #   defold_target_link_glfw(<target> <platform> [SCOPE <PRIVATE|PUBLIC|INTERFACE>])

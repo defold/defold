@@ -28,11 +28,13 @@
 //
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "internal.h"
 
 
 //************************************************************************
-//****                  GLFW internal functions                       ****
+//****                  Native internal functions                       ****
 //************************************************************************
 
 #ifndef GL_VERSION_3_0
@@ -52,60 +54,31 @@
 #define GL_CONTEXT_PROFILE_MASK           0x9126
 #endif
 
-#if defined(DMGLFW_NO_GL)
+#if defined(DM_PLATFORM_NO_OPENGL)
 
-void _glfwParseGLVersion( int *major, int *minor, int *rev )
+void dmNativeParseGLVersion( int *major, int *minor, int *rev )
 {
     *major = 0;
     *minor = 0;
     *rev = 0;
 }
 
-int _glfwStringInExtensionString( const char *string,
-                                  const GLubyte *extensions )
+
+void dmNativeRefreshContextParams( void )
 {
-    return GL_FALSE;
+    dmNativeWin.glMajor = 0;
+    dmNativeWin.glMinor = 0;
+    dmNativeWin.glRevision = 0;
+    dmNativeWin.glProfile = 0;
+    dmNativeWin.glForward = GL_FALSE;
 }
 
-void _glfwRefreshContextParams( void )
-{
-    _glfwWin.glMajor = 0;
-    _glfwWin.glMinor = 0;
-    _glfwWin.glRevision = 0;
-    _glfwWin.glProfile = 0;
-    _glfwWin.glForward = GL_FALSE;
-}
 
-GLFWAPI int GLFWAPIENTRY glfwExtensionSupported( const char *extension )
-{
-    return GL_FALSE;
-}
-
-GLFWAPI void * GLFWAPIENTRY glfwGetProcAddress( const char *procname )
+void * dmNativeGetProcAddress( const char *procname )
 {
     return NULL;
 }
 
-GLFWAPI void GLFWAPIENTRY glfwGetGLVersion( int *major, int *minor, int *rev )
-{
-    if( !_glfwInitialized || !_glfwWin.opened )
-    {
-        return;
-    }
-
-    if( major != NULL )
-    {
-        *major = 0;
-    }
-    if( minor != NULL )
-    {
-        *minor = 0;
-    }
-    if( rev != NULL )
-    {
-        *rev = 0;
-    }
-}
 
 #else
 
@@ -122,7 +95,7 @@ static void _ClearGLError()
 // Parses the OpenGL version string and extracts the version number
 //========================================================================
 
-void _glfwParseGLVersion( int *major, int *minor, int *rev )
+void dmNativeParseGLVersion( int *major, int *minor, int *rev )
 {
     glGetIntegerv(GL_MAJOR_VERSION, major);
     glGetIntegerv(GL_MINOR_VERSION, minor);
@@ -180,191 +153,66 @@ void _glfwParseGLVersion( int *major, int *minor, int *rev )
 }
 
 //========================================================================
-// Check if a string can be found in an OpenGL extension string
-//========================================================================
-
-int _glfwStringInExtensionString( const char *string,
-                                  const GLubyte *extensions )
-{
-    const GLubyte *start;
-    GLubyte *where, *terminator;
-
-    // It takes a bit of care to be fool-proof about parsing the
-    // OpenGL extensions string. Don't be fooled by sub-strings,
-    // etc.
-    start = extensions;
-    while( 1 )
-    {
-        where = (GLubyte *) strstr( (const char *) start, string );
-        if( !where )
-        {
-            return GL_FALSE;
-        }
-        terminator = where + strlen( string );
-        if( where == start || *(where - 1) == ' ' )
-        {
-            if( *terminator == ' ' || *terminator == '\0' )
-            {
-                break;
-            }
-        }
-        start = terminator;
-    }
-
-    return GL_TRUE;
-}
-
-
-//========================================================================
 // Reads back OpenGL context properties from the current context
 //========================================================================
 
-void _glfwRefreshContextParams( void )
+void dmNativeRefreshContextParams( void )
 {
-    _glfwParseGLVersion( &_glfwWin.glMajor, &_glfwWin.glMinor,
-                         &_glfwWin.glRevision );
+    dmNativeParseGLVersion( &dmNativeWin.glMajor, &dmNativeWin.glMinor,
+                         &dmNativeWin.glRevision );
 
-    _glfwWin.glProfile = 0;
-    _glfwWin.glForward = GL_FALSE;
+    dmNativeWin.glProfile = 0;
+    dmNativeWin.glForward = GL_FALSE;
 
     // Read back the context profile, if applicable
-    if( _glfwWin.glMajor >= 3 )
+    if( dmNativeWin.glMajor >= 3 )
     {
         GLint flags;
         glGetIntegerv( GL_CONTEXT_FLAGS, &flags );
         _ClearGLError();
         if( flags & GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT )
         {
-            _glfwWin.glForward = GL_TRUE;
+            dmNativeWin.glForward = GL_TRUE;
         }
     }
 
-    if( _glfwWin.glMajor > 3 ||
-        ( _glfwWin.glMajor == 3 && _glfwWin.glMinor >= 2 ) )
+    if( dmNativeWin.glMajor > 3 ||
+        ( dmNativeWin.glMajor == 3 && dmNativeWin.glMinor >= 2 ) )
     {
         GLint mask;
         glGetIntegerv( GL_CONTEXT_PROFILE_MASK, &mask );
         _ClearGLError();
         if( mask & GL_CONTEXT_COMPATIBILITY_PROFILE_BIT )
         {
-            _glfwWin.glProfile = GLFW_OPENGL_COMPAT_PROFILE;
+            dmNativeWin.glProfile = NATIVE_OPENGL_COMPAT_PROFILE;
         }
         else if( mask & GL_CONTEXT_CORE_PROFILE_BIT )
         {
-            _glfwWin.glProfile = GLFW_OPENGL_CORE_PROFILE;
+            dmNativeWin.glProfile = NATIVE_OPENGL_CORE_PROFILE;
         }
     }
 }
 
 
 //************************************************************************
-//****                    GLFW user functions                         ****
+//****                    Native backend functions                         ****
 //************************************************************************
-
-//========================================================================
-// Check if an OpenGL extension is available at runtime
-//========================================================================
-
-GLFWAPI int GLFWAPIENTRY glfwExtensionSupported( const char *extension )
-{
-    const GLubyte *extensions;
-    GLubyte *where;
-    GLint count;
-    int i;
-
-    // Is GLFW initialized?
-    if( !_glfwInitialized || !_glfwWin.opened )
-    {
-        return GL_FALSE;
-    }
-
-    // Extension names should not have spaces
-    where = (GLubyte *) strchr( extension, ' ' );
-    if( where || *extension == '\0' )
-    {
-        return GL_FALSE;
-    }
-
-    if( _glfwWin.glMajor < 3 || _glfwWin.GetStringi == NULL)
-    {
-        // Check if extension is in the old style OpenGL extensions string
-
-        extensions = glGetString( GL_EXTENSIONS );
-        if( extensions != NULL )
-        {
-            if( _glfwStringInExtensionString( extension, extensions ) )
-            {
-                return GL_TRUE;
-            }
-        }
-    }
-    else
-    {
-        // Check if extension is in the modern OpenGL extensions string list
-
-        glGetIntegerv( GL_NUM_EXTENSIONS, &count );
-
-        for( i = 0;  i < count;  i++ )
-        {
-             if( strcmp( (const char*) _glfwWin.GetStringi( GL_EXTENSIONS, i ),
-                         extension ) == 0 )
-             {
-                 return GL_TRUE;
-             }
-        }
-    }
-
-    // Additional platform specific extension checking (e.g. WGL)
-    if( _glfwPlatformExtensionSupported( extension ) )
-    {
-        return GL_TRUE;
-    }
-
-    return GL_FALSE;
-}
-
 
 //========================================================================
 // Get the function pointer to an OpenGL function.  This function can be
 // used to get access to extended OpenGL functions.
 //========================================================================
 
-GLFWAPI void * GLFWAPIENTRY glfwGetProcAddress( const char *procname )
+void * dmNativeGetProcAddress( const char *procname )
 {
-    // Is GLFW initialized?
-    if( !_glfwInitialized || !_glfwWin.opened )
+    // Is Native initialized?
+    if( !dmNativeInitialized || !dmNativeWin.opened )
     {
         return NULL;
     }
 
-    return _glfwPlatformGetProcAddress( procname );
+    return dmNativeOSGetProcAddress( procname );
 }
 
-
-//========================================================================
-// Returns the OpenGL version
-//========================================================================
-
-GLFWAPI void GLFWAPIENTRY glfwGetGLVersion( int *major, int *minor, int *rev )
-{
-    // Is GLFW initialized?
-    if( !_glfwInitialized || !_glfwWin.opened )
-    {
-        return;
-    }
-
-    if( major != NULL )
-    {
-        *major = _glfwWin.glMajor;
-    }
-    if( minor != NULL )
-    {
-        *minor = _glfwWin.glMinor;
-    }
-    if( rev != NULL )
-    {
-        *rev = _glfwWin.glRevision;
-    }
-}
 
 #endif

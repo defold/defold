@@ -17,13 +17,13 @@
 
 #include "native.h"
 
-int glfwInitJS( void );
+int dmNativeInitJS( void );
 
 struct {
 
-    GLFWTouch Touch[GLFW_MAX_TOUCH];
+    NativeTouch Touch[NATIVE_MAX_TOUCH];
 
-} _glfwInput;
+} dmNativeInput;
 
 
 #endif // _platform_h_

@@ -20,7 +20,7 @@
 
 extern AppDelegate* g_ApplicationDelegate;
 extern UIWindow* g_ApplicationWindow;
-extern _GLFWwin g_Savewin;
+extern Nativewin g_Savewin;
 
 #define MAX_SCENE_DELEGATES (32)
 static id<UISceneDelegate> g_SceneDelegates[MAX_SCENE_DELEGATES];
@@ -38,12 +38,12 @@ static void SetSceneActive(BOOL active)
 {
     BOOL changed = g_SceneActive != active;
     g_SceneActive = active;
-    _glfwWin.iconified = !active;
-    if (changed && _glfwWin.windowFocusCallback)
-        _glfwWin.windowFocusCallback(active);
+    dmNativeWin.iconified = !active;
+    if (changed && dmNativeWin.windowFocusCallback)
+        dmNativeWin.windowFocusCallback(active);
 }
 
-int _glfwPlatformIsSceneActive(void)
+int dmNativeOSIsSceneActive(void)
 {
     return g_ConnectedScene != nil && g_SceneActive;
 }
@@ -78,14 +78,14 @@ int _glfwPlatformIsSceneActive(void)
     SetSceneActive(NO);
     self.window = [[[UIWindow alloc] initWithWindowScene:(UIWindowScene*)scene] autorelease];
     g_ApplicationWindow = window;
-    _glfwWin.window = window;
+    dmNativeWin.window = window;
 
     // The app owns the controller/render view across disconnection. Do not destroy
     // the engine or its graphics contexts when UIKit disconnects the window.
     if (!g_ApplicationDelegate.viewController)
         g_ApplicationDelegate.viewController = [[[ViewController alloc] init] autorelease];
     window.rootViewController = g_ApplicationDelegate.viewController;
-    _glfwWin.viewController = g_ApplicationDelegate.viewController;
+    dmNativeWin.viewController = g_ApplicationDelegate.viewController;
 
     NSString* launchScreenName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UILaunchStoryboardName"];
     if (launchScreenName)
@@ -116,7 +116,7 @@ int _glfwPlatformIsSceneActive(void)
         window.rootViewController = nil;
         window.windowScene = nil;
         g_ApplicationWindow = nil;
-        _glfwWin.window = nil;
+        dmNativeWin.window = nil;
         g_Savewin.window = nil;
         g_ConnectedScene = nil;
         self.window = nil;
@@ -144,7 +144,7 @@ int _glfwPlatformIsSceneActive(void)
     if (scene == g_ConnectedScene)
     {
         SetSceneActive(NO);
-        if (_glfwWin.clientAPI == GLFW_OPENGL_API)
+        if (dmNativeWin.clientAPI == NATIVE_OPENGL_API)
         {
             [g_ApplicationDelegate.viewController.baseView setCurrentContext];
             glFinish();
@@ -229,7 +229,7 @@ int _glfwPlatformIsSceneActive(void)
 
 @end
 
-GLFWAPI void glfwRegisterUISceneDelegate(void* delegate)
+void dmNativeRegisterUISceneDelegate(void* delegate)
 {
     assert([NSThread isMainThread]);
     if (!delegate)
@@ -245,7 +245,7 @@ GLFWAPI void glfwRegisterUISceneDelegate(void* delegate)
         g_SceneDelegates[g_SceneDelegateCount++] = (id<UISceneDelegate>)delegate;
 }
 
-GLFWAPI void glfwUnregisterUISceneDelegate(void* delegate)
+void dmNativeUnregisterUISceneDelegate(void* delegate)
 {
     assert([NSThread isMainThread]);
     for (int i = 0; i < g_SceneDelegateCount; ++i)

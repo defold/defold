@@ -4,6 +4,8 @@
 // API version: 2.7
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "android_window_backend.h"
 #include "android_util.h"
 
@@ -11,79 +13,79 @@ static int g_PendingResizeBecauseOfInsets = 0;
 
 static void UpdateNoApiWindowSize(void)
 {
-    ANativeWindow* window = glfwAcquireAndroidWindow();
+    ANativeWindow* window = dmNativeAcquireAndroidWindow();
     if (window)
     {
         int w = ANativeWindow_getWidth(window);
         int h = ANativeWindow_getHeight(window);
-        glfwReleaseAndroidWindow(window);
-        if ((_glfwWin.width != w || _glfwWin.height != h) && _glfwWin.windowSizeCallback)
+        dmNativeReleaseAndroidWindow(window);
+        if ((dmNativeWin.width != w || dmNativeWin.height != h) && dmNativeWin.windowSizeCallback)
         {
-            _glfwWin.windowSizeCallback(w, h);
+            dmNativeWin.windowSizeCallback(w, h);
         }
-        _glfwWin.width = w;
-        _glfwWin.height = h;
+        dmNativeWin.width = w;
+        dmNativeWin.height = h;
     }
 }
 
-int _glfwAndroidPlatformGetWindowRefreshRate(void)
+int dmNativeAndroidPlatformGetWindowRefreshRate(void)
 {
     return 0;
 }
 
-int _glfwAndroidPlatformOpenWindow(int width, int height, const _GLFWwndconfig* wndconfig, const _GLFWfbconfig* fbconfig)
+int dmNativeAndroidPlatformOpenWindow(int width, int height, const Nativewndconfig* wndconfig, const Nativefbconfig* fbconfig)
 {
     (void)width;
     (void)height;
     (void)fbconfig;
 
-    _glfwWin.clientAPI = wndconfig->clientAPI;
-    return _glfwWin.clientAPI == GLFW_NO_API ? GL_TRUE : GL_FALSE;
+    dmNativeWin.clientAPI = wndconfig->clientAPI;
+    return dmNativeWin.clientAPI == NATIVE_NO_API ? GL_TRUE : GL_FALSE;
 }
 
-void _glfwAndroidPlatformCloseWindow(void)
+void dmNativeAndroidPlatformCloseWindow(void)
 {
 }
 
-void _glfwAndroidPlatformSwapBuffers(void)
+void dmNativeAndroidPlatformSwapBuffers(void)
 {
 }
 
-void _glfwAndroidPlatformSwapInterval(int interval)
+void dmNativeAndroidPlatformSwapInterval(int interval)
 {
     (void)interval;
 }
 
-int32_t _glfwAndroidPlatformVerifySurface(void)
+int32_t dmNativeAndroidPlatformVerifySurface(void)
 {
     return 1;
 }
 
-void _glfwAndroidPlatformSetPendingResizeBecauseOfInsets(void)
+void dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets(void)
 {
     g_PendingResizeBecauseOfInsets = 1;
 }
 
-void _glfwAndroidPlatformOnTermWindow(void)
+void dmNativeAndroidPlatformOnTermWindow(void)
 {
 }
 
-void _glfwAndroidPlatformOnInitWindow(void)
+void dmNativeAndroidPlatformOnInitWindow(void)
 {
     UpdateNoApiWindowSize();
 }
 
-void _glfwAndroidPlatformOnGainedFocus(void)
+void dmNativeAndroidPlatformOnGainedFocus(void)
 {
 }
 
-void _glfwAndroidPlatformOnResize(void)
+void dmNativeAndroidPlatformOnResize(void)
 {
     UpdateNoApiWindowSize();
     g_PendingResizeBecauseOfInsets = 0;
 }
 
-void _glfwAndroidPlatformAfterFlushEvents(void)
+void dmNativeAndroidPlatformAfterFlushEvents(void)
 {
     if (g_PendingResizeBecauseOfInsets)
     {
@@ -92,21 +94,21 @@ void _glfwAndroidPlatformAfterFlushEvents(void)
     }
 }
 
-void _glfwAndroidPlatformDestroyWindow(void)
+void dmNativeAndroidPlatformDestroyWindow(void)
 {
 }
 
-int _glfwAndroidPlatformQueryAuxContext(void)
-{
-    return 0;
-}
-
-void* _glfwAndroidPlatformAcquireAuxContext(void)
+int dmNativeAndroidPlatformQueryAuxContext(void)
 {
     return 0;
 }
 
-void _glfwAndroidPlatformUnacquireAuxContext(void* context)
+void* dmNativeAndroidPlatformAcquireAuxContext(void)
+{
+    return 0;
+}
+
+void dmNativeAndroidPlatformUnacquireAuxContext(void* context)
 {
     (void)context;
 }

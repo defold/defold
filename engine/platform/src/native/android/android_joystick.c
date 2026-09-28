@@ -22,21 +22,21 @@
 #define DEVICE_ID_NONE (-1000)
 #define SDL_ANDROID_GAMEPAD_BUS 0x0005 // Bluetooth
 
-static int glfwAndroidJoystickPresent( int joy )
+static int dmNativeAndroidJoystickPresent( int joy )
 {
-    if (joy >= 0 && joy <= GLFW_JOYSTICK_LAST && _glfwJoy[joy].State == GLFW_ANDROID_GAMEPAD_CONNECTED)
+    if (joy >= 0 && joy <= NATIVE_JOYSTICK_LAST && dmNativeJoy[joy].State == NATIVE_ANDROID_GAMEPAD_CONNECTED)
     {
         return GL_TRUE;
     }
     return GL_FALSE;
 }
 
-static int glfwAndroidFindJoystick(const int32_t deviceId)
+static int dmNativeAndroidFindJoystick(const int32_t deviceId)
 {
     int32_t joystickIndex;
-    for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
+    for (joystickIndex = 0; joystickIndex <= NATIVE_JOYSTICK_LAST; joystickIndex++)
     {
-        if (_glfwJoy[joystickIndex].DeviceId == deviceId)
+        if (dmNativeJoy[joystickIndex].DeviceId == deviceId)
         {
             return joystickIndex;
         }
@@ -44,40 +44,40 @@ static int glfwAndroidFindJoystick(const int32_t deviceId)
     return -1;
 }
 
-static int32_t glfwAndroidConnectJoystick(int32_t deviceId, const char* deviceName, const char* deviceGuid)
+static int32_t dmNativeAndroidConnectJoystick(int32_t deviceId, const char* deviceName, const char* deviceGuid)
 {
     int32_t joystickIndex = -1;
-    for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
+    for (joystickIndex = 0; joystickIndex <= NATIVE_JOYSTICK_LAST; joystickIndex++)
     {
-        if (_glfwJoy[joystickIndex].State == GLFW_ANDROID_GAMEPAD_DISCONNECTED)
+        if (dmNativeJoy[joystickIndex].State == NATIVE_ANDROID_GAMEPAD_DISCONNECTED)
         {
-            _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_CONNECTED;
-            _glfwJoy[joystickIndex].DeviceId = deviceId;
-            _glfwJoy[joystickIndex].NumAxes = GLFW_ANDROID_GAMEPAD_NUMAXIS;
-            _glfwJoy[joystickIndex].NumButtons = GLFW_ANDROID_GAMEPAD_NUMBUTTONS;
-            strncpy(_glfwJoy[joystickIndex].DeviceName, deviceName, DEVICE_NAME_LENGTH - 1);
-            _glfwJoy[joystickIndex].DeviceName[DEVICE_NAME_LENGTH - 1] = '\0';
-            strncpy(_glfwJoy[joystickIndex].DeviceGuid, deviceGuid, DEVICE_GUID_LENGTH);
-            _glfwJoy[joystickIndex].DeviceGuid[DEVICE_GUID_LENGTH] = '\0';
-            memset(_glfwJoy[joystickIndex].Axis, 0, sizeof(_glfwJoy[joystickIndex].Axis));
-            memset(_glfwJoy[joystickIndex].Button, 0, sizeof(_glfwJoy[joystickIndex].Button));
+            dmNativeJoy[joystickIndex].State = NATIVE_ANDROID_GAMEPAD_CONNECTED;
+            dmNativeJoy[joystickIndex].DeviceId = deviceId;
+            dmNativeJoy[joystickIndex].NumAxes = NATIVE_ANDROID_GAMEPAD_NUMAXIS;
+            dmNativeJoy[joystickIndex].NumButtons = NATIVE_ANDROID_GAMEPAD_NUMBUTTONS;
+            strncpy(dmNativeJoy[joystickIndex].DeviceName, deviceName, DEVICE_NAME_LENGTH - 1);
+            dmNativeJoy[joystickIndex].DeviceName[DEVICE_NAME_LENGTH - 1] = '\0';
+            strncpy(dmNativeJoy[joystickIndex].DeviceGuid, deviceGuid, DEVICE_GUID_LENGTH);
+            dmNativeJoy[joystickIndex].DeviceGuid[DEVICE_GUID_LENGTH] = '\0';
+            memset(dmNativeJoy[joystickIndex].Axis, 0, sizeof(dmNativeJoy[joystickIndex].Axis));
+            memset(dmNativeJoy[joystickIndex].Button, 0, sizeof(dmNativeJoy[joystickIndex].Button));
 
-            _glfwWin.gamepadCallback(joystickIndex, 1);
+            dmNativeWin.gamepadCallback(joystickIndex, 1);
             break;
         }
     }
     return joystickIndex;
 }
 
-static void glfwAndroidDisconnectJoystick(const int joystickIndex)
+static void dmNativeAndroidDisconnectJoystick(const int joystickIndex)
 {
-    if (_glfwJoy[joystickIndex].State != GLFW_ANDROID_GAMEPAD_DISCONNECTED)
+    if (dmNativeJoy[joystickIndex].State != NATIVE_ANDROID_GAMEPAD_DISCONNECTED)
     {
-        _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_DISCONNECTED;
-        _glfwJoy[joystickIndex].DeviceId = DEVICE_ID_NONE;
-        _glfwJoy[joystickIndex].NumAxes = 0;
-        _glfwJoy[joystickIndex].NumButtons = 0;
-        _glfwWin.gamepadCallback(joystickIndex, 0);
+        dmNativeJoy[joystickIndex].State = NATIVE_ANDROID_GAMEPAD_DISCONNECTED;
+        dmNativeJoy[joystickIndex].DeviceId = DEVICE_ID_NONE;
+        dmNativeJoy[joystickIndex].NumAxes = 0;
+        dmNativeJoy[joystickIndex].NumButtons = 0;
+        dmNativeWin.gamepadCallback(joystickIndex, 0);
     }
 }
 
@@ -85,7 +85,7 @@ static void glfwAndroidDisconnectJoystick(const int joystickIndex)
 // Update joystick axis
 //========================================================================
 
-static int glfwAndroidMotionToJoystickAxis(int motionAxis)
+static int dmNativeAndroidMotionToJoystickAxis(int motionAxis)
 {
     switch(motionAxis)
     {
@@ -101,31 +101,31 @@ static int glfwAndroidMotionToJoystickAxis(int motionAxis)
     }
 }
 
-static void glfwAndroidUpdateAxisValue(const int joystickIndex, const AInputEvent* event, int motionAxis)
+static void dmNativeAndroidUpdateAxisValue(const int joystickIndex, const AInputEvent* event, int motionAxis)
 {
     float axisValue = AMotionEvent_getAxisValue(event, motionAxis, 0);
 
 
-    int axis = glfwAndroidMotionToJoystickAxis(motionAxis);
+    int axis = dmNativeAndroidMotionToJoystickAxis(motionAxis);
     if (axis >= 0)
     {
-        _glfwJoy[joystickIndex].Axis[axis] = axisValue;
+        dmNativeJoy[joystickIndex].Axis[axis] = axisValue;
     }
 }
 
-static void glfwAndroidUpdateAxis(const AInputEvent* event)
+static void dmNativeAndroidUpdateAxis(const AInputEvent* event)
 {
-    const int32_t joystickIndex = glfwAndroidFindJoystick(AInputEvent_getDeviceId(event));
+    const int32_t joystickIndex = dmNativeAndroidFindJoystick(AInputEvent_getDeviceId(event));
     if (joystickIndex >= 0)
     {
-        glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_X);
-        glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_Y);
-        glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_Z);
-        glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_RZ);
-        glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_LTRIGGER);
-        glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_RTRIGGER);
-        glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_HAT_X);
-        glfwAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_HAT_Y);
+        dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_X);
+        dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_Y);
+        dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_Z);
+        dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_RZ);
+        dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_LTRIGGER);
+        dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_RTRIGGER);
+        dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_HAT_X);
+        dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_HAT_Y);
     }
 }
 
@@ -134,7 +134,7 @@ static void glfwAndroidUpdateAxis(const AInputEvent* event)
 // Update joystick buttons
 //========================================================================
 
-static int glfwAndroidKeycodeToJoystickButton(int keyCode)
+static int dmNativeAndroidKeycodeToJoystickButton(int keyCode)
 {
     switch(keyCode)
     {
@@ -178,17 +178,17 @@ static int glfwAndroidKeycodeToJoystickButton(int keyCode)
     }
 }
 
-static void glfwAndroidUpdateButton(const AInputEvent* event)
+static void dmNativeAndroidUpdateButton(const AInputEvent* event)
 {
     const int32_t keyCode = AKeyEvent_getKeyCode(event);
-    const int32_t joystickIndex = glfwAndroidFindJoystick(AInputEvent_getDeviceId(event));
+    const int32_t joystickIndex = dmNativeAndroidFindJoystick(AInputEvent_getDeviceId(event));
     const int32_t action = AKeyEvent_getAction(event);
     if (joystickIndex >= 0)
     {
-        int button = glfwAndroidKeycodeToJoystickButton(keyCode);
+        int button = dmNativeAndroidKeycodeToJoystickButton(keyCode);
         if (button != -1)
         {
-            _glfwJoy[joystickIndex].Button[button] = (action == AKEY_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
+            dmNativeJoy[joystickIndex].Button[button] = (action == AKEY_EVENT_ACTION_DOWN) ? NATIVE_PRESS : NATIVE_RELEASE;
         }
     }
 }
@@ -198,35 +198,35 @@ static void glfwAndroidUpdateButton(const AInputEvent* event)
 // Update joystick dpad
 //========================================================================
 
-static void glfwAndroidUpdateDpad(const AInputEvent* event)
+static void dmNativeAndroidUpdateDpad(const AInputEvent* event)
 {
-    const int32_t joystickIndex = glfwAndroidFindJoystick(AInputEvent_getDeviceId(event));
+    const int32_t joystickIndex = dmNativeAndroidFindJoystick(AInputEvent_getDeviceId(event));
     const int32_t action = AMotionEvent_getAction(event);
     const int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
     if (joystickIndex >= 0)
     {
-        _glfwJoy[joystickIndex].Hats = GLFW_HAT_CENTERED;
+        dmNativeJoy[joystickIndex].Hats = NATIVE_HAT_CENTERED;
         float hatX = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_HAT_X, 0);
         if (hatX == 1.0f)
         {
-            _glfwJoy[joystickIndex].Button[glfwAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_RIGHT)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
-            _glfwJoy[joystickIndex].Hats |= GLFW_HAT_RIGHT;
+            dmNativeJoy[joystickIndex].Button[dmNativeAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_RIGHT)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? NATIVE_PRESS : NATIVE_RELEASE;
+            dmNativeJoy[joystickIndex].Hats |= NATIVE_HAT_RIGHT;
         }
         else if (hatX == -1.0f)
         {
-            _glfwJoy[joystickIndex].Button[glfwAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_LEFT)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
-            _glfwJoy[joystickIndex].Hats |= GLFW_HAT_LEFT;
+            dmNativeJoy[joystickIndex].Button[dmNativeAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_LEFT)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? NATIVE_PRESS : NATIVE_RELEASE;
+            dmNativeJoy[joystickIndex].Hats |= NATIVE_HAT_LEFT;
         }
         float hatY = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_HAT_Y, 0);
         if (hatY == 1.0f)
         {
-            _glfwJoy[joystickIndex].Button[glfwAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_DOWN)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
-            _glfwJoy[joystickIndex].Hats |= GLFW_HAT_DOWN;
+            dmNativeJoy[joystickIndex].Button[dmNativeAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_DOWN)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? NATIVE_PRESS : NATIVE_RELEASE;
+            dmNativeJoy[joystickIndex].Hats |= NATIVE_HAT_DOWN;
         }
         else if (hatY == -1.0f)
         {
-            _glfwJoy[joystickIndex].Button[glfwAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_UP)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? GLFW_PRESS : GLFW_RELEASE;
-            _glfwJoy[joystickIndex].Hats |= GLFW_HAT_UP;
+            dmNativeJoy[joystickIndex].Button[dmNativeAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_UP)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? NATIVE_PRESS : NATIVE_RELEASE;
+            dmNativeJoy[joystickIndex].Hats |= NATIVE_HAT_UP;
         }
     }
 }
@@ -237,7 +237,7 @@ static void glfwAndroidUpdateDpad(const AInputEvent* event)
 // Called from android_init.c when input events are processed
 //========================================================================
 
-void glfwAndroidUpdateJoystick(const AInputEvent* event)
+void dmNativeAndroidUpdateJoystick(const AInputEvent* event)
 {
     const int32_t source = AInputEvent_getSource(event);
     const int32_t type = AInputEvent_getType(event);
@@ -247,28 +247,25 @@ void glfwAndroidUpdateJoystick(const AInputEvent* event)
     {
         if (type == AINPUT_EVENT_TYPE_KEY)
         {
-            glfwAndroidUpdateButton(event);
+            dmNativeAndroidUpdateButton(event);
         }
     }
     else if ((source & AINPUT_SOURCE_JOYSTICK) != 0)
     {
         if ((type == AINPUT_EVENT_TYPE_MOTION) && ((action & AMOTION_EVENT_ACTION_MASK) == AMOTION_EVENT_ACTION_MOVE))
         {
-            glfwAndroidUpdateAxis(event);
-            glfwAndroidUpdateDpad(event);
+            dmNativeAndroidUpdateAxis(event);
+            dmNativeAndroidUpdateDpad(event);
         }
     }
     else if ((source & AINPUT_SOURCE_DPAD) != 0)
     {
         if ((type == AINPUT_EVENT_TYPE_MOTION) && ((action & AMOTION_EVENT_ACTION_MASK) == AMOTION_EVENT_ACTION_MOVE))
         {
-            glfwAndroidUpdateDpad(event);
+            dmNativeAndroidUpdateDpad(event);
         }
     }
 }
-
-
-
 
 
 //========================================================================
@@ -276,7 +273,7 @@ void glfwAndroidUpdateJoystick(const AInputEvent* event)
 // Called from android_window.c each frame
 //========================================================================
 
-void glfwAndroidDiscoverJoysticks()
+void dmNativeAndroidDiscoverJoysticks()
 {
     int32_t joystickIndex;
     int discovery_succeeded = 0;
@@ -342,11 +339,11 @@ void glfwAndroidDiscoverJoysticks()
 
         // Prepare connected gamepads to be refreshed only after discovery has
         // returned a valid array. Earlier failures must leave their state intact.
-        for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
+        for (joystickIndex = 0; joystickIndex <= NATIVE_JOYSTICK_LAST; joystickIndex++)
         {
-            if (_glfwJoy[joystickIndex].State == GLFW_ANDROID_GAMEPAD_CONNECTED)
+            if (dmNativeJoy[joystickIndex].State == NATIVE_ANDROID_GAMEPAD_CONNECTED)
             {
-                _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_REFRESHING;
+                dmNativeJoy[joystickIndex].State = NATIVE_ANDROID_GAMEPAD_REFRESHING;
             }
         }
         discovery_succeeded = 1;
@@ -354,7 +351,7 @@ void glfwAndroidDiscoverJoysticks()
         for (int i=0; i<device_ids_len; i++)
         {
             int32_t deviceId = device_ids_elements[i];
-            int deviceIndex = glfwAndroidFindJoystick(deviceId);
+            int deviceIndex = dmNativeAndroidFindJoystick(deviceId);
             if (deviceIndex == -1)
             {
                 jint jni_device_id = deviceId;
@@ -408,9 +405,9 @@ void glfwAndroidDiscoverJoysticks()
                 }
 
                 char deviceGuid[DEVICE_GUID_LENGTH + 1];
-                glfwCreateJoystickDeviceGuid(SDL_ANDROID_GAMEPAD_BUS, (unsigned short) vendor_id, (unsigned short) product_id,
+                dmNativeCreateJoystickDeviceGuid(SDL_ANDROID_GAMEPAD_BUS, (unsigned short) vendor_id, (unsigned short) product_id,
                     0, 0, deviceDescriptor, 0, 0, deviceGuid);
-                deviceIndex = glfwAndroidConnectJoystick(deviceId, deviceName, deviceGuid);
+                deviceIndex = dmNativeAndroidConnectJoystick(deviceId, deviceName, deviceGuid);
 cleanup_and_break:
                 if (deviceDescriptor != 0)
                 {
@@ -435,7 +432,7 @@ cleanup_and_break:
             }
             else
             {
-                _glfwJoy[deviceIndex].State = GLFW_ANDROID_GAMEPAD_CONNECTED;
+                dmNativeJoy[deviceIndex].State = NATIVE_ANDROID_GAMEPAD_CONNECTED;
             }
         }
 
@@ -452,17 +449,17 @@ cleanup_and_early_exit:
     }
 
     // disconnect gamepads that we failed to refresh
-    for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
+    for (joystickIndex = 0; joystickIndex <= NATIVE_JOYSTICK_LAST; joystickIndex++)
     {
-        if (_glfwJoy[joystickIndex].State == GLFW_ANDROID_GAMEPAD_REFRESHING)
+        if (dmNativeJoy[joystickIndex].State == NATIVE_ANDROID_GAMEPAD_REFRESHING)
         {
             if (discovery_succeeded)
             {
-                glfwAndroidDisconnectJoystick(joystickIndex);
+                dmNativeAndroidDisconnectJoystick(joystickIndex);
             }
             else
             {
-                _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_CONNECTED;
+                dmNativeJoy[joystickIndex].State = NATIVE_ANDROID_GAMEPAD_CONNECTED;
             }
         }
     }
@@ -471,28 +468,28 @@ cleanup_and_early_exit:
 
 //========================================================================
 // Determine joystick capabilities
-// Called by glfw
+// Called by dmNative
 //========================================================================
 
-int _glfwPlatformGetJoystickParam( int joy, int param )
+int dmNativeOSGetJoystickParam( int joy, int param )
 {
-    if( !glfwAndroidJoystickPresent( joy ) )
+    if( !dmNativeAndroidJoystickPresent( joy ) )
     {
         return 0;
     }
 
     switch( param )
     {
-    case GLFW_PRESENT:
+    case NATIVE_PRESENT:
         return GL_TRUE;
 
-    case GLFW_AXES:
-        return _glfwJoy[ joy ].NumAxes;
+    case NATIVE_AXES:
+        return dmNativeJoy[ joy ].NumAxes;
 
-    case GLFW_BUTTONS:
-        return _glfwJoy[ joy ].NumButtons;
+    case NATIVE_BUTTONS:
+        return dmNativeJoy[ joy ].NumButtons;
 
-    case GLFW_HATS:
+    case NATIVE_HATS:
         return 1;
 
     default:
@@ -505,28 +502,28 @@ int _glfwPlatformGetJoystickParam( int joy, int param )
 
 //========================================================================
 // Get joystick axis positions
-// Called by glfw
+// Called by dmNative
 //========================================================================
 
-int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes )
+int dmNativeOSGetJoystickPos( int joy, float *pos, int numaxes )
 {
     int i;
 
-    if( !glfwAndroidJoystickPresent( joy ) )
+    if( !dmNativeAndroidJoystickPresent( joy ) )
     {
         return 0;
     }
 
     // Does the joystick support less axes than requested?
-    if( _glfwJoy[ joy ].NumAxes < numaxes )
+    if( dmNativeJoy[ joy ].NumAxes < numaxes )
     {
-        numaxes = _glfwJoy[ joy ].NumAxes;
+        numaxes = dmNativeJoy[ joy ].NumAxes;
     }
 
     // Copy axis positions from internal state
     for( i = 0; i < numaxes; ++ i )
     {
-        pos[ i ] = _glfwJoy[ joy ].Axis[ i ];
+        pos[ i ] = dmNativeJoy[ joy ].Axis[ i ];
     }
 
     return 0;
@@ -535,28 +532,28 @@ int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes )
 
 //========================================================================
 // Get joystick button states
-// Called by glfw
+// Called by dmNative
 //========================================================================
 
-int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons )
+int dmNativeOSGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons )
 {
     int i;
 
-    if( !glfwAndroidJoystickPresent( joy ) )
+    if( !dmNativeAndroidJoystickPresent( joy ) )
     {
         return 0;
     }
 
     // Does the joystick support less buttons than requested?
-    if( _glfwJoy[ joy ].NumButtons < numbuttons )
+    if( dmNativeJoy[ joy ].NumButtons < numbuttons )
     {
-        numbuttons = _glfwJoy[ joy ].NumButtons;
+        numbuttons = dmNativeJoy[ joy ].NumButtons;
     }
 
     // Copy button states from internal state
     for( i = 0; i < numbuttons; ++ i )
     {
-        buttons[ i ] = _glfwJoy[ joy ].Button[ i ];
+        buttons[ i ] = dmNativeJoy[ joy ].Button[ i ];
     }
 
     return numbuttons;
@@ -565,60 +562,60 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbut
 
 //========================================================================
 // Get joystick hats states
-// Called by glfw
+// Called by dmNative
 //========================================================================
 
-int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
+int dmNativeOSGetJoystickHats( int joy, unsigned char *hats, int numhats )
 {
-    if( !glfwAndroidJoystickPresent( joy ) )
+    if( !dmNativeAndroidJoystickPresent( joy ) )
     {
         return 0;
     }
-    hats[0] |= _glfwJoy[ joy ].Hats;
+    hats[0] |= dmNativeJoy[ joy ].Hats;
     return 1;
 }
 
 
 //========================================================================
-// _glfwPlatformGetJoystickDeviceId() - Get joystick device id
-// Called by glfw
+// dmNativeOSGetJoystickDeviceId() - Get joystick device id
+// Called by dmNative
 //========================================================================
 
-int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
+int dmNativeOSGetJoystickDeviceId( int joy, char** device_id )
 {
-    if( !glfwAndroidJoystickPresent( joy ) )
+    if( !dmNativeAndroidJoystickPresent( joy ) )
     {
         return GL_FALSE;
     }
     else
     {
-        *device_id = (char*) _glfwJoy[ joy ].DeviceName;
+        *device_id = (char*) dmNativeJoy[ joy ].DeviceName;
         return GL_TRUE;
     }
 }
 
 // DEFOLD
-GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceGuid( int joy, char** device_guid )
+int dmNativeGetJoystickDeviceGuid( int joy, char** device_guid )
 {
-    if( !glfwAndroidJoystickPresent( joy ) )
+    if( !dmNativeAndroidJoystickPresent( joy ) )
     {
         return GL_FALSE;
     }
 
-    *device_guid = (char*) _glfwJoy[ joy ].DeviceGuid;
+    *device_guid = (char*) dmNativeJoy[ joy ].DeviceGuid;
     return GL_TRUE;
 }
 
-void _glfwTerminateJoysticks( void )
+void dmNativeTerminateJoysticks( void )
 {
-    LOGI("_glfwTerminateJoysticks");
+    LOGI("dmNativeTerminateJoysticks");
     int32_t joystickIndex = -1;
-    for( joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++ )
+    for( joystickIndex = 0; joystickIndex <= NATIVE_JOYSTICK_LAST; joystickIndex++ )
     {
-        _glfwJoy[joystickIndex].State = GLFW_ANDROID_GAMEPAD_DISCONNECTED;
-        _glfwJoy[joystickIndex].DeviceId = DEVICE_ID_NONE;
-        _glfwJoy[joystickIndex].NumAxes = 0;
-        _glfwJoy[joystickIndex].NumButtons = 0;
+        dmNativeJoy[joystickIndex].State = NATIVE_ANDROID_GAMEPAD_DISCONNECTED;
+        dmNativeJoy[joystickIndex].DeviceId = DEVICE_ID_NONE;
+        dmNativeJoy[joystickIndex].NumAxes = 0;
+        dmNativeJoy[joystickIndex].NumButtons = 0;
     }
 
 }

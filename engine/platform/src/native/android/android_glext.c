@@ -28,6 +28,8 @@
 //
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "internal.h"
 
 //************************************************************************
@@ -38,7 +40,7 @@
 // Check if an OpenGL extension is available at runtime
 //========================================================================
 
-int _glfwPlatformExtensionSupported( const char *extension )
+int dmNativeOSExtensionSupported( const char *extension )
 {
     return GL_FALSE;
 }
@@ -48,7 +50,7 @@ int _glfwPlatformExtensionSupported( const char *extension )
 // Get the function pointer to an OpenGL function
 //========================================================================
 
-void * _glfwPlatformGetProcAddress( const char *procname )
+void * dmNativeOSGetProcAddress( const char *procname )
 {
     return (void *) eglGetProcAddress( procname );
 }

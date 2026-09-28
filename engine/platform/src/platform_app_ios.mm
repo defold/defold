@@ -22,11 +22,11 @@ namespace dmPlatform
     void AppBootstrap(int argc, char** argv, void* init_context, FAppInit init, FAppExit exit,
                       FEngineCreate create, FEngineDestroy destroy, FEngineUpdate update, FEngineGetResult get_result)
     {
-        glfwAppBootstrap(argc, argv, init_context, init, exit, create, destroy, update, get_result);
+        dmNativeAppBootstrap(argc, argv, init_context, init, exit, create, destroy, update, get_result);
     }
 
-    void RegisteriOSApplicationDelegate(void* delegate)   { glfwRegisterUIApplicationDelegate(delegate); }
-    void UnregisteriOSApplicationDelegate(void* delegate) { glfwUnregisterUIApplicationDelegate(delegate); }
-    void RegisteriOSSceneDelegate(void* delegate)         { glfwRegisterUISceneDelegate(delegate); }
-    void UnregisteriOSSceneDelegate(void* delegate)       { glfwUnregisterUISceneDelegate(delegate); }
+    void RegisteriOSApplicationDelegate(void* delegate)   { dmNativeRegisterUIApplicationDelegate(delegate); }
+    void UnregisteriOSApplicationDelegate(void* delegate) { dmNativeUnregisterUIApplicationDelegate(delegate); }
+    void RegisteriOSSceneDelegate(void* delegate)         { dmNativeRegisterUISceneDelegate(delegate); }
+    void UnregisteriOSSceneDelegate(void* delegate)       { dmNativeUnregisterUISceneDelegate(delegate); }
 }

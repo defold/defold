@@ -27,13 +27,15 @@
 //
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #ifndef _platform_h_
 #define _platform_h_
 
 #include <setjmp.h>
 
-// This is the iOS version of GLFW
-#define _GLFW_IOS
+// This is the iOS version of Native
+#define Native_IOS
 
 #include <pthread.h>
 
@@ -54,36 +56,36 @@ typedef const GLubyte * (APIENTRY *PFNGLGETSTRINGIPROC) (GLenum, GLuint);
 
 
 //========================================================================
-// GLFW platform specific types
+// Native platform specific types
 //========================================================================
 
 //------------------------------------------------------------------------
 // Pointer length integer
 //------------------------------------------------------------------------
-typedef intptr_t GLFWintptr;
+typedef intptr_t Nativeintptr;
 
 //------------------------------------------------------------------------
 // Window structure
 //------------------------------------------------------------------------
-typedef struct _GLFWwin_struct _GLFWwin;
+typedef struct Nativewin_struct Nativewin;
 
-struct _GLFWwin_struct {
+struct Nativewin_struct {
 
 // ========= PLATFORM INDEPENDENT MANDATORY PART =========================
 
     // User callback functions
-    GLFWwindowsizefun    windowSizeCallback;
-    GLFWwindowclosefun   windowCloseCallback;
-    GLFWwindowrefreshfun windowRefreshCallback;
-    GLFWwindowfocusfun   windowFocusCallback;
-    GLFWwindowiconifyfun windowIconifyCallback;
-    GLFWmousebuttonfun   mouseButtonCallback;
-    GLFWmouseposfun      mousePosCallback;
-    GLFWmousewheelfun    mouseWheelCallback;
-    GLFWkeyfun           keyCallback;
-    GLFWcharfun          charCallback;
-    GLFWmarkedtextfun    markedTextCallback;
-    GLFWgamepadfun       gamepadCallback;
+    Nativewindowsizefun    windowSizeCallback;
+    Nativewindowclosefun   windowCloseCallback;
+    Nativewindowrefreshfun windowRefreshCallback;
+    Nativewindowfocusfun   windowFocusCallback;
+    Nativewindowiconifyfun windowIconifyCallback;
+    Nativemousebuttonfun   mouseButtonCallback;
+    Nativemouseposfun      mousePosCallback;
+    Nativemousewheelfun    mouseWheelCallback;
+    Nativekeyfun           keyCallback;
+    Nativecharfun          charCallback;
+    Nativemarkedtextfun    markedTextCallback;
+    Nativegamepadfun       gamepadCallback;
 
     // User selected window settings
     int       fullscreen;      // Fullscreen flag
@@ -139,25 +141,19 @@ struct _GLFWwin_struct {
     int       frameBuffer;
 };
 
-GLFWGLOBAL _GLFWwin _glfwWin;
+NativeGLOBAL Nativewin dmNativeWin;
 
 
 //------------------------------------------------------------------------
 // Library global data
 //------------------------------------------------------------------------
-GLFWGLOBAL struct {
+NativeGLOBAL struct {
 
 // ========= PLATFORM INDEPENDENT MANDATORY PART =========================
 
-    // Window opening hints
-    _GLFWhints      hints;
 
 // ========= PLATFORM SPECIFIC PART ======================================
 
-    // Timer data
-    struct {
-        double t0;
-    } Timer;
 
     // dlopen handle for dynamically-loading extension function pointers
     void *OpenGLFramework;
@@ -168,23 +164,23 @@ GLFWGLOBAL struct {
 
     id AutoreleasePool;
 
-} _glfwLibrary;
+} dmNativeLibrary;
 
 
 //------------------------------------------------------------------------
-// User input status (some of this should go in _GLFWwin)
+// User input status (some of this should go in Nativewin)
 //------------------------------------------------------------------------
-GLFWGLOBAL struct {
+NativeGLOBAL struct {
 
 // ========= PLATFORM INDEPENDENT MANDATORY PART =========================
 
     // Mouse status
     int  MousePosX, MousePosY;
     int  WheelPos;
-    char MouseButton[ GLFW_MOUSE_BUTTON_LAST+1 ];
+    char MouseButton[ NATIVE_MOUSE_BUTTON_LAST+1 ];
 
     // Keyboard status
-    char Key[ GLFW_KEY_LAST+1 ];
+    char Key[ NATIVE_KEY_LAST+1 ];
     int  LastChar;
 
     // User selected settings
@@ -192,7 +188,7 @@ GLFWGLOBAL struct {
     int  StickyMouseButtons;
     int  KeyRepeat;
 
-    GLFWTouch Touch[GLFW_MAX_TOUCH];
+    NativeTouch Touch[NATIVE_MAX_TOUCH];
 
 // ========= PLATFORM SPECIFIC PART ======================================
 
@@ -201,57 +197,8 @@ GLFWGLOBAL struct {
     // which touch is used for mouse emu.
     void *MouseEmulationTouch;
 
-} _glfwInput;
+} dmNativeInput;
 
-//------------------------------------------------------------------------
-// Thread information
-//------------------------------------------------------------------------
-typedef struct _GLFWthread_struct _GLFWthread;
-
-// Thread record (one for each thread)
-struct _GLFWthread_struct {
-
-    // Pointer to previous and next threads in linked list
-    _GLFWthread   *Previous, *Next;
-
-    // GLFW user side thread information
-    GLFWthread    ID;
-    GLFWthreadfun Function;
-
-    // System side thread information
-    pthread_t     PosixID;
-};
-
-// General thread information
-GLFWGLOBAL struct {
-
-    // Critical section lock
-    pthread_mutex_t  CriticalSection;
-
-    // Next thread ID to use (increments for every created thread)
-    GLFWthread       NextID;
-
-    // First thread in linked list (always the main thread)
-    _GLFWthread      First;
-
-} _glfwThrd;
-
-
-//========================================================================
-// Macros for encapsulating critical code sections (i.e. making parts
-// of GLFW thread safe)
-//========================================================================
-
-// Define so we can use the same thread code as X11
-#define _glfw_numprocessors(n) n = 1
-
-// Thread list management
-#define ENTER_THREAD_CRITICAL_SECTION \
-pthread_mutex_lock( &_glfwThrd.CriticalSection );
-#define LEAVE_THREAD_CRITICAL_SECTION \
-pthread_mutex_unlock( &_glfwThrd.CriticalSection );
-
-
-int _glfwPlatformIsSceneActive(void);
+int dmNativeOSIsSceneActive(void);
 
 #endif // _platform_h_

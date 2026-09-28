@@ -15,7 +15,7 @@
 #include "internal.h"
 #include "ios/app/BaseView.h"
 
-extern _GLFWwin g_Savewin;
+extern Nativewin g_Savewin;
 
 // Additionally we postpone startup sequence until we have swapped gl-buffers twice in
 // order to avoid black screen between launch image and game content.
@@ -24,22 +24,22 @@ extern _GLFWwin g_Savewin;
 // Properly kill the window / video display
 //========================================================================
 
-void _glfwPlatformCloseWindow( void )
+void dmNativeOSCloseWindow( void )
 {
-    // Save window as glfw clears the memory on close
-    g_Savewin = _glfwWin;
+    // Save window as dmNative clears the memory on close
+    g_Savewin = dmNativeWin;
 }
 
-int _glfwPlatformGetDefaultFramebuffer( )
+int dmNativeOSGetDefaultFramebuffer( )
 {
-    return _glfwWin.frameBuffer; // non zero only if OpenGLES
+    return dmNativeWin.frameBuffer; // non zero only if OpenGLES
 }
 
 //========================================================================
 // Set the window title
 //========================================================================
 
-void _glfwPlatformSetWindowTitle( const char *title )
+void dmNativeOSSetWindowTitle( const char *title )
 {
 }
 
@@ -47,7 +47,7 @@ void _glfwPlatformSetWindowTitle( const char *title )
 // Set the window size
 //========================================================================
 
-void _glfwPlatformSetWindowSize( int width, int height )
+void dmNativeOSSetWindowSize( int width, int height )
 {
 }
 
@@ -55,7 +55,7 @@ void _glfwPlatformSetWindowSize( int width, int height )
 // Set the window position
 //========================================================================
 
-void _glfwPlatformSetWindowPos( int x, int y )
+void dmNativeOSSetWindowPos( int x, int y )
 {
 }
 
@@ -63,7 +63,7 @@ void _glfwPlatformSetWindowPos( int x, int y )
 // Iconify the window
 //========================================================================
 
-void _glfwPlatformIconifyWindow( void )
+void dmNativeOSIconifyWindow( void )
 {
 }
 
@@ -71,7 +71,7 @@ void _glfwPlatformIconifyWindow( void )
 // Restore (un-iconify) the window
 //========================================================================
 
-void _glfwPlatformRestoreWindow( void )
+void dmNativeOSRestoreWindow( void )
 {
 }
 
@@ -79,9 +79,9 @@ void _glfwPlatformRestoreWindow( void )
 // Swap buffers
 //========================================================================
 
-void _glfwPlatformSwapBuffers( void )
+void dmNativeOSSwapBuffers( void )
 {
-    BaseView* view = (BaseView*)_glfwWin.view;
+    BaseView* view = (BaseView*)dmNativeWin.view;
     [view swapBuffers];
 }
 
@@ -89,17 +89,17 @@ void _glfwPlatformSwapBuffers( void )
 // Set double buffering swap interval
 //========================================================================
 
-void _glfwPlatformSwapInterval( int interval )
+void dmNativeOSSwapInterval( int interval )
 {
-    BaseView* view = (BaseView*)_glfwWin.view;
+    BaseView* view = (BaseView*)dmNativeWin.view;
     [view setSwapInterval: interval];
 }
 
 //========================================================================
-// Write back window parameters into GLFW window structure
+// Write back window parameters into Native window structure
 //========================================================================
 
-void _glfwPlatformRefreshWindowParams( void )
+void dmNativeOSRefreshWindowParams( void )
 {
 }
 
@@ -107,7 +107,7 @@ void _glfwPlatformRefreshWindowParams( void )
 // Wait for new window and input events
 //========================================================================
 
-void _glfwPlatformWaitEvents( void )
+void dmNativeOSWaitEvents( void )
 {
 }
 
@@ -115,7 +115,7 @@ void _glfwPlatformWaitEvents( void )
 // Hide mouse cursor (lock it)
 //========================================================================
 
-void _glfwPlatformHideMouseCursor( void )
+void dmNativeOSHideMouseCursor( void )
 {
 }
 
@@ -123,7 +123,7 @@ void _glfwPlatformHideMouseCursor( void )
 // Show mouse cursor (unlock it)
 //========================================================================
 
-void _glfwPlatformShowMouseCursor( void )
+void dmNativeOSShowMouseCursor( void )
 {
 }
 
@@ -131,24 +131,24 @@ void _glfwPlatformShowMouseCursor( void )
 // Set physical mouse cursor position
 //========================================================================
 
-void _glfwPlatformSetMouseCursorPos( int x, int y )
+void dmNativeOSSetMouseCursorPos( int x, int y )
 {
 }
 
 //========================================================================
 // Defold extension: Get native references (window, view and context)
 //========================================================================
-GLFWAPI id glfwGetiOSUIWindow(void)
+id dmNativeGetiOSUIWindow(void)
 {
-    return _glfwWin.window;
+    return dmNativeWin.window;
 };
-GLFWAPI id glfwGetiOSUIView(void)
+id dmNativeGetiOSUIView(void)
 {
-    return _glfwWin.view;
+    return dmNativeWin.view;
 };
-GLFWAPI id glfwGetiOSEAGLContext(void)
+id dmNativeGetiOSEAGLContext(void)
 {
-    return _glfwWin.context;
+    return dmNativeWin.context;
 };
 
 

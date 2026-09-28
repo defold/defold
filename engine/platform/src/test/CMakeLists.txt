@@ -1,3 +1,17 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 cmake_minimum_required(VERSION 4.0)
 
 # Early toolchain/SDK detection (for standalone configure)
@@ -8,7 +22,9 @@ project(defold_platform_tests LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
 # test_platform (unit tests using null backend)
 defold_add_executable(test_platform
-    "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test_native_touch.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../native/native_touch.c")
 target_compile_definitions(test_platform PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
 # Include the platform src directory for headers

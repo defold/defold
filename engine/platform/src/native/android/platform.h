@@ -28,12 +28,14 @@
 //
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #ifndef _platform_h_
 #define _platform_h_
 
 
-// This is the X11 version of GLFW
-#define _GLFW_ANDROID
+// This is the X11 version of Native
+#define Native_ANDROID
 
 // Include files
 #include <sys/time.h>
@@ -44,47 +46,47 @@
 #include "native_handles.h"
 
 // Do we have pthread support?
-#ifdef _GLFW_HAS_PTHREAD
+#ifdef Native_HAS_PTHREAD
  #include <pthread.h>
  #include <sched.h>
 #endif
 
-#define _glfw_numprocessors(n) n=1
+#define dmNative_numprocessors(n) n=1
 
 // Pointer length integer
-// One day, this will most likely move into glfw.h
-typedef intptr_t GLFWintptr;
+// One day, this will most likely move into native.h
+typedef intptr_t Nativeintptr;
 
 #ifndef GL_VERSION_3_0
 typedef const GLubyte * (APIENTRY *PFNGLGETSTRINGIPROC) (GLenum, GLuint);
 #endif /*GL_VERSION_3_0*/
 
 //========================================================================
-// Global variables (GLFW internals)
+// Global variables (Native internals)
 //========================================================================
 
 //------------------------------------------------------------------------
 // Window structure
 //------------------------------------------------------------------------
-typedef struct _GLFWwin_struct _GLFWwin;
+typedef struct Nativewin_struct Nativewin;
 
-struct _GLFWwin_struct {
+struct Nativewin_struct {
 
 // ========= PLATFORM INDEPENDENT MANDATORY PART =========================
 
     // User callback functions
-    GLFWwindowsizefun    windowSizeCallback;
-    GLFWwindowclosefun   windowCloseCallback;
-    GLFWwindowrefreshfun windowRefreshCallback;
-    GLFWwindowfocusfun   windowFocusCallback;
-    GLFWwindowiconifyfun windowIconifyCallback;
-    GLFWmousebuttonfun   mouseButtonCallback;
-    GLFWmouseposfun      mousePosCallback;
-    GLFWmousewheelfun    mouseWheelCallback;
-    GLFWkeyfun           keyCallback;
-    GLFWcharfun          charCallback;
-    GLFWmarkedtextfun    markedTextCallback;
-    GLFWgamepadfun       gamepadCallback;
+    Nativewindowsizefun    windowSizeCallback;
+    Nativewindowclosefun   windowCloseCallback;
+    Nativewindowrefreshfun windowRefreshCallback;
+    Nativewindowfocusfun   windowFocusCallback;
+    Nativewindowiconifyfun windowIconifyCallback;
+    Nativemousebuttonfun   mouseButtonCallback;
+    Nativemouseposfun      mousePosCallback;
+    Nativemousewheelfun    mouseWheelCallback;
+    Nativekeyfun           keyCallback;
+    Nativecharfun          charCallback;
+    Nativemarkedtextfun    markedTextCallback;
+    Nativegamepadfun       gamepadCallback;
 
     // User selected window settings
     int       fullscreen;      // Fullscreen flag
@@ -127,13 +129,13 @@ struct _GLFWwin_struct {
     PFNGLGETSTRINGIPROC GetStringi;
 };
 
-GLFWGLOBAL _GLFWwin _glfwWin;
+NativeGLOBAL Nativewin dmNativeWin;
 
 // ========= PLATFORM SPECIFIC PART ======================================
 
-typedef struct _GLFWwin_android_struct _GLFWwin_android;
+typedef struct Nativewin_android_struct Nativewin_android;
 
-struct _GLFWwin_android_struct {
+struct Nativewin_android_struct {
     EGLDisplay display;
     EGLContext context;
     EGLContext aux_context;
@@ -150,23 +152,23 @@ struct _GLFWwin_android_struct {
     uint8_t :7;
 };
 
-GLFWGLOBAL _GLFWwin_android _glfwWinAndroid;
+NativeGLOBAL Nativewin_android dmNativeWinAndroid;
 
 
 //------------------------------------------------------------------------
-// User input status (most of this should go in _GLFWwin)
+// User input status (most of this should go in Nativewin)
 //------------------------------------------------------------------------
-GLFWGLOBAL struct {
+NativeGLOBAL struct {
 
 // ========= PLATFORM INDEPENDENT MANDATORY PART =========================
 
     // Mouse status
     int  MousePosX, MousePosY;
     int  WheelPos;
-    char MouseButton[ GLFW_MOUSE_BUTTON_LAST+1 ];
+    char MouseButton[ NATIVE_MOUSE_BUTTON_LAST+1 ];
 
     // Keyboard status
-    char Key[ GLFW_KEY_LAST+1 ];
+    char Key[ NATIVE_KEY_LAST+1 ];
     int  LastChar;
 
     // User selected settings
@@ -174,7 +176,7 @@ GLFWGLOBAL struct {
     int  StickyMouseButtons;
     int  KeyRepeat;
 
-    GLFWTouch Touch[GLFW_MAX_TOUCH];
+    NativeTouch Touch[NATIVE_MAX_TOUCH];
 
 // ========= PLATFORM SPECIFIC PART ======================================
 
@@ -182,76 +184,12 @@ GLFWGLOBAL struct {
     int  MouseMoved, CursorPosX, CursorPosY;
     float AccX, AccY, AccZ;
 
-} _glfwInput;
+} dmNativeInput;
 
 
 //------------------------------------------------------------------------
 // Library global data
 //------------------------------------------------------------------------
-GLFWGLOBAL struct {
-
-// ========= PLATFORM INDEPENDENT MANDATORY PART =========================
-
-    // Window opening hints
-    _GLFWhints      hints;
-
-// ========= PLATFORM SPECIFIC PART ======================================
-
-    // Timer data
-    struct {
-        double      resolution;
-        long long   t0;
-    } Timer;
-
-} _glfwLibrary;
-
-//------------------------------------------------------------------------
-// Thread record (one for each thread)
-//------------------------------------------------------------------------
-typedef struct _GLFWthread_struct _GLFWthread;
-
-struct _GLFWthread_struct {
-
-// ========= PLATFORM INDEPENDENT MANDATORY PART =========================
-
-    // Pointer to previous and next threads in linked list
-    _GLFWthread   *Previous, *Next;
-
-    // GLFW user side thread information
-    GLFWthread    ID;
-    GLFWthreadfun Function;
-
-// ========= PLATFORM SPECIFIC PART ======================================
-
-    // System side thread information
-#ifdef _GLFW_HAS_PTHREAD
-    pthread_t     PosixID;
-#endif
-
-};
-
-
-//------------------------------------------------------------------------
-// General thread information
-//------------------------------------------------------------------------
-GLFWGLOBAL struct {
-
-// ========= PLATFORM INDEPENDENT MANDATORY PART =========================
-
-    // Next thread ID to use (increments for every created thread)
-    GLFWthread       NextID;
-
-    // First thread in linked list (always the main thread)
-    _GLFWthread      First;
-
-// ========= PLATFORM SPECIFIC PART ======================================
-
-    // Critical section lock
-#ifdef _GLFW_HAS_PTHREAD
-    pthread_mutex_t  CriticalSection;
-#endif
-
-} _glfwThrd;
 
 
 //------------------------------------------------------------------------
@@ -259,52 +197,22 @@ GLFWGLOBAL struct {
 //------------------------------------------------------------------------
 #define DEVICE_NAME_LENGTH 64
 #define DEVICE_GUID_LENGTH 32 // DEFOLD
-#define GLFW_ANDROID_GAMEPAD_NUMBUTTONS 36
-#define GLFW_ANDROID_GAMEPAD_NUMAXIS 8
+#define NATIVE_ANDROID_GAMEPAD_NUMBUTTONS 36
+#define NATIVE_ANDROID_GAMEPAD_NUMAXIS 8
 
-GLFWGLOBAL struct {
+NativeGLOBAL struct {
     int           State;
     int           DeviceId;
     char          DeviceName[DEVICE_NAME_LENGTH];
     char          DeviceGuid[DEVICE_GUID_LENGTH+1];
     int           NumAxes;
     int           NumButtons;
-    float         Axis[GLFW_ANDROID_GAMEPAD_NUMAXIS];
-    unsigned char Button[GLFW_ANDROID_GAMEPAD_NUMBUTTONS];
+    float         Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS];
+    unsigned char Button[NATIVE_ANDROID_GAMEPAD_NUMBUTTONS];
     unsigned char Hats;
-} _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
+} dmNativeJoy[ NATIVE_JOYSTICK_LAST + 1 ];
 
 
-//========================================================================
-// Macros for encapsulating critical code sections (i.e. making parts
-// of GLFW thread safe)
-//========================================================================
-
-// Thread list management
-#ifdef _GLFW_HAS_PTHREAD
- #define ENTER_THREAD_CRITICAL_SECTION \
-         pthread_mutex_lock( &_glfwThrd.CriticalSection );
- #define LEAVE_THREAD_CRITICAL_SECTION \
-         pthread_mutex_unlock( &_glfwThrd.CriticalSection );
-#else
- #define ENTER_THREAD_CRITICAL_SECTION
- #define LEAVE_THREAD_CRITICAL_SECTION
-#endif
-
-
-//========================================================================
-// Prototypes for platform specific internal functions
-//========================================================================
-
-// Time
-void _glfwInitTimer( void );
-
-// Fullscreen support
-int  _glfwGetClosestVideoMode( int screen, int *width, int *height, int *rate );
-void _glfwSetVideoModeMODE( int screen, int mode, int rate );
-void _glfwSetVideoMode( int screen, int *width, int *height, int *rate );
-void _glfwRestoreVideoMode( void );
-
-void _glfwPlatformDiscoverJoysticks();
+void dmNativeOSDiscoverJoysticks();
 
 #endif // _platform_h_

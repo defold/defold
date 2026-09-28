@@ -17,26 +17,26 @@
 #include <android_native_app_glue.h>
 #include "native/native.h"
 
-extern "C" void _glfwPreMain(android_app* app);
+extern "C" void dmNativePreMain(android_app* app);
 
 namespace dmPlatform
 {
-    void AndroidPreMain(android_app* app) { _glfwPreMain(app); }
+    void AndroidPreMain(android_app* app) { dmNativePreMain(app); }
 
     void AndroidSetAppCallbacks(android_app* app)
     {
-        app->onAppCmd = glfwAndroidHandleCommand;
-        app->onInputEvent = glfwAndroidHandleInput;
+        app->onAppCmd = dmNativeAndroidHandleCommand;
+        app->onInputEvent = dmNativeAndroidHandleInput;
     }
 
-    bool AndroidIsWindowOpened() { return glfwAndroidWindowOpened() != 0; }
-    bool AndroidInit()           { return glfwInit() != 0; }
-    void AndroidTerminate()     { glfwTerminate(); }
-    void AndroidPollEvents()    { glfwAndroidPollEvents(); }
-    void AndroidFlushEvents()   { glfwAndroidFlushEvents(); }
+    bool AndroidIsWindowOpened() { return dmNativeAndroidWindowOpened() != 0; }
+    bool AndroidInit()           { return dmNativeInit() != 0; }
+    void AndroidTerminate()     { dmNativeTerminate(); }
+    void AndroidPollEvents()    { dmNativeAndroidPollEvents(); }
+    void AndroidFlushEvents()   { dmNativeAndroidFlushEvents(); }
 
-    void AndroidRegisterActivityResultListener(FAndroidActivityResult listener)   { glfwAndroidRegisterOnActivityResultListener(listener); }
-    void AndroidUnregisterActivityResultListener(FAndroidActivityResult listener) { glfwAndroidUnregisterOnActivityResultListener(listener); }
-    void AndroidRegisterActivityCreateListener(FAndroidActivityCreate listener)   { glfwAndroidRegisterOnCreateListener(listener); }
-    void AndroidUnregisterActivityCreateListener(FAndroidActivityCreate listener) { glfwAndroidUnregisterOnCreateListener(listener); }
+    void AndroidRegisterActivityResultListener(FAndroidActivityResult listener)   { dmNativeAndroidRegisterOnActivityResultListener(listener); }
+    void AndroidUnregisterActivityResultListener(FAndroidActivityResult listener) { dmNativeAndroidUnregisterOnActivityResultListener(listener); }
+    void AndroidRegisterActivityCreateListener(FAndroidActivityCreate listener)   { dmNativeAndroidRegisterOnCreateListener(listener); }
+    void AndroidUnregisterActivityCreateListener(FAndroidActivityCreate listener) { dmNativeAndroidUnregisterOnCreateListener(listener); }
 }

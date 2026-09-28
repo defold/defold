@@ -1,28 +1,23 @@
-/*******************************************************************************
- * EMSCRIPTEN GLFW 2.7.7 emulation.
- * It tries to emulate the behavior described in
- * http://www.glfw.org/GLFWReference277.pdf
- *
- * What it does:
- * - Creates a GL context.
- * - Manage keyboard and mouse events.
- * - GL Extensions support.
- *
- * What it does not but should probably do:
- * - Transmit events when glfwPollEvents, glfwWaitEvents or glfwSwapBuffers is
- *    called. Events callbacks are called as soon as event are received.
- * - Thread emulation.
- * - Image/Texture I/O support (that is deleted in GLFW 3).
- * - Video modes detection.
- *
- * Authors:
- * - Éloi Rivard <eloi.rivard@gmail.com>
- * - Thomas Borsos <thomasborsos@gmail.com>
- *
- ******************************************************************************/
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
-var LibraryGLFW = {
-  $GLFW: {
+// Derived from the Emscripten GLFW 2 implementation by
+// Éloi Rivard <eloi.rivard@gmail.com> and Thomas Borsos <thomasborsos@gmail.com>.
+// Modified for Defold's native browser lifecycle, input and canvas backend.
+
+var LibraryDefoldPlatform = {
+  $DefoldPlatform: {
 
     keyFunc: null,
     charFunc: null,
@@ -38,7 +33,6 @@ var LibraryGLFW = {
     iconifyFunc: null,
     touchFunc: null,
     params: null,
-    initTime: null,
     wheelPos: 0,
     buttons: 0,
     keys: 0,
@@ -61,61 +55,61 @@ var LibraryGLFW = {
  * DOM EVENT CALLBACKS
  ******************************************************************************/
 
-    DOMToGLFWKeyCode: function(keycode, code) {
+    DOMToNativeKeyCode: function(keycode, code) {
       switch (keycode) {
-        case 0x08: return 295 ; // DOM_VK_BACKSPACE -> GLFW_KEY_BACKSPACE
-        case 0x09: return 293 ; // DOM_VK_TAB -> GLFW_KEY_TAB
-        case 0x0D: return 294 ; // DOM_VK_ENTER -> GLFW_KEY_ENTER
-        case 0x1B: return 257 ; // DOM_VK_ESCAPE -> GLFW_KEY_ESC
-        case 0x6A: return 313 ; // DOM_VK_MULTIPLY -> GLFW_KEY_KP_MULTIPLY
-        case 0x6B: return 315 ; // DOM_VK_ADD -> GLFW_KEY_KP_ADD
-        case 0x6D: return 314 ; // DOM_VK_SUBTRACT -> GLFW_KEY_KP_SUBTRACT
-        case 0x6E: return 316 ; // DOM_VK_DECIMAL -> GLFW_KEY_KP_DECIMAL
-        case 0x6F: return 312 ; // DOM_VK_DIVIDE -> GLFW_KEY_KP_DIVIDE
-        case 0x70: return 258 ; // DOM_VK_F1 -> GLFW_KEY_F1
-        case 0x71: return 259 ; // DOM_VK_F2 -> GLFW_KEY_F2
-        case 0x72: return 260 ; // DOM_VK_F3 -> GLFW_KEY_F3
-        case 0x73: return 261 ; // DOM_VK_F4 -> GLFW_KEY_F4
-        case 0x74: return 262 ; // DOM_VK_F5 -> GLFW_KEY_F5
-        case 0x75: return 263 ; // DOM_VK_F6 -> GLFW_KEY_F6
-        case 0x76: return 264 ; // DOM_VK_F7 -> GLFW_KEY_F7
-        case 0x77: return 265 ; // DOM_VK_F8 -> GLFW_KEY_F8
-        case 0x78: return 266 ; // DOM_VK_F9 -> GLFW_KEY_F9
-        case 0x79: return 267 ; // DOM_VK_F10 -> GLFW_KEY_F10
-        case 0x7a: return 268 ; // DOM_VK_F11 -> GLFW_KEY_F11
-        case 0x7b: return 269 ; // DOM_VK_F12 -> GLFW_KEY_F12
-        case 0x25: return 285 ; // DOM_VK_LEFT -> GLFW_KEY_LEFT
-        case 0x26: return 283 ; // DOM_VK_UP -> GLFW_KEY_UP
-        case 0x27: return 286 ; // DOM_VK_RIGHT -> GLFW_KEY_RIGHT
-        case 0x28: return 284 ; // DOM_VK_DOWN -> GLFW_KEY_DOWN
-        case 0x21: return 298 ; // DOM_VK_PAGE_UP -> GLFW_KEY_PAGEUP
-        case 0x22: return 299 ; // DOM_VK_PAGE_DOWN -> GLFW_KEY_PAGEDOWN
-        case 0x24: return 300 ; // DOM_VK_HOME -> GLFW_KEY_HOME
-        case 0x23: return 301 ; // DOM_VK_END -> GLFW_KEY_END
-        case 0x2d: return 296 ; // DOM_VK_INSERT -> GLFW_KEY_INSERT
-        case 0x2E: return 297 ; // DOM_VK_DEL -> GLFW_KEY_DEL
-        case 16  : return 287 ; // DOM_VK_SHIFT -> GLFW_KEY_LSHIFT
-        case 0x05: return 287 ; // DOM_VK_LEFT_SHIFT -> GLFW_KEY_LSHIFT
-        case 0x06: return 288 ; // DOM_VK_RIGHT_SHIFT -> GLFW_KEY_RSHIFT
-        case 17  : return 289 ; // DOM_VK_CONTROL -> GLFW_KEY_LCTRL
-        case 0x03: return 289 ; // DOM_VK_LEFT_CONTROL -> GLFW_KEY_LCTRL
-        case 0x04: return 290 ; // DOM_VK_RIGHT_CONTROL -> GLFW_KEY_RCTRL
-        case 18  : return 291 ; // DOM_VK_ALT -> GLFW_KEY_LALT
-        case 0x02: return 291 ; // DOM_VK_LEFT_ALT -> GLFW_KEY_LALT
-        case 0x01: return 292 ; // DOM_VK_RIGHT_ALT -> GLFW_KEY_RALT
-        case 96  : return 302 ; // GLFW_KEY_KP_0
-        case 97  : return 303 ; // GLFW_KEY_KP_1
-        case 98  : return 304 ; // GLFW_KEY_KP_2
-        case 99  : return 305 ; // GLFW_KEY_KP_3
-        case 100 : return 306 ; // GLFW_KEY_KP_4
-        case 101 : return 307 ; // GLFW_KEY_KP_5
-        case 102 : return 308 ; // GLFW_KEY_KP_6
-        case 103 : return 309 ; // GLFW_KEY_KP_7
-        case 104 : return 310 ; // GLFW_KEY_KP_8
-        case 105 : return 311 ; // GLFW_KEY_KP_9
+        case 0x08: return 295 ; // DOM_VK_BACKSPACE -> NATIVE_KEY_BACKSPACE
+        case 0x09: return 293 ; // DOM_VK_TAB -> NATIVE_KEY_TAB
+        case 0x0D: return 294 ; // DOM_VK_ENTER -> NATIVE_KEY_ENTER
+        case 0x1B: return 257 ; // DOM_VK_ESCAPE -> NATIVE_KEY_ESC
+        case 0x6A: return 313 ; // DOM_VK_MULTIPLY -> NATIVE_KEY_KP_MULTIPLY
+        case 0x6B: return 315 ; // DOM_VK_ADD -> NATIVE_KEY_KP_ADD
+        case 0x6D: return 314 ; // DOM_VK_SUBTRACT -> NATIVE_KEY_KP_SUBTRACT
+        case 0x6E: return 316 ; // DOM_VK_DECIMAL -> NATIVE_KEY_KP_DECIMAL
+        case 0x6F: return 312 ; // DOM_VK_DIVIDE -> NATIVE_KEY_KP_DIVIDE
+        case 0x70: return 258 ; // DOM_VK_F1 -> NATIVE_KEY_F1
+        case 0x71: return 259 ; // DOM_VK_F2 -> NATIVE_KEY_F2
+        case 0x72: return 260 ; // DOM_VK_F3 -> NATIVE_KEY_F3
+        case 0x73: return 261 ; // DOM_VK_F4 -> NATIVE_KEY_F4
+        case 0x74: return 262 ; // DOM_VK_F5 -> NATIVE_KEY_F5
+        case 0x75: return 263 ; // DOM_VK_F6 -> NATIVE_KEY_F6
+        case 0x76: return 264 ; // DOM_VK_F7 -> NATIVE_KEY_F7
+        case 0x77: return 265 ; // DOM_VK_F8 -> NATIVE_KEY_F8
+        case 0x78: return 266 ; // DOM_VK_F9 -> NATIVE_KEY_F9
+        case 0x79: return 267 ; // DOM_VK_F10 -> NATIVE_KEY_F10
+        case 0x7a: return 268 ; // DOM_VK_F11 -> NATIVE_KEY_F11
+        case 0x7b: return 269 ; // DOM_VK_F12 -> NATIVE_KEY_F12
+        case 0x25: return 285 ; // DOM_VK_LEFT -> NATIVE_KEY_LEFT
+        case 0x26: return 283 ; // DOM_VK_UP -> NATIVE_KEY_UP
+        case 0x27: return 286 ; // DOM_VK_RIGHT -> NATIVE_KEY_RIGHT
+        case 0x28: return 284 ; // DOM_VK_DOWN -> NATIVE_KEY_DOWN
+        case 0x21: return 298 ; // DOM_VK_PAGE_UP -> NATIVE_KEY_PAGEUP
+        case 0x22: return 299 ; // DOM_VK_PAGE_DOWN -> NATIVE_KEY_PAGEDOWN
+        case 0x24: return 300 ; // DOM_VK_HOME -> NATIVE_KEY_HOME
+        case 0x23: return 301 ; // DOM_VK_END -> NATIVE_KEY_END
+        case 0x2d: return 296 ; // DOM_VK_INSERT -> NATIVE_KEY_INSERT
+        case 0x2E: return 297 ; // DOM_VK_DEL -> NATIVE_KEY_DEL
+        case 16  : return 287 ; // DOM_VK_SHIFT -> NATIVE_KEY_LSHIFT
+        case 0x05: return 287 ; // DOM_VK_LEFT_SHIFT -> NATIVE_KEY_LSHIFT
+        case 0x06: return 288 ; // DOM_VK_RIGHT_SHIFT -> NATIVE_KEY_RSHIFT
+        case 17  : return 289 ; // DOM_VK_CONTROL -> NATIVE_KEY_LCTRL
+        case 0x03: return 289 ; // DOM_VK_LEFT_CONTROL -> NATIVE_KEY_LCTRL
+        case 0x04: return 290 ; // DOM_VK_RIGHT_CONTROL -> NATIVE_KEY_RCTRL
+        case 18  : return 291 ; // DOM_VK_ALT -> NATIVE_KEY_LALT
+        case 0x02: return 291 ; // DOM_VK_LEFT_ALT -> NATIVE_KEY_LALT
+        case 0x01: return 292 ; // DOM_VK_RIGHT_ALT -> NATIVE_KEY_RALT
+        case 96  : return 302 ; // NATIVE_KEY_KP_0
+        case 97  : return 303 ; // NATIVE_KEY_KP_1
+        case 98  : return 304 ; // NATIVE_KEY_KP_2
+        case 99  : return 305 ; // NATIVE_KEY_KP_3
+        case 100 : return 306 ; // NATIVE_KEY_KP_4
+        case 101 : return 307 ; // NATIVE_KEY_KP_5
+        case 102 : return 308 ; // NATIVE_KEY_KP_6
+        case 103 : return 309 ; // NATIVE_KEY_KP_7
+        case 104 : return 310 ; // NATIVE_KEY_KP_8
+        case 105 : return 311 ; // NATIVE_KEY_KP_9
       }
 
-      // Map additional keys not already mapped to any GLFW keys
+      // Map additional keys not already mapped to any Native keys
       // We use KeyEvent.code here as it represents a physical key on the keyboard
       switch (code) {
         case "Minus":         return 45  ; // -
@@ -132,17 +126,17 @@ var LibraryGLFW = {
         case "Equal":         return 61  ; // =
         case "Quote":         return 39  ; // '
         case "Semicolon":     return 59  ; // ;
-        case "NumpadComma":   return 316 ; // GLFW_KEY_KP_DECIMAL, https://www.w3.org/TR/uievents-code/#keyboard-104
+        case "NumpadComma":   return 316 ; // NATIVE_KEY_KP_DECIMAL, https://www.w3.org/TR/uievents-code/#keyboard-104
       }
 
       return keycode;
     },
 
-    // The button ids for right and middle are swapped between GLFW and JS.
+    // The button ids for right and middle are swapped between Native and JS.
     // JS: right = 2, middle = 1
-    // GLFW: right = 1, middle = 2
-    // Use this function to convert between JS and GLFW, and back.
-    DOMtoGLFWButton: function(button) {
+    // Native: right = 1, middle = 2
+    // Use this function to convert between JS and Native, and back.
+    DOMtoNativeButton: function(button) {
       if (button == 1) {
         button = 2;
       } else if (button == 2) {
@@ -207,35 +201,35 @@ var LibraryGLFW = {
     },
 
     onWindowClose: function(event) {
-        GLFW.params[0x00020001] = false; // GLFW_OPENED
+        DefoldPlatform.params[1] = false; // NATIVE_OPENED
     },
 
     onKeyPress: function(event) {
-      if (!GLFW.isCanvasActive(event)) { return; }
+      if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
       // charCode is only available whith onKeyPress event
       if (event.charCode) {
-        var char = GLFW.getUnicodeChar(event.charCode);
-        if (char !== null && GLFW.charFunc) {
-          {{{ makeDynCall('vii', 'GLFW.charFunc') }}}(event.charCode, 1);
+        var char = DefoldPlatform.getUnicodeChar(event.charCode);
+        if (char !== null && DefoldPlatform.charFunc) {
+          {{{ makeDynCall('vii', 'DefoldPlatform.charFunc') }}}(event.charCode, 1);
         }
       }
     },
 
     onKeyChanged: function(event, status) {
-      if (!GLFW.isCanvasActive(event)) { return; }
+      if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
-      var key = GLFW.DOMToGLFWKeyCode(event.keyCode, event.code);
+      var key = DefoldPlatform.DOMToNativeKeyCode(event.keyCode, event.code);
       if (key) {
-        GLFW.keys[key] = status;
-        if (GLFW.keyFunc) {
-          {{{ makeDynCall('vii', 'GLFW.keyFunc') }}}(key, status);
+        DefoldPlatform.keys[key] = status;
+        if (DefoldPlatform.keyFunc) {
+          {{{ makeDynCall('vii', 'DefoldPlatform.keyFunc') }}}(key, status);
         }
       }
     },
 
     onKeydown: function(event) {
-      if (!GLFW.isCanvasActive(event)) { return; }
+      if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
       // prevent navigation within the page using arrow keys and space
       switch(event.keyCode) {
@@ -245,10 +239,10 @@ var LibraryGLFW = {
       }
 
 
-      GLFW.onKeyChanged(event, 1);// GLFW_PRESS
+      DefoldPlatform.onKeyChanged(event, 1);// NATIVE_PRESS
       if (event.keyCode === 32) {
-        if (GLFW.charFunc) {
-          {{{ makeDynCall('vii', 'GLFW.charFunc') }}}(32, 1);
+        if (DefoldPlatform.charFunc) {
+          {{{ makeDynCall('vii', 'DefoldPlatform.charFunc') }}}(32, 1);
           event.preventDefault();
         }
       }
@@ -261,9 +255,9 @@ var LibraryGLFW = {
     },
 
     onKeyup: function(event) {
-      if (!GLFW.isCanvasActive(event)) { return; }
+      if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
-      GLFW.onKeyChanged(event, 0);// GLFW_RELEASE
+      DefoldPlatform.onKeyChanged(event, 0);// NATIVE_RELEASE
     },
 
     onMousemove: function(event) {
@@ -277,16 +271,16 @@ var LibraryGLFW = {
       var newX = Browser.mouseX;
       var newY = Browser.mouseY;
 
-      if (event.target == Module["canvas"] && GLFW.mousePosFunc) {
+      if (event.target == Module["canvas"] && DefoldPlatform.mousePosFunc) {
         event.preventDefault();
-        {{{ makeDynCall('vii', 'GLFW.mousePosFunc') }}}(lastX, lastY);
+        {{{ makeDynCall('vii', 'DefoldPlatform.mousePosFunc') }}}(lastX, lastY);
       }
     },
 
     onMouseButtonChanged: function(event, status) {
-      if (!GLFW.isCanvasActive(event)) { return; }
+      if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
-      if (GLFW.mouseButtonFunc == null) {
+      if (DefoldPlatform.mouseButtonFunc == null) {
         return;
       }
 
@@ -296,7 +290,7 @@ var LibraryGLFW = {
         return;
       }
 
-      if (status == 1) {// GLFW_PRESS
+      if (status == 1) {// NATIVE_PRESS
         try {
           event.target.setCapture();
         } catch (e) {}
@@ -304,35 +298,35 @@ var LibraryGLFW = {
 
       event.preventDefault();
 
-      // DOM and glfw have different button codes
-      var eventButton = GLFW.DOMtoGLFWButton(event['button']);
+      // DOM and dmNative have different button codes
+      var eventButton = DefoldPlatform.DOMtoNativeButton(event['button']);
 
-      {{{ makeDynCall('vii', 'GLFW.mouseButtonFunc') }}}(eventButton, status);
+      {{{ makeDynCall('vii', 'DefoldPlatform.mouseButtonFunc') }}}(eventButton, status);
     },
 
     fillTouch: function(id, x, y, phase) {
-      if (GLFW.touchFunc) {
-        {{{ makeDynCall('viiii', 'GLFW.touchFunc') }}}(id, x, y, phase);
+      if (DefoldPlatform.touchFunc) {
+        {{{ makeDynCall('viiii', 'DefoldPlatform.touchFunc') }}}(id, x, y, phase);
       }
     },
 
     touchWasFinished: function(event, phase) {
-        if (!GLFW.isCanvasActive(event)) { return; }
+        if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
         for(var i = 0; i < event.changedTouches.length; ++i) {
           var touch = event.changedTouches[i];
-          var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          var coord = DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
           var canvasX = coord[0];
           var canvasY = coord[1];
-          GLFW.fillTouch(touch.identifier, canvasX, canvasY, phase);
-          if (touch.identifier == GLFW.mouseTouchId) {
-              GLFW.mouseTouchId = null;
-              GLFW.buttons &= ~(1 << 0);
+          DefoldPlatform.fillTouch(touch.identifier, canvasX, canvasY, phase);
+          if (touch.identifier == DefoldPlatform.mouseTouchId) {
+              DefoldPlatform.mouseTouchId = null;
+              DefoldPlatform.buttons &= ~(1 << 0);
             }
         }
 
         if (event.touches.length == 0){
-            GLFW.buttons &= ~(1 << 0);
+            DefoldPlatform.buttons &= ~(1 << 0);
         }
 
         // Audio is blocked by default in browsers until a user performs an interaction,
@@ -346,11 +340,11 @@ var LibraryGLFW = {
     },
 
     onTouchEnd: function(event) {
-      GLFW.touchWasFinished(event, GLFW.GLFW_PHASE_ENDED);
+      DefoldPlatform.touchWasFinished(event, DefoldPlatform.NATIVE_PHASE_ENDED);
     },
 
     onTouchCancel: function(event) {
-      GLFW.touchWasFinished(event, GLFW.GLFW_PHASE_CANCELLED);
+      DefoldPlatform.touchWasFinished(event, DefoldPlatform.NATIVE_PHASE_CANCELLED);
     },
 
     convertCoordinatesFromMonitorToWebGLPixels: function(x,y) {
@@ -370,7 +364,7 @@ var LibraryGLFW = {
     },
 
     onTouchMove: function(event) {
-        if (!GLFW.isCanvasActive(event)) { return; }
+        if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
         var e = event;
         var touch;
@@ -379,14 +373,14 @@ var LibraryGLFW = {
         var canvasY
         for(var i = 0; i < e.changedTouches.length; ++i) {
           touch = e.changedTouches[i];
-          coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          coord = DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
           canvasX = coord[0];
           canvasY = coord[1];
-          if (touch.identifier == GLFW.mouseTouchId) {
+          if (touch.identifier == DefoldPlatform.mouseTouchId) {
             Browser.mouseX = canvasX;
             Browser.mouseY = canvasY;
           }
-          GLFW.fillTouch(touch.identifier, canvasX, canvasY, GLFW.GLFW_PHASE_MOVED);
+          DefoldPlatform.fillTouch(touch.identifier, canvasX, canvasY, DefoldPlatform.NATIVE_PHASE_MOVED);
         }
 
         event.preventDefault();
@@ -404,16 +398,16 @@ var LibraryGLFW = {
         var canvasY
         for(var i = 0; i < e.changedTouches.length; ++i) {
           touch = e.changedTouches[i];
-          coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          coord = DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
           canvasX = coord[0];
           canvasY = coord[1];
-          if (i == 0 && GLFW.mouseTouchId == null) {
-            GLFW.mouseTouchId = touch.identifier;
-            GLFW.buttons |= (1 << 0);
+          if (i == 0 && DefoldPlatform.mouseTouchId == null) {
+            DefoldPlatform.mouseTouchId = touch.identifier;
+            DefoldPlatform.buttons |= (1 << 0);
             Browser.mouseX = canvasX;
             Browser.mouseY = canvasY;
           }
-          GLFW.fillTouch(touch.identifier, canvasX, canvasY, GLFW.GLFW_PHASE_BEGAN);
+          DefoldPlatform.fillTouch(touch.identifier, canvasX, canvasY, DefoldPlatform.NATIVE_PHASE_BEGAN);
         }
 
         // Resume audio on user interaction (see explanation in touchWasFinished).
@@ -429,8 +423,8 @@ var LibraryGLFW = {
       // check if the target is the canvas directly.
       if (event.target != Module["canvas"]) { return; }
 
-      GLFW.buttons |= (1 << event['button']);
-      GLFW.onMouseButtonChanged(event, 1);// GLFW_PRESS
+      DefoldPlatform.buttons |= (1 << event['button']);
+      DefoldPlatform.onMouseButtonChanged(event, 1);// NATIVE_PRESS
 
       // Resume audio on user interaction (see explanation in touchWasFinished).
       if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
@@ -439,10 +433,10 @@ var LibraryGLFW = {
     },
 
     onMouseButtonUp: function(event) {
-      if (!GLFW.isCanvasActive(event)) { return; }
+      if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
-      GLFW.buttons &= ~(1 << event['button']);
-      GLFW.onMouseButtonChanged(event, 0);// GLFW_RELEASE
+      DefoldPlatform.buttons &= ~(1 << event['button']);
+      DefoldPlatform.onMouseButtonChanged(event, 0);// NATIVE_RELEASE
 
       // Resume audio on user interaction (see explanation in touchWasFinished).
       if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
@@ -451,13 +445,13 @@ var LibraryGLFW = {
     },
 
     onMouseWheel: function(event) {
-      if (!GLFW.isCanvasActive(event)) { return; }
+      if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
-      GLFW.wheelPos += Browser.getMouseWheelDelta(event);
+      DefoldPlatform.wheelPos += Browser.getMouseWheelDelta(event);
 
       if (event.target == Module["canvas"]) {
-        if (GLFW.mouseWheelFunc) {
-          {{{ makeDynCall('vi', 'GLFW.mouseWheelFunc') }}}(GLFW.wheelPos);
+        if (DefoldPlatform.mouseWheelFunc) {
+          {{{ makeDynCall('vi', 'DefoldPlatform.mouseWheelFunc') }}}(DefoldPlatform.wheelPos);
         }
         if (event.cancelable) {
           event.preventDefault();
@@ -471,22 +465,22 @@ var LibraryGLFW = {
       // result in the key remaining in the pressed state when the game regains focus.
       // To fix this we set all pressed keys to released when focus is lost.
       if (focus == 0) {
-        for (var i = 0; i < GLFW.keys.length; i++) {
-          GLFW.keys[i] = 0;
+        for (var i = 0; i < DefoldPlatform.keys.length; i++) {
+          DefoldPlatform.keys[i] = 0;
         }
-        GLFW.buttons = 0;
+        DefoldPlatform.buttons = 0;
       }
-      if (GLFW.focusFunc) {
-        {{{ makeDynCall('vi', 'GLFW.focusFunc') }}}(focus);
+      if (DefoldPlatform.focusFunc) {
+        {{{ makeDynCall('vi', 'DefoldPlatform.focusFunc') }}}(focus);
       }
     },
 
     onFocus: function(event) {
-      GLFW.onFocusChanged(1);
+      DefoldPlatform.onFocusChanged(1);
     },
 
     onBlur: function(event) {
-      GLFW.onFocusChanged(0);
+      DefoldPlatform.onFocusChanged(0);
     },
 
     isDocumentFullscreen: function() {
@@ -494,27 +488,27 @@ var LibraryGLFW = {
     },
 
     addFullScreenEventListeners: function() {
-      document.addEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.addEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.addEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.addEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.addEventListener('fullscreenchange', DefoldPlatform.onFullScreenEventChange, true);
+      document.addEventListener('mozfullscreenchange', DefoldPlatform.onFullScreenEventChange, true);
+      document.addEventListener('webkitfullscreenchange', DefoldPlatform.onFullScreenEventChange, true);
+      document.addEventListener('msfullscreenchange', DefoldPlatform.onFullScreenEventChange, true);
     },
 
     removeFullScreenEventListeners: function() {
-      document.removeEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.removeEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.removeEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
-      document.removeEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+      document.removeEventListener('fullscreenchange', DefoldPlatform.onFullScreenEventChange, true);
+      document.removeEventListener('mozfullscreenchange', DefoldPlatform.onFullScreenEventChange, true);
+      document.removeEventListener('webkitfullscreenchange', DefoldPlatform.onFullScreenEventChange, true);
+      document.removeEventListener('msfullscreenchange', DefoldPlatform.onFullScreenEventChange, true);
     },
 
     onFullScreenEventChange: function(event) {
-      GLFW.isFullscreen = GLFW.isDocumentFullscreen();
-      if (!GLFW.isFullscreen) {
-        GLFW.removeFullScreenEventListeners();
+      DefoldPlatform.isFullscreen = DefoldPlatform.isDocumentFullscreen();
+      if (!DefoldPlatform.isFullscreen) {
+        DefoldPlatform.removeFullScreenEventListeners();
       }
-      //reset previous values for updating size in glfwSwapBuffers()
-      GLFW.prevWidth = 0;
-      GLFW.prevHeight = 0;
+      //reset previous values for updating size in dmNativeSwapBuffers()
+      DefoldPlatform.prevWidth = 0;
+      DefoldPlatform.prevHeight = 0;
     },
 
     requestFullScreen: function(element) {
@@ -522,7 +516,7 @@ var LibraryGLFW = {
       if (!element) {
         return;
       }
-      GLFW.addFullScreenEventListeners();
+      DefoldPlatform.addFullScreenEventListeners();
       var RFS = element['requestFullscreen'] ||
                 element['requestFullScreen'] ||
                 element['mozRequestFullScreen'] ||
@@ -543,17 +537,17 @@ var LibraryGLFW = {
     },
 
     onJoystickConnected: function(event) {
-      GLFW.refreshJoysticks();
+      DefoldPlatform.refreshJoysticks();
     },
 
     onJoystickDisconnected: function(event) {
-      GLFW.refreshJoysticks(true);
+      DefoldPlatform.refreshJoysticks(true);
     },
 
     onPointerLockEventChange: function(event) {
-      GLFW.isPointerLocked = !!document["pointerLockElement"];
-      if (!GLFW.isPointerLocked) {
-        document.removeEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+      DefoldPlatform.isPointerLocked = !!document["pointerLockElement"];
+      if (!DefoldPlatform.isPointerLocked) {
+        document.removeEventListener('pointerlockchange', DefoldPlatform.onPointerLockEventChange, true);
       }
     },
 
@@ -563,9 +557,9 @@ var LibraryGLFW = {
         return;
       }
 
-      if (!GLFW.isPointerLocked)
+      if (!DefoldPlatform.isPointerLocked)
       {
-        document.addEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+        document.addEventListener('pointerlockchange', DefoldPlatform.onPointerLockEventChange, true);
         var RPL = element.requestPointerLock || (function() {});
         RPL.apply(element, []);
       }
@@ -609,15 +603,15 @@ var LibraryGLFW = {
 
     createJoystickGUID: function(vendor, product, name, is_xinput) {
       var guid = new Array(16).fill(0);
-      var crc = GLFW.updateCRC16(0, name);
+      var crc = DefoldPlatform.updateCRC16(0, name);
 
-      GLFW.writeGUID16(guid, 0, 0);
-      GLFW.writeGUID16(guid, 2, crc);
+      DefoldPlatform.writeGUID16(guid, 0, 0);
+      DefoldPlatform.writeGUID16(guid, 2, crc);
 
       if (vendor && product) {
-        GLFW.writeGUID16(guid, 4, vendor);
-        GLFW.writeGUID16(guid, 8, product);
-        GLFW.writeGUID16(guid, 12, 0);
+        DefoldPlatform.writeGUID16(guid, 4, vendor);
+        DefoldPlatform.writeGUID16(guid, 8, product);
+        DefoldPlatform.writeGUID16(guid, 12, 0);
       } else {
         for (var i = 0; i < Math.min(name.length, 11); ++i) {
           guid[4 + i] = name.charCodeAt(i) & 0xff;
@@ -628,7 +622,7 @@ var LibraryGLFW = {
         guid[14] = "x".charCodeAt(0);
       }
 
-      return GLFW.formatGUID(guid);
+      return DefoldPlatform.formatGUID(guid);
     },
 
     getJoystickVendor: function(raw_gamepad_id) {
@@ -662,47 +656,47 @@ var LibraryGLFW = {
     },
 
     disconnectJoystick: function (joy) {
-      if (GLFW.gamepadFunc) {
-        _free(GLFW.joys[joy].id);
-        _free(GLFW.joys[joy].guid);
-        delete GLFW.joys[joy];
-        {{{ makeDynCall('vii', 'GLFW.gamepadFunc') }}}(joy, 0);
+      if (DefoldPlatform.gamepadFunc) {
+        _free(DefoldPlatform.joys[joy].id);
+        _free(DefoldPlatform.joys[joy].guid);
+        delete DefoldPlatform.joys[joy];
+        {{{ makeDynCall('vii', 'DefoldPlatform.gamepadFunc') }}}(joy, 0);
       }
     },
 
-    joys: {}, // glfw joystick data
+    joys: {}, // dmNative joystick data
     lastGamepadState: null,
     lastGamepadStateFrame: null, // The integer value of MainLoop.currentFrameNumber of when the last gamepad state was produced.
 
     refreshJoysticks: function(forceUpdate) {
         // Produce a new Gamepad API sample if we are ticking a new game frame, or if not using emscripten_set_main_loop() at all to drive animation.
-        if (GLFW.gamepadFunc) {
-          if (forceUpdate || MainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !MainLoop.currentFrameNumber) {
-            GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
-            if (!GLFW.lastGamepadState) {
+        if (DefoldPlatform.gamepadFunc) {
+          if (forceUpdate || MainLoop.currentFrameNumber !== DefoldPlatform.lastGamepadStateFrame || !MainLoop.currentFrameNumber) {
+            DefoldPlatform.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
+            if (!DefoldPlatform.lastGamepadState) {
               return;
             }
-            GLFW.lastGamepadStateFrame = MainLoop.currentFrameNumber;
-            for (var joy = 0; joy < GLFW.lastGamepadState.length; ++joy) {
-              var gamepad = GLFW.lastGamepadState[joy];
+            DefoldPlatform.lastGamepadStateFrame = MainLoop.currentFrameNumber;
+            for (var joy = 0; joy < DefoldPlatform.lastGamepadState.length; ++joy) {
+              var gamepad = DefoldPlatform.lastGamepadState[joy];
 
               if (gamepad) {
                 var raw_gamepad_id = gamepad.id || "";
                 var gamepad_id = (gamepad.mapping == "standard") ? "Standard Gamepad" : raw_gamepad_id;
-                if (!GLFW.joys[joy] || GLFW.joys[joy].id_string != gamepad_id || GLFW.joys[joy].raw_id_string != raw_gamepad_id) {
-                  if (GLFW.joys[joy]) {
+                if (!DefoldPlatform.joys[joy] || DefoldPlatform.joys[joy].id_string != gamepad_id || DefoldPlatform.joys[joy].raw_id_string != raw_gamepad_id) {
+                  if (DefoldPlatform.joys[joy]) {
                     //In case when user change gamepad while browser in background (minimized)
-                    GLFW.disconnectJoystick(joy);
+                    DefoldPlatform.disconnectJoystick(joy);
                   }
-                  var vendor = GLFW.getJoystickVendor(raw_gamepad_id);
-                  var product = GLFW.getJoystickProduct(raw_gamepad_id);
+                  var vendor = DefoldPlatform.getJoystickVendor(raw_gamepad_id);
+                  var product = DefoldPlatform.getJoystickProduct(raw_gamepad_id);
                   var is_xinput = raw_gamepad_id.toLowerCase().indexOf("xinput") >= 0;
                   if (!vendor && !product && is_xinput) {
                     vendor = 0x045e;
                     product = 0x028e;
                   }
-                  var gamepad_guid = GLFW.createJoystickGUID(vendor, product, gamepad_id, is_xinput);
-                  GLFW.joys[joy] = {
+                  var gamepad_guid = DefoldPlatform.createJoystickGUID(vendor, product, gamepad_id, is_xinput);
+                  DefoldPlatform.joys[joy] = {
                     id: stringToNewUTF8(gamepad_id),
                     guid: stringToNewUTF8(gamepad_guid),
                     id_string: gamepad_id,
@@ -710,13 +704,13 @@ var LibraryGLFW = {
                     axesCount: gamepad.axes.length,
                     buttonsCount: gamepad.buttons.length
                   };
-                  {{{ makeDynCall('vii', 'GLFW.gamepadFunc') }}}(joy, 1);
+                  {{{ makeDynCall('vii', 'DefoldPlatform.gamepadFunc') }}}(joy, 1);
                 }
-                GLFW.joys[joy].buttons = gamepad.buttons;
-                GLFW.joys[joy].axes = gamepad.axes;
+                DefoldPlatform.joys[joy].buttons = gamepad.buttons;
+                DefoldPlatform.joys[joy].axes = gamepad.axes;
               } else {
-                if (GLFW.joys[joy]) {
-                  GLFW.disconnectJoystick(joy);
+                if (DefoldPlatform.joys[joy]) {
+                  DefoldPlatform.disconnectJoystick(joy);
                 }
             }
           }
@@ -726,185 +720,170 @@ var LibraryGLFW = {
   },
 
 /*******************************************************************************
- * GLFW FUNCTIONS
+ * Native FUNCTIONS
  ******************************************************************************/
 
-  /* GLFW initialization, termination and version querying */
-  glfwInitJS: function() {
-    GLFW.initTime = Date.now() / 1000;
+  /* Native initialization, termination and version querying */
+  dmNativeInitJS: function() {
 
-    GLFW.addEventListener("pagehide", GLFW.onWindowClose, true);
-    GLFW.addEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
-    GLFW.addEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
-    GLFW.addEventListener("keydown", GLFW.onKeydown, true);
-    GLFW.addEventListener("keypress", GLFW.onKeyPress, true);
-    GLFW.addEventListener("keyup", GLFW.onKeyup, true);
-    GLFW.addEventListener("mousemove", GLFW.onMousemove, true);
-    GLFW.addEventListener("mousedown", GLFW.onMouseButtonDown, true);
-    GLFW.addEventListener("mouseup", GLFW.onMouseButtonUp, true);
-    GLFW.addEventListener('DOMMouseScroll', GLFW.onMouseWheel, { capture: true, passive: false });
-    GLFW.addEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
-    GLFW.addEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
-    GLFW.addEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
-    GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
-    GLFW.addEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
-    GLFW.addEventListenerCanvas('focus', GLFW.onFocus, true);
-    GLFW.addEventListenerCanvas('blur', GLFW.onBlur, true);
+
+    DefoldPlatform.addEventListener("pagehide", DefoldPlatform.onWindowClose, true);
+    DefoldPlatform.addEventListener("gamepadconnected", DefoldPlatform.onJoystickConnected, true);
+    DefoldPlatform.addEventListener("gamepaddisconnected", DefoldPlatform.onJoystickDisconnected, true);
+    DefoldPlatform.addEventListener("keydown", DefoldPlatform.onKeydown, true);
+    DefoldPlatform.addEventListener("keypress", DefoldPlatform.onKeyPress, true);
+    DefoldPlatform.addEventListener("keyup", DefoldPlatform.onKeyup, true);
+    DefoldPlatform.addEventListener("mousemove", DefoldPlatform.onMousemove, true);
+    DefoldPlatform.addEventListener("mousedown", DefoldPlatform.onMouseButtonDown, true);
+    DefoldPlatform.addEventListener("mouseup", DefoldPlatform.onMouseButtonUp, true);
+    DefoldPlatform.addEventListener('DOMMouseScroll', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
+    DefoldPlatform.addEventListener('mousewheel', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
+    DefoldPlatform.addEventListenerCanvas('touchstart', DefoldPlatform.onTouchStart, true);
+    DefoldPlatform.addEventListenerCanvas('touchend', DefoldPlatform.onTouchEnd, true);
+    DefoldPlatform.addEventListenerCanvas('touchcancel', DefoldPlatform.onTouchCancel, true);
+    DefoldPlatform.addEventListenerCanvas('touchmove', DefoldPlatform.onTouchMove, true);
+    DefoldPlatform.addEventListenerCanvas('focus', DefoldPlatform.onFocus, true);
+    DefoldPlatform.addEventListenerCanvas('blur', DefoldPlatform.onBlur, true);
 
     // The browser can still be in fullscreen or pointer lock from a previous
-    // engine instance, since a reboot keeps the canvas and glfwTerminate leaves
+    // engine instance, since a reboot keeps the canvas and dmNativeTerminate leaves
     // the browser state alone. Recompute the cached state from the document and
     // listen for changes again while it is active.
-    GLFW.isFullscreen = false;
-    GLFW.isPointerLocked = false;
+    DefoldPlatform.isFullscreen = false;
+    DefoldPlatform.isPointerLocked = false;
     if (typeof document !== 'undefined') {
-        GLFW.isFullscreen = GLFW.isDocumentFullscreen();
-        if (GLFW.isFullscreen) {
-            GLFW.addFullScreenEventListeners();
+        DefoldPlatform.isFullscreen = DefoldPlatform.isDocumentFullscreen();
+        if (DefoldPlatform.isFullscreen) {
+            DefoldPlatform.addFullScreenEventListeners();
         }
-        GLFW.isPointerLocked = !!document["pointerLockElement"];
-        if (GLFW.isPointerLocked) {
-            document.addEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+        DefoldPlatform.isPointerLocked = !!document["pointerLockElement"];
+        if (DefoldPlatform.isPointerLocked) {
+            document.addEventListener('pointerlockchange', DefoldPlatform.onPointerLockEventChange, true);
         }
     }
 
     //TODO: Init with correct values
-    GLFW.params = new Array();
-    GLFW.params[0x00030001] = true; // GLFW_MOUSE_CURSOR
-    GLFW.params[0x00030002] = false; // GLFW_STICKY_KEYS
-    GLFW.params[0x00030003] = true; // GLFW_STICKY_MOUSE_BUTTONS
-    GLFW.params[0x00030004] = false; // GLFW_SYSTEM_KEYS
-    GLFW.params[0x00030005] = false; // GLFW_KEY_REPEAT
-    GLFW.params[0x00030006] = true; // GLFW_AUTO_POLL_EVENTS
-    GLFW.params[0x00020001] = true; // GLFW_OPENED
-    GLFW.params[0x00020002] = true; // GLFW_ACTIVE
-    GLFW.params[0x00020003] = false; // GLFW_ICONIFIED
-    GLFW.params[0x00020004] = true; // GLFW_ACCELERATED
-    GLFW.params[0x00020005] = 0; // GLFW_RED_BITS
-    GLFW.params[0x00020006] = 0; // GLFW_GREEN_BITS
-    GLFW.params[0x00020007] = 0; // GLFW_BLUE_BITS
-    GLFW.params[0x00020008] = 0; // GLFW_ALPHA_BITS
-    GLFW.params[0x00020009] = 0; // GLFW_DEPTH_BITS
-    GLFW.params[0x0002000A] = 0; // GLFW_STENCIL_BITS
-    GLFW.params[0x0002000B] = 0; // GLFW_REFRESH_RATE
-    GLFW.params[0x0002000C] = 0; // GLFW_ACCUM_RED_BITS
-    GLFW.params[0x0002000D] = 0; // GLFW_ACCUM_GREEN_BITS
-    GLFW.params[0x0002000E] = 0; // GLFW_ACCUM_BLUE_BITS
-    GLFW.params[0x0002000F] = 0; // GLFW_ACCUM_ALPHA_BITS
-    GLFW.params[0x00020010] = 0; // GLFW_AUX_BUFFERS
-    GLFW.params[0x00020011] = 0; // GLFW_STEREO
-    GLFW.params[0x00020012] = 0; // GLFW_WINDOW_NO_RESIZE
-    GLFW.params[0x00020013] = 0; // GLFW_FSAA_SAMPLES
-    GLFW.params[0x00020014] = 0; // GLFW_OPENGL_VERSION_MAJOR
-    GLFW.params[0x00020015] = 0; // GLFW_OPENGL_VERSION_MINOR
-    GLFW.params[0x00020016] = 0; // GLFW_OPENGL_FORWARD_COMPAT
-    GLFW.params[0x00020017] = 0; // GLFW_OPENGL_DEBUG_CONTEXT
-    GLFW.params[0x00020018] = 0; // GLFW_OPENGL_PROFILE
-    GLFW.params[0x00050001] = 0; // GLFW_PRESENT
-    GLFW.params[0x00050002] = 1; // GLFW_AXES
-    GLFW.params[0x00050003] = 2; // GLFW_BUTTONS
-    GLFW.params[0x00020019] = 0; // GLFW_WINDOW_HIGH_DPI
+    DefoldPlatform.params = new Array();
+    DefoldPlatform.cursorVisible = true; // NATIVE_MOUSE_CURSOR
+    DefoldPlatform.stickyKeys = false; // NATIVE_STICKY_KEYS
+    DefoldPlatform.stickyMouseButtons = true; // NATIVE_STICKY_MOUSE_BUTTONS
+    DefoldPlatform.systemKeys = false; // NATIVE_SYSTEM_KEYS
+    DefoldPlatform.keyRepeat = false; // NATIVE_KEY_REPEAT
+    DefoldPlatform.autoPollEvents = true; // NATIVE_AUTO_POLL_EVENTS
+    DefoldPlatform.params[1] = true; // NATIVE_OPENED
+    DefoldPlatform.params[2] = true; // NATIVE_ACTIVE
+    DefoldPlatform.params[3] = false; // NATIVE_ICONIFIED
+    DefoldPlatform.params[4] = true; // NATIVE_ACCELERATED
+    DefoldPlatform.params[5] = 0; // NATIVE_RED_BITS
+    DefoldPlatform.params[6] = 0; // NATIVE_GREEN_BITS
+    DefoldPlatform.params[7] = 0; // NATIVE_BLUE_BITS
+    DefoldPlatform.params[8] = 0; // NATIVE_ALPHA_BITS
+    DefoldPlatform.params[9] = 0; // NATIVE_DEPTH_BITS
+    DefoldPlatform.params[10] = 0; // NATIVE_STENCIL_BITS
+    DefoldPlatform.params[11] = 0; // NATIVE_REFRESH_RATE
+    DefoldPlatform.params[12] = 0; // NATIVE_ACCUM_RED_BITS
+    DefoldPlatform.params[13] = 0; // NATIVE_ACCUM_GREEN_BITS
+    DefoldPlatform.params[14] = 0; // NATIVE_ACCUM_BLUE_BITS
+    DefoldPlatform.params[15] = 0; // NATIVE_ACCUM_ALPHA_BITS
+    DefoldPlatform.params[16] = 0; // NATIVE_AUX_BUFFERS
+    DefoldPlatform.params[17] = 0; // NATIVE_STEREO
+    DefoldPlatform.params[18] = 0; // NATIVE_WINDOW_NO_RESIZE
+    DefoldPlatform.params[19] = 0; // NATIVE_FSAA_SAMPLES
+    DefoldPlatform.params[21] = 0; // NATIVE_WINDOW_HIGH_DPI
 
-    GLFW.dpi = 1;
+    DefoldPlatform.dpi = 1;
 
-    GLFW.keys = new Array();
+    DefoldPlatform.keys = new Array();
 
-    GLFW.GLFW_PHASE_BEGAN = 0;
-    GLFW.GLFW_PHASE_MOVED = 1;
-    GLFW.GLFW_PHASE_ENDED = 3;
-    GLFW.GLFW_PHASE_CANCELLED = 4;
+    DefoldPlatform.NATIVE_PHASE_BEGAN = 0;
+    DefoldPlatform.NATIVE_PHASE_MOVED = 1;
+    DefoldPlatform.NATIVE_PHASE_ENDED = 3;
+    DefoldPlatform.NATIVE_PHASE_CANCELLED = 4;
 
     return 1; // GL_TRUE
   },
 
-  glfwTerminate: () => {
-    GLFW.removeEventListener("pagehide", GLFW.onWindowClose, true);
-    GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
-    GLFW.removeEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
-    GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
-    GLFW.removeEventListener("keypress", GLFW.onKeyPress, true);
-    GLFW.removeEventListener("keyup", GLFW.onKeyup, true);
-    GLFW.removeEventListener("mousemove", GLFW.onMousemove, true);
-    GLFW.removeEventListener("mousedown", GLFW.onMouseButtonDown, true);
-    GLFW.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
-    GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, { capture: true, passive: false });
-    GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
-    GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
-    GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
-    GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
-    GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
-    GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
-    GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
+  dmNativeTerminate: () => {
+    DefoldPlatform.removeEventListener("pagehide", DefoldPlatform.onWindowClose, true);
+    DefoldPlatform.removeEventListener("gamepadconnected", DefoldPlatform.onJoystickConnected, true);
+    DefoldPlatform.removeEventListener("gamepaddisconnected", DefoldPlatform.onJoystickDisconnected, true);
+    DefoldPlatform.removeEventListener("keydown", DefoldPlatform.onKeydown, true);
+    DefoldPlatform.removeEventListener("keypress", DefoldPlatform.onKeyPress, true);
+    DefoldPlatform.removeEventListener("keyup", DefoldPlatform.onKeyup, true);
+    DefoldPlatform.removeEventListener("mousemove", DefoldPlatform.onMousemove, true);
+    DefoldPlatform.removeEventListener("mousedown", DefoldPlatform.onMouseButtonDown, true);
+    DefoldPlatform.removeEventListener("mouseup", DefoldPlatform.onMouseButtonUp, true);
+    DefoldPlatform.removeEventListener('DOMMouseScroll', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
+    DefoldPlatform.removeEventListener('mousewheel', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
+    DefoldPlatform.removeEventListenerCanvas('touchstart', DefoldPlatform.onTouchStart, true);
+    DefoldPlatform.removeEventListenerCanvas('touchend', DefoldPlatform.onTouchEnd, true);
+    DefoldPlatform.removeEventListenerCanvas('touchcancel', DefoldPlatform.onTouchCancel, true);
+    DefoldPlatform.removeEventListenerCanvas('touchmove', DefoldPlatform.onTouchMove, true);
+    DefoldPlatform.removeEventListenerCanvas('focus', DefoldPlatform.onFocus, true);
+    DefoldPlatform.removeEventListenerCanvas('blur', DefoldPlatform.onBlur, true);
 
     // Fullscreen and pointer lock listeners are otherwise only removed by their
     // own change handlers, so they survive termination if we exit while active.
-    // The browser state itself is left as it is, glfwInitJS recomputes the
+    // The browser state itself is left as it is, dmNativeInitJS recomputes the
     // cached flags from the document when a new window is opened.
-    // The document is guarded like window/canvas above, since glfwTerminate is
+    // The document is guarded like window/canvas above, since dmNativeTerminate is
     // also reachable from embeddings without a DOM.
     if (typeof document !== 'undefined') {
-        GLFW.removeFullScreenEventListeners();
-        document.removeEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+        DefoldPlatform.removeFullScreenEventListeners();
+        document.removeEventListener('pointerlockchange', DefoldPlatform.onPointerLockEventChange, true);
     }
 
     // The callbacks point into the engine that is being destroyed. They are set
     // again when a new window is opened.
-    GLFW.keyFunc = null;
-    GLFW.charFunc = null;
-    GLFW.markedTextFunc = null;
-    GLFW.gamepadFunc = null;
-    GLFW.mouseButtonFunc = null;
-    GLFW.mousePosFunc = null;
-    GLFW.mouseWheelFunc = null;
-    GLFW.resizeFunc = null;
-    GLFW.closeFunc = null;
-    GLFW.refreshFunc = null;
-    GLFW.focusFunc = null;
-    GLFW.iconifyFunc = null;
-    GLFW.touchFunc = null;
+    DefoldPlatform.keyFunc = null;
+    DefoldPlatform.charFunc = null;
+    DefoldPlatform.markedTextFunc = null;
+    DefoldPlatform.gamepadFunc = null;
+    DefoldPlatform.mouseButtonFunc = null;
+    DefoldPlatform.mousePosFunc = null;
+    DefoldPlatform.mouseWheelFunc = null;
+    DefoldPlatform.resizeFunc = null;
+    DefoldPlatform.closeFunc = null;
+    DefoldPlatform.refreshFunc = null;
+    DefoldPlatform.focusFunc = null;
+    DefoldPlatform.iconifyFunc = null;
+    DefoldPlatform.touchFunc = null;
   },
 
-  glfwGetVersion: function(major, minor, rev) {
-    setValue(major, 2, 'i32');
-    setValue(minor, 7, 'i32');
-    setValue(rev, 7, 'i32');
-  },
-
-  /* Window handling */
-  glfwOpenWindow__deps: ['$Browser'],
-  glfwOpenWindow: function(width, height, redbits, greenbits, bluebits, alphabits, depthbits, stencilbits, mode) {
+  dmNativeOpenWindowJS__deps: ['$Browser'],
+  dmNativeOpenWindowJS: function(width, height, alphabits, samples, fullscreen, highDPI, useWebGL, webglVersion) {
     if (width == 0 && height > 0) {
       width = 4 * height / 3;
     }
     if (width > 0 && height == 0) {
       height = 3 * width / 4;
     }
-    GLFW.params[0x00020005] = redbits; // GLFW_RED_BITS
-    GLFW.params[0x00020006] = greenbits; // GLFW_GREEN_BITS
-    GLFW.params[0x00020007] = bluebits; // GLFW_BLUE_BITS
-    GLFW.params[0x00020008] = alphabits; // GLFW_ALPHA_BITS
-    GLFW.params[0x00020009] = depthbits; // GLFW_DEPTH_BITS
-    GLFW.params[0x0002000A] = stencilbits; // GLFW_STENCIL_BITS
+    DefoldPlatform.params[5] = 8; // NATIVE_RED_BITS
+    DefoldPlatform.params[6] = 8; // NATIVE_GREEN_BITS
+    DefoldPlatform.params[7] = 8; // NATIVE_BLUE_BITS
+    DefoldPlatform.params[8] = alphabits; // NATIVE_ALPHA_BITS
+    DefoldPlatform.params[9] = 32; // NATIVE_DEPTH_BITS
+    DefoldPlatform.params[10] = 8; // NATIVE_STENCIL_BITS
 
-    if (mode == 0x00010001) {// GLFW_WINDOW
-      GLFW.initWindowWidth = width;
-      GLFW.initWindowHeight = height;
-      GLFW.params[0x00030003] = true; // GLFW_STICKY_MOUSE_BUTTONS
-    } else if (mode == 0x00010002) {// GLFW_FULLSCREEN
-      GLFW.requestFullScreen();
-      GLFW.params[0x00030003] = false; // GLFW_STICKY_MOUSE_BUTTONS
+    if (!fullscreen) {
+      DefoldPlatform.initWindowWidth = width;
+      DefoldPlatform.initWindowHeight = height;
+      DefoldPlatform.stickyMouseButtons = true; // NATIVE_STICKY_MOUSE_BUTTONS
     } else {
-      throw "Invalid glfwOpenWindow mode.";
+      DefoldPlatform.requestFullScreen();
+      DefoldPlatform.stickyMouseButtons = false; // NATIVE_STICKY_MOUSE_BUTTONS
     }
 
-    var useWebGL = GLFW.params[0x0002001A] > 0; // Use WebGL when we are told to based on GLFW_CLIENT_API
+    DefoldPlatform.params[19] = samples;
+    DefoldPlatform.params[21] = highDPI;
+    DefoldPlatform.dpi = highDPI ? (window.devicePixelRatio || 1) : 1;
     if(useWebGL) {
         var contextAttributes = {
-            antialias: (GLFW.params[0x00020013] > 1), // GLFW_FSAA_SAMPLES
-            depth: (GLFW.params[0x00020009] > 0), // GLFW_DEPTH_BITS
-            stencil: (GLFW.params[0x0002000A] > 0), // GLFW_STENCIL_BITS
-            alpha: (GLFW.params[0x00020008] > 0), // GLFW_ALPHA_BITS
-            majorVersion: GLFW.params[0x0002001B] // GLFW_WEBGL_VERSION
+            antialias: (DefoldPlatform.params[19] > 1), // NATIVE_FSAA_SAMPLES
+            depth: (DefoldPlatform.params[9] > 0), // NATIVE_DEPTH_BITS
+            stencil: (DefoldPlatform.params[10] > 0), // NATIVE_STENCIL_BITS
+            alpha: (DefoldPlatform.params[8] > 0), // NATIVE_ALPHA_BITS
+            majorVersion: webglVersion
         };
 
         // iOS < 15.2 has issues with WebGl 2.0 contexts. It's created without issues but doesn't work.
@@ -928,195 +907,153 @@ var LibraryGLFW = {
     return 1; // GL_TRUE
   },
 
-  glfwOpenWindowHint: function(target, hint) {
-    GLFW.params[target] = hint;
-
-    // if display._high_dpi flag is on in game.project
-    // we get information about the current pixel ratio from browser
-    if (target == 0x00020019) { //GLFW_WINDOW_HIGH_DPI
-      if (hint != 0) {
-        // the same logic is in dmloader.js -> using display.high_dpi
-        GLFW.dpi = window.devicePixelRatio || 1;
-      }
-    }
-  },
-
-  glfwCloseWindow: function() {
-    if (GLFW.closeFunc) {
-      {{{ makeDynCall('i', 'GLFW.closeFunc') }}}();
+  dmNativeCloseWindow: function() {
+    if (DefoldPlatform.closeFunc) {
+      {{{ makeDynCall('i', 'DefoldPlatform.closeFunc') }}}();
     }
     delete Module.ctx;
   },
 
-  glfwSetWindowTitle: function(title) {
+  dmNativeSetWindowTitle: function(title) {
     document.title = UTF8ToString(title);
   },
 
-  glfwGetWindowSize: function(width, height) {
+  dmNativeGetWindowSize: function(width, height) {
     setValue(width, Module['canvas'].width, 'i32');
     setValue(height, Module['canvas'].height, 'i32');
   },
 
-  glfwSetWindowSize: function(width, height) {
+  dmNativeSetWindowSize: function(width, height) {
       Browser.setCanvasSize(width, height);
-      if (GLFW.resizeFunc) {
-        {{{ makeDynCall('vii', 'GLFW.resizeFunc') }}}(width, height);
+      if (DefoldPlatform.resizeFunc) {
+        {{{ makeDynCall('vii', 'DefoldPlatform.resizeFunc') }}}(width, height);
       }
   },
 
-  glfwSetWindowPos: function(x, y) {},
+  dmNativeSetWindowPos: function(x, y) {},
 
-  glfwIconifyWindow: function() {},
+  dmNativeIconifyWindow: function() {},
 
-  glfwRestoreWindow: function() {},
-
-  glfwSwapBuffers__deps: ['glfwSetWindowSize'],
-  glfwSwapBuffers: function() {
+  dmNativeSwapBuffers__deps: ['dmNativeSetWindowSize'],
+  dmNativeSwapBuffers: function() {
 
     var width = Module['canvas'].width;
     var height = Module['canvas'].height;
 
-    if (GLFW.prevWidth != width || GLFW.prevHeight != height) {
-      if (GLFW.isFullscreen) {
-        width = Math.floor(window.innerWidth * GLFW.dpi);
-        height = Math.floor(window.innerHeight * GLFW.dpi);
+    if (DefoldPlatform.prevWidth != width || DefoldPlatform.prevHeight != height) {
+      if (DefoldPlatform.isFullscreen) {
+        width = Math.floor(window.innerWidth * DefoldPlatform.dpi);
+        height = Math.floor(window.innerHeight * DefoldPlatform.dpi);
       }
-      GLFW.prevWidth = width;
-      GLFW.prevHeight = height;
-      _glfwSetWindowSize(width, height);
+      DefoldPlatform.prevWidth = width;
+      DefoldPlatform.prevHeight = height;
+      _dmNativeSetWindowSize(width, height);
     }
   },
 
-  glfwSwapInterval: function(interval) {},
+  dmNativeSwapInterval: function(interval) {},
 
-  glfwGetWindowParam: function(param) {
-    return GLFW.params[param];
+  dmNativeGetWindowParam: function(param) {
+    return DefoldPlatform.params[param];
   },
 
-  glfwSetWindowSizeCallback: function(cbfun) {
-    GLFW.resizeFunc = cbfun;
+  dmNativeSetWindowSizeCallback: function(cbfun) {
+    DefoldPlatform.resizeFunc = cbfun;
   },
 
-  glfwSetWindowCloseCallback: function(cbfun) {
-    GLFW.closeFunc = cbfun;
+  dmNativeSetWindowCloseCallback: function(cbfun) {
+    DefoldPlatform.closeFunc = cbfun;
   },
 
-  glfwSetWindowRefreshCallback: function(cbfun) {
-    GLFW.refreshFunc = cbfun;
+  dmNativeSetWindowFocusCallback: function(cbfun) {
+    DefoldPlatform.focusFunc = cbfun;
   },
 
-  glfwSetWindowFocusCallback: function(cbfun) {
-    GLFW.focusFunc = cbfun;
-  },
-
-  glfwSetWindowIconifyCallback: function(cbfun) {
-    GLFW.iconifyFunc = cbfun;
+  dmNativeSetWindowIconifyCallback: function(cbfun) {
+    DefoldPlatform.iconifyFunc = cbfun;
   },
 
   /* Video mode functions */
-  glfwGetVideoModes: function(list, maxcount) { throw "glfwGetVideoModes is not implemented."; },
+  dmNativePollEvents: function() {},
 
-  glfwGetDesktopMode: function(mode) { throw "glfwGetDesktopMode is not implemented."; },
-
-  /* Input handling */
-  glfwPollEvents: function() {},
-
-  glfwWaitEvents: function() {},
-
-  glfwGetKey: function(key) {
-    return GLFW.keys[key];
+  dmNativeGetKey: function(key) {
+    return DefoldPlatform.keys[key];
   },
 
-  glfwGetMouseButton: function(button) {
-    return (GLFW.buttons & (1 << GLFW.DOMtoGLFWButton(button))) > 0;
+  dmNativeGetMouseButton: function(button) {
+    return (DefoldPlatform.buttons & (1 << DefoldPlatform.DOMtoNativeButton(button))) > 0;
   },
 
-  glfwGetMousePos: function(xpos, ypos) {
+  dmNativeGetMousePos: function(xpos, ypos) {
     setValue(xpos, Browser.mouseX, 'i32');
     setValue(ypos, Browser.mouseY, 'i32');
   },
 
   // I believe it is not possible to move the mouse with javascript
-  glfwSetMousePos: function(xpos, ypos) {},
-
-  glfwGetMouseWheel: function() {
-    return GLFW.wheelPos;
+  dmNativeGetMouseWheel: function() {
+    return DefoldPlatform.wheelPos;
   },
 
-  glfwSetMouseWheel: function(pos) {
-    GLFW.wheelPos = pos;
+  dmNativeSetCursorVisible: function(visible) {
+    DefoldPlatform.cursorVisible = !!visible;
+    if (visible) DefoldPlatform.cancelPointerLock();
+    else DefoldPlatform.requestPointerLock();
   },
 
-  glfwGetMouseLocked: function() {
-    return GLFW.isPointerLocked ? 1 : 0;
+  dmNativeGetMouseLocked: function() {
+    return DefoldPlatform.isPointerLocked ? 1 : 0;
   },
 
-  glfwSetKeyCallback: function(cbfun) {
-    GLFW.keyFunc = cbfun;
-  },
-
-  glfwSetCharCallback: function(cbfun) {
-    GLFW.charFunc = cbfun;
+  dmNativeSetCharCallback: function(cbfun) {
+    DefoldPlatform.charFunc = cbfun;
     return 1;
   },
 
-  glfwSetMarkedTextCallback: function(cbfun) {
-    GLFW.markedTextFunc = cbfun;
+  dmNativeSetMarkedTextCallback: function(cbfun) {
+    DefoldPlatform.markedTextFunc = cbfun;
     return 1;
   },
 
-  glfwSetMouseButtonCallback: function(cbfun) {
-    GLFW.mouseButtonFunc = cbfun;
-  },
-
-  glfwSetMousePosCallback: function(cbfun) {
-    GLFW.mousePosFunc = cbfun;
-  },
-
-  glfwSetMouseWheelCallback: function(cbfun) {
-    GLFW.mouseWheelFunc = cbfun;
-  },
-
-  glfwSetGamepadCallback: function(cbfun) {
-    GLFW.gamepadFunc = cbfun;
+  dmNativeSetGamepadCallback: function(cbfun) {
+    DefoldPlatform.gamepadFunc = cbfun;
     try {
-      GLFW.refreshJoysticks();
+      DefoldPlatform.refreshJoysticks();
       return 1;
     }
     catch(e) {
       console.error(e);
-      GLFW.gamepadFunc = null;
+      DefoldPlatform.gamepadFunc = null;
       return 0;
     }
   },
 
-  glfwSetDeviceChangedCallback: function(cbfun) {
+  dmNativeSetDeviceChangedCallback: function(cbfun) {
     return 1;
   },
 
   /* Joystick input */
 
-  glfwGetJoystickParam: function(joy, param) {
+  dmNativeGetJoystickParam: function(joy, param) {
     var result = 0; //GL_FALSE
-    if (GLFW.joys[joy]) {
-      switch (GLFW.params[param]) {
-        case 0: // GLFW_PRESENT
+    if (DefoldPlatform.joys[joy]) {
+      switch (DefoldPlatform.params[param]) {
+        case 0: // NATIVE_PRESENT
           result = 1; //GL_TRUE
           break;
-        case 1: // GLFW_AXES
-          result = GLFW.joys[joy].axesCount;
+        case 1: // NATIVE_AXES
+          result = DefoldPlatform.joys[joy].axesCount;
           break;
-        case 2: // GLFW_BUTTONS
-          result = GLFW.joys[joy].buttonsCount;
+        case 2: // NATIVE_BUTTONS
+          result = DefoldPlatform.joys[joy].buttonsCount;
           break;
         }
     }
     return result;
   },
 
-  glfwGetJoystickPos: function(joy, pos, numaxes) {
-    GLFW.refreshJoysticks();
-    var state = GLFW.joys[joy];
+  dmNativeGetJoystickPos: function(joy, pos, numaxes) {
+    DefoldPlatform.refreshJoysticks();
+    var state = DefoldPlatform.joys[joy];
     if (!state || !state.axes) {
       for (var i = 0; i < numaxes; i++) {
         setValue(pos + i*4, 0, 'float');
@@ -1129,9 +1066,9 @@ var LibraryGLFW = {
     }
   },
 
-  glfwGetJoystickButtons: function(joy, buttons, numbuttons) {
-    GLFW.refreshJoysticks();
-    var state = GLFW.joys[joy];
+  dmNativeGetJoystickButtons: function(joy, buttons, numbuttons) {
+    DefoldPlatform.refreshJoysticks();
+    var state = DefoldPlatform.joys[joy];
     if (!state || !state.buttons) {
       for (var i = 0; i < numbuttons; i++) {
         setValue(buttons + i, 0, 'i8');
@@ -1143,29 +1080,29 @@ var LibraryGLFW = {
     }
   },
 
-  glfwGetJoystickHats: function(joy, buttons, numhats) {
+  dmNativeGetJoystickHats: function(joy, buttons, numhats) {
     return 0;
   },
 
-  glfwGetJoystickDeviceId: function(joy, device_id) {
-    if (GLFW.joys[joy]) {
-      setValue(device_id, GLFW.joys[joy].id, '*');
+  dmNativeGetJoystickDeviceId: function(joy, device_id) {
+    if (DefoldPlatform.joys[joy]) {
+      setValue(device_id, DefoldPlatform.joys[joy].id, '*');
       return 1;
     } else {
       return 0;
     }
   },
 
-  glfwGetJoystickDeviceGuid: function(joy, device_guid) {
-    if (GLFW.joys[joy]) {
-      setValue(device_guid, GLFW.joys[joy].guid, '*');
+  dmNativeGetJoystickDeviceGuid: function(joy, device_guid) {
+    if (DefoldPlatform.joys[joy]) {
+      setValue(device_guid, DefoldPlatform.joys[joy].guid, '*');
       return 1;
     } else {
       return 0;
     }
   },
 
-  glfwCreateJoystickDeviceGuid: function(bus, vendor, product, version, vendor_name, product_name, driver_signature, driver_data, guid) {
+  dmNativeCreateJoystickDeviceGuid: function(bus, vendor, product, version, vendor_name, product_name, driver_signature, driver_data, guid) {
     function crc16ForByte(value) {
       var crc = 0;
       for (var bit = 0; bit < 8; ++bit) {
@@ -1232,146 +1169,48 @@ var LibraryGLFW = {
   },
 
   /* Time */
-  glfwGetTime: function() {
-    return (Date.now()/1000) - GLFW.initTime;
-  },
-
-  glfwSetTime: function(time) {
-    GLFW.initTime = Date.now()/1000 + time;
-  },
-
-  glfwSleep__deps: ['sleep'],
-  glfwSleep: function(time) {
-    _sleep(time);
-  },
-
-  /* Extension support */
-  glfwExtensionSupported: function(extension) {
-    return Module.ctx.getSupportedExtensions().indexOf(UTF8ToString(extension)) > -1;
-  },
-
-  glfwGetProcAddress__deps: ['glfwGetProcAddress'],
-  glfwGetProcAddress: function(procname) {
+  dmNativeGetProcAddress__deps: ['dmNativeGetProcAddress'],
+  dmNativeGetProcAddress: function(procname) {
     return _getProcAddress(procname);
   },
 
-  glfwGetGLVersion: function(major, minor, rev) {
-    setValue(major, 0, 'i32');
-    setValue(minor, 0, 'i32');
-    setValue(rev, 1, 'i32');
-  },
-
-  /* Threading support */
-  glfwCreateThread: function(fun, arg) {
-    {{{ makeDynCall('vi', 'str') }}}(fun, arg); // from emscripten-core 2.0.10
-    // One single thread
-    return 0;
-  },
-
-  glfwDestroyThread: function(ID) {},
-
-  glfwWaitThread: function(ID, waitmode) {},
-
-  glfwGetThreadID: function() {
-    // One single thread
-    return 0;
-  },
-
-  glfwCreateMutex: function() { throw "glfwCreateMutex is not implemented."; },
-
-  glfwDestroyMutex: function(mutex) { throw "glfwDestroyMutex is not implemented."; },
-
-  glfwLockMutex: function(mutex) { throw "glfwLockMutex is not implemented."; },
-
-  glfwUnlockMutex: function(mutex) { throw "glfwUnlockMutex is not implemented."; },
-
-  glfwCreateCond: function() { throw "glfwCreateCond is not implemented."; },
-
-  glfwDestroyCond: function(cond) { throw "glfwDestroyCond is not implemented."; },
-
-  glfwWaitCond: function(cond, mutex, timeout) { throw "glfwWaitCond is not implemented."; },
-
-  glfwSignalCond: function(cond) { throw "glfwSignalCond is not implemented."; },
-
-  glfwBroadcastCond: function(cond) { throw "glfwBroadcastCond is not implemented."; },
-
-  glfwGetNumberOfProcessors: function() {
-    // Threads are disabled anyway…
-    return 1;
-  },
-
-  /* Enable/disable functions */
-  glfwEnable: function(token) {
-    GLFW.params[token] = true;
-
-    if (token == 0x00030001) // GLFW_MOUSE_CURSOR)
-    {
-      GLFW.cancelPointerLock();
-    }
-  },
-
-  glfwDisable: function(token) {
-    GLFW.params[token] = false;
-    if (token == 0x00030001) // GLFW_MOUSE_CURSOR)
-    {
-      GLFW.requestPointerLock();
-    }
-  },
-
-  /* Image/texture I/O support */
-  glfwReadImage: function(name, img, flags) { throw "glfwReadImage is not implemented."; },
-
-  glfwReadMemoryImage: function(data, size, img, flags) { throw "glfwReadMemoryImage is not implemented."; },
-
-  glfwFreeImage: function(img) { throw "glfwFreeImage is not implemented."; },
-
-  glfwLoadTexture2D: function(name, flags) { throw "glfwLoadTexture2D is not implemented."; },
-
-  glfwLoadMemoryTexture2D: function(data, size, flags) { throw "glfwLoadMemoryTexture2D is not implemented."; },
-
-  glfwLoadTextureImage2D: function(img, flags) { throw "glfwLoadTextureImage2D is not implemented."; },
-
-  glfwShowKeyboard: function(show_keyboard) {
+  dmNativeShowKeyboard: function(show_keyboard) {
     Module['canvas'].contentEditable = show_keyboard ? true : false;
     if (show_keyboard) {
       Module['canvas'].focus();
     }
   },
 
-  glfwResetKeyboard: function() {
+  dmNativeResetKeyboard: function() {
   },
 
-  glfwSetTouchCallback: function(cbfun) {
-    GLFW.touchFunc = cbfun;
+  dmNativeSetTouchCallback: function(cbfun) {
+    DefoldPlatform.touchFunc = cbfun;
     return 1;
   },
 
-  glfwGetAcceleration: function(x, y, z) {
+  dmNativeGetAcceleration: function(x, y, z) {
       return 0;
   },
 
-  glfwGetWindowRefreshRate: function() {
+  dmNativeGetWindowRefreshRate: function() {
     return 0;
   },
 
-  glfwGetDefaultFramebuffer: function() {
+  dmNativeGetDefaultFramebuffer: function() {
 	  return 0;
   },
 
-  glfwGetNativeHandles: function() {
-    return 0;
+  dmNativeAccelerometerEnable: function() {
   },
 
-  glfwAccelerometerEnable: function() {
+  dmNativeSetWindowBackgroundColor: function(color) {
   },
 
-  glfwSetWindowBackgroundColor: function(color) {
-  },
-
-  glfwGetDisplayScaleFactor: function() {
-    return GLFW.dpi;
+  dmNativeGetDisplayScaleFactor: function() {
+    return DefoldPlatform.dpi;
   }
 };
 
-autoAddDeps(LibraryGLFW, '$GLFW');
-addToLibrary(LibraryGLFW);
+autoAddDeps(LibraryDefoldPlatform, '$DefoldPlatform');
+addToLibrary(LibraryDefoldPlatform);

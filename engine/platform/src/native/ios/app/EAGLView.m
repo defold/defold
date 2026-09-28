@@ -33,7 +33,7 @@ EAGLContext*                g_glContext = 0;
 EAGLContext*                g_glAuxContext = 0;
 
 // AppDelegate.m
-extern _GLFWwin             g_Savewin;
+extern Nativewin             g_Savewin;
 extern UIWindow*            g_ApplicationWindow;
 extern AppDelegate*         g_ApplicationDelegate;
 
@@ -152,7 +152,7 @@ static void LogGLError(GLint err)
 
 - (void)swapBuffers
 {
-    if (_glfwWin.iconified)
+    if (dmNativeWin.iconified)
         return;
 
     const GLenum discards[]  = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
@@ -202,9 +202,9 @@ static void LogGLError(GLint err)
     [self setWindowWidth:backingWidth];
     [self setWindowHeight:backingHeight];
 
-    if (_glfwWin.windowSizeCallback)
+    if (dmNativeWin.windowSizeCallback)
     {
-        _glfwWin.windowSizeCallback( backingWidth, backingHeight );
+        dmNativeWin.windowSizeCallback( backingWidth, backingHeight );
     }
 
     // Setup packed depth and stencil buffers
@@ -254,9 +254,9 @@ static void LogGLError(GLint err)
 //========================================================================
 // Query auxillary context
 //========================================================================
-int _glfwPlatformQueryAuxContextOpenGL()
+int dmNativeOSQueryAuxContextOpenGL()
 {
-    if(!_glfwWin.aux_context)
+    if(!dmNativeWin.aux_context)
         return 0;
     return 1;
 }
@@ -264,40 +264,40 @@ int _glfwPlatformQueryAuxContextOpenGL()
 //========================================================================
 // Acquire auxillary context for current thread
 //========================================================================
-void* _glfwPlatformAcquireAuxContextOpenGL()
+void* dmNativeOSAcquireAuxContextOpenGL()
 {
-    if(!_glfwWin.aux_context)
+    if(!dmNativeWin.aux_context)
     {
         fprintf( stderr, "Unable to make OpenGL aux context current, is NULL\n" );
         return 0;
     }
-    if(![EAGLContext setCurrentContext:_glfwWin.aux_context])
+    if(![EAGLContext setCurrentContext:dmNativeWin.aux_context])
     {
         fprintf( stderr, "Unable to make OpenGL aux context current, setCurrentContext failed\n" );
         return 0;
     }
-    return _glfwWin.aux_context;
+    return dmNativeWin.aux_context;
 }
 
 //========================================================================
 // Unacquire auxillary context for current thread
 //========================================================================
-void _glfwPlatformUnacquireAuxContextOpenGL(void* context)
+void dmNativeOSUnacquireAuxContextOpenGL(void* context)
 {
     [EAGLContext setCurrentContext:nil];
 }
 
-int  _glfwPlatformOpenWindowOpenGL( int width, int height,
-                              const _GLFWwndconfig *wndconfig,
-                              const _GLFWfbconfig *fbconfig )
+int  dmNativeOSOpenWindowOpenGL( int width, int height,
+                              const Nativewndconfig *wndconfig,
+                              const Nativefbconfig *fbconfig )
 {
     if (!g_EAGLView || !g_glContext)
     {
-        ViewController* viewController = (ViewController*) _glfwWin.viewController;
+        ViewController* viewController = (ViewController*) dmNativeWin.viewController;
         if (!viewController)
         {
             viewController = (ViewController*) g_ApplicationWindow.rootViewController;
-            _glfwWin.viewController = viewController;
+            dmNativeWin.viewController = viewController;
         }
         if (viewController && [viewController isViewLoaded])
         {
@@ -311,25 +311,25 @@ int  _glfwPlatformOpenWindowOpenGL( int width, int height,
     }
 
     // Width and height are set by the EAGLView
-    _glfwWin.width = [g_EAGLView getWindowWidth];
-    _glfwWin.height = [g_EAGLView getWindowHeight];
+    dmNativeWin.width = [g_EAGLView getWindowWidth];
+    dmNativeWin.height = [g_EAGLView getWindowHeight];
 
-    _glfwWin.portrait = height > width ? GL_TRUE : GL_FALSE;
+    dmNativeWin.portrait = height > width ? GL_TRUE : GL_FALSE;
 
     // The desired orientation might have changed when rebooting to a new game
-    g_Savewin.portrait = _glfwWin.portrait;
+    g_Savewin.portrait = dmNativeWin.portrait;
 
-    _glfwWin.pixelFormat = nil;
-    _glfwWin.delegate = g_ApplicationDelegate;
+    dmNativeWin.pixelFormat = nil;
+    dmNativeWin.delegate = g_ApplicationDelegate;
 
-    _glfwWin.view = g_EAGLView;
-    _glfwWin.window = g_ApplicationWindow;
-    _glfwWin.iconified = !_glfwPlatformIsSceneActive();
+    dmNativeWin.view = g_EAGLView;
+    dmNativeWin.window = g_ApplicationWindow;
+    dmNativeWin.iconified = !dmNativeOSIsSceneActive();
 
-    _glfwWin.context = g_glContext;
-    _glfwWin.aux_context = g_glAuxContext;
-    _glfwWin.clientAPI = GLFW_OPENGL_API;
+    dmNativeWin.context = g_glContext;
+    dmNativeWin.aux_context = g_glAuxContext;
+    dmNativeWin.clientAPI = NATIVE_OPENGL_API;
 
-    _glfwWin.frameBuffer = [g_EAGLView getViewFramebuffer];
+    dmNativeWin.frameBuffer = [g_EAGLView getViewFramebuffer];
     return GL_TRUE;
 }

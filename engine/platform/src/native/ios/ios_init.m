@@ -29,75 +29,59 @@
 
 // Needed for _NSGetProgname
 //#include <crt_externs.h>
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #import <UIKit/UIKit.h>
 
 #include "internal.h"
 
 //========================================================================
-// Terminate GLFW when exiting application
+// Terminate Native when exiting application
 //========================================================================
 
-static void glfw_atexit( void )
+static void dmNative_atexit( void )
 {
-    glfwTerminate();
+    dmNativeTerminate();
 }
 
 //========================================================================
-// Initialize GLFW thread package
+// Initialize Native thread package
 //========================================================================
 
-static void initThreads( void )
-{
-    // Initialize critical section handle
-    (void) pthread_mutex_init( &_glfwThrd.CriticalSection, NULL );
-
-    // The first thread (the main thread) has ID 0
-    _glfwThrd.NextID = 0;
-
-    // Fill out information about the main thread (this thread)
-    _glfwThrd.First.ID       = _glfwThrd.NextID ++;
-    _glfwThrd.First.Function = NULL;
-    _glfwThrd.First.PosixID  = pthread_self();
-    _glfwThrd.First.Previous = NULL;
-    _glfwThrd.First.Next     = NULL;
-}
 
 //************************************************************************
 //****               Platform implementation functions                ****
 //************************************************************************
 
 //========================================================================
-// Initialize the GLFW library
+// Initialize the Native library
 //========================================================================
 
-int _glfwPlatformInit( void )
+int dmNativeOSInit( void )
 {
-    _glfwLibrary.AutoreleasePool = [[NSAutoreleasePool alloc] init];
+    dmNativeLibrary.AutoreleasePool = [[NSAutoreleasePool alloc] init];
 
-    atexit( glfw_atexit );
+    atexit( dmNative_atexit );
 
-    _glfwLibrary.OpenGLFramework =
+    dmNativeLibrary.OpenGLFramework =
         CFBundleGetBundleWithIdentifier( CFSTR( "com.apple.opengles" ) );
-    if( _glfwLibrary.OpenGLFramework == NULL )
+    if( dmNativeLibrary.OpenGLFramework == NULL )
     {
-        fprintf( stderr, "glfwInit failing because you aren't linked to OpenGL\n" );
+        fprintf( stderr, "dmNativeInit failing because you aren't linked to OpenGL\n" );
         return GL_FALSE;
     }
 
-    initThreads();
-
-    _glfwPlatformSetTime( 0.0 );
 
     return GL_TRUE;
 }
 
 //========================================================================
-// Close window, if open, and shut down GLFW
+// Close window, if open, and shut down Native
 //========================================================================
 
-int _glfwPlatformTerminate( void )
+int dmNativeOSTerminate( void )
 {
-    glfwCloseWindow();
+    dmNativeCloseWindow();
 
     return GL_TRUE;
 }

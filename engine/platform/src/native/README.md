@@ -7,5 +7,7 @@ is installed as `lib/<platform>/js/library_platform.js`.
 
 The native implementation was extracted from Defold's modified GLFW 2.7.1 fork.
 Original third-party copyright and license notices are retained in derived files.
-The private runtime interface is being reduced to the operations used by Defold;
-engine consumers use the platform headers rather than these private headers.
+Window creation uses Defold's `WindowCreateParams` directly. These private C and
+JavaScript helpers provide the native lifecycle and input implementation; they
+are not a GLFW compatibility API and are not installed as SDK headers. Desktop
+platforms continue to use the separate GLFW 3 backend.

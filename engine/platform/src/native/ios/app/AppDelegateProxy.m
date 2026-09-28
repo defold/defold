@@ -116,7 +116,7 @@ AppDelegate* g_ApplicationDelegate = 0;
 
 @end
 
-GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate)
+void dmNativeRegisterUIApplicationDelegate(void* delegate)
 {
     NSLog(@"Added delegate %@", NSStringFromClass([(id)delegate class]));
     if (g_AppDelegatesCount >= MAX_APP_DELEGATES) {
@@ -126,7 +126,7 @@ GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate)
     }
 }
 
-GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate)
+void dmNativeUnregisterUIApplicationDelegate(void* delegate)
 {
     for (int i = 0; i < g_AppDelegatesCount; ++i)
     {

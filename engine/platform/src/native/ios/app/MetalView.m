@@ -20,7 +20,7 @@
 #include "internal.h"
 
 // AppDelegate.m
-extern _GLFWwin         g_Savewin;
+extern Nativewin         g_Savewin;
 extern UIWindow*        g_ApplicationWindow;
 extern AppDelegate*     g_ApplicationDelegate;
 
@@ -51,16 +51,16 @@ static void UpdateWindowSize(MetalView* view, BOOL notify)
         return;
     }
 
-    const BOOL changed = _glfwWin.width != width || _glfwWin.height != height;
+    const BOOL changed = dmNativeWin.width != width || dmNativeWin.height != height;
     [view setWindowWidth:width];
     [view setWindowHeight:height];
     ((CAMetalLayer*)view.layer).drawableSize = drawable_size;
-    _glfwWin.width = width;
-    _glfwWin.height = height;
+    dmNativeWin.width = width;
+    dmNativeWin.height = height;
 
-    if (notify && changed && _glfwWin.windowSizeCallback)
+    if (notify && changed && dmNativeWin.windowSizeCallback)
     {
-        _glfwWin.windowSizeCallback(width, height);
+        dmNativeWin.windowSizeCallback(width, height);
     }
 }
 
@@ -108,44 +108,44 @@ static void UpdateWindowSize(MetalView* view, BOOL notify)
 
 @end
 
-void* _glfwPlatformAcquireAuxContextVulkan()
+void* dmNativeOSAcquireAuxContextVulkan()
 {
     return 0;
 }
 
-void _glfwPlatformUnacquireAuxContextVulkan(void* context)
+void dmNativeOSUnacquireAuxContextVulkan(void* context)
 {
 }
 
-int _glfwPlatformQueryAuxContextVulkan()
+int dmNativeOSQueryAuxContextVulkan()
 {
     return 0;
 }
 
-int  _glfwPlatformOpenWindowVulkan( int width, int height,
-                              const _GLFWwndconfig *wndconfig,
-                              const _GLFWfbconfig *fbconfig )
+int  dmNativeOSOpenWindowVulkan( int width, int height,
+                              const Nativewndconfig *wndconfig,
+                              const Nativefbconfig *fbconfig )
 {
     UpdateWindowSize(g_MetalView, NO);
 
-    _glfwWin.portrait = height > width ? GL_TRUE : GL_FALSE;
+    dmNativeWin.portrait = height > width ? GL_TRUE : GL_FALSE;
 
     // The desired orientation might have changed when rebooting to a new game
-    g_Savewin.portrait = _glfwWin.portrait;
+    g_Savewin.portrait = dmNativeWin.portrait;
 
-    _glfwWin.pixelFormat = nil;
-    _glfwWin.delegate = g_ApplicationDelegate;
+    dmNativeWin.pixelFormat = nil;
+    dmNativeWin.delegate = g_ApplicationDelegate;
 
-    _glfwWin.view = g_MetalView;
-    _glfwWin.window = g_ApplicationWindow;
-    _glfwWin.iconified = !_glfwPlatformIsSceneActive();
+    dmNativeWin.view = g_MetalView;
+    dmNativeWin.window = g_ApplicationWindow;
+    dmNativeWin.iconified = !dmNativeOSIsSceneActive();
 
     // opengl
-    _glfwWin.context = nil;
-    _glfwWin.aux_context = nil;
+    dmNativeWin.context = nil;
+    dmNativeWin.aux_context = nil;
 
 	// no API
-    _glfwWin.clientAPI = GLFW_NO_API;
+    dmNativeWin.clientAPI = NATIVE_NO_API;
 
     return GL_TRUE;
 }

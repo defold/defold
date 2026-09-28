@@ -20,7 +20,7 @@
 #import "EAGLView.h"
 
 extern int g_IsReboot;
-static int g_view_type = GLFW_NO_API;
+static int g_view_type = NATIVE_NO_API;
 
 @implementation ViewController
 
@@ -39,7 +39,7 @@ static int g_view_type = GLFW_NO_API;
 
     BaseView* oldBaseView = baseView;
     BaseView* newBaseView = 0;
-    if (g_view_type == GLFW_NO_API)
+    if (g_view_type == NATIVE_NO_API)
     {
         newBaseView = [MetalView createView: bounds recreate:recreate];
     }
@@ -72,7 +72,7 @@ static int g_view_type = GLFW_NO_API;
     self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.view.autoresizesSubviews = YES;
 
-    _glfwWin.viewController = self;
+    dmNativeWin.viewController = self;
 
     [self createView:FALSE];
 }
@@ -81,7 +81,7 @@ static int g_view_type = GLFW_NO_API;
 {
     [super viewWillDisappear:animated];
 
-    if (_glfwWin.clientAPI == GLFW_OPENGL_API)
+    if (dmNativeWin.clientAPI == NATIVE_OPENGL_API)
     {
         // According to Apple glFinish() should be called here (Comment moved from AppDelegate applicationWillResignActive)
         glFinish();
@@ -121,7 +121,7 @@ static int g_view_type = GLFW_NO_API;
         parent_bounds.size = cachedViewSize;
     }
     bool flipBounds = false;
-    if (_glfwWin.portrait) {
+    if (dmNativeWin.portrait) {
         flipBounds = parent_bounds.size.width > parent_bounds.size.height;
     } else {
         flipBounds = parent_bounds.size.width < parent_bounds.size.height;
@@ -189,16 +189,16 @@ static BOOL ViewTypeMatchesBaseView(int view_type, BaseView* view)
     {
         return NO;
     }
-    if (view_type == GLFW_NO_API)
+    if (view_type == NATIVE_NO_API)
     {
         return [view isKindOfClass:[MetalView class]];
     }
     return [view isKindOfClass:[EAGLView class]];
 }
 
-void _glfwPlatformSetViewType(int view_type)
+void dmNativeOSSetViewType(int view_type)
 {
-    ViewController* viewController = (ViewController*) _glfwWin.viewController;
+    ViewController* viewController = (ViewController*) dmNativeWin.viewController;
     if (g_view_type == view_type &&
         (!viewController || ![viewController isViewLoaded] || ViewTypeMatchesBaseView(view_type, viewController.baseView)))
     {
@@ -213,70 +213,70 @@ void _glfwPlatformSetViewType(int view_type)
     }
 }
 
-void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
+void dmNativeOSSetWindowBackgroundColor(unsigned int color)
 {
     float r = (color & 0xff) / 255.0f;
     float g = ((color >> 8) & 0xff) / 255.0f;
     float b = ((color >> 16) & 0xff) / 255.0f;
     float a = 1.0f;
-    UIViewController *viewController = (UIViewController*)_glfwWin.viewController;
+    UIViewController *viewController = (UIViewController*)dmNativeWin.viewController;
     viewController.view.backgroundColor = [[UIColor alloc]initWithRed:r green:g blue:b alpha:a];
 }
 
-float _glfwPlatformGetDisplayScaleFactor()
+float dmNativeOSGetDisplayScaleFactor()
 {
     return 1.0f;
 }
 
-void* _glfwPlatformAcquireAuxContext()
+void* dmNativeOSAcquireAuxContext()
 {
-    if (_glfwWin.clientAPI == GLFW_NO_API)
+    if (dmNativeWin.clientAPI == NATIVE_NO_API)
     {
-        _glfwPlatformAcquireAuxContextVulkan();
+        dmNativeOSAcquireAuxContextVulkan();
     }
     else
     {
-        _glfwPlatformAcquireAuxContextOpenGL();
+        dmNativeOSAcquireAuxContextOpenGL();
     }
     return 0;
 }
 
-void _glfwPlatformUnacquireAuxContext(void* context)
+void dmNativeOSUnacquireAuxContext(void* context)
 {
-    if (_glfwWin.clientAPI == GLFW_NO_API)
+    if (dmNativeWin.clientAPI == NATIVE_NO_API)
     {
-        _glfwPlatformUnacquireAuxContextVulkan(context);
+        dmNativeOSUnacquireAuxContextVulkan(context);
     }
     else
     {
-        _glfwPlatformUnacquireAuxContextOpenGL(context);
+        dmNativeOSUnacquireAuxContextOpenGL(context);
     }
 }
 
-int _glfwPlatformQueryAuxContext()
+int dmNativeOSQueryAuxContext()
 {
-    if (_glfwWin.clientAPI == GLFW_NO_API)
+    if (dmNativeWin.clientAPI == NATIVE_NO_API)
     {
-        return _glfwPlatformQueryAuxContextVulkan();
+        return dmNativeOSQueryAuxContextVulkan();
     }
     else
     {
-        return _glfwPlatformQueryAuxContextOpenGL();
+        return dmNativeOSQueryAuxContextOpenGL();
     }
 }
 
-int  _glfwPlatformOpenWindow( int width, int height,
-                              const _GLFWwndconfig *wndconfig,
-                              const _GLFWfbconfig *fbconfig )
+int  dmNativeOSOpenWindow( int width, int height,
+                              const Nativewndconfig *wndconfig,
+                              const Nativefbconfig *fbconfig )
 {
-    _glfwPlatformSetViewType(wndconfig->clientAPI);
+    dmNativeOSSetViewType(wndconfig->clientAPI);
 
-    if (wndconfig->clientAPI == GLFW_NO_API)
+    if (wndconfig->clientAPI == NATIVE_NO_API)
     {
-        return _glfwPlatformOpenWindowVulkan(width, height, wndconfig, fbconfig);
+        return dmNativeOSOpenWindowVulkan(width, height, wndconfig, fbconfig);
     }
     else
     {
-        return _glfwPlatformOpenWindowOpenGL(width, height, wndconfig, fbconfig);
+        return dmNativeOSOpenWindowOpenGL(width, height, wndconfig, fbconfig);
     }
 }

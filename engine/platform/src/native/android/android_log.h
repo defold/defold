@@ -18,12 +18,12 @@
 #include <android/log.h>
 #include <assert.h>
 
-#define LOGV(...) ((void)__android_log_print(ANDROID_LOG_VERBOSE, "glfw-android", __VA_ARGS__))
-#define LOGD(...) ((void)__android_log_print(ANDROID_LOG_DEBUG, "glfw-android", __VA_ARGS__))
-#define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, "glfw-android", __VA_ARGS__))
-#define LOGW(...) ((void)__android_log_print(ANDROID_LOG_WARN, "glfw-android", __VA_ARGS__))
-#define LOGE(...) ((void)__android_log_print(ANDROID_LOG_ERROR, "glfw-android", __VA_ARGS__))
-#define LOGF(...) ((void)__android_log_print(ANDROID_LOG_FATAL, "glfw-android", __VA_ARGS__))
+#define LOGV(...) ((void)__android_log_print(ANDROID_LOG_VERBOSE, "dmNative-android", __VA_ARGS__))
+#define LOGD(...) ((void)__android_log_print(ANDROID_LOG_DEBUG, "dmNative-android", __VA_ARGS__))
+#define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, "dmNative-android", __VA_ARGS__))
+#define LOGW(...) ((void)__android_log_print(ANDROID_LOG_WARN, "dmNative-android", __VA_ARGS__))
+#define LOGE(...) ((void)__android_log_print(ANDROID_LOG_ERROR, "dmNative-android", __VA_ARGS__))
+#define LOGF(...) ((void)__android_log_print(ANDROID_LOG_FATAL, "dmNative-android", __VA_ARGS__))
 
 #define CHECK_EGL_ERROR \
 {\

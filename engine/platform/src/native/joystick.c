@@ -28,14 +28,16 @@
 //
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "internal.h"
 
 
 //************************************************************************
-//****                    GLFW user functions                         ****
+//****                    Native backend functions                         ****
 //************************************************************************
 
-static unsigned short glfwCrc16ForByte( unsigned char value )
+static unsigned short dmNativeCrc16ForByte( unsigned char value )
 {
     unsigned short crc;
     unsigned int bit;
@@ -50,13 +52,13 @@ static unsigned short glfwCrc16ForByte( unsigned char value )
 }
 
 
-static unsigned short glfwCrc16( unsigned short crc, const char* string )
+static unsigned short dmNativeCrc16( unsigned short crc, const char* string )
 {
     if( string )
     {
         while( *string )
         {
-            crc = (unsigned short)(glfwCrc16ForByte( (unsigned char)crc ^ (unsigned char)*string++ ) ^ (crc >> 8));
+            crc = (unsigned short)(dmNativeCrc16ForByte( (unsigned char)crc ^ (unsigned char)*string++ ) ^ (crc >> 8));
         }
     }
 
@@ -64,14 +66,14 @@ static unsigned short glfwCrc16( unsigned short crc, const char* string )
 }
 
 
-static void glfwSetGuidWord( unsigned char guid_data[16], unsigned int offset, unsigned short value )
+static void dmNativeSetGuidWord( unsigned char guid_data[16], unsigned int offset, unsigned short value )
 {
     guid_data[offset + 0] = (unsigned char)(value & 0xff);
     guid_data[offset + 1] = (unsigned char)(value >> 8);
 }
 
 
-static void glfwEncodeGuid( const unsigned char guid_data[16], char guid[GLFW_JOYSTICK_DEVICE_GUID_LENGTH + 1] )
+static void dmNativeEncodeGuid( const unsigned char guid_data[16], char guid[NATIVE_JOYSTICK_DEVICE_GUID_LENGTH + 1] )
 {
     static const char hex[] = "0123456789abcdef";
     unsigned int i;
@@ -82,7 +84,7 @@ static void glfwEncodeGuid( const unsigned char guid_data[16], char guid[GLFW_JO
         guid[i * 2 + 1] = hex[guid_data[i] & 0x0f];
     }
 
-    guid[GLFW_JOYSTICK_DEVICE_GUID_LENGTH] = '\0';
+    guid[NATIVE_JOYSTICK_DEVICE_GUID_LENGTH] = '\0';
 }
 
 
@@ -90,7 +92,7 @@ static void glfwEncodeGuid( const unsigned char guid_data[16], char guid[GLFW_JO
 // Create an SDL-compatible joystick device guid
 //========================================================================
 
-GLFWAPI void GLFWAPIENTRY glfwCreateJoystickDeviceGuid( unsigned short bus,
+void dmNativeCreateJoystickDeviceGuid( unsigned short bus,
                                                         unsigned short vendor,
                                                         unsigned short product,
                                                         unsigned short version,
@@ -98,7 +100,7 @@ GLFWAPI void GLFWAPIENTRY glfwCreateJoystickDeviceGuid( unsigned short bus,
                                                         const char* product_name,
                                                         unsigned char driver_signature,
                                                         unsigned char driver_data,
-                                                        char guid[GLFW_JOYSTICK_DEVICE_GUID_LENGTH + 1] )
+                                                        char guid[NATIVE_JOYSTICK_DEVICE_GUID_LENGTH + 1] )
 {
     unsigned char guid_data[16];
     unsigned short crc;
@@ -109,23 +111,23 @@ GLFWAPI void GLFWAPIENTRY glfwCreateJoystickDeviceGuid( unsigned short bus,
 
     if( vendor_name && *vendor_name && product_name && *product_name )
     {
-        crc = glfwCrc16( crc, vendor_name );
-        crc = glfwCrc16( crc, " " );
-        crc = glfwCrc16( crc, product_name );
+        crc = dmNativeCrc16( crc, vendor_name );
+        crc = dmNativeCrc16( crc, " " );
+        crc = dmNativeCrc16( crc, product_name );
     }
     else if( product_name )
     {
-        crc = glfwCrc16( crc, product_name );
+        crc = dmNativeCrc16( crc, product_name );
     }
 
-    glfwSetGuidWord( guid_data, 0, bus );
-    glfwSetGuidWord( guid_data, 2, crc );
+    dmNativeSetGuidWord( guid_data, 0, bus );
+    dmNativeSetGuidWord( guid_data, 2, crc );
 
     if( vendor )
     {
-        glfwSetGuidWord( guid_data, 4, vendor );
-        glfwSetGuidWord( guid_data, 8, product );
-        glfwSetGuidWord( guid_data, 12, version );
+        dmNativeSetGuidWord( guid_data, 4, vendor );
+        dmNativeSetGuidWord( guid_data, 8, product );
+        dmNativeSetGuidWord( guid_data, 12, version );
         guid_data[14] = driver_signature;
         guid_data[15] = driver_data;
     }
@@ -149,7 +151,7 @@ GLFWAPI void GLFWAPIENTRY glfwCreateJoystickDeviceGuid( unsigned short bus,
         }
     }
 
-    glfwEncodeGuid( guid_data, guid );
+    dmNativeEncodeGuid( guid_data, guid );
 }
 
 
@@ -157,14 +159,14 @@ GLFWAPI void GLFWAPIENTRY glfwCreateJoystickDeviceGuid( unsigned short bus,
 // Determine joystick capabilities
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwGetJoystickParam( int joy, int param )
+int dmNativeGetJoystickParam( int joy, int param )
 {
-    if( !_glfwInitialized )
+    if( !dmNativeInitialized )
     {
         return 0;
     }
 
-    return _glfwPlatformGetJoystickParam( joy, param );
+    return dmNativeOSGetJoystickParam( joy, param );
 }
 
 
@@ -172,11 +174,11 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickParam( int joy, int param )
 // Get joystick axis positions
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwGetJoystickPos( int joy, float *pos, int numaxes )
+int dmNativeGetJoystickPos( int joy, float *pos, int numaxes )
 {
     int i;
 
-    if( !_glfwInitialized )
+    if( !dmNativeInitialized )
     {
         return 0;
     }
@@ -187,7 +189,7 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickPos( int joy, float *pos, int numaxes )
         pos[ i ] = 0.0f;
     }
 
-    return _glfwPlatformGetJoystickPos( joy, pos, numaxes );
+    return dmNativeOSGetJoystickPos( joy, pos, numaxes );
 }
 
 
@@ -195,13 +197,13 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickPos( int joy, float *pos, int numaxes )
 // Get joystick button states
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwGetJoystickButtons( int joy,
+int dmNativeGetJoystickButtons( int joy,
                                                  unsigned char *buttons,
                                                  int numbuttons )
 {
     int i;
 
-    if( !_glfwInitialized )
+    if( !dmNativeInitialized )
     {
         return 0;
     }
@@ -209,23 +211,23 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickButtons( int joy,
     // Clear button states
     for( i = 0; i < numbuttons; i++ )
     {
-        buttons[ i ] = GLFW_RELEASE;
+        buttons[ i ] = NATIVE_RELEASE;
     }
 
-    return _glfwPlatformGetJoystickButtons( joy, buttons, numbuttons );
+    return dmNativeOSGetJoystickButtons( joy, buttons, numbuttons );
 }
 
 //========================================================================
 // Get joystick hat states
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwGetJoystickHats( int joy,
+int dmNativeGetJoystickHats( int joy,
                                               unsigned char *hats,
                                               int numhats )
 {
     int i;
 
-    if( !_glfwInitialized )
+    if( !dmNativeInitialized )
     {
         return 0;
     }
@@ -233,23 +235,23 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickHats( int joy,
     // Clear hat states, ie all centered.
     for( i = 0; i < numhats; i++ )
     {
-        hats[ i ] = GLFW_HAT_CENTERED;
+        hats[ i ] = NATIVE_HAT_CENTERED;
     }
 
-    return _glfwPlatformGetJoystickHats( joy, hats, numhats );
+    return dmNativeOSGetJoystickHats( joy, hats, numhats );
 }
 
 //========================================================================
 // Get joystick device id
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceId( int joy, char** device_id )
+int dmNativeGetJoystickDeviceId( int joy, char** device_id )
 {
-    // Is GLFW initialized?
-    if( !_glfwInitialized )
+    // Is Native initialized?
+    if( !dmNativeInitialized )
     {
         return 0;
     }
 
-    return _glfwPlatformGetJoystickDeviceId( joy, device_id );
+    return dmNativeOSGetJoystickDeviceId( joy, device_id );
 }

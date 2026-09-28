@@ -28,6 +28,8 @@
 //
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "internal.h"
 
 #include "android_joystick.h"
@@ -42,11 +44,11 @@
 #include <string.h>
 
 //************************************************************************
-//****                  GLFW internal functions                       ****
+//****                  Native internal functions                       ****
 //************************************************************************
 
 //========================================================================
-// Initialize GLFW thread package
+// Initialize Native thread package
 //========================================================================
 
 struct android_app* g_AndroidApp;
@@ -64,7 +66,7 @@ static ASensorEventQueue* g_sensorEventQueue = 0;
 static ASensorRef g_accelerometer = 0;
 static int g_accelerometerEnabled = 0;
 static uint32_t g_accelerometerFrequency = 1000000/60;
-static GLFWTouch* g_MouseEmulationTouch = 0;
+static NativeTouch* g_MouseEmulationTouch = 0;
 uint32_t g_EventLock = 0;
 int g_AppCommands[MAX_APP_COMMANDS];
 int g_NumAppCommands = 0;
@@ -76,7 +78,7 @@ bool g_AppResumed = false;
 
 #define COMMAND_LINE_ARGUMENTS_EXTRA "com.dynamo.android.EXTRA_COMMAND_LINE_ARGUMENTS"
 
-int _glfwAndroidIsAppResumed(void)
+int dmNativeAndroidIsAppResumed(void)
 {
     spinlock_lock(&g_EventLock);
     int resumed = g_AppResumed;
@@ -312,77 +314,20 @@ done:
     return result;
 }
 
-static void initThreads( void )
+
+//========================================================================
+// Terminate Native thread package
+//========================================================================
+
+
+//========================================================================
+// Terminate Native when exiting application
+//========================================================================
+
+static void dmNative_atexit( void )
 {
-    // Initialize critical section handle
-#ifdef _GLFW_HAS_PTHREAD
-    (void) pthread_mutex_init( &_glfwThrd.CriticalSection, NULL );
-#endif
-
-    // The first thread (the main thread) has ID 0
-    _glfwThrd.NextID = 0;
-
-    // Fill out information about the main thread (this thread)
-    _glfwThrd.First.ID       = _glfwThrd.NextID++;
-    _glfwThrd.First.Function = NULL;
-    _glfwThrd.First.Previous = NULL;
-    _glfwThrd.First.Next     = NULL;
-#ifdef _GLFW_HAS_PTHREAD
-    _glfwThrd.First.PosixID  = pthread_self();
-#endif
-
-    g_EventLock = 0;
-}
-
-
-//========================================================================
-// Terminate GLFW thread package
-//========================================================================
-
-static void terminateThreads( void )
-{
-#ifdef _GLFW_HAS_PTHREAD
-
-    _GLFWthread *t, *t_next;
-
-    // Enter critical section
-    ENTER_THREAD_CRITICAL_SECTION
-
-    // Kill all threads (NOTE: THE USER SHOULD WAIT FOR ALL THREADS TO
-    // DIE, _BEFORE_ CALLING glfwTerminate()!!!)
-    t = _glfwThrd.First.Next;
-    while( t != NULL )
-    {
-        // Get pointer to next thread
-        t_next = t->Next;
-
-        // Simply murder the process, no mercy!
-        pthread_kill( t->PosixID, SIGKILL );
-
-        // Free memory allocated for this thread
-        free( (void *) t );
-
-        // Select next thread in list
-        t = t_next;
-    }
-
-    // Leave critical section
-    LEAVE_THREAD_CRITICAL_SECTION
-
-    // Delete critical section handle
-    pthread_mutex_destroy( &_glfwThrd.CriticalSection );
-
-#endif // _GLFW_HAS_PTHREAD
-}
-
-//========================================================================
-// Terminate GLFW when exiting application
-//========================================================================
-
-static void glfw_atexit( void )
-{
-    LOGV("glfw_atexit");
-    glfwTerminate();
+    LOGV("dmNative_atexit");
+    dmNativeTerminate();
 }
 
 //************************************************************************
@@ -390,14 +335,14 @@ static void glfw_atexit( void )
 //************************************************************************
 
 //========================================================================
-// Initialize various GLFW state
+// Initialize various Native state
 //========================================================================
 
 #define CASE_RETURN(cmd)\
     case cmd:\
         return #cmd;
 
-const char* _glfwGetAndroidCmdName(int32_t cmd)
+const char* dmNativeGetAndroidCmdName(int32_t cmd)
 {
     switch (cmd)
     {
@@ -438,44 +383,44 @@ void computeIconifiedState()
     // For OpenGL, we can key this off the EGL surface. For NO_API backends (e.g. Vulkan),
     // there is no EGL surface, so use the native app window instead.
     int has_renderable_window = 0;
-    if (_glfwWin.clientAPI == GLFW_NO_API)
+    if (dmNativeWin.clientAPI == NATIVE_NO_API)
     {
-        has_renderable_window = _glfwWinAndroid.app != NULL && _glfwWinAndroid.app->window != NULL;
+        has_renderable_window = dmNativeWinAndroid.app != NULL && dmNativeWinAndroid.app->window != NULL;
     }
     else
     {
-        has_renderable_window = _glfwWinAndroid.surface != EGL_NO_SURFACE;
+        has_renderable_window = dmNativeWinAndroid.surface != EGL_NO_SURFACE;
     }
 
     // A good detailed overview over the recommended app flow is found here:
     // https://developer.download.nvidia.com/assets/mobile/docs/android_lifecycle_app_note.pdf
-    _glfwWin.iconified = !(g_AppResumed && has_renderable_window);
+    dmNativeWin.iconified = !(g_AppResumed && has_renderable_window);
 
     LOGV("iconified: %s    (resume: %s, window: %s)",
-        _glfwWin.iconified?"YES":"no",
+        dmNativeWin.iconified?"YES":"no",
         g_AppResumed?"YES":"no",
         has_renderable_window?"YES":"no");
 }
 
-GLFWAPI int32_t glfwAndroidWindowOpened()
+int32_t dmNativeAndroidWindowOpened()
 {
-    return _glfwWin.opened;
+    return dmNativeWin.opened;
 }
 
-GLFWAPI int32_t glfwAndroidVerifySurface()
+int32_t dmNativeAndroidVerifySurface()
 {
-    return _glfwAndroidPlatformVerifySurface();
+    return dmNativeAndroidPlatformVerifySurface();
 }
 
-void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
-    LOGV("handleCommand (looper thread): %s", _glfwGetAndroidCmdName(cmd));
+void dmNativeAndroidDispatchCommand(struct android_app* app, int32_t cmd) {
+    LOGV("handleCommand (looper thread): %s", dmNativeGetAndroidCmdName(cmd));
 
     switch (cmd)
     {
     case APP_CMD_SAVE_STATE:
         break;
     case APP_CMD_INIT_WINDOW:
-        _glfwWin.opened = 1;
+        dmNativeWin.opened = 1;
         break;
     case APP_CMD_TERM_WINDOW:
         // Defer surface teardown to the engine thread to avoid blocking the looper.
@@ -484,7 +429,7 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_LOST_FOCUS:
         if (g_KeyboardActive) {
-            _glfwShowKeyboard(0, 0, 0);
+            dmNativeShowKeyboard(0, 0, 0);
         }
         break;
     case APP_CMD_START:
@@ -492,7 +437,7 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_STOP:
         break;
     case APP_CMD_RESUME:
-        _glfwWin.active = 1;
+        dmNativeWin.active = 1;
         g_AppResumed = true;
         if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
             ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
@@ -503,11 +448,11 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_CONFIG_CHANGED:
     case APP_CMD_WINDOW_REDRAW_NEEDED:
     case APP_CMD_CONTENT_RECT_CHANGED:
-        // See glfwAndroidFlushEvents for handling of orientation changes
+        // See dmNativeAndroidFlushEvents for handling of orientation changes
         break;
     case APP_CMD_PAUSE:
         g_AppResumed = false;
-        _glfwWin.active = 0;
+        dmNativeWin.active = 0;
         if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
             ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
         }
@@ -519,40 +464,40 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
     }
 }
 
-void glfwAndroidHandleCommand(struct android_app* app, int32_t cmd)
+void dmNativeAndroidHandleCommand(struct android_app* app, int32_t cmd)
 {
     spinlock_lock(&g_EventLock);
 
     if (g_NumAppCommands < MAX_APP_COMMANDS)
     {
         // this is handled on the current thread (looper_main)
-        _glfwAndroidHandleCommand(app, cmd);
+        dmNativeAndroidDispatchCommand(app, cmd);
 
         // This will let the engine thread know (engine_main)
         g_AppCommands[g_NumAppCommands++] = cmd;
     }
     else
     {
-        LOGE("glfwAndroidHandleCommand: max num app commands per frame reached");
+        LOGE("dmNativeAndroidHandleCommand: max num app commands per frame reached");
     }
 
     spinlock_unlock(&g_EventLock);
 }
 
-static GLFWTouch* touchById(void *ref)
+static NativeTouch* touchById(void *ref)
 {
     int32_t i;
 
-    GLFWTouch* freeTouch = 0x0;
-    for (i=0;i!=GLFW_MAX_TOUCH;i++)
+    NativeTouch* freeTouch = 0x0;
+    for (i=0;i!=NATIVE_MAX_TOUCH;i++)
     {
-        _glfwInput.Touch[i].Id = i;
-        if (_glfwInput.Touch[i].Reference == ref)
-            return &_glfwInput.Touch[i];
+        dmNativeInput.Touch[i].Id = i;
+        if (dmNativeInput.Touch[i].Reference == ref)
+            return &dmNativeInput.Touch[i];
 
         // Save touch entry for later if we need to "alloc" one in case we don't find the current reference.
-        if (freeTouch == 0x0 && _glfwInput.Touch[i].Reference == 0x0) {
-            freeTouch = &_glfwInput.Touch[i];
+        if (freeTouch == 0x0 && dmNativeInput.Touch[i].Reference == 0x0) {
+            freeTouch = &dmNativeInput.Touch[i];
         }
     }
 
@@ -563,13 +508,13 @@ static GLFWTouch* touchById(void *ref)
     return freeTouch;
 }
 
-static GLFWTouch* touchStart(void *ref, int32_t x, int32_t y)
+static NativeTouch* touchStart(void *ref, int32_t x, int32_t y)
 {
-    GLFWTouch *touch = touchById(ref);
+    NativeTouch *touch = touchById(ref);
     if (touch)
     {
         // We can't start/begin a new touch if it already has an ongoing phase (ie not idle).
-        if (touch->Phase != GLFW_PHASE_IDLE) {
+        if (touch->Phase != NATIVE_PHASE_IDLE) {
             return 0x0;
         }
 
@@ -578,7 +523,7 @@ static GLFWTouch* touchStart(void *ref, int32_t x, int32_t y)
             g_MouseEmulationTouch = touch;
         }
 
-        touch->Phase = GLFW_PHASE_BEGAN;
+        touch->Phase = NATIVE_PHASE_BEGAN;
         touch->X = x;
         touch->Y = y;
         touch->DX = 0;
@@ -590,13 +535,13 @@ static GLFWTouch* touchStart(void *ref, int32_t x, int32_t y)
     return 0;
 }
 
-static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
+static NativeTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
 {
-    GLFWTouch *touch = touchById(ref);
+    NativeTouch *touch = touchById(ref);
     if (touch)
     {
         // We can only update previous touches that has been initialized (began, moved etc).
-        if (touch->Phase == GLFW_PHASE_IDLE) {
+        if (touch->Phase == NATIVE_PHASE_IDLE) {
             touch->Reference = 0x0;
             return 0x0;
         }
@@ -605,18 +550,18 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
         int newPhase = phase;
 
         // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
-        if (prevPhase == GLFW_PHASE_TAPPED || prevPhase == GLFW_PHASE_CANCELLED) {
+        if (prevPhase == NATIVE_PHASE_TAPPED || prevPhase == NATIVE_PHASE_CANCELLED) {
             return 0x0;
         }
 
         // If this touch is currently used for mouse emulation, and it ended, unset the mouse emulation pointer.
-        if (newPhase == GLFW_PHASE_ENDED && g_MouseEmulationTouch == touch) {
+        if (newPhase == NATIVE_PHASE_ENDED && g_MouseEmulationTouch == touch) {
             g_MouseEmulationTouch = 0x0;
         }
 
         // This is an invalid touch order, we need to recieve a began or moved
         // phase before moving pushing any more move inputs.
-        if (prevPhase == GLFW_PHASE_ENDED && newPhase == GLFW_PHASE_MOVED) {
+        if (prevPhase == NATIVE_PHASE_ENDED && newPhase == NATIVE_PHASE_MOVED) {
             return touch;
         }
 
@@ -627,12 +572,12 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
 
         // If we recieved both a began and moved for the same touch during one frame/update,
         // just update the coordinates but leave the phase as began.
-        if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_MOVED) {
+        if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_MOVED) {
             return touch;
         // If a touch both began and ended during one frame/update, set the phase as
         // tapped and we will send the released event during next update (see input.c).
-        } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
-            touch->Phase = GLFW_PHASE_TAPPED;
+        } else if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_ENDED) {
+            touch->Phase = NATIVE_PHASE_TAPPED;
             return touch;
         }
 
@@ -650,20 +595,20 @@ void *pointerIdToRef(int32_t id)
 
 static void updateGlfwMousePos(int32_t x, int32_t y)
 {
-    _glfwInput.MousePosX = x;
-    _glfwInput.MousePosY = y;
+    dmNativeInput.MousePosX = x;
+    dmNativeInput.MousePosY = y;
 }
 
 
 // return 1 to handle the event, 0 for default handling
-int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct InputEvent* event)
+int32_t dmNativeAndroidDispatchInput(struct android_app* app, JNIEnv* env, struct InputEvent* event)
 {
     int event_type = event->m_Type;
     if (event_type == AINPUT_EVENT_TYPE_MOTION)
     {
         if (g_KeyboardActive && g_autoCloseKeyboard) {
             // Implicitly hide keyboard
-            _glfwShowKeyboard(0, 0, 0);
+            dmNativeShowKeyboard(0, 0, 0);
         }
 
         // touch_handling
@@ -680,40 +625,40 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
             case AMOTION_EVENT_ACTION_DOWN:
                 if (touchStart(pointer_ref, x, y) == g_MouseEmulationTouch) {
                     updateGlfwMousePos(x,y);
-                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
+                    dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS );
                 }
                 break;
             case AMOTION_EVENT_ACTION_UP:
-                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
+                if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
                     updateGlfwMousePos(x,y);
-                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+                    dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 }
                 break;;
             case AMOTION_EVENT_ACTION_POINTER_DOWN:
                 if (touchStart(pointer_ref, x, y) == g_MouseEmulationTouch) {
                     updateGlfwMousePos(x,y);
-                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
+                    dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS );
                 }
                 break;
             case AMOTION_EVENT_ACTION_POINTER_UP:
-                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
+                if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
                     updateGlfwMousePos(x,y);
-                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+                    dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 }
                 break;
             case AMOTION_EVENT_ACTION_CANCEL:
-                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_CANCELLED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
+                if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_CANCELLED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
                     updateGlfwMousePos(x,y);
-                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+                    dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 }
                 break;
             case AMOTION_EVENT_ACTION_MOVE:
                 {
-                    if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_MOVED) == g_MouseEmulationTouch)
+                    if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_MOVED) == g_MouseEmulationTouch)
                     {
                         updateGlfwMousePos(x,y);
-                        if (_glfwWin.mousePosCallback) {
-                            _glfwWin.mousePosCallback(x, y);
+                        if (dmNativeWin.mousePosCallback) {
+                            dmNativeWin.mousePosCallback(x, y);
                         }
                     }
                 }
@@ -734,14 +679,14 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
         int32_t source = event->m_Source;
         int64_t down_time = event->m_DownTime;
         int64_t event_time = event->m_EventTime;
-        int glfw_action = -1;
+        int dmNative_action = -1;
         if (action == AKEY_EVENT_ACTION_DOWN)
         {
-            glfw_action = GLFW_PRESS;
+            dmNative_action = NATIVE_PRESS;
         }
         else if (action == AKEY_EVENT_ACTION_UP)
         {
-            glfw_action = GLFW_RELEASE;
+            dmNative_action = NATIVE_RELEASE;
         }
         else if (action == AKEY_EVENT_ACTION_MULTIPLE && code == AKEYCODE_UNKNOWN)
         {
@@ -755,15 +700,15 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
         // There's an ugly hack in android_window.c that counts down the
         // g_SpecialKeyActive and when it reaches zero it generates a release
         // event for the keys checked below
-        if (g_KeyboardActive && (glfw_action == GLFW_PRESS)) {
+        if (g_KeyboardActive && (dmNative_action == NATIVE_PRESS)) {
             switch (code) {
             case AKEYCODE_DEL:
                 g_SpecialKeyActive = 10;
-                _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
+                dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_PRESS );
                 return 1;
             case AKEYCODE_ENTER:
                 g_SpecialKeyActive = 10;
-                _glfwInputKey( GLFW_KEY_ENTER, GLFW_PRESS );
+                dmNativeInputKey( NATIVE_KEY_ENTER, NATIVE_PRESS );
                 return 1;
             }
         }
@@ -771,7 +716,7 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
         // check for key events that should generate a key trigger
         switch (code) {
         case AKEYCODE_MENU:
-            _glfwInputKey( GLFW_KEY_MENU, glfw_action );
+            dmNativeInputKey( NATIVE_KEY_MENU, dmNative_action );
             return 1;
         case AKEYCODE_BACK:
             // Starting API 33 old implementation of the Back button doesn't work
@@ -779,101 +724,101 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
             if (android_get_device_api_level() < 33) {
                 if (g_KeyboardActive) {
                     // Implicitly hide keyboard
-                    _glfwShowKeyboard(0, 0, 0);
+                    dmNativeShowKeyboard(0, 0, 0);
                 }
-                _glfwInputKey( GLFW_KEY_BACK, glfw_action );
+                dmNativeInputKey( NATIVE_KEY_BACK, dmNative_action );
                 return 1;
             }
             return 0;
-        case AKEYCODE_ESCAPE: _glfwInputKey( GLFW_KEY_ESC, glfw_action ); return 1;
-        case AKEYCODE_F1: _glfwInputKey( GLFW_KEY_F1, glfw_action ); return 1;
-        case AKEYCODE_F2: _glfwInputKey( GLFW_KEY_F2, glfw_action ); return 1;
-        case AKEYCODE_F3: _glfwInputKey( GLFW_KEY_F3, glfw_action ); return 1;
-        case AKEYCODE_F4: _glfwInputKey( GLFW_KEY_F4, glfw_action ); return 1;
-        case AKEYCODE_F5: _glfwInputKey( GLFW_KEY_F5, glfw_action ); return 1;
-        case AKEYCODE_F6: _glfwInputKey( GLFW_KEY_F6, glfw_action ); return 1;
-        case AKEYCODE_F7: _glfwInputKey( GLFW_KEY_F7, glfw_action ); return 1;
-        case AKEYCODE_F8: _glfwInputKey( GLFW_KEY_F8, glfw_action ); return 1;
-        case AKEYCODE_F9: _glfwInputKey( GLFW_KEY_F9, glfw_action ); return 1;
-        case AKEYCODE_F10: _glfwInputKey( GLFW_KEY_F10, glfw_action ); return 1;
-        case AKEYCODE_F11: _glfwInputKey( GLFW_KEY_F11, glfw_action ); return 1;
-        case AKEYCODE_F12: _glfwInputKey( GLFW_KEY_F12, glfw_action ); return 1;
-        case AKEYCODE_DPAD_UP: _glfwInputKey( GLFW_KEY_UP, glfw_action ); return 1;
-        case AKEYCODE_DPAD_DOWN: _glfwInputKey( GLFW_KEY_DOWN, glfw_action ); return 1;
-        case AKEYCODE_DPAD_LEFT: _glfwInputKey( GLFW_KEY_LEFT, glfw_action ); return 1;
-        case AKEYCODE_DPAD_RIGHT: _glfwInputKey( GLFW_KEY_RIGHT, glfw_action ); return 1;
-        case AKEYCODE_SHIFT_LEFT: _glfwInputKey( GLFW_KEY_LSHIFT, glfw_action ); return 1;
-        case AKEYCODE_SHIFT_RIGHT: _glfwInputKey( GLFW_KEY_RSHIFT, glfw_action ); return 1;
-        case AKEYCODE_CTRL_LEFT: _glfwInputKey( GLFW_KEY_LCTRL, glfw_action ); return 1;
-        case AKEYCODE_CTRL_RIGHT: _glfwInputKey( GLFW_KEY_RCTRL, glfw_action ); return 1;
+        case AKEYCODE_ESCAPE: dmNativeInputKey( NATIVE_KEY_ESC, dmNative_action ); return 1;
+        case AKEYCODE_F1: dmNativeInputKey( NATIVE_KEY_F1, dmNative_action ); return 1;
+        case AKEYCODE_F2: dmNativeInputKey( NATIVE_KEY_F2, dmNative_action ); return 1;
+        case AKEYCODE_F3: dmNativeInputKey( NATIVE_KEY_F3, dmNative_action ); return 1;
+        case AKEYCODE_F4: dmNativeInputKey( NATIVE_KEY_F4, dmNative_action ); return 1;
+        case AKEYCODE_F5: dmNativeInputKey( NATIVE_KEY_F5, dmNative_action ); return 1;
+        case AKEYCODE_F6: dmNativeInputKey( NATIVE_KEY_F6, dmNative_action ); return 1;
+        case AKEYCODE_F7: dmNativeInputKey( NATIVE_KEY_F7, dmNative_action ); return 1;
+        case AKEYCODE_F8: dmNativeInputKey( NATIVE_KEY_F8, dmNative_action ); return 1;
+        case AKEYCODE_F9: dmNativeInputKey( NATIVE_KEY_F9, dmNative_action ); return 1;
+        case AKEYCODE_F10: dmNativeInputKey( NATIVE_KEY_F10, dmNative_action ); return 1;
+        case AKEYCODE_F11: dmNativeInputKey( NATIVE_KEY_F11, dmNative_action ); return 1;
+        case AKEYCODE_F12: dmNativeInputKey( NATIVE_KEY_F12, dmNative_action ); return 1;
+        case AKEYCODE_DPAD_UP: dmNativeInputKey( NATIVE_KEY_UP, dmNative_action ); return 1;
+        case AKEYCODE_DPAD_DOWN: dmNativeInputKey( NATIVE_KEY_DOWN, dmNative_action ); return 1;
+        case AKEYCODE_DPAD_LEFT: dmNativeInputKey( NATIVE_KEY_LEFT, dmNative_action ); return 1;
+        case AKEYCODE_DPAD_RIGHT: dmNativeInputKey( NATIVE_KEY_RIGHT, dmNative_action ); return 1;
+        case AKEYCODE_SHIFT_LEFT: dmNativeInputKey( NATIVE_KEY_LSHIFT, dmNative_action ); return 1;
+        case AKEYCODE_SHIFT_RIGHT: dmNativeInputKey( NATIVE_KEY_RSHIFT, dmNative_action ); return 1;
+        case AKEYCODE_CTRL_LEFT: dmNativeInputKey( NATIVE_KEY_LCTRL, dmNative_action ); return 1;
+        case AKEYCODE_CTRL_RIGHT: dmNativeInputKey( NATIVE_KEY_RCTRL, dmNative_action ); return 1;
         // This key is not {@link AKEYCODE_NUM_LOCK}; it is more like {@link AKEYCODE_ALT_LEFT}.
         // https://android.googlesource.com/platform/frameworks/native/+/master/include/android/keycodes.h
-        case AKEYCODE_NUM: _glfwInputKey( GLFW_KEY_LALT, glfw_action ); return 1;
-        case AKEYCODE_ALT_LEFT: _glfwInputKey( GLFW_KEY_LALT, glfw_action ); return 1;
-        case AKEYCODE_ALT_RIGHT: _glfwInputKey( GLFW_KEY_RALT, glfw_action ); return 1;
-        case AKEYCODE_TAB: _glfwInputKey( GLFW_KEY_TAB, glfw_action ); return 1;
-        case AKEYCODE_INSERT: _glfwInputKey( GLFW_KEY_INSERT, glfw_action ); return 1;
-        case AKEYCODE_DEL: _glfwInputKey( GLFW_KEY_DEL, glfw_action ); return 1;
-        case AKEYCODE_PAGE_UP: _glfwInputKey( GLFW_KEY_PAGEUP, glfw_action ); return 1;
-        case AKEYCODE_PAGE_DOWN: _glfwInputKey( GLFW_KEY_PAGEDOWN, glfw_action ); return 1;
-        case AKEYCODE_MOVE_HOME: _glfwInputKey( GLFW_KEY_HOME, glfw_action ); return 1;
-        case AKEYCODE_MOVE_END: _glfwInputKey( GLFW_KEY_END, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_0: _glfwInputKey( GLFW_KEY_KP_0, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_1: _glfwInputKey( GLFW_KEY_KP_1, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_2: _glfwInputKey( GLFW_KEY_KP_2, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_3: _glfwInputKey( GLFW_KEY_KP_3, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_4: _glfwInputKey( GLFW_KEY_KP_4, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_5: _glfwInputKey( GLFW_KEY_KP_5, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_6: _glfwInputKey( GLFW_KEY_KP_6, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_7: _glfwInputKey( GLFW_KEY_KP_7, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_8: _glfwInputKey( GLFW_KEY_KP_8, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_9: _glfwInputKey( GLFW_KEY_KP_9, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_DIVIDE: _glfwInputKey( GLFW_KEY_KP_DIVIDE, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_MULTIPLY: _glfwInputKey( GLFW_KEY_KP_MULTIPLY, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_SUBTRACT: _glfwInputKey( GLFW_KEY_KP_SUBTRACT, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_ADD: _glfwInputKey( GLFW_KEY_KP_ADD, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_DOT: _glfwInputKey( GLFW_KEY_KP_DECIMAL, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_EQUALS: _glfwInputKey( GLFW_KEY_KP_EQUAL, glfw_action ); return 1;
-        case AKEYCODE_NUMPAD_ENTER: _glfwInputKey( GLFW_KEY_KP_ENTER, glfw_action ); return 1;
-        case AKEYCODE_NUM_LOCK: _glfwInputKey( GLFW_KEY_KP_NUM_LOCK, glfw_action ); return 1;
-        case AKEYCODE_CAPS_LOCK: _glfwInputKey( GLFW_KEY_CAPS_LOCK, glfw_action ); return 1;
-        case AKEYCODE_SCROLL_LOCK: _glfwInputKey( GLFW_KEY_SCROLL_LOCK, glfw_action ); return 1;
-        case AKEYCODE_META_LEFT: _glfwInputKey( GLFW_KEY_LSUPER, glfw_action ); return 1;
-        case AKEYCODE_META_RIGHT: _glfwInputKey( GLFW_KEY_RSUPER, glfw_action ); return 1;
+        case AKEYCODE_NUM: dmNativeInputKey( NATIVE_KEY_LALT, dmNative_action ); return 1;
+        case AKEYCODE_ALT_LEFT: dmNativeInputKey( NATIVE_KEY_LALT, dmNative_action ); return 1;
+        case AKEYCODE_ALT_RIGHT: dmNativeInputKey( NATIVE_KEY_RALT, dmNative_action ); return 1;
+        case AKEYCODE_TAB: dmNativeInputKey( NATIVE_KEY_TAB, dmNative_action ); return 1;
+        case AKEYCODE_INSERT: dmNativeInputKey( NATIVE_KEY_INSERT, dmNative_action ); return 1;
+        case AKEYCODE_DEL: dmNativeInputKey( NATIVE_KEY_DEL, dmNative_action ); return 1;
+        case AKEYCODE_PAGE_UP: dmNativeInputKey( NATIVE_KEY_PAGEUP, dmNative_action ); return 1;
+        case AKEYCODE_PAGE_DOWN: dmNativeInputKey( NATIVE_KEY_PAGEDOWN, dmNative_action ); return 1;
+        case AKEYCODE_MOVE_HOME: dmNativeInputKey( NATIVE_KEY_HOME, dmNative_action ); return 1;
+        case AKEYCODE_MOVE_END: dmNativeInputKey( NATIVE_KEY_END, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_0: dmNativeInputKey( NATIVE_KEY_KP_0, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_1: dmNativeInputKey( NATIVE_KEY_KP_1, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_2: dmNativeInputKey( NATIVE_KEY_KP_2, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_3: dmNativeInputKey( NATIVE_KEY_KP_3, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_4: dmNativeInputKey( NATIVE_KEY_KP_4, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_5: dmNativeInputKey( NATIVE_KEY_KP_5, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_6: dmNativeInputKey( NATIVE_KEY_KP_6, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_7: dmNativeInputKey( NATIVE_KEY_KP_7, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_8: dmNativeInputKey( NATIVE_KEY_KP_8, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_9: dmNativeInputKey( NATIVE_KEY_KP_9, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_DIVIDE: dmNativeInputKey( NATIVE_KEY_KP_DIVIDE, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_MULTIPLY: dmNativeInputKey( NATIVE_KEY_KP_MULTIPLY, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_SUBTRACT: dmNativeInputKey( NATIVE_KEY_KP_SUBTRACT, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_ADD: dmNativeInputKey( NATIVE_KEY_KP_ADD, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_DOT: dmNativeInputKey( NATIVE_KEY_KP_DECIMAL, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_EQUALS: dmNativeInputKey( NATIVE_KEY_KP_EQUAL, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_ENTER: dmNativeInputKey( NATIVE_KEY_KP_ENTER, dmNative_action ); return 1;
+        case AKEYCODE_NUM_LOCK: dmNativeInputKey( NATIVE_KEY_KP_NUM_LOCK, dmNative_action ); return 1;
+        case AKEYCODE_CAPS_LOCK: dmNativeInputKey( NATIVE_KEY_CAPS_LOCK, dmNative_action ); return 1;
+        case AKEYCODE_SCROLL_LOCK: dmNativeInputKey( NATIVE_KEY_SCROLL_LOCK, dmNative_action ); return 1;
+        case AKEYCODE_META_LEFT: dmNativeInputKey( NATIVE_KEY_LSUPER, dmNative_action ); return 1;
+        case AKEYCODE_META_RIGHT: dmNativeInputKey( NATIVE_KEY_RSUPER, dmNative_action ); return 1;
         // Break / Pause key
         // https://developer.android.com/ndk/reference/group___input.html
-        case AKEYCODE_BREAK: _glfwInputKey( GLFW_KEY_PAUSE, glfw_action ); return 1;
+        case AKEYCODE_BREAK: dmNativeInputKey( NATIVE_KEY_PAUSE, dmNative_action ); return 1;
 
-        // the key events below have no direct GLFW_KEY_* mapping - do a reasonable translation
-        case AKEYCODE_DPAD_CENTER: _glfwInputKey( GLFW_KEY_ENTER, glfw_action ); return 1;
+        // the key events below have no direct NATIVE_KEY_* mapping - do a reasonable translation
+        case AKEYCODE_DPAD_CENTER: dmNativeInputKey( NATIVE_KEY_ENTER, dmNative_action ); return 1;
         }
 
         // check for key events that should generate both a text and key trigger
         switch (code) {
-            case AKEYCODE_STAR: _glfwInputKey( '*', glfw_action ); break;
-            case AKEYCODE_POUND: _glfwInputKey( '#', glfw_action ); break;
-            case AKEYCODE_COMMA: _glfwInputKey( ',', glfw_action ); break;
-            case AKEYCODE_PERIOD: _glfwInputKey( '.', glfw_action ); break;
-            case AKEYCODE_SPACE: _glfwInputKey( GLFW_KEY_SPACE, glfw_action ); break;
-            case AKEYCODE_GRAVE: _glfwInputKey( '`', glfw_action ); break;
-            case AKEYCODE_MINUS: _glfwInputKey( '-', glfw_action ); break;
-            case AKEYCODE_EQUALS: _glfwInputKey( '=', glfw_action ); break;
-            case AKEYCODE_LEFT_BRACKET: _glfwInputKey( '[', glfw_action ); break;
-            case AKEYCODE_RIGHT_BRACKET: _glfwInputKey( ']', glfw_action ); break;
-            case AKEYCODE_BACKSLASH: _glfwInputKey( '\\', glfw_action ); break;
-            case AKEYCODE_SEMICOLON: _glfwInputKey( ';', glfw_action ); break;
-            case AKEYCODE_APOSTROPHE: _glfwInputKey( '\'', glfw_action ); break;
-            case AKEYCODE_SLASH: _glfwInputKey( '/', glfw_action ); break;
-            case AKEYCODE_AT: _glfwInputKey( '@', glfw_action ); break;
-            case AKEYCODE_PLUS: _glfwInputKey( '+', glfw_action ); break;
+            case AKEYCODE_STAR: dmNativeInputKey( '*', dmNative_action ); break;
+            case AKEYCODE_POUND: dmNativeInputKey( '#', dmNative_action ); break;
+            case AKEYCODE_COMMA: dmNativeInputKey( ',', dmNative_action ); break;
+            case AKEYCODE_PERIOD: dmNativeInputKey( '.', dmNative_action ); break;
+            case AKEYCODE_SPACE: dmNativeInputKey( NATIVE_KEY_SPACE, dmNative_action ); break;
+            case AKEYCODE_GRAVE: dmNativeInputKey( '`', dmNative_action ); break;
+            case AKEYCODE_MINUS: dmNativeInputKey( '-', dmNative_action ); break;
+            case AKEYCODE_EQUALS: dmNativeInputKey( '=', dmNative_action ); break;
+            case AKEYCODE_LEFT_BRACKET: dmNativeInputKey( '[', dmNative_action ); break;
+            case AKEYCODE_RIGHT_BRACKET: dmNativeInputKey( ']', dmNative_action ); break;
+            case AKEYCODE_BACKSLASH: dmNativeInputKey( '\\', dmNative_action ); break;
+            case AKEYCODE_SEMICOLON: dmNativeInputKey( ';', dmNative_action ); break;
+            case AKEYCODE_APOSTROPHE: dmNativeInputKey( '\'', dmNative_action ); break;
+            case AKEYCODE_SLASH: dmNativeInputKey( '/', dmNative_action ); break;
+            case AKEYCODE_AT: dmNativeInputKey( '@', dmNative_action ); break;
+            case AKEYCODE_PLUS: dmNativeInputKey( '+', dmNative_action ); break;
             default:
                 if ((code >= AKEYCODE_A) && (code <= AKEYCODE_Z)) {
                     const int key = 'A' + (code - AKEYCODE_A);
-                    _glfwInputKey( key, glfw_action );
+                    dmNativeInputKey( key, dmNative_action );
                 }
                 else if ((code >= AKEYCODE_0) && (code <= AKEYCODE_9)) {
                     const int key = '0' + (code - AKEYCODE_0);
-                    _glfwInputKey( key, glfw_action );
+                    dmNativeInputKey( key, dmNative_action );
                 }
                 break;
         }
@@ -887,7 +832,7 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
         int unicode = (*env)->CallIntMethod(env, keyEvent, KeyEvent_getUnicodeChar, meta);
         (*env)->DeleteLocalRef( env, keyEvent );
 
-        _glfwInputChar( unicode, glfw_action );
+        dmNativeInputChar( unicode, dmNative_action );
     }
 
     return 0;
@@ -927,7 +872,7 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
 {
     out->m_Type = AInputEvent_getType(event);
 
-    glfwAndroidUpdateJoystick(event);
+    dmNativeAndroidUpdateJoystick(event);
 
     if (out->m_Type == AINPUT_EVENT_TYPE_MOTION)
     {
@@ -987,14 +932,14 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
         out->m_EventTime = AKeyEvent_getEventTime(event);
         (*out_count)++;
 
-        int glfw_action = -1;
+        int dmNative_action = -1;
         if (out->m_Action == AKEY_EVENT_ACTION_DOWN)
         {
-            glfw_action = GLFW_PRESS;
+            dmNative_action = NATIVE_PRESS;
         }
         else if (out->m_Action == AKEY_EVENT_ACTION_UP)
         {
-            glfw_action = GLFW_RELEASE;
+            dmNative_action = NATIVE_RELEASE;
         }
         else if (out->m_Action == AKEY_EVENT_ACTION_MULTIPLE && out->m_Code == AKEYCODE_UNKNOWN)
         {
@@ -1008,7 +953,7 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
         // There's an ugly hack in android_window.c that counts down the
         // g_SpecialKeyActive and when it reaches zero it generates a release
         // event for the keys checked below
-        if (g_KeyboardActive && (glfw_action == GLFW_PRESS)) {
+        if (g_KeyboardActive && (dmNative_action == NATIVE_PRESS)) {
             switch (out->m_Code) {
             case AKEYCODE_DEL:      return 1;
             case AKEYCODE_ENTER:    return 1;
@@ -1119,7 +1064,7 @@ static int ensureInputEventCapacity(uint32_t required_capacity)
     struct InputEvent* new_input_events = (struct InputEvent*) malloc(sizeof(struct InputEvent) * new_capacity);
     if (new_input_events == 0)
     {
-        LOGE("glfwAndroidHandleInput: failed to allocate %u input events", new_capacity);
+        LOGE("dmNativeAndroidHandleInput: failed to allocate %u input events", new_capacity);
         return 0;
     }
 
@@ -1153,7 +1098,7 @@ static int ensureInputEventCapacity(uint32_t required_capacity)
     return 1;
 }
 
-int32_t glfwAndroidHandleInput(struct android_app* app, AInputEvent* event)
+int32_t dmNativeAndroidHandleInput(struct android_app* app, AInputEvent* event)
 {
     int ret = 0;
 
@@ -1200,19 +1145,19 @@ int32_t glfwAndroidHandleInput(struct android_app* app, AInputEvent* event)
     return ret;
 }
 
-void _glfwPreMain(struct android_app* state)
+void dmNativePreMain(struct android_app* state)
 {
-    LOGV("_glfwPreMain");
+    LOGV("dmNativePreMain");
 
     g_AndroidApp = state;
 
-    _glfwWin.opened = 0;
+    dmNativeWin.opened = 0;
 
     int ret;
 
     if (g_AndroidArgc <= 0 || g_AndroidArgv == NULL)
     {
-        LOGV("_glfwPreMain arg fallback");
+        LOGV("dmNativePreMain arg fallback");
         char* fallback_argv[] = {g_AndroidCommandLineProgramName, NULL};
         ret = main(1, fallback_argv);
         _exit(ret);
@@ -1229,14 +1174,14 @@ void _glfwPreMain(struct android_app* state)
 static int LooperCallback(int fd, int events, void* data)
 {
     struct Command cmd;
-    if (read(_glfwWinAndroid.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
+    if (read(dmNativeWinAndroid.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
         if (cmd.m_Command == CMD_INPUT_CHAR) {
-            // Trick to "fool" glfw. Otherwise repeated characters will be filtered due to repeat
-            _glfwInputChar( (int)cmd.m_Data, GLFW_RELEASE );
-            _glfwInputChar( (int)cmd.m_Data, GLFW_PRESS );
+            // Trick to "fool" dmNative. Otherwise repeated characters will be filtered due to repeat
+            dmNativeInputChar( (int)cmd.m_Data, NATIVE_RELEASE );
+            dmNativeInputChar( (int)cmd.m_Data, NATIVE_PRESS );
 
         } else if (cmd.m_Command == CMD_INPUT_MARKED_TEXT) {
-            _glfwSetMarkedText( (char*)cmd.m_Data );
+            dmNativeSetMarkedText( (char*)cmd.m_Data );
 
             // Need to free marked text string thas was
             // allocated in android_window.c
@@ -1254,45 +1199,45 @@ static int SensorCallback(int fd, int events, void* data)
     ASensorEvent e;
     while (ASensorEventQueue_getEvents(g_sensorEventQueue, &e, 1) > 0)
     {
-        _glfwInput.AccX = e.acceleration.x;
-        _glfwInput.AccY = e.acceleration.y;
-        _glfwInput.AccZ = e.acceleration.z;
+        dmNativeInput.AccX = e.acceleration.x;
+        dmNativeInput.AccY = e.acceleration.y;
+        dmNativeInput.AccZ = e.acceleration.z;
     }
     return 1;
 }
 
-int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
+int dmNativeOSGetAcceleration(float* x, float* y, float* z)
 {
     if (g_accelerometerEnabled) {
         // This trickery is to align scale and axises to what
         // iOS outputs (as that was implemented first)
         const float scale = - 1.0 / ASENSOR_STANDARD_GRAVITY;
-        *x = scale * _glfwInput.AccX;
-        *y = scale * _glfwInput.AccY;
-        *z = scale * _glfwInput.AccZ;
+        *x = scale * dmNativeInput.AccX;
+        *y = scale * dmNativeInput.AccY;
+        *z = scale * dmNativeInput.AccZ;
     }
     return g_accelerometerEnabled;
 }
 
-int _glfwPlatformInit( void )
+int dmNativeOSInit( void )
 {
-    LOGV("_glfwPlatformInit");
+    LOGV("dmNativeOSInit");
 
     g_MainThread = pthread_self();
 
-    _glfwWin.iconified = 1;
+    dmNativeWin.iconified = 1;
 
-    memset(&_glfwWinAndroid, 0, sizeof(_glfwWinAndroid));
-    _glfwWinAndroid.app = g_AndroidApp;
-    _glfwWinAndroid.display = EGL_NO_DISPLAY;
-    _glfwWinAndroid.context = EGL_NO_CONTEXT;
-    _glfwWinAndroid.surface = EGL_NO_SURFACE;
+    memset(&dmNativeWinAndroid, 0, sizeof(dmNativeWinAndroid));
+    dmNativeWinAndroid.app = g_AndroidApp;
+    dmNativeWinAndroid.display = EGL_NO_DISPLAY;
+    dmNativeWinAndroid.context = EGL_NO_CONTEXT;
+    dmNativeWinAndroid.surface = EGL_NO_SURFACE;
 
-    int result = pipe(_glfwWinAndroid.m_Pipefd);
+    int result = pipe(dmNativeWinAndroid.m_Pipefd);
     if (result != 0) {
         LOGF("Could not open pipe for communication: %d", result);
     }
-    result = ALooper_addFd(g_AndroidApp->looper, _glfwWinAndroid.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &_glfwWin);
+    result = ALooper_addFd(g_AndroidApp->looper, dmNativeWinAndroid.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &dmNativeWin);
     if (result != 1) {
         LOGF("Could not add file descriptor to looper: %d", result);
     }
@@ -1302,19 +1247,19 @@ int _glfwPlatformInit( void )
         LOGF("Could not get sensor manager");
     }
 
-    g_sensorEventQueue = ASensorManager_createEventQueue(sensorManager, g_AndroidApp->looper, ALOOPER_POLL_CALLBACK, SensorCallback, &_glfwWin);
+    g_sensorEventQueue = ASensorManager_createEventQueue(sensorManager, g_AndroidApp->looper, ALOOPER_POLL_CALLBACK, SensorCallback, &dmNativeWin);
     if (!g_sensorEventQueue) {
         LOGF("Could not create event queue");
     }
 
     // Initialize thread package
-    initThreads();
+    g_EventLock = 0;
 
     // Install atexit() routine
-    atexit( glfw_atexit );
+    atexit( dmNative_atexit );
 
     // Start the timer
-    _glfwInitTimer();
+
 
     return GL_TRUE;
 }
@@ -1323,16 +1268,9 @@ int _glfwPlatformInit( void )
 // Close window and kill all threads
 //========================================================================
 
-int _glfwPlatformTerminate( void )
+int dmNativeOSTerminate( void )
 {
-    LOGV("_glfwPlatformTerminate");
-#ifdef _GLFW_HAS_PTHREAD
-    // Only the main thread is allowed to do this...
-    if( pthread_self() != _glfwThrd.First.PosixID )
-    {
-        return GL_FALSE;
-    }
-#endif // _GLFW_HAS_PTHREAD
+    LOGV("dmNativeOSTerminate");
 
     if (pthread_self() != g_MainThread)
     {
@@ -1341,15 +1279,15 @@ int _glfwPlatformTerminate( void )
     }
 
     // Close OpenGL window
-    glfwCloseWindow();
+    dmNativeCloseWindow();
 
 
-    int result = ALooper_removeFd(g_AndroidApp->looper, _glfwWinAndroid.m_Pipefd[0]);
+    int result = ALooper_removeFd(g_AndroidApp->looper, dmNativeWinAndroid.m_Pipefd[0]);
     if (result != 1) {
         LOGF("Could not remove fd from looper: %d", result);
     }
 
-    close(_glfwWinAndroid.m_Pipefd[0]);
+    close(dmNativeWinAndroid.m_Pipefd[0]);
 
     ASensorManager* sensorManager = ASensorManager_getInstance();
     ASensorManager_destroyEventQueue(sensorManager, g_sensorEventQueue);
@@ -1358,14 +1296,14 @@ int _glfwPlatformTerminate( void )
     JNIEnv* env = g_AndroidApp->activity->env;
     JavaVM* vm = g_AndroidApp->activity->vm;
     (*vm)->AttachCurrentThread(vm, &env, NULL);
-    close(_glfwWinAndroid.m_Pipefd[1]);
+    close(dmNativeWinAndroid.m_Pipefd[1]);
     (*vm)->DetachCurrentThread(vm);
 
     // Call finish and let Android life cycle take care of the termination
     ANativeActivity_finish(g_AndroidApp->activity);
 
      // Wait for gl context destruction
-    while (_glfwWinAndroid.display != EGL_NO_DISPLAY)
+    while (dmNativeWinAndroid.display != EGL_NO_DISPLAY)
     {
         void* data = NULL;
         int ident = ALooper_pollOnce(300, NULL, NULL, &data);
@@ -1388,12 +1326,12 @@ int _glfwPlatformTerminate( void )
     }
 
     // Kill thread package
-    terminateThreads();
+
 
     return GL_TRUE;
 }
 
-GLFWAPI void glfwAccelerometerEnable()
+void dmNativeAccelerometerEnable()
 {
     if (g_accelerometer == 0) {
         ASensorManager* sensorManager = ASensorManager_getInstance();

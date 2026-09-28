@@ -25,22 +25,22 @@ namespace dmPlatform
 {
     id GetiOSUIWindow()
     {
-        return glfwGetiOSUIWindow();
+        return dmNativeGetiOSUIWindow();
     }
 
     id GetiOSUIView()
     {
-        return glfwGetiOSUIView();
+        return dmNativeGetiOSUIView();
     }
 
     id GetiOSEAGLContext()
     {
-        return glfwGetiOSEAGLContext();
+        return dmNativeGetiOSEAGLContext();
     }
 
     bool GetSafeAreaiOS(HWindow window, WindowSafeArea* out)
     {
-        UIView* view = (UIView*)glfwGetiOSUIView();
+        UIView* view = (UIView*)dmNativeGetiOSUIView();
         if (!view || ![view respondsToSelector:@selector(safeAreaInsets)])
         {
             return false;

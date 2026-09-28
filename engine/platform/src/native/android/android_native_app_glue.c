@@ -436,7 +436,7 @@ void ANativeActivity_onCreate(ANativeActivity* activity, void* savedState, size_
     LOGV("Creating: %p", activity);
 
     // DEFOLD ->>
-    // Seed argv before the app thread starts so _glfwPreMain() sees the Intent launch args.
+    // Seed argv before the app thread starts so dmNativePreMain() sees the Intent launch args.
     // This is only enabled for debuggable Android packages. Invoke it with adb:
     // adb shell am start -n <package>/<activity> \
     //     --esa com.dynamo.android.EXTRA_COMMAND_LINE_ARGUMENTS <arg1>,<arg2>,<arg3>

@@ -27,7 +27,7 @@ int g_IsReboot = 0;
 
 UIWindow*           g_ApplicationWindow = 0;
 
-_GLFWwin            g_Savewin;
+Nativewin            g_Savewin;
 
 void*               g_EngineUserCtx = 0;
 EngineInit          g_EngineInitFn = 0;
@@ -49,22 +49,22 @@ char**              g_Argv = 0;
     g_IsReboot = 1;
 
     // Restore window data
-    _glfwWin = g_Savewin;
-    _glfwWin.window = g_ApplicationWindow;
-    _glfwWin.iconified = !_glfwPlatformIsSceneActive();
+    dmNativeWin = g_Savewin;
+    dmNativeWin.window = g_ApplicationWindow;
+    dmNativeWin.iconified = !dmNativeOSIsSceneActive();
 
-    // To avoid a race, since _glfwPlatformOpenWindow does not block,
-    // update the glfw's cached screen dimensions ahead of time.
+    // To avoid a race, since dmNativeOSOpenWindow does not block,
+    // update the dmNative's cached screen dimensions ahead of time.
     BOOL flipScreen = NO;
-    if (_glfwWin.portrait) {
-        flipScreen = _glfwWin.width > _glfwWin.height;
+    if (dmNativeWin.portrait) {
+        flipScreen = dmNativeWin.width > dmNativeWin.height;
     } else {
-        flipScreen = _glfwWin.width < _glfwWin.height;
+        flipScreen = dmNativeWin.width < dmNativeWin.height;
     }
     if (flipScreen) {
-        float tmp = _glfwWin.width;
-        _glfwWin.width = _glfwWin.height;
-        _glfwWin.height = tmp;
+        float tmp = dmNativeWin.width;
+        dmNativeWin.width = dmNativeWin.height;
+        dmNativeWin.height = tmp;
     }
 
     // We then rebuild the GL view back within the application's event loop.
@@ -107,7 +107,7 @@ static void ShutdownEngine(bool call_exit)
         return;
     }
 
-    int run_action = GLFW_APP_RUN_UPDATE;
+    int run_action = NATIVE_APP_RUN_UPDATE;
     int exit_code = 0;
     int argc = 0;
     char** argv = 0;
@@ -126,7 +126,7 @@ static void ShutdownEngine(bool call_exit)
         free(g_Argv);
     }
 
-    if (run_action == GLFW_APP_RUN_EXIT)
+    if (run_action == NATIVE_APP_RUN_EXIT)
     {
         if (g_EngineExitFn)
             g_EngineExitFn(g_EngineUserCtx);
@@ -137,7 +137,7 @@ static void ShutdownEngine(bool call_exit)
         return;
     }
 
-    // GLFW_APP_RUN_REBOOT
+    // NATIVE_APP_RUN_REBOOT
     g_Argc = argc;
     g_Argv = argv;
     g_WasRebooted = 1;
@@ -166,9 +166,9 @@ static void ShutdownEngine(bool call_exit)
         }
         // Initial scene activation can precede engine creation (and reboot
         // installs new callbacks). Synchronize the newly created engine once.
-        _glfwWin.iconified = !_glfwPlatformIsSceneActive();
-        if (_glfwWin.windowFocusCallback)
-            _glfwWin.windowFocusCallback(!_glfwWin.iconified);
+        dmNativeWin.iconified = !dmNativeOSIsSceneActive();
+        if (dmNativeWin.windowFocusCallback)
+            dmNativeWin.windowFocusCallback(!dmNativeWin.iconified);
         return;
     }
 
@@ -185,7 +185,7 @@ static void ShutdownEngine(bool call_exit)
 
 @end
 
-void glfwAppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+void dmNativeAppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
 {
     g_EngineUserCtx = init_ctx;
     g_EngineInitFn = init_fn;

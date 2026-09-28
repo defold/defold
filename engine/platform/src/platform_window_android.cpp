@@ -23,42 +23,42 @@
 #include "platform_window_android.h"
 
 extern "C" {
-    extern void _glfwAndroidSetInputMethod(int);
-    extern void _glfwAndroidSetFullscreenParameters(int, int);
+    extern void dmNativeAndroidSetInputMethod(int);
+    extern void dmNativeAndroidSetFullscreenParameters(int, int);
 }
 
 namespace dmPlatform
 {
-    extern "C" int _glfwAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom);
+    extern "C" int dmNativeAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom);
 
     int32_t AndroidVerifySurface(HWindow window)
     {
-        return glfwAndroidVerifySurface();
+        return dmNativeAndroidVerifySurface();
     }
 
     void AndroidBeginFrame(HWindow window)
     {
-        glfwAndroidBeginFrame();
+        dmNativeAndroidBeginFrame();
     }
 
     EGLContext GetAndroidEGLContext()
     {
-        return glfwGetAndroidEGLContext();
+        return dmNativeGetAndroidEGLContext();
     }
 
     EGLSurface GetAndroidEGLSurface()
     {
-        return glfwGetAndroidEGLSurface();
+        return dmNativeGetAndroidEGLSurface();
     }
 
     JavaVM* GetAndroidJavaVM()
     {
-        return glfwGetAndroidJavaVM();
+        return dmNativeGetAndroidJavaVM();
     }
 
     jobject GetAndroidActivity()
     {
-        return glfwGetAndroidActivity();
+        return dmNativeGetAndroidActivity();
     }
 
     android_app* GetAndroidApp()
@@ -68,32 +68,32 @@ namespace dmPlatform
 
     ANativeWindow* AcquireAndroidWindow()
     {
-        return glfwAcquireAndroidWindow();
+        return dmNativeAcquireAndroidWindow();
     }
 
     ANativeWindow* WaitForAndroidWindow()
     {
-        return glfwWaitForAndroidWindow();
+        return dmNativeWaitForAndroidWindow();
     }
 
     bool IsAndroidWindowCurrent(ANativeWindow* window)
     {
-        return glfwAndroidIsWindowCurrent(window) != 0;
+        return dmNativeAndroidIsWindowCurrent(window) != 0;
     }
 
     void ReleaseAndroidWindow(ANativeWindow* window)
     {
-        glfwReleaseAndroidWindow(window);
+        dmNativeReleaseAndroidWindow(window);
     }
 
     void SetAndroidInputMethod(bool use_hidden_inputfield)
     {
-        _glfwAndroidSetInputMethod((int)use_hidden_inputfield);
+        dmNativeAndroidSetInputMethod((int)use_hidden_inputfield);
     }
 
     void SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout)
     {
-        _glfwAndroidSetFullscreenParameters((int)immersive_mode, (int)display_cutout);
+        dmNativeAndroidSetFullscreenParameters((int)immersive_mode, (int)display_cutout);
     }
 
     bool GetSafeAreaAndroid(HWindow window, WindowSafeArea* out)
@@ -110,7 +110,7 @@ namespace dmPlatform
         int32_t inset_right = 0;
         int32_t inset_bottom = 0;
 
-        if (_glfwAndroidGetSafeAreaInsets(&inset_left, &inset_top, &inset_right, &inset_bottom))
+        if (dmNativeAndroidGetSafeAreaInsets(&inset_left, &inset_top, &inset_right, &inset_bottom))
         {
             out->m_X = inset_left;
             out->m_Y = inset_bottom;

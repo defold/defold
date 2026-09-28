@@ -28,6 +28,8 @@
 //
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "internal.h"
 
 #include <limits.h>
@@ -55,7 +57,7 @@ extern int g_NumAppCommands;
 extern struct InputEvent* g_AppInputEvents;
 extern int g_NumAppInputEvents;
 extern uint32_t g_EventLock;
-extern const char* _glfwGetAndroidCmdName(int32_t cmd);
+extern const char* dmNativeGetAndroidCmdName(int32_t cmd);
 
 int g_KeyboardActive = 0;
 int g_autoCloseKeyboard = 0;
@@ -65,37 +67,37 @@ int g_SpecialKeyActive = -1;
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_FakeBackspace(JNIEnv* env, jobject obj)
 {
     g_SpecialKeyActive = 10;
-    _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
+    dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_PRESS );
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_FakeEnter(JNIEnv* env, jobject obj)
 {
     g_SpecialKeyActive = 10;
-    _glfwInputKey( GLFW_KEY_ENTER, GLFW_PRESS );
+    dmNativeInputKey( NATIVE_KEY_ENTER, NATIVE_PRESS );
 }
 
-JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputBackButton(JNIEnv* env, jobject obj)
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_dmNativeInputBackButton(JNIEnv* env, jobject obj)
 {
     g_SpecialKeyActive = 10;
-    _glfwInputKey( GLFW_KEY_BACK, GLFW_PRESS );
+    dmNativeInputKey( NATIVE_KEY_BACK, NATIVE_PRESS );
 }
 
-JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNative(JNIEnv* env, jobject obj, jint unicode)
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_dmNativeInputCharNative(JNIEnv* env, jobject obj, jint unicode)
 {
     struct Command cmd;
     cmd.m_Command = CMD_INPUT_CHAR;
     cmd.m_Data = (void*)(uintptr_t)unicode;
-    if (write(_glfwWinAndroid.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
+    if (write(dmNativeWinAndroid.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         LOGF("Failed to write command");
     }
 }
 
-JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetPendingResizeBecauseOfInsets(JNIEnv* env, jobject obj)
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_dmNativeSetPendingResizeBecauseOfInsets(JNIEnv* env, jobject obj)
 {
-    _glfwAndroidPlatformSetPendingResizeBecauseOfInsets();
+    dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
 }
 
-JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextNative(JNIEnv* env, jobject obj, jstring text)
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_dmNativeSetMarkedTextNative(JNIEnv* env, jobject obj, jstring text)
 {
     const jsize len = (*env)->GetStringUTFLength(env, text);
     const char* text_chrs = (*env)->GetStringUTFChars(env, text, (jboolean *)0);
@@ -107,30 +109,30 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextN
     struct Command cmd;
     cmd.m_Command = CMD_INPUT_MARKED_TEXT;
     cmd.m_Data = (void*)cmd_text;
-    if (write(_glfwWinAndroid.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
+    if (write(dmNativeWinAndroid.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         LOGF("Failed to write command");
     }
 
     (*env)->ReleaseStringUTFChars(env, text, text_chrs);
 }
 
-int _glfwPlatformGetWindowRefreshRate( void )
+int dmNativeOSGetWindowRefreshRate( void )
 {
-    return _glfwAndroidPlatformGetWindowRefreshRate();
+    return dmNativeAndroidPlatformGetWindowRefreshRate();
 }
 
-int _glfwPlatformOpenWindow( int width__, int height__,
-                             const _GLFWwndconfig* wndconfig__,
-                             const _GLFWfbconfig* fbconfig__ )
+int dmNativeOSOpenWindow( int width__, int height__,
+                             const Nativewndconfig* wndconfig__,
+                             const Nativefbconfig* fbconfig__ )
 {
-    LOGV("_glfwPlatformOpenWindow");
+    LOGV("dmNativeOSOpenWindow");
 
-    if (!_glfwAndroidPlatformOpenWindow(width__, height__, wndconfig__, fbconfig__))
+    if (!dmNativeAndroidPlatformOpenWindow(width__, height__, wndconfig__, fbconfig__))
     {
         return GL_FALSE;
     }
 
-    _glfwTerminateJoysticks();
+    dmNativeTerminateJoysticks();
 
     return GL_TRUE;
 }
@@ -139,13 +141,13 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 // Properly kill the window/video display
 //========================================================================
 
-void _glfwPlatformCloseWindow( void )
+void dmNativeOSCloseWindow( void )
 {
-    LOGV("_glfwPlatformCloseWindow");
-    _glfwAndroidPlatformCloseWindow();
+    LOGV("dmNativeOSCloseWindow");
+    dmNativeAndroidPlatformCloseWindow();
 }
 
-int _glfwPlatformGetDefaultFramebuffer( )
+int dmNativeOSGetDefaultFramebuffer( )
 {
     return 0;
 }
@@ -154,7 +156,7 @@ int _glfwPlatformGetDefaultFramebuffer( )
 // Set the window title
 //========================================================================
 
-void _glfwPlatformSetWindowTitle( const char *title )
+void dmNativeOSSetWindowTitle( const char *title )
 {
 }
 
@@ -162,12 +164,12 @@ void _glfwPlatformSetWindowTitle( const char *title )
 // Set the window size
 //========================================================================
 
-void _glfwPlatformSetWindowSize( int width, int height )
+void dmNativeOSSetWindowSize( int width, int height )
 {
-    if (_glfwWin.opened && _glfwWin.clientAPI == GLFW_NO_API)
+    if (dmNativeWin.opened && dmNativeWin.clientAPI == NATIVE_NO_API)
     {
-        _glfwWin.width = width;
-        _glfwWin.height = height;
+        dmNativeWin.width = width;
+        dmNativeWin.height = height;
     }
 }
 
@@ -175,7 +177,7 @@ void _glfwPlatformSetWindowSize( int width, int height )
 // Set the window position.
 //========================================================================
 
-void _glfwPlatformSetWindowPos( int x, int y )
+void dmNativeOSSetWindowPos( int x, int y )
 {
 }
 
@@ -183,7 +185,7 @@ void _glfwPlatformSetWindowPos( int x, int y )
 // Window iconification
 //========================================================================
 
-void _glfwPlatformIconifyWindow( void )
+void dmNativeOSIconifyWindow( void )
 {
     // Call finish and let Android life cycle take care of the iconification
     ANativeActivity_finish(g_AndroidApp->activity);
@@ -193,14 +195,14 @@ void _glfwPlatformIconifyWindow( void )
 // Window un-iconification
 //========================================================================
 
-void _glfwPlatformRestoreWindow( void )
+void dmNativeOSRestoreWindow( void )
 {
 }
 
-void _glfwPlatformSwapBuffers( void )
+void dmNativeOSSwapBuffers( void )
 {
-    _glfwAndroidPlatformSwapBuffers();
-    spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
+    dmNativeAndroidPlatformSwapBuffers();
+    spinlock_unlock(&dmNativeWinAndroid.m_RenderLock);
 }
 
 
@@ -208,16 +210,16 @@ void _glfwPlatformSwapBuffers( void )
 // Set double buffering swap interval
 //========================================================================
 
-void _glfwPlatformSwapInterval( int interval )
+void dmNativeOSSwapInterval( int interval )
 {
-    _glfwAndroidPlatformSwapInterval(interval);
+    dmNativeAndroidPlatformSwapInterval(interval);
 }
 
 //========================================================================
-// Write back window parameters into GLFW window structure
+// Write back window parameters into Native window structure
 //========================================================================
 
-void _glfwPlatformRefreshWindowParams( void )
+void dmNativeOSRefreshWindowParams( void )
 {
 }
 
@@ -226,12 +228,12 @@ void _glfwPlatformRefreshWindowParams( void )
 //========================================================================
 
 
-void glfwAndroidBeginFrame()
+void dmNativeAndroidBeginFrame()
 {
-    spinlock_lock(&_glfwWinAndroid.m_RenderLock);
+    spinlock_lock(&dmNativeWinAndroid.m_RenderLock);
 }
 
-void glfwAndroidFlushEvents()
+void dmNativeAndroidFlushEvents()
 {
     int app_commands[MAX_APP_COMMANDS];
     static struct InputEvent* flush_input_events = 0;
@@ -276,7 +278,7 @@ void glfwAndroidFlushEvents()
             struct InputEvent* new_flush_input_events = (struct InputEvent*) realloc(flush_input_events, new_flush_input_events_capacity * sizeof(struct InputEvent));
             if (new_flush_input_events == 0)
             {
-                LOGE("glfwAndroidFlushEvents: failed to allocate %d input events", new_flush_input_events_capacity);
+                LOGE("dmNativeAndroidFlushEvents: failed to allocate %d input events", new_flush_input_events_capacity);
                 num_app_commands = 0;
                 num_input_events = 0;
                 events_copied = 1;
@@ -293,28 +295,28 @@ void glfwAndroidFlushEvents()
     {
         int cmd = app_commands[i];
 
-        LOGV("handleCommand (main thread): %s", _glfwGetAndroidCmdName(cmd));
+        LOGV("handleCommand (main thread): %s", dmNativeGetAndroidCmdName(cmd));
 
         switch(cmd)
         {
         case APP_CMD_TERM_WINDOW:
-            _glfwAndroidPlatformOnTermWindow();
+            dmNativeAndroidPlatformOnTermWindow();
             computeIconifiedState();
             break;
 
         case APP_CMD_INIT_WINDOW:
-            _glfwAndroidPlatformOnInitWindow();
+            dmNativeAndroidPlatformOnInitWindow();
             computeIconifiedState();
             break;
 
         case APP_CMD_GAINED_FOCUS:
-            _glfwAndroidPlatformOnGainedFocus();
+            dmNativeAndroidPlatformOnGainedFocus();
             break;
 
         case APP_CMD_WINDOW_RESIZED:
         case APP_CMD_CONFIG_CHANGED:
         case APP_CMD_CONTENT_RECT_CHANGED:
-            _glfwAndroidPlatformOnResize();
+            dmNativeAndroidPlatformOnResize();
             computeIconifiedState();
             break;
 
@@ -322,18 +324,18 @@ void glfwAndroidFlushEvents()
             break;
 
         case APP_CMD_PAUSE:
-            if(_glfwWin.windowFocusCallback)
-                _glfwWin.windowFocusCallback(0); // invokes Lua callbacks
+            if(dmNativeWin.windowFocusCallback)
+                dmNativeWin.windowFocusCallback(0); // invokes Lua callbacks
             break;
         case APP_CMD_RESUME:
-            if(_glfwWin.windowFocusCallback)
-                _glfwWin.windowFocusCallback(1); // invokes Lua callbacks
+            if(dmNativeWin.windowFocusCallback)
+                dmNativeWin.windowFocusCallback(1); // invokes Lua callbacks
             break;
 
         }
     }
 
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformAfterFlushEvents();
 
     JNIEnv* env = 0;
     JavaVM* vm = 0;
@@ -347,7 +349,7 @@ void glfwAndroidFlushEvents()
     for (int i = 0; i < num_input_events; ++i)
     {
         struct InputEvent* event = &input_events[i];
-        _glfwAndroidHandleInput(_glfwWinAndroid.app, env, event);
+        dmNativeAndroidDispatchInput(dmNativeWinAndroid.app, env, event);
     }
 
     if (vm != 0)
@@ -358,36 +360,36 @@ void glfwAndroidFlushEvents()
 
 void androidDestroyWindow( void )
 {
-    if (_glfwWin.opened) {
-        _glfwWin.opened = 0;
-        _glfwAndroidPlatformDestroyWindow();
+    if (dmNativeWin.opened) {
+        dmNativeWin.opened = 0;
+        dmNativeAndroidPlatformDestroyWindow();
         computeIconifiedState();
     }
 }
 
 // Called from the engine thread
-void _glfwPlatformPollEvents( void )
+void dmNativeOSPollEvents( void )
 {
     // TODO: Terrible hack. See comment in top of file
     if (g_SpecialKeyActive > 0) {
        g_SpecialKeyActive--;
        if (g_SpecialKeyActive == 0) {
-           _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
-           _glfwInputKey( GLFW_KEY_ENTER, GLFW_RELEASE );
-           _glfwInputKey( GLFW_KEY_BACK, GLFW_RELEASE );
+           dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_RELEASE );
+           dmNativeInputKey( NATIVE_KEY_ENTER, NATIVE_RELEASE );
+           dmNativeInputKey( NATIVE_KEY_BACK, NATIVE_RELEASE );
        }
     }
 
-    glfwAndroidDiscoverJoysticks();
+    dmNativeAndroidDiscoverJoysticks();
 
-    glfwAndroidFlushEvents();
+    dmNativeAndroidFlushEvents();
 }
 
 // Called from the looper thread
-void glfwAndroidPollEvents()
+void dmNativeAndroidPollEvents()
 {
     int timeoutMillis = 0;
-    if (_glfwWin.iconified) {
+    if (dmNativeWin.iconified) {
         timeoutMillis = 300;
     }
     void* data = NULL;
@@ -395,14 +397,14 @@ void glfwAndroidPollEvents()
 
     if (ident >= 0 && data != NULL) {
         struct android_poll_source* source = (struct android_poll_source*)data;
-        source->process(_glfwWinAndroid.app, source);
+        source->process(dmNativeWinAndroid.app, source);
     }
     if (ident == ALOOPER_POLL_ERROR) {
         LOGF("ALooper_pollOnce returned an error");
         return;
     }
 
-    if (_glfwWinAndroid.app->destroyRequested) {
+    if (dmNativeWinAndroid.app->destroyRequested) {
         androidDestroyWindow();
         // OS is destroyng the app. All the other events doesn't matter in this case.
         return;
@@ -413,7 +415,7 @@ void glfwAndroidPollEvents()
 // Wait for new window and input events
 //========================================================================
 
-void _glfwPlatformWaitEvents( void )
+void dmNativeOSWaitEvents( void )
 {
 }
 
@@ -421,7 +423,7 @@ void _glfwPlatformWaitEvents( void )
 // Hide mouse cursor (lock it)
 //========================================================================
 
-void _glfwPlatformHideMouseCursor( void )
+void dmNativeOSHideMouseCursor( void )
 {
 }
 
@@ -429,7 +431,7 @@ void _glfwPlatformHideMouseCursor( void )
 // Show mouse cursor (unlock it)
 //========================================================================
 
-void _glfwPlatformShowMouseCursor( void )
+void dmNativeOSShowMouseCursor( void )
 {
 }
 
@@ -437,11 +439,11 @@ void _glfwPlatformShowMouseCursor( void )
 // Set physical mouse cursor position
 //========================================================================
 
-void _glfwPlatformSetMouseCursorPos( int x, int y )
+void dmNativeOSSetMouseCursorPos( int x, int y )
 {
 }
 
-void _glfwShowKeyboard( int show, int type, int auto_close )
+void dmNativeShowKeyboard( int show, int type, int auto_close )
 {
     // JNI implemntation as ANativeActivity_showSoftInput seems to be broken...
     // https://code.google.com/p/android/issues/detail?id=35991
@@ -479,7 +481,7 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
 
-void _glfwResetKeyboard( void )
+void dmNativeResetKeyboard( void )
 {
     jint result;
 
@@ -506,7 +508,7 @@ void _glfwResetKeyboard( void )
 }
 
 
-void _glfwAndroidSetInputMethod(int use_hidden_input)
+void dmNativeAndroidSetInputMethod(int use_hidden_input)
 {
     jint result;
 
@@ -532,7 +534,7 @@ void _glfwAndroidSetInputMethod(int use_hidden_input)
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
 
-void _glfwAndroidSetFullscreenParameters(int immersive_mode, int display_cutout)
+void dmNativeAndroidSetFullscreenParameters(int immersive_mode, int display_cutout)
 {
     jint result;
 
@@ -558,7 +560,7 @@ void _glfwAndroidSetFullscreenParameters(int immersive_mode, int display_cutout)
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
 
-int _glfwAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom)
+int dmNativeAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom)
 {
     jint result;
 
@@ -619,32 +621,32 @@ int _glfwAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom)
 //========================================================================
 // Defold extension: Get native references (window, view and context)
 //========================================================================
-GLFWAPI EGLContext glfwGetAndroidEGLContext()
+EGLContext dmNativeGetAndroidEGLContext()
 {
-    return _glfwWinAndroid.context;
+    return dmNativeWinAndroid.context;
 }
 
-GLFWAPI EGLSurface glfwGetAndroidEGLSurface()
+EGLSurface dmNativeGetAndroidEGLSurface()
 {
-    return _glfwWinAndroid.surface;
+    return dmNativeWinAndroid.surface;
 }
 
-GLFWAPI JavaVM* glfwGetAndroidJavaVM()
+JavaVM* dmNativeGetAndroidJavaVM()
 {
     return g_AndroidApp->activity->vm;
 }
 
-GLFWAPI jobject glfwGetAndroidActivity()
+jobject dmNativeGetAndroidActivity()
 {
     return g_AndroidApp->activity->clazz;
 }
 
-GLFWAPI struct android_app* glfwGetAndroidApp(void)
+struct android_app* dmNativeGetAndroidApp(void)
 {
     return g_AndroidApp;
 }
 
-ANativeWindow* _glfwAndroidAcquireWindow(void)
+ANativeWindow* dmNativeAndroidAcquireWindow(void)
 {
     struct android_app* app = g_AndroidApp;
     if (app == NULL)
@@ -664,20 +666,20 @@ ANativeWindow* _glfwAndroidAcquireWindow(void)
     return window;
 }
 
-GLFWAPI ANativeWindow* glfwAcquireAndroidWindow(void)
+ANativeWindow* dmNativeAcquireAndroidWindow(void)
 {
-    return _glfwAndroidAcquireWindow();
+    return dmNativeAndroidAcquireWindow();
 }
 
-GLFWAPI ANativeWindow* glfwWaitForAndroidWindow(void)
+ANativeWindow* dmNativeWaitForAndroidWindow(void)
 {
     const useconds_t wait_period = 50 * 1000;
     int logged_wait = 0;
     while (g_AndroidApp != NULL && !g_AndroidApp->destroyRequested)
     {
-        if (_glfwAndroidIsAppResumed())
+        if (dmNativeAndroidIsAppResumed())
         {
-            ANativeWindow* window = _glfwAndroidAcquireWindow();
+            ANativeWindow* window = dmNativeAndroidAcquireWindow();
             if (window)
             {
                 LOGI("ENGINE THREAD: Window ready!");
@@ -697,10 +699,10 @@ GLFWAPI ANativeWindow* glfwWaitForAndroidWindow(void)
     return NULL;
 }
 
-GLFWAPI int glfwAndroidIsWindowCurrent(ANativeWindow* window)
+int dmNativeAndroidIsWindowCurrent(ANativeWindow* window)
 {
     struct android_app* app = g_AndroidApp;
-    if (app == NULL || window == NULL || !_glfwAndroidIsAppResumed())
+    if (app == NULL || window == NULL || !dmNativeAndroidIsAppResumed())
         return 0;
 
     pthread_mutex_lock(&app->mutex);
@@ -709,7 +711,7 @@ GLFWAPI int glfwAndroidIsWindowCurrent(ANativeWindow* window)
     return is_current;
 }
 
-GLFWAPI void glfwReleaseAndroidWindow(ANativeWindow* window)
+void dmNativeReleaseAndroidWindow(ANativeWindow* window)
 {
     if (window)
     {
@@ -723,45 +725,45 @@ GLFWAPI void glfwReleaseAndroidWindow(ANativeWindow* window)
 //========================================================================
 // Query auxillary context
 //========================================================================
-int _glfwPlatformQueryAuxContext()
+int dmNativeOSQueryAuxContext()
 {
-    return _glfwAndroidPlatformQueryAuxContext();
+    return dmNativeAndroidPlatformQueryAuxContext();
 }
 
 //========================================================================
 // Acquire auxillary context for current thread
 //========================================================================
-void* _glfwPlatformAcquireAuxContext()
+void* dmNativeOSAcquireAuxContext()
 {
-    return _glfwAndroidPlatformAcquireAuxContext();
+    return dmNativeAndroidPlatformAcquireAuxContext();
 }
 
 //========================================================================
 // Unacquire auxillary context for current thread
 //========================================================================
-void _glfwPlatformUnacquireAuxContext(void* context)
+void dmNativeOSUnacquireAuxContext(void* context)
 {
-    _glfwAndroidPlatformUnacquireAuxContext(context);
+    dmNativeAndroidPlatformUnacquireAuxContext(context);
 }
 
-void _glfwPlatformSetViewType(int view_type)
-{
-}
-
-void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
+void dmNativeOSSetViewType(int view_type)
 {
 }
 
-float _glfwPlatformGetDisplayScaleFactor()
+void dmNativeOSSetWindowBackgroundColor(unsigned int color)
+{
+}
+
+float dmNativeOSGetDisplayScaleFactor()
 {
     return 1.0f;
 }
 
 #define MAX_ACTIVITY_LISTENERS (32)
-static glfwactivityresultfun g_Listeners[MAX_ACTIVITY_LISTENERS];
+static dmNativeactivityresultfun g_Listeners[MAX_ACTIVITY_LISTENERS];
 static int g_ListenersCount = 0;
 
-GLFWAPI void glfwAndroidRegisterOnActivityResultListener(glfwactivityresultfun listener)
+void dmNativeAndroidRegisterOnActivityResultListener(dmNativeactivityresultfun listener)
 {
     if (g_ListenersCount >= MAX_ACTIVITY_LISTENERS) {
         LOGW("Max activity listeners reached (%d)", MAX_ACTIVITY_LISTENERS);
@@ -770,7 +772,7 @@ GLFWAPI void glfwAndroidRegisterOnActivityResultListener(glfwactivityresultfun l
     }
 }
 
-GLFWAPI void glfwAndroidUnregisterOnActivityResultListener(glfwactivityresultfun listener)
+void dmNativeAndroidUnregisterOnActivityResultListener(dmNativeactivityresultfun listener)
 {
     for (int i = 0; i < g_ListenersCount; ++i)
     {
@@ -796,10 +798,10 @@ Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
 }
 
 #define MAX_ONCREATE_LISTENERS (32)
-static glfwoncreatefun g_onCreate_Listeners[MAX_ONCREATE_LISTENERS];
+static dmNativeoncreatefun g_onCreate_Listeners[MAX_ONCREATE_LISTENERS];
 static int g_onCreate_ListenersCount = 0;
 
-GLFWAPI void glfwAndroidRegisterOnCreateListener(glfwoncreatefun listener)
+void dmNativeAndroidRegisterOnCreateListener(dmNativeoncreatefun listener)
 {
     if (g_onCreate_ListenersCount >= MAX_ONCREATE_LISTENERS) {
         LOGW("Max onCreate listeners reached (%d)", MAX_ONCREATE_LISTENERS);
@@ -808,7 +810,7 @@ GLFWAPI void glfwAndroidRegisterOnCreateListener(glfwoncreatefun listener)
     }
 }
 
-GLFWAPI void glfwAndroidUnregisterOnCreateListener(glfwoncreatefun listener)
+void dmNativeAndroidUnregisterOnCreateListener(dmNativeoncreatefun listener)
 {
     for (int i = 0; i < g_onCreate_ListenersCount; ++i)
     {

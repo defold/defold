@@ -28,6 +28,8 @@
 //
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "internal.h"
 
 
@@ -35,27 +37,27 @@
 // Return key state
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwGetKey( int key )
+int dmNativeGetKey( int key )
 {
-    if( !_glfwInitialized || !_glfwWin.opened )
+    if( !dmNativeInitialized || !dmNativeWin.opened )
     {
-        return GLFW_RELEASE;
+        return NATIVE_RELEASE;
     }
 
     // Is it a valid key?
-    if( key < 0 || key > GLFW_KEY_LAST )
+    if( key < 0 || key > NATIVE_KEY_LAST )
     {
-        return GLFW_RELEASE;
+        return NATIVE_RELEASE;
     }
 
-    if( _glfwInput.Key[ key ] == GLFW_STICK )
+    if( dmNativeInput.Key[ key ] == NATIVE_STICK )
     {
         // Sticky mode: release key now
-        _glfwInput.Key[ key ] = GLFW_RELEASE;
-        return GLFW_PRESS;
+        dmNativeInput.Key[ key ] = NATIVE_RELEASE;
+        return NATIVE_PRESS;
     }
 
-    return (int) _glfwInput.Key[ key ];
+    return (int) dmNativeInput.Key[ key ];
 }
 
 
@@ -63,27 +65,27 @@ GLFWAPI int GLFWAPIENTRY glfwGetKey( int key )
 // Return mouse button state
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwGetMouseButton( int button )
+int dmNativeGetMouseButton( int button )
 {
-    if( !_glfwInitialized || !_glfwWin.opened )
+    if( !dmNativeInitialized || !dmNativeWin.opened )
     {
-        return GLFW_RELEASE;
+        return NATIVE_RELEASE;
     }
 
     // Is it a valid mouse button?
-    if( button < 0 || button > GLFW_MOUSE_BUTTON_LAST )
+    if( button < 0 || button > NATIVE_MOUSE_BUTTON_LAST )
     {
-        return GLFW_RELEASE;
+        return NATIVE_RELEASE;
     }
 
-    if( _glfwInput.MouseButton[ button ] == GLFW_STICK || _glfwInput.MouseButton[ button ] == GLFW_CLICKED )
+    if( dmNativeInput.MouseButton[ button ] == NATIVE_STICK || dmNativeInput.MouseButton[ button ] == NATIVE_CLICKED )
     {
         // Sticky mode: release mouse button now
-        _glfwInput.MouseButton[ button ] = GLFW_RELEASE;
-        return GLFW_PRESS;
+        dmNativeInput.MouseButton[ button ] = NATIVE_RELEASE;
+        return NATIVE_PRESS;
     }
 
-    return (int) _glfwInput.MouseButton[ button ];
+    return (int) dmNativeInput.MouseButton[ button ];
 }
 
 
@@ -91,9 +93,9 @@ GLFWAPI int GLFWAPIENTRY glfwGetMouseButton( int button )
 // Return mouse cursor position
 //========================================================================
 
-GLFWAPI void GLFWAPIENTRY glfwGetMousePos( int *xpos, int *ypos )
+void dmNativeGetMousePos( int *xpos, int *ypos )
 {
-    if( !_glfwInitialized || !_glfwWin.opened )
+    if( !dmNativeInitialized || !dmNativeWin.opened )
     {
         return;
     }
@@ -101,44 +103,12 @@ GLFWAPI void GLFWAPIENTRY glfwGetMousePos( int *xpos, int *ypos )
     // Return mouse position
     if( xpos != NULL )
     {
-        *xpos = _glfwInput.MousePosX;
+        *xpos = dmNativeInput.MousePosX;
     }
     if( ypos != NULL )
     {
-        *ypos = _glfwInput.MousePosY;
+        *ypos = dmNativeInput.MousePosY;
     }
-}
-
-
-//========================================================================
-// Sets the mouse cursor position
-//========================================================================
-
-GLFWAPI void GLFWAPIENTRY glfwSetMousePos( int xpos, int ypos )
-{
-    if( !_glfwInitialized || !_glfwWin.opened )
-    {
-        return;
-    }
-
-    // Don't do anything if the mouse position did not change
-    if( xpos == _glfwInput.MousePosX && ypos == _glfwInput.MousePosY )
-    {
-        return;
-    }
-
-    // Set GLFW mouse position
-    _glfwInput.MousePosX = xpos;
-    _glfwInput.MousePosY = ypos;
-
-    // If we have a locked mouse, do not change cursor position
-    if( _glfwWin.mouseLock )
-    {
-        return;
-    }
-
-    // Update physical cursor position
-    _glfwPlatformSetMouseCursorPos( xpos, ypos );
 }
 
 
@@ -146,282 +116,136 @@ GLFWAPI void GLFWAPIENTRY glfwSetMousePos( int xpos, int ypos )
 // Return mouse wheel position
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwGetMouseWheel( void )
+int dmNativeGetMouseWheel( void )
 {
-    if( !_glfwInitialized || !_glfwWin.opened )
+    if( !dmNativeInitialized || !dmNativeWin.opened )
     {
         return 0;
     }
 
     // Return mouse wheel position
-    return _glfwInput.WheelPos;
-}
-
-
-//========================================================================
-// Set mouse wheel position
-//========================================================================
-
-GLFWAPI void GLFWAPIENTRY glfwSetMouseWheel( int pos )
-{
-    if( !_glfwInitialized || !_glfwWin.opened )
-    {
-        return;
-    }
-
-    // Set mouse wheel position
-    _glfwInput.WheelPos = pos;
+    return dmNativeInput.WheelPos;
 }
 
 
 //========================================================================
 // Set callback function for keyboard input
-// Returns 1 on success, 0 if GLFW is not initialised or not window open.
+// Returns 1 on success, 0 if Native is not initialised or not window open.
 //========================================================================
-
-GLFWAPI int GLFWAPIENTRY glfwSetKeyCallback( GLFWkeyfun cbfun )
-{
-    if( !_glfwInitialized || !_glfwWin.opened )
-    {
-        return 0;
-    }
-
-    // Set callback function
-    _glfwWin.keyCallback = cbfun;
-    return 1;
-}
 
 
 //========================================================================
 // Set callback function for character input
-// Returns 1 on success, 0 if GLFW is not initialised or not window open.
+// Returns 1 on success, 0 if Native is not initialised or not window open.
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun )
+int dmNativeSetCharCallback( Nativecharfun cbfun )
 {
-    if( !_glfwInitialized || !_glfwWin.opened )
+    if( !dmNativeInitialized || !dmNativeWin.opened )
     {
         return 0;
     }
 
     // Set callback function
-    _glfwWin.charCallback = cbfun;
+    dmNativeWin.charCallback = cbfun;
     return 1;
 }
 
 //========================================================================
 // Set callback function for uncommitted/marked text input
-// Returns 1 on success, 0 if GLFW is not initialised or not window open.
+// Returns 1 on success, 0 if Native is not initialised or not window open.
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwSetMarkedTextCallback( GLFWmarkedtextfun cbfun )
+int dmNativeSetMarkedTextCallback( Nativemarkedtextfun cbfun )
 {
-    if( !_glfwInitialized || !_glfwWin.opened )
+    if( !dmNativeInitialized || !dmNativeWin.opened )
     {
         return 0;
     }
 
     // Set callback function
-    _glfwWin.markedTextCallback = cbfun;
+    dmNativeWin.markedTextCallback = cbfun;
     return 1;
 }
 
-GLFWAPI void GLFWAPIENTRY glfwShowKeyboard( int show, int type, int auto_close )
-{
-    _glfwShowKeyboard(show, type, auto_close);
-}
-
-GLFWAPI void GLFWAPIENTRY glfwResetKeyboard( void )
-{
-    _glfwResetKeyboard();
-}
 
 //========================================================================
 // Set callback function for mouse clicks
-// Returns 1 on success, 0 if GLFW is not initialised or not window open.
+// Returns 1 on success, 0 if Native is not initialised or not window open.
 //========================================================================
-
-GLFWAPI int GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun )
-{
-    if( !_glfwInitialized || !_glfwWin.opened )
-    {
-        return 0;
-    }
-
-    // Set callback function
-    _glfwWin.mouseButtonCallback = cbfun;
-    return 1;
-}
 
 
 //========================================================================
 // Set callback function for mouse moves
-// Returns 1 on success, 0 if GLFW is not initialised or not window open.
+// Returns 1 on success, 0 if Native is not initialised or not window open.
 //========================================================================
-
-GLFWAPI int GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun )
-{
-    if( !_glfwInitialized || !_glfwWin.opened )
-    {
-        return 0;
-    }
-
-    // Set callback function
-    _glfwWin.mousePosCallback = cbfun;
-
-    // Call the callback function to let the application know the current
-    // mouse position
-    if( cbfun )
-    {
-        cbfun( _glfwInput.MousePosX, _glfwInput.MousePosY );
-    }
-
-    return 1;
-}
 
 
 //========================================================================
 // Set callback function for mouse wheel
-// Returns 1 on success, 0 if GLFW is not initialised or not window open.
+// Returns 1 on success, 0 if Native is not initialised or not window open.
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun )
+
+int dmNativeGetAcceleration(float* x, float* y, float* z)
 {
-    if( !_glfwInitialized || !_glfwWin.opened )
-    {
-        return 0;
-    }
-
-    // Set callback function
-    _glfwWin.mouseWheelCallback = cbfun;
-
-    // Call the callback function to let the application know the current
-    // mouse wheel position
-    if( cbfun )
-    {
-        cbfun( _glfwInput.WheelPos );
-    }
-
-    return 1;
-}
-
-GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z)
-{
-    return _glfwPlatformGetAcceleration(x, y, z);
+    return dmNativeOSGetAcceleration(x, y, z);
 }
 
 #if 0 // DEBUG
 const char* PhaseToStr(int phase)
 {
     switch (phase) {
-        case GLFW_PHASE_BEGAN: return "BEGAN";
-        case GLFW_PHASE_MOVED: return "MOVED";
-        case GLFW_PHASE_STATIONARY: return "STATIONARY";
-        case GLFW_PHASE_ENDED: return "ENDED";
-        case GLFW_PHASE_CANCELLED: return "CANCELLED";
-        case GLFW_PHASE_TAPPED: return "TAPPED";
-        case GLFW_PHASE_IDLE: return "IDLE";
+        case NATIVE_PHASE_BEGAN: return "BEGAN";
+        case NATIVE_PHASE_MOVED: return "MOVED";
+        case NATIVE_PHASE_STATIONARY: return "STATIONARY";
+        case NATIVE_PHASE_ENDED: return "ENDED";
+        case NATIVE_PHASE_CANCELLED: return "CANCELLED";
+        case NATIVE_PHASE_TAPPED: return "TAPPED";
+        case NATIVE_PHASE_IDLE: return "IDLE";
         default:
             return "Unknown";
     }
 }
 #endif
 
-static int AnyTouchesCancelled()
+
+
+int dmNativeGetTouch(NativeTouch* touch, int count, int* out_count)
 {
-    for (int i = 0; i < GLFW_MAX_TOUCH; ++i)
-    {
-        GLFWTouch* t = &_glfwInput.Touch[i];
-        if (t->Reference && t->Phase == GLFW_PHASE_CANCELLED) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count)
-{
-    int i, touchCount, touchesCancelled;
-
-    touchesCancelled = AnyTouchesCancelled();
-    touchCount = 0;
-    for (i = 0; i < GLFW_MAX_TOUCH; ++i) {
-        GLFWTouch* t = &_glfwInput.Touch[i];
-        if (t->Reference) {
-            touch[touchCount] = *t;
-
-            int phase = t->Phase;
-
-            // If ANY of the current touches has been cancelled,
-            // we need to set all touches to 'ended'. we set it to 'ended' here,
-            // because the order of how the inputs are updated.
-            if (touchesCancelled)
-            {
-                t->Phase = GLFW_PHASE_ENDED;
-            }
-            else
-            {
-                if (phase == GLFW_PHASE_ENDED || phase == GLFW_PHASE_CANCELLED) {
-                    // Clear reference since this touch has ended.
-                    t->Reference = 0x0;
-                    t->Phase = GLFW_PHASE_IDLE;
-                } else if (phase == GLFW_PHASE_BEGAN) {
-                    // Touches that has begun will change to stationary until moved or released.
-                    t->Phase = GLFW_PHASE_STATIONARY;
-                }
-
-                // If this was a tap (began and ended on same frame), we need to
-                // make sure this touch results in an ended action next frame.
-                if (t->Phase == GLFW_PHASE_TAPPED) {
-                    touch[touchCount].Phase = GLFW_PHASE_BEGAN;
-                    t->Phase = GLFW_PHASE_ENDED;
-                }
-            }
-
-            touchCount++;
-        }
-    }
-
-    if (count < touchCount)
-        touchCount = count;
-
-    *out_count = touchCount;
-
-    touchCount = 0;
-
+    *out_count = dmNativeReadTouches(dmNativeInput.Touch, touch, count, 1);
     return 1;
 }
 
-GLFWAPI int GLFWAPIENTRY glfwSetGamepadCallback(GLFWkeyfun cbfun)
+int dmNativeSetGamepadCallback(Nativekeyfun cbfun)
 {
-    if( !_glfwInitialized || !_glfwWin.opened )
+    if( !dmNativeInitialized || !dmNativeWin.opened )
     {
         return 0;
     }
 
     // Set callback function
-    _glfwWin.gamepadCallback = cbfun;
+    dmNativeWin.gamepadCallback = cbfun;
     return 1;
 }
 
 // DEFOLD change (for win32 only)
-GLFWAPI int  GLFWAPIENTRY glfwSetDeviceChangedCallback( GLFWdevicechangedfun cbfun )
+int  dmNativeSetDeviceChangedCallback( Nativedevicechangedfun cbfun )
 {
 #if defined(_WIN32)
-    if( !_glfwInitialized || !_glfwWin.opened )
+    if( !dmNativeInitialized || !dmNativeWin.opened )
     {
         return 0;
     }
-    _glfwWin.deviceChangeCallback = cbfun;
+    dmNativeWin.deviceChangeCallback = cbfun;
 #endif
     return 1;
 }
 
 // DEFOLD change
-// Since the locking of the mouse is done internally in glfw,
+// Since the locking of the mouse is done internally in dmNative,
 // we need to query the current state here
-GLFWAPI int glfwGetMouseLocked()
+int dmNativeGetMouseLocked()
 {
-    return _glfwWin.mouseLock;
+    return dmNativeWin.mouseLock;
 }
-

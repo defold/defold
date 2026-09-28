@@ -4,6 +4,8 @@
 // API version: 2.7
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "android_window_backend.h"
 
 #include <jni.h>
@@ -19,12 +21,12 @@ static int g_PendingResizeBecauseOfInsets = 0;
 
 static GlfwAndroidEglResult HandleGLSurfaceFailure(GlfwAndroidEglResult result)
 {
-    result = limit_egl_failure_retries(&_glfwWinAndroid, result);
-    destroy_gl_surface(&_glfwWinAndroid);
-    _glfwWinAndroid.should_recreate_surface = is_egl_result_retryable(result);
-    _glfwWin.iconified = 1;
+    result = limit_egl_failure_retries(&dmNativeWinAndroid, result);
+    destroy_gl_surface(&dmNativeWinAndroid);
+    dmNativeWinAndroid.should_recreate_surface = is_egl_result_retryable(result);
+    dmNativeWin.iconified = 1;
 
-    if (result == GLFW_ANDROID_EGL_RESULT_FATAL)
+    if (result == NATIVE_ANDROID_EGL_RESULT_FATAL)
     {
         LOGE("Fatal EGL failure. Closing the window.");
         androidDestroyWindow();
@@ -35,8 +37,8 @@ static GlfwAndroidEglResult HandleGLSurfaceFailure(GlfwAndroidEglResult result)
 
 static GlfwAndroidEglResult CreateGLSurface()
 {
-    GlfwAndroidEglResult result = create_gl_surface(&_glfwWinAndroid);
-    if (result != GLFW_ANDROID_EGL_RESULT_READY)
+    GlfwAndroidEglResult result = create_gl_surface(&dmNativeWinAndroid);
+    if (result != NATIVE_ANDROID_EGL_RESULT_READY)
     {
         result = HandleGLSurfaceFailure(result);
         return result;
@@ -48,28 +50,28 @@ static GlfwAndroidEglResult CreateGLSurface()
     int did_attach = 0;
     JNIAttachCurrentThreadIfNeeded(&did_attach);
 
-    result = make_current(&_glfwWinAndroid);
+    result = make_current(&dmNativeWinAndroid);
 
     JNIDetachCurrentThreadIfNeeded(did_attach);
-    if (result == GLFW_ANDROID_EGL_RESULT_READY)
-        result = update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
+    if (result == NATIVE_ANDROID_EGL_RESULT_READY)
+        result = update_width_height_info(&dmNativeWin, &dmNativeWinAndroid, 1);
 
-    if (result != GLFW_ANDROID_EGL_RESULT_READY)
+    if (result != NATIVE_ANDROID_EGL_RESULT_READY)
     {
         result = HandleGLSurfaceFailure(result);
         return result;
     }
 
-    reset_egl_failure_retries(&_glfwWinAndroid);
-    _glfwWinAndroid.should_recreate_surface = 0;
+    reset_egl_failure_retries(&dmNativeWinAndroid);
+    dmNativeWinAndroid.should_recreate_surface = 0;
     computeIconifiedState();
-    return GLFW_ANDROID_EGL_RESULT_READY;
+    return NATIVE_ANDROID_EGL_RESULT_READY;
 }
 
-int _glfwAndroidPlatformGetWindowRefreshRate(void)
+int dmNativeAndroidPlatformGetWindowRefreshRate(void)
 {
     // Source: http://irrlicht.sourceforge.net/forum/viewtopic.php?f=9&t=50206
-    if (_glfwWinAndroid.display == EGL_NO_DISPLAY || _glfwWinAndroid.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
+    if (dmNativeWinAndroid.display == EGL_NO_DISPLAY || dmNativeWinAndroid.surface == EGL_NO_SURFACE || dmNativeWin.iconified == 1)
     {
         return 0;
     }
@@ -120,68 +122,68 @@ int _glfwAndroidPlatformGetWindowRefreshRate(void)
     return (int)(refresh_rate + 0.5f);
 }
 
-int _glfwAndroidPlatformOpenWindow(int width, int height, const _GLFWwndconfig* wndconfig, const _GLFWfbconfig* fbconfig)
+int dmNativeAndroidPlatformOpenWindow(int width, int height, const Nativewndconfig* wndconfig, const Nativefbconfig* fbconfig)
 {
     (void)width;
     (void)height;
     (void)fbconfig;
 
-    _glfwWin.clientAPI = wndconfig->clientAPI;
+    dmNativeWin.clientAPI = wndconfig->clientAPI;
 
-    if (_glfwWin.clientAPI == GLFW_OPENGL_API)
+    if (dmNativeWin.clientAPI == NATIVE_OPENGL_API)
     {
         GlfwAndroidEglResult result;
         uint32_t retry_count = 0;
-        reset_egl_failure_retries(&_glfwWinAndroid);
+        reset_egl_failure_retries(&dmNativeWinAndroid);
         do
         {
-            if (init_gl(&_glfwWinAndroid) == 0)
+            if (init_gl(&dmNativeWinAndroid) == 0)
                 return GL_FALSE;
 
-            result = make_current(&_glfwWinAndroid);
-            if (result == GLFW_ANDROID_EGL_RESULT_READY)
-                result = update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
+            result = make_current(&dmNativeWinAndroid);
+            if (result == NATIVE_ANDROID_EGL_RESULT_READY)
+                result = update_width_height_info(&dmNativeWin, &dmNativeWinAndroid, 1);
 
-            if (result != GLFW_ANDROID_EGL_RESULT_READY)
+            if (result != NATIVE_ANDROID_EGL_RESULT_READY)
             {
                 result = HandleGLSurfaceFailure(result);
-                final_gl(&_glfwWinAndroid);
+                final_gl(&dmNativeWinAndroid);
             }
             if (is_egl_result_retryable(result))
                 wait_for_egl_retry(retry_count++);
         }
         while (is_egl_result_retryable(result));
 
-        if (result != GLFW_ANDROID_EGL_RESULT_READY)
+        if (result != NATIVE_ANDROID_EGL_RESULT_READY)
             return GL_FALSE;
 
-        reset_egl_failure_retries(&_glfwWinAndroid);
-        _glfwWinAndroid.should_recreate_surface = 0;
+        reset_egl_failure_retries(&dmNativeWinAndroid);
+        dmNativeWinAndroid.should_recreate_surface = 0;
         computeIconifiedState();
     }
 
     return GL_TRUE;
 }
 
-void _glfwAndroidPlatformCloseWindow(void)
+void dmNativeAndroidPlatformCloseWindow(void)
 {
-    if (_glfwWin.opened && _glfwWin.clientAPI != GLFW_NO_API)
+    if (dmNativeWin.opened && dmNativeWin.clientAPI != NATIVE_NO_API)
     {
-        destroy_gl_surface(&_glfwWinAndroid);
-        final_gl(&_glfwWinAndroid);
-        reset_egl_failure_retries(&_glfwWinAndroid);
-        _glfwWin.opened = 0;
+        destroy_gl_surface(&dmNativeWinAndroid);
+        final_gl(&dmNativeWinAndroid);
+        reset_egl_failure_retries(&dmNativeWinAndroid);
+        dmNativeWin.opened = 0;
     }
 }
 
-void _glfwAndroidPlatformSwapBuffers(void)
+void dmNativeAndroidPlatformSwapBuffers(void)
 {
-    if (_glfwWinAndroid.display == EGL_NO_DISPLAY || _glfwWinAndroid.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
+    if (dmNativeWinAndroid.display == EGL_NO_DISPLAY || dmNativeWinAndroid.surface == EGL_NO_SURFACE || dmNativeWin.iconified == 1)
     {
         return;
     }
 
-    if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
+    if (!eglSwapBuffers(dmNativeWinAndroid.display, dmNativeWinAndroid.surface))
     {
         // Error checking inspired by Android implementation of GLSurfaceView:
         // https://android.googlesource.com/platform/frameworks/base/+/master/opengl/java/android/opengl/GLSurfaceView.java
@@ -197,9 +199,9 @@ void _glfwAndroidPlatformSwapBuffers(void)
             else if (error == EGL_BAD_SURFACE)
             {
                 LOGE("eglSwapBuffers failed due to EGL_BAD_SURFACE, destroy surface and wait for recreation.");
-                destroy_gl_surface(&_glfwWinAndroid);
-                _glfwWinAndroid.should_recreate_surface = 1;
-                _glfwWin.iconified = 1;
+                destroy_gl_surface(&dmNativeWinAndroid);
+                dmNativeWinAndroid.should_recreate_surface = 1;
+                dmNativeWin.iconified = 1;
                 return;
             }
             else
@@ -218,8 +220,8 @@ void _glfwAndroidPlatformSwapBuffers(void)
      */
     if (g_PendingResize || g_PendingResizeBecauseOfInsets)
     {
-        GlfwAndroidEglResult result = update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
-        if (result != GLFW_ANDROID_EGL_RESULT_READY)
+        GlfwAndroidEglResult result = update_width_height_info(&dmNativeWin, &dmNativeWinAndroid, 1);
+        if (result != NATIVE_ANDROID_EGL_RESULT_READY)
         {
             HandleGLSurfaceFailure(result);
             return;
@@ -229,113 +231,113 @@ void _glfwAndroidPlatformSwapBuffers(void)
     }
 }
 
-void _glfwAndroidPlatformSwapInterval(int interval)
+void dmNativeAndroidPlatformSwapInterval(int interval)
 {
-    if (_glfwWin.clientAPI != GLFW_NO_API)
+    if (dmNativeWin.clientAPI != NATIVE_NO_API)
     {
         // eglSwapInterval is not supported on all devices, so clear the error here
         // (yields EGL_BAD_PARAMETER when not supported for kindle and HTC desire)
         // https://groups.google.com/forum/#!topic/android-developers/HvMZRcp3pt0
-        eglSwapInterval(_glfwWinAndroid.display, interval);
+        eglSwapInterval(dmNativeWinAndroid.display, interval);
         EGLint error = eglGetError();
         assert(error == EGL_SUCCESS || error == EGL_BAD_PARAMETER);
         (void)error;
     }
 }
 
-int32_t _glfwAndroidPlatformVerifySurface(void)
+int32_t dmNativeAndroidPlatformVerifySurface(void)
 {
     // Although it's the wrong place to do a eglSwapbuffers, we're already handling a bad state from the last opengl error
     // Verifying the state of the surface is worth it.
-    if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
+    if (!eglSwapBuffers(dmNativeWinAndroid.display, dmNativeWinAndroid.surface))
     {
         EGLint error = eglGetError();
-        int32_t result = _glfwAndroidVerifySurfaceError(error);
+        int32_t result = dmNativeAndroidVerifySurfaceError(error);
         if (!result)
         {
-            destroy_gl_surface(&_glfwWinAndroid);
-            _glfwWinAndroid.should_recreate_surface = 1;
-            _glfwWin.iconified = 1;
+            destroy_gl_surface(&dmNativeWinAndroid);
+            dmNativeWinAndroid.should_recreate_surface = 1;
+            dmNativeWin.iconified = 1;
             return result;
         }
     }
     return 1; // surface is ok
 }
 
-void _glfwAndroidPlatformSetPendingResizeBecauseOfInsets(void)
+void dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets(void)
 {
     g_PendingResizeBecauseOfInsets = 1;
 }
 
-void _glfwAndroidPlatformOnTermWindow(void)
+void dmNativeAndroidPlatformOnTermWindow(void)
 {
-    reset_egl_failure_retries(&_glfwWinAndroid);
-    if (_glfwWin.clientAPI != GLFW_NO_API)
+    reset_egl_failure_retries(&dmNativeWinAndroid);
+    if (dmNativeWin.clientAPI != NATIVE_NO_API)
     {
-        spinlock_lock(&_glfwWinAndroid.m_RenderLock);
+        spinlock_lock(&dmNativeWinAndroid.m_RenderLock);
 
-        destroy_gl_surface(&_glfwWinAndroid);
-        _glfwWinAndroid.surface = EGL_NO_SURFACE;
+        destroy_gl_surface(&dmNativeWinAndroid);
+        dmNativeWinAndroid.surface = EGL_NO_SURFACE;
 
-        spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
+        spinlock_unlock(&dmNativeWinAndroid.m_RenderLock);
     }
 }
 
-void _glfwAndroidPlatformOnInitWindow(void)
+void dmNativeAndroidPlatformOnInitWindow(void)
 {
-    reset_egl_failure_retries(&_glfwWinAndroid);
+    reset_egl_failure_retries(&dmNativeWinAndroid);
     // We don't get here the first time around, but from the second and onwards
-    // The first time, the create_gl_surface() is called from the _glfwPlatformOpenWindow function
-    if (_glfwWin.opened && _glfwWinAndroid.display != EGL_NO_DISPLAY && _glfwWinAndroid.surface == EGL_NO_SURFACE)
+    // The first time, the create_gl_surface() is called from the dmNativeOSOpenWindow function
+    if (dmNativeWin.opened && dmNativeWinAndroid.display != EGL_NO_DISPLAY && dmNativeWinAndroid.surface == EGL_NO_SURFACE)
     {
         CreateGLSurface();
     }
 }
 
-void _glfwAndroidPlatformOnGainedFocus(void)
+void dmNativeAndroidPlatformOnGainedFocus(void)
 {
     // If we failed to create the window in APP_CMD_INIT_WINDOW, let's try again
-    if (_glfwWin.clientAPI != GLFW_NO_API && _glfwWinAndroid.surface == EGL_NO_SURFACE)
+    if (dmNativeWin.clientAPI != NATIVE_NO_API && dmNativeWinAndroid.surface == EGL_NO_SURFACE)
     {
         CreateGLSurface();
     }
 }
 
-void _glfwAndroidPlatformOnResize(void)
+void dmNativeAndroidPlatformOnResize(void)
 {
     g_PendingResize = 1;
 }
 
-void _glfwAndroidPlatformAfterFlushEvents(void)
+void dmNativeAndroidPlatformAfterFlushEvents(void)
 {
     // Still, there seem to be room for the surface to not be ready when the rendering restarts (Issue 5358)
-    if (_glfwWin.clientAPI != GLFW_NO_API && _glfwWinAndroid.should_recreate_surface && _glfwWinAndroid.surface == EGL_NO_SURFACE)
+    if (dmNativeWin.clientAPI != NATIVE_NO_API && dmNativeWinAndroid.should_recreate_surface && dmNativeWinAndroid.surface == EGL_NO_SURFACE)
     {
         LOGV("Recreating surface");
         CreateGLSurface();
     }
 }
 
-void _glfwAndroidPlatformDestroyWindow(void)
+void dmNativeAndroidPlatformDestroyWindow(void)
 {
-    final_gl(&_glfwWinAndroid);
+    final_gl(&dmNativeWinAndroid);
 }
 
-int _glfwAndroidPlatformQueryAuxContext(void)
+int dmNativeAndroidPlatformQueryAuxContext(void)
 {
-    return _glfwWin.clientAPI == GLFW_NO_API ? 0 : query_gl_aux_context(&_glfwWinAndroid);
+    return dmNativeWin.clientAPI == NATIVE_NO_API ? 0 : query_gl_aux_context(&dmNativeWinAndroid);
 }
 
-void* _glfwAndroidPlatformAcquireAuxContext(void)
+void* dmNativeAndroidPlatformAcquireAuxContext(void)
 {
-    return _glfwWin.clientAPI == GLFW_NO_API ? 0 : acquire_gl_aux_context(&_glfwWinAndroid);
+    return dmNativeWin.clientAPI == NATIVE_NO_API ? 0 : acquire_gl_aux_context(&dmNativeWinAndroid);
 }
 
-void _glfwAndroidPlatformUnacquireAuxContext(void* context)
+void dmNativeAndroidPlatformUnacquireAuxContext(void* context)
 {
     (void)context;
-    if (_glfwWin.clientAPI != GLFW_NO_API)
+    if (dmNativeWin.clientAPI != NATIVE_NO_API)
     {
-        unacquire_gl_aux_context(&_glfwWinAndroid);
+        unacquire_gl_aux_context(&dmNativeWinAndroid);
     }
 }

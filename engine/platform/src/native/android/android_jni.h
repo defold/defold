@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GLFW_ANDROID_JNI_H
-#define DM_GLFW_ANDROID_JNI_H
+#ifndef DMNative_ANDROID_JNI_H
+#define DMNative_ANDROID_JNI_H
 
 #include "internal.h"
 #include <jni.h>
@@ -31,4 +31,4 @@ int JNICheckAndClearException(JNIEnv* env);
 jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, const char* method, const char* signature);
 int JNIAndroidSetCommandLine(ANativeActivity* activity);
 
-#endif // DM_GLFW_ANDROID_JNI_H
+#endif // DMNative_ANDROID_JNI_H

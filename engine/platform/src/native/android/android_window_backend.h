@@ -3,21 +3,21 @@
 
 #include "internal.h"
 
-int   _glfwAndroidPlatformGetWindowRefreshRate(void);
-int   _glfwAndroidPlatformOpenWindow(int width, int height, const _GLFWwndconfig* wndconfig, const _GLFWfbconfig* fbconfig);
-void  _glfwAndroidPlatformCloseWindow(void);
-void  _glfwAndroidPlatformSwapBuffers(void);
-void  _glfwAndroidPlatformSwapInterval(int interval);
-int32_t _glfwAndroidPlatformVerifySurface(void);
-void  _glfwAndroidPlatformSetPendingResizeBecauseOfInsets(void);
-void  _glfwAndroidPlatformOnTermWindow(void);
-void  _glfwAndroidPlatformOnInitWindow(void);
-void  _glfwAndroidPlatformOnGainedFocus(void);
-void  _glfwAndroidPlatformOnResize(void);
-void  _glfwAndroidPlatformAfterFlushEvents(void);
-void  _glfwAndroidPlatformDestroyWindow(void);
-int   _glfwAndroidPlatformQueryAuxContext(void);
-void* _glfwAndroidPlatformAcquireAuxContext(void);
-void  _glfwAndroidPlatformUnacquireAuxContext(void* context);
+int   dmNativeAndroidPlatformGetWindowRefreshRate(void);
+int   dmNativeAndroidPlatformOpenWindow(int width, int height, const Nativewndconfig* wndconfig, const Nativefbconfig* fbconfig);
+void  dmNativeAndroidPlatformCloseWindow(void);
+void  dmNativeAndroidPlatformSwapBuffers(void);
+void  dmNativeAndroidPlatformSwapInterval(int interval);
+int32_t dmNativeAndroidPlatformVerifySurface(void);
+void  dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets(void);
+void  dmNativeAndroidPlatformOnTermWindow(void);
+void  dmNativeAndroidPlatformOnInitWindow(void);
+void  dmNativeAndroidPlatformOnGainedFocus(void);
+void  dmNativeAndroidPlatformOnResize(void);
+void  dmNativeAndroidPlatformAfterFlushEvents(void);
+void  dmNativeAndroidPlatformDestroyWindow(void);
+int   dmNativeAndroidPlatformQueryAuxContext(void);
+void* dmNativeAndroidPlatformAcquireAuxContext(void);
+void  dmNativeAndroidPlatformUnacquireAuxContext(void* context);
 
 #endif

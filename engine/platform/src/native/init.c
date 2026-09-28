@@ -28,83 +28,78 @@
 //
 //========================================================================
 
+
+// Modified for Defold: private mobile/web backend, without the GLFW API.
 #define _init_c_
 #include "internal.h"
 
 
 //************************************************************************
-//****                    GLFW user functions                         ****
+//****                    Native backend functions                         ****
 //************************************************************************
 
 //========================================================================
-// Initialize various GLFW state
+// Initialize various Native state
 //========================================================================
 
-GLFWAPI int GLFWAPIENTRY glfwInit( void )
+int dmNativeInit( void )
 {
-    // Is GLFW already initialized?
-    if( _glfwInitialized )
+    // Is Native already initialized?
+    if( dmNativeInitialized )
     {
         return GL_TRUE;
     }
 
-    memset( &_glfwLibrary, 0, sizeof( _glfwLibrary ) );
-    memset( &_glfwWin, 0, sizeof( _glfwWin ) );
+#if defined(DM_PLATFORM_IOS)
+    memset( &dmNativeLibrary, 0, sizeof( dmNativeLibrary ) );
+#endif
+    memset( &dmNativeWin, 0, sizeof( dmNativeWin ) );
 
     // Window is not yet opened
-    _glfwWin.opened = GL_FALSE;
+    dmNativeWin.opened = GL_FALSE;
 
     // Default enable/disable settings
-    _glfwWin.sysKeysDisabled = GL_FALSE;
+    dmNativeWin.sysKeysDisabled = GL_FALSE;
 
     // Clear window hints
-    _glfwClearWindowHints();
+
 
     // Platform specific initialization
-    if( !_glfwPlatformInit() )
+    if( !dmNativeOSInit() )
     {
         return GL_FALSE;
     }
 
-    // Form now on, GLFW state is valid
-    _glfwInitialized = GL_TRUE;
+    // Form now on, Native state is valid
+    dmNativeInitialized = GL_TRUE;
 
     return GL_TRUE;
 }
-
 
 
 //========================================================================
 // Close window and kill all threads.
 //========================================================================
 
-GLFWAPI void GLFWAPIENTRY glfwTerminate( void )
+void dmNativeTerminate( void )
 {
-    // Is GLFW initialized?
-    if( !_glfwInitialized )
+    // Is Native initialized?
+    if( !dmNativeInitialized )
     {
         return;
     }
 
     // Platform specific termination
-    if( !_glfwPlatformTerminate() )
+    if( !dmNativeOSTerminate() )
     {
         return;
     }
 
-    // GLFW is no longer initialized
-    _glfwInitialized = GL_FALSE;
+    // Native is no longer initialized
+    dmNativeInitialized = GL_FALSE;
 }
 
 
 //========================================================================
-// Get GLFW version
+// Get Native version
 //========================================================================
-
-GLFWAPI void GLFWAPIENTRY glfwGetVersion( int *major, int *minor, int *rev )
-{
-    if( major != NULL ) *major = GLFW_VERSION_MAJOR;
-    if( minor != NULL ) *minor = GLFW_VERSION_MINOR;
-    if( rev   != NULL ) *rev   = GLFW_VERSION_REVISION;
-}
-
