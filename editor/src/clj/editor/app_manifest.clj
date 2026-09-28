@@ -212,17 +212,17 @@
            ~value-sym (if (not (~pred ~value-sym))
                         ~fix
                         ~value-sym)]
-      ~(reduce
-         (fn [form [k pred fix]]
-           `(let [~map-sym ~value-sym
-                  ~value-sym (get ~map-sym ~k ::not-found)
-                  ~value-sym (if (or (identical? ~value-sym ::not-found)
-                                     (not (~pred ~value-sym)))
-                               ~fix
-                               ~value-sym)]
-              (assoc ~map-sym ~k ~form)))
-         `(~f-expr ~value-sym)
-         (reverse forms)))))
+       ~(reduce
+          (fn [form [k pred fix]]
+            `(let [~map-sym ~value-sym
+                   ~value-sym (get ~map-sym ~k ::not-found)
+                   ~value-sym (if (or (identical? ~value-sym ::not-found)
+                                      (not (~pred ~value-sym)))
+                                ~fix
+                                ~value-sym)]
+               (assoc ~map-sym ~k ~form)))
+          `(~f-expr ~value-sym)
+          (reverse forms)))))
 
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
@@ -269,7 +269,6 @@
                  :context map? {}
                  key boolean? false
                  (constantly (if enabled value (not value)))))))
-
 
 ;; endregion
 
@@ -322,7 +321,7 @@
                                                        (mapcat second)
                                                        (map #(get-toggle-value manifest %)))
                                                      choices)))]
-         (if all-toggles-unify-to-nil nil none))))))
+          (if all-toggles-unify-to-nil nil none))))))
 
 (defn set-setting-value [manifest setting value]
   (case (:setting setting)
@@ -342,8 +341,8 @@
                                              (mapcat second))
                                            choices))]
               (as-> manifest $
-                    (reduce #(set-toggle-value %1 %2 false) $ disabled-toggles)
-                    (reduce #(set-toggle-value %1 %2 true) $ enabled-toggles)))))
+                (reduce #(set-toggle-value %1 %2 false) $ disabled-toggles)
+                (reduce #(set-toggle-value %1 %2 true) $ enabled-toggles)))))
 
 (defn setting-property-setter [setting]
   (fn [_evaluation-context self old new]
@@ -552,7 +551,6 @@
     :rig   (concat (libs-toggles all-platforms ["gamesys_model_null"])   (exclude-libs-toggles all-platforms ["gamesys_model"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
     :model))
 
-
 (def generic-vulkan
   (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
@@ -734,8 +732,8 @@
   (make-choice-setting
     :web-gpu (concat
                webgpu-toggles
-              (exclude-libs-toggles web ["graphics"])
-              (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
+               (exclude-libs-toggles web ["graphics"])
+               (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
     :both webgpu-toggles
     :web-gl))
 
