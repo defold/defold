@@ -37,7 +37,7 @@
 (defn- await! [value]
   (let [result (deref value 10000 ::timeout)]
     (when (= ::timeout result)
-      (throw (ex-info "Timed out waiting for debugger UI test" {})))
+      (throw (IllegalStateException. "Timed out waiting for debugger UI test")))
     result))
 
 ;; Verify callbacks from a closed session cannot clear a newer session, while
@@ -172,7 +172,7 @@
       (with-redefs [dap/frame-variables (fn [_ snapshot frame-id]
                                           (swap! requests conj [snapshot frame-id])
                                           (when-not (= (:generation snapshot) frame-id)
-                                            (throw (ex-info "Invalid frameId" {})))
+                                            (throw (IllegalArgumentException. "Invalid frameId")))
                                           [{:name "count"
                                             :value (str frame-id)
                                             :variablesReference 0}])
@@ -197,6 +197,48 @@
             (let [^TreeItem item (first (.getChildren (.getRoot variables)))]
               (is (= (str frame-id) (some-> item .getValue :display-value))))))
         (is (= [] @errors))))))
+
+(deftest breakpoint-updates-are-serialized-test
+  (let [session ::session
+        breakpoints (atom #{1})
+        started (promise)
+        release (promise)
+        latest (promise)
+        requests (atom [])]
+    (with-redefs-fn {#'g/node-value (fn [_ _] session)
+                     #'ui/ui-disabled? (constantly false)
+                     #'ui/->timer (fn [_ _ tick] tick)
+                     #'debug-view/collect-enabled-breakpoints (fn [_] @breakpoints)
+                     #'debug-view/breakpoints-by-path identity
+                     #'dap/set-breakpoints! (fn [_ values]
+                                              (swap! requests conj values)
+                                              (if (= #{1} values)
+                                                (do
+                                                  (deliver started true)
+                                                  (await! release))
+                                                (deliver latest true)))}
+      (fn []
+        (let [tick (#'debug-view/make-update-timer ::project ::view)]
+          (try
+            (tick nil nil nil)
+            (await! started)
+            (reset! breakpoints #{2})
+            (tick nil nil nil)
+            (reset! breakpoints #{3})
+            (tick nil nil nil)
+            (is (= [#{1}] @requests))
+            (deliver release true)
+            (let [deadline (+ (System/nanoTime) 10000000000)]
+              (loop []
+                (tick nil nil nil)
+                (when-not (realized? latest)
+                  (when (> (System/nanoTime) deadline)
+                    (throw (IllegalStateException. "Timed out waiting for breakpoint update")))
+                  (Thread/sleep 10)
+                  (recur))))
+            (is (= [#{1} #{3}] @requests))
+            (finally
+              (deliver release true))))))))
 
 ;; Verify editor breakpoints become sorted, one-based DAP lines with nonempty
 ;; conditions preserved and empty conditions omitted.
@@ -224,7 +266,7 @@
                                                        (is (= ::artifacts artifacts))
                                                        {:path path})
                        #'targets/update-launched-target! (fn [received-target target-info]
-                                                            (swap! calls conj [:port-update received-target target-info]))
+                                                           (swap! calls conj [:port-update received-target target-info]))
                        #'engine/run-script! (fn [received-target module]
                                               (swap! calls conj [:run received-target module]))
                        #'debug-view/start-debugger! (fn [view project received-target stop-on-entry]
@@ -233,7 +275,7 @@
       (is (= (cond-> []
                (targets/launched-target? target)
                (conj [:port-update target {:debugger-port 0
-                                          :debugger-port-pending true}])
+                                           :debugger-port-pending true}])
 
                true
                (conj [:run target {:path expected-path}]
@@ -256,7 +298,7 @@
                        #'workspace/project-directory (constantly (io/file "."))
                        #'targets/all-launched-targets (fn [] [@current])
                        #'targets/update-launched-target! (fn [_ target-info]
-                                                            (swap! current merge target-info))
+                                                           (swap! current merge target-info))
                        #'engine/run-script! (constantly :ok)
                        #'dap/connect! (fn [_ resolve-port _ _]
                                         (swap! connected-ports conj (resolve-port))

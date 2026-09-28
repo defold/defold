@@ -32,12 +32,12 @@
 (defn- await! [value]
   (let [result (deref value 10000 ::timeout)]
     (when (= ::timeout result)
-      (throw (ex-info "Timed out waiting for debugger test" {})))
+      (throw (IOException. "Timed out waiting for debugger test")))
     result))
 
 (defn- take-event! [^LinkedBlockingQueue events]
   (or (.poll events 10 TimeUnit/SECONDS)
-      (throw (ex-info "Timed out waiting for debugger event" {}))))
+      (throw (IOException. "Timed out waiting for debugger event"))))
 
 (defn- wire-bytes [message]
   (let [body (.getBytes (json/write-str message :escape-unicode false) StandardCharsets/UTF_8)
@@ -74,9 +74,9 @@
               :event event
               :body body}))
 
-(defn- with-adapter [handler f]
+(defn- with-adapter [callbacks handler f]
   (with-open [server (ServerSocket. 0 1 (InetAddress/getLoopbackAddress))]
-    (let [ready (promise)
+    (let [ready (future/make)
           events (LinkedBlockingQueue.)
           requests (atom [])
           adapter (future/io
@@ -117,12 +117,13 @@
                                 {:local-root "/project"
                                  :breakpoints {"/main.script" [{:line 5
                                                                 :condition "x > 2"}]}}
-                                {:on-connected #(deliver ready %)
-                                 :on-suspended (fn [session body] (.add events [:stopped (dap/suspension session) body]))
-                                 :on-resumed (fn [_] (.add events [:continued]))
-                                 :on-output (fn [_ body] (.add events [:output body]))
-                                 :on-closed (fn [_] (.add events [:closed]))
-                                 :on-error (fn [_ exception] (.add events [:error exception]))})]
+                                (merge {:on-connected #(future/complete! ready %)
+                                        :on-suspended (fn [session body] (.add events [:stopped (dap/suspension session) body]))
+                                        :on-resumed (fn [_] (.add events [:continued]))
+                                        :on-output (fn [_ body] (.add events [:output body]))
+                                        :on-closed (fn [_] (.add events [:closed]))
+                                        :on-error (fn [_ exception] (.add events [:error exception]))}
+                                       callbacks))]
       (try
         (is (identical? session (await! ready)))
         (f session requests events)
@@ -173,6 +174,7 @@
 ;; their full breakpoint sets, and disconnect detaches without terminating Lua.
 (deftest configuration-and-breakpoints-test
   (with-adapter
+    {}
     (fn [request _ out _]
       (respond! out request {:threads [{:id 7
                                         :name "Lua"}]}))
@@ -184,15 +186,15 @@
              (:arguments (second @requests))))
       (is (= :running (dap/status session)))
       (testing "Replace changed sources and clear the last breakpoint without pausing Lua"
-        (await! (dap/set-breakpoints! session {"/other.lua" [{:line 9}]}))
+        (dap/set-breakpoints! session {"/other.lua" [{:line 9}]})
         (let [updates (subvec @requests 4)]
           (is (= #{["/main.script" []] ["/other.lua" [{:line 9}]]}
                  (into #{} (map #(vector (get-in % [:arguments :source :path])
                                          (get-in % [:arguments :breakpoints]))) updates)))
           (is (coll/every? #(= "setBreakpoints" (:command %)) updates)))
-        (await! (dap/set-breakpoints! session {"/other.lua" [{:line 9}]}))
+        (dap/set-breakpoints! session {"/other.lua" [{:line 9}]})
         (is (= 6 (count @requests))))
-      (await! (dap/disconnect! session))
+      (dap/disconnect! session)
       (is (= [:closed] (take-event! events)))
       (is (= false (get-in (peek @requests) [:arguments :terminateDebuggee])))
       (dap/close! session)
@@ -202,6 +204,7 @@
 ;; globals load on demand, and inspection references are discarded after resume.
 (deftest inspection-and-control-test
   (with-adapter
+    {}
     (fn [{:keys [command arguments] :as request} _ out _]
       (case command
         "threads"
@@ -271,7 +274,7 @@
           (respond! out request {})
           (event! out "continued" {:threadId 7}))))
     (fn [session requests events]
-      (await! (dap/control! session "pause"))
+      (dap/control! session "pause")
       (let [[event snapshot] (take-event! events)]
         (is (= :stopped event))
         (is (= [{:id 42
@@ -300,11 +303,11 @@
         (is (= "42" (:value (first (dap/variables session snapshot 20)))))
         (is (= "false" (:result (dap/evaluate! session 42 "flag"))))
         (doseq [command ["next" "stepIn" "stepOut"]]
-          (await! (dap/control! session command))
+          (dap/control! session command)
           (is (= [:continued] (take-event! events)))
           (is (= :stopped (first (take-event! events))))
           (is (nil? (dap/variables session snapshot 20))))
-        (await! (dap/control! session "continue"))
+        (dap/control! session "continue")
         (is (= [:continued] (take-event! events)))
         (is (nil? (dap/suspension session)))
         (is (nil? (dap/stack session nil)))))))
@@ -313,6 +316,7 @@
 ;; separate, request errors preserve the connection, and disconnect cancels pending work.
 (deftest responses-and-disconnect-test
   (with-adapter
+    {}
     (fn [request in out ^Socket socket]
       (case (:command request)
         "first"
@@ -337,12 +341,67 @@
         (is (= {:result "first"} (#'dap/await-response! session "first" first-response)))
         (is (= {:result "second"} (#'dap/await-response! session "second" second-response)))
         (is (= [:output {:output "héj 🦊"}] (take-event! events))))
-      (is (thrown-with-msg? Exception #"Evaluation failed" (dap/request! session "bad" {})))
+      (is (thrown-with-msg? IOException #"Evaluation failed" (dap/request! session "bad" {})))
       (is (= :running (dap/status session)))
       (is (thrown? IOException (dap/request! session "close" {})))
       (is (= [:closed] (take-event! events)))
       (is (= :closed (dap/status session)))
-      (is (= {} @(:pending session))))))
+      (is (= {} (:pending @(:state session)))))))
+
+(deftest callbacks-can-make-blocking-requests-test
+  (let [result (future/make)
+        order (atom [])]
+    (with-adapter
+      {:on-output (fn [session {:keys [output]}]
+                    (swap! order conj output)
+                    (if (= "first" output)
+                      (swap! order conj (dap/request! session "from-callback" {}))
+                      (future/complete! result @order)))}
+      (fn [request _ out _]
+        (case (:command request)
+          "trigger"
+          (do
+            (event! out "output" {:output "first"})
+            (event! out "output" {:output "second"})
+            (respond! out request {}))
+
+          "from-callback"
+          (respond! out request {:result "callback response"})))
+      (fn [session _ _]
+        (is (= {} (dap/request! session "trigger" {})))
+        (is (= ["first" {:result "callback response"} "second"] (await! result)))))))
+
+(deftest concurrent-requests-test
+  (with-adapter
+    {}
+    (fn [request _ out _]
+      (respond! out request (:arguments request)))
+    (fn [session requests _]
+      (let [responses (mapv (fn [index]
+                              (future/io (dap/request! session "echo" {:index index})))
+                            (range 32))]
+        (is (= (mapv #(hash-map :index %) (range 32)) (mapv await! responses)))
+        (let [sequences (mapv :seq @requests)]
+          (is (= (count sequences) (count (set sequences))))
+          (is (apply < sequences)))
+        (is (= {} (:pending @(:state session))))))))
+
+(deftest request-timeout-closes-session-test
+  (with-adapter
+    {}
+    (fn [_ _ _ _])
+    (fn [session _ events]
+      (with-redefs-fn {#'dap/request-timeout-ms 100}
+        #(is (thrown-with-msg? IOException #"timed out: wait"
+                               (dap/request! session "wait" {}))))
+      (let [[event exception] (take-event! events)]
+        (is (= :error event))
+        (is (instance? IOException exception)))
+      (is (= [:closed] (take-event! events)))
+      (is (= :closed (dap/status session)))
+      (is (nil? (:socket @(:state session))))
+      (is (= {} (:pending @(:state session))))
+      (is (thrown-with-msg? IOException #"disconnected" (dap/request! session "after-close" {}))))))
 
 ;; Verify source mapping handles project boundaries, trailing separators, Windows
 ;; paths and drive-letter casing, and frames without a source file.
@@ -357,14 +416,14 @@
 ;; Verify disconnect cancels connection retries without reporting an error, and
 ;; a queued stopped event cannot reopen the cancelled session.
 (deftest connection-cancellation-test
-  (let [closed (promise)
+  (let [closed (future/make)
         errors (atom [])
         session (dap/connect! "127.0.0.1" (constantly nil)
                               {:local-root "/project"
                                :breakpoints {}}
-                              {:on-closed #(deliver closed %)
+                              {:on-closed #(future/complete! closed %)
                                :on-error (fn [_ error] (swap! errors conj error))})]
-    (await! (dap/disconnect! session))
+    (dap/disconnect! session)
     (is (identical? session (await! closed)))
     (is (= :closed (dap/status session)))
     (is (= [] @errors))
@@ -380,13 +439,13 @@
     (let [adapter (future/io
                     (with-open [socket (.accept server)]
                       (receive! (DataInputStream. (.getInputStream socket)))))
-          closed (promise)
-          error (promise)
+          closed (future/make)
+          error (future/make)
           session (dap/connect! "127.0.0.1" #(.getLocalPort server)
                                 {:local-root "/project"
                                  :breakpoints {}}
-                                {:on-closed #(deliver closed %)
-                                 :on-error (fn [_ exception] (deliver error exception))})]
+                                {:on-closed #(future/complete! closed %)
+                                 :on-error (fn [_ exception] (future/complete! error exception))})]
       (try
         (is (instance? IOException (await! error)))
         (is (identical? session (await! closed)))
@@ -403,7 +462,7 @@
   (when-let [binary (System/getProperty "defold.dap.debuggee")]
     (let [directory (.toFile (Files/createTempDirectory "editor-dap-" (make-array java.nio.file.attribute.FileAttribute 0)))
           source (io/file directory "main.lua")
-          ready (promise)
+          ready (future/make)
           stopped (LinkedBlockingQueue.)]
       (spit source (str "local data = {nested = {value = 42}}\n"
                         "local function work(value)\n"
@@ -429,9 +488,9 @@
                     session (dap/connect! "127.0.0.1" (constantly port)
                                           {:local-root (.getAbsolutePath directory)
                                            :breakpoints {(.getAbsolutePath source) [{:line 8}]}}
-                                          {:on-connected #(deliver ready %)
+                                          {:on-connected #(future/complete! ready %)
                                            :on-suspended (fn [session _] (.add stopped (dap/suspension session)))
-                                           :on-error (fn [_ exception] (deliver ready exception))})]
+                                           :on-error (fn [_ exception] (future/fail! ready exception))})]
                 (try
                   (is (identical? session (await! ready)))
                   (let [snapshot (take-event! stopped)
@@ -447,17 +506,17 @@
                     (is (pos? (:variablesReference (coll/first-where #(= "math" (:name %)) global-variables))))
                     (is (= "42" (:result (dap/evaluate! session (:id frame) "data.nested.value"))))
                     (is (= "42" (:value (first (dap/variables session snapshot (:variablesReference nested)))))))
-                  (await! (dap/control! session "stepIn"))
+                  (dap/control! session "stepIn")
                   (is (= "work" (:function (first (dap/stack session (take-event! stopped))))))
                   (doseq [[line expected] [[4 "43"] [5 "44"] [6 "45"]]]
-                    (await! (dap/control! session "next"))
+                    (dap/control! session "next")
                     (let [snapshot (take-event! stopped)
                           frame (first (dap/stack session snapshot))
                           locals (dap/frame-variables session snapshot (:id frame))]
                       (is (= ["work" line] [(:function frame) (:line frame)]))
                       (is (= expected (:value (coll/first-where #(= "result" (:name %)) locals))))
                       (is (= expected (:result (dap/evaluate! session (:id frame) "result"))))))
-                  (await! (dap/disconnect! session))
+                  (dap/disconnect! session)
                   (is (.waitFor process 10 TimeUnit/SECONDS))
                   (is (zero? (.exitValue process)))
                   (finally
