@@ -522,10 +522,11 @@ namespace dmGraphics
         VkImageAspectFlags vk_image_aspect,
         VkImageLayout vk_to_layout,
         uint32_t base_mip_level,
-        uint32_t layer_count)
+        uint32_t layer_count,
+        VkCommandPool command_pool)
     {
         VkDevice vk_device = logical_device->m_Device;
-        VkCommandPool vk_command_pool = logical_device->m_CommandPool;
+        VkCommandPool vk_command_pool = command_pool != VK_NULL_HANDLE ? command_pool : logical_device->m_CommandPool;
         VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(vk_device, vk_command_pool);
 
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
