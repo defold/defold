@@ -182,7 +182,7 @@
       (is (= {:localRoot "/project"
               :stopOnEntry false}
              (:arguments (second @requests))))
-      (is (= :running (dap/state session)))
+      (is (= :running (dap/status session)))
       (testing "Replace changed sources and clear the last breakpoint without pausing Lua"
         (await! (dap/set-breakpoints! session {"/other.lua" [{:line 9}]}))
         (let [updates (subvec @requests 4)]
@@ -338,10 +338,10 @@
         (is (= {:result "second"} (#'dap/await-response! session "second" second-response)))
         (is (= [:output {:output "héj 🦊"}] (take-event! events))))
       (is (thrown-with-msg? Exception #"Evaluation failed" (dap/request! session "bad" {})))
-      (is (= :running (dap/state session)))
+      (is (= :running (dap/status session)))
       (is (thrown? IOException (dap/request! session "close" {})))
       (is (= [:closed] (take-event! events)))
-      (is (= :closed (dap/state session)))
+      (is (= :closed (dap/status session)))
       (is (= {} @(:pending session))))))
 
 ;; Verify source mapping handles project boundaries, trailing separators, Windows
@@ -366,12 +366,12 @@
                                :on-error (fn [_ error] (swap! errors conj error))})]
     (await! (dap/disconnect! session))
     (is (identical? session (await! closed)))
-    (is (= :closed (dap/state session)))
+    (is (= :closed (dap/status session)))
     (is (= [] @errors))
     (testing "A queued stopped event cannot reopen a cancelled session"
       (#'dap/handle-event! session {:event "stopped"
                                     :body {:threadId 7}})
-      (is (= :closed (dap/state session))))))
+      (is (= :closed (dap/status session))))))
 
 ;; Verify a server closing during initialization reports connection failure and
 ;; closes the session instead of leaving attachment pending.
@@ -390,7 +390,7 @@
       (try
         (is (instance? IOException (await! error)))
         (is (identical? session (await! closed)))
-        (is (= :closed (dap/state session)))
+        (is (= :closed (dap/status session)))
         (finally
           (dap/close! session)
           (await! adapter))))))
