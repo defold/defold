@@ -31,7 +31,7 @@
 #include "../engine.h"
 #include "../engine_private.h"
 
-#if defined(DM_PLATFORM_IOS)
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
 #include <stdlib.h>
 #endif
 
@@ -100,7 +100,8 @@ static void TestEngineGetResult(dmEngine::HEngine engine, int* run_action, int* 
     g_ExitCode = *exit_code;
 }
 
-#if defined(DM_PLATFORM_IOS)
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
+// Unit tests drive lifecycle callbacks synchronously instead of yielding to the app event loop.
 static int RunTestEngineLoop(const dmEngine::RunLoopParams* params)
 {
     if (params->m_AppCreate)
@@ -184,7 +185,7 @@ static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void
     params.m_EngineDestroy = (dmEngine::EngineDestroy)TestEngineDestroy;
     params.m_EngineUpdate = (dmEngine::EngineUpdate)TestEngineUpdate;
     params.m_EngineGetResult = (dmEngine::EngineGetResult)TestEngineGetResult;
-#if defined(DM_PLATFORM_IOS)
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
     return RunTestEngineLoop(&params);
 #else
     return dmEngine::RunLoop(&params);
