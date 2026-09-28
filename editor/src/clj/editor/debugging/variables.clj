@@ -31,6 +31,8 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(def ^:private ^:dynamic *updating-view* false)
+
 (defn- current-load? [model {:keys [session snapshot] :as context}]
   (and (identical? context (:context @model))
        (= snapshot (dap/suspension session))))
@@ -183,13 +185,15 @@
 (def ^:private ext-viewport
   (reify fx.lifecycle/Lifecycle
     (create [_ {:keys [desc model]} opts]
-      (let [component (fx.lifecycle/create fx.lifecycle/dynamic desc opts)]
-        (install-view! (fx/instance component) model)
-        component))
+      (binding [*updating-view* true]
+        (let [component (fx.lifecycle/create fx.lifecycle/dynamic desc opts)]
+          (install-view! (fx/instance component) model)
+          component)))
     (advance [_ component {:keys [desc model]} opts]
-      (let [component (fx.lifecycle/advance fx.lifecycle/dynamic component desc opts)]
-        (sync-viewport! (fx/instance component) model)
-        component))
+      (binding [*updating-view* true]
+        (let [component (fx.lifecycle/advance fx.lifecycle/dynamic component desc opts)]
+          (sync-viewport! (fx/instance component) model)
+          component)))
     (delete [_ component opts]
       (let [view (fx/instance component)]
         (swap! (ui/user-data view ::state) assoc :context nil)
@@ -204,8 +208,9 @@
    :desc {:fx/type fx.ext.tree-view/with-selection-props
           :props {:on-selected-item-changed
                   (fn [^TreeItem item]
-                    (when item
-                      (swap! model assoc :selection (:path (.getValue item)))))}
+                    ;; Rebuilding the tree can temporarily clear selection.
+                    (when-not *updating-view*
+                      (swap! model assoc :selection (some-> item .getValue :path))))}
           :desc {:fx/type fx.tree-view/lifecycle
                  :id "debugger-variables"
                  :show-root false
