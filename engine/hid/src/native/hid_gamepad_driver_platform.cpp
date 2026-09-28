@@ -35,7 +35,7 @@
 
 namespace dmHID
 {
-    static int GLFW_JOYSTICKS[MAX_GAMEPAD_COUNT] =
+    static int PLATFORM_JOYSTICKS[MAX_GAMEPAD_COUNT] =
     {
         dmPlatform::PLATFORM_JOYSTICK_1,
         dmPlatform::PLATFORM_JOYSTICK_2,
@@ -63,7 +63,7 @@ namespace dmHID
         GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX  = 3,
     };
 
-    struct GLFWGamepadDevice
+    struct PlatformGamepadDevice
     {
         int                  m_Id;
         Gamepad*             m_Gamepad;
@@ -76,18 +76,18 @@ namespace dmHID
     };
 
 
-    // The GLFW driver stores an indirect table to map a GLFW index to our internal representation,
+    // The platform driver stores an indirect table to map a platform index to our internal representation,
     // this is needed because multiple gamepad drivers can exist at the same time.
-    struct GLFWGamepadDriver : GamepadDriver
+    struct PlatformGamepadDriver : GamepadDriver
     {
         HContext                   m_HidContext;
-        dmArray<GLFWGamepadDevice> m_Devices;
+        dmArray<PlatformGamepadDevice> m_Devices;
     };
 
-    static void GetGamepadDeviceNameInternal(HContext context, int glfw_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
-    static bool GetGamepadDeviceGuidInternal(HContext context, int glfw_id, GamepadGuid* guid);
+    static void GetGamepadDeviceNameInternal(HContext context, int platform_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
+    static bool GetGamepadDeviceGuidInternal(HContext context, int platform_id, GamepadGuid* guid);
 
-    static GLFWGamepadDriver* g_GLFWGamepadDriver = 0;
+    static PlatformGamepadDriver* g_PlatformGamepadDriver = 0;
 
 #if defined(_WIN32)
     typedef BOOLEAN (WINAPI *HidDGetStringFn)(HANDLE device, PVOID buffer, ULONG buffer_length);
@@ -215,7 +215,7 @@ namespace dmHID
     // SDL's RawInput GUID is useful for diagnostics even though GLFW supplies
     // the live XInput packet. Keep that compatibility detail local to this
     // driver, together with the automatic packet-layout decision.
-    static bool EnsureAutomaticXInputIdentity(HContext context, GLFWGamepadDevice* device)
+    static bool EnsureAutomaticXInputIdentity(HContext context, PlatformGamepadDevice* device)
     {
         if (device->m_HasAutomaticIdentity)
             return true;
@@ -251,7 +251,7 @@ namespace dmHID
     }
 #endif
 
-    static Gamepad* GLFWGetGamepad(GLFWGamepadDriver* driver, int gamepad_id)
+    static Gamepad* PlatformGetGamepad(PlatformGamepadDriver* driver, int gamepad_id)
     {
         for (int i = 0; i < driver->m_Devices.Size(); ++i)
         {
@@ -264,15 +264,15 @@ namespace dmHID
         return 0;
     }
 
-    // Returns the glfw gamepad ID
-    static int GLFWUnpackGamepad(GLFWGamepadDriver* driver, Gamepad* gamepad, GLFWGamepadDevice** glfw_gamepad_device_out)
+    // Returns the platform gamepad ID
+    static int PlatformUnpackGamepad(PlatformGamepadDriver* driver, Gamepad* gamepad, PlatformGamepadDevice** platform_gamepad_device_out)
     {
         for (int i = 0; i < driver->m_Devices.Size(); ++i)
         {
             if (driver->m_Devices[i].m_Gamepad == gamepad)
             {
-                if (glfw_gamepad_device_out)
-                    *glfw_gamepad_device_out = &driver->m_Devices[i];
+                if (platform_gamepad_device_out)
+                    *platform_gamepad_device_out = &driver->m_Devices[i];
                 return driver->m_Devices[i].m_Id;
             }
         }
@@ -280,9 +280,9 @@ namespace dmHID
         return -1;
     }
 
-    static Gamepad* GLFWEnsureAllocatedGamepad(GLFWGamepadDriver* driver, int gamepad_id)
+    static Gamepad* PlatformEnsureAllocatedGamepad(PlatformGamepadDriver* driver, int gamepad_id)
     {
-        Gamepad* gp = GLFWGetGamepad(driver, gamepad_id);
+        Gamepad* gp = PlatformGetGamepad(driver, gamepad_id);
         if (gp != 0)
         {
             return gp;
@@ -294,7 +294,7 @@ namespace dmHID
             return 0;
         }
 
-        GLFWGamepadDevice new_device = {};
+        PlatformGamepadDevice new_device = {};
         new_device.m_Id              = gamepad_id;
         new_device.m_Gamepad         = gp;
         new_device.m_RemapStrategy   = GAMEPAD_REMAP_STRATEGY_NONE;
@@ -330,7 +330,7 @@ namespace dmHID
         return gp;
     }
 
-    static void GLFWRemoveGamepad(GLFWGamepadDriver* driver, int gamepad_id)
+    static void PlatformRemoveGamepad(PlatformGamepadDriver* driver, int gamepad_id)
     {
         for (int i = 0; i < driver->m_Devices.Size(); ++i)
         {
@@ -346,38 +346,38 @@ namespace dmHID
 
 
     // Note: For windows and Linux we will get callbacks here on init when
-    // we detect devices using GLFWGamepadDriverDetectDevices. If a joystick
+    // we detect devices using PlatformGamepadDriverDetectDevices. If a joystick
     // is not present when checking a joystick id glfw will generate a
     // disconnect callback.
     // https://github.com/glfw/glfw/blob/3.4/src/win32_joystick.c#L627
     // https://github.com/glfw/glfw/blob/3.4/src/linux_joystick.c#L398
-    static void GLFWGamepadCallback(void* user_Data, int gamepad_id, WindowGamepadEvent event)
+    static void PlatformGamepadCallback(void* user_Data, int gamepad_id, WindowGamepadEvent event)
     {
         Gamepad* gp = 0;
         if (event == WINDOW_GAMEPAD_EVENT_CONNECTED)
         {
-            gp = GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
+            gp = PlatformEnsureAllocatedGamepad(g_PlatformGamepadDriver, gamepad_id);
         }
         else if (event == WINDOW_GAMEPAD_EVENT_DISCONNECTED)
         {
-            gp = GLFWGetGamepad(g_GLFWGamepadDriver, gamepad_id);
+            gp = PlatformGetGamepad(g_PlatformGamepadDriver, gamepad_id);
         }
 
         if (gp != 0)
         {
-            SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, event == WINDOW_GAMEPAD_EVENT_CONNECTED ? 1 : 0);
+            SetGamepadConnectionStatus(g_PlatformGamepadDriver->m_HidContext, gp, event == WINDOW_GAMEPAD_EVENT_CONNECTED ? 1 : 0);
         }
     }
 
-    static void RemapGamepadAxis(GLFWGamepadDevice* glfw_gamepad, float* axis, uint8_t* buttons)
+    static void RemapGamepadAxis(PlatformGamepadDevice* platform_gamepad, float* axis, uint8_t* buttons)
     {
-        if (!glfw_gamepad->m_Gamepad->m_LayoutLegacy)
+        if (!platform_gamepad->m_Gamepad->m_LayoutLegacy)
         {
             return;
         }
 
-        if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT &&
-            glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX)
+        if (platform_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT &&
+            platform_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX)
         {
             return;
         }
@@ -388,12 +388,12 @@ namespace dmHID
         axis[1] *= -1.0f;
         axis[3] *= -1.0f;
 
-        if (glfw_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX)
+        if (platform_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX)
         {
             // For linux, the old GLFW 2.7.7 version represents hats as axes, but in newer
             // glfw version they are actually represented as buttons instead.
 
-            Gamepad* gamepad          = glfw_gamepad->m_Gamepad;
+            Gamepad* gamepad          = platform_gamepad->m_Gamepad;
             uint8_t axis_count        = gamepad->m_HatCount * 2;
             uint8_t axis_start        = 6;
             int32_t hats_button_count = gamepad->m_HatCount * 4;
@@ -441,12 +441,12 @@ namespace dmHID
         }
     }
 
-    static uint8_t* RemapGamepadButtons(GLFWGamepadDevice* glfw_gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
+    static uint8_t* RemapGamepadButtons(PlatformGamepadDevice* platform_gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
     {
-        if (!glfw_gamepad->m_Gamepad->m_LayoutLegacy)
+        if (!platform_gamepad->m_Gamepad->m_LayoutLegacy)
         {
 #if defined(_WIN32)
-            if (glfw_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+            if (platform_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
             {
                 // GLFW exposes XInput buttons as A, B, X, Y, shoulders,
                 // back, start and stick clicks. The automatic mapping consumes
@@ -465,15 +465,15 @@ namespace dmHID
                 // XInput through GLFW doesn't expose Guide or Capture. Keep
                 // those slots clear instead of reading GLFW's appended hat
                 // buttons as ordinary buttons.
-                glfw_gamepad->m_Gamepad->m_ButtonCount = GAMEPAD_MAPPED_BUTTON_COUNT;
+                platform_gamepad->m_Gamepad->m_ButtonCount = GAMEPAD_MAPPED_BUTTON_COUNT;
                 return buttons_remapped;
             }
 #endif
             return buttons;
         }
 
-        if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT &&
-            glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+        if (platform_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT &&
+            platform_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
         {
             return buttons;
         }
@@ -482,12 +482,12 @@ namespace dmHID
         // but old Defold expects the hats to be placed first. So to avoid forcing people to
         // do a new remapping for their gamepads, we just copy and adjust the hats from the new
         // glfw format to the old one.
-        Gamepad* gamepad                = glfw_gamepad->m_Gamepad;
+        Gamepad* gamepad                = platform_gamepad->m_Gamepad;
         int32_t hats_button_count       = gamepad->m_HatCount * 4;
         int32_t hats_start              = gamepad->m_ButtonCount - hats_button_count;
         uint8_t* buttons_remapped_start = buttons_remapped + hats_button_count;
 
-        if (glfw_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+        if (platform_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
         {
             // In GLFW 2.7, the button count is hardcoded to 16 for XInput devices.
             gamepad->m_ButtonCount = 16;
@@ -550,7 +550,7 @@ namespace dmHID
             buttons_remapped_start[10] = buttons[2];
             buttons_remapped_start[11] = buttons[3];
         }
-        else if (glfw_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT)
+        else if (platform_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT)
         {
             // For direct input devices, we can take all buttons as is without explicit button remapping (except dpads)
             memcpy(buttons_remapped_start, buttons, hats_start);
@@ -569,24 +569,24 @@ namespace dmHID
         return buttons_remapped;
     }
 
-    static void GLFWGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
+    static void PlatformGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
     {
-        GLFWGamepadDevice* glfw_device;
-        int id = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, &glfw_device);
+        PlatformGamepadDevice* platform_device;
+        int id = PlatformUnpackGamepad((PlatformGamepadDriver*) driver, gamepad, &platform_device);
         assert(id != -1);
 
-        int glfw_joystick     = GLFW_JOYSTICKS[id];
+        int platform_joystick     = PLATFORM_JOYSTICKS[id];
         GamepadPacket& packet = gamepad->m_Packet;
 
         uint8_t buttons[MAX_GAMEPAD_BUTTON_COUNT] = {};
         uint8_t buttons_remapped[MAX_GAMEPAD_BUTTON_COUNT] = {};
 
-        gamepad->m_AxisCount   = dmPlatform::GetJoystickAxes(context->m_Window, glfw_joystick, packet.m_Axis, MAX_GAMEPAD_AXIS_COUNT);
-        gamepad->m_HatCount    = dmPlatform::GetJoystickHats(context->m_Window, glfw_joystick, packet.m_Hat, MAX_GAMEPAD_HAT_COUNT);
-        gamepad->m_ButtonCount = dmPlatform::GetJoystickButtons(context->m_Window, glfw_joystick, buttons, MAX_GAMEPAD_BUTTON_COUNT);
+        gamepad->m_AxisCount   = dmPlatform::GetJoystickAxes(context->m_Window, platform_joystick, packet.m_Axis, MAX_GAMEPAD_AXIS_COUNT);
+        gamepad->m_HatCount    = dmPlatform::GetJoystickHats(context->m_Window, platform_joystick, packet.m_Hat, MAX_GAMEPAD_HAT_COUNT);
+        gamepad->m_ButtonCount = dmPlatform::GetJoystickButtons(context->m_Window, platform_joystick, buttons, MAX_GAMEPAD_BUTTON_COUNT);
 
-        uint8_t* buttons_ptr = RemapGamepadButtons(glfw_device, buttons, buttons_remapped);
-        RemapGamepadAxis(glfw_device, packet.m_Axis, buttons);
+        uint8_t* buttons_ptr = RemapGamepadButtons(platform_device, buttons, buttons_remapped);
+        RemapGamepadAxis(platform_device, packet.m_Axis, buttons);
 
         for (uint32_t j = 0; j < gamepad->m_ButtonCount; ++j)
         {
@@ -601,26 +601,26 @@ namespace dmHID
         }
     }
 
-    static void GLFWGamepadDriverDetectDevices(HContext context, GamepadDriver* driver)
+    static void PlatformGamepadDriverDetectDevices(HContext context, GamepadDriver* driver)
     {
-        GLFWGamepadDriver* glfw_driver = (GLFWGamepadDriver*) driver;
+        PlatformGamepadDriver* platform_driver = (PlatformGamepadDriver*) driver;
 
         for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
         {
             if (dmPlatform::GetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, i))
             {
-                GLFWEnsureAllocatedGamepad(glfw_driver, i);
+                PlatformEnsureAllocatedGamepad(platform_driver, i);
             }
             else
             {
-                GLFWRemoveGamepad(glfw_driver, i);
+                PlatformRemoveGamepad(platform_driver, i);
             }
         }
     }
 
-    static void GetGamepadDeviceNameInternal(HContext context, int glfw_id, char name[MAX_GAMEPAD_NAME_LENGTH])
+    static void GetGamepadDeviceNameInternal(HContext context, int platform_id, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
-        const char* device_name = dmPlatform::GetJoystickDeviceName(context->m_Window, glfw_id);
+        const char* device_name = dmPlatform::GetJoystickDeviceName(context->m_Window, platform_id);
         if (device_name != 0x0)
         {
             dmStrlCpy(name, device_name, MAX_GAMEPAD_NAME_LENGTH);
@@ -633,23 +633,23 @@ namespace dmHID
         }
     }
 
-    static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
+    static void PlatformGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
-        GLFWGamepadDevice* glfw_device = 0;
-        uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, &glfw_device);
+        PlatformGamepadDevice* platform_device = 0;
+        uint32_t gamepad_index = PlatformUnpackGamepad((PlatformGamepadDriver*) driver, gamepad, &platform_device);
 #if defined(_WIN32)
-        if (glfw_device && EnsureAutomaticXInputIdentity(context, glfw_device))
+        if (platform_device && EnsureAutomaticXInputIdentity(context, platform_device))
         {
-            dmStrlCpy(name, glfw_device->m_AutomaticName, MAX_GAMEPAD_NAME_LENGTH);
+            dmStrlCpy(name, platform_device->m_AutomaticName, MAX_GAMEPAD_NAME_LENGTH);
             return;
         }
 #endif
         GetGamepadDeviceNameInternal(context, gamepad_index, name);
     }
 
-    static bool GetGamepadDeviceGuidInternal(HContext context, int glfw_id, GamepadGuid* guid)
+    static bool GetGamepadDeviceGuidInternal(HContext context, int platform_id, GamepadGuid* guid)
     {
-        const char* device_guid = dmPlatform::GetJoystickDeviceGuid(context->m_Window, glfw_id);
+        const char* device_guid = dmPlatform::GetJoystickDeviceGuid(context->m_Window, platform_id);
         if (device_guid != 0x0)
         {
             return ParseGamepadGuid(device_guid, guid);
@@ -657,24 +657,24 @@ namespace dmHID
         return false;
     }
 
-    static bool GLFWGamepadDriverGetGamepadDeviceGuid(HContext context, GamepadDriver* driver, HGamepad gamepad, GamepadGuid* guid)
+    static bool PlatformGamepadDriverGetGamepadDeviceGuid(HContext context, GamepadDriver* driver, HGamepad gamepad, GamepadGuid* guid)
     {
-        GLFWGamepadDevice* glfw_device = 0;
-        uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, &glfw_device);
+        PlatformGamepadDevice* platform_device = 0;
+        uint32_t gamepad_index = PlatformUnpackGamepad((PlatformGamepadDriver*) driver, gamepad, &platform_device);
 #if defined(_WIN32)
-        if (glfw_device && EnsureAutomaticXInputIdentity(context, glfw_device))
+        if (platform_device && EnsureAutomaticXInputIdentity(context, platform_device))
         {
-            *guid = glfw_device->m_AutomaticGuid;
+            *guid = platform_device->m_AutomaticGuid;
             return true;
         }
 #endif
         return GetGamepadDeviceGuidInternal(context, gamepad_index, guid);
     }
 
-    static uint32_t GLFWGamepadDriverGetGamepadMappingSupport(HContext context, GamepadDriver* driver, HGamepad gamepad)
+    static uint32_t PlatformGamepadDriverGetGamepadMappingSupport(HContext context, GamepadDriver* driver, HGamepad gamepad)
     {
-        GLFWGamepadDevice* glfw_device = 0;
-        if (GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, &glfw_device) == -1)
+        PlatformGamepadDevice* platform_device = 0;
+        if (PlatformUnpackGamepad((PlatformGamepadDriver*) driver, gamepad, &platform_device) == -1)
             return GAMEPAD_MAPPING_SUPPORT_NONE;
 
 #if defined(_WIN32)
@@ -682,9 +682,9 @@ namespace dmHID
         // so it can use the automatic mapping when no database row exists.
         // DirectInput devices expose their physical layout and still require a
         // database mapping (or the raw fallback).
-        if (glfw_device->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+        if (platform_device->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
         {
-            EnsureAutomaticXInputIdentity(context, glfw_device);
+            EnsureAutomaticXInputIdentity(context, platform_device);
             return GAMEPAD_MAPPING_SUPPORT_AUTOMATIC;
         }
 #endif
@@ -692,41 +692,41 @@ namespace dmHID
         return GAMEPAD_MAPPING_SUPPORT_NONE;
     }
 
-    static bool GLFWGamepadDriverInitialize(HContext context, GamepadDriver* driver)
+    static bool PlatformGamepadDriverInitialize(HContext context, GamepadDriver* driver)
     {
         if (!dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             return false;
         }
 
-        dmPlatform::SetGamepadEventCallback(context->m_Window, GLFWGamepadCallback, 0);
+        dmPlatform::SetGamepadEventCallback(context->m_Window, PlatformGamepadCallback, 0);
         return true;
     }
 
-    static void GLFWGamepadDriverDestroy(HContext context, GamepadDriver* driver)
+    static void PlatformGamepadDriverDestroy(HContext context, GamepadDriver* driver)
     {
-        GLFWGamepadDriver* glfw_driver = (GLFWGamepadDriver*) driver;
-        assert(g_GLFWGamepadDriver == glfw_driver);
-        delete glfw_driver;
-        g_GLFWGamepadDriver = 0;
+        PlatformGamepadDriver* platform_driver = (PlatformGamepadDriver*) driver;
+        assert(g_PlatformGamepadDriver == platform_driver);
+        delete platform_driver;
+        g_PlatformGamepadDriver = 0;
     }
 
-    GamepadDriver* CreateGamepadDriverGLFW(HContext context)
+    GamepadDriver* CreateGamepadDriverPlatform(HContext context)
     {
-        GLFWGamepadDriver* driver = new GLFWGamepadDriver();
+        PlatformGamepadDriver* driver = new PlatformGamepadDriver();
 
-        driver->m_Initialize                   = GLFWGamepadDriverInitialize;
-        driver->m_Destroy                      = GLFWGamepadDriverDestroy;
-        driver->m_Update                       = GLFWGamepadDriverUpdate;
-        driver->m_DetectDevices                = GLFWGamepadDriverDetectDevices;
-        driver->m_GetGamepadDeviceName         = GLFWGamepadDriverGetGamepadDeviceName;
-        driver->m_GetGamepadDeviceGuid         = GLFWGamepadDriverGetGamepadDeviceGuid;
-        driver->m_GetGamepadMappingSupport     = GLFWGamepadDriverGetGamepadMappingSupport;
+        driver->m_Initialize                   = PlatformGamepadDriverInitialize;
+        driver->m_Destroy                      = PlatformGamepadDriverDestroy;
+        driver->m_Update                       = PlatformGamepadDriverUpdate;
+        driver->m_DetectDevices                = PlatformGamepadDriverDetectDevices;
+        driver->m_GetGamepadDeviceName         = PlatformGamepadDriverGetGamepadDeviceName;
+        driver->m_GetGamepadDeviceGuid         = PlatformGamepadDriverGetGamepadDeviceGuid;
+        driver->m_GetGamepadMappingSupport     = PlatformGamepadDriverGetGamepadMappingSupport;
         driver->m_SetGamepadMapping            = 0;
 
-        assert(g_GLFWGamepadDriver == 0);
-        g_GLFWGamepadDriver               = driver;
-        g_GLFWGamepadDriver->m_HidContext = context;
+        assert(g_PlatformGamepadDriver == 0);
+        g_PlatformGamepadDriver               = driver;
+        g_PlatformGamepadDriver->m_HidContext = context;
 
         return driver;
     }

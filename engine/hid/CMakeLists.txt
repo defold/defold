@@ -141,6 +141,11 @@ if(BUILD_TESTS)
         target_link_libraries(test_hid PRIVATE Threads::Threads dl)
     endif()
 
+    # Compare HID GUIDs with the private native backend on mobile and web.
+    if(TARGET_PLATFORM_OS STREQUAL "android" OR TARGET_PLATFORM_OS STREQUAL "web")
+        target_link_libraries(test_hid PRIVATE platform)
+    endif()
+
     defold_target_link_glfw(test_hid "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_hid "${TARGET_PLATFORM}" PRIVATE)
 
