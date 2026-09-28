@@ -80,31 +80,23 @@
       (engine/launch! binary (io/file "/project") nil false 0 true)
       (is (= [] (into [] (drop 2) (peek @launches)))))))
 
-;; Verify actual reboot messages enable network binding only for remote debug
-;; targets, preserve instance ports, and keep the project URL last within six slots.
 (deftest debug-reboot-test
-  (doseq [[target debug focus expected]
-          [[{:address "192.168.1.20"} true true
-            ["--config=resource.uri=http://editor:8000"
-             "--config=debugger.enabled=1"
-             "--config=debugger.port=8172"
-             "--config=debugger.wait=1"
-             "--config=debugger.address=0.0.0.0"
-             "http://editor:8000/game.projectc"]]
-           [{:process ::process
-             :instance-index 3} true true
-            ["--config=resource.uri=http://editor:8000"
-             "--config=debugger.enabled=1"
-             "--config=debugger.port=8175"
-             "--config=debugger.wait=1"
-             "--config=project.instance_index=3"
-             "http://editor:8000/game.projectc"]]
-           [{:address "192.168.1.20"} false false
-            ["--config=resource.uri=http://editor:8000"
-             "--config=display.focus_on_show=0"
-             "http://editor:8000/game.projectc"]]]]
-    (let [output (ByteArrayOutputStream.)
-          target (assoc target :url "http://target:8001")]
+  (doseq [remote [false true]
+          debug [false true]
+          focus [false true]
+          instance-index [0 3]]
+    (let [instance-index (long instance-index)
+          output (ByteArrayOutputStream.)
+          target (cond-> {:address "192.168.1.20" :url "http://target:8001" :instance-index instance-index}
+                   (not remote) (assoc :process ::process))
+          expected (cond-> ["--config=resource.uri=http://editor:8000"]
+                     debug (into ["--config=debugger.enabled=1"
+                                  (str "--config=debugger.port=" (+ 8172 instance-index))
+                                  "--config=debugger.wait=1"])
+                     (and debug remote) (conj "--config=debugger.address=0.0.0.0")
+                     (pos? instance-index) (conj (str "--config=project.instance_index=" instance-index))
+                     (not focus) (conj "--config=display.focus_on_show=0")
+                     true (conj "http://editor:8000/game.projectc"))]
       (with-redefs-fn {#'engine/get-connection
                        (fn [^URI uri]
                          (proxy [HttpURLConnection] [(.toURL uri)]
@@ -112,5 +104,7 @@
                            (getInputStream [] (ByteArrayInputStream. (byte-array 0)))
                            (disconnect [] nil)))}
         #(is (= :ok (engine/reboot! target "http://editor:8000" debug focus))))
-      (let [arguments (protobuf/bytes->map-without-defaults System$Reboot (.toByteArray output))]
-        (is (= expected (into [] (keep arguments) [:arg1 :arg2 :arg3 :arg4 :arg5 :arg6])))))))
+      (let [message (protobuf/bytes->map-without-defaults System$Reboot (.toByteArray output))
+            arguments (into [] (keep message) [:arg1 :arg2 :arg3 :arg4 :arg5 :arg6 :arg7 :arg8])]
+        (is (= expected arguments))
+        (is (= "http://editor:8000/game.projectc" (peek arguments)))))))
