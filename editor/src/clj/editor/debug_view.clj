@@ -92,14 +92,12 @@
   ;; NOTE: This should only depend upon stuff that changes due to a state change
   ;; in the debugger, since selecting the top-frame below will open the suspended
   ;; file and line in the editor.
-  (when (some? debug-session)
-    (let [frames (:stack suspension-state)
-          suspended? (some? frames)
-          items (.getItems call-stack-view)]
-      (if suspended?
+  (when debug-session
+    (let [items (.getItems call-stack-view)]
+      (if-let [frames (:stack suspension-state)]
         (do
           (.setAll items ^Collection frames)
-          (when-some [top-frame (first frames)]
+          (when-let [top-frame (first frames)]
             (ui/select! call-stack-view top-frame)))
         (do
           (.clear items)
@@ -351,12 +349,11 @@
     (setup-prompt-field! debug-view debugger-prompt-field))
 
   (ui/observe-selection call-stack-view
-                        (fn [node selected-frames]
-                          (let [selected-frame (single selected-frames)]
-                            (let [{:keys [file line]} selected-frame]
-                              (when (and file line (pos? (long line)))
-                                (let [open-resource-fn (g/node-value debug-view :open-resource-fn)]
-                                  (open-resource-fn file line))))
+                        (fn [_ selected-frames]
+                          (let [{:keys [file line]} (single selected-frames)]
+                            (when (and file line (pos? (long line)))
+                              (let [open-resource-fn (g/node-value debug-view :open-resource-fn)]
+                                (open-resource-fn file line)))
                             (load-frame-variables! debug-view))))
 
   ;; expose to view node
@@ -403,20 +400,21 @@
 (defn- make-update-timer
   [project debug-view]
   (let [state (volatile! nil)
-        tick-fn (fn [_timer _ _]
-                  (let [{:keys [snapshot task]} @state]
-                    ;; Serialize background updates so an older UI snapshot cannot
-                    ;; overwrite newer breakpoints after waiting for the I/O thread.
-                    (when (and (not (ui/ui-disabled?))
-                               (or (not task) (future/done? task)))
-                      (when-let [debug-session (g/node-value debug-view :debug-session)]
-                        (let [breakpoints (collect-enabled-breakpoints project)
-                              new-snapshot [debug-session breakpoints]]
-                          (when-not (= new-snapshot snapshot)
-                            (let [breakpoints (breakpoints-by-path breakpoints)]
-                              (vreset! state {:snapshot new-snapshot
-                                              :task (future/io
-                                                      (dap/set-breakpoints! debug-session breakpoints))}))))))))]
+        tick-fn
+        (fn [_timer _ _]
+          (let [{:keys [snapshot task]} @state]
+            ;; Serialize background updates so an older UI snapshot cannot
+            ;; overwrite newer breakpoints after waiting for the I/O thread.
+            (when (and (not (ui/ui-disabled?))
+                       (or (not task) (future/done? task)))
+              (when-let [debug-session (g/node-value debug-view :debug-session)]
+                (let [breakpoints (collect-enabled-breakpoints project)
+                      new-snapshot [debug-session breakpoints]]
+                  (when-not (= new-snapshot snapshot)
+                    (let [breakpoints (breakpoints-by-path breakpoints)]
+                      (vreset! state {:snapshot new-snapshot
+                                      :task (future/io
+                                              (dap/set-breakpoints! debug-session breakpoints))}))))))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
 (defn- setup-view! [debug-view app-view]
@@ -470,35 +468,46 @@
 
 (defn- make-debugger-callbacks
   [debug-view]
-  {:on-connected (fn [debug-session]
-                   (ui/run-later
-                     (when (identical? debug-session (g/node-value debug-view :debug-session))
-                       (state-changed! debug-view true))))
-   :on-suspended (fn [debug-session _event]
-                   (update-suspension-state! debug-view debug-session))
-   :on-resumed (fn [debug-session]
-                 (ui/run-later
-                   (when (and (identical? debug-session (g/node-value debug-view :debug-session))
-                              (= :running (dap/status debug-session)))
-                     (g/transact
-                       {:undoable false}
-                       (g/set-property debug-view :suspension-state nil))
-                     (state-changed! debug-view false))))
-   :on-invalidated (fn [debug-session _event]
-                     (ui/run-later
-                       (when (identical? debug-session (g/node-value debug-view :debug-session))
-                         (load-frame-variables! debug-view))))
-   :on-output (fn [_debug-session {:keys [output category]}]
-                (doseq [line (string/split-lines output)]
-                  (console/append-console-entry! (if (= "stderr" category) :eval-error :eval-result) line)))
-   :on-closed (fn [debug-session]
-                (ui/run-later
-                  ;; A late close from an old connection must not clear a new one.
-                  (when (identical? debug-session (g/node-value debug-view :debug-session))
-                    (g/transact
-                      {:undoable false}
-                      (g/set-properties debug-view :debug-session nil :suspension-state nil))
-                    (state-changed! debug-view false))))})
+  {:on-connected
+   (fn [debug-session]
+     (ui/run-later
+       (when (identical? debug-session (g/node-value debug-view :debug-session))
+         (state-changed! debug-view true))))
+
+   :on-suspended
+   (fn [debug-session _event]
+     (update-suspension-state! debug-view debug-session))
+
+   :on-resumed
+   (fn [debug-session]
+     (ui/run-later
+       (when (and (identical? debug-session (g/node-value debug-view :debug-session))
+                  (= :running (dap/status debug-session)))
+         (g/transact
+           {:undoable false}
+           (g/set-property debug-view :suspension-state nil))
+         (state-changed! debug-view false))))
+
+   :on-invalidated
+   (fn [debug-session _event]
+     (ui/run-later
+       (when (identical? debug-session (g/node-value debug-view :debug-session))
+         (load-frame-variables! debug-view))))
+
+   :on-output
+   (fn [_debug-session {:keys [output category]}]
+     (doseq [line (string/split-lines output)]
+       (console/append-console-entry! (if (= "stderr" category) :eval-error :eval-result) line)))
+
+   :on-closed
+   (fn [debug-session]
+     (ui/run-later
+       ;; A late close from an old connection must not clear a new one.
+       (when (identical? debug-session (g/node-value debug-view :debug-session))
+         (g/transact
+           {:undoable false}
+           (g/set-properties debug-view :debug-session nil :suspension-state nil))
+         (state-changed! debug-view false))))})
 
 (defn show-connect-failed-info! [^Exception exception workspace]
   (ui/run-later
@@ -518,21 +527,23 @@
 (defn start-debugger!
   [debug-view project target stop-on-entry]
   (let [workspace (project/workspace project)
-        resolve-port (fn []
-                       (if-let [port (:debugger-port (latest-target target))]
-                         (when (pos? (long port)) port)
-                         (engine/debugger-port target)))]
+        resolve-port
+        (fn []
+          (if-let [port (:debugger-port (latest-target target))]
+            (when (pos? (long port)) port)
+            (engine/debugger-port target)))]
     (ui/run-now
       (when-let [old (g/node-value debug-view :debug-session)]
         (dap/close! old))
-      (let [session (dap/connect! (:address target "localhost") resolve-port
-                                  {:target target
-                                   :local-root (.getAbsolutePath (workspace/project-directory workspace))
-                                   :stop-on-entry stop-on-entry
-                                   :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
-                                  (assoc (make-debugger-callbacks debug-view)
-                                    :on-error (fn [_session exception]
-                                                (show-connect-failed-info! exception workspace))))]
+      (let [session
+            (dap/connect! (:address target "localhost") resolve-port
+                          {:target target
+                           :local-root (.getAbsolutePath (workspace/project-directory workspace))
+                           :stop-on-entry stop-on-entry
+                           :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
+                          (assoc (make-debugger-callbacks debug-view)
+                            :on-error (fn [_session exception]
+                                        (show-connect-failed-info! exception workspace))))]
         (g/transact
           {:undoable false}
           (g/set-properties debug-view :debug-session session :suspension-state nil))
@@ -587,26 +598,30 @@
 (defn attach!
   [debug-view project target build-artifacts]
   (let [launched (targets/launched-target? target)
-        lua-module (built-lua-module build-artifacts (if launched
-                                                       debugger-init-script
-                                                       debugger-remote-init-script))
+        lua-module (built-lua-module build-artifacts
+                                     (if launched
+                                       debugger-init-script
+                                       debugger-remote-init-script))
         previous-port (when launched (:debugger-port (latest-target target)))]
     (assert lua-module)
     (when launched
       ;; Keep the known port usable if log filtering suppresses the announcement.
-      (targets/update-launched-target! target {:debugger-port (or previous-port 0)
-                                               :debugger-port-pending true}))
-    (let [attach-successful? (try
-                               (engine/run-script! target lua-module)
-                               true
-                               (catch Exception exception
-                                 (when (and launched
-                                            (:debugger-port-pending (latest-target target)))
-                                   (targets/update-launched-target! target {:debugger-port previous-port
-                                                                            :debugger-port-pending false}))
-                                 (show-connect-failed-info! exception (project/workspace project))
-                                 false))]
-      (when attach-successful?
+      (targets/update-launched-target! target
+                                       {:debugger-port (or previous-port 0)
+                                        :debugger-port-pending true}))
+    (let [attach-successful
+          (try
+            (engine/run-script! target lua-module)
+            true
+            (catch Exception exception
+              (when (and launched
+                         (:debugger-port-pending (latest-target target)))
+                (targets/update-launched-target! target
+                                                 {:debugger-port previous-port
+                                                  :debugger-port-pending false}))
+              (show-connect-failed-info! exception (project/workspace project))
+              false))]
+      (when attach-successful
         (start-debugger! debug-view project target true)))))
 
 (defn detach!

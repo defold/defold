@@ -41,15 +41,15 @@
                     (.lookupAll view ".scroll-bar")))
 
 (defn- capture-scroll-position [^TreeView view]
-  (let [skin (.getSkin view)]
-    (when (and (.getRoot view) (instance? ExtendedTreeViewSkin skin))
-      (let [flow (.getVirtualFlowInstance ^ExtendedTreeViewSkin skin)]
-        (when-let [^TreeCell cell (.getFirstVisibleCell flow)]
-          (when-let [path (some-> cell .getTreeItem .getValue :path)]
-            {:path path
-             :index (.getIndex cell)
-             :offset (.getLayoutY cell)
-             :horizontal (some-> (horizontal-scroll-bar view) .getValue)}))))))
+  (when (.getRoot view)
+    (let [skin ^ExtendedTreeViewSkin (.getSkin view)
+          flow (.getVirtualFlowInstance skin)]
+      (when-let [^TreeCell cell (.getFirstVisibleCell flow)]
+        (when-let [path (some-> cell .getTreeItem .getValue :path)]
+          {:path path
+           :index (.getIndex cell)
+           :offset (.getLayoutY cell)
+           :horizontal (some-> (horizontal-scroll-bar view) .getValue)})))))
 
 (defn- find-item
   ^TreeItem [^TreeItem root path]
@@ -63,17 +63,16 @@
 (defn- restore-scroll-position! [^TreeView view {:keys [path index offset horizontal]}]
   (.applyCss view)
   (.layout view)
-  (let [skin (.getSkin view)]
-    (when (instance? ExtendedTreeViewSkin skin)
-      (let [flow (.getVirtualFlowInstance ^ExtendedTreeViewSkin skin)
-            item (find-item (.getRoot view) path)
-            row (if-not item -1 (long (.getRow view item)))]
-        (.scrollToTop flow (int (if (neg? row) index row)))
-        (.layout flow)
-        (.scrollPixels flow (- (double offset)))
-        (when horizontal
-          (when-let [bar (horizontal-scroll-bar view)]
-            (.setValue bar horizontal)))))))
+  (let [skin ^ExtendedTreeViewSkin (.getSkin view)
+        flow (.getVirtualFlowInstance skin)
+        item (find-item (.getRoot view) path)
+        row (if-not item -1 (long (.getRow view item)))]
+    (.scrollToTop flow (int (if (neg? row) index row)))
+    (.layout flow)
+    (.scrollPixels flow (- (double offset)))
+    (when horizontal
+      (when-let [bar (horizontal-scroll-bar view)]
+        (.setValue bar horizontal)))))
 
 (defn- decorate-variables [parent-path variables]
   ;; Locals and upvalues can share names, so include their occurrence in the key.
@@ -135,16 +134,20 @@
      :fx/key path
      :value variable
      :expanded (and table (contains? expanded-paths path))
-     :on-expanded-changed (fn [expanded]
-                            (when (current-load? model context)
-                              (swap! model update :expanded-paths (if expanded conj disj) path)
-                              (when expanded
-                                (load-children! model context path variablesReference))))
-     :children (if-not table
-                 []
-                 (if-let [variables (get children path)]
-                   (mapv #(variable-item model state %) variables)
-                   [{:fx/type fx.tree-item/lifecycle :fx/key ::loading}]))}))
+     :on-expanded-changed
+     (fn [expanded]
+       (when (current-load? model context)
+         (swap! model update :expanded-paths (if expanded conj disj) path)
+         (when expanded
+           (load-children! model context path variablesReference))))
+
+     :children
+     (if-not table
+       []
+       (let [variables (get children path)]
+         (if-not variables
+           [{:fx/type fx.tree-item/lifecycle :fx/key ::loading}]
+           (mapv #(variable-item model state %) variables))))}))
 
 (defn- sync-viewport! [^TreeView view model]
   (let [{:keys [context pending selection scroll-to-restore]} @model]
@@ -163,8 +166,9 @@
   (.setSkin view (ExtendedTreeViewSkin. view))
   (ui/customize-tree-view! view {:double-click-expand true})
   (ui/user-data! view ::state model)
-  (let [cancel-scroll-restore (ui/event-handler _
-                                (swap! model dissoc :scroll-to-restore))]
+  (let [cancel-scroll-restore
+        (ui/event-handler _
+          (swap! model dissoc :scroll-to-restore))]
     (.addEventFilter view ScrollEvent/SCROLL cancel-scroll-restore)
     (.addEventFilter view MouseEvent/MOUSE_PRESSED cancel-scroll-restore)
     (.addEventFilter view KeyEvent/KEY_PRESSED cancel-scroll-restore)
@@ -205,11 +209,12 @@
           :desc {:fx/type fx.tree-view/lifecycle
                  :id "debugger-variables"
                  :show-root false
-                 :root (if (:context state)
-                         {:fx/type fx.tree-item/lifecycle
-                          :expanded true
-                          :children (mapv #(variable-item model state %) (get-in state [:children []]))}
-                         {:fx/type ui/ext-value :value nil})}}})
+                 :root
+                 (if-not (:context state)
+                   {:fx/type ui/ext-value :value nil}
+                   {:fx/type fx.tree-item/lifecycle
+                    :expanded true
+                    :children (mapv #(variable-item model state %) (get-in state [:children []]))})}}})
 
 (defn make-view!
   ^TreeView []

@@ -19,12 +19,14 @@
             [editor.targets :as targets]))
 
 (deftest launched-log-sink-port-discovery-test
-  (let [target {:id "engine" :debugger-port 0 :log-stream ::stream}
+  (let [target
+        {:id "engine" :debugger-port 0 :log-stream ::stream}
         current (atom target)
         updates (atom [])]
-    (with-redefs [targets/update-launched-target! (fn [_ target-info]
-                                                    (swap! updates conj target-info)
-                                                    (swap! current merge target-info))
+    (with-redefs [targets/update-launched-target!
+                  (fn [_ target-info]
+                    (swap! updates conj target-info)
+                    (swap! current merge target-info))
                   console/current-stream? (constantly false)]
       (let [sink (#'app-view/make-launched-log-sink target (constantly nil))]
         (sink "INFO:DLIB: Log server started on port 8002")
