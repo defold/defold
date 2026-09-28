@@ -26,13 +26,18 @@ function on_message(self, message_id, message, sender)
         else
             local test_val = sys.get_config_string("test.val", "default")
             if test_val == "second" then
+                assert(sys.get_config_int("test.arg7") == 7)
                 msg.post("@system:", "exit", {code = 7})
             else
                 local arg1 = '--config=bootstrap.main_collection=/reboot/start.collectionc'
                 local arg2 = '--config=test.val=second'
                 local arg3 = '--config=dmengine.unload_builtins=0'
-                local arg4 = sys.get_config_string("test.project", "src/test/build/default/game.projectc")
-                msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2, arg3 = arg3, arg4 = arg4})
+                local arg4 = '--config=test.arg4=4'
+                local arg5 = '--config=test.arg5=5'
+                local arg6 = '--config=test.arg6=6'
+                local arg7 = '--config=test.arg7=7'
+                local arg8 = sys.get_config_string("test.project", "src/test/build/default/game.projectc")
+                msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2, arg3 = arg3, arg4 = arg4, arg5 = arg5, arg6 = arg6, arg7 = arg7, arg8 = arg8})
             end
         end
     end
