@@ -79,10 +79,6 @@ Run all the tests including the integration tests:
 lein test
 ```
 
-For unattended tests, run `lein with-profile +headless test` from `editor/`. The `headless` profile configures the JavaFX robot and software rendering for a headless environment.
-
-Run `lein preflight` from `editor/` to check Clojure formatting with `clj-fmt`, lint with `kibit`, and run tests. The preflight task does not currently run `clj-kondo`.
-
 If you are using a repl, you can also run the tests by calling `(suite/suite)`.
 
 
