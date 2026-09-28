@@ -194,12 +194,6 @@
 
 (def ^:private loopback-address "127.0.0.1")
 
-(defn- parse-debugger-port [output]
-  (when-let [[_ port] (re-find #"Lua DAP debugger (?:listening on [^\s]+:|port: )(\d+)" output)]
-    (let [port (parse-long port)]
-      (when (and port (<= 1 port 65535))
-        port))))
-
 (defn parse-launched-target-info [output]
   (let [log-port (second (re-find #"DLIB: Log server started on port (\d*)" output))
         service-port (second (re-find #"ENGINE: Engine service started on port (\d*)" output))]
@@ -209,9 +203,11 @@
            (when log-port
              {:log-port log-port
               :address loopback-address})
-           (when-let [port (parse-debugger-port output)]
-             {:debugger-port port
-              :debugger-port-pending false}))))
+           (when-let [[_ port] (re-find #"Lua DAP debugger (?:listening on [^\s]+:|port: )(\d+)" output)]
+             (let [port (parse-long port)]
+               (when (and port (<= 1 port 65535))
+                 {:debugger-port port
+                  :debugger-port-pending false}))))))
 
 ;; Parse a line from engine output to extract engine version info.
 (defn parse-engine-version-line [line]
