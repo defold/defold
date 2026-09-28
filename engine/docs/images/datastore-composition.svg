@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="490" viewBox="0 0 1040 490" role="img" aria-labelledby="title desc">
+<title id="title">Inline Light members and query-bound offsets</title>
+<desc id="desc">A reusable Light construction description declares color and intensity. Registration compiles it into each containing table's shared metadata. PointLight and SpotLight rows embed their own Light bytes. A query for light.color resolves the combined offset once per table; each row read uses that offset without searching member metadata.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}.small{font-size:15px;fill:#52657a}.box{fill:white;stroke:#c3d0dd;stroke-width:1.5}.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
+<rect width="1040" height="490" rx="12" fill="#f5f8fc"/>
+<text x="28" y="38" class="title">Inline composition: resolve member paths once per table</text>
+<rect x="290" y="64" width="460" height="70" rx="7" fill="#e2f3ee" stroke="#a1c8bd"/>
+<text x="308" y="91" class="label">Reusable Light construction description</text>
+<text x="308" y="117">color: Vector3 at 0 · intensity: Number at 16</text>
+<path d="M 420 134 V 153 H 248 V 172" class="arrow"/>
+<path d="M 620 134 V 153 H 792 V 172" class="arrow"/>
+<rect x="28" y="180" width="464" height="89" rx="7" class="box"/>
+<text x="46" y="209" class="label">PointLight metadata</text>
+<text x="46" y="235">light → child range: color, intensity</text>
+<text x="46" y="257" class="small">Compiled once; shared by every PointLight row</text>
+<rect x="548" y="180" width="464" height="89" rx="7" class="box"/>
+<text x="566" y="209" class="label">SpotLight metadata</text>
+<text x="566" y="235">light → child range: color, intensity</text>
+<text x="566" y="257" class="small">Compiled once; shared by every SpotLight row</text>
+<text x="28" y="306" class="label">PointLight row</text>
+<rect x="28" y="320" width="300" height="48" fill="#e2f3ee" stroke="#a1c8bd"/>
+<rect x="328" y="320" width="164" height="48" fill="#e5ecfa" stroke="#c3d0dd"/>
+<text x="48" y="350">light: color + intensity</text><text x="384" y="350">range</text>
+<text x="548" y="306" class="label">SpotLight row</text>
+<rect x="548" y="320" width="256" height="48" fill="#e2f3ee" stroke="#a1c8bd"/>
+<rect x="804" y="320" width="208" height="48" fill="#e5ecfa" stroke="#c3d0dd"/>
+<text x="568" y="350">light: color + intensity</text><text x="824" y="350">range + cone angles</text>
+<text x="28" y="409">Query binding: color offset = offset(light) + offset(color)</text>
+<text x="28" y="439">Row access: Vector3 pointer at row bytes + bound color offset</text>
+<text x="28" y="472" class="small">Light has no separate row ID. Instances share metadata and defaults; each has mutable row bytes.</text>
+</svg>

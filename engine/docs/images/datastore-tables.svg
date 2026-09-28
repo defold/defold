@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="680" viewBox="0 0 1080 680" role="img" aria-labelledby="title desc">
+<title id="title">Shared runtime tables, independent game object registrations</title>
+<desc id="desc">One resource supplies point-light and spot-light defaults. The datastore keeps one dense runtime table for each source table, containing independent mutable rows from game objects A and B. Pooled registration records identify the rows owned by each game object for reset and removal. Replacement strings and containers belong to each registration. A query visits both shared tables.</desc>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}.small{font-size:15px;fill:#52657a}.mono{font-family:Menlo,Consolas,monospace;font-size:16px}.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker></defs>
+<rect width="1080" height="680" rx="12" fill="#f5f8fc"/>
+<text x="28" y="40" class="title">shared tables, independent game objects</text>
+<rect x="240" y="66" width="600" height="84" rx="8" fill="#fff1da" stroke="#d5b675"/>
+<text x="260" y="98" class="label">Resource blob: loaded once, immutable</text>
+<text x="260" y="128">point_light + spot_light metadata, defaults and strings</text>
+<rect x="28" y="178" width="1024" height="426" rx="10" fill="none" stroke="#8ba2ba" stroke-width="2"/>
+<text x="48" y="211" class="label">Datastore</text>
+<text x="320" y="449" class="small">A light query visits these two shared tables</text>
+<path d="M 370 150 V 231" class="arrow"/>
+<path d="M 710 150 V 231" class="arrow"/>
+<rect x="48" y="240" width="472" height="190" rx="8" fill="white" stroke="#c3d0dd"/>
+<rect x="560" y="240" width="472" height="190" rx="8" fill="white" stroke="#c3d0dd"/>
+<text x="68" y="271" class="label">point_light runtime table</text>
+<text x="580" y="271" class="label">spot_light runtime table</text>
+<rect x="68" y="288" width="432" height="47" rx="5" fill="#e2f3ee" stroke="#a1c8bd"/>
+<rect x="580" y="288" width="432" height="47" rx="5" fill="#e2f3ee" stroke="#a1c8bd"/>
+<text x="84" y="317">A’s point-light row · own DataId</text>
+<text x="596" y="317">A’s spot-light row · own DataId</text>
+<rect x="68" y="342" width="432" height="47" rx="5" fill="#e5ecfa" stroke="#a8bcd7"/>
+<rect x="580" y="342" width="432" height="47" rx="5" fill="#e5ecfa" stroke="#a8bcd7"/>
+<text x="84" y="371">B’s point-light row · own DataId</text>
+<text x="596" y="371">B’s spot-light row · own DataId</text>
+<text x="68" y="414" class="small">More registrations append rows to this array</text>
+<text x="580" y="414" class="small">One shared field binding per query</text>
+<rect x="48" y="459" width="472" height="120" rx="8" fill="#e2f3ee" stroke="#a1c8bd"/>
+<rect x="560" y="459" width="472" height="120" rx="8" fill="#e5ecfa" stroke="#a8bcd7"/>
+<text x="68" y="490" class="label">Registration A · pooled record</text>
+<text x="580" y="490" class="label">Registration B · pooled record</text>
+<text x="68" y="521">Indices identifying A’s two component rows</text>
+<text x="580" y="521">Indices identifying B’s two component rows</text>
+<text x="68" y="553" class="small">Owns A’s replacement strings and containers</text>
+<text x="580" y="553" class="small">Owns B’s replacement strings and containers</text>
+<text x="28" y="638">Reset or remove A through its registration. B’s rows and payloads remain intact.</text>
+<text x="28" y="665" class="small">Shared capacity is reused until the last registration of this resource is removed.</text>
+</svg>

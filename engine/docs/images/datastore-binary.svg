@@ -1,0 +1,45 @@
+<svg xml:space="preserve" xmlns="http://www.w3.org/2000/svg" width="1080" height="644" viewBox="0 0 1080 644" role="img" aria-labelledby="title desc">
+<title id="title">Shared property metadata and fixed-stride byte rows</title>
+<desc id="desc">The packed blob has an eight-byte DMDT and version header, a table directory, all component tables and one string area. A point-light table declares color, intensity and range once with their kinds and byte offsets. Each 32-byte row contains only Vector3 color, four padding bytes and two double-precision numbers. Component identifiers are separate from the value rows.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}.small{font-size:15px;fill:#52657a}.mono{font-family:Menlo,Consolas,monospace;font-size:16px}.box{fill:white;stroke:#c3d0dd;stroke-width:1.5}.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
+<rect width="1080" height="644" rx="12" fill="#f5f8fc"/>
+<text x="28" y="40" class="title">Shared metadata once per table; only value bytes in each row</text>
+<rect x="28" y="72" width="310" height="55" rx="6" fill="#e5ecfa" stroke="#c3d0dd"/>
+<text x="46" y="96" class="label">DMDT · version 8</text>
+<text x="46" y="116" class="small">8-byte file header</text>
+<rect x="28" y="138" width="310" height="84" rx="6" class="box"/>
+<text x="46" y="165" class="label">Table directory</text>
+<text x="46" y="190" class="small">Table count · string-area offset</text>
+<text x="46" y="212" class="small">Offsets to all component tables</text>
+<rect x="28" y="234" width="310" height="112" rx="6" fill="#e2f3ee" stroke="#a1c8bd"/>
+<text x="46" y="262" class="label">point_light table</text>
+<text x="46" y="288" class="small">Header · tags · shared metadata</text>
+<text x="46" y="311" class="small">Component IDs · byte rows</text>
+<text x="46" y="334" class="small">Nested payloads, when present</text>
+<rect x="28" y="358" width="310" height="75" rx="6" fill="#e2f3ee" stroke="#a1c8bd"/>
+<text x="46" y="388" class="label">spot_light table</text>
+<text x="46" y="416" class="small">Its own metadata and row layout</text>
+<rect x="28" y="445" width="310" height="82" rx="6" fill="#fff1da" stroke="#d5b675"/>
+<text x="46" y="476" class="label">Shared string area</text>
+<text x="46" y="507" class="small">Equal strings share the same bytes</text>
+<path d="M 338 290 H 358 V 194 H 382" class="arrow"/>
+<rect x="390" y="72" width="662" height="244" rx="8" class="box"/>
+<text x="410" y="104" class="label">PointLight metadata · row stride = 32 bytes</text>
+<text x="410" y="142" class="small">Name hash</text><text x="655" y="142" class="small">Kind</text><text x="844" y="142" class="small">Byte offset</text>
+<path d="M 410 151 H 1032" stroke="#d7e1ec"/>
+<text x="410" y="182" class="mono">hash("color")</text><text x="655" y="182" class="mono">Vector3</text><text x="844" y="182" class="mono">0</text>
+<text x="410" y="219" class="mono">hash("intensity")</text><text x="655" y="219" class="mono">Number</text><text x="844" y="219" class="mono">16</text>
+<text x="410" y="256" class="mono">hash("range")</text><text x="655" y="256" class="mono">Number</text><text x="844" y="256" class="mono">24</text>
+<text x="410" y="296" class="small">Component name hashes are stored separately from row bytes.</text>
+<text x="410" y="354" class="label">uint8_t rows[row_count × 32]</text>
+<text x="480" y="383" class="small">color · 12 B</text><text x="660" y="383" class="small">pad</text><text x="744" y="383" class="small">intensity · 8 B</text><text x="916" y="383" class="small">range · 8 B</text>
+<rect x="410" y="393" width="240" height="44" fill="#e2f3ee" stroke="#a1c8bd"/><rect x="650" y="393" width="64" height="44" fill="#e8edf2" stroke="#c3d0dd"/><rect x="714" y="393" width="159" height="44" fill="#e5ecfa" stroke="#c3d0dd"/><rect x="873" y="393" width="159" height="44" fill="#fff1da" stroke="#d5b675"/>
+<text x="444" y="421" class="mono">1.0, 1.0, 1.0</text><text x="771" y="421" class="mono">1.0</text><text x="925" y="421" class="mono">10.0</text>
+<rect x="410" y="442" width="240" height="44" fill="#e2f3ee" stroke="#a1c8bd"/><rect x="650" y="442" width="64" height="44" fill="#e8edf2" stroke="#c3d0dd"/><rect x="714" y="442" width="159" height="44" fill="#e5ecfa" stroke="#c3d0dd"/><rect x="873" y="442" width="159" height="44" fill="#fff1da" stroke="#d5b675"/>
+<text x="444" y="470" class="mono">1.0, 0.5, 0.0</text><text x="771" y="470" class="mono">2.0</text><text x="925" y="470" class="mono">20.0</text>
+<text x="410" y="518" class="small">Further rows use exactly the same layout.</text>
+<text x="28" y="570">Vector3 uses float32; Number uses float64. Padding is chosen by the producer.</text>
+<text x="28" y="599">String and dynamic struct/list slots hold blob offsets; declared structs live inline.</text>
+<text x="28" y="628" class="small">The light templates currently use a color list; the illustrated Vector3 layout requires explicit producer conversion.</text>
+</svg>
