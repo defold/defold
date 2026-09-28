@@ -1333,10 +1333,13 @@
     fx.lifecycle/scalar))
 
 (def ^:private ext-with-focus-request-props
-  ;; Focuses the node whenever the request token changes. The grid column has to
-  ;; be set here, since the wrapped description's grid props are not applied.
+  ;; Focuses the node whenever the request token changes. The grid cell is set
+  ;; here because form-input-view drops :grid-pane/* props.
   (fx/make-ext-with-props
-    {:grid-pane-column (fx/make-prop
+    {:grid-pane-row (fx/make-prop
+                      (fx.mutator/setter #(GridPane/setRowIndex %1 (some-> %2 int)))
+                      fx.lifecycle/scalar)
+     :grid-pane-column (fx/make-prop
                          (fx.mutator/setter #(GridPane/setColumnIndex %1 (some-> %2 int)))
                          fx.lifecycle/scalar)
      :focus-request (fx/make-prop
@@ -1358,9 +1361,10 @@
 
 (ui/defc focus-request-input-view
   {:compose [{:fx/type fxui/ext-map-event-handler}]}
-  [{:keys [desc focus-request state-path map-event-handler]}]
+  [{:keys [desc row focus-request state-path map-event-handler]}]
   {:fx/type ext-with-focus-request-props
-   :props {:grid-pane-column 2
+   :props {:grid-pane-row row
+           :grid-pane-column 2
            :focus-request (when focus-request [focus-request map-event-handler state-path])}
    :desc desc})
 
@@ -1606,42 +1610,45 @@
 
         selected-item-fields
         (when selected-index
-          {:fx/type fx.v-box/lifecycle
-           :spacing line-spacing
-           :children
-           (into []
-                 (comp
-                   (mapcat :fields)
-                   (map
-                     (fn [item-field]
-                       (let [{:keys [label-view reset-button input-view]} (selected-item-field-views field selected-index item-field)]
-                         {:fx/type fx.grid-pane/lifecycle
-                          :hgap 8
-                          :min-height line-height
-                          :column-constraints [{:fx/type fx.column-constraints/lifecycle
-                                                :min-width 110
-                                                :max-width 110}
-                                               {:fx/type fx.column-constraints/lifecycle
-                                                :min-width line-height
-                                                :max-width line-height}
-                                               {:fx/type fx.column-constraints/lifecycle
-                                                :hgrow :always}]
-                          :children (cond-> [label-view
-                                             {:fx/type focus-request-input-view
-                                              :focus-request (when (= (:path item-field) (:path focus-request))
-                                                               focus-request)
-                                              :state-path (conj state-path :key)
-                                              :desc (cond-> input-view
-                                                      (= :choicebox (:type item-field))
-                                                      (assoc :pref-width 240))}]
-                                      reset-button (conj reset-button))}))))
-                 (-> (if-let [panel-form-fn (:panel-form-fn field)]
-                       (let [selected-item (get value selected-index ::no-value)]
-                         (when (not= ::no-value selected-item)
-                           (panel-form-fn selected-item)))
-                       (:panel-form field))
-                     :sections
-                     (update-in [0 :fields] #(into [panel-key] %))))})]
+          (let [item-fields (into []
+                                  (mapcat :fields)
+                                  (-> (if-let [panel-form-fn (:panel-form-fn field)]
+                                        (let [selected-item (get value selected-index ::no-value)]
+                                          (when (not= ::no-value selected-item)
+                                            (panel-form-fn selected-item)))
+                                        (:panel-form field))
+                                      :sections
+                                      (update-in [0 :fields] #(into [panel-key] %))))
+                reset-column-width (if (coll/some form/optional-field? item-fields) line-height 0)]
+            ;; One grid for all rows, so the label column fits the widest label.
+            {:fx/type fx.grid-pane/lifecycle
+             :hgap 8
+             :vgap line-spacing
+             :column-constraints [{:fx/type fx.column-constraints/lifecycle
+                                   :min-width :use-pref-size}
+                                  {:fx/type fx.column-constraints/lifecycle
+                                   :min-width reset-column-width
+                                   :max-width reset-column-width}
+                                  {:fx/type fx.column-constraints/lifecycle
+                                   :hgrow :always}]
+             :children
+             (into []
+                   (comp
+                     (map-indexed
+                       (fn [row item-field]
+                         (let [{:keys [label-view reset-button input-view]} (selected-item-field-views field selected-index item-field)]
+                           (cond-> [(assoc label-view :grid-pane/row row)
+                                    {:fx/type focus-request-input-view
+                                     :row row
+                                     :focus-request (when (= (:path item-field) (:path focus-request))
+                                                      focus-request)
+                                     :state-path (conj state-path :key)
+                                     :desc (cond-> input-view
+                                             (= :choicebox (:type item-field))
+                                             (assoc :pref-width 240))}]
+                             reset-button (conj (assoc reset-button :grid-pane/row row))))))
+                     cat)
+                   item-fields)}))]
 
     {:fx/type fx.v-box/lifecycle
      :spacing 4
