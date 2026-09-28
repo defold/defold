@@ -26,7 +26,8 @@ uses the engine's configured address, which defaults to localhost. Remote
 attachment passes `0.0.0.0` to listen on the device's IPv4 interfaces. The editor
 discovers this output for launched targets. Targets without a local output stream
 use the per-instance port. Attachment stops at the next Lua line. Rebooted engines
-also use the per-instance port.
+also use the per-instance port. Debug reboots can send eight arguments and require
+an engine with the matching eight-argument reboot message.
 
 The selected stack frame's DAP ID is used for console evaluation. Locals and
 upvalues load when selecting a frame. The global scope appears as an expandable
@@ -36,11 +37,17 @@ position are retained when stepping, hitting another breakpoint, switching
 frames, or refreshing after evaluation. Matching names reopen even in a different
 file or function. Reopened tables use fresh DAP references and values; only the
 previously opened paths are loaded, so cyclic tables do not expand indefinitely.
-Each table request still loads all its direct children without pagination.
+Valid Lua identifier keys are displayed directly (for example, `score`); other
+keys retain their bracketed form (for example, `["end"]` and `[1]`). Each table
+request still loads all its direct children without pagination.
 
 Inspection runs off the JavaFX thread, and responses from a previous stop or
 frame selection are discarded. Engine console output still uses the existing
-log stream; DAP output events supply debugger messages and logpoints.
+log stream; DAP output events supply debugger messages and logpoints. Transport
+reading, transport writing, protocol handling, and ordered callbacks run in
+separate loops. Callbacks may make blocking DAP requests. Apart from connection
+setup, client operations are blocking; UI callers dispatch them to background
+threads.
 
 Detach closes the DAP session and leaves the engine running. Stop first detaches
 so a paused engine can process its exit request, then uses the editor's existing
@@ -66,7 +73,7 @@ since the debugger can evaluate Lua.
 From `editor`, run:
 
 ```sh
-lein test editor.debugging.dap-test editor.debugging.variables-test editor.debug-view-test editor.engine-test editor.targets-test
+lein test editor.debugging.dap-test editor.debugging.variables-test editor.debug-view-test editor.engine-test editor.app-view-test editor.targets-test
 ```
 
 The protocol tests use a local TCP adapter to check initialization ordering,
