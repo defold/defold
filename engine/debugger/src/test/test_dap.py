@@ -2500,6 +2500,115 @@ class DAPTests(DAPTestCase):
         self.assertEqual(self.process.wait(timeout=5), 0, self.process.stderr.read())
 
 
+class EngineUserdataDAPTests(DAPTestCase):
+    def setUp(self):
+        if not DEBUGGEE or pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
+            self.skipTest("Engine userdata formatting requires the engine extension host")
+        super().setUp()
+
+    # Built-in engine values keep readable representations in locals, table
+    # members, and evaluation results instead of becoming opaque userdata IDs.
+    def test_engine_userdata_display(self):
+        c = self.start('''
+            local values = {
+                position = vmath.vector3(1, 2, 3),
+                color = vmath.vector4(0.125, 0.25, 0.5, 1),
+                rotation = vmath.quat(0, 0, 0, 1),
+                transform = vmath.matrix4(),
+                floats = vmath.vector({1, 2, 3}),
+                id = hash("debugger-display"),
+                address = msg.url(hash("test"), hash("/object"), hash("component"))
+            }
+            values.transform.m03 = 5
+            local expected = {}
+            for name, value in pairs(values) do expected[name] = tostring(value) end
+            local position = values.position
+            local marker = 0 -- inspect
+            assert(position.x == 1 and position.y == 2 and position.z == 3)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        locals_by_name = {v["name"]: v for v in self.variables(self.scopes()["Locals"])}
+        self.assertEqual(locals_by_name["position"]["value"], "vmath.vector3(1, 2, 3)")
+        values = self.variables(locals_by_name["values"]["variablesReference"])
+        self.assertEqual(len(values), 7)
+        for value in values:
+            with self.subTest(name=value["name"]):
+                expected = json.loads(self.evaluate("expected." + value["name"])["result"])
+                self.assertEqual(value["value"], expected)
+                self.assertEqual(value["type"], "userdata")
+                self.assertEqual(value["variablesReference"], 0)
+                self.assertEqual(self.evaluate("values." + value["name"], context="hover")["result"], expected)
+        self.resume()
+        self.finished()
+
+    # Formatting a yielded coroutine must not execute replaced __tostring
+    # methods, change the coroutine's state, or stringify arbitrary userdata.
+    def test_engine_userdata_display_in_yielded_coroutine(self):
+        c = self.start('''
+            calls = 0
+            local co = coroutine.create(function()
+                local position = vmath.vector3(1, 2, 3)
+                local unknown = newproxy(true)
+                local function stringify() calls = calls + 1; return 'unexpected' end
+                debug.getmetatable(position).__tostring = stringify
+                getmetatable(unknown).__tostring = stringify
+                coroutine.yield()
+                assert(calls == 0 and position.x == 1 and unknown ~= nil)
+            end)
+            assert(coroutine.resume(co))
+            local marker = 0 -- inspect
+            assert(calls == 0 and coroutine.status(co) == 'suspended')
+            assert(coroutine.resume(co))
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        threads = c.request("threads")["threads"]
+        coroutine = next(t for t in threads if "/ coroutine" in t["name"])
+        frames = c.request("stackTrace", {"threadId": coroutine["id"]})["stackFrames"]
+        self.frame = frames[0]["id"]
+        values = {v["name"]: v for v in self.variables(self.scopes()["Locals"])}
+        self.assertEqual(values["position"]["value"], "vmath.vector3(1, 2, 3)")
+        self.assertTrue(values["unknown"]["value"].startswith("userdata: "))
+        self.assertEqual(values["unknown"]["variablesReference"], 0)
+        self.assertEqual(self.evaluate("position", context="hover")["result"], "vmath.vector3(1, 2, 3)")
+        self.assertEqual(self.evaluate("calls", context="hover")["result"], "0")
+        self.assertEqual(c.request("stackTrace", {"threadId": coroutine["id"]})["stackFrames"], frames)
+        self.resume()
+        self.finished()
+
+    # Userdata keys keep distinct identities even when their formatted component
+    # values match, so setVariable continues to address the intended entry.
+    def test_engine_userdata_key_identity(self):
+        c = self.start('''
+            local first = vmath.vector3(1, 2, 3)
+            local second = vmath.vector3(1, 2, 3)
+            local values = {[first] = 'first', [second] = 'second'}
+            local marker = 0 -- inspect
+            assert(values[first] == 'updated' and values[second] == 'second')
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        reference = self.evaluate("values")["variablesReference"]
+        values = self.variables(reference)
+        self.assertEqual(len({v["name"] for v in values}), 2)
+        first = next(v for v in values if v["value"] == '"first"')
+        c.request("setVariable", {"variablesReference": reference, "name": first["name"], "value": "'updated'"})
+        self.assertEqual(self.evaluate("values[first]")["result"], '"updated"')
+        self.assertEqual(self.evaluate("values[second]")["result"], '"second"')
+        self.resume()
+        self.finished()
+
+
 class EngineDAPTests(DAPTestCase):
     # Run the existing headless app against Bob-built engine test content. The
     # app owns script loading, callbacks, contexts, and instance destruction.

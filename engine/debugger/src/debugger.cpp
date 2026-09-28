@@ -31,6 +31,7 @@ namespace dmDebugger
         : m_Listener(dmSocket::INVALID_SOCKET_HANDLE)
         , m_Client(dmSocket::INVALID_SOCKET_HANDLE)
         , m_UserdataTableResolver(0)
+        , m_UserdataFormatter(0)
         , m_LocalRoot(0)
         , m_CloseDeadline(0)
         , m_Sequence(1)
@@ -676,6 +677,10 @@ namespace dmDebugger
     void SetUserdataTableResolver(HDebugger d, UserdataTableResolver resolver)
     {
         d->m_UserdataTableResolver = resolver;
+    }
+    void SetUserdataFormatter(HDebugger d, UserdataFormatter formatter)
+    {
+        d->m_UserdataFormatter = formatter;
     }
     void Delete(HDebugger d)
     {
@@ -1415,7 +1420,7 @@ namespace dmDebugger
                 if (lua_type(L, -1) == LUA_TSTRING)
                     text.Add(lua_tostring(L, -1));
                 else
-                    FormatValue(L, -1, text);
+                    FormatValue(d, L, -1, text);
             }
             else
             {
@@ -1597,7 +1602,7 @@ namespace dmDebugger
         if (lua_type(L, 1) == LUA_TSTRING)
             d->m_Exception.Add(lua_tostring(L, 1));
         else
-            FormatValue(L, 1, d->m_Exception);
+            FormatValue(d, L, 1, d->m_Exception);
         Stop(d, L, "exception");
     }
 } // namespace dmDebugger

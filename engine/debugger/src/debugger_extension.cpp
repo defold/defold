@@ -18,6 +18,7 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dmsdk/extension/extension.hpp>
+#include <script.h>
 #include <script_extension.h>
 #include <stdio.h>
 #include <string.h>
@@ -83,6 +84,38 @@ namespace dmDebugger
         return false;
     }
 
+    static bool FormatUserdata(lua_State* L, int index, char* buffer, uint32_t buffer_size)
+    {
+        // Read engine values directly. Even a known type's __tostring can have
+        // been replaced by application code, and inspection may target a yield.
+        if (dmVMath::Vector3* v = dmScript::ToVector3(L, index))
+            dmSnPrintf(buffer, buffer_size, "vmath.vector3(%.9g, %.9g, %.9g)", (double)v->getX(), (double)v->getY(), (double)v->getZ());
+        else if (dmVMath::Vector4* v = dmScript::ToVector4(L, index))
+            dmSnPrintf(buffer, buffer_size, "vmath.vector4(%.9g, %.9g, %.9g, %.9g)", (double)v->getX(), (double)v->getY(), (double)v->getZ(), (double)v->getW());
+        else if (dmVMath::Quat* q = dmScript::ToQuat(L, index))
+            dmSnPrintf(buffer, buffer_size, "vmath.quat(%.9g, %.9g, %.9g, %.9g)", (double)q->getX(), (double)q->getY(), (double)q->getZ(), (double)q->getW());
+        else if (dmVMath::Matrix4* m = dmScript::ToMatrix4(L, index))
+            dmSnPrintf(buffer, buffer_size, "vmath.matrix4(%.9g, %.9g, %.9g, %.9g, %.9g, %.9g, %.9g, %.9g, %.9g, %.9g, %.9g, %.9g, %.9g, %.9g, %.9g, %.9g)", (double)m->getElem(0, 0), (double)m->getElem(1, 0), (double)m->getElem(2, 0), (double)m->getElem(3, 0), (double)m->getElem(0, 1), (double)m->getElem(1, 1), (double)m->getElem(2, 1), (double)m->getElem(3, 1), (double)m->getElem(0, 2), (double)m->getElem(1, 2), (double)m->getElem(2, 2), (double)m->getElem(3, 2), (double)m->getElem(0, 3), (double)m->getElem(1, 3), (double)m->getElem(2, 3), (double)m->getElem(3, 3));
+        else if (dmScript::IsVector(L, index))
+        {
+            dmVMath::FloatVector* v = dmScript::CheckVector(L, index);
+            dmSnPrintf(buffer, buffer_size, "vmath.vector (size: %d)", v->size);
+        }
+        else if (dmhash_t* hash = dmScript::ToHash(L, index))
+        {
+            DM_HASH_REVERSE_MEM(hash_ctx, 64);
+            dmSnPrintf(buffer, buffer_size, "hash: [%s]", (const char*)dmHashReverseSafe64Alloc(&hash_ctx, *hash));
+        }
+        else if (dmMessage::URL* url = dmScript::ToURL(L, index))
+        {
+            char text[512];
+            dmSnPrintf(buffer, buffer_size, "url: [%s]", dmScript::UrlToString(url, text, sizeof(text)));
+        }
+        else
+            return false;
+        return true;
+    }
+
     static void AddState(const ScriptState& state)
     {
         char name[32];
@@ -98,6 +131,7 @@ namespace dmDebugger
         if (!g_Debugger)
             return false;
         SetUserdataTableResolver(g_Debugger, ResolveUserdataTable);
+        SetUserdataFormatter(g_Debugger, FormatUserdata);
         for (uint32_t i = 0; i < g_States.Size(); ++i)
             AddState(g_States[i]);
         dmLogInfo("Lua DAP debugger listening on %s:%u", address, GetPort(g_Debugger));
