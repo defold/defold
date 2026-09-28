@@ -1453,10 +1453,34 @@ namespace dmGraphics
         }
         else
         {
+    #if defined(__MACH__)
             if (host_image_copy_features.hostImageCopy)
             {
                 logical_device.m_CopyMemoryToImage = (PFN_vkCopyMemoryToImageEXT) vkGetDeviceProcAddr(logical_device.m_Device, "vkCopyMemoryToImageEXT");
+
+                VkPhysicalDeviceHostImageCopyPropertiesEXT host_copy_properties = {};
+                host_copy_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_PROPERTIES_EXT;
+                VkPhysicalDeviceProperties2 properties = {};
+                properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+                properties.pNext = &host_copy_properties;
+                vkGetPhysicalDeviceProperties2(selected_device->m_Device, &properties);
+
+                dmArray<VkImageLayout> copy_layouts;
+                copy_layouts.SetCapacity(host_copy_properties.copyDstLayoutCount);
+                copy_layouts.SetSize(host_copy_properties.copyDstLayoutCount);
+                host_copy_properties.pCopyDstLayouts = copy_layouts.Begin();
+                vkGetPhysicalDeviceProperties2(selected_device->m_Device, &properties);
+                // Initial uploads can avoid GPU transitions if host copies support the final layout.
+                for (uint32_t i = 0; i < host_copy_properties.copyDstLayoutCount; ++i)
+                {
+                    if (copy_layouts[i] == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    {
+                        logical_device.m_TransitionImageLayout = (PFN_vkTransitionImageLayoutEXT) vkGetDeviceProcAddr(logical_device.m_Device, "vkTransitionImageLayoutEXT");
+                        break;
+                    }
+                }
             }
+    #endif
             if (require_surface)
             {
                 dmLogInfo("Vulkan device selected: %s", selected_device->m_Properties.deviceName);
@@ -4935,10 +4959,33 @@ bail:
     {
         LogicalDevice* device = &context->m_LogicalDevice;
         // Async callers must keep the texture out of rendering until upload completion.
-        // Complete previous GPU reads before the synchronous host copy.
-        VkResult res = TransitionImageLayout(device, texture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL,
-            params.m_MipMap, texture->m_LayerCount, command_pool);
-        CHECK_VK_ERROR(res);
+        VkImageLayout copy_layout = VK_IMAGE_LAYOUT_GENERAL;
+        VkResult res;
+        if (device->m_TransitionImageLayout && texture->m_ImageLayout[params.m_MipMap] == VK_IMAGE_LAYOUT_UNDEFINED)
+        {
+            // This mip has not been used by the GPU. A host transition and copy are
+            // made visible to rendering by the subsequent queue submission.
+            VkHostImageLayoutTransitionInfoEXT transition = {};
+            transition.sType = VK_STRUCTURE_TYPE_HOST_IMAGE_LAYOUT_TRANSITION_INFO_EXT;
+            transition.image = texture->m_Handle.m_Image;
+            transition.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            transition.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            transition.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            transition.subresourceRange.baseMipLevel = params.m_MipMap;
+            transition.subresourceRange.levelCount = 1;
+            transition.subresourceRange.layerCount = texture->m_LayerCount;
+            res = device->m_TransitionImageLayout(device->m_Device, 1, &transition);
+            CHECK_VK_ERROR(res);
+            copy_layout = transition.newLayout;
+            texture->m_ImageLayout[params.m_MipMap] = copy_layout;
+        }
+        else
+        {
+            // Complete previous GPU reads before the synchronous host copy.
+            res = TransitionImageLayout(device, texture, VK_IMAGE_ASPECT_COLOR_BIT, copy_layout,
+                params.m_MipMap, texture->m_LayerCount, command_pool);
+            CHECK_VK_ERROR(res);
+        }
 
         uint32_t layer_count = params.m_LayerCount ? params.m_LayerCount : texture->m_LayerCount;
         uint32_t slice_size = size / texture->m_LayerCount;
@@ -4966,7 +5013,7 @@ bail:
         VkCopyMemoryToImageInfoEXT copy = {};
         copy.sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO_EXT;
         copy.dstImage = texture->m_Handle.m_Image;
-        copy.dstImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        copy.dstImageLayout = copy_layout;
         copy.regionCount = layer_count;
         copy.pRegions = regions;
         res = device->m_CopyMemoryToImage(device->m_Device, &copy);
@@ -4974,9 +5021,12 @@ bail:
         delete[] regions;
         delete[] zero_data;
 
-        res = TransitionImageLayout(device, texture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            params.m_MipMap, texture->m_LayerCount, command_pool);
-        CHECK_VK_ERROR(res);
+        if (copy_layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        {
+            res = TransitionImageLayout(device, texture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                params.m_MipMap, texture->m_LayerCount, command_pool);
+            CHECK_VK_ERROR(res);
+        }
     }
 
     static void CopyToTextureLayerWithtStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)

@@ -275,6 +275,7 @@ namespace dmGraphics
         VkCommandPool   m_CommandPoolWorker;
         dmMutex::HMutex m_QueueMutex; // Serializes host access to both queue handles (which may alias).
         PFN_vkCopyMemoryToImageEXT m_CopyMemoryToImage; // E.g. used on Apple, to upload PVRTC textures
+        PFN_vkTransitionImageLayoutEXT m_TransitionImageLayout;
     };
 
     struct ShaderModule
