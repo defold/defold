@@ -1,0 +1,10 @@
+#include <metal_stdlib>
+using namespace metal;
+struct Input { float3 color [[user(locn0)]]; };
+struct TextureArguments {
+    texture2d<float> test_texture [[id(0)]];
+    sampler test_sampler [[id(1)]];
+};
+fragment float4 main0(Input in [[stage_in]], constant TextureArguments& args [[buffer(0)]]) {
+    return float4(args.test_texture.sample(args.test_sampler, in.color.xy, level(0.0)).rgb, 1.0);
+}

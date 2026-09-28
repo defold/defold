@@ -22,6 +22,8 @@ inputs:
     description: Newline-separated repository-relative report file paths; paths and formats are preserved
     default: |
       engine/font/build/font-render-report/index.html
+      engine/graphics/build/graphics-render-report/index.html
+      engine/graphics/build/graphics-render-report/results.json
 runs:
   using: composite
   steps:

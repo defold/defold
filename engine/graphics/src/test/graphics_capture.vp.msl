@@ -1,0 +1,10 @@
+#include <metal_stdlib>
+using namespace metal;
+struct Input { float3 position [[attribute(0)]]; float3 color [[attribute(1)]]; };
+struct Output { float4 position [[position]]; float3 color [[user(locn0)]]; };
+vertex Output main0(Input in [[stage_in]]) {
+    Output out;
+    out.position = float4(in.position, 1.0);
+    out.color = in.color;
+    return out;
+}

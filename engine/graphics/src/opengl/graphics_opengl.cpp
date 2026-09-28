@@ -1679,8 +1679,19 @@ static void LogFrameBufferError(GLenum status)
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC3; // DXT5
         }
 
+        // Adapter API version
+        {
+            GLint gl_major = 0, gl_minor = 0;
+            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major); CLEAR_GL_ERROR;
+            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor); CLEAR_GL_ERROR;
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) gl_major;
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) gl_minor;
+        }
+
+        // RGTC is core in desktop OpenGL 3.0+, even if the extension is not listed.
+        bool rgtc_core = !context->m_IsShaderLanguageGles && context->m_BaseContext.m_AdapterVersionMajor >= 3;
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
-        if (OpenGLIsExtensionSupported(_context, "GL_ARB_texture_compression_rgtc") ||
+        if (rgtc_core || OpenGLIsExtensionSupported(_context, "GL_ARB_texture_compression_rgtc") ||
             OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_rgtc") ||
             OpenGLIsExtensionSupported(_context, "EXT_texture_compression_rgtc"))
         {
@@ -2061,15 +2072,6 @@ static void LogFrameBufferError(GLenum status)
         // (Gated further by IsTextureFormatSupported, so this is a no-op where BC isn't supported.)
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
     #endif
-
-        // Adapter API version
-        {
-            GLint gl_major = 0, gl_minor = 0;
-            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major); CLEAR_GL_ERROR;
-            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor); CLEAR_GL_ERROR;
-            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) gl_major;
-            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) gl_minor;
-        }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {

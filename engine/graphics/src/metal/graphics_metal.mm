@@ -725,11 +725,12 @@ namespace dmGraphics
             SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_ETC2);
         }
 
-        // ASTC support
-        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))
+        // 2D ASTC is supported from Apple2, including the iOS simulator.
+        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple2))
         {
             context->m_ASTCSupport = 1;
-            context->m_ASTCArrayTextureSupport = 1;
+            // This feature also gates 3D textures, which require Apple3.
+            context->m_ASTCArrayTextureSupport = context->m_Device->supportsFamily(MTL::GPUFamilyApple3);
             SetContextASTCTextureFormatsSupported(&context->m_BaseContext);
         }
 
@@ -2194,7 +2195,9 @@ namespace dmGraphics
         enc->setCullMode(MTL::CullModeNone);
         enc->drawPrimitives(MTL::PrimitiveTypeTriangle, (uint32_t) 0, (uint32_t) 3);
 
-        // Refresh culling after this call
+        // Clear binds its own pipeline outside DrawSetup's cache. The next
+        // draw must restore its render and depth/stencil pipeline state.
+        context->m_CurrentPipeline = 0;
         context->m_CullFaceChanged = true;
     }
 
@@ -2941,18 +2944,10 @@ namespace dmGraphics
                 back->setReadMask(pipeline_state.m_StencilCompareMask);
                 back->setWriteMask(pipeline_state.m_StencilWriteMask);
 
-                if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
-                {
-                    ds->setFrontFaceStencil(front);
-                    ds->setBackFaceStencil(back);
-                }
-                else
-                {
-                    // Offscreen rendering has the opposite effective winding,
-                    // matching the cull-face adjustment in DrawSetup().
-                    ds->setFrontFaceStencil(back);
-                    ds->setBackFaceStencil(front);
-                }
+                // Stencil faces follow the encoder's front-facing winding on
+                // both offscreen and backbuffer targets.
+                ds->setFrontFaceStencil(front);
+                ds->setBackFaceStencil(back);
                 front->release();
                 back->release();
             }
@@ -5030,6 +5025,53 @@ namespace dmGraphics
         const uint32_t copyHeight = params.m_Height ? params.m_Height : mipHeight;
         const uint32_t copyDepth  = is_3d_texture ? (params.m_Depth ? params.m_Depth : mipDepth) : 1;
 
+        if (format_src == TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 || format_src == TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 ||
+            format_src == TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 || format_src == TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1)
+        {
+            // replaceRegion accepts native swizzled PVRTC with zero pitches. Upload to a
+            // shared texture, then copy to the private destination without reordering blocks.
+            MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
+            desc->setTextureType(layerCount > 1 ? MTL::TextureType2DArray : MTL::TextureType2D);
+            desc->setPixelFormat(texture->m_Texture->pixelFormat());
+            desc->setWidth(copyWidth);
+            desc->setHeight(copyHeight);
+            desc->setArrayLength(layerCount);
+            desc->setStorageMode(MTL::StorageModeShared);
+            desc->setUsage(MTL::TextureUsageShaderRead);
+            MTL::Texture* upload_texture = device->newTexture(desc);
+            desc->release();
+            if (!upload_texture)
+            {
+                dmLogError("MetalCopyToTexture: failed to create PVRTC upload texture");
+                return;
+            }
+
+            const uint32_t slice_size = GetTextureFormatDataSize(format_src, copyWidth, copyHeight);
+            const MTL::Origin source_origin = {0, 0, 0};
+            const MTL::Origin destination_origin = {params.m_X, params.m_Y, params.m_Z};
+            const MTL::Size size = {copyWidth, copyHeight, 1};
+            const MTL::Region region = MTL::Region::Make2D(0, 0, copyWidth, copyHeight);
+            for (uint32_t slice = 0; slice < layerCount; ++slice)
+            {
+                upload_texture->replaceRegion(region, 0, slice, pixels + (uint64_t)slice * slice_size, 0, 0);
+            }
+
+            NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+            MTL::CommandBuffer* command = context->m_CommandQueue->commandBuffer();
+            MTL::BlitCommandEncoder* blit = command->blitCommandEncoder();
+            for (uint32_t slice = 0; slice < layerCount; ++slice)
+            {
+                blit->copyFromTexture(upload_texture, slice, 0, source_origin, size,
+                    texture->m_Texture, baseSlice + slice, target_mip, destination_origin);
+            }
+            blit->endEncoding();
+            command->commit();
+            command->waitUntilCompleted();
+            upload_texture->release();
+            pool->release();
+            return;
+        }
+
         const bool is_block_compressed = MetalIsBlockCompressed(format_src);
         uint64_t unpaddedRowSize = 0;
         uint32_t rows = copyHeight;
@@ -5508,6 +5550,7 @@ namespace dmGraphics
         }
 
         const HRenderTarget render_target = context->m_CurrentRenderTarget;
+        FlushPendingRenderTargetClear(context, render_target);
         const bool was_rendering = context->m_RenderTargetBound != 0;
         if (was_rendering)
         {
@@ -5595,6 +5638,17 @@ namespace dmGraphics
             for (uint32_t row = 0; row < height; ++row)
             {
                 memcpy(dst + row * dst_row_size, src + row * src_row_size, dst_row_size);
+            }
+            // ReadPixels exposes BGRA even when an offscreen attachment is RGBA.
+            if (source_texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm ||
+                source_texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm_sRGB)
+            {
+                for (uint32_t i = 0; i < dst_row_size * height; i += 4)
+                {
+                    uint8_t red = dst[i];
+                    dst[i] = dst[i + 2];
+                    dst[i + 2] = red;
+                }
             }
 
             if (used_frame_command_buffer)
