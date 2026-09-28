@@ -943,6 +943,29 @@ class DAPTests(DAPTestCase):
         self.finished()
 
     # Provides source names, table child counts, and evaluatable paths for
+    def test_table_key_display_names(self):
+        c = self.start(r'''
+            local t = {plain = 1, _name2 = 2, ["end"] = 3, ["with space"] = 4,
+                       ["12"] = 5, [12] = 6, [true] = 7, ["a\000b"] = 8, [""] = 9}
+            local marker = t.plain -- inspect
+            assert(t.plain == 10 and t["end"] == 30 and t[12] == 60)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        reference = self.evaluate("t")["variablesReference"]
+        children = {v["name"]: v for v in self.variables(reference)}
+        self.assertEqual(set(children), {"plain", "_name2", '["end"]', '["with space"]',
+                                         '["12"]', '[12]', '[true]', '["a\\000b"]', '[""]'})
+        for child in children.values():
+            self.assertEqual(self.evaluate(child["evaluateName"])["result"], child["value"])
+        for name, value in [("plain", "10"), ('["end"]', "30"), ('[12]', "60")]:
+            c.request("setVariable", {"variablesReference": reference, "name": name, "value": value})
+        self.resume()
+        self.finished()
+
     # representable keys. Hidden bindings and table references whose parent has
     # been reassigned must not expose paths that refer to a different variable.
     def test_variable_metadata_and_evaluate_names(self):
@@ -986,7 +1009,7 @@ class DAPTests(DAPTestCase):
                 self.assertNotIn("evaluateName", child)
             else:
                 self.assertEqual(self.evaluate(child["evaluateName"])["result"], child["value"])
-        self.assertEqual(next(v for v in children if v["name"] == '["self"]')["variablesReference"], reference)
+        self.assertEqual(next(v for v in children if v["name"] == 'self')["variablesReference"], reference)
         c.request("setExpression", {"frameId": self.frame, "expression": "t", "value": '{["a.b"] = "dot"}'})
         for child in self.variables(reference):
             self.assertNotIn("evaluateName", child)
@@ -1336,14 +1359,14 @@ class DAPTests(DAPTestCase):
         c.request("evaluate", {"frameId": self.frame, "expression": "this isn't Lua"}, success=False)
         table_ref = values["t"]["variablesReference"]
         table = {v["name"]: v for v in self.variables(table_ref)}
-        self.assertEqual(table['["self"]']["variablesReference"], table_ref)
-        nested = self.variables(table['["nested"]']["variablesReference"])
+        self.assertEqual(table['self']["variablesReference"], table_ref)
+        nested = self.variables(table['nested']["variablesReference"])
         self.assertEqual(nested[0]["value"], "true")
         self.assertEqual(len(self.variables(table_ref, filter="indexed")), 1)
         self.assertEqual(len(self.variables(table_ref, filter="named")), 4)
         self.assertEqual(len(self.variables(scopes["Locals"], start=1, count=2)), 2)
         for reference, name, value in [(scopes["Locals"], "x", "20"), (scopes["Upvalues"], "up", "9"),
-                                       (scopes["Globals"], "g", "12"), (table_ref, '["value"]', "6")]:
+                                       (scopes["Globals"], "g", "12"), (table_ref, 'value', "6")]:
             result = c.request("setVariable", {"variablesReference": reference, "name": name, "value": value})
             self.assertEqual(result["value"], value)
         self.evaluate("x = x + 1", context="repl")
@@ -1616,17 +1639,17 @@ class DAPTests(DAPTestCase):
         caller = {v["name"]: v for v in self.variables(self.scopes()["Locals"])}
         table_ref = caller["t"]["variablesReference"]
         table = {v["name"]: v for v in self.variables(table_ref)}
-        self.assertEqual(table['["self"]']["variablesReference"], table_ref)
+        self.assertEqual(table['self']["variablesReference"], table_ref)
         self.assertEqual(self.evaluate("t")["variablesReference"], table_ref)
         changed = c.request("setVariable", {"variablesReference": callee["t"]["variablesReference"],
-                                            "name": '["value"]', "value": "x"})
+                                            "name": 'value', "value": "x"})
         self.assertEqual(changed["value"], "99")
-        replacement = c.request("setVariable", {"variablesReference": table_ref, "name": '["replacement"]',
+        replacement = c.request("setVariable", {"variablesReference": table_ref, "name": 'replacement',
                                                 "value": "{value=0}"})
-        references = [table_ref, table['["nested"]']["variablesReference"],
+        references = [table_ref, table['nested']["variablesReference"],
                       replacement["variablesReference"], self.evaluate("t.evaluated")["variablesReference"]]
         for reference in references:
-            changed = c.request("setVariable", {"variablesReference": reference, "name": '["value"]', "value": "x"})
+            changed = c.request("setVariable", {"variablesReference": reference, "name": 'value', "value": "x"})
             self.assertEqual(changed["value"], "42")
         self.resume()
         self.finished()
@@ -2280,7 +2303,7 @@ class DAPTests(DAPTestCase):
         values = {v["name"]: v for v in self.variables(locals_ref)}
         self.assertEqual(values["x"]["value"], "43")
         changed = c.request("setVariable", {"variablesReference": values["t"]["variablesReference"],
-                                            "name": '["value"]', "value": "x + 1"})
+                                            "name": 'value', "value": "x + 1"})
         self.assertEqual(changed["value"], "44")
         self.evaluate("collectgarbage('collect')")
         self.assertEqual(self.evaluate("saved()")["result"], "43")
@@ -2543,7 +2566,7 @@ class EngineDAPTests(DAPTestCase):
         reference = value["variablesReference"]
         self.assertNotEqual(reference, 0)
         children = {v["name"]: v for v in self.variables(reference)}
-        self.assertEqual(children['["cycle"]']["variablesReference"], reference)
+        self.assertEqual(children['cycle']["variablesReference"], reference)
         self.assertEqual(self.evaluate("self.cycle.score", context="hover")["result"], "41")
         completions = c.request("completions", {"frameId": self.frame, "text": "self.sc", "column": 8})["targets"]
         self.assertEqual([v["label"] for v in completions], ["score"])
@@ -2551,8 +2574,8 @@ class EngineDAPTests(DAPTestCase):
         self.assertEqual([v["label"] for v in methods], ["action"])
         self.assertEqual(locals_["opaque"]["variablesReference"], 0)
         c.request("evaluate", {"frameId": self.frame, "expression": "opaque.missing", "context": "hover"}, success=False)
-        c.request("setVariable", {"variablesReference": reference, "name": '["score"]', "value": "99"})
-        c.request("setVariable", {"variablesReference": children['["items"]']["variablesReference"], "name": "[1]", "value": '"two"'})
+        c.request("setVariable", {"variablesReference": reference, "name": 'score', "value": "99"})
+        c.request("setVariable", {"variablesReference": children['items']["variablesReference"], "name": "[1]", "value": '"two"'})
         c.request("setExpression", {"frameId": self.frame, "expression": "self.label", "value": '"done"'})
         self.assertEqual(self.evaluate("self.score", context="hover")["result"], "99")
         self.assertEqual(self.evaluate("calls", context="hover")["result"], "0")
@@ -2595,8 +2618,8 @@ class EngineDAPTests(DAPTestCase):
             reference = self.evaluate("self", context="hover")["variablesReference"]
             self.assertNotEqual(reference, 0)
             children = {v["name"]: v for v in self.variables(reference)}
-            self.assertEqual(children['["score"]']["value"], "41")
-            c.request("setVariable", {"variablesReference": reference, "name": '["score"]', "value": "99"})
+            self.assertEqual(children['score']["value"], "41")
+            c.request("setVariable", {"variablesReference": reference, "name": 'score', "value": "99"})
             action = "'reboot'" if generation < 2 else "'exit'"
             c.request("setExpression", {"frameId": self.frame, "expression": "self.action", "value": action})
             self.breakpoints()
@@ -2631,7 +2654,7 @@ class EngineDAPTests(DAPTestCase):
         self.evaluate("mt.__get_instance_data_table_ref = replacement", context="repl")
         self.assertEqual(self.evaluate("self", context="hover")["variablesReference"], 0)
         c.request("variables", {"variablesReference": reference}, success=False)
-        c.request("setVariable", {"variablesReference": reference, "name": '["score"]', "value": "99"}, success=False)
+        c.request("setVariable", {"variablesReference": reference, "name": 'score', "value": "99"}, success=False)
         c.request("evaluate", {"frameId": self.frame, "expression": "self.score", "context": "hover"}, success=False)
         self.assertEqual(c.request("completions", {"frameId": self.frame, "text": "self.", "column": 6})["targets"], [])
         self.assertEqual(self.evaluate("calls", context="hover")["result"], "0")
