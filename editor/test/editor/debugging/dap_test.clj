@@ -79,40 +79,41 @@
     (let [ready (future/make)
           events (LinkedBlockingQueue.)
           requests (atom [])
-          adapter (future/io
-                    (with-open [socket (.accept server)]
-                      (.setSoTimeout socket 10000)
-                      (let [in (DataInputStream. (.getInputStream socket))
-                            out (.getOutputStream socket)]
-                        (try
-                          (loop [attach nil]
-                            (let [request (receive! in)
-                                  command (:command request)]
-                              (swap! requests conj request)
-                              (case command
-                                "initialize"
-                                (respond! out request {:supportsConfigurationDoneRequest true})
+          adapter
+          (future/io
+            (with-open [socket (.accept server)]
+              (.setSoTimeout socket 10000)
+              (let [in (DataInputStream. (.getInputStream socket))
+                    out (.getOutputStream socket)]
+                (try
+                  (loop [attach nil]
+                    (let [request (receive! in)
+                          command (:command request)]
+                      (swap! requests conj request)
+                      (case command
+                        "initialize"
+                        (respond! out request {:supportsConfigurationDoneRequest true})
 
-                                "attach"
-                                (event! out "initialized" {})
+                        "attach"
+                        (event! out "initialized" {})
 
-                                "configurationDone"
-                                (do
-                                  (respond! out request {})
-                                  (respond! out attach {}))
+                        "configurationDone"
+                        (do
+                          (respond! out request {})
+                          (respond! out attach {}))
 
-                                "setBreakpoints"
-                                (respond! out request {:breakpoints []})
+                        "setBreakpoints"
+                        (respond! out request {:breakpoints []})
 
-                                "disconnect"
-                                (do
-                                  (respond! out request {})
-                                  (event! out "terminated" {}))
+                        "disconnect"
+                        (do
+                          (respond! out request {})
+                          (event! out "terminated" {}))
 
-                                (handler request in out socket))
-                              (when-not (or (= "disconnect" command) (.isClosed socket))
-                                (recur (if (= "attach" command) request attach)))))
-                          (catch EOFException _)))))
+                        (handler request in out socket))
+                      (when-not (or (= "disconnect" command) (.isClosed socket))
+                        (recur (if (= "attach" command) request attach)))))
+                  (catch EOFException _)))))
           session (dap/connect! "127.0.0.1" #(.getLocalPort server)
                                 {:local-root "/project"
                                  :breakpoints {"/main.script" [{:line 5
@@ -134,10 +135,11 @@
 ;; Verify UTF-8 Content-Length framing handles partial reads and consecutive
 ;; messages, and rejects incomplete headers or bodies without losing framing.
 (deftest framing-test
-  (let [message {:seq 1
-                 :type "event"
-                 :event "output"
-                 :body {:output "héj 🦊\n"}}
+  (let [message
+        {:seq 1
+         :type "event"
+         :event "output"
+         :body {:output "héj 🦊\n"}}
         bytes (wire-bytes message)
         out (ByteArrayOutputStream.)]
     (#'dap/write-message! out message)
@@ -145,11 +147,12 @@
     (testing "A UTF-8 message can arrive one byte at a time, followed immediately by another"
       (let [index (atom -1)
             twice (byte-array (into (vec bytes) bytes))
-            next-byte (fn []
-                        (let [i (long (swap! index inc))]
-                          (if (>= i (alength twice))
-                            -1
-                            (bit-and 255 (aget twice i)))))
+            next-byte
+            (fn []
+              (let [i (long (swap! index inc))]
+                (if (>= i (alength twice))
+                  -1
+                  (bit-and 255 (aget twice i)))))
             in (proxy [java.io.InputStream] []
                  (read
                    ([] (next-byte))
@@ -186,13 +189,15 @@
              (:arguments (second @requests))))
       (is (= :running (dap/status session)))
       (testing "Replace changed sources and clear the last breakpoint without pausing Lua"
-        (dap/set-breakpoints! session {"/other.lua" [{:line 9}]})
+        (dap/set-breakpoints! session
+                              {"/other.lua" [{:line 9}]})
         (let [updates (subvec @requests 4)]
           (is (= #{["/main.script" []] ["/other.lua" [{:line 9}]]}
                  (into #{} (map #(vector (get-in % [:arguments :source :path])
                                          (get-in % [:arguments :breakpoints]))) updates)))
           (is (coll/every? #(= "setBreakpoints" (:command %)) updates)))
-        (dap/set-breakpoints! session {"/other.lua" [{:line 9}]})
+        (dap/set-breakpoints! session
+                              {"/other.lua" [{:line 9}]})
         (is (= 6 (count @requests))))
       (dap/disconnect! session)
       (is (= [:closed] (take-event! events)))
@@ -352,11 +357,13 @@
   (let [result (future/make)
         order (atom [])]
     (with-adapter
-      {:on-output (fn [session {:keys [output]}]
-                    (swap! order conj output)
-                    (if (= "first" output)
-                      (swap! order conj (dap/request! session "from-callback" {}))
-                      (future/complete! result @order)))}
+      {:on-output
+       (fn [session
+            {:keys [output]}]
+         (swap! order conj output)
+         (if (= "first" output)
+           (swap! order conj (dap/request! session "from-callback" {}))
+           (future/complete! result @order)))}
       (fn [request _ out _]
         (case (:command request)
           "trigger"
@@ -377,9 +384,10 @@
     (fn [request _ out _]
       (respond! out request (:arguments request)))
     (fn [session requests _]
-      (let [responses (mapv (fn [index]
-                              (future/io (dap/request! session "echo" {:index index})))
-                            (range 32))]
+      (let [responses (mapv
+                        (fn [index]
+                          (future/io (dap/request! session "echo" {:index index})))
+                        (range 32))]
         (is (= (mapv #(hash-map :index %) (range 32)) (mapv await! responses)))
         (let [sequences (mapv :seq @requests)]
           (is (= (count sequences) (count (set sequences))))
@@ -422,30 +430,34 @@
                               {:local-root "/project"
                                :breakpoints {}}
                               {:on-closed #(future/complete! closed %)
-                               :on-error (fn [_ error] (swap! errors conj error))})]
+                               :on-error
+                               (fn [_ error] (swap! errors conj error))})]
     (dap/disconnect! session)
     (is (identical? session (await! closed)))
     (is (= :closed (dap/status session)))
     (is (= [] @errors))
     (testing "A queued stopped event cannot reopen a cancelled session"
-      (#'dap/handle-event! session {:event "stopped"
-                                    :body {:threadId 7}})
+      (#'dap/handle-event! session
+                           {:event "stopped"
+                            :body {:threadId 7}})
       (is (= :closed (dap/status session))))))
 
 ;; Verify a server closing during initialization reports connection failure and
 ;; closes the session instead of leaving attachment pending.
 (deftest handshake-disconnect-test
   (with-open [server (ServerSocket. 0 1 (InetAddress/getLoopbackAddress))]
-    (let [adapter (future/io
-                    (with-open [socket (.accept server)]
-                      (receive! (DataInputStream. (.getInputStream socket)))))
+    (let [adapter
+          (future/io
+            (with-open [socket (.accept server)]
+              (receive! (DataInputStream. (.getInputStream socket)))))
           closed (future/make)
           error (future/make)
           session (dap/connect! "127.0.0.1" #(.getLocalPort server)
                                 {:local-root "/project"
                                  :breakpoints {}}
                                 {:on-closed #(future/complete! closed %)
-                                 :on-error (fn [_ exception] (future/complete! error exception))})]
+                                 :on-error
+                                 (fn [_ exception] (future/complete! error exception))})]
       (try
         (is (instance? IOException (await! error)))
         (is (identical? session (await! closed)))
@@ -490,7 +502,8 @@
                                            :breakpoints {(.getAbsolutePath source) [{:line 8}]}}
                                           {:on-connected #(future/complete! ready %)
                                            :on-suspended (fn [session _] (.add stopped (dap/suspension session)))
-                                           :on-error (fn [_ exception] (future/fail! ready exception))})]
+                                           :on-error
+                                           (fn [_ exception] (future/fail! ready exception))})]
                 (try
                   (is (identical? session (await! ready)))
                   (let [snapshot (take-event! stopped)

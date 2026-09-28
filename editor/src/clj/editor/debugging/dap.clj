@@ -205,12 +205,13 @@
 
     "request"
     (let [state (swap! (:state session) update :next-seq inc)]
-      (a/put! (:outgoing session) {:seq (:next-seq state)
-                                   :type "response"
-                                   :request_seq (:seq response)
-                                   :command command
-                                   :success false
-                                   :message "Client request is not supported"}))
+      (a/put! (:outgoing session)
+              {:seq (:next-seq state)
+               :type "response"
+               :request_seq (:seq response)
+               :command command
+               :success false
+               :message "Client request is not supported"}))
 
     (throw (IOException. "Unknown debugger message type"))))
 
@@ -237,24 +238,27 @@
             :request
             (if (= :closed (status session))
               (future/fail! response (IOException. "Debugger disconnected"))
-              (let [state (swap! (:state session)
-                                 (fn [state]
-                                   (let [sequence-number (inc (long (:next-seq state)))]
-                                     (-> state
-                                         (assoc :next-seq sequence-number)
-                                         (assoc-in [:pending sequence-number] response)))))]
-                (a/put! (:outgoing session) {:seq (:next-seq state)
-                                             :type "request"
-                                             :command x
-                                             :arguments y})))
+              (let [state
+                    (swap! (:state session)
+                           (fn [state]
+                             (let [sequence-number (inc (long (:next-seq state)))]
+                               (-> state
+                                   (assoc :next-seq sequence-number)
+                                   (assoc-in [:pending sequence-number] response)))))]
+                (a/put! (:outgoing session)
+                        {:seq (:next-seq state)
+                         :type "request"
+                         :command x
+                         :arguments y})))
 
             :connected
             (do
               (when-not (= :closed (status session))
                 ;; configurationDone may already have produced a stopped event.
-                (swap! (:state session) #(cond-> %
-                                           (= :connecting (:status %))
-                                           (assoc :status :running)))
+                (swap! (:state session)
+                       #(cond-> %
+                          (= :connecting (:status %))
+                          (assoc :status :running)))
                 (notify! session :on-connected))
               (future/complete! x nil))
 
@@ -279,8 +283,9 @@
       (doseq [path (set/union (set (coll/keys old)) (set (coll/keys new)))
               :let [breakpoints (get new path [])]
               :when (not= (get old path []) breakpoints)]
-        (request! session "setBreakpoints" {:source {:path path}
-                                            :breakpoints breakpoints}))
+        (request! session "setBreakpoints"
+                  {:source {:path path}
+                   :breakpoints breakpoints}))
       (swap! (:state session) assoc :breakpoints new))))
 
 (defn set-breakpoints!
@@ -329,21 +334,22 @@
   "Connect and configure asynchronously, returning a session immediately.
   Callbacks run in order on a separate thread and may make blocking DAP requests."
   [address resolve-port {:keys [local-root breakpoints stop-on-entry target]} callbacks]
-  (let [session {:state (atom {:status :connecting
-                               :generation 0
-                               :socket nil
-                               :next-seq 0
-                               :pending {}
-                               :breakpoints {}
-                               :desired-breakpoints breakpoints})
-                 :initialized (future/make)
-                 :protocol (a/chan 128)
-                 :outgoing (a/chan 128)
-                 :notifications (a/chan 128)
-                 :breakpoint-lock (Object.)
-                 :callbacks callbacks
-                 :local-root local-root
-                 :target target}]
+  (let [session
+        {:state (atom {:status :connecting
+                       :generation 0
+                       :socket nil
+                       :next-seq 0
+                       :pending {}
+                       :breakpoints {}
+                       :desired-breakpoints breakpoints})
+         :initialized (future/make)
+         :protocol (a/chan 128)
+         :outgoing (a/chan 128)
+         :notifications (a/chan 128)
+         :breakpoint-lock (Object.)
+         :callbacks callbacks
+         :local-root local-root
+         :target target}]
     (run-protocol! session)
     (future/io
       (loop []
@@ -355,17 +361,21 @@
         (let [socket (connect-socket! session address resolve-port)]
           (read-messages! (BufferedInputStream. (.getInputStream socket)) (:protocol session))
           (write-messages! (.getOutputStream socket) (:outgoing session) (:protocol session)))
-        (let [capabilities (request! session "initialize"
-                                     {:clientID "defold"
-                                      :clientName "Defold Editor"
-                                      :adapterID "defold"
-                                      :pathFormat "path"
-                                      :linesStartAt1 true
-                                      :columnsStartAt1 true
-                                      :supportsVariableType true
-                                      :supportsInvalidatedEvent true})
-              attach-response (send-request! session "attach" {:localRoot local-root
-                                                               :stopOnEntry (boolean stop-on-entry)})]
+        (let [capabilities
+              (request! session "initialize"
+                        {:clientID "defold"
+                         :clientName "Defold Editor"
+                         :adapterID "defold"
+                         :pathFormat "path"
+                         :linesStartAt1 true
+                         :columnsStartAt1 true
+                         :supportsVariableType true
+                         :supportsInvalidatedEvent true})
+
+              attach-response
+              (send-request! session "attach"
+                             {:localRoot local-root
+                              :stopOnEntry (boolean stop-on-entry)})]
           (await-response! session "initialized" (:initialized session))
           (sync-breakpoints! session)
           (when (:supportsConfigurationDoneRequest capabilities)
@@ -443,7 +453,8 @@
             scopes))))
 
 (defn evaluate! [session frame-id expression]
-  (request! session "evaluate" (cond-> {:expression expression
-                                        :context "repl"}
-                                 frame-id
-                                 (assoc :frameId frame-id))))
+  (request! session "evaluate"
+            (cond-> {:expression expression
+                     :context "repl"}
+              frame-id
+              (assoc :frameId frame-id))))

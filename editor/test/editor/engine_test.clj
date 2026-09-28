@@ -27,8 +27,6 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-;; Verify listener discovery accepts valid ports, rejects invalid/unrelated output,
-;; preserves engine service metadata, and computes per-instance attach ports.
 (deftest dap-listener-discovery-test
   (is (= 8172 (engine/debugger-port {})))
   (is (= 8175 (engine/debugger-port {:instance-index 3})))
@@ -60,14 +58,16 @@
 (deftest debug-launch-test
   (let [launches (atom [])
         binary (.getAbsoluteFile (io/file "dmengine"))]
-    (with-redefs [prefs/get (fn [_ path]
-                              (case path
-                                [:run :engine-arguments] ""
-                                [:run :quit-on-escape] false))
+    (with-redefs [prefs/get
+                  (fn [_ path]
+                    (case path
+                      [:run :engine-arguments] ""
+                      [:run :quit-on-escape] false))
                   system/defold-log-dir (constantly nil)
-                  process/start! (fn [& args]
-                                   (swap! launches conj args)
-                                   ::process)
+                  process/start!
+                  (fn [& args]
+                    (swap! launches conj args)
+                    ::process)
                   process/out (constantly ::stream)]
       (let [target (engine/launch! binary (io/file "/project") nil true 3 true)
             [_ command & args] (peek @launches)]
@@ -89,14 +89,24 @@
           output (ByteArrayOutputStream.)
           target (cond-> {:address "192.168.1.20" :url "http://target:8001" :instance-index instance-index}
                    (not remote) (assoc :process ::process))
-          expected (cond-> ["--config=resource.uri=http://editor:8000"]
-                     debug (into ["--config=debugger.enabled=1"
-                                  (str "--config=debugger.port=" (+ 8172 instance-index))
-                                  "--config=debugger.wait=1"])
-                     (and debug remote) (conj "--config=debugger.address=0.0.0.0")
-                     (pos? instance-index) (conj (str "--config=project.instance_index=" instance-index))
-                     (not focus) (conj "--config=display.focus_on_show=0")
-                     true (conj "http://editor:8000/game.projectc"))]
+          expected
+          (cond-> ["--config=resource.uri=http://editor:8000"]
+            debug
+            (into ["--config=debugger.enabled=1"
+                   (str "--config=debugger.port=" (+ 8172 instance-index))
+                   "--config=debugger.wait=1"])
+
+            (and debug remote)
+            (conj "--config=debugger.address=0.0.0.0")
+
+            (pos? instance-index)
+            (conj (str "--config=project.instance_index=" instance-index))
+
+            (not focus)
+            (conj "--config=display.focus_on_show=0")
+
+            true
+            (conj "http://editor:8000/game.projectc"))]
       (with-redefs-fn {#'engine/get-connection
                        (fn [^URI uri]
                          (proxy [HttpURLConnection] [(.toURL uri)]

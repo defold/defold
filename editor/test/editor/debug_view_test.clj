@@ -45,8 +45,9 @@
 (deftest stale-session-callback-test
   (test-support/with-clean-system
     (let [old {:state (atom {:status :closed})}
-          current {:state (atom {:status :suspended
-                                 :generation 1})}
+          current
+          {:state (atom {:status :suspended
+                         :generation 1})}
           view (g/make-node! debug-view/DebugView
                  :debug-session current
                  :suspension-state {:stack []}
@@ -66,17 +67,19 @@
 ;; old suspension state in the editor.
 (deftest stale-stack-response-test
   (test-support/with-clean-system
-    (let [session {:state (atom {:status :suspended
-                                 :generation 1
-                                 :thread-id 7})}
+    (let [session
+          {:state (atom {:status :suspended
+                         :generation 1
+                         :thread-id 7})}
           view (g/make-node! debug-view/DebugView
                  :debug-session session
                  :state-changed-fn (constantly nil))
           started (promise)
           response (promise)]
-      (with-redefs [dap/stack (fn [_ _]
-                                (deliver started true)
-                                (await! response))]
+      (with-redefs [dap/stack
+                    (fn [_ _]
+                      (deliver started true)
+                      (await! response))]
         (let [work (#'debug-view/update-suspension-state! view session)]
           (await! started)
           (swap! (:state session) assoc :status :running :generation 2)
@@ -91,9 +94,10 @@
 ;; frame's values, even when the old request finishes later.
 (deftest selected-frame-variables-test
   (test-support/with-clean-system
-    (let [session {:state (atom {:status :suspended
-                                 :generation 1
-                                 :thread-id 7})}
+    (let [session
+          {:state (atom {:status :suspended
+                         :generation 1
+                         :thread-id 7})}
           ^ListView call-stack (ui/run-now (ListView.))
           ^TreeView variables (ui/run-now (debugger-variables/make-view!))
           view (g/make-node! debug-view/DebugView
@@ -106,19 +110,22 @@
         (.add (.getItems call-stack) {:id 42})
         (.add (.getItems call-stack) {:id 99})
         (.select (.getSelectionModel call-stack) (int 0)))
-      (with-redefs [dap/frame-variables (fn [_ _ frame-id]
-                                          (if-not (= 42 frame-id)
-                                            [{:name "second"
-                                              :value "false"
-                                              :variablesReference 0}]
-                                            (do
-                                              (deliver started true)
-                                              (await! response))))]
-        (let [first-work (ui/run-now (#'debug-view/load-frame-variables! view))]
+      (with-redefs [dap/frame-variables
+                    (fn [_ _ frame-id]
+                      (if-not (= 42 frame-id)
+                        [{:name "second"
+                          :value "false"
+                          :variablesReference 0}]
+                        (do
+                          (deliver started true)
+                          (await! response))))]
+        (let [first-work
+              (ui/run-now (#'debug-view/load-frame-variables! view))]
           (await! started)
-          (let [second-work (ui/run-now
-                              (.select (.getSelectionModel call-stack) (int 1))
-                              (#'debug-view/load-frame-variables! view))]
+          (let [second-work
+                (ui/run-now
+                  (.select (.getSelectionModel call-stack) (int 1))
+                  (#'debug-view/load-frame-variables! view))]
             (await! second-work)
             (deliver response [{:name "first"
                                 :value "1"
@@ -157,9 +164,10 @@
 ;; immediately, guarding against Invalid frameId errors and an empty Variables view.
 (deftest stepping-refreshes-frame-variables-test
   (test-support/with-clean-system
-    (let [session {:state (atom {:status :suspended
-                                 :generation 0
-                                 :thread-id 7})}
+    (let [session
+          {:state (atom {:status :suspended
+                         :generation 0
+                         :thread-id 7})}
           ^ListView call-stack (ui/run-now (ListView.))
           ^TreeView variables (ui/run-now (debugger-variables/make-view!))
           view (g/make-node! debug-view/DebugView
@@ -169,14 +177,16 @@
           work (atom [])
           requests (atom [])
           errors (atom [])]
-      (with-redefs [dap/frame-variables (fn [_ snapshot frame-id]
-                                          (swap! requests conj [snapshot frame-id])
-                                          (when-not (= (:generation snapshot) frame-id)
-                                            (throw (IllegalArgumentException. "Invalid frameId")))
-                                          [{:name "count"
-                                            :value (str frame-id)
-                                            :variablesReference 0}])
-                    console/append-console-entry! (fn [type text] (swap! errors conj [type text]))]
+      (with-redefs [dap/frame-variables
+                    (fn [_ snapshot frame-id]
+                      (swap! requests conj [snapshot frame-id])
+                      (when-not (= (:generation snapshot) frame-id)
+                        (throw (IllegalArgumentException. "Invalid frameId")))
+                      [{:name "count"
+                        :value (str frame-id)
+                        :variablesReference 0}])
+                    console/append-console-entry!
+                    (fn [type text] (swap! errors conj [type text]))]
         (ui/run-now
           (ui/observe-selection call-stack
                                 (fn [_ _]
@@ -210,13 +220,14 @@
                      #'ui/->timer (fn [_ _ tick] tick)
                      #'debug-view/collect-enabled-breakpoints (fn [_] @breakpoints)
                      #'debug-view/breakpoints-by-path identity
-                     #'dap/set-breakpoints! (fn [_ values]
-                                              (swap! requests conj values)
-                                              (if (= #{1} values)
-                                                (do
-                                                  (deliver started true)
-                                                  (await! release))
-                                                (deliver latest true)))}
+                     #'dap/set-breakpoints!
+                     (fn [_ values]
+                       (swap! requests conj values)
+                       (if-not (= #{1} values)
+                         (deliver latest true)
+                         (do
+                           (deliver started true)
+                           (await! release))))}
       (fn []
         (let [tick (#'debug-view/make-update-timer ::project ::view)]
           (try
@@ -262,23 +273,29 @@
           [[{:process ::process} "/_defold/debugger/start.lua"]
            [{:address "192.168.1.20"} "/_defold/debugger/start_remote.lua"]]]
     (let [calls (atom [])]
-      (with-redefs-fn {#'debug-view/built-lua-module (fn [artifacts path]
-                                                       (is (= ::artifacts artifacts))
-                                                       {:path path})
-                       #'targets/update-launched-target! (fn [received-target target-info]
-                                                           (swap! calls conj [:port-update received-target target-info]))
-                       #'engine/run-script! (fn [received-target module]
-                                              (swap! calls conj [:run received-target module]))
-                       #'debug-view/start-debugger! (fn [view project received-target stop-on-entry]
-                                                      (swap! calls conj [:connect view project received-target stop-on-entry]))}
+      (with-redefs-fn {#'debug-view/built-lua-module
+                       (fn [artifacts path]
+                         (is (= ::artifacts artifacts))
+                         {:path path})
+                       #'targets/update-launched-target!
+                       (fn [received-target target-info]
+                         (swap! calls conj [:port-update received-target target-info]))
+                       #'engine/run-script!
+                       (fn [received-target module]
+                         (swap! calls conj [:run received-target module]))
+                       #'debug-view/start-debugger!
+                       (fn [view project received-target stop-on-entry]
+                         (swap! calls conj [:connect view project received-target stop-on-entry]))}
         #(debug-view/attach! ::view ::project target ::artifacts))
       (is (= (cond-> []
                (targets/launched-target? target)
-               (conj [:port-update target {:debugger-port 0
-                                           :debugger-port-pending true}])
+               (conj [:port-update target
+                      {:debugger-port 0
+                       :debugger-port-pending true}])
 
                true
-               (conj [:run target {:path expected-path}]
+               (conj [:run target
+                      {:path expected-path}]
                      [:connect ::view ::project target true]))
              @calls)))))
 
@@ -286,8 +303,9 @@
 ;; exists. Reattachment must still connect using the last discovered port.
 (deftest reattach-without-port-announcement-test
   (test-support/with-clean-system
-    (let [target {:id "engine"
-                  :process ::process}
+    (let [target
+          {:id "engine"
+           :process ::process}
           current (atom (assoc target :debugger-port 49152))
           connected-ports (atom [])
           view (g/make-node! debug-view/DebugView
@@ -297,12 +315,14 @@
                        #'project/workspace (constantly ::workspace)
                        #'workspace/project-directory (constantly (io/file "."))
                        #'targets/all-launched-targets (fn [] [@current])
-                       #'targets/update-launched-target! (fn [_ target-info]
-                                                           (swap! current merge target-info))
+                       #'targets/update-launched-target!
+                       (fn [_ target-info]
+                         (swap! current merge target-info))
                        #'engine/run-script! (constantly :ok)
-                       #'dap/connect! (fn [_ resolve-port _ _]
-                                        (swap! connected-ports conj (resolve-port))
-                                        nil)}
+                       #'dap/connect!
+                       (fn [_ resolve-port _ _]
+                         (swap! connected-ports conj (resolve-port))
+                         nil)}
         (fn []
           (dotimes [_ 2]
             (debug-view/attach! view ::project target ::artifacts))

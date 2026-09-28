@@ -1559,7 +1559,7 @@
         (if (and (handle-build-results! workspace render-build-error! build-results)
                  (or engine skip-engine))
           (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server true true)]
-            (when (and target (nil? (debug-view/current-session debug-view)))
+            (when (and target (not (debug-view/current-session debug-view)))
               (debug-view/start-debugger! debug-view project target false))
             (cond-> build-results
               error (assoc :error (exception->target-error error))
