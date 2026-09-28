@@ -121,18 +121,24 @@ if(TARGET shaderc_jar)
 endif()
 
 if(TARGET debugger AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
+  # Exercise custom GUI and native physics userdata as well as the headless APIs.
+  set(ENGINE_DAP_EXPORTS_CPP "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dap_debuggee_instances.cpp")
+  defold_create_exported_symbols_file("${ENGINE_DAP_EXPORTS_CPP}" "${ENGINE_HEADLESS_SYMBOLS};ScriptBox2DExt;ScriptBullet3DExt;DAPGuiNode")
+  engine_add_binary(dap_debuggee_instances ${ENGINE_MAIN_SOURCES} "${ENGINE_DAP_EXPORTS_CPP}" "${CMAKE_CURRENT_LIST_DIR}/debugger/test_debugger_gui.cpp")
+  engine_configure_executable(dap_debuggee_instances headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
+  set_target_properties(dap_debuggee_instances PROPERTIES EXCLUDE_FROM_ALL TRUE)
   set(ENGINE_DAP_TEST_COMMAND
     "${Python3_EXECUTABLE}" "${DEFOLD_HOME}/engine/debugger/src/test/test_dap.py"
-    --engine "$<TARGET_FILE:dmengine_headless>"
+    --engine "$<TARGET_FILE:dap_debuggee_instances>"
     --engine-content "${ENGINE_TEST_RUNTIME_ROOT}/build/default"
     EngineDAPTests)
   add_custom_target(test_debugger_dap_instances
     COMMAND ${ENGINE_DAP_TEST_COMMAND}
-    DEPENDS dmengine_headless engine_test_content
+    DEPENDS dap_debuggee_instances engine_test_content
     USES_TERMINAL VERBATIM)
   defold_register_sequential_test_command(test_debugger_dap_instances
     COMMAND ${ENGINE_DAP_TEST_COMMAND}
-    DEPENDS dmengine_headless engine_test_content)
+    DEPENDS dap_debuggee_instances engine_test_content)
 endif()
 
 set(ENGINE_TEST_SYMBOLS

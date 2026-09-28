@@ -43,6 +43,11 @@ namespace dmGui
     {
     }
 
+    bool GetNodeTypeName(lua_State* L, int index, char* buffer, uint32_t buffer_size)
+    {
+        return false;
+    }
+
 
     // gui_null.cpp
     const dmhash_t DEFAULT_LAYER = dmHashString64("");

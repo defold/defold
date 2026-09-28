@@ -187,13 +187,22 @@ are offered as completion names.
 
 Table entry names preserve key types: `["name"]`, `[1]`, and `[false]` are
 different keys. Pass the displayed name back to `setVariable`. Inspection avoids
-calling user metamethods. Like MobDebug's Defold serializer, the engine adapter
-expands game-object, GUI, and render script instances using their backing data
+calling Lua-defined metamethods. Like MobDebug's Defold serializer, the engine
+adapter expands game-object, GUI, and render script instances using their backing data
 tables. Their `self` fields support expansion, hover, completion, and editing,
 including in suspended coroutines. Vectors, quaternions, matrices, hashes, and
 URLs show their engine values without invoking `__tostring`. Userdata table keys
-retain their identities so equal component values remain distinct keys. Other
-userdata and functions are displayed with their type and identity.
+retain their identities so equal component values remain distinct keys. Userdata
+with a string `__name` in their metatable show that name and identity. Defold's
+`RegisterUserType`, `RegisterUserTypeLocal`, and `SetUserType` populate this field
+automatically; extensions can also supply it directly. Inspection reads it with
+`lua_rawget` and never calls `__tostring` to build a summary. Files and known
+LuaSocket types use their registry names. Live GUI nodes show their native subtype,
+such as `gui.box`, `gui.text`, `gui.pie`, `gui.bone`, or `gui.Spine`. Custom subtype
+hashes without reverse-hash names use `gui.custom_<id>`; deleted or foreign-scene
+nodes fall back to `NodeProxy`. Unnamed userdata and functions show their type and
+identity. More detailed `tostring(value)` descriptions remain available explicitly
+in the Debug Console.
 Frame and variable references become invalid on
 resume; old IDs are rejected even at a later stop.
 
@@ -245,8 +254,9 @@ cmake --build <build-directory> --target test_debugger_dap_instances
 
 The extension integration target is available when `script` and `extension` are
 configured. The script-instance target is part of the full native engine build;
-it runs `dmengine_headless` with the existing `engine_test_content` target's
-compiled project. All targets are also registered with the repository's
+it runs `dap_debuggee_instances`, a headless engine test host with physics
+bindings, using the `engine_test_content` target's compiled project. All targets
+are also registered with the repository's
 `run_tests` sequence.
 
 `src/test/test_dap.py` uses Python's standard library and a real TCP connection.

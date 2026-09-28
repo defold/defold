@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 // Uses the actual engine extension and dmScript::PCall. The DAP client supplies
-// every debugger request; this host only implements the engine lifecycle.
+// every debugger request; this host implements the engine lifecycle and fixtures.
 #include <script/script.h>
 #include <extension/extension.hpp>
 #include <dlib/socket.h>
@@ -48,6 +48,35 @@ static int Pump(lua_State*)
     return 0;
 }
 
+static int UserdataToString(lua_State* L)
+{
+    lua_pushliteral(L, "native_tostring_calls");
+    lua_rawget(L, LUA_GLOBALSINDEX);
+    int calls = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+    lua_pushliteral(L, "native_tostring_calls");
+    lua_pushinteger(L, calls + 1);
+    lua_rawset(L, LUA_GLOBALSINDEX);
+    lua_pushfstring(L, "registered(%d)", *(int*)lua_touserdata(L, 1));
+    return 1;
+}
+
+static int NewUserdata(lua_State* L)
+{
+    const char* name = luaL_checkstring(L, 1);
+    int value = luaL_checkint(L, 2);
+    const luaL_Reg methods[] = { { 0, 0 } };
+    const luaL_Reg meta[] = { { "__tostring", UserdataToString }, { 0, 0 } };
+    if (lua_toboolean(L, 3))
+        dmScript::RegisterUserTypeLocal(L, name, meta);
+    else
+        dmScript::RegisterUserType(L, name, methods, meta);
+    *(int*)lua_newuserdata(L, sizeof(int)) = value;
+    luaL_getmetatable(L, name);
+    lua_setmetatable(L, -2);
+    return 1;
+}
+
 static dmScript::HContext Create(dmConfigFile::HConfig config, const char* prelude = 0)
 {
     dmScript::ContextParams params = {};
@@ -57,6 +86,8 @@ static dmScript::HContext Create(dmConfigFile::HConfig config, const char* prelu
     lua_State* L = dmScript::GetLuaState(context);
     lua_pushcfunction(L, Pump);
     lua_setglobal(L, "pump");
+    lua_pushcfunction(L, NewUserdata);
+    lua_setglobal(L, "new_userdata");
     g_Params.m_L = L;
     g_Params.m_ConfigFile = config;
     if (prelude)

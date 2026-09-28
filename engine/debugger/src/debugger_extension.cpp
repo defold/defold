@@ -18,6 +18,7 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dmsdk/extension/extension.hpp>
+#include <gui/src/gui_script.h>
 #include <script.h>
 #include <script_extension.h>
 #include <stdio.h>
@@ -84,6 +85,51 @@ namespace dmDebugger
         return false;
     }
 
+    static bool FormatUserdataName(lua_State* L, int index, char* buffer, uint32_t buffer_size)
+    {
+        int top = lua_gettop(L);
+        if (index < 0)
+            index += top + 1;
+        if (!lua_getmetatable(L, index))
+            return false;
+        char node_type[128];
+        const char* name = 0;
+        if (dmGui::GetNodeTypeName(L, index, node_type, sizeof(node_type)))
+            name = node_type;
+        else
+        {
+            lua_pushliteral(L, "__name");
+            lua_rawget(L, top + 1);
+            if (lua_type(L, -1) == LUA_TSTRING && lua_objlen(L, -1) != 0)
+                name = lua_tostring(L, -1);
+        }
+        // File and socket libraries register names but do not set __name.
+        const char* library_types[] = {
+            "FILE*",
+            "tcp{master}",
+            "tcp{client}",
+            "tcp{server}",
+            "udp{connected}",
+            "udp{unconnected}",
+            "unix{master}",
+            "unix{client}",
+            "unix{server}",
+            "serial{client}"
+        };
+        for (uint32_t i = 0; !name && i < sizeof(library_types) / sizeof(library_types[0]); ++i)
+        {
+            lua_pushstring(L, library_types[i]);
+            lua_rawget(L, LUA_REGISTRYINDEX);
+            if (lua_rawequal(L, -1, top + 1))
+                name = library_types[i];
+            lua_pop(L, 1);
+        }
+        if (name)
+            dmSnPrintf(buffer, buffer_size, "%s: %p", name, lua_topointer(L, index));
+        lua_settop(L, top);
+        return name != 0;
+    }
+
     static bool FormatUserdata(lua_State* L, int index, char* buffer, uint32_t buffer_size)
     {
         // Read engine values directly. Even a known type's __tostring can have
@@ -112,7 +158,7 @@ namespace dmDebugger
             dmSnPrintf(buffer, buffer_size, "url: [%s]", dmScript::UrlToString(url, text, sizeof(text)));
         }
         else
-            return false;
+            return FormatUserdataName(L, index, buffer, buffer_size);
         return true;
     }
 
