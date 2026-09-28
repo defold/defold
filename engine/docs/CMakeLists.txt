@@ -111,6 +111,7 @@ set(_DOCS_APIDOC_OUTPUTS "${DOCS_EDITOR_APIDOC}")
 set(_DOCS_APIDOC_KEYS "editor.apidoc")
 
 docs_add_inputs("engine/crash/src" "script_crash.cpp")
+docs_add_inputs("engine/data/src" "dmsdk")
 docs_add_inputs("engine/ddf/src" "dmsdk")
 docs_add_inputs("engine/dlib/src" "dmsdk")
 docs_add_inputs("engine/dlib/src" "cs/dmsdk")

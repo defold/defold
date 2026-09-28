@@ -153,6 +153,7 @@ endif()
 set(DEFOLD_ENGINE_LIBS
   testmain
   dlib
+  data
   jni
   texc
   modelc

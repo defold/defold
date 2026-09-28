@@ -279,6 +279,7 @@ set(DEFOLD_EXT_LIB_DIR "${DEFOLD_PUBLIC_EXT_LIB_DIR}")
 set(_DEFOLD_ENGINE_LIBS
   testmain
   dlib
+  data
   jni
   texc
   modelc
