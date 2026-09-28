@@ -1,3 +1,17 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 # Minimum CMake version and project
 cmake_minimum_required(VERSION 4.0)
 
@@ -73,9 +87,9 @@ else()
             "${PLAT_SRC_DIR}/window.cpp"
             "${PLAT_SRC_DIR}/platform_window_glfw.cpp")
         if (TARGET_PLATFORM MATCHES "arm64-ios|arm64_sim-ios")
-            list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw_ios.mm")
+            list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw_ios.mm" "${PLAT_SRC_DIR}/platform_app_ios.mm")
         elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android|x86_64-android")
-            list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw_android.cpp")
+            list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw_android.cpp" "${PLAT_SRC_DIR}/platform_app_android.cpp")
         endif()
     endif()
 endif()

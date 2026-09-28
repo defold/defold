@@ -1,3 +1,17 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 cmake_minimum_required(VERSION 4.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/cmake")
@@ -41,7 +55,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
   defold_add_executable(test_extension_ios_app "${EXTENSION_TEST_ROOT}/test_extension_ios_app.mm")
   target_compile_options(test_extension_ios_app PRIVATE "$<$<COMPILE_LANGUAGE:OBJCXX>:-fno-rtti>")
   target_include_directories(test_extension_ios_app PRIVATE "${DEFOLD_HOME}/external/glfw/lib/ios/app")
-  defold_target_link_libraries(test_extension_ios_app "${TARGET_PLATFORM}" testmain dlib profile_null)
+  defold_target_link_libraries(test_extension_ios_app "${TARGET_PLATFORM}" testmain dlib profile_null platform)
   defold_target_link_glfw(test_extension_ios_app "${TARGET_PLATFORM}")
   defold_target_link_opengl(test_extension_ios_app "${TARGET_PLATFORM}")
   target_link_libraries(test_extension_ios_app PRIVATE "-framework QuartzCore" "-framework CoreMotion")

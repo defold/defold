@@ -1,0 +1,32 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#include "platform_app.h"
+
+#include <glfw/glfw.h>
+#include <glfw/glfw_native.h>
+
+namespace dmPlatform
+{
+    void AppBootstrap(int argc, char** argv, void* init_context, FAppInit init, FAppExit exit,
+                      FEngineCreate create, FEngineDestroy destroy, FEngineUpdate update, FEngineGetResult get_result)
+    {
+        glfwAppBootstrap(argc, argv, init_context, init, exit, create, destroy, update, get_result);
+    }
+
+    void RegisteriOSApplicationDelegate(void* delegate)   { glfwRegisterUIApplicationDelegate(delegate); }
+    void UnregisteriOSApplicationDelegate(void* delegate) { glfwUnregisterUIApplicationDelegate(delegate); }
+    void RegisteriOSSceneDelegate(void* delegate)         { glfwRegisterUISceneDelegate(delegate); }
+    void UnregisteriOSSceneDelegate(void* delegate)       { glfwUnregisterUISceneDelegate(delegate); }
+}
