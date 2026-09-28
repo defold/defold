@@ -1,3 +1,17 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 cmake_minimum_required(VERSION 4.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
@@ -471,6 +485,10 @@ install(PROGRAMS "${DLIB_ROOT}/bin/memprofile.sh" DESTINATION bin)
 install(DIRECTORY "${DLIB_SRC_DIR}/cs/dmsdk/" DESTINATION sdk/cs/dmsdk FILES_MATCHING PATTERN "*.cs")
 if(TARGET_PLATFORM MATCHES "web$")
   defold_install_js_library("${DLIB_CORE_DIR}/js/library_sys.js")
+  foreach(_dlib_target IN ITEMS dlib dlib_noasan)
+    defold_target_link_libraries_web(${_dlib_target} "${TARGET_PLATFORM}" SCOPE INTERFACE library_sys.js)
+    set_property(TARGET ${_dlib_target} APPEND PROPERTY INTERFACE_LINK_DEPENDS "${DEFOLD_LIB_DIR}/js/library_sys.js")
+  endforeach()
 endif()
 
 set(DLIB_JAVA_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/java_classes")
