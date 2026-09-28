@@ -1,0 +1,6 @@
+# packed_rows=0; packed mode repeats prototype values and groups owners; sources built/validated outside timing
+# Flecs 4.1.6; seed=305419896; samples=1; one warmup; read_passes=1; damage=25; explosion_radius=50
+# Data: inline Light + dense rows per resource table + pooled registrations + shared defaults/reset; Flecs: inline Light, mutable components; no serialization or disk I/O
+# Type percentages: SpotLight=10,PointLight=15,Player=1,Enemy=24,Pickup=25,Breakable=25; dense owners are per row; packed owners are per group
+backend,operation,rows,sample,operations,hits,batches,total_ms,ns_per_operation,checksum
+flecs_rows,explosion_r50_first,10000,1,5000,1253,3,0.079000,15.800,717624.000000000

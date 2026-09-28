@@ -1,0 +1,9 @@
+# Keep current comparison evidence; previous runs and new experiments stay local.
+/*
+!/.gitignore
+!/.gitattributes
+!/report.html
+!/file-loading.csv
+!/comparisons/
+/comparisons/*
+!/comparisons/c21-case-queries/

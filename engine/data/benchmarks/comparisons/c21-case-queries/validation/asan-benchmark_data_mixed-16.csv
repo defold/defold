@@ -1,0 +1,51 @@
+# packed_rows=16; packed mode repeats prototype values and groups owners; sources built/validated outside timing
+# Flecs 4.1.6; seed=305419896; samples=1; one warmup; read_passes=5; damage=25; explosion_radius=50
+# Data: inline Light + dense rows per resource table + pooled registrations + shared defaults/reset; Flecs: inline Light, mutable components; no serialization or disk I/O
+# Type percentages: SpotLight=10,PointLight=15,Player=1,Enemy=24,Pickup=25,Breakable=25; dense owners are per row; packed owners are per group
+backend,operation,rows,sample,operations,hits,batches,total_ms,ns_per_operation,checksum
+flecs_rows,packed_populate_and_ids,16000,1,16000,0,0,0.531000,33.188,0.000000000
+flecs_rows,packed_create_queries,16000,1,2,0,0,0.092000,46000.000,0.000000000
+flecs_rows,packed_light_color,16000,1,20000,0,10,0.085000,4.250,29205.078125000
+flecs_rows,packed_0pct_random_get,16000,1,16000,0,0,0.730000,45.625,1283800.000000000
+flecs_rows,packed_0pct_health_query,16000,1,40000,0,15,0.209000,5.225,5965550.000000000
+flecs_rows,packed_1pct_update_first,16000,1,160,0,0,0.019000,118.750,8617.000000000
+flecs_rows,packed_1pct_update_repeat,16000,1,160,0,0,0.012000,75.000,8777.000000000
+flecs_rows,packed_1pct_random_get,16000,1,16000,0,0,0.748000,46.750,1284120.000000000
+flecs_rows,packed_1pct_health_query,16000,1,40000,0,15,0.216000,5.400,5966040.000000000
+flecs_rows,packed_10pct_update_first,16000,1,1600,0,0,0.102000,63.750,111304.000000000
+flecs_rows,packed_10pct_update_repeat,16000,1,1600,0,0,0.097000,60.625,112904.000000000
+flecs_rows,packed_10pct_random_get,16000,1,16000,0,0,0.684000,42.750,1287000.000000000
+flecs_rows,packed_10pct_health_query,16000,1,40000,0,15,0.207000,5.175,5972200.000000000
+flecs_columns,packed_populate_and_ids,16000,1,16000,0,0,0.754000,47.125,0.000000000
+flecs_columns,packed_create_queries,16000,1,2,0,0,0.060000,30000.000,0.000000000
+flecs_columns,packed_light_color,16000,1,20000,0,10,0.084000,4.200,29205.078125000
+flecs_columns,packed_0pct_random_get,16000,1,16000,0,0,0.679000,42.438,1283800.000000000
+flecs_columns,packed_0pct_health_query,16000,1,40000,0,15,0.202000,5.050,5965550.000000000
+flecs_columns,packed_1pct_update_first,16000,1,160,0,0,0.011000,68.750,8617.000000000
+flecs_columns,packed_1pct_update_repeat,16000,1,160,0,0,0.008000,50.000,8777.000000000
+flecs_columns,packed_1pct_random_get,16000,1,16000,0,0,0.637000,39.812,1284120.000000000
+flecs_columns,packed_1pct_health_query,16000,1,40000,0,15,0.203000,5.075,5966040.000000000
+flecs_columns,packed_10pct_update_first,16000,1,1600,0,0,0.094000,58.750,111304.000000000
+flecs_columns,packed_10pct_update_repeat,16000,1,1600,0,0,0.091000,56.875,112904.000000000
+flecs_columns,packed_10pct_random_get,16000,1,16000,0,0,0.726000,45.375,1287000.000000000
+flecs_columns,packed_10pct_health_query,16000,1,40000,0,15,0.240000,6.000,5972200.000000000
+data,packed_populate_and_ids,16000,1,16000,0,0,1.567000,97.938,0.000000000
+data,packed_create_queries,16000,1,2,0,0,0.011000,5500.000,0.000000000
+data,packed_light_color,16000,1,20000,0,10,0.281000,14.050,29205.078125000
+data,packed_0pct_random_get,16000,1,16000,0,0,3.329000,208.062,1283800.000000000
+data,packed_0pct_health_query,16000,1,40000,0,15,0.779000,19.475,5965550.000000000
+# arena,sample=1,density=0,tables=6,rows=16000,mutable_bytes=663552,blocks=0,used=0,capacity=0
+data,packed_0pct_reset,16000,1,16000,0,0,3.148000,196.750,0.000000000
+data,packed_1pct_update_first,16000,1,160,0,0,0.097000,606.250,8617.000000000
+data,packed_1pct_update_repeat,16000,1,160,0,0,0.077000,481.250,8777.000000000
+data,packed_1pct_random_get,16000,1,16000,0,0,3.134000,195.875,1284120.000000000
+data,packed_1pct_health_query,16000,1,40000,0,15,0.763000,19.075,5966040.000000000
+# arena,sample=1,density=1,tables=6,rows=16000,mutable_bytes=663552,blocks=0,used=0,capacity=0
+data,packed_1pct_reset,16000,1,16000,0,0,3.147000,196.688,0.000000000
+data,packed_10pct_update_first,16000,1,1600,0,0,0.728000,455.000,111304.000000000
+data,packed_10pct_update_repeat,16000,1,1600,0,0,0.660000,412.500,112904.000000000
+data,packed_10pct_random_get,16000,1,16000,0,0,3.087000,192.938,1287000.000000000
+data,packed_10pct_health_query,16000,1,40000,0,15,0.792000,19.800,5972200.000000000
+# arena,sample=1,density=10,tables=6,rows=16000,mutable_bytes=663552,blocks=0,used=0,capacity=0
+data,packed_10pct_reset,16000,1,16000,0,0,3.314000,207.125,0.000000000
+data,packed_unload_no_queries,16000,1,16000,0,0,1.173000,73.312,0.000000000

@@ -1,0 +1,551 @@
+--- engine/data/README.md
++++ engine/data/README.md
+@@ -469,6 +469,17 @@
+ 100k and one million decoded rows plus one million packed rows in groups of
+ 1, 4 and 16. Seven samples were collected for each backend/configuration.
+ 
++Each C++ case keeps its query definition next to its traversal:
++`CreateLightColorQuery` in `benchmark_data_light_color.cpp`,
++`CreateHealthPositionQuery` in `benchmark_data_health_position.cpp`, and
++`CreateExplosionQuery` in `benchmark_data_explosion.cpp`. The shared runner only
++owns setup/teardown and sequencing. Queries and field bindings are created once,
++outside timed traversal, and creation is measured separately. Explosion has its
++own health/position query with no tag filter; its row loop applies radius 50.
++Flecs declares health read/write for Explosion and both fields read-only for the
++health/position scan. All backends now retain five dense queries; the resource
++fixture retains two. This differs from C20's four-query dense setup.
++
+ ```sh
+ cmake --build engine/data/build/arm64-macos --target benchmark_data_mixed
+ engine/data/build/arm64-macos/src/test/benchmark_data_mixed 1000000 7 all 0 > mixed.csv
+@@ -691,7 +702,7 @@
+ headers, allocator overhead and RSS are excluded. The timing binary has no
+ allocation tracker. `batches` counts matched Bevy tables per query pass.
+ 
+-[Current C20 comparison tables and caveats](benchmarks/comparisons/c20-shared-tables/RESULTS.md) (previous [C19](benchmarks/comparisons/c19-mutable-rows/RESULTS.md), [C18](benchmarks/comparisons/c18-query-field-handles/RESULTS.md), [C17](benchmarks/comparisons/c17-field-pointers/RESULTS.md), [C16](benchmarks/comparisons/c16-single-field-light/RESULTS.md), [C15](benchmarks/comparisons/c15-separate-workloads/RESULTS.md), [C14](benchmarks/comparisons/c14-inline-getters/RESULTS.md), [C13](benchmarks/comparisons/c13-direct-field-cursors/RESULTS.md), [C12](benchmarks/comparisons/c12-index-cursors/RESULTS.md), [C11](benchmarks/comparisons/c11-locked-iteration/RESULTS.md), [C10](benchmarks/comparisons/c10-compact-field-cursors/RESULTS.md), [C9](benchmarks/comparisons/c9-row-field-iterators/RESULTS.md), [C8](benchmarks/comparisons/c8-cached-batches/RESULTS.md), [C7](benchmarks/comparisons/c7-inline-layouts/RESULTS.md), [C6](benchmarks/comparisons/c6-public-vector3/RESULTS.md)) (with the earlier [C1 results](benchmarks/comparisons/c1-bevy/RESULTS.md), [C2 results](benchmarks/comparisons/c2-compact-storage/RESULTS.md), [C3 results](benchmarks/comparisons/c3-focused-cases/RESULTS.md) [C4 results](benchmarks/comparisons/c4-workloads/RESULTS.md) and [C5 results](benchmarks/comparisons/c5-math-copy/RESULTS.md) retained) are
++[Current C21 comparison tables and caveats](benchmarks/comparisons/c21-case-queries/RESULTS.md) (previous [C20](benchmarks/comparisons/c20-shared-tables/RESULTS.md), [C19](benchmarks/comparisons/c19-mutable-rows/RESULTS.md), [C18](benchmarks/comparisons/c18-query-field-handles/RESULTS.md), [C17](benchmarks/comparisons/c17-field-pointers/RESULTS.md), [C16](benchmarks/comparisons/c16-single-field-light/RESULTS.md), [C15](benchmarks/comparisons/c15-separate-workloads/RESULTS.md), [C14](benchmarks/comparisons/c14-inline-getters/RESULTS.md), [C13](benchmarks/comparisons/c13-direct-field-cursors/RESULTS.md), [C12](benchmarks/comparisons/c12-index-cursors/RESULTS.md), [C11](benchmarks/comparisons/c11-locked-iteration/RESULTS.md), [C10](benchmarks/comparisons/c10-compact-field-cursors/RESULTS.md), [C9](benchmarks/comparisons/c9-row-field-iterators/RESULTS.md), [C8](benchmarks/comparisons/c8-cached-batches/RESULTS.md), [C7](benchmarks/comparisons/c7-inline-layouts/RESULTS.md), [C6](benchmarks/comparisons/c6-public-vector3/RESULTS.md)) (with the earlier [C1 results](benchmarks/comparisons/c1-bevy/RESULTS.md), [C2 results](benchmarks/comparisons/c2-compact-storage/RESULTS.md), [C3 results](benchmarks/comparisons/c3-focused-cases/RESULTS.md) [C4 results](benchmarks/comparisons/c4-workloads/RESULTS.md) and [C5 results](benchmarks/comparisons/c5-math-copy/RESULTS.md) retained) are
+ also available as Markdown for viewers that display HTML as source.
+ 
+ ## Standalone HTML report
+--- engine/data/src/test/benchmark_data_common.cpp
++++ engine/data/src/test/benchmark_data_common.cpp
+@@ -208,3 +208,21 @@
+     Validate(total, expected);
+     Record(store, input, sample, name, start, end, total.m_Rows, total);
+ }
++
++ecs_entity_t Tag(ecs_world_t* world, uint64_t hash)
++{
++    // Hashes are names in this adapter, never forced into Flecs' entity-ID space.
++    char name[32];
++    snprintf(name, sizeof(name), "tag_%016llx", (unsigned long long)hash);
++    ecs_entity_desc_t desc = {};
++    desc.name = name;
++    return ecs_entity_init(world, &desc);
++}
++
++void DestroyQuery(Query* query)
++{
++    if (query->m_Data)
++        DataDestroyQuery(query->m_Data);
++    for (uint32_t i = 0; i < query->m_Count; ++i)
++        ecs_query_fini(query->m_Flecs[i]);
++}
+--- engine/data/src/test/benchmark_data_common.h
++++ engine/data/src/test/benchmark_data_common.h
+@@ -170,6 +170,7 @@
+ void                 RecordMemory(const Backend* store, const Fixture* input, uint32_t sample, const char* operation, uint64_t operations, const Stats& stats);
+ uint32_t             FindField(const TypeInput* type, Property property);
+ bool                 HasTag(const TypeInput* type, uint64_t tag);
++ecs_entity_t         Tag(ecs_world_t* world, uint64_t hash);
+ void                 Validate(const Stats& actual, const Stats& expected);
+ void                 Record(const Backend* store, const Fixture* input, uint32_t sample, const char* operation, uint64_t start, uint64_t end, uint64_t operations, const Stats& stats);
+ void                 ResetValues(Backend* store, const Fixture* input);
+@@ -231,7 +232,11 @@
+ void     RunPacked(const Fixture* input, uint32_t kind, uint32_t sample);
+ Backend  CreateBackend(const Fixture* input, uint32_t kind, uint32_t sample, const char* phase);
+ void     DestroyBackend(Backend* store, const Fixture* input, uint32_t sample, const char* phase);
+-Query    CreateQuery(Backend* store, const Fixture* input, bool color, uint64_t tag);
+-void     DestroyQuery(Query* query);
++
++// Caller owns each case query and releases it with DestroyQuery after traversal.
++Query CreateLightColorQuery(Backend* store, const Fixture* input, uint64_t tag);
++Query CreateHealthPositionQuery(Backend* store, const Fixture* input, uint64_t tag);
++Query CreateExplosionQuery(Backend* store, const Fixture* input);
++void  DestroyQuery(Query* query);
+ 
+ #endif
+--- engine/data/src/test/benchmark_data_explosion.cpp
++++ engine/data/src/test/benchmark_data_explosion.cpp
+@@ -11,6 +11,48 @@
+ // specific language governing permissions and limitations under the License.
+ 
+ #include "benchmark_data_common.h"
++
++// Match health and position on any type. The row loop applies the radius test
++// and writes health for hits; position remains read-only. No tag filter is used.
++Query CreateExplosionQuery(Backend* store, const Fixture* input)
++{
++    Query out = {};
++    if (!store->m_Kind)
++    {
++        DataQueryProperty fields[] = {
++            { g_Properties[HEALTH], DATA_VALUE_TYPE_NUMBER },
++            { g_Properties[POSITION], DATA_VALUE_TYPE_VECTOR3 }
++        };
++        DataQueryDesc desc = { 0, 0, 0, 0, fields, 2 };
++        Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create explosion query");
++        out.m_HealthField = DataQueryFindField(out.m_Data, &fields[0]);
++        out.m_PositionField = DataQueryFindField(out.m_Data, &fields[1]);
++    }
++    else
++    {
++        for (uint32_t ti = 0; ti < TYPE_COUNT; ++ti)
++        {
++            const TypeInput* t = &input->m_Types[ti];
++            if (store->m_Kind == 1 && (FindField(t, HEALTH) == UINT32_MAX || FindField(t, POSITION) == UINT32_MAX))
++                continue;
++            ecs_query_desc_t desc = {};
++            desc.cache_kind = EcsQueryCacheAuto;
++            desc.terms[0].id = store->m_Kind == 1 ? store->m_Types[ti] : store->m_Properties[HEALTH];
++            desc.terms[0].inout = EcsInOut;
++            if (store->m_Kind == 2)
++            {
++                desc.terms[1].id = store->m_Properties[POSITION];
++                desc.terms[1].inout = EcsIn;
++            }
++            out.m_Types[out.m_Count] = ti;
++            out.m_Flecs[out.m_Count] = ecs_query_init(store->m_World, &desc);
++            Check(out.m_Flecs[out.m_Count++] != 0, "create Flecs explosion query");
++            if (store->m_Kind == 2)
++                break;
++        }
++    }
++    return out;
++}
+ 
+ // Scan position and health; subtract 25 health within radius 50.
+ Stats Explosion_Defold(Backend* store, const Fixture* input, Query* query)
+--- engine/data/src/test/benchmark_data_health_position.cpp
++++ engine/data/src/test/benchmark_data_health_position.cpp
+@@ -11,6 +11,54 @@
+ // specific language governing permissions and limitations under the License.
+ 
+ #include "benchmark_data_common.h"
++
++// Read both properties without a spatial filter; tag optionally restricts the scan to enemies.
++Query CreateHealthPositionQuery(Backend* store, const Fixture* input, uint64_t tag)
++{
++    Query out = {};
++    out.m_Tag = tag;
++    if (!store->m_Kind)
++    {
++        DataQueryProperty fields[] = {
++            { g_Properties[HEALTH], DATA_VALUE_TYPE_NUMBER },
++            { g_Properties[POSITION], DATA_VALUE_TYPE_VECTOR3 }
++        };
++        DataQueryDesc desc = { 0, 0, tag ? &tag : 0, tag ? 1u : 0u, fields, 2 };
++        Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create health position query");
++        out.m_HealthField = DataQueryFindField(out.m_Data, &fields[0]);
++        out.m_PositionField = DataQueryFindField(out.m_Data, &fields[1]);
++    }
++    else
++    {
++        for (uint32_t ti = 0; ti < TYPE_COUNT; ++ti)
++        {
++            const TypeInput* t = &input->m_Types[ti];
++            if (store->m_Kind == 1 && (!HasTag(t, tag) || FindField(t, HEALTH) == UINT32_MAX || FindField(t, POSITION) == UINT32_MAX))
++                continue;
++            ecs_query_desc_t desc = {};
++            desc.cache_kind = EcsQueryCacheAuto;
++            desc.terms[0].id = store->m_Kind == 1 ? store->m_Types[ti] : store->m_Properties[HEALTH];
++            desc.terms[0].inout = EcsIn;
++            uint32_t terms = 1;
++            if (store->m_Kind == 2)
++            {
++                desc.terms[terms].id = store->m_Properties[POSITION];
++                desc.terms[terms++].inout = EcsIn;
++            }
++            if (tag)
++            {
++                desc.terms[terms].id = Tag(store->m_World, tag);
++                desc.terms[terms].inout = EcsIn;
++            }
++            out.m_Types[out.m_Count] = ti;
++            out.m_Flecs[out.m_Count] = ecs_query_init(store->m_World, &desc);
++            Check(out.m_Flecs[out.m_Count++] != 0, "create Flecs health position query");
++            if (store->m_Kind == 2)
++                break;
++        }
++    }
++    return out;
++}
+ 
+ // Scan position and health.
+ Stats HealthPosition_Defold(Backend* store, const Fixture* input, Query* query)
+--- engine/data/src/test/benchmark_data_light_color.cpp
++++ engine/data/src/test/benchmark_data_light_color.cpp
+@@ -11,6 +11,44 @@
+ // specific language governing permissions and limitations under the License.
+ 
+ #include "benchmark_data_common.h"
++
++// Bind light.color once for all matching light rows; the tag selects all lights or SpotLight.
++Query CreateLightColorQuery(Backend* store, const Fixture* input, uint64_t tag)
++{
++    Query out = {};
++    out.m_Tag = tag;
++    if (!store->m_Kind)
++    {
++        DataQueryProperty color = { g_Properties[LIGHT], DATA_VALUE_TYPE_VECTOR3, &g_Properties[COLOR], 1 };
++        DataQueryDesc     desc = { 0, 0, tag ? &tag : 0, tag ? 1u : 0u, &color, 1 };
++        Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create light color query");
++        out.m_ColorField = DataQueryFindField(out.m_Data, &color);
++    }
++    else
++    {
++        for (uint32_t ti = 0; ti < TYPE_COUNT; ++ti)
++        {
++            const TypeInput* t = &input->m_Types[ti];
++            if (store->m_Kind == 1 && (!HasTag(t, tag) || FindField(t, LIGHT) == UINT32_MAX))
++                continue;
++            ecs_query_desc_t desc = {};
++            desc.cache_kind = EcsQueryCacheAuto;
++            desc.terms[0].id = store->m_Kind == 1 ? store->m_Types[ti] : store->m_Properties[LIGHT];
++            desc.terms[0].inout = EcsIn;
++            if (tag)
++            {
++                desc.terms[1].id = Tag(store->m_World, tag);
++                desc.terms[1].inout = EcsIn;
++            }
++            out.m_Types[out.m_Count] = ti;
++            out.m_Flecs[out.m_Count] = ecs_query_init(store->m_World, &desc);
++            Check(out.m_Flecs[out.m_Count++] != 0, "create Flecs light color query");
++            if (store->m_Kind == 2)
++                break;
++        }
++    }
++    return out;
++}
+ 
+ // Sum light.color for the query's matching light rows.
+ Stats LightColor_Defold(Backend* store, const Fixture* input, Query* query)
+--- engine/data/src/test/benchmark_data_mixed.cpp
++++ engine/data/src/test/benchmark_data_mixed.cpp
+@@ -221,16 +221,6 @@
+     return ecs_component_init(world, &desc);
+ }
+ 
+-static ecs_entity_t Tag(ecs_world_t* world, uint64_t hash)
+-{
+-    // Hashes are names in this adapter, never forced into Flecs' entity-ID space.
+-    char name[32];
+-    snprintf(name, sizeof(name), "tag_%016llx", (unsigned long long)hash);
+-    ecs_entity_desc_t desc = {};
+-    desc.name = name;
+-    return ecs_entity_init(world, &desc);
+-}
+-
+ Backend CreateBackend(const Fixture* input, uint32_t kind, uint32_t sample, const char* phase)
+ {
+     Backend out = {};
+@@ -290,70 +280,6 @@
+     EndBenchmarkMemoryBackend();
+ }
+ 
+-Query CreateQuery(Backend* store, const Fixture* input, bool color, uint64_t tag)
+-{
+-    Query out = {};
+-    out.m_Tag = tag;
+-    if (!store->m_Kind)
+-    {
+-        DataQueryProperty fields[] = { { g_Properties[HEALTH], DATA_VALUE_TYPE_NUMBER }, { g_Properties[POSITION], DATA_VALUE_TYPE_VECTOR3 } };
+-        if (color)
+-        {
+-            fields[0].m_Property = g_Properties[LIGHT];
+-            fields[0].m_Type = DATA_VALUE_TYPE_VECTOR3;
+-            fields[0].m_Path = &g_Properties[COLOR];
+-            fields[0].m_PathCount = 1;
+-        }
+-        DataQueryDesc desc = { 0, 0, tag ? &tag : 0, tag ? 1u : 0u, fields, color ? 1u : 2u };
+-        Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create property query");
+-        if (color)
+-            out.m_ColorField = DataQueryFindField(out.m_Data, &fields[0]);
+-        else
+-        {
+-            out.m_HealthField = DataQueryFindField(out.m_Data, &fields[0]);
+-            out.m_PositionField = DataQueryFindField(out.m_Data, &fields[1]);
+-        }
+-    }
+-    else
+-    {
+-        for (uint32_t ti = 0; ti < TYPE_COUNT; ++ti)
+-        {
+-            const TypeInput* t = &input->m_Types[ti];
+-            if (store->m_Kind == 1 && (!HasTag(t, tag) || FindField(t, color ? LIGHT : HEALTH) == UINT32_MAX || (!color && FindField(t, POSITION) == UINT32_MAX)))
+-                continue;
+-            ecs_query_desc_t desc = {};
+-            desc.cache_kind = EcsQueryCacheAuto;
+-            desc.terms[0].id = store->m_Kind == 1 ? store->m_Types[ti] : store->m_Properties[color ? LIGHT : HEALTH];
+-            desc.terms[0].inout = color ? EcsIn : EcsInOut;
+-            uint32_t terms = 1;
+-            if (store->m_Kind == 2 && !color)
+-            {
+-                desc.terms[terms].id = store->m_Properties[POSITION];
+-                desc.terms[terms++].inout = EcsIn;
+-            }
+-            if (tag)
+-            {
+-                desc.terms[terms].id = Tag(store->m_World, tag);
+-                desc.terms[terms].inout = EcsIn;
+-            }
+-            out.m_Types[out.m_Count] = ti;
+-            out.m_Flecs[out.m_Count] = ecs_query_init(store->m_World, &desc);
+-            Check(out.m_Flecs[out.m_Count++] != 0, "create Flecs query");
+-            if (store->m_Kind == 2)
+-                break;
+-        }
+-    }
+-    return out;
+-}
+-
+-void DestroyQuery(Query* query)
+-{
+-    if (query->m_Data)
+-        DataDestroyQuery(query->m_Data);
+-    for (uint32_t i = 0; i < query->m_Count; ++i)
+-        ecs_query_fini(query->m_Flecs[i]);
+-}
+-
+ static void Run(const Fixture* input, uint32_t kind, uint32_t sample)
+ {
+     Backend  store = CreateBackend(input, kind, sample, "setup_individual");
+@@ -370,17 +296,18 @@
+         stats.m_Error |= CreateBulk(&store, input, t, 0, input->m_Types[t].m_Count);
+     Record(&store, input, sample, "create_bulk", start, EndOperation(), input->m_Count, stats);
+     start = BeginOperation();
+-    Query spot = CreateQuery(&store, input, true, dmHashString64("spot_light"));
+-    Query light = CreateQuery(&store, input, true, g_LightTag);
+-    Query health = CreateQuery(&store, input, false, 0);
+-    Query enemy = CreateQuery(&store, input, false, g_EnemyTag);
+-    Record(&store, input, sample, "create_queries", start, EndOperation(), 4, stats);
++    Query spot = CreateLightColorQuery(&store, input, dmHashString64("spot_light"));
++    Query light = CreateLightColorQuery(&store, input, g_LightTag);
++    Query health = CreateHealthPositionQuery(&store, input, 0);
++    Query enemy = CreateHealthPositionQuery(&store, input, g_EnemyTag);
++    Query explosion = CreateExplosionQuery(&store, input);
++    Record(&store, input, sample, "create_queries", start, EndOperation(), 5, stats);
+     MeasureLightColor(&store, input, &spot, sample, "spot_color");
+     MeasureLightColor(&store, input, &light, sample, "all_light_color");
+     MeasureHealthPosition(&store, input, &health, sample, "health_position");
+     MeasureHealthPosition(&store, input, &enemy, sample, "enemy_health_position");
+     ResetValues(&store, input);
+-    MeasureExplosion(&store, input, &health, sample);
++    MeasureExplosion(&store, input, &explosion, sample);
+     ValidateHealth(&store, input, 50, 1);
+     ResetValues(&store, input);
+     MeasureShuffledPosition(&store, input, sample);
+@@ -412,8 +339,9 @@
+     DestroyQuery(&light);
+     DestroyQuery(&health);
+     DestroyQuery(&enemy);
++    DestroyQuery(&explosion);
+     EndBenchmarkMemoryOperation();
+-    RecordMemory(&store, input, sample, "destroy_queries", 4, Stats());
++    RecordMemory(&store, input, sample, "destroy_queries", 5, Stats());
+     DestroyBackend(&store, input, sample, "destroy_bulk");
+ }
+ 
+@@ -443,7 +371,7 @@
+     Backend store = CreateBackend(input, kind, 0, "setup_bulk");
+     for (uint32_t t = 0; t < TYPE_COUNT; ++t)
+         Check(CreateBulk(&store, input, t, 0, input->m_Types[t].m_Count) == 0, "profile bulk insertion");
+-    Query spot = CreateQuery(&store, input, true, dmHashString64("spot_light"));
++    Query spot = CreateLightColorQuery(&store, input, dmHashString64("spot_light"));
+     fprintf(stderr, "Profile ready: %s, %u SpotLight rows, %u passes per sample\n", BACKENDS[kind], input->m_Types[0].m_Count, passes);
+     for (uint32_t sample = 0; sample <= samples; ++sample)
+         MeasureLightColor(&store, input, &spot, sample, "spot_color", false, passes);
+@@ -458,18 +386,18 @@
+     Backend store = CreateBackend(input, kind, 0, "setup_bulk");
+     for (uint32_t t = 0; t < TYPE_COUNT; ++t)
+         Check(CreateBulk(&store, input, t, 0, input->m_Types[t].m_Count) == 0, "profile bulk insertion");
+-    Query health = CreateQuery(&store, input, false, 0);
++    Query explosion = CreateExplosionQuery(&store, input);
+     fprintf(stderr, "Profile ready: %s, Explosion radius 50, %u passes per sample\n", BACKENDS[kind], passes);
+     for (uint32_t sample = 0; sample <= samples; ++sample)
+     {
+         for (uint32_t pass = 0; pass < passes; ++pass)
+         {
+             ResetValues(&store, input);
+-            MeasureExplosion(&store, input, &health, sample);
++            MeasureExplosion(&store, input, &explosion, sample);
+         }
+         ValidateHealth(&store, input, 50, 1);
+     }
+-    DestroyQuery(&health);
++    DestroyQuery(&explosion);
+     DestroyBackend(&store, input, 0, "destroy_bulk");
+ }
+ 
+--- engine/data/src/test/benchmark_data_packed.cpp
++++ engine/data/src/test/benchmark_data_packed.cpp
+@@ -78,8 +78,8 @@
+     stats = kind ? PackedPopulate_Flecs(&store, input) : PackedPopulate_Defold(&store, input, instances);
+     Record(&store, input, sample, "packed_populate_and_ids", start, EndOperation(), input->m_Count, stats);
+     start = BeginOperation();
+-    Query health = CreateQuery(&store, input, false, 0);
+-    Query light = CreateQuery(&store, input, true, g_LightTag);
++    Query health = CreateHealthPositionQuery(&store, input, 0);
++    Query light = CreateLightColorQuery(&store, input, g_LightTag);
+     Record(&store, input, sample, "packed_create_queries", start, EndOperation(), 2, stats);
+     MeasureLightColor(&store, input, &light, sample, "packed_light_color");
+     const uint32_t densities[] = { 0, 1, 10 };
+--- engine/data/src/test/benchmark_report.html
++++ engine/data/src/test/benchmark_report.html
+@@ -59,11 +59,11 @@
+ <section id="latest-memory">
+ <div class="section-head"><div><div class="eyebrow">Latest complete comparison</div><h2>Memory · all tests</h2><p id="latest-memory-detail"></p></div><span class="section-tag" id="latest-memory-run"></span></div>
+ <p class="small muted">Each operation shows net heap change (after − before) and allocation requests (allocation + resize calls). Positive values mean additional retained memory; negative values mean memory released. Changes are calculated per sample before taking the median. Temporary allocations can leave zero net change; before/after totals and peaks remain in the detailed tables. Fixtures, shared source blobs, allocator overhead and RSS are excluded.</p>
+-<p class="notice"><strong>C20: fewer allocations through shared tables.</strong>Creating instances from resource blobs now makes 440 allocation requests, down from 62,533; creating its two queries makes 10, down from 622. Retained heap including queries rises from 84.88 to 89.21 MiB because shared arrays retain spare capacity. Numeric writes still allocate nothing. String/container replacements belong to each registration. Flecs/Bevy retain no reset defaults inside the measured store; their reset source is fixture data.</p>
++<p class="notice"><strong>Storage experiment C20 · retained in C21.</strong>Creating instances from resource blobs now makes 440 allocation requests, down from 62,533; creating its two queries makes 10, down from 622. Retained heap including queries rises from 84.88 to 89.21 MiB because shared arrays retain spare capacity. Numeric writes still allocate nothing. String/container replacements belong to each registration. Flecs/Bevy retain no reset defaults inside the measured store; their reset source is fixture data.</p>
+ <div class="overview-jumps" id="latest-memory-jumps" aria-label="Memory fixture groups"></div>
+ <div id="latest-memory-charts"></div>
+ </section>
+-<div class="notice" role="note"><strong>Experiment C20: shared tables and pooled registrations · implemented.</strong>Repeated registrations of one loaded resource append mutable rows to the same physical tables. The million-instance fixture now has six tables and 62,500 logical registrations. Pooled records track each registration's rows through 32-bit slot indices, preserving independent reset and unload. Different loaded resources remain separate. The public API and version 8 file format are unchanged. Flecs is v4.1.6-592-g9e874bca2, a development revision after the 4.1.6 tag.</div>
++<div class="notice" role="note"><strong>C21: query setup beside each benchmark.</strong>Light-color, health/position and Explosion define their Defold/Flecs queries in their own case files. Explosion owns a separate query: health is writable and position is read-only. Read-only scans declare both fields read-only in Flecs. Dense setup now creates five logical queries on all backends, instead of sharing the health query with Explosion; resource-instance setup still creates two. Creation and field binding remain outside timed traversal and are measured separately. Storage remains the C20 shared-table implementation. This is a benchmark setup change, not a runtime optimization.</div>
+ <p class="small muted" id="latest-assessment" style="margin-top:12px"></p>
+ <section id="spot-profile-latest">
+ <div class="section-head"><div><div class="eyebrow">P4 · implementation experiment · adopted in C8</div><h2>Historical access experiment · C8</h2><p>This experiment predates row/field cursors and uses the old indexed public getter loop. One million instances, 100,000 matching SpotLights, 300 passes per sample. Three process blocks vary the execution order; each variant has 21 samples after warmups. These are controlled timings, not CPU sample percentages.</p></div><span class="section-tag historical">P4 · earlier C8 build</span></div>
+@@ -131,7 +131,7 @@
+ </div>
+ <div class="chart"><div class="chart-top"><div><h3 id="comparison-title"></h3><p class="small muted" id="comparison-description"></p><p class="small muted" id="comparison-detail"></p></div><span class="scale" id="comparison-scale"></span></div><div id="comparison-bars" aria-live="polite"></div><p class="chart-note" id="comparison-note"></p></div>
+ <div class="table-scroll" id="comparison-table"></div>
+-<div class="panel-foot">C20 instantiates mutable row values in all backends. Defold additionally shares packed defaults and payloads for reset; historical Defold runs borrowed row values until first write. Reset/unload and file loading have no equivalent measured Bevy contract. Runtime heap excludes each harness’s fixture and ID arrays. C++ and Rust execute in separate processes, with their order reversed between layouts.</div>
++<div class="panel-foot">The current comparison instantiates mutable row values in all backends. Defold additionally shares packed defaults and payloads for reset; historical Defold runs borrowed row values until first write. Reset/unload and file loading have no equivalent measured Bevy contract. Runtime heap excludes each harness’s fixture and ID arrays. C++ and Rust execute in separate processes, with their order reversed between layouts.</div>
+ </div>
+ <details><summary>Comparison manifest, validation and source hashes</summary><div class="detail-body"><pre id="comparison-manifest"></pre></div></details>
+ </section>
+@@ -180,7 +180,7 @@
+ <section id="timing"><div class="section-head"><div><div class="eyebrow">01 / Operation cost</div><h2>Historical timing baseline</h2><p>Median and observed min–max over seven samples. Lower is faster. Bars start at zero and rescale to the selected operation.</p></div><span class="section-tag historical">Earlier build · generic value access</span></div><div class="panel"><div class="controls"><label>Population<select id="timing-rows"><option value="1000000">1,000,000 instances</option><option value="100000">100,000 instances</option></select></label><label>Storage scenario<select id="timing-layout"></select></label><label class="grow">Operation<select id="timing-case"></select></label><label>Measure<select id="timing-metric"><option value="median_ns_per_operation">Time / operation</option><option value="median_ms">Total time</option></select></label></div><div class="chart"><div class="chart-top"><div><h3 id="timing-title"></h3><p class="small muted" id="timing-detail"></p></div><span class="scale" id="timing-scale"></span></div><div id="timing-bars" aria-live="polite"></div><p class="chart-note" id="timing-note"></p></div><div class="table-scroll" id="timing-table"></div><div class="panel-foot">Data preserves reset defaults and selects overrides. Flecs mutates native component data directly. Nested Light is dynamic in Data and inline in Flecs. These costs reflect different storage contracts.</div></div></section>
+ <section id="memory"><div class="section-head"><div><div class="eyebrow">02 / Heap cost</div><h2>Memory and allocation activity</h2><p>Requested heap payloads, measured separately from time. Includes library headers and unused capacity; excludes allocator/tracker overhead and RSS.</p></div><span class="section-tag">Later build · typed access</span></div><div class="panel"><div class="controls"><label>Storage scenario<select id="memory-layout"></select></label><label class="grow">Operation<select id="memory-case"></select></label><label>Measure<select id="memory-metric"><option value="change_bytes">Heap change</option><option value="live_bytes">Retained heap · MiB</option><option value="peak_bytes">Phase peak · MiB</option><option value="live_blocks">Live heap blocks</option><option value="requests">Allocation + resize requests</option><option value="allocations">Allocation calls</option><option value="reallocations">Resize calls</option><option value="frees">Free calls</option><option value="allocated_bytes">Requested-byte traffic · MiB</option></select></label></div><div class="chart"><div class="chart-top"><div><h3 id="memory-title"></h3><p class="small muted" id="memory-detail"></p></div><span class="scale" id="memory-scale"></span></div><div id="memory-bars" aria-live="polite"></div><p class="chart-note" id="memory-note"></p></div><div class="table-scroll" id="memory-table"></div><div class="panel-foot" id="memory-foot"></div></div></section>
+ <details><summary>Historical registration-size experiment</summary><div class="detail-body"><section id="packed"><div class="section-head"><div><div class="eyebrow">03 / Registration granularity</div><h2>Small tables have a large footprint</h2><p>The same million rows, split into registrations of 1, 4 or 16 rows. Each registration contains one table and borrows one of six shared prototypes.</p></div><span class="section-tag">Data · later memory run</span></div><div class="split"><div class="panel"><div class="controls"><label>Overridden rows<select id="packed-density"><option value="10">10% · 100,000 rows</option><option value="1">1% · 10,000 rows</option><option value="0">0% · defaults only</option></select></label></div><div class="chart"><div class="legend"><span class="legend-item" style="--color:#286761">Loaded registrations</span><span class="legend-item" style="--color:#55a89c">Two query caches</span><span class="legend-item" style="--color:#c0ddcc">Override storage</span></div><div id="packed-bars" aria-live="polite"></div><p class="chart-note">One common linear scale across group sizes. Totals include store metadata, row identities, query bindings and override arenas. Shared source blobs are counted separately.</p></div></div><aside class="aside-note"><div class="eyebrow">One-row registrations</div><div class="big" id="packed-blocks"></div><p>live heap blocks at the selected override density.</p><hr><h3>Query bookkeeping is visible too</h3><p>Creating the two queries adds <strong id="query-allocations"></strong> heap allocations and <strong id="query-bytes"></strong> for one-row tables, before overrides.</p><p>Reset releases override arenas. Unloading registrations retains store capacity until final destruction.</p></aside></div><div class="panel" style="margin-top:18px"><div class="table-scroll" id="packed-table"></div></div></section></div></details>
+-<section id="method"><div class="section-head"><div><div class="eyebrow">04 / Reading the comparison</div><h2>Same logical workload, different contracts</h2></div></div><div class="cards"><article class="card" style="--color:var(--data)"><h3>Defold</h3><p>Fixed-stride mutable rows with shared property metadata. Resource loading borrows the original blob; instance creation appends fixed row bytes to dense tables shared by registrations of that resource. Stable registration handles and row membership indices use pooled slots. Numeric/math writes access these existing bytes. Strings and dynamic containers initially share default payloads; replacements belong to each registration (or table for independently added rows). Reset copies loaded or added defaults back.</p><p>Nested Light is an inline struct. Public iteration holds a structural lock and relies on caller-owned cursor lifetimes. Value writes remain allowed; callers collect deletion IDs and apply them after unlocking. Inline row/field cursors advance indices; typed getters resolve addresses and read shared bindings on access. Type/name metadata accessors avoid copying metadata per row. A light.color query binds the complete member offset and kind once per table. Queries resolve full property paths and kinds once at creation through DataQueryFindField, then reuse the handles across batches and traversals through public typed field pointers. Explosion requests a writable health pointer only for hit rows. Field order is unspecified. Metadata is shared across rows. Dynamic structs and lists remain supported separately.</p></article><article class="card" style="--color:var(--columns)"><h3>Flecs</h3><p>Position, Health, Velocity and Light are separate components, with concrete-type tags and the same logical identity data.</p><p>Queries iterate component columns and access native values directly. This benchmark mutates current values in place. Flecs also supports <a href="https://www.flecs.dev/flecs/PrefabsManual.html">shared prefab defaults and reverting inherited component overrides</a>, which are not measured here.</p></article><article class="card" style="--color:#387fba"><h3>Bevy</h3><p>The standalone ECS crate uses separate Position, Health, Velocity and Light components with default table storage and normal change tracking.</p><p>Queries access typed components directly. No renderer or scheduler is included. This benchmark restores values from fixture data between cases; <a href="https://docs.rs/bevy_ecs/latest/bevy_ecs/change_detection/struct.Mut.html">ordinary component mutation</a> does not retain an initial-value baseline.</p></article></div><p class="small muted" style="margin-top:18px">Complete-struct variants store one native component per concrete type, with inline Light fields and a typed adapter for shared fields. These additional layout measurements remain in detailed tables and source data.</p><div class="methods"><div><h3>Workload and timing</h3><ul><li>Deterministic seed <code>0x12345678</code>. Backend order rotates; the warmup sample is discarded.</li><li>Read cases use five warm passes. First and repeat writes use one pass each.</li><li>The Explosion case scans 500,000 health/position candidates at 1M population, subtracting 25 health within radius 50 of the origin, clamped at zero. Shuffled position visits each instance once and increments position X by one. Both start from reset defaults; no spatial index is used.</li><li>Fixture generation, validation and between-case reset are outside timing. Insertions include allocation and live-query maintenance.</li><li>Packed cases repeat each prototype’s values. The main comparison uses 16 rows per logical registration, stored in six shared Defold tables.</li></ul></div><div><h3>Memory accounting and limits</h3><ul><li>C++ memory runs intercept ordinary allocation/deallocation and Flecs OS callbacks. Bevy memory runs wrap the Rust global allocator. Timing binaries have no tracking hooks.</li><li>Live bytes include unused library capacity. Peaks begin at operation entry; resize peaks exclude the allocator’s transient internal copy.</li><li>Allocation counts refer to heap calls, not values carved from arenas or Flecs pools. Request counts add allocation and resize calls within each sample.</li><li>Fixture inputs, output-ID arrays and shared Data blob assets are recorded separately. They are excluded from library charts.</li><li>Allocator/tracker headers, allocator rounding, stack/static storage, platform/libc internals and process RSS are excluded. CPU model was not recorded.</li></ul></div></div><details><summary>Validation and remaining coverage</summary><div class="detail-body small"><p>Every measured run checks values, query counts, damage, reset and stale IDs. Memory runs require zero tracked backend allocations at teardown and zero fixture/resource allocations at exit. The allocator self-test checks allocation and resize arithmetic, ownership, calloc, realloc, strdup and dlib array growth. C20 passes 36 tests / 21,606 assertions in Release and ASAN, including pooled registration reuse, live queries across capacity growth, independent reset/unload after row removal and slot reuse, immutable resources and shared nested payloads. All 1,344 paired C19/C20 samples match operation counts and checksums; table-batch counts intentionally differ. All C++ dense/packed timing and memory workloads pass ASAN. SDK docs/examples validate; all 896 Bevy/Flecs samples agree. Explosion, shuffled position and packed scalar writes assert zero allocation requests and zero heap growth. File loading retains five/three requests across all 56 cases in both builds.</p><p style="margin-top:12px">Historical timing validation: 16 tests / 3,761 assertions. Historical memory: 17 tests / 3,873 assertions. E3 experiment: 18 tests / 8,208 assertions in Release and ASAN, plus ASAN memory workloads at 1/4/16 packed rows. E6: 19 tests / 8,858 assertions, ASAN decoded and 1/4/16-row packed memory workloads, and the 5/3 file-loading allocation budget. C5 math reads: 20 tests / 8,929 assertions passed in Release and ASAN. Historical C18 query field handles: 34 tests / 12,202 assertions pass in Release and ASAN, including handles obtained before matching tables exist and reused after table removal/re-registration with different layouts. Historical C17 aligned field pointers: 33 tests / 12,133 assertions pass in Release and ASAN. All C++ dense/packed timing and memory workloads pass ASAN; SDK documentation/examples validate. All 896 Bevy/Flecs and 630 paired C16/C17 samples agree on counts/checksums. Both builds pass 56 file-load cases with five/three allocation requests. Historical C16 single-field light queries: 30 tests / 11,946 assertions pass in Release and ASAN; all C++ dense/packed timing and memory workloads pass ASAN, all 896 Bevy/Flecs samples agree, and all 40 Defold heap phases match C15. Historical C15 separate workload functions: 30 tests / 11,946 assertions pass in Release and ASAN, including field selection by name with both descriptor orders in decoded and packed data. All C++ dense/packed timing and memory workloads and both profiling modes pass ASAN. SDK docs/examples validate; all 896 Bevy/Flecs samples agree, and all 40 Defold heap phases match C14. Historical C14 inline typed getters: 30 tests / 11,914 assertions pass in Release and ASAN, including C callbacks and absent-field output preservation for all six getters. SDK docs/examples validate; all 896 Bevy/Flecs samples agree and all 40 Defold heap phases match C13. Historical C13 direct field cursors: 30 tests / 11,908 assertions pass in Release and ASAN, including owner-filtered batches after swap removal. SDK docs/examples validate; all 896 Bevy/Flecs samples agree and all 40 Defold heap phases match C12. Historical C12 index cursors: 29 tests / 11,847 assertions pass in Release and ASAN; C-only SDK examples and metadata accessors validate, all 896 Bevy/Flecs samples agree, and all 40 Defold heap phases match C11. Historical C11 locked iteration: 29 tests / 11,799 assertions pass in Release and ASAN, including blocked structural mutations, nested locks, C-only SDK, writes/reset, deferred stable-ID removals and reusable buffers. All 896 Bevy/Flecs samples agree; 56 file-load cases in each build retain the five/three allocation budget. Historical C10 compact field cursors: 30 tests / 10,254 assertions pass in Release and ASAN, including preserved parent/store invalidation and unfiltered/inline container metadata. All 896 Bevy/Flecs samples agree; 56 file-load cases retain the five/three allocation budget. Historical C9 public row/field cursors: 29 tests / 10,053 assertions pass in Release and ASAN, including C-only SDK, private-member documentation validation, unfiltered enumeration, independent snapshots, reset and stale cursor tests. All 896 Bevy/Flecs samples agree; all 56 file-load cases pass the five/three allocation budget. C8 cached batches and typed specialization: 26 tests / 9,786 assertions pass in Release and ASAN; 896 Bevy/Flecs samples agree and all 56 file-load cases keep the five/three allocation budget. C7 inline composition: 24 tests / 9,442 assertions pass in Release and ASAN, including fixed member layouts, copied query paths, nested writes/reset, packed roundtrips and malformed metadata. Small runtime-created and packed memory runs pass under ASAN; fresh/reused file loads retain the 5/3 allocation budget. C6 public typed reads: 21 tests / 9,005 assertions pass in Release and ASAN, including C-only SDK compilation, unaligned nested reads, float-bit preservation, changing member layouts, overrides/reset and error handling. Small runtime-created and 16-row packed memory workloads also pass under ASAN. Remaining variants include 50%/100% overrides, distinct source blobs, multi-type registrations, short-string churn, additional insertion patterns, process memory and controlled cold-cache runs. C1 adds standalone Bevy ECS execution: 1,988 operation samples match Flecs counts, hit counts and checksums. Rust layout and allocator tests pass in Release; no Rust ASAN run is included. No Unity execution or Bob/gamesys integration is included.</p></div></details></section>
++<section id="method"><div class="section-head"><div><div class="eyebrow">04 / Reading the comparison</div><h2>Same logical workload, different contracts</h2></div></div><div class="cards"><article class="card" style="--color:var(--data)"><h3>Defold</h3><p>Fixed-stride mutable rows with shared property metadata. Resource loading borrows the original blob; instance creation appends fixed row bytes to dense tables shared by registrations of that resource. Stable registration handles and row membership indices use pooled slots. Numeric/math writes access these existing bytes. Strings and dynamic containers initially share default payloads; replacements belong to each registration (or table for independently added rows). Reset copies loaded or added defaults back.</p><p>Nested Light is an inline struct. Public iteration holds a structural lock and relies on caller-owned cursor lifetimes. Value writes remain allowed; callers collect deletion IDs and apply them after unlocking. Inline row/field cursors advance indices; typed getters resolve addresses and read shared bindings on access. Type/name metadata accessors avoid copying metadata per row. A light.color query binds the complete member offset and kind once per table. Query definitions live beside their C++ case functions. Explosion has a separate query from the read-only health/position scan; all backends retain five dense queries. Queries resolve full property paths and kinds once at creation through DataQueryFindField, then reuse the handles across batches and traversals through public typed field pointers. Explosion requests a writable health pointer only for hit rows. Field order is unspecified. Metadata is shared across rows. Dynamic structs and lists remain supported separately.</p></article><article class="card" style="--color:var(--columns)"><h3>Flecs</h3><p>Position, Health, Velocity and Light are separate components, with concrete-type tags and the same logical identity data.</p><p>Queries iterate component columns and access native values directly. This benchmark mutates current values in place. Flecs also supports <a href="https://www.flecs.dev/flecs/PrefabsManual.html">shared prefab defaults and reverting inherited component overrides</a>, which are not measured here.</p></article><article class="card" style="--color:#387fba"><h3>Bevy</h3><p>The standalone ECS crate uses separate Position, Health, Velocity and Light components with default table storage and normal change tracking.</p><p>Queries access typed components directly. No renderer or scheduler is included. This benchmark restores values from fixture data between cases; <a href="https://docs.rs/bevy_ecs/latest/bevy_ecs/change_detection/struct.Mut.html">ordinary component mutation</a> does not retain an initial-value baseline.</p></article></div><p class="small muted" style="margin-top:18px">Complete-struct variants store one native component per concrete type, with inline Light fields and a typed adapter for shared fields. These additional layout measurements remain in detailed tables and source data.</p><div class="methods"><div><h3>Workload and timing</h3><ul><li>Deterministic seed <code>0x12345678</code>. Backend order rotates; the warmup sample is discarded.</li><li>Read cases use five warm passes. First and repeat writes use one pass each.</li><li>The Explosion case scans 500,000 health/position candidates at 1M population, subtracting 25 health within radius 50 of the origin, clamped at zero. Shuffled position visits each instance once and increments position X by one. Both start from reset defaults; no spatial index is used.</li><li>Fixture generation, validation and between-case reset are outside timing. Insertions include allocation and live-query maintenance.</li><li>Packed cases repeat each prototype’s values. The main comparison uses 16 rows per logical registration, stored in six shared Defold tables.</li></ul></div><div><h3>Memory accounting and limits</h3><ul><li>C++ memory runs intercept ordinary allocation/deallocation and Flecs OS callbacks. Bevy memory runs wrap the Rust global allocator. Timing binaries have no tracking hooks.</li><li>Live bytes include unused library capacity. Peaks begin at operation entry; resize peaks exclude the allocator’s transient internal copy.</li><li>Allocation counts refer to heap calls, not values carved from arenas or Flecs pools. Request counts add allocation and resize calls within each sample.</li><li>Fixture inputs, output-ID arrays and shared Data blob assets are recorded separately. They are excluded from library charts.</li><li>Allocator/tracker headers, allocator rounding, stack/static storage, platform/libc internals and process RSS are excluded. CPU model was not recorded.</li></ul></div></div><details><summary>Validation and remaining coverage</summary><div class="detail-body small"><p>Every measured run checks values, query counts, damage, reset and stale IDs. Memory runs require zero tracked backend allocations at teardown and zero fixture/resource allocations at exit. The allocator self-test checks allocation and resize arithmetic, ownership, calloc, realloc, strdup and dlib array growth. C21 dense and resource-instance timing/memory workloads pass in Release and ASAN for all C++ backends. The SpotLight and Explosion profile modes also pass ASAN with each backend. Query creation/destruction counts are five for dense and two for resource instances. Historical C20 passes 36 tests / 21,606 assertions in Release and ASAN, including pooled registration reuse and independent reset/unload after row removal and slot reuse. All C++ dense/packed timing and memory workloads pass ASAN. SDK docs/examples validate; all 896 Bevy/Flecs samples agree. Explosion, shuffled position and packed scalar writes assert zero allocation requests and zero heap growth. The unchanged loader was verified in C20 at five/three requests across all 56 cases in both builds.</p><p style="margin-top:12px">Historical timing validation: 16 tests / 3,761 assertions. Historical memory: 17 tests / 3,873 assertions. E3 experiment: 18 tests / 8,208 assertions in Release and ASAN, plus ASAN memory workloads at 1/4/16 packed rows. E6: 19 tests / 8,858 assertions, ASAN decoded and 1/4/16-row packed memory workloads, and the 5/3 file-loading allocation budget. C5 math reads: 20 tests / 8,929 assertions passed in Release and ASAN. Historical C18 query field handles: 34 tests / 12,202 assertions pass in Release and ASAN, including handles obtained before matching tables exist and reused after table removal/re-registration with different layouts. Historical C17 aligned field pointers: 33 tests / 12,133 assertions pass in Release and ASAN. All C++ dense/packed timing and memory workloads pass ASAN; SDK documentation/examples validate. All 896 Bevy/Flecs and 630 paired C16/C17 samples agree on counts/checksums. Both builds pass 56 file-load cases with five/three allocation requests. Historical C16 single-field light queries: 30 tests / 11,946 assertions pass in Release and ASAN; all C++ dense/packed timing and memory workloads pass ASAN, all 896 Bevy/Flecs samples agree, and all 40 Defold heap phases match C15. Historical C15 separate workload functions: 30 tests / 11,946 assertions pass in Release and ASAN, including field selection by name with both descriptor orders in decoded and packed data. All C++ dense/packed timing and memory workloads and both profiling modes pass ASAN. SDK docs/examples validate; all 896 Bevy/Flecs samples agree, and all 40 Defold heap phases match C14. Historical C14 inline typed getters: 30 tests / 11,914 assertions pass in Release and ASAN, including C callbacks and absent-field output preservation for all six getters. SDK docs/examples validate; all 896 Bevy/Flecs samples agree and all 40 Defold heap phases match C13. Historical C13 direct field cursors: 30 tests / 11,908 assertions pass in Release and ASAN, including owner-filtered batches after swap removal. SDK docs/examples validate; all 896 Bevy/Flecs samples agree and all 40 Defold heap phases match C12. Historical C12 index cursors: 29 tests / 11,847 assertions pass in Release and ASAN; C-only SDK examples and metadata accessors validate, all 896 Bevy/Flecs samples agree, and all 40 Defold heap phases match C11. Historical C11 locked iteration: 29 tests / 11,799 assertions pass in Release and ASAN, including blocked structural mutations, nested locks, C-only SDK, writes/reset, deferred stable-ID removals and reusable buffers. All 896 Bevy/Flecs samples agree; 56 file-load cases in each build retain the five/three allocation budget. Historical C10 compact field cursors: 30 tests / 10,254 assertions pass in Release and ASAN, including preserved parent/store invalidation and unfiltered/inline container metadata. All 896 Bevy/Flecs samples agree; 56 file-load cases retain the five/three allocation budget. Historical C9 public row/field cursors: 29 tests / 10,053 assertions pass in Release and ASAN, including C-only SDK, private-member documentation validation, unfiltered enumeration, independent snapshots, reset and stale cursor tests. All 896 Bevy/Flecs samples agree; all 56 file-load cases pass the five/three allocation budget. C8 cached batches and typed specialization: 26 tests / 9,786 assertions pass in Release and ASAN; 896 Bevy/Flecs samples agree and all 56 file-load cases keep the five/three allocation budget. C7 inline composition: 24 tests / 9,442 assertions pass in Release and ASAN, including fixed member layouts, copied query paths, nested writes/reset, packed roundtrips and malformed metadata. Small runtime-created and packed memory runs pass under ASAN; fresh/reused file loads retain the 5/3 allocation budget. C6 public typed reads: 21 tests / 9,005 assertions pass in Release and ASAN, including C-only SDK compilation, unaligned nested reads, float-bit preservation, changing member layouts, overrides/reset and error handling. Small runtime-created and 16-row packed memory workloads also pass under ASAN. Remaining variants include 50%/100% overrides, distinct source blobs, multi-type registrations, short-string churn, additional insertion patterns, process memory and controlled cold-cache runs. C1 adds standalone Bevy ECS execution: 1,988 operation samples match Flecs counts, hit counts and checksums. Rust layout and allocator tests pass in Release; no Rust ASAN run is included. No Unity execution or Bob/gamesys integration is included.</p></div></details></section>
+ <section id="measurements"><div class="section-head"><div><div class="eyebrow">05 / Complete measurements</div><h2>Explore every recorded case</h2><p>Searchable summaries include all populations, group sizes and backends. “Not measured” is never interpreted as zero.</p></div></div><details id="all-results"><summary>Open measurement tables · <span id="total-rows"></span> summaries</summary><div class="detail-body"><div class="results-controls"><label>Dataset<select id="table-kind"><option value="timing">Timing baseline</option><option value="memory">Memory run</option></select></label><label class="grow">Filter cases<input id="table-search" type="search" placeholder="e.g. explosion, reset, flecs, packed"></label><span class="result-count" id="table-count" role="status"></span></div><div class="results-table" tabindex="0" aria-label="Scrollable complete measurement table" id="all-table"></div></div></details></section>
+ <section id="sources"><div class="section-head"><div><div class="eyebrow">06 / Reproducibility</div><h2>Source data travels with the report</h2><p>Raw samples, summaries, experiment patches and run manifests are embedded in this file. No external libraries, fonts, images or network requests are required.</p></div></div><div class="panel" style="padding:24px"><div class="downloads" style="margin-top:0"><label>Embedded source file<select id="source-file"></select></label><button class="primary" id="download-file">Download file</button><button id="download-all">Download complete dataset</button></div><p class="file-note" id="source-info"></p></div><details><summary>Timing baseline · run manifest and source hashes</summary><div class="detail-body"><pre id="timing-manifest"></pre></div></details><details><summary>Memory run · run manifest and source hashes</summary><div class="detail-body"><pre id="memory-manifest"></pre></div></details></section>
+ <footer class="footer"><span class="eyebrow">Defold / experimental data library</span><span>Recorded 27 September 2026 · MiB = 1,048,576 bytes</span><a href="#">Back to top ↑</a></footer>
+@@ -226,7 +226,7 @@
+ const mib=n=>n/1048576;
+ const packedGroup=comparison=>comparison.run.packed_rows_per_registration || 16;
+ const scenario=g=>g?'Instances from resource blobs':'Runtime-created instances';
+-const labels={create_individual:'Create individual instances',create_bulk:'Create instances in bulk',create_queries:'Create four live queries',spot_color:'Sum SpotLight color',all_light_color:'Sum all light colors',all_light_color_hash:'Historical diagnostic · light lookup',health_position:'Read health + position',health_position_hash:'Historical diagnostic · health/position lookup',enemy_health_position:'Read enemy health + position',random_get_position:'Shuffled position get',random_update_first:'Shuffled position update · first write',random_update_repeat:'Shuffled position update · repeat write',add_10pct_live_queries_batch100:'Add 10% with live queries · batches of 100',remove_1pct:'Remove 1% of instances',replace_1pct:'Replace 1% of instances',all_light_after_add:'Read light colors after insertion',health_after_add:'Read health + position after insertion',health_after_churn:'Read health + position after churn',packed_populate_and_ids:'Create instances from resource blobs and collect IDs',packed_create_queries:'Create two live queries',packed_light_color:'Sum all light colors',packed_unload_no_queries:'Remove registrations · no live queries',setup_individual:'Set up store and types · individual case',setup_bulk:'Set up store and types · bulk case',setup_packed:'Set up store and types · resource case',destroy_individual:'Destroy store · individual case',destroy_bulk:'Destroy store · bulk case',destroy_packed:'Destroy store · resource case',destroy_queries:'Destroy live queries'};
++const labels={create_individual:'Create individual instances',create_bulk:'Create instances in bulk',create_queries:'Create live queries',spot_color:'Sum SpotLight color',all_light_color:'Sum all light colors',all_light_color_hash:'Historical diagnostic · light lookup',health_position:'Read health + position',health_position_hash:'Historical diagnostic · health/position lookup',enemy_health_position:'Read enemy health + position',random_get_position:'Shuffled position get',random_update_first:'Shuffled position update · first write',random_update_repeat:'Shuffled position update · repeat write',add_10pct_live_queries_batch100:'Add 10% with live queries · batches of 100',remove_1pct:'Remove 1% of instances',replace_1pct:'Replace 1% of instances',all_light_after_add:'Read light colors after insertion',health_after_add:'Read health + position after insertion',health_after_churn:'Read health + position after churn',packed_populate_and_ids:'Create instances from resource blobs and collect IDs',packed_create_queries:'Create two live queries',packed_light_color:'Sum all light colors',packed_unload_no_queries:'Remove registrations · no live queries',setup_individual:'Set up store and types · individual case',setup_bulk:'Set up store and types · bulk case',setup_packed:'Set up store and types · resource case',destroy_individual:'Destroy store · individual case',destroy_bulk:'Destroy store · bulk case',destroy_packed:'Destroy store · resource case',destroy_queries:'Destroy live queries'};
+ function title(op){if(DATA.case_descriptions[op])return DATA.case_descriptions[op].title;if(labels[op])return labels[op];let m=op.match(/^explosion_r(\d+)_(filter|first|repeat)$/);if(m)return `Explosion · radius ${m[1]} · ${{filter:'filter only',first:'first damage write',repeat:'repeat damage write'}[m[2]]}`;m=op.match(/^packed_(\d+)pct_(.+)$/);if(m)return `${m[1]}% of rows written · ${{health_query:'health/position read',random_get:'shuffled scalar read',reset:'reset to defaults',update_first:'first scalar write',update_repeat:'repeat scalar write'}[m[2]]||m[2]}`;return op.replaceAll('_',' ');}
+ function get(kind,group,backend,op,rows=1000000){return DATA[kind].find(r=>r.rows===rows&&r.packed_rows===group&&r.backend===backend&&r.operation===op);}
+ function options(select,items,preferred){select.replaceChildren(...items.map(([value,text])=>{const option=document.createElement('option');option.value=value;option.textContent=text;return option;}));if(items.some(([value])=>String(value)===String(preferred)))select.value=preferred;}
+@@ -455,7 +455,7 @@
+             }).join('');
+             return `<div class="overview-group" id="latest-${section}-${group}" data-group="${group}">
+                 <div class="overview-group-head"><h3>${esc(scenario(group))}</h3><span class="small muted">${operations.length} ${kind === 'timing' ? 'tests' : 'phases'}</span></div>
+-                ${group === 0 ? '<p class="small muted" style="margin-bottom:18px">Instances are generated in memory and inserted through each library’s creation API. Defold uses one table per type: SpotLight, PointLight, Player, Enemy, Pickup and Breakable. Each row is one instance. Input generation is outside the measurement; no file loading or decoding is measured here.</p>' : `<p class="small muted" style="margin-bottom:18px">Instances reuse values from six prebuilt prototype blobs. Defold stores ${number(comparison.run.rows)} mutable rows in six shared runtime tables, across ${number(comparison.run.rows / group)} registrations. Each registration groups ${group} rows for reset/unload; it does not create a separate table or limit table capacity. Flecs and Bevy instantiate the same values. Blob preparation and loading are outside these measurements. The registration size is retained for comparison with earlier runs; alternative sizes have not been remeasured with C20.</p>`}
++                ${group === 0 ? '<p class="small muted" style="margin-bottom:18px">Instances are generated in memory and inserted through each library’s creation API. Defold uses one table per type: SpotLight, PointLight, Player, Enemy, Pickup and Breakable. Each row is one instance. Input generation is outside the measurement; no file loading or decoding is measured here.</p>' : `<p class="small muted" style="margin-bottom:18px">Instances reuse values from six prebuilt prototype blobs. Defold stores ${number(comparison.run.rows)} mutable rows in six shared runtime tables, across ${number(comparison.run.rows / group)} registrations. Each registration groups ${group} rows for reset/unload; it does not create a separate table or limit table capacity. Flecs and Bevy instantiate the same values. Blob preparation and loading are outside these measurements. The registration size is retained for comparison with earlier runs; alternative sizes have not been remeasured with shared runtime tables.</p>`}
+                 <div class="${kind === 'timing' ? 'overview-grid' : 'overview-memory-grid'}">${cards}</div>
+             </div>`;
+         }).join('');
+--- engine/data/src/test/bevy/src/main.rs
++++ engine/data/src/test/bevy/src/main.rs
+@@ -280,7 +280,8 @@
+         let mut light = Query::new(&mut store, Selection::Light);
+         let mut health = Query::new(&mut store, Selection::Health);
+         let mut enemy = Query::new(&mut store, Selection::Enemy);
+-        self.record("create_queries", start.end(), 4, Stats::default());
++        let mut explosion = Query::new(&mut store, Selection::Health);
++        self.record("create_queries", start.end(), 5, Stats::default());
+         self.read(&mut store, &mut spot, Selection::Spot, "spot_color", false);
+         self.read(
+             &mut store,
+@@ -306,7 +307,7 @@
+         store.reset(input);
+         self.query(
+             &mut store,
+-            &mut health,
++            &mut explosion,
+             Selection::Health,
+             "explosion_r50_first",
+             50,
+@@ -390,8 +391,8 @@
+         );
+         store.validate_identity(input, true);
+         let start = Measurement::begin();
+-        drop((spot, light, health, enemy));
+-        self.record_memory("destroy_queries", start.end(), 4);
++        drop((spot, light, health, enemy, explosion));
++        self.record_memory("destroy_queries", start.end(), 5);
+         self.destroy(store, "destroy_bulk");
+     }
+ 
+--- engine/data/src/test/build_benchmark_report.py
++++ engine/data/src/test/build_benchmark_report.py
+@@ -112,6 +112,8 @@
+         composition += " Public typed getter wrappers inline and forward batch/row/field arguments to the library; the unchanged benchmark still calls only the public iterator API."
+     if run.get("separate_workloads"):
+         composition += " Each workload has its own Defold/Flecs function and source file; backend/workload selection happens outside row loops."
++    if run.get("case_query_setup"):
++        composition += " Query construction lives in each C++ case file. Explosion owns a separate query with writable health and read-only position; Flecs health/position scans declare both fields read-only. All backends create five dense queries and two resource-instance queries. Creation and field binding remain outside timed traversal and are measured separately."
+     if run.get("shared_resource_tables"):
+         composition += " Defold appends mutable rows to shared tables per loaded resource, with pooled registration records and 32-bit row membership indices. The million-instance packed fixture has six physical tables and 62,500 logical registrations. Each registration still resets/unloads independently; different resource handles remain separate. Query-local field handles select cached offsets, and typed pointers access mutable bytes directly. Numeric writes allocate nothing. Packed defaults stay shared; replacement payloads belong to each registration. Decoded tables retain owned reset defaults."
+     elif run.get("mutable_instance_rows"):
+@@ -170,7 +172,7 @@
+                 lines.extend([f"Defold stores {run['rows']:,} mutable rows in six shared runtime tables, "
+                               f"across {run['rows'] // group:,} registrations of {group} rows. "
+                               "Registration size determines the reset/unload group, not physical table capacity. "
+-                              "This size is retained for comparison with earlier runs; alternatives have not been remeasured with C20.", ""])
++                              "This size is retained for comparison with earlier runs; alternatives have not been remeasured with shared runtime tables.", ""])
+             else:
+                 lines.extend([f"Historical fixture: {group} rows per Defold registration.", ""])
+             lines.extend(["Flecs and Bevy instantiate mutable copies of the same prototype values. "
+@@ -189,7 +191,7 @@
+     memory = {(r["packed_rows"], r["operation"], r["backend"]): r for r in comparison["memory"]}
+     cases = ((0, "create_bulk", "live_bytes", "Bulk creation, retained MiB"),
+              (0, "create_bulk", "requests", "Bulk creation, allocation requests"),
+-             (0, "create_queries", "change_bytes", "Create four live queries, heap change"),
++             (0, "create_queries", "change_bytes", f"Create {run.get('dense_query_count', 4)} live queries, heap change"),
+              (packed_rows, "packed_populate_and_ids", "live_bytes", "Packed population, retained MiB"),
+              (packed_rows, "packed_populate_and_ids", "requests", "Packed population, allocation requests"),
+              (packed_rows, "packed_create_queries", "requests", "Create two queries, allocation requests"),
+--- engine/data/src/test/run_benchmark_comparison.py
++++ engine/data/src/test/run_benchmark_comparison.py
+@@ -102,6 +102,8 @@
+         "row_field_iterators": False,
+         "structural_lock": True,
+         "separate_workloads": True,
++        "case_query_setup": True,
++        "dense_query_count": 5,
+         "named_field_selection": True,
+         "field_pointer_access": True,
+         "query_field_handles": True,
+@@ -110,7 +112,7 @@
+         "pooled_registration_slots": True,
+         "native_c_layout": True,
+         "file_version": 8,
+-        "traversal": "Defold holds public DataStoreLock/DataStoreUnlock across traversal (included in timing). Each workload has separate Defold/Flecs functions. Defold resolves full property paths and kinds once during query creation using DataQueryFindField; the query-local handles are reused across all batches and traversals through public typed DataFieldGet pointers with DataRowIterator. Lookup cost is included in create_queries. Instance creation copies fixed-size rows into shared dense tables per loaded resource/table. Registration handles and row membership indices use reusable pooled slots; identical source tables share query bindings across registrations. Different resource handles remain separate. The million-row packed fixture uses six runtime tables and 62,500 logical registrations. Explosion writes existing health values only for hit rows; scalar/math writes allocate nothing. Decoded tables retain added defaults; packed instances share blob defaults and payloads. Reset copies defaults into existing rows. Field order is unspecified; the hot row loop performs no name, kind or lifetime checks. Fixed rows use C offsetof/sizeof layouts; blob version 8 enforces member, struct and row-stride alignment. Flecs ecs_query_iter/ecs_query_next/ecs_field_w_size followed by C member access. Bevy QueryState::iter/iter_mut followed by Rust member access. No private ECS storage traversal.",
++        "traversal": "Defold holds public DataStoreLock/DataStoreUnlock across traversal (included in timing). Each workload has separate Defold/Flecs functions, with query construction in its case source file. Explosion owns a query separate from read-only health/position scans: Flecs declares health read/write and position read-only for Explosion, both read-only for the scan. Dense setup creates five live logical queries on all backends; packed setup creates two. Defold resolves full property paths and kinds once during query creation using DataQueryFindField; the query-local handles are reused across all batches and traversals through public typed DataFieldGet pointers with DataRowIterator. Lookup cost is included in create_queries. Instance creation copies fixed-size rows into shared dense tables per loaded resource/table. Registration handles and row membership indices use reusable pooled slots; identical source tables share query bindings across registrations. Different resource handles remain separate. The million-row packed fixture uses six runtime tables and 62,500 logical registrations. Explosion writes existing health values only for hit rows; scalar/math writes allocate nothing. Decoded tables retain added defaults; packed instances share blob defaults and payloads. Reset copies defaults into existing rows. Field order is unspecified; the hot row loop performs no name, kind or lifetime checks. Fixed rows use C offsetof/sizeof layouts; blob version 8 enforces member, struct and row-stride alignment. Flecs ecs_query_iter/ecs_query_next/ecs_field_w_size followed by C member access. Bevy QueryState::iter/iter_mut followed by Rust member access. No private ECS storage traversal.",
+         "flecs_describe": subprocess.check_output(["git", "-C", flecs_path, "describe", "--tags", "--always"], text=True).strip(),
+         "flecs_revision": subprocess.check_output(["git", "-C", flecs_path, "rev-parse", "HEAD"], text=True).strip(),
+         "bevy_version": "0.19.1 (exact crate version and transitive dependencies in Cargo.lock)",
+--- engine/docs/DATASTORE.md
++++ engine/docs/DATASTORE.md
+@@ -268,7 +268,10 @@
+ component identity. The [benchmarks and format details](../data/README.md) record
+ the current costs and remaining limitations. The current light-color,
+ health/position and Explosion benchmarks resolve field handles during query
+-creation and reuse them with typed pointers across all batches. The C20
+-[comparison](../data/benchmarks/comparisons/c20-shared-tables/RESULTS.md) measures
+-shared runtime tables and pooled registration records; C19 introduced mutable rows; C18 introduced query-lifetime handles and C17 introduced aligned
++creation and reuse them with typed pointers across all batches. Each C++ case
++defines its query in the same source file as its traversal. Explosion uses its own
++health/position query; the radius test remains in the row loop. Query creation is
++measured separately, with five dense queries and two resource-instance queries. The C21
++[comparison](../data/benchmarks/comparisons/c21-case-queries/RESULTS.md) measures
++this setup. C20 introduced shared runtime tables and pooled registration records; C19 introduced mutable rows; C18 introduced query-lifetime handles and C17 introduced aligned
+ row pointers. Historical comparisons remain separate.

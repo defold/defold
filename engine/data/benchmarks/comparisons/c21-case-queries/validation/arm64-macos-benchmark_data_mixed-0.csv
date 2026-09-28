@@ -1,0 +1,50 @@
+# packed_rows=0; packed mode repeats prototype values and groups owners; sources built/validated outside timing
+# Flecs 4.1.6; seed=305419896; samples=1; one warmup; read_passes=5; damage=25; explosion_radius=50
+# Data: inline Light + dense rows per resource table + pooled registrations + shared defaults/reset; Flecs: inline Light, mutable components; no serialization or disk I/O
+# Type percentages: SpotLight=10,PointLight=15,Player=1,Enemy=24,Pickup=25,Breakable=25; dense owners are per row; packed owners are per group
+backend,operation,rows,sample,operations,hits,batches,total_ms,ns_per_operation,checksum
+flecs_rows,create_individual,10000,1,10000,0,0,1.587000,158.700,0.000000000
+flecs_rows,create_bulk,10000,1,10000,0,0,0.052000,5.200,0.000000000
+flecs_rows,create_queries,10000,1,5,0,0,0.022000,4400.000,0.000000000
+flecs_rows,spot_color,10000,1,5000,0,5,0.004000,0.800,7468.593750000
+flecs_rows,all_light_color,10000,1,12500,0,10,0.010000,0.800,18637.109375000
+flecs_rows,health_position,10000,1,25000,0,15,0.020000,0.800,3744745.000000000
+flecs_rows,enemy_health_position,10000,1,12000,0,5,0.009000,0.750,1793865.000000000
+flecs_rows,explosion_r50_first,10000,1,5000,1253,3,0.016000,3.200,717624.000000000
+flecs_rows,shuffled_position,10000,1,10000,0,0,0.124000,12.400,3853.000000000
+flecs_rows,add_10pct_live_queries_batch100,10000,1,1000,0,0,0.010000,10.000,0.000000000
+flecs_rows,all_light_after_add,10000,1,13750,0,10,0.011000,0.800,20534.570312500
+flecs_rows,health_after_add,10000,1,27500,0,15,0.021000,0.764,4118790.000000000
+flecs_rows,remove_1pct,10000,1,100,0,0,0.005000,50.000,0.000000000
+flecs_rows,replace_1pct,10000,1,100,0,0,0.026000,260.000,0.000000000
+flecs_rows,health_after_churn,10000,1,27500,0,15,0.022000,0.800,4118790.000000000
+flecs_columns,create_individual,10000,1,10000,0,0,2.471000,247.100,0.000000000
+flecs_columns,create_bulk,10000,1,10000,0,0,0.059000,5.900,0.000000000
+flecs_columns,create_queries,10000,1,5,0,0,0.015000,3000.000,0.000000000
+flecs_columns,spot_color,10000,1,5000,0,5,0.005000,1.000,7468.593750000
+flecs_columns,all_light_color,10000,1,12500,0,10,0.009000,0.720,18637.109375000
+flecs_columns,health_position,10000,1,25000,0,15,0.019000,0.760,3744745.000000000
+flecs_columns,enemy_health_position,10000,1,12000,0,5,0.009000,0.750,1793865.000000000
+flecs_columns,explosion_r50_first,10000,1,5000,1253,3,0.014000,2.800,717624.000000000
+flecs_columns,shuffled_position,10000,1,10000,0,0,0.121000,12.100,3853.000000000
+flecs_columns,add_10pct_live_queries_batch100,10000,1,1000,0,0,0.019000,19.000,0.000000000
+flecs_columns,all_light_after_add,10000,1,13750,0,10,0.013000,0.945,20534.570312500
+flecs_columns,health_after_add,10000,1,27500,0,15,0.022000,0.800,4118790.000000000
+flecs_columns,remove_1pct,10000,1,100,0,0,0.007000,70.000,0.000000000
+flecs_columns,replace_1pct,10000,1,100,0,0,0.048000,480.000,0.000000000
+flecs_columns,health_after_churn,10000,1,27500,0,15,0.023000,0.836,4118790.000000000
+data,create_individual,10000,1,10000,0,0,0.483000,48.300,0.000000000
+data,create_bulk,10000,1,10000,0,0,0.342000,34.200,0.000000000
+data,create_queries,10000,1,5,0,0,0.008000,1600.000,0.000000000
+data,spot_color,10000,1,5000,0,5,0.004000,0.800,7468.593750000
+data,all_light_color,10000,1,12500,0,10,0.010000,0.800,18637.109375000
+data,health_position,10000,1,25000,0,15,0.031000,1.240,3744745.000000000
+data,enemy_health_position,10000,1,12000,0,5,0.015000,1.250,1793865.000000000
+data,explosion_r50_first,10000,1,5000,1253,3,0.023000,4.600,717624.000000000
+data,shuffled_position,10000,1,10000,0,0,0.367000,36.700,3853.000000000
+data,add_10pct_live_queries_batch100,10000,1,1000,0,0,0.046000,46.000,0.000000000
+data,all_light_after_add,10000,1,13750,0,10,0.011000,0.800,20534.570312500
+data,health_after_add,10000,1,27500,0,15,0.034000,1.236,4118790.000000000
+data,remove_1pct,10000,1,100,0,0,0.002000,20.000,0.000000000
+data,replace_1pct,10000,1,100,0,0,0.008000,80.000,0.000000000
+data,health_after_churn,10000,1,27500,0,15,0.034000,1.236,4118790.000000000
