@@ -32,9 +32,13 @@ an engine with the matching eight-argument reboot message.
 The selected stack frame's DAP ID is used for console evaluation. Locals and
 upvalues load when selecting a frame. The global scope appears as an expandable
 `_G` entry; globals and table children load when expanded. The console accepts
-expressions and Lua statements. Expanded variable paths, selection, and scroll
-position are retained when stepping, hitting another breakpoint, switching
-frames, or refreshing after evaluation. Matching names reopen even in a different
+expressions and Lua statements. Table-valued console results print their nested
+contents. Repeated references and tables beyond depth 16 retain their identity
+strings to bound expansion.
+
+Expanded variable paths, selection, and scroll position are retained when
+stepping, hitting another breakpoint, switching frames, or refreshing after
+evaluation. Matching names reopen even in a different
 file or function. Reopened tables use fresh DAP references and values; only the
 previously opened paths are loaded, so cyclic tables do not expand indefinitely.
 Valid Lua identifier keys are displayed directly (for example, `score`); other

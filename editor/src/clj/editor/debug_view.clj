@@ -218,8 +218,10 @@
       (console/append-console-entry! :eval-expression code)
       (future/io
         (try
-          (let [result (dap/evaluate! debug-session (:id frame) code)]
-            (doseq [line (string/split-lines (:result result))]
+          (let [snapshot (dap/suspension debug-session)
+                result (dap/evaluate! debug-session (:id frame) code)
+                output (dap/evaluation-result->string debug-session snapshot result)]
+            (doseq [line (string/split-lines output)]
               (console/append-console-entry! :eval-result line)))
           (catch Exception exception
             (console/append-console-entry! :eval-error (sanitize-eval-error (ex-message exception)))))))))

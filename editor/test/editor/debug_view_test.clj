@@ -272,6 +272,38 @@
                 :row 0
                 :condition ""}})))))
 
+;; Evaluating a table in the console prints its members off the UI thread,
+;; guarding against dropping the DAP variablesReference and showing only an address.
+(deftest table-evaluation-console-test
+  (test-support/with-clean-system
+    (let [session {:state (atom {:status :suspended :generation 1 :thread-id 7})}
+          ^ListView call-stack (ui/run-now (ListView.))
+          view (g/make-node! debug-view/DebugView :debug-session session :call-stack-view call-stack)
+          entries (atom [])]
+      (ui/run-now
+        (.add (.getItems call-stack) {:id 42})
+        (.select (.getSelectionModel call-stack) (int 0)))
+      (with-redefs [dap/request!
+                    (fn [_ command arguments]
+                      (is (not (ui/on-ui-thread?)))
+                      (case command
+                        "evaluate"
+                        (do
+                          (is (= 42 (:frameId arguments)))
+                          (is (= "{answer = 42}" (:expression arguments)))
+                          {:result "table: result" :variablesReference 1})
+
+                        "variables"
+                        {:variables [{:name "answer" :value "42" :variablesReference 0}]}))
+                    console/append-console-entry!
+                    (fn [type text] (swap! entries conj [type text]))]
+        (await! (ui/run-now (#'debug-view/on-eval-input view "{answer = 42}")))
+        (is (= [[:eval-expression "{answer = 42}"]
+                [:eval-result "{ -- table: result"]
+                [:eval-result "  answer = 42"]
+                [:eval-result "}"]]
+               @entries))))))
+
 ;; Verify attachment enables local port discovery before running the
 ;; script, and chooses the remote startup module only for remote targets.
 (deftest attach-startup-module-test
