@@ -22,12 +22,14 @@
             [editor.debugging.variables :as debugger-variables]
             [editor.defold-project :as project]
             [editor.engine :as engine]
+            [editor.future :as future]
             [editor.resource :as resource]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [support.test-support :as test-support])
-  (:import [java.util Collection]
+  (:import [java.io IOException]
+           [java.util Collection]
            [javafx.scene.control ListView TreeItem TreeView]
            [org.luaj.vm2.lib.jse JsePlatform]))
 
@@ -298,6 +300,86 @@
                       {:path expected-path}]
                      [:connect ::view ::project target true]))
              @calls)))))
+
+;; A delayed close must leave the UI responsive and honor a newer start or detach.
+(deftest replacing-debugger-session-test
+  (doseq [action [:replace :detach :newer-start :close-error]]
+    (testing (name action)
+      (test-support/with-clean-system
+        (let [old {:state (atom {:status :running})}
+              started (future/make)
+              release (future/make)
+              responsive (future/make)
+              connections (atom [])
+              errors (atom [])
+              view (g/make-node! debug-view/DebugView
+                     :debug-session old
+                     :state-changed-fn (constantly nil))
+              on-closed (:on-closed (#'debug-view/make-debugger-callbacks view))]
+          (with-redefs-fn {#'debug-view/collect-enabled-breakpoints (constantly #{})
+                           #'project/workspace (constantly ::workspace)
+                           #'workspace/project-directory (constantly (io/file "."))
+                           #'debug-view/show-connect-failed-info!
+                           (fn [exception _]
+                             (is (ui/on-ui-thread?))
+                             (swap! errors conj (ex-message exception)))
+
+                           #'dap/close!
+                           (fn [session]
+                             (future/complete! started (ui/on-ui-thread?))
+                             (await! release)
+                             (if (= :close-error action)
+                               (throw (IOException. "Close failed"))
+                               (do
+                                 (swap! (:state session) assoc :status :closed)
+                                 (on-closed session))))
+
+                           #'dap/disconnect!
+                           (fn [session]
+                             (is (not (ui/on-ui-thread?)))
+                             (swap! (:state session) assoc :status :closed)
+                             (on-closed session))
+
+                           #'dap/connect!
+                           (fn [_ _ {:keys [target]} _]
+                             (is (ui/on-ui-thread?))
+                             (is (future/done? release))
+                             (swap! connections conj target)
+                             {:state (atom {:status :running}) :target target})}
+            (fn []
+              (let [work
+                    (future/then
+                      (future/io
+                        (ui/run-now
+                          (debug-view/start-debugger! view ::project {:id "first"} false)))
+                      identity)]
+                (try
+                  (is (false? (await! started)))
+                  (ui/run-later (future/complete! responsive true))
+                  (is (= true (deref responsive 10000 ::timeout)))
+                  (when (future/done? responsive)
+                    (is (= [] @connections))
+                    (let [follow-up
+                          (case action
+                            :detach (ui/run-now (debug-view/detach! view))
+                            :newer-start (ui/run-now
+                                           (debug-view/start-debugger! view ::project {:id "newer"} true))
+                            nil)]
+                      (future/complete! release true)
+                      (await! work)
+                      (when follow-up
+                        (await! follow-up))
+                      (ui/run-now
+                        (is (nil? (g/node-value view :pending-debugger-start)))
+                        (is (= (case action
+                                 :replace [{:id "first"}]
+                                 :newer-start [{:id "newer"}]
+                                 [])
+                               @connections))
+                        (is (= (if (= :close-error action) ["Close failed"] []) @errors)))))
+                  (finally
+                    (future/complete! release true)
+                    (await! work)))))))))))
 
 ;; INFO logging suppresses the startup script's print when a listener already
 ;; exists. Reattachment must still connect using the last discovered port.

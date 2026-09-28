@@ -181,6 +181,7 @@
   (property state-changed-fn g/Any)
 
   (property debug-session g/Any)
+  (property pending-debugger-start g/Any)
   (property suspension-state g/Any)
 
   (property console-grid-pane Parent)
@@ -524,30 +525,56 @@
   (or (coll/first-where #(= (:id target) (:id %)) (targets/all-launched-targets))
       target))
 
-(defn start-debugger!
+(defn- connect-debugger!
   [debug-view project target stop-on-entry]
   (let [workspace (project/workspace project)
         resolve-port
         (fn []
           (if-let [port (:debugger-port (latest-target target))]
             (when (pos? (long port)) port)
-            (engine/debugger-port target)))]
-    (ui/run-now
-      (when-let [old (g/node-value debug-view :debug-session)]
-        (dap/close! old))
-      (let [session
-            (dap/connect! (:address target "localhost") resolve-port
-                          {:target target
-                           :local-root (.getAbsolutePath (workspace/project-directory workspace))
-                           :stop-on-entry stop-on-entry
-                           :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
-                          (assoc (make-debugger-callbacks debug-view)
-                            :on-error (fn [_session exception]
-                                        (show-connect-failed-info! exception workspace))))]
-        (g/transact
-          {:undoable false}
-          (g/set-properties debug-view :debug-session session :suspension-state nil))
-        (state-changed! debug-view false)))))
+            (engine/debugger-port target)))
+
+        session
+        (dap/connect! (:address target "localhost") resolve-port
+                      {:target target
+                       :local-root (.getAbsolutePath (workspace/project-directory workspace))
+                       :stop-on-entry stop-on-entry
+                       :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
+                      (assoc (make-debugger-callbacks debug-view)
+                        :on-error (fn [_session exception]
+                                    (show-connect-failed-info! exception workspace))))]
+    (g/transact
+      {:undoable false}
+      (g/set-properties debug-view
+        :debug-session session
+        :pending-debugger-start nil
+        :suspension-state nil))
+    (state-changed! debug-view false)))
+
+(defn start-debugger!
+  [debug-view project target stop-on-entry]
+  (ui/run-now
+    (let [old (g/node-value debug-view :debug-session)]
+      (if-not old
+        (connect-debugger! debug-view project target stop-on-entry)
+        (let [pending (Object.)]
+          (g/transact
+            {:undoable false}
+            (g/set-property debug-view :pending-debugger-start pending))
+          (future/io
+            (try
+              (dap/close! old)
+              (ui/run-now
+                ;; A newer start or a detach can supersede this delayed close.
+                (when (identical? pending (g/node-value debug-view :pending-debugger-start))
+                  (connect-debugger! debug-view project target stop-on-entry)))
+              (catch Exception exception
+                (ui/run-now
+                  (when (identical? pending (g/node-value debug-view :pending-debugger-start))
+                    (g/transact
+                      {:undoable false}
+                      (g/set-property debug-view :pending-debugger-start nil))
+                    (show-connect-failed-info! exception (project/workspace project))))))))))))
 
 (defn current-session
   ([debug-view]
@@ -626,8 +653,12 @@
 
 (defn detach!
   [debug-view]
-  (when-let [debug-session (current-session debug-view)]
-    (future/io (dap/disconnect! debug-session))))
+  (ui/run-now
+    (g/transact
+      {:undoable false}
+      (g/set-property debug-view :pending-debugger-start nil))
+    (when-let [debug-session (current-session debug-view)]
+      (future/io (dap/disconnect! debug-session)))))
 
 (defn- control-debugger! [debug-view command]
   (let [session (current-session debug-view)]
@@ -671,8 +702,7 @@
   (enabled? [debug-view evaluation-context]
     (current-session debug-view evaluation-context))
   (run [debug-view]
-    (let [session (current-session debug-view)]
-      (future/io (dap/disconnect! session)))))
+    (detach! debug-view)))
 
 (handler/defhandler :debugger.stop :global
   (enabled? [debug-view evaluation-context]
@@ -680,6 +710,9 @@
   (run [debug-view]
     (let [session (current-session debug-view)
           target (latest-target (:target session))]
+      (g/transact
+        {:undoable false}
+        (g/set-property debug-view :pending-debugger-start nil))
       (future/io
         ;; The in-process adapter only detaches. Resume Lua before asking the
         ;; engine service to exit so a paused engine can process the request.
