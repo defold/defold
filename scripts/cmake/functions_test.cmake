@@ -1,6 +1,35 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 defold_log("functions_test.cmake:")
 
 set(_DEFOLD_BUN_MIN_VERSION "1.3.13")
+
+function(_defold_configure_wasm_test target)
+  set(_pre_js "${DEFOLD_SDK_ROOT}/share/web-pre.js")
+  if(NOT EXISTS "${_pre_js}")
+    if(NOT DEFINED DEFOLD_HOME)
+      get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+    endif()
+    set(_pre_js "${DEFOLD_HOME}/share/web-pre.js")
+  endif()
+  if(EXISTS "${_pre_js}")
+    target_link_options(${target} PRIVATE "--pre-js" "${_pre_js}" "-lnodefs.js")
+  else()
+    message(FATAL_ERROR "Missing pre-js file for web test '${target}'. Checked '${DEFOLD_SDK_ROOT}/share/web-pre.js' and '${DEFOLD_HOME}/share/web-pre.js'")
+  endif()
+endfunction()
 
 set(DEFOLD_TEST_JOBS 2 CACHE STRING "Maximum concurrent native test commands")
 if(NOT DEFOLD_TEST_JOBS MATCHES "^[1-9][0-9]*$")
@@ -701,18 +730,7 @@ function(defold_register_test_target target_name)
     set(_run_target "run_${target_name}")
     if(NOT TARGET ${_run_target})
       if(TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
-        set(_pre_js "${DEFOLD_SDK_ROOT}/share/web-pre.js")
-        if(NOT EXISTS "${_pre_js}")
-          if(NOT DEFINED DEFOLD_HOME)
-            get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
-          endif()
-          set(_pre_js "${DEFOLD_HOME}/share/web-pre.js")
-        endif()
-        if(EXISTS "${_pre_js}")
-          target_link_options(${target_name} PRIVATE "--pre-js" "${_pre_js}" "-lnodefs.js")
-        else()
-          message(FATAL_ERROR "defold_register_test_target: missing pre-js file for web test '${target_name}'. Checked '${DEFOLD_SDK_ROOT}/share/web-pre.js' and '${DEFOLD_HOME}/share/web-pre.js'")
-        endif()
+        _defold_configure_wasm_test(${target_name})
       endif()
       set(_run_exe "$<TARGET_FILE:${target_name}>")
       set(_run_args "")
