@@ -22,8 +22,10 @@
             [editor.ui :as ui]
             [integration.test-util :as test-util]
             [support.test-support :as test-support])
-  (:import [javafx.scene Scene]
-           [javafx.scene.control ComboBox ContextMenu ListView Menu MenuBar MenuItem SelectionMode Tab TabPane TreeItem TreeView]
+  (:import [java.util ArrayDeque]
+           [javafx.animation AnimationTimer]
+           [javafx.scene Node Scene]
+           [javafx.scene.control ComboBox ContextMenu ListView Menu MenuBar MenuItem SelectionMode SplitPane Tab TabPane TreeItem TreeView]
            [javafx.scene.control.skin TabPaneSkin]
            [javafx.scene.layout Pane VBox]))
 
@@ -40,6 +42,136 @@
     (f)))
 
 (use-fixtures :each fixture)
+
+(defn- run-pending! [^ArrayDeque pending]
+  (while (not (.isEmpty pending))
+    ((.remove pending))))
+
+;; Verifies that hidden, detached, and disposed views stop ticking and discard queued
+;; work. Deferring refresh also prevents mutation during JavaFX child traversal.
+(deftest node-timer-lifecycle-test
+  (ui/run-now
+    (let [stage (ui/main-stage)
+          root (ui/main-root)
+          parent (Pane.)
+          node (Pane.)
+          running-timers (atom #{})
+          pending (ArrayDeque.)
+          data (atom :initial)
+          ticks (atom [])]
+      (ui/children! root [parent])
+      (ui/children! parent [node])
+      (with-redefs [ui/timer-start! #(swap! running-timers conj %)
+                    ui/timer-stop! #(swap! running-timers disj %)
+                    ui/do-run-later #(.add pending %)]
+        (let [dispose!
+              (ui/node-timer!
+                node nil "lifecycle-test"
+                (fn [elapsed-time]
+                  (swap! ticks conj [@data elapsed-time])
+                  (ui/add-child! parent (Pane.))))]
+          (try
+            (is (= [] @ticks))
+            (is (= #{} @running-timers))
+            (.show stage)
+            (run-pending! pending)
+            (is (= [:initial] (mapv first @ticks)))
+            (is (= 1 (count @running-timers)))
+
+            (let [timer (first @running-timers)]
+              ;; Advance past the unfocused interval without relying on wall-clock time.
+              (.handle ^AnimationTimer (:timer timer) (+ (long @(:last timer)) 1000000000))
+              (is (= 1 (.size pending)))
+              (.setVisible parent false)
+              (run-pending! pending)
+              (is (= [:initial] (mapv first @ticks)))
+              (is (= #{} @running-timers)))
+
+            (reset! data :updated-while-hidden)
+            (.setVisible parent true)
+            (run-pending! pending)
+            (is (= [:initial :updated-while-hidden] (mapv first @ticks)))
+            (is (apply <= (mapv second @ticks)))
+            (is (= 1 (count @running-timers)))
+
+            (ui/children! parent [])
+            (is (= #{} @running-timers))
+            (ui/children! parent [node])
+            (run-pending! pending)
+            (is (= 3 (count @ticks)))
+            (is (= 1 (count @running-timers)))
+
+            (.hide stage)
+            (is (= #{} @running-timers))
+            (.show stage)
+            (run-pending! pending)
+            (is (= 4 (count @ticks)))
+            (is (= 1 (count @running-timers)))
+
+            (let [timer (first @running-timers)]
+              (.handle ^AnimationTimer (:timer timer) (+ (long @(:last timer)) 1000000000))
+              (is (= 1 (.size pending)))
+              (dispose!)
+              (run-pending! pending))
+            (is (= #{} @running-timers))
+            (.setVisible parent false)
+            (.setVisible parent true)
+            (run-pending! pending)
+            (is (= 4 (count @ticks)))
+            (is (= #{} @running-timers))
+            (finally
+              (dispose!)
+              (.hide stage))))))))
+
+;; Verifies that each visible split pane keeps its timer regardless of focus,
+;; while switching tabs suspends the hidden view and queues a refresh of its replacement.
+(deftest node-timer-split-tabs-test
+  (ui/run-now
+    (let [stage (ui/main-stage)
+          nodes [(Pane.) (Pane.) (Pane.)]
+          [left hidden right] nodes
+          left-tab (Tab. "Left" left)
+          hidden-tab (Tab. "Hidden" hidden)
+          left-pane (doto (TabPane.)
+                      (-> .getTabs (.addAll [left-tab hidden-tab])))
+          right-pane (doto (TabPane.)
+                       (-> .getTabs (.add (Tab. "Right" right))))
+          running-timers (atom #{})
+          pending (ArrayDeque.)
+          ticks (atom {})]
+      (.setSkin left-pane (TabPaneSkin. left-pane))
+      (.setSkin right-pane (TabPaneSkin. right-pane))
+      (ui/children! (ui/main-root) [(SplitPane. (into-array Node [left-pane right-pane]))])
+      (with-redefs [ui/timer-start! #(swap! running-timers conj %)
+                    ui/timer-stop! #(swap! running-timers disj %)
+                    ui/do-run-later #(.add pending %)]
+        (let [disposers
+              (mapv (fn [node]
+                      (ui/node-timer!
+                        node nil "split-tabs-test"
+                        (fn [_elapsed-time]
+                          (swap! ticks update node (fnil inc 0)))))
+                    nodes)]
+          (try
+            (.show stage)
+            (run-pending! pending)
+            (is (= {left 1 right 1} @ticks))
+            (is (= 2 (count @running-timers)))
+            (.requestFocus right-pane)
+            (is (= 2 (count @running-timers)))
+            (.. left-pane getSelectionModel (select hidden-tab))
+            (run-pending! pending)
+            (is (= {left 1 right 1 hidden 1} @ticks))
+            (is (= 2 (count @running-timers)))
+            (.. left-pane getSelectionModel (select left-tab))
+            (run-pending! pending)
+            (is (= {left 2 right 1 hidden 1} @ticks))
+            (is (= 2 (count @running-timers)))
+            (.hide stage)
+            (is (= #{} @running-timers))
+            (finally
+              (doseq [dispose! disposers] (dispose!))
+              (.hide stage))))))))
 
 (deftest extend-menu-test
   (handler/register-menu! ::menubar

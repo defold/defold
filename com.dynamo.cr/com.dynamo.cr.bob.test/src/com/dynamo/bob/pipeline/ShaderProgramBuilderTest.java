@@ -66,7 +66,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     private static ShaderDesc.Language getDefaultPlatformShaderLanguage() {
         Platform platform = Platform.getHostPlatform();
         if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
-            return ShaderDesc.Language.LANGUAGE_SPIRV;
+            return ShaderDesc.Language.LANGUAGE_MSL_22;
         }
         return getPlatformGLSLLanguage();
     }
@@ -516,13 +516,13 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testDefaultShaderLanguagesForPlatforms() throws Exception {
         Object[][] platformLanguages = new Object[][] {
-            { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
-            { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
+            { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
-            { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.WasmWeb,        new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
@@ -539,18 +539,29 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testSimulatorAlwaysUsesMetal() throws Exception {
+        String adapters = Project.getShaderAdaptersOption(Platform.Arm64IosSim, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterOpenGL", "GraphicsAdapterVulkan"),
+                             "excludeSymbols", List.of("GraphicsAdapterMetal"))));
+        assertEquals("metal", adapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.Arm64IosSim, "opengles,vulkan", "simulator_metal"),
+            ShaderDesc.Language.LANGUAGE_MSL_22);
+    }
+
+    @Test
     public void testManifestShaderLanguages() throws Exception {
         String shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
             platformSettings("symbols", List.of("GraphicsAdapterOpenGL"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_both"),
             ShaderDesc.Language.LANGUAGE_GLSL_SM330,
-            ShaderDesc.Language.LANGUAGE_SPIRV);
+            ShaderDesc.Language.LANGUAGE_MSL_22);
 
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
             platformSettings(
                 "symbols", List.of("GraphicsAdapterOpenGL"),
-                "excludeLibs", List.of("graphics_vulkan"))));
+                "excludeLibs", List.of("graphics_metal"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_gl"),
             ShaderDesc.Language.LANGUAGE_GLSL_SM330);
@@ -593,7 +604,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         }
 
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
-            platformSettings("excludeSymbols", List.of("GraphicsAdapterVulkan"))));
+            platformSettings("excludeSymbols", List.of("GraphicsAdapterMetal"))));
         assertEquals("", shaderAdapters);
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_no_adapters"));
@@ -618,6 +629,29 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_metal_lib"),
             ShaderDesc.Language.LANGUAGE_MSL_22);
+    }
+
+    @Test
+    public void testVulkanAppManifestConfiguresSpirvShaders() throws Exception {
+        for (Platform platform : List.of(Platform.X86_64MacOS, Platform.Arm64MacOS)) {
+            getProject().setOption("platform", platform.getPair());
+            getProject().setOption("architectures", platform.getPair());
+            getProject().getProjectProperties().putStringValue("native_extension", "app_manifest", "vulkan.appmanifest");
+            addFile("/vulkan.appmanifest",
+                "platforms:\n" +
+                "  osx:\n" +
+                "    context:\n" +
+                "      libs: [graphics_vulkan, platform_vulkan, MoltenVK]\n" +
+                "      symbols: [GraphicsAdapterVulkan]\n" +
+                "      excludeLibs: [graphics_metal, platform]\n" +
+                "      excludeSymbols: [GraphicsAdapterMetal]\n");
+            getProject().configurePreBuildProjectOptions();
+            String shaderAdapters = getProject().option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
+            assertEquals("vulkan", shaderAdapters);
+            checkOnlyExpectedLanguages(
+                compileShaderForPlatform(platform, shaderAdapters, "manifest_vulkan_" + platform.getArch()),
+                ShaderDesc.Language.LANGUAGE_SPIRV);
+        }
     }
 
     @Test

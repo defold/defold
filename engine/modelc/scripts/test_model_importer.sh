@@ -17,7 +17,8 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 eval $(python $SCRIPT_DIR/../../../build_tools/set_sdk_vars.py VERSION_XCODE)
 pushd $SCRIPT_DIR/..
-BUILD_DIR=$(realpath ${DYNAMO_HOME}/../../engine/modelc/build/src)
+PLATFORM=$(PYTHONPATH="$SCRIPT_DIR/../../../build_tools" python3 -c 'import sdk; print(sdk.get_host_platform())')
+BUILD_DIR="$SCRIPT_DIR/../build/$PLATFORM"
 
 set -e
 
@@ -37,13 +38,13 @@ elif [[ "$OSTYPE" == "win32" ]]; then
     SUFFIX=.dll
 fi
 
-MODELIMPORTER_SHARED_LIB=./build/src/lib${LIBNAME}${SUFFIX}
+MODELIMPORTER_SHARED_LIB=${BUILD_DIR}/lib${LIBNAME}${SUFFIX}
 if [ -z "${MODELIMPORTER_SHARED_LIB}" ]; then
     echo "Couldn't find the shared library!"
 fi
 echo "Found ${MODELIMPORTER_SHARED_LIB}"
 
-JAR=$(find . -iname "*.jar")
+JAR=${BUILD_DIR}/modelimporter.jar
 if [ -z "${JAR}" ]; then
     echo "Couldn't find the jar file!"
 fi

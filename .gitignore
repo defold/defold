@@ -2,8 +2,6 @@
 /tmp
 /.defold-platforms
 .DS_Store
-.lock-wscript
-.lock-waf*
 /share/ext/build
 /share/ext/download
 /share/ext/tremolo/tmp/

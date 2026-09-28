@@ -166,6 +166,9 @@ namespace dmRender
         uint32_t            m_StringOffset;
         uint32_t            m_OutlineColor;
         uint32_t            m_ShadowColor;
+        // Keep effect alpha in float until the per-glyph style has been applied.
+        float               m_OutlineAlpha;
+        float               m_ShadowAlpha;
         uint32_t            m_RenderOrder;
         uint8_t             m_NumRenderConstants;
         bool                m_LineBreak;

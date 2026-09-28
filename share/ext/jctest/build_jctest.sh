@@ -16,7 +16,7 @@
 
 
 readonly PRODUCT=jctest
-readonly VERSION=0.14
+readonly VERSION=0.15
 readonly BASE_URL=https://github.com/JCash/jctest/archive/refs/tags
 readonly FILE_URL=v${VERSION}.tar.gz
 
@@ -39,7 +39,7 @@ function cmi_make() {
     mkdir ${PREFIX}/lib
 
     pwd
-    cp -v src/jc_test.h ${PREFIX}/include/jc_test
+    cp -v src/jc_test.h src/jc_test.hpp ${PREFIX}/include/jc_test
 }
 
 function cmi_package_platform() {

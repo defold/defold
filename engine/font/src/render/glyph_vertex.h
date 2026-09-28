@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dlib/endian.h>
+#include <dlib/math.h>
 #include <dlib/vmath.h>
 #include <dmsdk/font/font.h>
 #include <dmsdk/font/text_layout.h>
@@ -71,14 +72,15 @@ struct FontDecorationSegment
     float m_Length;
 };
 
-// Converts a final unit RGBA color to the normalized byte format used by font
+// Converts a final RGBA color to the normalized byte format used by font
 // vertices. Call this after applying all styles and animated effects.
+// Clamp alpha only after combining component alpha with the per-glyph style.
 static inline uint32_t FontPackColor(const dmVMath::Vector4& color)
 {
     const uint8_t r = (uint8_t)(color[0] * 255.0f);
     const uint8_t g = (uint8_t)(color[1] * 255.0f);
     const uint8_t b = (uint8_t)(color[2] * 255.0f);
-    const uint8_t a = (uint8_t)(color[3] * 255.0f);
+    const uint8_t a = (uint8_t)(dmMath::Clamp(color[3], 0.0f, 1.0f) * 255.0f);
 
 #if DM_ENDIAN == DM_ENDIAN_LITTLE
     return (uint32_t)a << 24 | (uint32_t)b << 16 | (uint32_t)g << 8 | r;

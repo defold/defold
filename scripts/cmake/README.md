@@ -79,6 +79,14 @@ When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-u
 matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
 
+macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
+include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;
+pass `--with-metal` (or `WITH_METAL=ON`) to include Metal on those devices.
+The iOS simulator (`arm64_sim-ios`) always uses Metal, regardless of graphics
+backend options. App manifest graphics selections
+control the bundled adapters and Bob's shader formats: Metal uses MSL, while
+Vulkan uses SPIR-V.
+
 `WITH_HWASAN=ON` enables HWAddressSanitizer for `arm64-android`, including shared
 libc++ linkage. It cannot be combined with other sanitizers. See the
 [Android HWASan workflow](../mobile/README_ANDROID.md#hwasan-android-14-arm64)
@@ -86,17 +94,18 @@ for building and repacking an APK for Android 14 or newer.
 
 ## Invocation
 
-After `install_ext`, run `./scripts/build.py --platform=<platform> build_ext`
-before the first engine build. This builds Bullet, Basis Universal, and,
+Run `./scripts/build.py --platform=<platform> install_ext` before the first
+engine build, with the platform SDK already set up. It installs the prepackaged
+dependencies, then builds Bullet, Basis Universal, LZ4, and,
 on iOS, GLFW with the same platform toolchain and installs them into
-`tmp/dynamo_home/ext`. Re-run it when those sources or the toolchain change.
-Its persistent CMake cache lives under `external/build/<platform>` and is
+`tmp/dynamo_home/ext`. Run `install_ext` again when those sources or the toolchain
+change. Its persistent CMake cache lives under `external/build/<platform>` and is
 separate from the engine build to keep normal rebuilds fast.
 
-Both `arm64-ios` and `arm64_sim-ios` always build GLFW from source in `build_ext`.
-Their `install_ext` package lists do not include a prebuilt GLFW archive. CI runs
-`build_ext` before `build_engine`, and the platform SDK includes the resulting
-library. Local builds must follow the same sequence.
+Both `arm64-ios` and `arm64_sim-ios` always build GLFW from source during `install_ext`.
+Their `install_ext` package lists do not include a prebuilt GLFW archive.
+`install_ext` builds the library before `build_engine` consumes it, and the
+platform SDK includes the resulting library.
 
 `scripts/build.py build_engine` configures from the top-level `CMakeLists.txt`,
 with one CMake cache under `engine/build/<platform>`. Each engine library still
@@ -107,7 +116,7 @@ For local shorthand, the host platform, release-with-debug-symbols build type,
 and tests are all defaulted:
 
 ```bash
-./scripts/build.py --platform=arm64-macos build_ext
+./scripts/build.py --platform=arm64-macos install_ext
 cmake -S . -B engine/build/arm64-macos
 cmake --build engine/build/arm64-macos --target all build_tests install
 cmake --build engine/build/arm64-macos --target run_tests
