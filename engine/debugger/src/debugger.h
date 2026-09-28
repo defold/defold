@@ -35,6 +35,12 @@ namespace dmDebugger
     typedef bool (*UserdataTableResolver)(lua_State* L, int index);
     void SetUserdataTableResolver(HDebugger debugger, UserdataTableResolver resolver);
 
+    // An optional host formatter for known userdata. Write a NUL-terminated
+    // representation and return true, or return false for the default display.
+    // Preserve the Lua stack and never execute application code or raise errors.
+    typedef bool (*UserdataFormatter)(lua_State* L, int index, char* buffer, uint32_t buffer_size);
+    void SetUserdataFormatter(HDebugger debugger, UserdataFormatter formatter);
+
     // Remove states before lua_close. A debugger does not own its Lua states.
     void AddLuaState(HDebugger debugger, lua_State* L, const char* name);
     void RemoveLuaState(HDebugger debugger, lua_State* L);

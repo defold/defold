@@ -200,8 +200,11 @@ different keys. Pass the displayed name back to `setVariable`. Inspection avoids
 calling user metamethods. The engine adapter
 expands game-object, GUI, and render script instances using their backing data
 tables. Their `self` fields support expansion, hover, completion, and editing,
-including in suspended coroutines. Other userdata and functions are displayed
-with their type and identity. Frame and variable references become invalid on
+including in suspended coroutines. Vectors, quaternions, matrices, hashes, and
+URLs show their engine values without invoking `__tostring`. Userdata table keys
+retain their identities so equal component values remain distinct keys. Other
+userdata and functions are displayed with their type and identity.
+Frame and variable references become invalid on
 resume; old IDs are rejected even at a later stop.
 
 Displayed strings and string keys are editable Lua literals. Readable UTF-8 is

@@ -124,6 +124,7 @@ namespace dmDebugger
         dmArray<Frame>        m_Frames;
         dmArray<Reference>    m_References;
         UserdataTableResolver m_UserdataTableResolver;
+        UserdataFormatter     m_UserdataFormatter;
         char*                 m_LocalRoot;
         Buffer                m_Exception;
         uint64_t              m_CloseDeadline;
@@ -172,7 +173,7 @@ namespace dmDebugger
     void       CaptureFrames(Debugger* d);
     int        StackDepth(lua_State* L);
     void       ClientPath(Debugger* d, const char* source, Buffer& path);
-    void       FormatValue(lua_State* L, int index, Buffer& value);
+    void       FormatValue(Debugger* d, lua_State* L, int index, Buffer& value);
     void       QuoteLuaString(const char* text, uint32_t size, Buffer& value);
     void       Output(Debugger* d, const char* text);
     // Evaluation leaves exactly one result (or error string) on the stack.
