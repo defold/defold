@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include <dlib/thread.h>
 
 using namespace dmVMath;
 
@@ -959,8 +960,8 @@ TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**)&font));
     ASSERT_NE((void*)0, font);
 
-    // Occupy the only worker thread so both prewarm requests remain pending
-    // until the two script instances have been created and destroyed/reused.
+    // Occupy the worker so both requests remain pending during instance reuse.
+    // Without workers they already remain pending until JobSystemUpdate().
     int32_t blocker_started = 0;
     int32_t blocker_allow_finish = 0;
     Job blocker = {};
@@ -968,16 +969,19 @@ TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
     blocker.m_Context = &blocker_started;
     blocker.m_Data = &blocker_allow_finish;
 
-    HJob blocker_job = JobSystemCreateJob(m_JobContext, &blocker);
-    ASSERT_NE((HJob)0, blocker_job);
-    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobContext, blocker_job));
-
-    uint64_t blocker_stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (!dmAtomicGet32(&blocker_started) && dmTime::GetMonotonicTime() < blocker_stop_time)
+    if (dmThread::PlatformHasThreadSupport())
     {
-        dmTime::Sleep(1000);
+        HJob blocker_job = JobSystemCreateJob(m_JobContext, &blocker);
+        ASSERT_NE((HJob)0, blocker_job);
+        ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobContext, blocker_job));
+
+        uint64_t blocker_stop_time = dmTime::GetMonotonicTime() + 500000;
+        while (!dmAtomicGet32(&blocker_started) && dmTime::GetMonotonicTime() < blocker_stop_time)
+        {
+            dmTime::Sleep(1000);
+        }
+        ASSERT_EQ(1, dmAtomicGet32(&blocker_started));
     }
-    ASSERT_EQ(1, dmAtomicGet32(&blocker_started));
 
     // The first instance starts a prewarm request. Its Lua callback remembers
     // this instance's context-table reference plus callback/self indices.
