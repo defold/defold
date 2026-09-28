@@ -2670,6 +2670,7 @@ form.help.material.vertex-space = Controls whether vertices reach the vertex pro
 form.label.material.max-page-count = Max Atlas Pages
 form.help.material.max-page-count = Maximum paged-atlas pages supported by this material's fallback samplers on graphics APIs without texture arrays. It must cover every assigned paged atlas. This is not a general texture-array layer limit and does not page an atlas by itself; use `0` for ordinary textures.
 form.table-2panel.select-row = Select a row to edit it.
+form.table-2panel.add-row = Add a row to edit it.
 
 form.label.compute = Compute
 form.label.compute.compute-program = Program

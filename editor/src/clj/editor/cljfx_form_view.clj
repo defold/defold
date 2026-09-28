@@ -1619,7 +1619,7 @@
                                         (:panel-form field))
                                       :sections
                                       (update-in [0 :fields] #(into [panel-key] %))))
-                reset-column-width (if (coll/some form/optional-field? item-fields) line-height 0)]
+                reset-column-width (if (coll/any? form/optional-field? item-fields) line-height 0)]
             ;; One grid for all rows, so the label column fits the widest label.
             {:fx/type fx.grid-pane/lifecycle
              :hgap 8
@@ -1665,7 +1665,11 @@
                             [selected-item-fields]
                             [{:fx/type fx.label/lifecycle
                               :opacity 0.6
-                              :text (localization-state (localization/message "form.table-2panel.select-row"))}])}]}
+                              :text (localization-state
+                                      (localization/message
+                                        (if (coll/empty? value)
+                                          "form.table-2panel.add-row"
+                                          "form.table-2panel.select-row")))}])}]}
       buttons]}))
 
 ;; endregion
