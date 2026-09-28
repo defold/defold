@@ -317,6 +317,40 @@
         (is (nil? (dap/suspension session)))
         (is (nil? (dap/stack session nil)))))))
 
+;; A resume during scope or variable retrieval invalidates every returned reference.
+(deftest stale-frame-variables-test
+  (doseq [resume-command ["scopes" "variables"]]
+    (testing (str "Resume during " resume-command)
+      (with-adapter
+        {}
+        (fn [{:keys [command] :as request} _ out _]
+          (when (= resume-command command)
+            (event! out "continued" {:threadId 7}))
+          (case command
+            "threads"
+            (respond! out request {:threads [{:id 7 :name "Lua"}]})
+
+            "pause"
+            (do
+              (respond! out request {})
+              (event! out "stopped" {:threadId 7 :reason "pause"}))
+
+            "scopes"
+            (respond! out request
+                      {:scopes [{:name "Locals" :variablesReference 10 :expensive false}
+                                {:name "Globals" :variablesReference 20 :expensive true}]})
+
+            "variables"
+            (respond! out request
+                      {:variables [{:name "old" :value "table" :variablesReference 30}]})))
+        (fn [session _ events]
+          (dap/control! session "pause")
+          (let [[event snapshot] (take-event! events)]
+            (is (= :stopped event))
+            (is (nil? (dap/frame-variables session snapshot 42)))
+            (is (= [:continued] (take-event! events)))
+            (is (nil? (dap/suspension session)))))))))
+
 ;; Verify out-of-order responses reach the correct requests, output events remain
 ;; separate, request errors preserve the connection, and disconnect cancels pending work.
 (deftest responses-and-disconnect-test

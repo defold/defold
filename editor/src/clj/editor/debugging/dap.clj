@@ -435,23 +435,26 @@
 
 (defn frame-variables [session snapshot frame-id]
   (when (and snapshot (= snapshot (suspension session)))
-    (let [scopes (:scopes (request! session "scopes" {:frameId frame-id}))]
-      ;; Keep locals/upvalues flat and fetch globals only when _G is expanded.
-      (into []
-            (mapcat (fn [{:keys [name variablesReference expensive]}]
-                      (cond
-                        (= "Globals" name)
-                        [{:name "_G"
-                          :value "table"
-                          :type "table"
-                          :variablesReference variablesReference}]
+    (let [scopes (:scopes (request! session "scopes" {:frameId frame-id}))
+          ;; Keep locals/upvalues flat and fetch globals only when _G is expanded.
+          result
+          (into []
+                (mapcat (fn [{:keys [name variablesReference expensive]}]
+                          (cond
+                            (= "Globals" name)
+                            [{:name "_G"
+                              :value "table"
+                              :type "table"
+                              :variablesReference variablesReference}]
 
-                        expensive
-                        []
+                            expensive
+                            []
 
-                        :else
-                        (variables session snapshot variablesReference))))
-            scopes))))
+                            :else
+                            (variables session snapshot variablesReference))))
+                scopes)]
+      (when (= snapshot (suspension session))
+        result))))
 
 (defn evaluate! [session frame-id expression]
   (request! session "evaluate"
