@@ -68,7 +68,7 @@
       (.write bytes)
       (.flush))))
 
-(defn state [session]
+(defn status [session]
   (:status @(:state session)))
 
 (defn suspension [session]
@@ -99,13 +99,13 @@
 
 (defn- fail! [{:keys [write-lock] :as session} exception]
   (locking write-lock
-    (when-not (= :closed (state session))
+    (when-not (= :closed (status session))
       (notify! session :on-error exception)
       (close! session))))
 
 (defn- send-request! [{:keys [write-lock] :as session} command arguments]
   (locking write-lock
-    (when (= :closed (state session))
+    (when (= :closed (status session))
       (throw (IOException. "Debugger disconnected")))
     (let [sequence-number (swap! (:next-seq session) inc)
           response (promise)]
@@ -148,7 +148,7 @@
 
 (defn- handle-event! [{:keys [write-lock] :as session} {:keys [event body]}]
   (locking write-lock
-    (when-not (= :closed (state session))
+    (when-not (= :closed (status session))
       (case event
         "initialized"
         (deliver (:initialized session) true)
@@ -185,7 +185,7 @@
     (try
       (let [in (BufferedInputStream. (.getInputStream socket))]
         (loop []
-          (when-not (= :closed (state session))
+          (when-not (= :closed (status session))
             (let [message (read-message! in)]
               (case (:type message)
                 "response"
@@ -208,11 +208,11 @@
                 (throw (IOException. "Unknown debugger message type"))))
             (recur))))
       (catch EOFException exception
-        (if (= :connecting (state session))
+        (if (= :connecting (status session))
           (fail! session exception)
           (close! session)))
       (catch SocketException exception
-        (if (= :connecting (state session))
+        (if (= :connecting (status session))
           (fail! session exception)
           (close! session)))
       (catch Exception exception
@@ -237,7 +237,7 @@
   [session breakpoints]
   (reset! (:desired-breakpoints session) breakpoints)
   (future/io
-    (when (#{:running :suspended} (state session))
+    (when (#{:running :suspended} (status session))
       (try
         (sync-breakpoints! session)
         (catch Exception exception
@@ -246,7 +246,7 @@
 (defn- connect-socket! [session address resolve-port]
   (let [deadline (+ (System/nanoTime) (* 1000000 request-timeout-ms))]
     (loop []
-      (when (= :closed (state session))
+      (when (= :closed (status session))
         (throw (IOException. "Debugger connection cancelled")))
       (let [port (resolve-port)
             socket (Socket.)
@@ -261,7 +261,7 @@
                       (.close socket)
                       exception))]
         (if-not error
-          (if-not (= :closed (state session))
+          (if-not (= :closed (status session))
             socket
             (do
               (.close socket)
@@ -318,7 +318,7 @@
                  #(cond-> %
                     (= :connecting (:status %))
                     (assoc :status :running)))
-          (when-not (= :closed (state session))
+          (when-not (= :closed (status session))
             (sync-breakpoints! session)
             (notify! session :on-connected)))
         (catch Exception exception
@@ -328,7 +328,7 @@
 (defn disconnect! [session]
   (future/io
     (try
-      (when (#{:running :suspended} (state session))
+      (when (#{:running :suspended} (status session))
         (request! session "disconnect" {:terminateDebuggee false}))
       (finally
         (close! session)))))
@@ -340,7 +340,7 @@
                           (:id (first (:threads (request! session "threads" {})))))]
         (request! session command {:threadId thread-id}))
       (catch Exception exception
-        (when-not (= :closed (state session))
+        (when-not (= :closed (status session))
           (notify! session :on-error exception))))))
 
 (defn- source-path->project-path [local-root path]

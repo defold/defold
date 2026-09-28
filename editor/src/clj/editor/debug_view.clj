@@ -477,7 +477,7 @@
    :on-resumed (fn [debug-session]
                  (ui/run-later
                    (when (and (identical? debug-session (g/node-value debug-view :debug-session))
-                              (= :running (dap/state debug-session)))
+                              (= :running (dap/status debug-session)))
                      (g/transact
                        {:undoable false}
                        (g/set-property debug-view :suspension-state nil))
@@ -614,7 +614,7 @@
 
 (handler/defhandler :debugger.break :global
   (enabled? [debug-view evaluation-context]
-    (= :running (some-> (current-session debug-view evaluation-context) dap/state)))
+    (= :running (some-> (current-session debug-view evaluation-context) dap/status)))
   (run [debug-view] (dap/control! (current-session debug-view) "pause")))
 
 (handler/defhandler :debugger.continue :global
@@ -624,22 +624,22 @@
   (active? [debug-view evaluation-context]
     (debugging? debug-view evaluation-context))
   (enabled? [debug-view evaluation-context]
-    (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
   (run [debug-view] (dap/control! (current-session debug-view) "continue")))
 
 (handler/defhandler :debugger.step-over :global
   (enabled? [debug-view evaluation-context]
-    (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
   (run [debug-view] (dap/control! (current-session debug-view) "next")))
 
 (handler/defhandler :debugger.step-into :global
   (enabled? [debug-view evaluation-context]
-    (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
   (run [debug-view] (dap/control! (current-session debug-view) "stepIn")))
 
 (handler/defhandler :debugger.step-out :global
   (enabled? [debug-view evaluation-context]
-    (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
   (run [debug-view] (dap/control! (current-session debug-view) "stepOut")))
 
 (handler/defhandler :debugger.detach :global
