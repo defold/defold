@@ -32,7 +32,7 @@ import com.dynamo.proto.DdfStruct.Struct;
 import com.dynamo.proto.DdfStruct.Value;
 
 @ProtoParams(srcClass = Data.class, messageClass = Data.class)
-@BuilderParams(name="Light", inExts={".point_light", ".directional_light", ".spot_light", ".ambient_light"}, outExt=".lightc")
+@BuilderParams(name="Light", inExts={".point_light", ".directional_light", ".spot_light", ".ambient_light", ".area_light"}, outExt=".lightc")
 public class LightBuilder extends ProtoBuilder<Data.Builder> {
 
     private static final double MAX_LIGHT_CONE_ANGLE_DEGREES = 180.0;
@@ -47,6 +47,7 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
         ResourceUtil.registerMapping(".directional_light", ".directional_light" + LIGHTC_EXT);
         ResourceUtil.registerMapping(".spot_light", ".spot_light" + LIGHTC_EXT);
         ResourceUtil.registerMapping(".ambient_light", ".ambient_light" + LIGHTC_EXT);
+        ResourceUtil.registerMapping(".area_light", ".area_light" + LIGHTC_EXT);
     }
 
     private static Value getRequiredFieldValue(IResource resource, Struct struct, String fieldName) throws CompileExceptionError {
@@ -65,7 +66,19 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
         return value.getNumber();
     }
 
-    private static void validateLightColorField(IResource resource, Struct struct) throws CompileExceptionError {
+    private static double validateFiniteNumber(IResource resource, String fieldName, double number) throws CompileExceptionError {
+        // Light values are converted to floats when the engine loads the resource.
+        if (!Float.isFinite((float) number)) {
+            throw new CompileExceptionError(resource, 0, String.format("field '%s' must contain finite numbers within the float range", fieldName));
+        }
+        return number;
+    }
+
+    private static double getRequiredFiniteNumberField(IResource resource, Struct struct, String fieldName) throws CompileExceptionError {
+        return validateFiniteNumber(resource, fieldName, getRequiredNumberField(resource, struct, fieldName));
+    }
+
+    private static void validateLightColorField(IResource resource, Struct struct, boolean requireFinite) throws CompileExceptionError {
         Value value = getRequiredFieldValue(resource, struct, "color");
         if (value.getKindCase() != Value.KindCase.LIST) {
             throw new CompileExceptionError(resource, 0, "field 'color' must be a list of 3 numbers");
@@ -80,6 +93,9 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
         for (Value component : color.getValuesList()) {
             if (component.getKindCase() != Value.KindCase.NUMBER) {
                 throw new CompileExceptionError(resource, 0, "field 'color' must contain only numbers");
+            }
+            if (requireFinite) {
+                validateFiniteNumber(resource, "color", component.getNumber());
             }
         }
     }
@@ -99,8 +115,11 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
         Struct.Builder lightDataBuilder = getLightDataStructBuilder(resource, messageBuilder);
         Struct lightData = lightDataBuilder.build();
 
-        validateLightColorField(resource, lightData);
-        double intensity = Math.max(0.0, getRequiredNumberField(resource, lightData, "intensity"));
+        boolean areaLight = lightTypeTag.equals("area_light");
+        validateLightColorField(resource, lightData, areaLight);
+        double intensity = Math.max(0.0, areaLight
+                ? getRequiredFiniteNumberField(resource, lightData, "intensity")
+                : getRequiredNumberField(resource, lightData, "intensity"));
         setNumberField(lightDataBuilder, "intensity", intensity);
 
         switch (lightTypeTag) {
@@ -111,6 +130,13 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
             {
                 double range = Math.max(0.0, getRequiredNumberField(resource, lightData, "range"));
                 setNumberField(lightDataBuilder, "range", range);
+                return;
+            }
+            case "area_light":
+            {
+                for (String field : new String[] {"range", "width", "height"}) {
+                    setNumberField(lightDataBuilder, field, Math.max(0.0, getRequiredFiniteNumberField(resource, lightData, field)));
+                }
                 return;
             }
             case "spot_light":
@@ -149,6 +175,8 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
                 return "spot_light";
             case "ambient_light":
                 return "ambient_light";
+            case "area_light":
+                return "area_light";
             default:
                 throw new IllegalArgumentException("Unsupported light resource extension: " + ext);
         }

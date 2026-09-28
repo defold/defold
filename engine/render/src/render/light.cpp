@@ -24,9 +24,9 @@ namespace dmRender
     static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
     static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
 
-    static void CommitLightInstance(HRenderContext render_context, const LightInstance* instance, dmVMath::Point3 position, dmVMath::Vector3 direction, float scale);
+    static void CommitLightInstance(HRenderContext render_context, const LightInstance* instance, dmVMath::Point3 position, dmVMath::Quat rotation, dmVMath::Vector3 scale);
     static void CommitLightInfo(HRenderContext render_context);
-    static void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light);
+    static void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Quat rotation, dmVMath::Vector3 scale, LightSTD140* out_light);
     static bool LightSTD140Equals(const LightSTD140& a, const LightSTD140& b);
     static dmGraphics::HUniformBuffer EnsureLightUniformBuffer(HRenderContext render_context);
 
@@ -52,6 +52,8 @@ namespace dmRender
     , m_Range(10.0f)
     , m_InnerConeAngle(0.0f)
     , m_OuterConeAngle(M_PI_4)
+    , m_Width(1.0f)
+    , m_Height(1.0f)
     {
     }
 
@@ -83,6 +85,8 @@ namespace dmRender
         lp->m_Range = params.m_Range;
         lp->m_InnerConeAngle = params.m_InnerConeAngle;
         lp->m_OuterConeAngle = params.m_OuterConeAngle;
+        lp->m_Width = params.m_Width;
+        lp->m_Height = params.m_Height;
     }
 
     void DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype)
@@ -151,7 +155,7 @@ namespace dmRender
             render_context->m_LightBufferScratch.SetSize(light_instance->m_LightBufferIndex+1);
         }
 
-        CommitLightInstance(render_context, light_instance, dmVMath::Point3(0.0f, 0.0f, 0.0f), GetLightForwardDirection(), 1.0f);
+        CommitLightInstance(render_context, light_instance, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat::identity(), dmVMath::Vector3(1.0f));
         CommitLightInfo(render_context);
 
         return light_instance->m_Version << 16 | light_buffer_index;
@@ -192,6 +196,11 @@ namespace dmRender
 
     void SetLightInstance(HRenderContext render_context, HLightInstance instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale)
     {
+        SetLightInstance(render_context, instance, position, rotation, dmVMath::Vector3(dmMath::Max(0.0f, scale)));
+    }
+
+    void SetLightInstance(HRenderContext render_context, HLightInstance instance, dmVMath::Point3 position, dmVMath::Quat rotation, dmVMath::Vector3 scale)
+    {
         uint16_t light_buffer_index = instance & 0xFFFF;
         LightInstance* light_instance = light_buffer_index < render_context->m_RenderLights.Size() ? &render_context->m_RenderLights[light_buffer_index] : 0;
         if (!light_instance || light_instance->m_LightPrototype == 0 || light_instance->m_Version != (instance >> 16))
@@ -199,8 +208,6 @@ namespace dmRender
             return;
         }
 
-        dmVMath::Vector3 direction = dmVMath::Rotate(rotation, GetLightForwardDirection());
-        float clamped_scale = dmMath::Max(0.0f, scale);
         const LightPrototype* prototype = render_context->m_LightPrototypes.Get(light_instance->m_LightPrototype);
         if (!prototype)
         {
@@ -208,12 +215,12 @@ namespace dmRender
         }
 
         LightSTD140 updated_light;
-        FillLightInstanceSTD140(prototype, position, direction, clamped_scale, &updated_light);
+        FillLightInstanceSTD140(prototype, position, rotation, scale, &updated_light);
         bool needs_commit = !LightSTD140Equals(updated_light, render_context->m_LightBufferScratch[light_instance->m_LightBufferIndex]);
 
         if (needs_commit)
         {
-            CommitLightInstance(render_context, light_instance, position, direction, clamped_scale);
+            CommitLightInstance(render_context, light_instance, position, rotation, scale);
         }
     }
 
@@ -226,13 +233,13 @@ namespace dmRender
         /*
         struct Light
         {
-            vec4 position;        // xyz: position, w: unused
+            vec4 position;        // xyz: position, w: area rotation quaternion W
             vec4 color;           // RGBA (matches LightParams order)
-            vec4 direction_range; // xyz: normalized direction; w: range
-            vec4 params;          // x: type (0 dir, 1 point, 2 spot; matches dmRender::LightType)
+            vec4 direction_range; // xyz: normalized direction or area quaternion XYZ; w: range
+            vec4 params;          // x: type (0 dir, 1 point, 2 spot, 4 area; matches dmRender::LightType)
                                   // y: intensity
-                                  // z: innerConeAngle (radians, spot only)
-                                  // w: outerConeAngle (radians, spot only)
+                                  // z: innerConeAngle (radians, spot) or width (area)
+                                  // w: outerConeAngle (radians, spot) or height (area)
         };
         uniform LightBuffer
         {
@@ -340,11 +347,15 @@ namespace dmRender
         return buffer;
     }
 
-    static inline void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light)
+    static inline void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Quat rotation, dmVMath::Vector3 scale, LightSTD140* out_light)
     {
         out_light->m_Position = dmVMath::Vector4(position);
         out_light->m_Color    = prototype->m_Color;
 
+        float scale_x = dmMath::Abs(scale.getX());
+        float scale_y = dmMath::Abs(scale.getY());
+        float scale_z = dmMath::Abs(scale.getZ());
+        float range_scale = dmMath::Min(scale_x, dmMath::Min(scale_y, scale_z));
         dmVMath::Vector3 direction(0.0f, 0.0f, 0.0f);
         float range      = 0.0f;
         float inner_cone = 0.0f;
@@ -355,17 +366,32 @@ namespace dmRender
         case LIGHT_TYPE_AMBIENT:
             break;
         case LIGHT_TYPE_DIRECTIONAL:
-            direction = world_direction;
+            direction = dmVMath::Rotate(rotation, GetLightForwardDirection());
             break;
         case LIGHT_TYPE_POINT:
-            range = prototype->m_Range * scale;
+            range = prototype->m_Range * range_scale;
             break;
         case LIGHT_TYPE_SPOT:
-            direction  = world_direction;
-            range      = prototype->m_Range * scale;
+            direction  = dmVMath::Rotate(rotation, GetLightForwardDirection());
+            range      = prototype->m_Range * range_scale;
             inner_cone = prototype->m_InnerConeAngle;
             outer_cone = prototype->m_OuterConeAngle;
             break;
+        case LIGHT_TYPE_AREA:
+        {
+            // Retain the complete orientation: the emitter's roll changes the rectangle.
+            dmVMath::Quat area_rotation = dmVMath::Normalize(rotation);
+            if (area_rotation.getW() < 0.0f)
+            {
+                area_rotation = -area_rotation;
+            }
+            out_light->m_Position.setW(area_rotation.getW());
+            direction = dmVMath::Vector3(area_rotation.getX(), area_rotation.getY(), area_rotation.getZ());
+            range = prototype->m_Range * range_scale;
+            inner_cone = prototype->m_Width * scale_x;
+            outer_cone = prototype->m_Height * scale_y;
+            break;
+        }
         default:
             assert("Light type not supported!");
             break;
@@ -391,7 +417,7 @@ namespace dmRender
             && Vector4Equals(a.m_Params, b.m_Params);
     }
 
-    static inline void CommitLightInstance(HRenderContext render_context, const LightInstance* instance, dmVMath::Point3 position, dmVMath::Vector3 direction, float scale)
+    static inline void CommitLightInstance(HRenderContext render_context, const LightInstance* instance, dmVMath::Point3 position, dmVMath::Quat rotation, dmVMath::Vector3 scale)
     {
         const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
         if (!prototype)
@@ -400,7 +426,7 @@ namespace dmRender
         }
 
         LightSTD140& light_std140 = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
-        FillLightInstanceSTD140(prototype, position, direction, scale, &light_std140);
+        FillLightInstanceSTD140(prototype, position, rotation, scale, &light_std140);
 
         InvalidateLightBuffer(render_context);
     }

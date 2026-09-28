@@ -87,6 +87,7 @@
 (def ^:private icon-spot-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-spot-gpu-texture "icons/scene/light_spot.png"))
 (def ^:private icon-sun-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-sun-gpu-texture "icons/scene/light_sun.png"))
 (def ^:private icon-ambient-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-ambient-gpu-texture "icons/scene/light_ambient.png"))
+(def ^:private icon-area-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-area-gpu-texture "icons/scene/light_area.png"))
 
 (defn- clamp [v low high]
   (-> (double v)
@@ -471,6 +472,95 @@
 (def ^:private render-directional-outline (wrap-uniform-scale render-directional-outline-impl))
 (def ^:private render-spot-outline (wrap-uniform-scale render-spot-outline-impl))
 
+(defn- render-area-outline [^GL2 gl render-args renderables renderable-count]
+  (assert (= pass/outline (:pass render-args)))
+  (let [vbuf
+        (persistent!
+          (reduce
+            (fn [vbuf renderable]
+              (if-not (light-gizmo-visible? renderable)
+                vbuf
+                (let [{:keys [width height range]} (:user-data renderable)
+                      ^Vector3d scale (:world-scale renderable)
+                      half-width (* 0.5 (double width) (Math/abs (.x scale)))
+                      half-height (* 0.5 (double height) (Math/abs (.y scale)))
+                      depth (* (double range) (double (renderable-min-scale renderable)))
+                      arrow-size (min (* 0.2 depth) (max half-width half-height))
+
+                      transform (Matrix4d. ^Quat4d (:world-rotation renderable)
+                                           ^Vector3d (:world-translation renderable)
+                                           1.0)
+
+                      [cr cg cb] (colors/renderable-outline-color renderable)]
+                  (reduce
+                    (fn [vbuf [x y z]]
+                      (let [point (Point3d. (double x) (double y) (double z))]
+                        (.transform transform point)
+                        (conj! vbuf [(.x point) (.y point) (.z point) cr cg cb 1.0])))
+                    vbuf
+                    [[(- half-width) (- half-height) 0.0] [half-width (- half-height) 0.0]
+                     [half-width (- half-height) 0.0] [half-width half-height 0.0]
+                     [half-width half-height 0.0] [(- half-width) half-height 0.0]
+                     [(- half-width) half-height 0.0] [(- half-width) (- half-height) 0.0]
+                     [0.0 0.0 0.0] [0.0 0.0 (- depth)]
+                     [0.0 0.0 (- depth)] [(- arrow-size) 0.0 (+ (- depth) arrow-size)]
+                     [0.0 0.0 (- depth)] [arrow-size 0.0 (+ (- depth) arrow-size)]]))))
+            (->color-vtx (* (long renderable-count) 14))
+            renderables))]
+    (when (pos? (count vbuf))
+      (gl/gl-enable gl GL/GL_DEPTH_TEST)
+      (.glDepthMask gl false)
+      (try
+        (let [binding (vtx/use-with ::light-area-gizmo-lines vbuf outline-shader)]
+          (gl/with-gl-bindings gl render-args [outline-shader binding]
+            (.glDrawArrays gl GL/GL_LINES 0 (count vbuf))))
+        (finally
+          (gl/gl-disable gl GL/GL_DEPTH_TEST))))))
+
+(defn- area-light-aabb [width height range]
+  (geom/mirrored-point->aabb
+    (Point3d. (+ (* 0.5 (double width)) (double range))
+              (+ (* 0.5 (double height)) (double range))
+              (max 0.01 (double range)))))
+
+(defn- area-light-preview-fn [_visibility-aabb user-data prop-kw->override-value]
+  (let [overrides (select-keys prop-kw->override-value [:width :height :range])
+        {:keys [width height range] :as user-data}
+        (-> user-data
+            (merge overrides)
+            (update :editor-preview-light merge overrides))]
+    [(area-light-aabb width height range) user-data]))
+
+(defn- make-area-light-scene [node-id color intensity range width height]
+  (let [aabb (area-light-aabb width height range)
+        icon-gpu-texture @icon-area-gpu-texture-delay
+
+        preview-light {:light-type :area
+                       :color color
+                       :intensity intensity
+                       :range range
+                       :width width
+                       :height height}]
+    {:node-id node-id
+     :aabb aabb
+     :renderable {:render-fn render-light-icon
+                  :batch-key [icon-gpu-texture]
+                  :tags #{:light :outline}
+                  :passes [pass/transparent pass/selection]
+                  :user-data {:color color
+                              :icon-gpu-texture icon-gpu-texture}}
+     :children [{:node-id node-id
+                 :aabb aabb
+                 :renderable {:render-fn render-area-outline
+                              :preview-fn area-light-preview-fn
+                              :batch-key [outline-shader]
+                              :tags #{:light :outline}
+                              :passes [pass/outline]
+                              :user-data {:editor-preview-light preview-light
+                                          :range range
+                                          :width width
+                                          :height height}}}]}))
+
 (defn- point-light-preview-fn [visibility-aabb user-data prop-kw->override-value]
   (if-some [range-override (:range prop-kw->override-value)]
     (let [r (max (double range-override) 0.01)
@@ -723,6 +813,94 @@
       {:manip/prop-kw->override-value {:range new-range}})))
 
 ;; -----------------------------------------------------------------------------
+;; AreaLightNode
+;; -----------------------------------------------------------------------------
+
+(defn- validate-area-number [node-id prop-kw value]
+  (validation/prop-error
+    :fatal node-id prop-kw
+    (fn [value label]
+      (if (Float/isFinite (.floatValue ^Number value))
+        (validation/prop-negative? value label)
+        (localization/message "error.light.property-must-be-finite" {"property" label})))
+    value
+    (properties/label-message :light prop-kw)))
+
+(g/defnode AreaLightNode
+  (inherits PointLightNode)
+
+  (property width g/Num (default 1.0)
+            (dynamic label (properties/label-dynamic :light :width))
+            (dynamic tooltip (properties/tooltip-dynamic :light :width))
+            (dynamic error (g/fnk [_node-id width] (validate-area-number _node-id :width width)))
+            (dynamic edit-type (g/constantly {:type g/Num :min 0.0})))
+
+  (property height g/Num (default 1.0)
+            (dynamic label (properties/label-dynamic :light :height))
+            (dynamic tooltip (properties/tooltip-dynamic :light :height))
+            (dynamic error (g/fnk [_node-id height] (validate-area-number _node-id :height height)))
+            (dynamic edit-type (g/constantly {:type g/Num :min 0.0})))
+
+  (output scene g/Any :cached
+          (g/fnk [_node-id color intensity range width height own-build-errors]
+            (g/precluding-errors own-build-errors
+              (make-area-light-scene _node-id color intensity range width height))))
+
+  (output data g/Any :cached
+          (g/fnk [point-light-data width height]
+            (assoc point-light-data "width" width "height" height)))
+
+  (output own-build-errors g/Any :cached
+          (g/fnk [_node-id color intensity range width height]
+            (g/package-errors
+              _node-id
+              (validation/prop-error
+                :fatal _node-id :color
+                (fn [color]
+                  (when-not (coll/every? #(Float/isFinite (.floatValue ^Number %)) color)
+                    (localization/message "error.light.property-must-be-finite"
+                                          {"property" (properties/label-message :light :color)})))
+                color)
+              (validate-area-number _node-id :intensity intensity)
+              (validate-area-number _node-id :range range)
+              (validate-area-number _node-id :width width)
+              (validate-area-number _node-id :height height))))
+
+  (output rt-tags g/Any (g/constantly ["light" "area_light"])))
+
+(defn load-area-light [load-opts {self :node-id data-desc :source-value :as node-load-info}]
+  (let [data (:data data-desc)]
+    (into (vec (load-point-light load-opts node-load-info))
+          (g/set-properties self
+            :width (get data "width")
+            :height (get data "height")))))
+
+(defmethod scene-tools/manip-scalable? ::AreaLightNode [_node-id] true)
+
+(defmethod scene-tools/manip-scale-manips ::AreaLightNode [_node-id]
+  [:scale-x :scale-y :scale-xy :scale-uniform])
+
+(defmethod scene-tools/manip-scale ::AreaLightNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (let [width (properties/scale-by-absolute-value-and-round
+                (g/node-value node-id :width initial-evaluation-context)
+                (.x delta))
+
+        height (properties/scale-by-absolute-value-and-round
+                 (g/node-value node-id :height initial-evaluation-context)
+                 (.y delta))
+
+        ;; Dimension handles leave Z at one; uniform scaling also changes range.
+        range (properties/scale-by-absolute-value-and-round
+                (g/node-value node-id :range initial-evaluation-context)
+                (.z delta))]
+    (case manip-phase
+      :manip-phase/commit
+      {:manip/tx-data (g/set-properties node-id :width width :height height :range range)}
+
+      :manip-phase/preview
+      {:manip/prop-kw->override-value {:width width :height height :range range}})))
+
+;; -----------------------------------------------------------------------------
 ;; SpotLightNode
 ;; -----------------------------------------------------------------------------
 
@@ -827,7 +1005,11 @@
          {:ext "ambient_light"
           :node-type AmbientLightNode
           :load-fn load-ambient-light
-          :label (localization/message "resource.type.ambient-light")}]]
+          :label (localization/message "resource.type.ambient-light")}
+         {:ext "area_light"
+          :node-type AreaLightNode
+          :load-fn load-area-light
+          :label (localization/message "resource.type.area-light")}]]
 
     (for [type-args args-per-type]
       (let [build-ext (str (:ext type-args) ".lightc")

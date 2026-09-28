@@ -690,9 +690,17 @@
         (is (= "/builtins/fonts/default.fontc" (get fonts "default_font")))
         (is (= "/fonts/big_score.fontc" (get fonts "sub_font")))))))
 
+;; Verifies light resource registration and compiled data, including rectangular area dimensions.
 (deftest build-light-resource-types
   (let [light-resource-type-cases
-        [{:ext "ambient_light"
+        [{:ext "area_light"
+          :label "Area Light"
+          :data {"color" [0.1 0.2 0.3]
+                 "intensity" 2.0
+                 "range" 12.0
+                 "width" 3.0
+                 "height" 4.0}}
+         {:ext "ambient_light"
           :label "Ambient Light"
           :data {"color" [0.1 0.2 0.3]
                  "intensity" 2.0}}

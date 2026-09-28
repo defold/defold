@@ -1,4 +1,5 @@
 // Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
@@ -124,6 +125,10 @@ namespace dmGameSystem
             {
                 type = dmRender::LIGHT_TYPE_AMBIENT;
             }
+            else if (strcmp(tag, "area_light") == 0)
+            {
+                type = dmRender::LIGHT_TYPE_AREA;
+            }
         }
 
         params.m_Type = type;
@@ -170,6 +175,15 @@ namespace dmGameSystem
             HANDLE_LIGHT_PARSE_RES("spot.inner_cone_angle", res);
             res = GetNumber(&light_data, "outer_cone_angle", &params.m_OuterConeAngle);
             HANDLE_LIGHT_PARSE_RES("spot.outer_cone_angle", res);
+        }
+        else if (type == dmRender::LIGHT_TYPE_AREA)
+        {
+            res = GetNumber(&light_data, "range", &params.m_Range);
+            HANDLE_LIGHT_PARSE_RES("area.range", res);
+            res = GetNumber(&light_data, "width", &params.m_Width);
+            HANDLE_LIGHT_PARSE_RES("area.width", res);
+            res = GetNumber(&light_data, "height", &params.m_Height);
+            HANDLE_LIGHT_PARSE_RES("area.height", res);
         }
     #undef HANDLE_LIGHT_PARSE_RES
 

@@ -26,8 +26,10 @@ import org.junit.Test;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gamesys.proto.DataProto.Data;
+import com.dynamo.proto.DdfStruct.ListValue;
 import com.dynamo.proto.DdfStruct.Value;
 import com.google.protobuf.Message;
+import com.google.protobuf.TextFormat;
 
 public class LightBuilderTest extends AbstractProtoBuilderTest {
 
@@ -107,6 +109,23 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
             "  }\n" +
             "}\n";
 
+    private static final String AREA_LIGHT_SOURCE =
+            "data { struct {\n" +
+            "  fields { key: \"color\" value { list {\n" +
+            "    values { number: 0.25 } values { number: 0.5 } values { number: 0.75 }\n" +
+            "  } } }\n" +
+            "  fields { key: \"intensity\" value { number: 2.0 } }\n" +
+            "  fields { key: \"range\" value { number: 12.0 } }\n" +
+            "  fields { key: \"width\" value { number: 3.0 } }\n" +
+            "  fields { key: \"height\" value { number: 4.0 } }\n" +
+            "} }\n";
+
+    private static Data.Builder areaLightSourceBuilder() throws TextFormat.ParseException {
+        Data.Builder builder = Data.newBuilder();
+        TextFormat.merge(AREA_LIGHT_SOURCE, builder);
+        return builder;
+    }
+
     private void assertLightTags(String path, String source, String expectedTypeTag) throws Exception {
         List<Message> messages = build(path, source);
         assertEquals(1, messages.size());
@@ -123,7 +142,7 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
             build(path, source);
             fail("Expected light build to fail");
         } catch (CompileExceptionError e) {
-            assertTrue(e.getMessage().contains(expectedMessagePart));
+            assertTrue(e.getMessage(), e.getMessage().contains(expectedMessagePart));
         }
     }
 
@@ -157,6 +176,97 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testAmbientLightBuilderTags() throws Exception {
         assertLightTags("/light/test.ambient_light", LIGHT_SOURCE, "ambient_light");
+    }
+
+    // Verifies area light tags and extension mapping, including mixed-case source paths.
+    @Test
+    public void testAreaLightBuilderTagsAndExtension() throws Exception {
+        assertLightTags("/light/Test.ArEa_LiGhT", AREA_LIGHT_SOURCE, "area_light");
+        assertNotNull(getFile("build/light/Test.area_light.lightc"));
+        assertEquals(".area_light.lightc", ResourceUtil.getOutputExt(".area_light"));
+    }
+
+    // Verifies the serialized rectangle dimensions and common fields retain their source values.
+    @Test
+    public void testAreaLightBuilderSerializesShape() throws Exception {
+        Data data = getMessage(build("/light/test.area_light", AREA_LIGHT_SOURCE), Data.class);
+        assertNotNull(data);
+        assertEquals(2.0, data.getData().getStruct().getFieldsOrThrow("intensity").getNumber(), 0.000001);
+        assertEquals(12.0, data.getData().getStruct().getFieldsOrThrow("range").getNumber(), 0.000001);
+        assertEquals(3.0, data.getData().getStruct().getFieldsOrThrow("width").getNumber(), 0.000001);
+        assertEquals(4.0, data.getData().getStruct().getFieldsOrThrow("height").getNumber(), 0.000001);
+        assertBuiltLightColor("/light/color.area_light", AREA_LIGHT_SOURCE, 0.25, 0.5, 0.75);
+    }
+
+    // Verifies all area fields are required instead of silently substituting editor template defaults.
+    @Test
+    public void testAreaLightBuilderRequiresFields() throws Exception {
+        for (String field : new String[] {"color", "intensity", "range", "width", "height"}) {
+            Data.Builder source = areaLightSourceBuilder();
+            source.getDataBuilder().getStructBuilder().removeFields(field);
+            assertCompileFailure("/light/missing_" + field + ".area_light", source.toString(), "missing required field '" + field + "'");
+        }
+    }
+
+    // Verifies malformed area fields fail with field-specific errors before resource serialization.
+    @Test
+    public void testAreaLightBuilderRejectsMalformedFields() throws Exception {
+        for (String field : new String[] {"intensity", "range", "width", "height"}) {
+            Data.Builder source = areaLightSourceBuilder();
+            source.getDataBuilder().getStructBuilder().putFields(field, Value.newBuilder().setString("invalid").build());
+            assertCompileFailure("/light/malformed_" + field + ".area_light", source.toString(), "field '" + field + "' must be a number");
+        }
+
+        Data.Builder source = areaLightSourceBuilder();
+        source.getDataBuilder().getStructBuilder().putFields("color", Value.newBuilder().setNumber(1.0).build());
+        assertCompileFailure("/light/malformed_color.area_light", source.toString(), "field 'color' must be a list of 3 numbers");
+
+        ListValue.Builder color = areaLightSourceBuilder().getData().getStruct().getFieldsOrThrow("color").getList().toBuilder();
+        color.setValues(1, Value.newBuilder().setString("invalid").build());
+        source.getDataBuilder().getStructBuilder().putFields("color", Value.newBuilder().setList(color).build());
+        assertCompileFailure("/light/malformed_color_component.area_light", source.toString(), "field 'color' must contain only numbers");
+
+        color.removeValues(1);
+        source.getDataBuilder().getStructBuilder().putFields("color", Value.newBuilder().setList(color).build());
+        assertCompileFailure("/light/malformed_color_length.area_light", source.toString(), "field 'color' must contain 3 numbers");
+        assertCompileFailure("/light/malformed_payload.area_light", "data { number: 1.0 }", "light data must contain a struct payload");
+    }
+
+    // Verifies NaN, infinity, and float overflow cannot reach area light shader inputs.
+    @Test
+    public void testAreaLightBuilderRejectsNonFiniteFields() throws Exception {
+        double[] invalidNumbers = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 1.0e100, -1.0e100};
+        for (int i = 0; i < invalidNumbers.length; ++i) {
+            Value number = Value.newBuilder().setNumber(invalidNumbers[i]).build();
+            for (String field : new String[] {"intensity", "range", "width", "height"}) {
+                Data.Builder source = areaLightSourceBuilder();
+                source.getDataBuilder().getStructBuilder().putFields(field, number);
+                assertCompileFailure("/light/nonfinite_" + field + i + ".area_light", source.toString(), "field '" + field + "' must contain finite numbers");
+            }
+            for (int component = 0; component < 3; ++component) {
+                Data.Builder source = areaLightSourceBuilder();
+                ListValue.Builder color = source.getData().getStruct().getFieldsOrThrow("color").getList().toBuilder();
+                color.setValues(component, number);
+                source.getDataBuilder().getStructBuilder().putFields("color", Value.newBuilder().setList(color).build());
+                assertCompileFailure("/light/nonfinite_color" + component + "_" + i + ".area_light", source.toString(), "field 'color' must contain finite numbers");
+            }
+        }
+    }
+
+    // Verifies negative area parameters clamp to zero and zero remains available to disable contribution.
+    @Test
+    public void testAreaLightBuilderNormalizesNonnegativeFields() throws Exception {
+        for (double number : new double[] {-2.0, 0.0}) {
+            Data.Builder source = areaLightSourceBuilder();
+            for (String field : new String[] {"intensity", "range", "width", "height"}) {
+                source.getDataBuilder().getStructBuilder().putFields(field, Value.newBuilder().setNumber(number).build());
+            }
+            Data data = getMessage(build("/light/normalized" + number + ".area_light", source.toString()), Data.class);
+            assertNotNull(data);
+            for (String field : new String[] {"intensity", "range", "width", "height"}) {
+                assertEquals(field, 0.0, data.getData().getStruct().getFieldsOrThrow(field).getNumber(), 0.0);
+            }
+        }
     }
 
     @Test

@@ -287,6 +287,8 @@ namespace dmRender
         float            m_Range;
         float            m_InnerConeAngle;
         float            m_OuterConeAngle;
+        float            m_Width;
+        float            m_Height;
     };
 
     struct LightInstance

@@ -146,6 +146,19 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    // Area emitters remain orthogonal rectangles. Compose rotation and per-axis scale separately,
+    // matching editor preview instead of extracting a rotation from a sheared or reflected matrix.
+    static void GetAreaLightWorldRotationAndScale(dmGameObject::HInstance instance, dmVMath::Quat* rotation, dmVMath::Vector3* scale)
+    {
+        *rotation = dmGameObject::GetRotation(instance);
+        *scale = dmGameObject::GetScale(instance);
+        for (dmGameObject::HInstance parent = dmGameObject::GetParent(instance); parent; parent = dmGameObject::GetParent(parent))
+        {
+            *rotation = dmGameObject::GetRotation(parent) * *rotation;
+            *scale = dmVMath::MulPerElem(dmGameObject::GetScale(parent), *scale);
+        }
+    }
+
     static dmGameObject::UpdateResult CompLightLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         LightWorld* world = (LightWorld*) params.m_World;
@@ -166,14 +179,19 @@ namespace dmGameSystem
             }
 
             dmVMath::Point3 position = dmGameObject::GetWorldPosition(light->m_Instance);
-            dmVMath::Quat rotation = dmGameObject::GetWorldRotation(light->m_Instance);
-            dmVMath::Vector3 world_scale = dmGameObject::GetWorldScale(light->m_Instance);
-            float scale_x = dmMath::Abs(world_scale.getX());
-            float scale_y = dmMath::Abs(world_scale.getY());
-            float scale_z = dmMath::Abs(world_scale.getZ());
-            float scale = dmMath::Min(scale_x, dmMath::Min(scale_y, scale_z));
-
-            dmRender::SetLightInstance(context->m_RenderContext, light->m_LightInstance, position, rotation, scale);
+            dmVMath::Quat rotation;
+            dmVMath::Vector3 world_scale;
+            dmRender::HLightPrototype prototype = GetLightPrototype(light->m_LightResource);
+            if (dmRender::GetLightType(context->m_RenderContext, prototype) == dmRender::LIGHT_TYPE_AREA)
+            {
+                GetAreaLightWorldRotationAndScale(light->m_Instance, &rotation, &world_scale);
+            }
+            else
+            {
+                rotation = dmGameObject::GetWorldRotation(light->m_Instance);
+                world_scale = dmGameObject::GetWorldScale(light->m_Instance);
+            }
+            dmRender::SetLightInstance(context->m_RenderContext, light->m_LightInstance, position, rotation, world_scale);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

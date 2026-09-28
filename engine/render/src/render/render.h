@@ -130,6 +130,7 @@ namespace dmRender
         LIGHT_TYPE_POINT       = 1,
         LIGHT_TYPE_SPOT        = 2,
         LIGHT_TYPE_AMBIENT     = 3,
+        LIGHT_TYPE_AREA        = 4,
     };
 
     // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
@@ -219,6 +220,8 @@ namespace dmRender
         float            m_Range;
         float            m_InnerConeAngle;
         float            m_OuterConeAngle;
+        float            m_Width;
+        float            m_Height;
     };
 
     struct SamplerInfo
@@ -514,12 +517,21 @@ namespace dmRender
      * non-ambient lights in the engine-owned buffer. Programs must clamp this count to their
      * declared array capacity before indexing lights, for example:
      *
-     * int light_count = min(int(light_info.w), MAX_LIGHT_COUNT);
+     * int light_count = int(min(light_info.w, float(MAX_LIGHT_COUNT)));
      *
      * Light data is in world space. params contains type, intensity, inner cone angle, and outer
      * cone angle. Cone angles are in radians and type is 0 for directional, 1 for point, and 2 for
-     * spot lights. Entry order is unspecified. The renderer binds the block automatically for
-     * graphics and compute programs.
+     * spot lights. Area lights use type 4 and represent a one-sided rectangle in local XY facing -Z.
+     * Their params.zw contains world-space width and height, direction_range.xyz contains rotation
+     * quaternion XYZ, and position.w contains quaternion W. direction_range.w remains the range.
+     * Area intensity scales emitted radiance, so increasing the emitter size increases its total
+     * output. Area range is measured from the closest point on the rectangle. Zero width, height,
+     * or range disables its contribution. Absolute world X/Y scale changes its dimensions; the
+     * minimum absolute world scale changes its range, as for point and spot lights.
+     * Area components compose hierarchy rotations and per-axis scales separately to keep the
+     * rectangle orthogonal. Negative scales change extent magnitudes without reversing emission.
+     * Other light types retain their original encoding. Entry order is unspecified. The renderer
+     * binds the block automatically for graphics and compute programs.
      */
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
     void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
@@ -530,6 +542,7 @@ namespace dmRender
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
     void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
+    void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, dmVMath::Vector3 scale);
     void            SubmitLightInstance(HRenderContext render_context, HLightInstance light_instance);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
