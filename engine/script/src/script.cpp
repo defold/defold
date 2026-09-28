@@ -745,6 +745,15 @@ namespace dmScript
         // [-1] instance
     }
 
+    void GetInstanceRaw(lua_State* L)
+    {
+        lua_pushinteger(L, (lua_Integer)INSTANCE_NAME_HASH);
+        // [-1] name_hash
+
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        // [-1] instance
+    }
+
     void SetInstance(lua_State* L)
     {
         // [-1] instance
@@ -793,6 +802,18 @@ namespace dmScript
         // [-3] meta table
 
         lua_settable(L, -3);
+        // [-1] meta table
+
+        lua_pushliteral(L, "__name");
+        // [-1] __name
+        // [-2] meta table
+
+        lua_pushstring(L, name);
+        // [-1] name
+        // [-2] __name
+        // [-3] meta table
+
+        lua_rawset(L, -3);
         // [-1] meta table
 
         lua_pop(L, 1);

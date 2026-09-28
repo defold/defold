@@ -61,7 +61,7 @@ if(TARGET script AND TARGET extension)
   target_compile_definitions(dap_debuggee_engine PRIVATE DLIB_LOG_DOMAIN="DEBUGGER_TEST")
   target_link_libraries(dap_debuggee_engine PRIVATE debugger)
   defold_target_link_libraries(dap_debuggee_engine "${TARGET_PLATFORM}"
-    script resource extension graphics_null platform_null ddf dlib profile_null image)
+    script resource extension gui_null graphics_null platform_null ddf dlib profile_null image)
   defold_register_test_target(dap_debuggee_engine OFF)
   add_custom_target(test_debugger_dap_engine
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test_dap.py" --debuggee "$<TARGET_FILE:dap_debuggee_engine>"

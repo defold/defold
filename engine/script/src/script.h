@@ -124,6 +124,12 @@ namespace dmScript
     void GetGlobal(lua_State* L, uint32_t name_hash);
 
     /**
+     * Push the stored instance or nil without invoking __index. Internal lookup
+     * for debugger inspection; the public GetInstance keeps normal Lua lookup.
+     */
+    void GetInstanceRaw(lua_State* L);
+
+    /**
      * Callback used to resolve paths.
      * Implementations of this callback are expected to resolve the path given the user data.
      * @param resolve_user_data user data passed to the callback

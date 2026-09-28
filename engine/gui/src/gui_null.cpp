@@ -43,6 +43,11 @@ namespace dmGui
     {
     }
 
+    bool GetNodeTypeName(lua_State* L, int index, char* buffer, uint32_t buffer_size)
+    {
+        return false;
+    }
+
     void SetScriptInstanceMetaData(dmScript::HContext, const char*, void*)
     {
     }
