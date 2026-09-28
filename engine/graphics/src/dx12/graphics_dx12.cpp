@@ -2658,7 +2658,7 @@ namespace dmGraphics
                 return D3D12_CULL_MODE_BACK;
             else if (state.m_CullFaceType == FACE_TYPE_FRONT)
                 return D3D12_CULL_MODE_FRONT;
-            // FRONT_AND_BACK not supported
+            // FRONT_AND_BACK triangles are discarded by the scissor in DrawSetup.
         }
         return D3D12_CULL_MODE_NONE;
     }
@@ -3238,6 +3238,18 @@ namespace dmGraphics
             DX12Viewport& vp = context->m_CurrentViewport;
             SetViewportAndScissorHelper(context, current_rt, vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
             context->m_ViewportChanged = 0;
+        }
+
+        // D3D12 cannot cull both faces directly. An empty scissor discards triangle
+        // fragments while preserving vertex shader side effects and leaving lines alone.
+        if (context->m_PipelineState.m_CullFaceEnabled &&
+            context->m_PipelineState.m_CullFaceType == FACE_TYPE_FRONT_AND_BACK &&
+            (prim_type == PRIMITIVE_TRIANGLES || prim_type == PRIMITIVE_TRIANGLE_STRIP))
+        {
+            const D3D12_RECT empty_scissor = {};
+            context->m_CommandList->RSSetScissorRects(1, &empty_scissor);
+            // Restore the requested scissor on the next draw, including topology-only changes.
+            context->m_ViewportChanged = 1;
         }
 
         PipelineState pipeline_state_draw = context->m_PipelineState;

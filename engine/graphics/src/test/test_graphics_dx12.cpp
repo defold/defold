@@ -699,6 +699,148 @@ TEST_F(DX12Test, ShaderReloadLinesBiasAndScissor)
     DeleteRenderTarget(Context(), target);
 }
 
+TEST_F(DX12Test, FrontAndBackCulling)
+{
+    HRenderTarget target = Target(8, 8);
+    SetRenderTarget(Context(), target, RenderTargetBindingParams());
+    SetViewport(Context(), 0, 0, 8, 8);
+    DisableState(Context(), STATE_DEPTH_TEST);
+    TestProgram shader;
+    shader.Shader(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.Shader("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.Root("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram program = shader.Load(Context());
+    ASSERT_NE((HProgram)0, program);
+    EnableProgram(Context(), program);
+    const uint16_t indices[] = { 0, 1, 2 };
+    HIndexBuffer index_buffer = NewIndexBuffer(Context(), sizeof(indices), indices, BUFFER_USAGE_STATIC_DRAW);
+    const PrimitiveType triangles[] = { PRIMITIVE_TRIANGLES, PRIMITIVE_TRIANGLE_STRIP };
+    const FaceWinding windings[] = { FACE_WINDING_CW, FACE_WINDING_CCW };
+    uint8_t pixels[8 * 8 * 4] = {};
+    SetCullFace(Context(), FACE_TYPE_FRONT_AND_BACK);
+    EnableState(Context(), STATE_CULL_FACE);
+    for (PrimitiveType primitive : triangles)
+    {
+        for (FaceWinding winding : windings)
+        {
+            SetFaceWinding(Context(), winding);
+            for (uint32_t indexed = 0; indexed < 2; ++indexed)
+            {
+                Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+                if (indexed)
+                    DrawElements(Context(), primitive, 0, 3, TYPE_UNSIGNED_SHORT, index_buffer, 2);
+                else
+                    Draw(Context(), primitive, 0, 3, 2);
+                ReadPixels(Context(), 0, 0, 8, 8, pixels, sizeof(pixels));
+                for (uint32_t i = 0; i < 64; ++i)
+                {
+                    ASSERT_EQ(255, pixels[i * 4]);
+                    ASSERT_EQ(0, pixels[i * 4 + 2]);
+                }
+            }
+        }
+    }
+
+    // Disabling culling must restore a user's scissor without a pass break or viewport change.
+    SetScissor(Context(), 0, 0, 4, 8);
+    EnableState(Context(), STATE_SCISSOR_TEST);
+    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    DisableState(Context(), STATE_CULL_FACE);
+    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    ReadPixels(Context(), 0, 0, 8, 8, pixels, sizeof(pixels));
+    for (uint32_t i = 0; i < 64; ++i)
+        ASSERT_EQ(i % 8 < 4 ? 255 : 0, pixels[i * 4 + 2]);
+
+    // Switching from both faces to a single face must also restore rasterization.
+    Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+    EnableState(Context(), STATE_CULL_FACE);
+    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    SetCullFace(Context(), FACE_TYPE_FRONT);
+    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    SetCullFace(Context(), FACE_TYPE_BACK);
+    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    ReadPixels(Context(), 0, 0, 8, 8, pixels, sizeof(pixels));
+    for (uint32_t i = 0; i < 64; ++i)
+        ASSERT_EQ(i % 8 < 4 ? 255 : 0, pixels[i * 4 + 2]);
+
+    // Lines have no faces. Compare against unculled lines, immediately after a culled triangle.
+    DisableState(Context(), STATE_SCISSOR_TEST);
+    DisableState(Context(), STATE_CULL_FACE);
+    Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+    TestProgram line_shader;
+    line_shader.Shader("float4 main(uint id:SV_VertexID):SV_Position {float2 p[2]={float2(-0.75,-0.5),float2(0.75,0.5)};return float4(p[id],0.5,1);}", ShaderDesc::SHADER_TYPE_VERTEX);
+    line_shader.Shader("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    line_shader.Root("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram line_program = line_shader.Load(Context());
+    ASSERT_NE((HProgram)0, line_program);
+    EnableProgram(Context(), line_program);
+    Draw(Context(), PRIMITIVE_LINES, 0, 2, 1);
+    uint8_t line_pixels[sizeof(pixels)] = {};
+    ReadPixels(Context(), 0, 0, 8, 8, line_pixels, sizeof(line_pixels));
+    uint32_t red_pixels = 0;
+    for (uint32_t i = 0; i < 64; ++i)
+        red_pixels += line_pixels[i * 4 + 2] == 255;
+    ASSERT_GT(red_pixels, 0u);
+    SetCullFace(Context(), FACE_TYPE_FRONT_AND_BACK);
+    EnableState(Context(), STATE_CULL_FACE);
+    for (uint32_t indexed = 0; indexed < 2; ++indexed)
+    {
+        Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+        EnableProgram(Context(), program);
+        Draw(Context(), PRIMITIVE_TRIANGLE_STRIP, 0, 3, 1);
+        EnableProgram(Context(), line_program);
+        if (indexed)
+            DrawElements(Context(), PRIMITIVE_LINES, 0, 2, TYPE_UNSIGNED_SHORT, index_buffer, 1);
+        else
+            Draw(Context(), PRIMITIVE_LINES, 0, 2, 1);
+        ReadPixels(Context(), 0, 0, 8, 8, pixels, sizeof(pixels));
+        ASSERT_EQ(0, memcmp(line_pixels, pixels, sizeof(pixels)));
+    }
+    Submit();
+    DeleteIndexBuffer(index_buffer);
+    DeleteProgram(Context(), line_program);
+    DeleteProgram(Context(), program);
+    DeleteRenderTarget(Context(), target);
+}
+
+TEST_F(DX12Test, FrontAndBackCullingPreservesVertexWrites)
+{
+    HTexture written = Texture(TEXTURE_TYPE_IMAGE_2D, 3, 1, 1, 1);
+    uint32_t zero[3] = {};
+    TextureParams params;
+    params.m_Format = TEXTURE_FORMAT_R32UI;
+    params.m_Width = 3;
+    params.m_Height = 1;
+    params.m_Data = zero;
+    SetTexture(Context(), written, params);
+    HRenderTarget target = Target(4, 4);
+    SetRenderTarget(Context(), target, RenderTargetBindingParams());
+    SetViewport(Context(), 0, 0, 4, 4);
+    DisableState(Context(), STATE_DEPTH_TEST);
+    TestProgram shader;
+    shader.Shader("RWTexture2D<uint> written:register(u0); float4 main(uint id:SV_VertexID):SV_Position {written[uint2(id,0)]=id+1;float2 p[3]={float2(-1,-1),float2(-1,3),float2(3,-1)};return float4(p[id],0.5,1);}", ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.Shader("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.Root("DescriptorTable(UAV(u0), visibility=SHADER_VISIBILITY_VERTEX), RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    shader.Binding("written", 0, 0, ShaderDesc::SHADER_TYPE_UIMAGE2D, BINDING_TYPE_TEXTURE);
+    HProgram program = shader.Load(Context());
+    ASSERT_NE((HProgram)0, program);
+    EnableTexture(Context(), 0, 0, written);
+    EnableProgram(Context(), program);
+    SetCullFace(Context(), FACE_TYPE_FRONT_AND_BACK);
+    EnableState(Context(), STATE_CULL_FACE);
+    Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
+    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    uint8_t pixels[4 * 4 * 4] = {};
+    ReadPixels(Context(), 0, 0, 4, 4, pixels, sizeof(pixels));
+    for (uint32_t i = 0; i < 16; ++i)
+        ASSERT_EQ(0, pixels[i * 4 + 2]);
+    auto values = ReadTexture(written, 0, 0);
+    for (uint32_t i = 0; i < 3; ++i)
+        ASSERT_EQ(i + 1, ((uint32_t*)values.data())[i]);
+    DeleteProgram(Context(), program);
+    DeleteRenderTarget(Context(), target);
+}
+
 TEST_F(DX12Test, DependentImageDispatchesAndComputeToDraw)
 {
     HTexture      texture = Texture(TEXTURE_TYPE_IMAGE_2D, 4, 4, 1, 1);
