@@ -107,10 +107,11 @@
   (a/>!! (:protocol session) [:fail exception]))
 
 (defn- await-response! [session command response]
-  (let [result (try
-                 (deref response request-timeout-ms ::timeout)
-                 (catch ExecutionException exception
-                   (throw (.getCause exception))))]
+  (let [result
+        (try
+          (deref response request-timeout-ms ::timeout)
+          (catch ExecutionException exception
+            (throw (.getCause exception))))]
     (if-not (= ::timeout result)
       result
       (let [exception (IOException. (str "Debugger request timed out: " command))]
@@ -312,15 +313,16 @@
           (.close socket)
           (throw (IOException. "Debugger connection cancelled")))
         (await-response! session "connect" registered)
-        (let [error (try
-                      (when-not port
-                        (throw (IOException. "Waiting for the engine's DAP listener")))
-                      (.connect socket (InetSocketAddress. ^String address (int port)) 1000)
-                      (.setTcpNoDelay socket true)
-                      nil
-                      (catch IOException exception
-                        (.close socket)
-                        exception))]
+        (let [error
+              (try
+                (when-not port
+                  (throw (IOException. "Waiting for the engine's DAP listener")))
+                (.connect socket (InetSocketAddress. ^String address (int port)) 1000)
+                (.setTcpNoDelay socket true)
+                nil
+                (catch IOException exception
+                  (.close socket)
+                  exception))]
           (if-not error
             socket
             (if (>= (System/nanoTime) deadline)

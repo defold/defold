@@ -114,17 +114,18 @@
                       (when-not (or (= "disconnect" command) (.isClosed socket))
                         (recur (if (= "attach" command) request attach)))))
                   (catch EOFException _)))))
-          session (dap/connect! "127.0.0.1" #(.getLocalPort server)
-                                {:local-root "/project"
-                                 :breakpoints {"/main.script" [{:line 5
-                                                                :condition "x > 2"}]}}
-                                (merge {:on-connected #(future/complete! ready %)
-                                        :on-suspended (fn [session body] (.add events [:stopped (dap/suspension session) body]))
-                                        :on-resumed (fn [_] (.add events [:continued]))
-                                        :on-output (fn [_ body] (.add events [:output body]))
-                                        :on-closed (fn [_] (.add events [:closed]))
-                                        :on-error (fn [_ exception] (.add events [:error exception]))}
-                                       callbacks))]
+          session
+          (dap/connect! "127.0.0.1" #(.getLocalPort server)
+                        {:local-root "/project"
+                         :breakpoints {"/main.script" [{:line 5
+                                                        :condition "x > 2"}]}}
+                        (merge {:on-connected #(future/complete! ready %)
+                                :on-suspended (fn [session body] (.add events [:stopped (dap/suspension session) body]))
+                                :on-resumed (fn [_] (.add events [:continued]))
+                                :on-output (fn [_ body] (.add events [:output body]))
+                                :on-closed (fn [_] (.add events [:closed]))
+                                :on-error (fn [_ exception] (.add events [:error exception]))}
+                               callbacks))]
       (try
         (is (identical? session (await! ready)))
         (f session requests events)
@@ -153,18 +154,19 @@
                 (if (>= i (alength twice))
                   -1
                   (bit-and 255 (aget twice i)))))
-            in (proxy [java.io.InputStream] []
-                 (read
-                   ([] (next-byte))
-                   ([buffer offset length]
-                    (if (zero? (long length))
-                      0
-                      (let [value (next-byte)]
-                        (if (= -1 value)
-                          -1
-                          (do
-                            (aset-byte buffer offset (unchecked-byte value))
-                            1)))))))]
+            in
+            (proxy [java.io.InputStream] []
+              (read
+                ([] (next-byte))
+                ([buffer offset length]
+                 (if (zero? (long length))
+                   0
+                   (let [value (next-byte)]
+                     (if (= -1 value)
+                       -1
+                       (do
+                         (aset-byte buffer offset (unchecked-byte value))
+                         1)))))))]
         (is (= message (#'dap/read-message! in)))
         (is (= message (#'dap/read-message! in)))
         (is (thrown? EOFException (#'dap/read-message! in))))))
@@ -392,12 +394,11 @@
         order (atom [])]
     (with-adapter
       {:on-output
-       (fn [session
-            {:keys [output]}]
+       (fn [session {:keys [output]}]
          (swap! order conj output)
-         (if (= "first" output)
-           (swap! order conj (dap/request! session "from-callback" {}))
-           (future/complete! result @order)))}
+         (if-not (= "first" output)
+           (future/complete! result @order)
+           (swap! order conj (dap/request! session "from-callback" {}))))}
       (fn [request _ out _]
         (case (:command request)
           "trigger"
@@ -418,10 +419,10 @@
     (fn [request _ out _]
       (respond! out request (:arguments request)))
     (fn [session requests _]
-      (let [responses (mapv
-                        (fn [index]
-                          (future/io (dap/request! session "echo" {:index index})))
-                        (range 32))]
+      (let [responses
+            (mapv (fn [index]
+                    (future/io (dap/request! session "echo" {:index index})))
+                  (range 32))]
         (is (= (mapv #(hash-map :index %) (range 32)) (mapv await! responses)))
         (let [sequences (mapv :seq @requests)]
           (is (= (count sequences) (count (set sequences))))
@@ -460,12 +461,12 @@
 (deftest connection-cancellation-test
   (let [closed (future/make)
         errors (atom [])
-        session (dap/connect! "127.0.0.1" (constantly nil)
-                              {:local-root "/project"
-                               :breakpoints {}}
-                              {:on-closed #(future/complete! closed %)
-                               :on-error
-                               (fn [_ error] (swap! errors conj error))})]
+        session
+        (dap/connect! "127.0.0.1" (constantly nil)
+                      {:local-root "/project"
+                       :breakpoints {}}
+                      {:on-closed #(future/complete! closed %)
+                       :on-error (fn [_ error] (swap! errors conj error))})]
     (dap/disconnect! session)
     (is (identical? session (await! closed)))
     (is (= :closed (dap/status session)))
@@ -487,12 +488,12 @@
               (receive! (DataInputStream. (.getInputStream socket)))))
           closed (future/make)
           error (future/make)
-          session (dap/connect! "127.0.0.1" #(.getLocalPort server)
-                                {:local-root "/project"
-                                 :breakpoints {}}
-                                {:on-closed #(future/complete! closed %)
-                                 :on-error
-                                 (fn [_ exception] (future/complete! error exception))})]
+          session
+          (dap/connect! "127.0.0.1" #(.getLocalPort server)
+                        {:local-root "/project"
+                         :breakpoints {}}
+                        {:on-closed #(future/complete! closed %)
+                         :on-error (fn [_ exception] (future/complete! error exception))})]
       (try
         (is (instance? IOException (await! error)))
         (is (identical? session (await! closed)))
@@ -526,19 +527,20 @@
                                 (.redirectErrorStream true)))]
           (try
             (with-open [^java.io.BufferedReader reader (io/reader (.getInputStream process))]
-              (let [port (loop []
-                           (let [line (.readLine reader)]
-                             (when-not line (throw (IOException. "Native debugger exited before listening")))
-                             (if-let [[_ port] (re-find #"(?:PORT |listening on [^:]+:)(\d+)" line)]
-                               (parse-long port)
-                               (recur))))
-                    session (dap/connect! "127.0.0.1" (constantly port)
-                                          {:local-root (.getAbsolutePath directory)
-                                           :breakpoints {(.getAbsolutePath source) [{:line 8}]}}
-                                          {:on-connected #(future/complete! ready %)
-                                           :on-suspended (fn [session _] (.add stopped (dap/suspension session)))
-                                           :on-error
-                                           (fn [_ exception] (future/fail! ready exception))})]
+              (let [port
+                    (loop []
+                      (let [line (.readLine reader)]
+                        (when-not line (throw (IOException. "Native debugger exited before listening")))
+                        (if-let [[_ port] (re-find #"(?:PORT |listening on [^:]+:)(\d+)" line)]
+                          (parse-long port)
+                          (recur))))
+                    session
+                    (dap/connect! "127.0.0.1" (constantly port)
+                                  {:local-root (.getAbsolutePath directory)
+                                   :breakpoints {(.getAbsolutePath source) [{:line 8}]}}
+                                  {:on-connected #(future/complete! ready %)
+                                   :on-suspended (fn [session _] (.add stopped (dap/suspension session)))
+                                   :on-error (fn [_ exception] (future/fail! ready exception))})]
                 (try
                   (is (identical? session (await! ready)))
                   (let [snapshot (take-event! stopped)

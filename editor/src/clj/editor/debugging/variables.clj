@@ -136,6 +136,7 @@
      :fx/key path
      :value variable
      :expanded (and table (contains? expanded-paths path))
+
      :on-expanded-changed
      (fn [expanded]
        (when (current-load? model context)
@@ -189,11 +190,13 @@
         (let [component (fx.lifecycle/create fx.lifecycle/dynamic desc opts)]
           (install-view! (fx/instance component) model)
           component)))
+
     (advance [_ component {:keys [desc model]} opts]
       (binding [*updating-view* true]
         (let [component (fx.lifecycle/advance fx.lifecycle/dynamic component desc opts)]
           (sync-viewport! (fx/instance component) model)
           component)))
+
     (delete [_ component opts]
       (let [view (fx/instance component)]
         (swap! (ui/user-data view ::state) assoc :context nil)
@@ -223,7 +226,9 @@
 
 (defn make-view!
   ^TreeView []
-  (let [model (atom {:expanded-paths #{} :children {} :pending {}})
+  (let [model (atom {:expanded-paths #{}
+                     :children {}
+                     :pending {}})
         component (fx/create-component {:fx/type variables-view :model model})
         view (fx/instance component)]
     (ui/user-data! view ::component component)
@@ -234,7 +239,11 @@
   [^TreeView view]
   (let [model (ui/user-data view ::state)
         position (or (:scroll-to-restore @model) (capture-scroll-position view) (:scroll-position @model))]
-    (swap! model assoc :context nil :children {} :pending {} :scroll-position position)))
+    (swap! model assoc
+           :context nil
+           :children {}
+           :pending {}
+           :scroll-position position)))
 
 (defn show-frame!
   "Refresh a frame, restoring opened paths with new DAP references and values."
@@ -242,6 +251,8 @@
   (clear! view)
   (when (and frame-id snapshot)
     (let [model (ui/user-data view ::state)
-          context {:session session :snapshot snapshot :frame-id frame-id}]
+          context {:session session
+                   :snapshot snapshot
+                   :frame-id frame-id}]
       (swap! model assoc :context context :scroll-to-restore (:scroll-position @model))
       (load-children! model context [] nil))))

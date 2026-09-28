@@ -20,7 +20,9 @@
 
 (deftest launched-log-sink-port-discovery-test
   (let [target
-        {:id "engine" :debugger-port 0 :log-stream ::stream}
+        {:id "engine"
+         :debugger-port 0
+         :log-stream ::stream}
         current (atom target)
         updates (atom [])]
     (with-redefs [targets/update-launched-target!
