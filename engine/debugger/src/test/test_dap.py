@@ -942,7 +942,7 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
-    # Provides source names, table child counts, and evaluatable paths for
+    # Keep identifier keys readable and other keys unambiguous and editable.
     def test_table_key_display_names(self):
         c = self.start(r'''
             local t = {plain = 1, _name2 = 2, ["end"] = 3, ["with space"] = 4,
@@ -966,6 +966,7 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    # Provides source names, table child counts, and evaluatable paths for
     # representable keys. Hidden bindings and table references whose parent has
     # been reassigned must not expose paths that refer to a different variable.
     def test_variable_metadata_and_evaluate_names(self):
