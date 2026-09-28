@@ -464,34 +464,37 @@
               frame-id
               (assoc :frameId frame-id))))
 
-(defn- evaluation-value->string-impl [session snapshot seen depth {:keys [value variablesReference]
-                                                                :or {variablesReference 0}}]
+(defn- evaluation-value->string-impl
+  [session snapshot seen depth {:keys [value variablesReference]}]
   (if (or (zero? (long variablesReference))
           (>= (long depth) 16)
           (contains? @seen variablesReference))
     value
     (do
       (vswap! seen conj variablesReference)
-      (if-let [children (variables session snapshot variablesReference)]
-        (let [indent (.repeat "  " (int depth))
-              entries (coll/join-to-string
-                        ",\n"
-                        (eduction
-                          (map (fn [{:keys [name] :as child}]
-                                 (str indent "  " name " = "
-                                      (evaluation-value->string-impl session snapshot seen (inc (long depth)) child))))
-                          children))]
-          (str "{ -- " value "\n" entries
-               (when-not (coll/empty? children) "\n")
-               indent "}"))
-        value))))
+      (let [children (variables session snapshot variablesReference)]
+        (if-not children
+          value
+          (let [indent (.repeat "  " (int depth))
+                entries
+                (coll/join-to-string
+                  ",\n"
+                  (eduction
+                    (map (fn [{:keys [name] :as child}]
+                           (str indent "  " name " = "
+                                (evaluation-value->string-impl session snapshot seen (inc (long depth)) child))))
+                    children))]
+            (str "{ -- " value "\n" entries
+                 (when-not (coll/empty? children) "\n")
+                 indent "}")))))))
 
 (defn evaluation-result->string
   "Load and format an evaluation result's contents while its stop remains current.
   Repeated references and tables beyond depth 16 retain their identity strings."
   [session snapshot result]
-  (let [output (evaluation-value->string-impl session snapshot (volatile! #{}) 0
-                                             (assoc result :value (:result result)))]
+  (let [output
+        (evaluation-value->string-impl session snapshot (volatile! #{}) 0
+                                       (assoc result :value (:result result)))]
     (if (= snapshot (suspension session))
       output
       (:result result))))

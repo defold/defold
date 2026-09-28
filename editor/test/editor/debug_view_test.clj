@@ -276,13 +276,22 @@
 ;; guarding against dropping the DAP variablesReference and showing only an address.
 (deftest table-evaluation-console-test
   (test-support/with-clean-system
-    (let [session {:state (atom {:status :suspended :generation 1 :thread-id 7})}
+    (let [session
+          {:state (atom {:status :suspended
+                         :generation 1
+                         :thread-id 7})}
+
           ^ListView call-stack (ui/run-now (ListView.))
-          view (g/make-node! debug-view/DebugView :debug-session session :call-stack-view call-stack)
+          view
+          (g/make-node! debug-view/DebugView
+                        :debug-session session
+                        :call-stack-view call-stack)
+
           entries (atom [])]
       (ui/run-now
         (.add (.getItems call-stack) {:id 42})
         (.select (.getSelectionModel call-stack) (int 0)))
+
       (with-redefs [dap/request!
                     (fn [_ command arguments]
                       (is (not (ui/on-ui-thread?)))
@@ -291,12 +300,17 @@
                         (do
                           (is (= 42 (:frameId arguments)))
                           (is (= "{answer = 42}" (:expression arguments)))
-                          {:result "table: result" :variablesReference 1})
+                          {:result "table: result"
+                           :variablesReference 1})
 
                         "variables"
-                        {:variables [{:name "answer" :value "42" :variablesReference 0}]}))
+                        {:variables [{:name "answer"
+                                      :value "42"
+                                      :variablesReference 0}]}))
+
                     console/append-console-entry!
-                    (fn [type text] (swap! entries conj [type text]))]
+                    (fn [type text]
+                      (swap! entries conj [type text]))]
         (await! (ui/run-now (#'debug-view/on-eval-input view "{answer = 42}")))
         (is (= [[:eval-expression "{answer = 42}"]
                 [:eval-result "{ -- table: result"]

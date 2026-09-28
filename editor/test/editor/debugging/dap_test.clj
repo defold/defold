@@ -322,16 +322,32 @@
 ;; Console table results retain nested contents, Lua key names, empty tables,
 ;; and scalar values without repeatedly loading shared or cyclic references.
 (deftest evaluation-result-contents-test
-  (let [session {:state (atom {:status :suspended :generation 1 :thread-id 7})}
+  (let [session
+        {:state (atom {:status :suspended
+                       :generation 1
+                       :thread-id 7})}
+
         snapshot (dap/suspension session)
         requests (atom [])
         children
-        {1 [{:name "[1]" :value "false" :variablesReference 0}
-            {:name "nested" :value "table: nested" :variablesReference 2}
-            {:name "alias" :value "table: nested" :variablesReference 2}
-            {:name "self" :value "table: root" :variablesReference 1}
-            {:name "empty" :value "table: empty" :variablesReference 3}]
-         2 [{:name "[\"end\"]" :value "42" :variablesReference 0}]
+        {1 [{:name "[1]"
+             :value "false"
+             :variablesReference 0}
+            {:name "nested"
+             :value "table: nested"
+             :variablesReference 2}
+            {:name "alias"
+             :value "table: nested"
+             :variablesReference 2}
+            {:name "self"
+             :value "table: root"
+             :variablesReference 1}
+            {:name "empty"
+             :value "table: empty"
+             :variablesReference 3}]
+         2 [{:name "[\"end\"]"
+             :value "42"
+             :variablesReference 0}]
          3 []}]
     (with-redefs [dap/request!
                   (fn [_ command {:keys [variablesReference]}]
@@ -339,27 +355,39 @@
                     (swap! requests conj variablesReference)
                     {:variables (get children variablesReference)})]
       (doseq [value ["false" "nil" "42" "\"hello\""]]
-        (is (= value (dap/evaluation-result->string session snapshot {:result value :variablesReference 0}))))
+        (is (= value
+               (dap/evaluation-result->string session snapshot
+                                              {:result value
+                                               :variablesReference 0}))))
       (is (= [] @requests))
-      (is (= (coll/join-to-string "\n" ["{ -- table: root"
-                                        "  [1] = false,"
-                                        "  nested = { -- table: nested"
-                                        "    [\"end\"] = 42"
-                                        "  },"
-                                        "  alias = table: nested,"
-                                        "  self = table: root,"
-                                        "  empty = { -- table: empty"
-                                        "  }"
-                                        "}"])
-             (dap/evaluation-result->string session snapshot {:result "table: root" :variablesReference 1})))
+      (is (= (coll/join-to-string
+               "\n"
+               ["{ -- table: root"
+                "  [1] = false,"
+                "  nested = { -- table: nested"
+                "    [\"end\"] = 42"
+                "  },"
+                "  alias = table: nested,"
+                "  self = table: root,"
+                "  empty = { -- table: empty"
+                "  }"
+                "}"])
+             (dap/evaluation-result->string session snapshot
+                                            {:result "table: root"
+                                             :variablesReference 1})))
       (is (= [1 2 3] @requests)))))
 
 ;; Bound recursive console inspection and stop loading references when execution
 ;; resumes, rather than printing a partially refreshed table from another stop.
 (deftest evaluation-result-lifetime-test
-  (let [session {:state (atom {:status :suspended :generation 1 :thread-id 7})}
+  (let [session
+        {:state (atom {:status :suspended
+                       :generation 1
+                       :thread-id 7})}
+
         snapshot (dap/suspension session)
-        result {:result "table: 1" :variablesReference 1}
+        result {:result "table: 1"
+                :variablesReference 1}
         requests (atom [])]
     (with-redefs [dap/request!
                   (fn [_ _ {:keys [variablesReference]}]
@@ -369,12 +397,15 @@
                                   :variablesReference (inc (long variablesReference))}]})]
       (is (string/includes? (dap/evaluation-result->string session snapshot result) "child = table: 17"))
       (is (= (vec (range 1 17)) @requests)))
+
     (reset! requests [])
     (with-redefs [dap/request!
                   (fn [_ _ {:keys [variablesReference]}]
                     (swap! requests conj variablesReference)
                     (swap! (:state session) assoc :status :running :generation 2)
-                    {:variables [{:name "stale" :value "42" :variablesReference 0}]})]
+                    {:variables [{:name "stale"
+                                  :value "42"
+                                  :variablesReference 0}]})]
       (is (= "table: 1" (dap/evaluation-result->string session snapshot result)))
       (is (= [1] @requests))
       (is (= "table: 1" (dap/evaluation-result->string session snapshot result)))
