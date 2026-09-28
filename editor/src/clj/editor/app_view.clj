@@ -992,28 +992,15 @@
       (throw e))))
 
 (defn- make-launched-log-sink [launched-target on-service-url-found]
-  (let [initial-output (atom "")
-        version-line (atom nil)
+  (let [version-line (atom nil)
         updated-target (atom nil)]
     (fn [line]
-      ;; A debug launch or local attach can announce its port after startup.
-      ;; Parse only debugger messages while waiting for that port.
-      (let [current-target (coll/first-where #(= (:id launched-target) (:id %))
-                                             (targets/all-launched-targets))]
-        (when (and (or (= 0 (:debugger-port current-target))
-                       (:debugger-port-pending current-target))
-                   (string/includes? line "Lua DAP debugger"))
-          (when-let [port (engine/parse-debugger-port line)]
-            (targets/update-launched-target! launched-target {:debugger-port port
-                                                             :debugger-port-pending false}))))
-      (when (< (count @initial-output) 5000)
-        (swap! initial-output str line "\n")
-        (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (let [result-target (targets/update-launched-target! launched-target target-info)]
-            (reset! updated-target result-target)))
-        (when (not @version-line)
-          (when-let [engine-version-line (engine/parse-engine-version-line line)]
-            (reset! version-line engine-version-line))))
+      ;; Metadata may arrive after startup, e.g. when attaching a debugger.
+      (when-let [target-info (engine/parse-launched-target-info line)]
+        (reset! updated-target (targets/update-launched-target! launched-target target-info)))
+      (when-not @version-line
+        (when-let [engine-version-line (engine/parse-engine-version-line line)]
+          (reset! version-line engine-version-line)))
       ;; After the version line, wait briefly for stream readiness, then call the callback.
       (when (and @updated-target (= @version-line line))
         (future
