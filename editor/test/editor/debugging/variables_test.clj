@@ -16,6 +16,7 @@
   (:require [clojure.test :refer :all]
             [editor.debugging.dap :as dap]
             [editor.debugging.variables :as variables]
+            [editor.future :as future]
             [editor.ui :as ui]
             [util.coll :as coll])
   (:import [com.defold.control ExtendedTreeViewSkin]
@@ -221,6 +222,61 @@
      :offset (.getLayoutY cell)
      :selection (:name (first (ui/selection view)))
      :horizontal (some-> bar .getValue)}))
+
+;; Clearing selection with the keyboard must survive a pending table response
+;; and the next pause.
+(deftest cleared-selection-survives-loading-test
+  (let [[^TreeView view ^Stage stage]
+        (ui/run-now
+          (let [view (variables/make-view!)
+                pane (doto (StackPane.)
+                       (ui/children! [view]))
+                stage (doto (Stage.)
+                        (.setScene (Scene. pane 400.0 200.0))
+                        (.show))]
+            [view stage]))
+        session {:state (atom {:status :suspended :generation 1 :thread-id 7})}
+        started (future/make)
+        response (future/make)]
+    (with-redefs [dap/frame-variables
+                  (fn [_ _ _]
+                    [(variable "self" "table" 1)
+                     (variable "other" "scalar" 0)])
+
+                  dap/variables
+                  (fn [_ _ _]
+                    (future/complete! started true)
+                    @response)]
+      (try
+        (pause! view session 1 42)
+        (await-ui! #(item-at view ["self"]))
+        (ui/run-now (.setExpanded (item-at view ["self"]) true))
+        (is (= true (deref started 10000 ::timeout)))
+        (ui/run-now
+          (.applyCss view)
+          (.layout view)
+          (let [other (item-at view ["other"])
+                mac (.startsWith (System/getProperty "os.name") "Mac")]
+            (.select (.getSelectionModel view) other)
+            (.focus (.getFocusModel view) (.getRow view other))
+            (is (= "other" (:name (first (ui/selection view)))))
+            ;; JavaFX uses Ctrl+Space, with Command also held on macOS.
+            (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" KeyCode/SPACE false true false mac))
+            (is (coll/empty? (ui/selection view)))))
+        (future/complete! response [(variable "child" "value" 0)])
+        (await-ui! #(item-at view ["self" "child"]))
+        (ui/run-now
+          (is (coll/empty? (ui/selection view))))
+        (pause! view session 2 99)
+        (await-ui! #(and (item-at view ["self" "child"])
+                         (coll/empty? (:pending @(ui/user-data view :editor.debugging.variables/state)))))
+        (ui/run-now
+          (is (coll/empty? (ui/selection view))))
+        (finally
+          (future/complete! response [])
+          (ui/run-now
+            (variables/clear! view)
+            (.close stage)))))))
 
 ;; Verify selection and both scroll positions survive changed table rows, and
 ;; user navigation takes precedence over a delayed viewport restoration.
