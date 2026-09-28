@@ -1,5 +1,16 @@
 # Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
 
 import contextlib
 import io
@@ -8,6 +19,7 @@ import shlex
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -112,6 +124,51 @@ class BuildSdkTests(unittest.TestCase):
                         for platform in expected_platforms if platform in self.private_sdks
                     }
                     self.assertEqual({'test-sha1/engine/platform.sdks.json': expected_sdks}, uploads)
+
+
+class PlatformSdkPackagingTests(unittest.TestCase):
+    def package_web_sdk(self, platform, external_javascript):
+        with tempfile.TemporaryDirectory() as directory:
+            sdk_root = Path(directory)
+            files = {
+                'extender/build.yml': 'context: {}',
+                f'lib/{platform}/libplatform.a': 'platform archive',
+                f'lib/{platform}/js/library_platform.js': 'platform JavaScript',
+                f'lib/{platform}/js/library_sys.js': 'system JavaScript',
+                f'ext/lib/{platform}/libdependency.a': 'external archive',
+                'ext/wagyu-port/wagyu.py': 'port source',
+            }
+            if external_javascript:
+                files[f'ext/lib/{platform}/js/library_external.js'] = 'external JavaScript'
+            for relative_path, contents in files.items():
+                path = sdk_root / relative_path
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(contents)
+
+            configuration = build.Configuration.__new__(build.Configuration)
+            configuration.dynamo_home = str(sdk_root)
+            with contextlib.redirect_stdout(io.StringIO()):
+                archive_path, signature_path = configuration._package_platform_sdk(platform)
+            self.assertTrue(Path(signature_path).is_file())
+            with zipfile.ZipFile(archive_path) as archive:
+                return {name: archive.read(name).decode() for name in archive.namelist()}
+
+    # Web SDKs retain native platform JS when the removed GLFW2 package leaves no external JS directory.
+    def test_web_sdk_without_external_javascript(self):
+        for platform in ('wasm-web', 'wasm_pthread-web'):
+            with self.subTest(platform=platform):
+                files = self.package_web_sdk(platform, external_javascript=False)
+                self.assertEqual('platform JavaScript', files[f'defoldsdk/lib/{platform}/js/library_platform.js'])
+                self.assertEqual('system JavaScript', files[f'defoldsdk/lib/{platform}/js/library_sys.js'])
+                self.assertFalse(any(name.startswith(f'defoldsdk/ext/lib/{platform}/js/') for name in files))
+
+    # Optional external JS libraries are still archived alongside the engine JS libraries when present.
+    def test_web_sdk_preserves_external_javascript(self):
+        for platform in ('wasm-web', 'wasm_pthread-web'):
+            with self.subTest(platform=platform):
+                files = self.package_web_sdk(platform, external_javascript=True)
+                self.assertEqual('platform JavaScript', files[f'defoldsdk/lib/{platform}/js/library_platform.js'])
+                self.assertEqual('external JavaScript', files[f'defoldsdk/ext/lib/{platform}/js/library_external.js'])
 
 
 class CiSdkTests(unittest.TestCase):

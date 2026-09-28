@@ -1562,8 +1562,11 @@ class Configuration(object):
                 self._add_files_to_zip(zip, wagyu_port_files, self.dynamo_home, topfolder)
 
             if platform in ['wasm-web', 'wasm_pthread-web']:
-                for subdir in [f'lib/{platform}/js/', f'ext/lib/{platform}/js/']:
-                    jsdir = os.path.join(self.dynamo_home, subdir)
+                jsdirs = [os.path.join(self.dynamo_home, f'lib/{platform}/js/')]
+                external_jsdir = os.path.join(self.dynamo_home, f'ext/lib/{platform}/js/')
+                if os.path.isdir(external_jsdir):
+                    jsdirs.append(external_jsdir)
+                for jsdir in jsdirs:
                     paths = _findjslibs(jsdir)
                     self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
