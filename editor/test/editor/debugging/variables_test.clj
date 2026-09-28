@@ -235,7 +235,10 @@
                         (.setScene (Scene. pane 400.0 200.0))
                         (.show))]
             [view stage]))
-        session {:state (atom {:status :suspended :generation 1 :thread-id 7})}
+        session
+        {:state (atom {:status :suspended
+                       :generation 1
+                       :thread-id 7})}
         started (future/make)
         response (future/make)]
     (with-redefs [dap/frame-variables

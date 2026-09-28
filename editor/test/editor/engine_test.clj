@@ -87,8 +87,12 @@
           instance-index [0 3]]
     (let [instance-index (long instance-index)
           output (ByteArrayOutputStream.)
-          target (cond-> {:address "192.168.1.20" :url "http://target:8001" :instance-index instance-index}
-                   (not remote) (assoc :process ::process))
+          target
+          (cond-> {:address "192.168.1.20"
+                   :url "http://target:8001"
+                   :instance-index instance-index}
+            (not remote)
+            (assoc :process ::process))
           expected
           (cond-> ["--config=resource.uri=http://editor:8000"]
             debug

@@ -50,10 +50,11 @@
           current
           {:state (atom {:status :suspended
                          :generation 1})}
-          view (g/make-node! debug-view/DebugView
-                 :debug-session current
-                 :suspension-state {:stack []}
-                 :state-changed-fn (constantly nil))
+          view
+          (g/make-node! debug-view/DebugView
+            :debug-session current
+            :suspension-state {:stack []}
+            :state-changed-fn (constantly nil))
           callbacks (#'debug-view/make-debugger-callbacks view)]
       ((:on-closed callbacks) old)
       ((:on-resumed callbacks) old)
@@ -73,9 +74,10 @@
           {:state (atom {:status :suspended
                          :generation 1
                          :thread-id 7})}
-          view (g/make-node! debug-view/DebugView
-                 :debug-session session
-                 :state-changed-fn (constantly nil))
+          view
+          (g/make-node! debug-view/DebugView
+            :debug-session session
+            :state-changed-fn (constantly nil))
           started (promise)
           response (promise)]
       (with-redefs [dap/stack
@@ -102,10 +104,11 @@
                          :thread-id 7})}
           ^ListView call-stack (ui/run-now (ListView.))
           ^TreeView variables (ui/run-now (debugger-variables/make-view!))
-          view (g/make-node! debug-view/DebugView
-                 :debug-session session
-                 :call-stack-view call-stack
-                 :variables-view variables)
+          view
+          (g/make-node! debug-view/DebugView
+            :debug-session session
+            :call-stack-view call-stack
+            :variables-view variables)
           started (promise)
           response (promise)]
       (ui/run-now
@@ -172,10 +175,11 @@
                          :thread-id 7})}
           ^ListView call-stack (ui/run-now (ListView.))
           ^TreeView variables (ui/run-now (debugger-variables/make-view!))
-          view (g/make-node! debug-view/DebugView
-                 :debug-session session
-                 :call-stack-view call-stack
-                 :variables-view variables)
+          view
+          (g/make-node! debug-view/DebugView
+            :debug-session session
+            :call-stack-view call-stack
+            :variables-view variables)
           work (atom [])
           requests (atom [])
           errors (atom [])]
@@ -312,9 +316,10 @@
               responsive (future/make)
               connections (atom [])
               errors (atom [])
-              view (g/make-node! debug-view/DebugView
-                     :debug-session old
-                     :state-changed-fn (constantly nil))
+              view
+              (g/make-node! debug-view/DebugView
+                :debug-session old
+                :state-changed-fn (constantly nil))
               on-closed (:on-closed (#'debug-view/make-debugger-callbacks view))]
           (with-redefs-fn {#'debug-view/collect-enabled-breakpoints (constantly #{})
                            #'project/workspace (constantly ::workspace)
@@ -390,8 +395,9 @@
            :process ::process}
           current (atom (assoc target :debugger-port 49152))
           connected-ports (atom [])
-          view (g/make-node! debug-view/DebugView
-                 :state-changed-fn (constantly nil))]
+          view
+          (g/make-node! debug-view/DebugView
+            :state-changed-fn (constantly nil))]
       (with-redefs-fn {#'debug-view/built-lua-module (constantly {})
                        #'debug-view/collect-enabled-breakpoints (constantly #{})
                        #'project/workspace (constantly ::workspace)

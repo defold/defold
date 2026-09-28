@@ -413,9 +413,11 @@
                       new-snapshot [debug-session breakpoints]]
                   (when-not (= new-snapshot snapshot)
                     (let [breakpoints (breakpoints-by-path breakpoints)]
-                      (vreset! state {:snapshot new-snapshot
-                                      :task (future/io
-                                              (dap/set-breakpoints! debug-session breakpoints))}))))))))]
+                      (vreset! state
+                               {:snapshot new-snapshot
+                                :task
+                                (future/io
+                                  (dap/set-breakpoints! debug-session breakpoints))}))))))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
 (defn- setup-view! [debug-view app-view]
@@ -541,8 +543,9 @@
                        :stop-on-entry stop-on-entry
                        :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
                       (assoc (make-debugger-callbacks debug-view)
-                        :on-error (fn [_session exception]
-                                    (show-connect-failed-info! exception workspace))))]
+                        :on-error
+                        (fn [_session exception]
+                          (show-connect-failed-info! exception workspace))))]
     (g/transact
       {:undoable false}
       (g/set-properties debug-view
@@ -625,10 +628,11 @@
 (defn attach!
   [debug-view project target build-artifacts]
   (let [launched (targets/launched-target? target)
-        lua-module (built-lua-module build-artifacts
-                                     (if launched
-                                       debugger-init-script
-                                       debugger-remote-init-script))
+        lua-module
+        (built-lua-module build-artifacts
+                          (if launched
+                            debugger-init-script
+                            debugger-remote-init-script))
         previous-port (when launched (:debugger-port (latest-target target)))]
     (assert lua-module)
     (when launched
