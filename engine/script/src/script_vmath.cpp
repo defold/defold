@@ -2462,7 +2462,7 @@ namespace dmScript
         Vector3* v2 = CheckVector3(L, 2);
         float sq_len = dmVMath::LengthSqr(*v2);
         if (sq_len == 0.0f)
-            return luaL_error(L, "The second %s.%s to %s.%s must have a length bigger than 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, "project");
+            return luaL_error(L, "The second %s.%s to %s.%s must have a length larger than 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, "project");
         lua_pushnumber(L, dmVMath::Dot(*v1, *v2) / sq_len);
         return 1;
     }
