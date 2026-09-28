@@ -1,0 +1,17 @@
+[package]
+name = "benchmark-data-bevy"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license-file = "../../../../../LICENSE.txt"
+
+[dependencies]
+bevy_ecs = { version = "=0.19.1", default-features = false, features = ["std"] }
+
+[features]
+memory = []
+
+[profile.release]
+opt-level = 2
+lto = false
+codegen-units = 1
