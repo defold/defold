@@ -84,7 +84,7 @@
         (is (< 0.0 y))
         (is (= 0.0 z))))))
 
-(deftest label-scene-data-test
+(deftest label-scene-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")
           scene (g/node-value node-id :scene)
@@ -208,7 +208,7 @@
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key))))))))
 
-(deftest label-scene-test
+(deftest label-material-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
       (test-util/test-uses-assigned-material workspace project node-id

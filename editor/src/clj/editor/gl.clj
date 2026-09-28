@@ -110,7 +110,10 @@
   (let [info (context-info context)]
     (when-let [error (support-error info)]
       (throw (ex-info error info)))
-    ;; VAOs are context-local and are deleted when their context is destroyed.
+    ;; Core profiles require a nonzero VAO for vertex attribute setup and drawing;
+    ;; VAO 0 is not a default object as it was in compatibility profiles. Bind a
+    ;; default VAO in make-current so the existing vertex bindings can use it.
+    ;; VAOs are not shared between contexts and are deleted with their context.
     (let [gl (.getGL3 (.getGL context))
           names (int-array 1)]
       (.glGenVertexArrays gl 1 names 0)

@@ -107,6 +107,10 @@
      :location reflected-location
      :array-size array-size}))
 
+(def ^:private transpile-target-pb-shader-language
+  ;; Editor rendering requires desktop GLSL 330.
+  (shader-language->pb-shader-language :language-glsl-sm330))
+
 (defn- decorate-transpile-error
   [^Exception cause shader-type ^String shader-proj-path ^String shader-source max-page-count & extra-key-value-pairs]
   (let [ex-message
@@ -183,7 +187,7 @@
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
-          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330 ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
+          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
           (catch CompileExceptionError cause
             (let [error-line-number (.getLineNumber cause)
                   error-proj-path (or (some-> cause .getResource .getPath (str "/"))
