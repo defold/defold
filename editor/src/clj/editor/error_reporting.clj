@@ -60,6 +60,24 @@
                     (make-exception-notifier notify-fn))))
 
 ;;--------------------------------------------------------------------
+;; disabled functionality notification
+
+(defonce ^:private ^:redef disabled-functionality-notifier
+  ;; default noop notifier
+  (fn []))
+
+(defn init-disabled-functionality-notifier!
+  [notify-fn]
+  (alter-var-root #'disabled-functionality-notifier (constantly notify-fn)))
+
+(defn report-disabled-functionality!
+  "Report that an exception forced us to disable editor functionality. The
+  installed notifier is expected to offer the user a way to re-enable it."
+  []
+  (disabled-functionality-notifier)
+  nil)
+
+;;--------------------------------------------------------------------
 ;; sentry
 
 (defonce ^:private ^:redef sentry-reporter

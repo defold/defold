@@ -64,6 +64,7 @@ Submit Pull Requests (PRs) to contribute to the Defold engine and/or editor sour
 * For new code or changes to existing code:
   * Should be covered by tests (unit, integration or system tests).
     * All tests must pass CI before a Pull Request is approved and can be merged.
+    * CI does not run automatically on a PR from a fork. A maintainer reviews the change and applies the `ok to test` label, which builds your commit as a branch in this repository. Pushing new commits removes the label, so a maintainer has to review and label again. See [README_CI.md](/README_CI.md#external-contributions).
   * Must follow the defined coding style.
     * Use the .clang_format file for engine code.
   * Should if possible be tested on all target platforms (preferably on physical hardware).
@@ -105,7 +106,7 @@ Most contributions start with a Problem and result in a Solution. When discussin
 (These practices are inspired by the excellent ["Best practice for engine contributors"](https://docs.godotengine.org/en/latest/community/contributing/best_practices_for_engine_contributors.html) document in Godot)
 
 
-### The Problem must comes first
+### The Problem must come first
 Many developers enjoy the creative process of building systems and frameworks just for the sake of creating something. While this in itself can be both fun and rewarding it is something to pay attention to when working on a game engine. Every line of code you add will increase the build time, the complexity and the size of the code base, all of which are things you want to avoid in a game engine (or actually in all software).
 
 Best practice: *"Never add code that doesn't solve an actual problem."*

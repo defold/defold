@@ -229,9 +229,8 @@
                  (test-util/lua-module-lines transpiled-mathutils-pb-map))))))
 
     ;; Undo edits.
-    (let [project-graph-id (g/node-id->graph-id project)]
-      (g/undo! project-graph-id)
-      (g/undo! project-graph-id))
+    (g/undo! :undo/global)
+    (g/undo! :undo/global)
 
     ;; Rebuild now that we're back at the on-disk state.
     (with-open [_ (test-util/build! (test-util/resource-node project "/game.project"))]

@@ -79,7 +79,7 @@
           consumer        (pasted-node ConsumerNode paste-data)]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count (:nodes paste-data))))
-      (is (= [:tx-step/add-node :tx-step/add-node :tx-step/connect] (g/tx-data-step-types paste-tx-data)))
+      (is (= [:tx-step/add-nodes :tx-step/connect] (g/tx-data-step-types paste-tx-data)))
       (is (= 2 (count new-nodes-added)))
       (is (every? #(contains? (into #{} (:nodes paste-data)) %) (:root-node-ids paste-data)))
       (is (g/connected? (g/now) producer :produces-value consumer :consumes-value)))))
@@ -135,9 +135,7 @@
           new-root        (g/node-by-id-at (g/now) (first (:root-node-ids paste-data)))]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 4 (count (:nodes paste-data))))
-      (is (= [:tx-step/add-node :tx-step/add-node :tx-step/add-node :tx-step/add-node
-              :tx-step/connect :tx-step/connect :tx-step/connect :tx-step/connect]
-             (g/tx-data-step-types paste-tx-data)))
+      (is (= [:tx-step/add-nodes :tx-step/connect :tx-step/connect :tx-step/connect :tx-step/connect] (g/tx-data-step-types paste-tx-data)))
       (is (= 4 (count new-nodes-added)))
       (is (= (g/node-value (g/node-id new-root) :produces-value) "A string A string")))))
 
@@ -168,21 +166,6 @@
           (is (= #{ConsumeAndProduceNode} (set (map g/node-type [newleaf1 newleaf2]))))
           (is (g/connected? (g/now) (g/node-id newleaf1) :produces-value (g/node-id newleaf2) :consumes-value))
           (is (g/connected? (g/now) (g/node-id newleaf2) :produces-value (g/node-id newleaf1) :consumes-value)))))))
-
-(deftest cross-graph-copy
-  (ts/with-clean-system
-    (let [g1                  (g/make-graph!)
-          g2                  (g/make-graph!)
-          [node1 node2 node3] (ts/tx-nodes (g/make-node g1 ConsumerNode)
-                                           (g/make-node g1 ConsumeAndProduceNode)
-                                           (g/make-node g2 ProducerNode))]
-      (g/transact
-       [(g/connect node2 :produces-value node1 :consumes-value)
-        (g/connect node3 :produces-value node2 :consumes-value)])
-      (let [fragment            (g/copy [node1] {:traverse? fn/constantly-true})
-            fragment-nodes      (:nodes fragment)]
-        (is (= 1 (count (:arcs fragment))))
-        (is (= 2 (count fragment-nodes)))))))
 
 (g/defnode FunctionPropertyNode
   (property a-function g/Any))
@@ -250,7 +233,7 @@
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count new-nodes-added)))
       (is (= 3 (count (:nodes paste-data))))
-      (is (= [:tx-step/add-node :tx-step/add-node :tx-step/connect :tx-step/connect] (g/tx-data-step-types paste-tx-data)))
+      (is (= [:tx-step/add-nodes :tx-step/connect :tx-step/connect] (g/tx-data-step-types paste-tx-data)))
       (is (g/connected? (g/now) original-stopper :produces-value new-leaf :consumes-value))
       (is (= "the one and only" (g/node-value (g/node-id new-root) :produces-value))))))
 

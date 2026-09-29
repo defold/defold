@@ -1,0 +1,211 @@
+name: PR - ok to test
+
+# Builds an external (fork) pull request as if it were a branch in this repository.
+#
+# A fork PR gets no CI today: every engine job in main-ci.yml is gated on the event not
+# being a `pull_request`, and the fork's branch does not exist here to check out. To get
+# a fork PR built, a maintainer reviews the diff and applies the "ok to test" label. This
+# workflow then mirrors the reviewed commit to `contrib/pr-<number>` and dispatches
+# main-ci.yml on that branch.
+#
+# The mirrored code is untrusted - nobody with push access wrote it - yet it runs in a
+# workflow that can normally see repository secrets. main-ci.yml withholds every
+# credential from a run on `contrib/**`. See README_CI.md.
+#
+# It is dispatched on the mirror branch rather than through a repository dispatch, which
+# always reports github.ref as the default branch: a run on its own branch gets a cache
+# scope of its own. Dispatching by ref also reads main-ci.yml from the mirror branch, so
+# the branch carries this repository's .github/ instead of the pull request's.
+
+on:
+  pull_request_target:
+    types: [labeled, synchronize, closed]
+
+permissions: {}
+
+concurrency:
+  group: ok-to-test-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+  queue: max
+
+env:
+  OK_TO_TEST_LABEL: 'ok to test'
+  MIRROR_BRANCH: 'contrib/pr-${{ github.event.pull_request.number }}'
+  PR_NUMBER: '${{ github.event.pull_request.number }}'
+  HEAD_SHA: '${{ github.event.pull_request.head.sha }}'
+  GH_TOKEN: '${{ github.token }}'
+  GH_REPO: '${{ github.repository }}'
+
+jobs:
+  # ---- MIRROR A REVIEWED PULL REQUEST INTO contrib/pr-<n> ------------------
+  mirror:
+    if: github.event.action == 'labeled' && github.event.label.name == 'ok to test'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write  # to dispatch main-ci.yml on the mirror branch
+    steps:
+      - name: 'Check that the label was applied by someone with push access'
+        # Triage permission is enough to add a label, but not enough to decide that
+        # unreviewed code may run in a trusted context.
+        env:
+          SENDER: '${{ github.event.sender.login }}'
+        run: |
+          level=$(gh api "repos/${GH_REPO}/collaborators/${SENDER}/permission" --jq '.permission')
+          echo "Label applied by ${SENDER} with permission '${level}'"
+          case "${level}" in
+            admin|maintain|write) ;;
+            *) echo "::error::'${OK_TO_TEST_LABEL}' may only be applied by someone with push access"; exit 1 ;;
+          esac
+
+      - name: 'Check that the pull request targets a build branch'
+        env:
+          BASE_REF: '${{ github.event.pull_request.base.ref }}'
+        run: |
+          base="${BASE_REF}"
+          case "${base}" in
+            dev) ;;
+            *) echo "::error::Only pull requests against dev can be built"; exit 1 ;;
+          esac
+
+      - name: 'Checkout the base branch'
+        # Only the base branch is checked out. Nothing from the pull request is ever
+        # executed in this job - it is fetched as objects and pushed, never run.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: '${{ github.event.pull_request.base.ref }}'
+          persist-credentials: true
+
+      - name: 'Mirror the reviewed commit to ${{ env.MIRROR_BRANCH }}'
+        # Fetched by object id, not through refs/pull/<n>/head: that ref moves when the
+        # contributor pushes, the object id does not. The head check only fails fast.
+        # Pushed as the reviewed tree with .github/ replaced by the base branch's, so the
+        # pull request cannot supply the workflow that builds it. The reviewed commit stays
+        # as the parent.
+        env:
+          BASE_REF: '${{ github.event.pull_request.base.ref }}'
+        run: |
+          set -e
+          current=$(gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}" --jq '.head.sha')
+          if [ "${current}" != "${HEAD_SHA}" ]; then
+            echo "::error::The pull request head moved while the label was being processed (${HEAD_SHA} -> ${current}). Re-review and label again."
+            exit 1
+          fi
+          git fetch --no-tags origin "${HEAD_SHA}"
+
+          # HEAD is the base branch, checked out above.
+          base_github=$(git rev-parse 'HEAD:.github')
+          tree=$(git ls-tree "${HEAD_SHA}" \
+                   | awk -F'\t' '$2 != ".github"' \
+                   | { cat; printf '040000 tree %s\t.github\n' "${base_github}"; } \
+                   | git mktree)
+          commit=$(git -c user.name='github-actions[bot]' \
+                       -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+                       commit-tree "${tree}" -p "${HEAD_SHA}" \
+                       -m "Build pull request #${PR_NUMBER} at ${HEAD_SHA}" \
+                       -m ".github/ taken from ${BASE_REF}; every other path is the pull request's.")
+
+          echo "Mirroring ${HEAD_SHA} to ${MIRROR_BRANCH} as ${commit}"
+          git push --force origin "${commit}:refs/heads/${MIRROR_BRANCH}"
+
+      - name: 'Summarise build-affecting files in the diff'
+        # These paths are executed by the build itself, so a reviewer needs to have looked
+        # at them specifically. .github/ never reaches the build - the mirror branch carries
+        # this repository's copy - but still has to be reviewed before merging. Kept in a
+        # file rather than a step output: the names come from the pull request.
+        run: |
+          gh pr diff "${PR_NUMBER}" --name-only \
+            | grep -E '(^|/)(wscript|CMakeLists\.txt|copy\.sh)$|^ci/|^scripts/build\.py$|^build_tools/|^\.github/|\.gradle$|gradle-wrapper|^packages/|^editor/tasks/|^editor/scripts/' \
+            > build-affecting-files.txt || true
+
+      - name: 'Ask main-ci.yml to build the mirrored branch'
+        id: dispatch
+        # On the mirror branch: the run's ref is what marks it untrusted and what scopes
+        # its cache, so no payload is needed.
+        run: |
+          set -e
+          echo "since=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          gh api -X POST "repos/${GH_REPO}/actions/workflows/main-ci.yml/dispatches" \
+            -f "ref=${MIRROR_BRANCH}"
+
+      - name: 'Find the dispatched run'
+        id: run
+        # The dispatch returns 204 with no run id. The run is on a branch of its own, so
+        # the branch and the dispatch time name it exactly. Best effort.
+        run: |
+          since='${{ steps.dispatch.outputs.since }}'
+          url="https://github.com/${GH_REPO}/actions/workflows/main-ci.yml"
+          for _ in $(seq 1 12); do
+            sleep 5
+            found=$(gh api "repos/${GH_REPO}/actions/workflows/main-ci.yml/runs?event=workflow_dispatch&branch=${MIRROR_BRANCH}&per_page=5" \
+                      --jq "[.workflow_runs[] | select(.created_at >= \"${since}\")] | .[0].html_url // empty" 2>/dev/null || true)
+            if [ -n "${found}" ]; then
+              url="${found}"
+              break
+            fi
+          done
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+
+      - name: 'Comment on the pull request'
+        env:
+          RUN_URL: '${{ steps.run.outputs.url }}'
+        run: |
+          {
+            printf 'Building `%s` from %s.\n\n' "${MIRROR_BRANCH}" "${HEAD_SHA}"
+            printf 'Run: %s\n\n' "${RUN_URL}"
+            printf 'This build runs without any signing, publishing or private-repository\n'
+            printf 'credentials, and does not archive or release anything.\n'
+            if [ -s build-affecting-files.txt ]; then
+              printf '\nBuild-affecting files in this pull request - review these before merging:\n\n```\n'
+              cat build-affecting-files.txt
+              printf '```\n'
+            fi
+            printf '\nPushing new commits removes the `%s` label and deletes the branch.\n' "${OK_TO_TEST_LABEL}"
+          } > comment.md
+          gh pr comment "${PR_NUMBER}" --body-file comment.md
+
+      - name: 'Withdraw the label if mirroring failed'
+        # Only while the build has not been asked for yet. After the dispatch main-ci is
+        # already cloning the branch, and deleting it would break a run that is under way -
+        # a failure in the steps after the dispatch costs a comment, not a build.
+        if: failure() && steps.dispatch.outcome != 'success'
+        run: |
+          gh pr edit "${PR_NUMBER}" --remove-label "${OK_TO_TEST_LABEL}" || true
+          gh api -X DELETE "repos/${GH_REPO}/git/refs/heads/${MIRROR_BRANCH}" || true
+          gh pr comment "${PR_NUMBER}" --body "Could not start a build for this pull request. See ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} - the \`${OK_TO_TEST_LABEL}\` label has been removed." || true
+
+  # ---- REVOKE THE LABEL WHEN NEW COMMITS ARRIVE ------------------
+  revoke:
+    if: github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'ok to test')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: 'Remove the label and the mirrored branch'
+        # The label approves one reviewed commit, not the pull request. Anything pushed
+        # after it has not been reviewed and must not run in a trusted context.
+        run: |
+          # The branch goes first, and the label removal cannot stop it: the label may
+          # already have been withdrawn by the mirror job, and under 'bash -e' a failing
+          # 'gh pr edit' would abort the step before the branch was deleted.
+          gh api -X DELETE "repos/${GH_REPO}/git/refs/heads/${MIRROR_BRANCH}" || true
+          gh pr edit "${PR_NUMBER}" --remove-label "${OK_TO_TEST_LABEL}" || true
+          gh pr comment "${PR_NUMBER}" --body "New commits were pushed, so the \`${OK_TO_TEST_LABEL}\` label has been removed and \`${MIRROR_BRANCH}\` deleted. A maintainer needs to review the new commits and apply the label again to build them."
+
+  # ---- CLEAN UP WHEN THE PULL REQUEST IS CLOSED ------------------
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: 'Delete the mirrored branch'
+        run: |
+          gh api -X DELETE "repos/${GH_REPO}/git/refs/heads/${MIRROR_BRANCH}" || true
+          gh pr edit "${PR_NUMBER}" --remove-label "${OK_TO_TEST_LABEL}" || true

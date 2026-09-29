@@ -6,6 +6,7 @@ in mediump vec2 texcoord0;
 in mediump vec4 face_color;
 in mediump vec4 outline_color;
 in mediump vec4 shadow_color;
+in mediump vec4 sdf_params;
 in mediump vec3 layer_mask;
 
 out mediump vec2 var_texcoord0;
@@ -13,7 +14,9 @@ out mediump vec4 var_face_color;
 out mediump vec4 var_outline_color;
 out mediump vec4 var_shadow_color;
 out mediump vec4 var_layer_mask;
+out mediump float var_shadow_uses_face_coverage;
 out mediump float var_is_single_layer;
+out highp vec2 var_decoration;
 
 uniform vs_uniforms
 {
@@ -25,8 +28,14 @@ void main()
     var_texcoord0 = texcoord0;
     var_face_color = face_color;
     var_outline_color = outline_color;
-    var_layer_mask.rgb = layer_mask;
+    bool dashed_decoration = layer_mask.z < 0.0;
+    var_decoration = dashed_decoration ? vec2(layer_mask.y, -layer_mask.z) : vec2(0.0);
+    vec3 decoration_layer_mask = vec3(1.0 - step(1.5, layer_mask.x),
+                                      step(1.5, layer_mask.x) * (1.0 - step(2.5, layer_mask.x)),
+                                      step(2.5, layer_mask.x));
+    var_layer_mask.rgb = dashed_decoration ? decoration_layer_mask : layer_mask;
     var_layer_mask.a = var_layer_mask.x * var_layer_mask.y * var_layer_mask.z;
     var_shadow_color = shadow_color;
+    var_shadow_uses_face_coverage = step(1.25, sdf_params.w);
     gl_Position = view_proj * vec4(position.x, position.y, position.z, 1.0);
 }

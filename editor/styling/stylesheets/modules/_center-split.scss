@@ -1,8 +1,13 @@
 #center-split {
     -fx-padding: 0;
 
-    .viewport {
+    #scroll-pane > .viewport,
+    .cljfx-form-contents-scroll-pane > .viewport,
+    .md-page-scroll-pane > .viewport {
         -fx-background-color: -df-background-light;
+    }
+
+    .viewport {
 
         .button {
             -fx-min-width: 20px;
@@ -12,10 +17,6 @@
             -fx-border-width: 0;
             -fx-border-color: transparent;
         }
-    }
-
-    .tab {
-
     }
 
     .split-pane-divider {

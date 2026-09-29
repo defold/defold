@@ -1,0 +1,18 @@
+name: "main"
+instances {
+  id: "player"
+  prototype: "/objects/player.go"
+}
+instances {
+  id: "enemy"
+  prototype: "/objects/enemy.go"
+}
+instances {
+  id: "readonly"
+  prototype: "/non_editable/readonly.go"
+}
+collection_instances {
+  id: "level"
+  collection: "/levels/level.collection"
+}
+scale_along_z: 0

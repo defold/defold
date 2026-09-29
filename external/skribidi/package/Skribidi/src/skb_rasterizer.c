@@ -761,11 +761,8 @@ static void skb__hb_pop_group (
 
 	skb_canvas_t* c = (skb_canvas_t*)paint_data;
 
-	if (mode != HB_PAINT_COMPOSITE_MODE_SRC_OVER) {
-		skb_debug_log("Unsupported blend mode: %d\n", mode);
-	}
-
-	skb_canvas_pop_layer(c);
+	// Note: Simple mode conversion possible because HB and SKB enum values both exactly match the COLRv1 spec.
+	skb_canvas_pop_layer(c, (skb_blend_mode_t)mode);
 }
 
 #define GRAST_MAX_COLOR_STOPS 64
@@ -1017,9 +1014,9 @@ bool skb_rasterizer_draw_alpha_glyph(
 	// Create transform to convert from the font coordinates to the canvas.
 	const float scale = font_size * font->upem_scale;
 
-	const skb_mat2_t scale_xfrorm = skb_mat2_make_scale(scale, -scale);
-	const skb_mat2_t trans_xform = skb_mat2_make_translation(-offset_x, -offset_y);
-	const skb_mat2_t xform = skb_mat2_multiply(scale_xfrorm, trans_xform);
+	const skb_mat2_t scale_xform = skb_mat2_make_scale(scale, -scale);
+	const skb_mat2_t trans_xform = skb_mat2_make_translation(offset_x, offset_y);
+	const skb_mat2_t xform = skb_mat2_multiply(scale_xform, trans_xform);
 	skb_canvas_push_transform(canvas, xform);
 
 	hb_font_draw_glyph(font->hb_font, glyph_id, rasterizer->draw_funcs, canvas);
@@ -1059,9 +1056,9 @@ bool skb_rasterizer_draw_color_glyph(
 	// Create transform to convert from the font coordinates to the canvas.
 	const float scale = font_size * font->upem_scale;
 
-	const skb_mat2_t scale_xfrorm = skb_mat2_make_scale(scale, -scale);
-	const skb_mat2_t trans_xform = skb_mat2_make_translation((float)-offset_x, (float)-offset_y);
-	const skb_mat2_t xform = skb_mat2_multiply(scale_xfrorm, trans_xform);
+	const skb_mat2_t scale_xform = skb_mat2_make_scale(scale, -scale);
+	const skb_mat2_t trans_xform = skb_mat2_make_translation((float)offset_x, (float)offset_y);
+	const skb_mat2_t xform = skb_mat2_multiply(scale_xform, trans_xform);
 	skb_canvas_push_transform(canvas, xform);
 
 	hb_font_paint_glyph(font->hb_font, glyph_id, rasterizer->paint_funcs, canvas, 0, HB_COLOR(255,255,255,255)); // BGRA
@@ -1159,7 +1156,7 @@ static void skb__icon_draw_shape(skb_canvas_t* c, const skb_icon_t* icon, const 
 			skb_canvas_fill_solid_color(c, color);
 		}
 
-		skb_canvas_pop_layer(c);
+		skb_canvas_pop_layer(c, SKB_BLEND_SRC_OVER);
 	}
 
 	for (int32_t i = 0; i < shape->children_count; i++)
@@ -1217,9 +1214,9 @@ bool skb_rasterizer_draw_alpha_icon(
 	skb_canvas_t* canvas = skb_canvas_create(temp_alloc, target);
 
 	// Create transform to convert from the font coordinates to the canvas.
-	const skb_mat2_t scale_xfrorm = skb_mat2_make_scale(icon_scale.x, icon_scale.y);
-	const skb_mat2_t trans_xform = skb_mat2_make_translation(-icon->view.x * icon_scale.x - (float)offset_x, -icon->view.y * icon_scale.y - (float)offset_y);
-	const skb_mat2_t xform = skb_mat2_multiply(scale_xfrorm, trans_xform);
+	const skb_mat2_t scale_xform = skb_mat2_make_scale(icon_scale.x, icon_scale.y);
+	const skb_mat2_t trans_xform = skb_mat2_make_translation(-icon->view.x * icon_scale.x + (float)offset_x, -icon->view.y * icon_scale.y + (float)offset_y);
+	const skb_mat2_t xform = skb_mat2_multiply(scale_xform, trans_xform);
 	skb_canvas_push_transform(canvas, xform);
 
 	skb__icon_draw_shape_alpha(canvas, icon, &icon->root);
@@ -1256,9 +1253,9 @@ bool skb_rasterizer_draw_color_icon(
 	skb_canvas_t* canvas = skb_canvas_create(temp_alloc, target);
 
 	// Create transform to convert from the font coordinates to the canvas.
-	const skb_mat2_t scale_xfrorm = skb_mat2_make_scale(icon_scale.x, icon_scale.y);
-	const skb_mat2_t trans_xform = skb_mat2_make_translation(-icon->view.x * icon_scale.x - (float)offset_x, -icon->view.y * icon_scale.y - (float)offset_y);
-	const skb_mat2_t xform = skb_mat2_multiply(scale_xfrorm, trans_xform);
+	const skb_mat2_t scale_xform = skb_mat2_make_scale(icon_scale.x, icon_scale.y);
+	const skb_mat2_t trans_xform = skb_mat2_make_translation(-icon->view.x * icon_scale.x + (float)offset_x, -icon->view.y * icon_scale.y + (float)offset_y);
+	const skb_mat2_t xform = skb_mat2_multiply(scale_xform, trans_xform);
 	skb_canvas_push_transform(canvas, xform);
 
 	skb__icon_draw_shape(canvas, icon, &icon->root, 1.f);
@@ -1384,7 +1381,7 @@ bool skb_rasterizer_draw_decoration_pattern(
 
 	skb_vec2_t size = skb_rasterizer_get_decoration_pattern_size(style, thickness);
 
-	const skb_mat2_t trans_xform = skb_mat2_make_translation(-(float)offset_x, -(float)offset_y);
+	const skb_mat2_t trans_xform = skb_mat2_make_translation((float)offset_x, (float)offset_y);
 	skb_canvas_push_transform(canvas, trans_xform);
 
 	if (style == SKB_DECORATION_STYLE_SOLID) {

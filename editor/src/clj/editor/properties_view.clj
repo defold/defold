@@ -27,6 +27,7 @@
             [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.localization :as localization]
+            [editor.markdown :as markdown]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
             [editor.properties :as properties]
@@ -465,9 +466,6 @@
             (resolve-validation property localization-state)
             (resolve-scrubber property :left #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
 
-(defn- vec->color [[r g b a]]
-  (Color. (float r) (float g) (float b) (float (or a 1.0))))
-
 (defmethod make-control-view types/Color [property {:keys [prefs]} localization-state]
   (let [values (properties/values property)
         value (properties/unify-values values)
@@ -475,7 +473,7 @@
         old-num (coalesced-property->old-num property)
         coerce (if (math/float32? old-num) float double)]
     (-> {:fx/type fxui/color-picker
-         :value (some-> value vec->color)
+         :value (some-> value fxui/vec->color)
          :on-value-changed
          (fn [^Color new-color]
            (set-values! property
@@ -524,6 +522,25 @@
                      (contains? valid-extensions resource-ext))
             resource))))))
 
+(defn parse-resource-path
+  ^String [^String s]
+  (let [length (.length s)]
+    (loop [index 0]
+      (if (= index length)
+        s
+        (let [c (.charAt s index)]
+          ;; Resource resolution normalizes path separators to forward slashes. The
+          ;; remaining characters must be usable on every supported platform. Windows
+          ;; reserves control characters and " < > : | ? *, while the Editor also
+          ;; excludes quote-like characters from file names. Keep the file-name
+          ;; restrictions in sync with editor.dialogs/sanitize-common.
+          (if (or (<= (int c) 0x1f)
+                  (case c
+                    (\" \' \« \» \< \> \: \| \? \*) true
+                    false))
+            nil
+            (recur (inc index))))))))
+
 (defmethod make-control-view resource/Resource [property {:keys [workspace project]} localization-state]
   (let [value (properties/unify-values (properties/values property))
         {:keys [ext dialog-accept-fn]} (:edit-type property)
@@ -565,6 +582,7 @@
        [{:fx/type fxui/value-field
          :h-box/hgrow :always
          :value (some-> value resource/proj-path)
+         :to-value parse-resource-path
          :on-value-changed #(set-values! property (repeat (workspace/resolve-workspace-resource workspace %)))
          :editable (not read-only)
          :style-class "ext-resource-picker-field"}
@@ -727,7 +745,7 @@
                          (coll/mapcat-indexed
                            (fn [i [property-keyword property]]
                              (let [overridden (properties/overridden? property)]
-                               (coll/pair
+                               (pair
                                  {:fx/type fxui/menu-button
                                   :min-width :use-pref-size
                                   :style-class (cond-> ["property-label"] overridden (conj "overridden"))
@@ -738,11 +756,17 @@
                                   :mnemonic-parsing false
                                   :focus-traversable false
                                   :text (localization-state (properties/label property))
-                                  :tooltip (localization-state
-                                             (localization/message
-                                               "property.tooltip"
-                                               {"help" (properties/tooltip property)
-                                                "id" (string/replace (name property-keyword) \- \_)}))
+                                  :tooltip {:fx/type fxui/tooltip
+                                            :content-display :graphic-only
+                                            :style {:-fx-padding 0}
+                                            :graphic {:fx/type markdown/view
+                                                      :content (localization-state
+                                                                 (localization/message
+                                                                   "property.tooltip"
+                                                                   {"help" (properties/tooltip property)
+                                                                    "id" (string/replace (name property-keyword) \- \_)}))
+                                                      :max-width 350.0
+                                                      :project (:project context)}}
                                   prop-button-menu ::property-menu
                                   prop-mouse-pressed-handler focus-mouse-event-source!
                                   prop-property-context [(assoc context :property property) selection-provider]}
@@ -797,11 +821,12 @@
 
   (output pane-desc g/Any :cached produce-pane-desc))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph prefs]
+(defn make-properties-view [workspace project app-view search-results-view graph prefs]
   (first
     (g/tx-nodes-added
       (g/transact
-        (g/make-nodes view-graph [view [PropertiesView :prefs prefs]]
+        {:undoable false}
+        (g/make-nodes graph [view [PropertiesView :prefs prefs]]
           (g/connect workspace :_node-id view :workspace)
           (g/connect workspace :localization view :localization)
           (g/connect project :_node-id view :project)

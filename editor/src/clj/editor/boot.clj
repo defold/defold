@@ -183,7 +183,7 @@
     (when-let [support-error (gl/gl-support-error)]
       (when (= (dialogs/make-gl-support-error-dialog support-error localization) :quit)
         (System/exit -1)))
-    (let [updater (updater/start!)]
+    (let [updater (updater/start! prefs)]
       (when (some? updater)
         (updater/delete-backup-files! updater))
       (try

@@ -80,6 +80,16 @@ platforms:
             linkFlags: []
             jetifier: false
 
+    x86_64-android:
+        context:
+            excludeLibs: []
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+            jetifier: false
+
     armv7-ios:
         context:
             excludeLibs: []
@@ -98,7 +108,7 @@ platforms:
             frameworks: []
             linkFlags: []
 
-    x86_64-ios:
+    arm64_sim-ios:
         context:
             excludeLibs: []
             excludeSymbols: []

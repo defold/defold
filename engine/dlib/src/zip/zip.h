@@ -410,6 +410,7 @@ extern ZIP_EXPORT ssize_t zip_entry_read(struct zip_t *zip, void **buf,
 extern ZIP_EXPORT ssize_t zip_entry_noallocread(struct zip_t *zip, void *buf,
                                                 size_t bufsize);
 
+// DEFOLD -> Document direct partial reads for stored entries.
 /**
  * Extracts the part of the current zip entry into a memory buffer using no
  * memory allocation for the buffer.
@@ -419,8 +420,9 @@ extern ZIP_EXPORT ssize_t zip_entry_noallocread(struct zip_t *zip, void *buf,
  * @param size requested number of bytes (in bytes).
  * @param buf preallocated output buffer.
  *
- * @note the iterator api uses an allocation to create its state
- * @note each call will iterate from the start of the entry
+ * @note stored entries are read directly from the requested offset
+ * @note compressed entries use an allocated iterator and each call will
+ *       decompress from the start of the entry
  *
  * @return the return code - the number of bytes actually read on success.
  *         Otherwise a negative number (< 0) on error (e.g. offset is too
@@ -430,6 +432,7 @@ extern ZIP_EXPORT ssize_t zip_entry_noallocreadwithoffset(struct zip_t *zip,
                                                           size_t offset,
                                                           size_t size,
                                                           void *buf);
+// <- DEFOLD
 
 /**
  * Extracts the current zip entry into output file.
@@ -600,6 +603,26 @@ extern ZIP_EXPORT void zip_stream_close(struct zip_t *zip);
  */
 extern ZIP_EXPORT struct zip_t *zip_cstream_open(FILE *stream, int level,
                                                  char mode);
+
+// DEFOLD -> Add support for reading a ZIP from a bounded FILE range.
+typedef size_t (*zip_cstream_read_callback)(FILE *stream, uint64_t offset,
+                                            void *buffer, size_t size);
+
+/**
+ * Opens a read-only zip archive from a bounded range in an existing FILE
+ * stream. The stream will not be closed when calling zip_close.
+ *
+ * @param stream C FILE stream.
+ * @param offset byte offset of the archive in the stream.
+ * @param size size of the archive in bytes.
+ * @param level compression level (0-9 are the standard zlib-style levels).
+ * @param read_callback callback used to read from an absolute stream offset.
+ * @return the zip archive handler or NULL on error
+ */
+extern ZIP_EXPORT struct zip_t *zip_cstream_openwithoffset(
+    FILE *stream, uint64_t offset, uint64_t size, int level,
+    zip_cstream_read_callback read_callback);
+// <- DEFOLD
 
 /**
  * Opens zip archive from existing FILE stream with compression level using

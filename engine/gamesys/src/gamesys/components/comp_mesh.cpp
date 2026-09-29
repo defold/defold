@@ -54,6 +54,8 @@ namespace dmGameSystem
     using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
+    static const char* MESH_MAX_COUNT_KEY = "mesh.max_count";
+
     struct MeshComponent
     {
         dmGameObject::HInstance         m_Instance;
@@ -376,8 +378,8 @@ namespace dmGameSystem
 
         if (world->m_Components.Full())
         {
-            ShowFullBufferError("Mesh", "mesh.max_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            ShowFullBufferError("Mesh", MESH_MAX_COUNT_KEY, world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         uint32_t index = world->m_Components.Alloc();
         MeshComponent* component = new MeshComponent;
@@ -523,7 +525,6 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompMeshLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         DM_PROFILE("LateUpdate");
-        MeshContext* context = (MeshContext*)params.m_Context;
         MeshWorld* world = (MeshWorld*)params.m_World;
 
         UpdateTransforms(world);
@@ -1020,7 +1021,6 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 BufferResource* br = GetBufferResource(component);
-                uint32_t old_version = component->m_BufferVersion;
                 component->m_BufferVersion = CalcBufferVersion(component, br);
 
                 // If the buffer resource was changed, we might need to recreate the vertex declaration.
@@ -1164,7 +1164,7 @@ namespace dmGameSystem
         HContextRegistry context_registry = dmGameObject::ComponentGetContextRegistry(ctx);
         mesh_context->m_Factory = ctx->m_Factory;
         mesh_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
-        mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, "mesh.max_count", 128);
+        mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, MESH_MAX_COUNT_KEY, 128);
 
         ComponentTypeSetPrio(type, 725);
 

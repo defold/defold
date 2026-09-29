@@ -85,15 +85,6 @@ namespace dmRig
         delete context;
     }
 
-    template <typename T>
-    static inline void EnsureSize(T& array, uint32_t size)
-    {
-        if (array.Capacity() < size) {
-            array.OffsetCapacity(size - array.Capacity());
-        }
-        array.SetSize(size);
-    }
-
     static const dmRigDDF::RigAnimation* FindAnimation(const dmRigDDF::AnimationSet* anim_set, dmhash_t animation_id)
     {
         if(anim_set == 0x0)
@@ -1507,7 +1498,7 @@ namespace dmRig
         {
             if (bone_count)
             {
-                EnsureSize(pose_matrices, bone_count);
+                pose_matrices.EnsureSize(bone_count);
                 PoseToMatrix(instance->m_Pose, pose_matrices.Begin());
 
                 // Premultiply pose matrices with the bind pose inverse so they
@@ -1522,12 +1513,12 @@ namespace dmRig
 
             if (meta_datas.m_HasAttributeWorldPosition)
             {
-                EnsureSize(positions_world, vertex_count);
+                positions_world.EnsureSize(vertex_count);
                 positions_buffer_world = (float*) positions_world.Begin();
             }
             if (meta_datas.m_HasAttributeLocalPosition)
             {
-                EnsureSize(positions_local, vertex_count);
+                positions_local.EnsureSize(vertex_count);
                 positions_buffer_local = (float*) positions_local.Begin();
             }
 
@@ -1535,8 +1526,8 @@ namespace dmRig
         }
         if (meta_datas.m_HasAttributeNormal && mesh->m_Normals.m_Count)
         {
-            EnsureSize(normals, vertex_count);
-            EnsureSize(tangents, vertex_count);
+            normals.EnsureSize(vertex_count);
+            tangents.EnsureSize(vertex_count);
             normals_buffer  = (float*) normals.Begin();
             tangents_buffer = (float*) tangents.Begin();
 
@@ -1567,7 +1558,7 @@ namespace dmRig
         uint32_t bone_count = GetBoneCount(instance);
         if (bone_count)
         {
-            EnsureSize(pose_matrices, bone_count);
+            pose_matrices.EnsureSize(bone_count);
             PoseToMatrix(instance->m_Pose, pose_matrices.Begin());
 
             // Premultiply pose matrices with the bind pose inverse so they
@@ -1591,9 +1582,9 @@ namespace dmRig
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
         // Bump scratch buffers capacity to handle current vertex count
-        EnsureSize(positions_world, vertex_count);
-        EnsureSize(normals, vertex_count);
-        EnsureSize(tangents, vertex_count);
+        positions_world.EnsureSize(vertex_count);
+        normals.EnsureSize(vertex_count);
+        tangents.EnsureSize(vertex_count);
 
         float* positions_world_buffer = (float*)positions_world.Begin();
         float* normals_buffer = (float*)normals.Begin();

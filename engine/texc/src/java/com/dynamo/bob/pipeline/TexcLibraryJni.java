@@ -85,6 +85,8 @@ public class TexcLibraryJni {
 
     // Used by the TextureGenerator.java
     public static native long CreateImage(String name, int width, int height, int pixelFormat, int colorSpace, byte[] data);
+    public static native boolean IsHDR(byte[] data);
+    public static native Texc.Image CreateImageFromBuffer(byte[] data);
     public static native int CreatePreviewImage(int width, int height, byte[] inputArray, byte[] outputArray);
     public static native void DestroyImage(long image);
     public static native byte[] GetData(long image);

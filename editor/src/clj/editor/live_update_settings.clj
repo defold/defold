@@ -64,32 +64,32 @@
 
   (output amazon-creds g/Any :cached
           (g/fnk [settings-map]
-                 (let [profile (get settings-map ["liveupdate" "amazon-credential-profile"])]
-                   (when (and profile (pos? (count profile)))
-                     {:profile profile}))))
+            (let [profile (get settings-map ["liveupdate" "amazon-credential-profile"])]
+              (when (and profile (pos? (count profile)))
+                {:profile profile}))))
 
   (output amazon-buckets g/Any :cached (g/fnk [amazon-creds] (if amazon-creds (get-bucket-names amazon-creds) [])))
 
   (input form-data g/Any)
   (output form-data g/Any :cached
           (g/fnk [form-data amazon-buckets]
-                 (-> form-data
-                     (assoc :navigation false)
-                     (form/update-form-setting ["liveupdate" "amazon-credential-profile"]
-                                               #(assoc %
-                                                       :type :choicebox
-                                                       :from-string str :to-string str
-                                                       :options (mapv (fn [profile]
-                                                                        [profile profile])
-                                                                      (sort (get-config-file-profiles)))))
-                     (form/update-form-setting ["liveupdate" "amazon-bucket"]
-                                               #(assoc %
-                                                       :type :choicebox
-                                                       :from-string str
-                                                       :to-string str
-                                                       :options (mapv (fn [bucket]
-                                                                        [bucket bucket])
-                                                                      (sort amazon-buckets)))))))
+            (-> form-data
+                (assoc :navigation false)
+                (form/update-form-setting ["liveupdate" "amazon-credential-profile"]
+                                          #(assoc %
+                                             :type :choicebox
+                                             :from-string str :to-string str
+                                             :options (mapv (fn [profile]
+                                                              [profile profile])
+                                                            (sort (get-config-file-profiles)))))
+                (form/update-form-setting ["liveupdate" "amazon-bucket"]
+                                          #(assoc %
+                                             :type :choicebox
+                                             :from-string str
+                                             :to-string str
+                                             :options (mapv (fn [bucket]
+                                                              [bucket bucket])
+                                                            (sort amazon-buckets)))))))
 
   (input save-value g/Any)
   (output save-value g/Any (gu/passthrough save-value))
@@ -103,11 +103,11 @@
   (let [graph-id (g/node-id->graph-id self)]
     (concat
       (g/make-nodes graph-id [settings-node settings/SettingsNode]
-                    (g/connect settings-node :_node-id self :nodes)
-                    (g/connect settings-node :settings-map self :settings-map)
-                    (g/connect settings-node :save-value self :save-value)
-                    (g/connect settings-node :form-data self :form-data)
-                    (settings/load-settings-node project self settings-node resource source-value basic-meta-info nil)))))
+        (g/connect settings-node :_node-id self :nodes)
+        (g/connect settings-node :settings-map self :settings-map)
+        (g/connect settings-node :save-value self :save-value)
+        (g/connect settings-node :form-data self :form-data)
+        (settings/load-settings-node project self settings-node resource source-value basic-meta-info nil)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace
@@ -117,7 +117,7 @@
     :load-fn load-live-update-settings
     :meta-settings (:settings basic-meta-info)
     :icon live-update-icon
-    :view-types [:cljfx-form-view :text]))
+    :view-types [:form :text]))
 
 (defn get-live-update-settings-path [project]
   (resource/resource->proj-path (get (project/settings project) ["liveupdate" "settings"])))

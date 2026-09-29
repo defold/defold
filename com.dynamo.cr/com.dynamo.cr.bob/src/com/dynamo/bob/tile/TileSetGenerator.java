@@ -141,7 +141,7 @@ public class TileSetGenerator {
         // Since all the images already are positioned optimally in a grid,
         // we tell TextureSetGenerator to NOT do its own packing and use this grid directly.
         Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
-        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, names, iterator, 0,
+        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, names, null, iterator, 0,
                 tileSet.getInnerPadding(),
                 tileSet.getExtrudeBorders(), false, true, grid_size, 0, 0);
 

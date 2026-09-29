@@ -34,7 +34,7 @@ endif()
 defold_log("functions_ios.cmake:")
 
 function(defold_xcode_configure_ios_app target)
-  if(NOT (TARGET_PLATFORM STREQUAL "arm64-ios" AND CMAKE_GENERATOR STREQUAL "Xcode"))
+  if(NOT (TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$" AND CMAKE_GENERATOR STREQUAL "Xcode"))
     return()
   endif()
 

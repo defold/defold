@@ -25,7 +25,8 @@
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :as coll])
   (:import [com.dynamo.discovery MDNS MDNS$Logger MDNSServiceInfo]
            [java.io ByteArrayOutputStream]
            [java.net InetAddress NetworkInterface URL URLConnection]
@@ -101,44 +102,45 @@
     (invalidate-target-menu!)
     (process/on-exit! (:process launched-target)
                       (fn []
-                        (swap! launched-targets (partial remove #(= (:id %) (:id launched-target))))
+                        (swap! launched-targets coll/filterv-> #(not= (:id %) (:id launched-target)))
                         (clear-selected-target-hint!)
                         (invalidate-target-menu!)))
     launched-target))
 
 (defn- find-by-id [targets id]
-  (some #(when (= (:id %) id) %) targets))
+  (coll/first-where #(= (:id %) id) targets))
 
-(defn- url-watcher [id callback]
-  (fn [key ref _ targets]
-    (let [target (find-by-id targets id)
-          url (:url target)]
-      (when (or url (nil? target))
-        (remove-watch ref key))
-      (when url
-        (callback url)))))
+(defn when-url-or-removed [id callback]
+  (let [key (Object.)
+        completed (atom false)
+        watcher (fn [key ref _ targets]
+                  (let [target (find-by-id targets id)
+                        url (:url target)]
+                    (when (and (or url (nil? target))
+                               (compare-and-set! completed false true))
+                      (remove-watch ref key)
+                      (callback url))))]
+    (add-watch launched-targets key watcher)
+    (watcher key launched-targets nil @launched-targets)
+    (fn cancel-url-watch! []
+      (when (compare-and-set! completed false true)
+        (remove-watch launched-targets key)))))
 
 (defn when-url [id callback]
-  (when-let [target (find-by-id @launched-targets id)]
-    (if-let [url (:url target)]
-      (callback url)
-      (add-watch launched-targets [::url id callback] (url-watcher id callback)))))
+  (when-url-or-removed id #(when % (callback %))))
 
 (defn update-launched-target! [target target-info]
-  (let [old @launched-targets
-        result-target (volatile! nil)]
-    (reset! launched-targets
-            (map (fn [launched-target]
-                   (if (= (:id launched-target) (:id target))
-                     (let [rt (merge launched-target target-info)]
-                       (vreset! result-target rt)
-                       rt)
-                     launched-target))
-                 old))
-    (when (not= old @launched-targets)
+  (let [target-id (:id target)
+        [old new] (swap-vals! launched-targets
+                              coll/mapv->
+                              (fn [launched-target]
+                                (if (= target-id (:id launched-target))
+                                  (merge launched-target target-info)
+                                  launched-target)))]
+    (when (not= old new)
       (clear-selected-target-hint!)
       (invalidate-target-menu!))
-    @result-target))
+    (find-by-id new target-id)))
 
 (defn launched-targets? []
   (seq @launched-targets))
@@ -167,8 +169,8 @@
                      (if (not= (last xs) message)
                        (let [discard (max 0 (inc (- (count xs) max-log-entries)))]
                          (-> xs
-                           (conj message)
-                           (subvec discard)))
+                             (conj message)
+                             (subvec discard)))
                        xs)))
   nil)
 
@@ -234,7 +236,7 @@
       (assoc :name (:name discovered-target)))))
 
 (defn- dedupe-targets-by-url [targets]
-  (vals
+  (coll/vals
     (reduce (fn [targets-by-url target]
               (update targets-by-url (:url target)
                       (fn [existing]
@@ -254,9 +256,9 @@
                   devices)
         old-targets @targets-atom
         targets (->> devices
-                  (pmap device->target)
-                  (filter some?)
-                  (dedupe-targets-by-url))
+                     (pmap device->target)
+                     (filter some?)
+                     (dedupe-targets-by-url))
         {external-targets false local-targets true} (group-by local-target? targets)
         targets (into [] (comp cat (distinct)) [(sort-by :url local-targets)
                                                 (sort-by :url external-targets)])]
@@ -287,7 +289,7 @@
 
 (defn- targets-worker []
   (let [mdns-service' (MDNS. (reify MDNS$Logger
-                               (log [this msg] (log msg))))]
+                               (log [_this msg] (log msg))))]
     (try
       (if (.setup mdns-service')
         (do
@@ -301,8 +303,7 @@
                 (reset! last-search now))
               (when (or search? changed?)
                 (update-targets! update-targets-context (devices mdns-service'))))))
-        (do
-          (reset! running false)))
+        (reset! running false))
       (catch Exception e
         (prn e))
       (finally
@@ -345,12 +346,11 @@
                    targets (all-targets)]
                (or (find-by-id targets target-id)
                    (when-let [{:keys [address port]} (manual-target-id->address-port target-id)]
-                     (some (fn [target]
-                             (when (and (remote-target? target)
-                                        (= address (:address target))
-                                        (= port (:port target)))
-                               target))
-                           targets))))))))
+                     (coll/first-where (fn [target]
+                                         (and (remote-target? target)
+                                              (= address (:address target))
+                                              (= port (:port target))))
+                                       targets))))))))
 
 (defn controllable-target? [target]
   (some? (:url target)))
@@ -453,7 +453,7 @@
                 mdns-options))))))
 
 (defn- locate-device [ip port]
-  (when (not-empty ip)
+  (when (coll/not-empty ip)
     (let [port (or port "8001")
           inet-addr (InetAddress/getByName ip)
           n-ifs (MDNS/getMCastInterfaces)
@@ -495,7 +495,7 @@
   (enabled? [app-view] (launched-targets?))
   (active? [] true)
   (run []
-       (kill-launched-targets!)))
+    (kill-launched-targets!)))
 
 (handler/register-menu! ::menubar :editor.defold-project/targets
   [{:label (localization/message "command.run.select-target")

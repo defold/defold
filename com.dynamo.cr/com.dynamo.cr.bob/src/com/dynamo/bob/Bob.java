@@ -1040,7 +1040,8 @@ public class Bob {
     }
 
     private static void logErrorAndExit(Exception e) {
-        logger.severe(e.getMessage().toString());
+        String message = e.getMessage();
+        logger.severe(message != null ? message : e.toString());
         Throwable cause = e.getCause();
         if (cause != null) {
             for (int i = 0; cause != null; ++i) {
@@ -1057,7 +1058,7 @@ public class Bob {
                 logger.severe(element.toString());
             }
         }
-        logger.severe(e.getMessage(), e);
+        logger.severe(message != null ? message : e.toString(), e);
         System.exit(1);
     }
 

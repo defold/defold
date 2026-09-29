@@ -71,7 +71,9 @@
                                         MessagePatterns and :on-action
                                         0-arg callbacks"
   [notifications-node notification]
-  (g/transact (show notifications-node notification))
+  (g/transact
+    {:undoable false}
+    (show notifications-node notification))
   nil)
 
 (defn close
@@ -90,7 +92,9 @@
 (defn close!
   "Close notification by id"
   [notifications-node id]
-  (g/transact (close notifications-node id))
+  (g/transact
+    {:undoable false}
+    (close notifications-node id))
   nil)
 
 (comment

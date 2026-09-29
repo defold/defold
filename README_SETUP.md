@@ -4,7 +4,7 @@
 
 This guide focuses on the tool and platform sdk installation.
 
-Build instructions for the engine are found here [here](/editor/README_BUILD.md)).
+(Build instructions for the engine are found here [here](/README_BUILD.md)).
 
 At the very minimum, you need to install the SDK for your host platform (Windows, macOS or Linux)
 
@@ -568,15 +568,16 @@ There are a few ways to install the DotNet sdk:
 
 These are needed in some special build scripts (e.g. when rebuilding external source libraries).
 
-* **curl** - Command line tool for downloading files
-* **wget** - Command line tool for downloading files
-* **cmake** for easier building of external projects
-* **patch** for easier patching on windows (when building external projects)
+* **curl** for downloading files
+* **wget** for downloading files
+* **cmake** for building of external projects
+* **ninja** for building of external projects
+* **patch** for patching when building external projects
 
 <details><summary>macOS...</summary><p>
 
   ```sh
-  brew install wget curl cmake patch
+  brew install wget curl cmake ninja patch
   ````
 
 </p></details>
@@ -584,7 +585,7 @@ These are needed in some special build scripts (e.g. when rebuilding external so
 <details><summary>Linux...</summary><p>
 
   ```sh
-  apt-get install wget curl cmake patch
+  apt-get install wget curl cmake ninja-build patch
   ````
 
 </p></details>

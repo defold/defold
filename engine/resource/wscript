@@ -80,6 +80,9 @@ def _get_local_ip(self):
         local_ip = socket.gethostbyname("")
     return local_ip
 
+def _get_test_server_ip(self):
+    return waf_dynamo.get_test_server_ip(test_context.env.PLATFORM, _get_local_ip(self))
+
 def _start_server(self, local_ip, port, configname=None):
     Logs.info('Starting test server at http://%s:%d' % (local_ip, port))
     configfile = waf_dynamo.create_test_server_config(self, port=port, ip=local_ip, config_name=configname)
@@ -143,15 +146,14 @@ def shutdown(self):
         print("Running resource tests without HTTP server on macOS CI")
 
     configfile = None
+    local_ip = _get_test_server_ip(self)
     if not skip_server:
-        local_ip = _get_local_ip(self)
         port = find_free_port()
         proc, configfile = _start_server(self, local_ip, port)
         atexit.register(_cleanup_server, (proc, configfile))
 
         _wait_for_server(self, proc, local_ip, port)
     else:
-        local_ip = _get_local_ip(self)
         configfile = waf_dynamo.create_test_server_config(self, port=0, ip=local_ip, config_name="unittest.cfg")
 
     try:

@@ -35,6 +35,26 @@
              {:settings [known-setting]}
              {:settings [unknown-setting]})))))
 
+(deftest merge-meta-infos-preserves-default-setting-values
+  (let [path ["section" "key"]
+        meta-settings
+        (:settings
+          (reduce
+            settings-core/merge-meta-infos
+            [{:settings [{:path path
+                          :type :string
+                          :default "first"}]}
+             {:settings [{:path path
+                          :type :string
+                          :default "second"}]}
+             {:settings [{:path path
+                          :type :string
+                          :default "third"}]}]))]
+    (is (= "first"
+           (settings-core/get-default-setting meta-settings path)))
+    (is (= ["first" "second" "third"]
+           (settings-core/get-default-setting-values meta-settings path)))))
+
 (deftest get-setting-or-default-preserves-present-nil-value
   (let [root (io/file ".")
         default-resource (test-util/make-fake-file-resource nil

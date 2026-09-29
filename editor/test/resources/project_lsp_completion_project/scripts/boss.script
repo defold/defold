@@ -1,0 +1,5 @@
+local bridge = require("modules.bridge")
+
+function init(self)
+    bridge.init(self)
+end

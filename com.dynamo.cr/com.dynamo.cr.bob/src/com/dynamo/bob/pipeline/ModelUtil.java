@@ -20,19 +20,30 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.FileInputStream;
+import java.io.PushbackInputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
+import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.map.ObjectMapper;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
@@ -68,6 +79,334 @@ import com.google.protobuf.ByteString;
 public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
+    private static final int GLB_MAGIC = 0x46546c67;
+    private static final int GLB_VERSION = 2;
+    private static final int GLB_JSON_CHUNK_TYPE = 0x4e4f534a;
+    private static final int GLB_JSON_OFFSET = 20;
+    private static final int STREAM_DRAIN_BUFFER_SIZE = 8192;
+
+    private static final JsonFactory JSON_FACTORY = new JsonFactory();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(JSON_FACTORY);
+
+    public record ModelMetadata(List<String> externalBufferUris, boolean hasMorphTargets) {
+        public ModelMetadata {
+            externalBufferUris = List.copyOf(externalBufferUris);
+        }
+    }
+
+    private record JsonRange(int offset, int length, long totalLength) {
+    }
+
+    private static final class CountingInputStream extends FilterInputStream {
+        private long byteCount;
+
+        CountingInputStream(InputStream inputStream) {
+            super(inputStream);
+        }
+
+        @Override
+        public int read() throws IOException {
+            int value = super.read();
+            if (value >= 0) {
+                ++byteCount;
+            }
+            return value;
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) throws IOException {
+            int read = super.read(buffer, offset, length);
+            if (read > 0) {
+                byteCount += read;
+            }
+            return read;
+        }
+    }
+
+    private static final class BoundedInputStream extends InputStream {
+        private final InputStream inputStream;
+        private long remaining;
+
+        BoundedInputStream(InputStream inputStream, long length) {
+            this.inputStream = inputStream;
+            this.remaining = length;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (remaining == 0) {
+                return -1;
+            }
+            int value = inputStream.read();
+            if (value >= 0) {
+                --remaining;
+            }
+            return value;
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) throws IOException {
+            if (remaining == 0) {
+                return -1;
+            }
+            int boundedLength = (int) Math.min(length, remaining);
+            int read = inputStream.read(buffer, offset, boundedLength);
+            if (read > 0) {
+                remaining -= read;
+            }
+            return read;
+        }
+    }
+
+    /**
+     * Scans a glTF or GLB stream without loading external buffers or decoding
+     * model geometry. The stream is always fully consumed, including when the
+     * scan fails. For GLB input, the BIN chunk is drained without being retained.
+     */
+    public static ModelMetadata getModelMetadata(InputStream inputStream) throws IOException {
+        CountingInputStream countingStream = new CountingInputStream(inputStream);
+        PushbackInputStream stream = new PushbackInputStream(countingStream, Integer.BYTES);
+        Throwable failure = null;
+        long expectedByteCount = -1;
+        try {
+            byte[] prefix = stream.readNBytes(Integer.BYTES);
+            JsonNode root;
+            if (isGlbMagic(prefix)) {
+                byte[] remainingHeader = stream.readNBytes(GLB_JSON_OFFSET - Integer.BYTES);
+                if (remainingHeader.length != GLB_JSON_OFFSET - Integer.BYTES) {
+                    throw new IOException("GLB data is too short");
+                }
+
+                byte[] header = new byte[GLB_JSON_OFFSET];
+                System.arraycopy(prefix, 0, header, 0, prefix.length);
+                System.arraycopy(remainingHeader, 0, header, prefix.length, remainingHeader.length);
+                JsonRange jsonRange = getGlbJsonRange(header, -1);
+                expectedByteCount = jsonRange.totalLength();
+                BoundedInputStream jsonStream = new BoundedInputStream(stream, jsonRange.length());
+                JsonParser parser = JSON_FACTORY.createJsonParser(jsonStream);
+                parser.disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
+                try {
+                    root = OBJECT_MAPPER.readTree(parser);
+                } finally {
+                    parser.close();
+                }
+                drain(jsonStream);
+                if (jsonStream.remaining != 0) {
+                    throw new IOException("GLB JSON chunk is truncated");
+                }
+            } else {
+                stream.unread(prefix);
+                JsonParser parser = JSON_FACTORY.createJsonParser(stream);
+                parser.disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
+                try {
+                    root = OBJECT_MAPPER.readTree(parser);
+                } finally {
+                    parser.close();
+                }
+            }
+            return getModelMetadata(root);
+        } catch (IOException | RuntimeException | Error e) {
+            failure = e;
+            throw e;
+        } finally {
+            IOException completionException = null;
+            try {
+                drain(stream);
+            } catch (IOException drainException) {
+                completionException = drainException;
+            }
+            if (completionException == null
+                    && expectedByteCount >= 0
+                    && countingStream.byteCount != expectedByteCount) {
+                completionException = new IOException("Invalid GLB total length");
+            }
+            if (completionException != null) {
+                if (failure != null) {
+                    failure.addSuppressed(completionException);
+                } else {
+                    throw completionException;
+                }
+            }
+        }
+    }
+
+    /**
+     * Scans glTF or GLB bytes without loading external buffers or decoding
+     * model geometry.
+     */
+    public static ModelMetadata getModelMetadata(byte[] content, String path) throws IOException {
+        String suffix = BuilderUtil.getSuffix(path).toLowerCase(Locale.ROOT);
+        JsonRange jsonRange;
+        if ("gltf".equals(suffix)) {
+            jsonRange = new JsonRange(0, content.length, content.length);
+        } else if ("glb".equals(suffix)) {
+            jsonRange = getGlbJsonRange(content);
+        } else {
+            throw new IOException(String.format("Unsupported glTF resource extension in '%s'", path));
+        }
+
+        try (JsonParser parser = JSON_FACTORY.createJsonParser(content, jsonRange.offset(), jsonRange.length())) {
+            return getModelMetadata(OBJECT_MAPPER.readTree(parser));
+        } catch (IOException e) {
+            throw new IOException(String.format("Failed to inspect glTF resource '%s': %s", path, e.getMessage()), e);
+        }
+    }
+
+    private static ModelMetadata getModelMetadata(JsonNode root) throws IOException {
+        if (root == null || !root.isObject()) {
+            throw new IOException("glTF root must be an object");
+        }
+
+        LinkedHashSet<String> externalBufferUris = new LinkedHashSet<>();
+        JsonNode buffers = root.path("buffers");
+        if (buffers.isArray()) {
+            for (JsonNode buffer : buffers) {
+                JsonNode uriNode = buffer.get("uri");
+                if (uriNode != null && uriNode.isTextual()) {
+                    String uri = uriNode.getTextValue();
+                    if (isExternalBufferUri(uri)) {
+                        externalBufferUris.add(uri);
+                    }
+                }
+            }
+        }
+
+        boolean hasMorphTargets = false;
+        JsonNode meshes = root.path("meshes");
+        if (meshes.isArray()) {
+            for (JsonNode mesh : meshes) {
+                JsonNode primitives = mesh.path("primitives");
+                if (!primitives.isArray()) {
+                    continue;
+                }
+                for (JsonNode primitive : primitives) {
+                    JsonNode targets = primitive.path("targets");
+                    if (targets.isArray() && targets.size() > 0) {
+                        hasMorphTargets = true;
+                        break;
+                    }
+                }
+                if (hasMorphTargets) {
+                    break;
+                }
+            }
+        }
+
+        return new ModelMetadata(new ArrayList<>(externalBufferUris), hasMorphTargets);
+    }
+
+    private static JsonRange getGlbJsonRange(byte[] content) throws IOException {
+        return getGlbJsonRange(content, content.length);
+    }
+
+    private static JsonRange getGlbJsonRange(byte[] content, long availableLength) throws IOException {
+        if (content.length < GLB_JSON_OFFSET) {
+            throw new IOException("GLB data is too short");
+        }
+
+        ByteBuffer buffer = ByteBuffer.wrap(content).order(ByteOrder.LITTLE_ENDIAN);
+        if (buffer.getInt(0) != GLB_MAGIC) {
+            throw new IOException("Invalid GLB magic");
+        }
+        if (buffer.getInt(4) != GLB_VERSION) {
+            throw new IOException("Unsupported GLB version");
+        }
+
+        long totalLength = Integer.toUnsignedLong(buffer.getInt(8));
+        if (totalLength < GLB_JSON_OFFSET || (availableLength >= 0 && totalLength != availableLength)) {
+            throw new IOException("Invalid GLB total length");
+        }
+
+        long jsonLength = Integer.toUnsignedLong(buffer.getInt(12));
+        if (buffer.getInt(16) != GLB_JSON_CHUNK_TYPE) {
+            throw new IOException("GLB first chunk is not JSON");
+        }
+        long jsonEnd = GLB_JSON_OFFSET + jsonLength;
+        if (jsonLength > Integer.MAX_VALUE || jsonEnd > totalLength) {
+            throw new IOException("Invalid GLB JSON chunk length");
+        }
+        return new JsonRange(GLB_JSON_OFFSET, (int) jsonLength, totalLength);
+    }
+
+    private static boolean isGlbMagic(byte[] prefix) {
+        return prefix.length == Integer.BYTES
+                && ByteBuffer.wrap(prefix).order(ByteOrder.LITTLE_ENDIAN).getInt() == GLB_MAGIC;
+    }
+
+    static boolean isExternalBufferUri(String uri) {
+        return uri != null && !uri.isBlank() && !uri.regionMatches(true, 0, "data:", 0, 5);
+    }
+
+    private static void drain(InputStream inputStream) throws IOException {
+        byte[] buffer = new byte[STREAM_DRAIN_BUFFER_SIZE];
+        while (true) {
+            int read = inputStream.read(buffer);
+            if (read < 0) {
+                return;
+            }
+            if (read == 0 && inputStream.read() < 0) {
+                return;
+            }
+        }
+    }
+
+    public static Model resolveNamedMesh(Scene scene, String meshName, int meshIndex) {
+        Model uniqueModel = null;
+        int matchingModels = 0;
+
+        for (Model model : scene.models) {
+            if (!model.nameIsGenerated && meshName.equals(model.name)) {
+                uniqueModel = model;
+                matchingModels++;
+            }
+        }
+
+        if (matchingModels == 0) {
+            throw new IllegalArgumentException(String.format("Mesh '%s' was not found in the scene", meshName));
+        }
+        if (matchingModels == 1) {
+            return uniqueModel;
+        }
+        if (meshIndex < 0 || meshIndex >= scene.models.length) {
+            throw new IllegalArgumentException(String.format("Mesh '%s' is ambiguous and raw index %d is out of range", meshName, meshIndex));
+        }
+
+        Model indexedModel = scene.models[meshIndex];
+        if (indexedModel.nameIsGenerated || !meshName.equals(indexedModel.name)) {
+            throw new IllegalArgumentException(String.format("Mesh '%s' is ambiguous and does not exist at raw index %d", meshName, meshIndex));
+        }
+        return indexedModel;
+    }
+
+    public static Rig.Model resolveNamedMesh(Rig.MeshSet meshSet, String meshName, int meshIndex) {
+        long meshNameHash = MurmurHash.hash64(meshName);
+        Rig.Model uniqueModel = null;
+        int matchingModels = 0;
+
+        for (Rig.Model model : meshSet.getRawModelsList()) {
+            if (model.getId() == meshNameHash) {
+                uniqueModel = model;
+                matchingModels++;
+            }
+        }
+
+        if (matchingModels == 0) {
+            throw new IllegalArgumentException(String.format("Mesh '%s' was not found in the scene", meshName));
+        }
+        if (matchingModels == 1) {
+            return uniqueModel;
+        }
+
+        for (Rig.Model model : meshSet.getRawModelsList()) {
+            if (model.getId() == meshNameHash && model.getMeshIndex() == meshIndex) {
+                return model;
+            }
+        }
+        if (meshIndex < 0) {
+            throw new IllegalArgumentException(String.format("Mesh '%s' is ambiguous and raw index %d is out of range", meshName, meshIndex));
+        }
+        throw new IllegalArgumentException(String.format("Mesh '%s' is ambiguous and does not exist at raw index %d", meshName, meshIndex));
+    }
 
     public static class PackedMorphTargetTexture {
         public final int width;
@@ -125,6 +464,84 @@ public class ModelUtil {
         }
     }
 
+    private static class MorphTargetTextureKey {
+        private final int baseVertexCount;
+        private final int maxVertexCount;
+        private final MorphTarget[] morphTargets;
+        private final int hashCode;
+
+        MorphTargetTextureKey(Mesh mesh) {
+            baseVertexCount = mesh.positions != null ? mesh.positions.length / 3 : 0;
+            int maxCount = baseVertexCount;
+            int hash = 31 + baseVertexCount;
+            morphTargets = mesh.morphTargets;
+            if (morphTargets != null) {
+                hash = 31 * hash + morphTargets.length;
+                for (MorphTarget morphTarget : morphTargets) {
+                    if (morphTarget == null) {
+                        hash = 31 * hash;
+                        continue;
+                    }
+                    if (morphTarget.positions != null) {
+                        maxCount = Math.max(maxCount, morphTarget.positions.length / 3);
+                    }
+                    if (morphTarget.normals != null) {
+                        maxCount = Math.max(maxCount, morphTarget.normals.length / 3);
+                    }
+                    if (morphTarget.tangents != null) {
+                        maxCount = Math.max(maxCount, morphTarget.tangents.length / 4);
+                    }
+                    hash = 31 * hash + Arrays.hashCode(morphTarget.positions);
+                    hash = 31 * hash + Arrays.hashCode(morphTarget.normals);
+                    hash = 31 * hash + Arrays.hashCode(morphTarget.tangents);
+                }
+            }
+            maxVertexCount = maxCount;
+            hashCode = 31 * hash + maxVertexCount;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (this == object) {
+                return true;
+            }
+            if (!(object instanceof MorphTargetTextureKey)) {
+                return false;
+            }
+            MorphTargetTextureKey other = (MorphTargetTextureKey) object;
+            if (baseVertexCount != other.baseVertexCount || maxVertexCount != other.maxVertexCount) {
+                return false;
+            }
+            if (morphTargets == null || other.morphTargets == null) {
+                return morphTargets == other.morphTargets;
+            }
+            if (morphTargets.length != other.morphTargets.length) {
+                return false;
+            }
+            for (int i = 0; i < morphTargets.length; ++i) {
+                MorphTarget morphTarget = morphTargets[i];
+                MorphTarget otherMorphTarget = other.morphTargets[i];
+                if (morphTarget == null || otherMorphTarget == null) {
+                    if (morphTarget != otherMorphTarget) {
+                        return false;
+                    }
+                    continue;
+                }
+                if (!Arrays.equals(morphTarget.positions, otherMorphTarget.positions) ||
+                        !Arrays.equals(morphTarget.normals, otherMorphTarget.normals) ||
+                        !Arrays.equals(morphTarget.tangents, otherMorphTarget.tangents)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
     /**
      * Receives packed morph target textures produced while loading meshes and
      * returns the resource path that should be stored in the generated meshset.
@@ -133,11 +550,27 @@ public class ModelUtil {
      */
     public static class MorphTargetTextureCollector {
         private final ArrayList<CollectedMorphTargetTexture> textures = new ArrayList<CollectedMorphTargetTexture>();
+        private final HashMap<MorphTargetTextureKey, String> meshResourcePaths = new HashMap<MorphTargetTextureKey, String>();
 
         public String add(PackedMorphTargetTexture texture) {
             String resourcePath = getMorphTargetTextureResourcePath(textures.size(), texture);
             textures.add(new CollectedMorphTargetTexture(resourcePath, texture));
             return resourcePath;
+        }
+
+        public String add(Mesh mesh, PackedMorphTargetTexture texture) {
+            MorphTargetTextureKey key = new MorphTargetTextureKey(mesh);
+            String resourcePath = meshResourcePaths.get(key);
+            if (resourcePath != null || meshResourcePaths.containsKey(key)) {
+                return resourcePath;
+            }
+            resourcePath = add(texture);
+            meshResourcePaths.put(key, resourcePath);
+            return resourcePath;
+        }
+
+        public String get(Mesh mesh) {
+            return meshResourcePaths.get(new MorphTargetTextureKey(mesh));
         }
 
         protected String getMorphTargetTextureResourcePath(int index, PackedMorphTargetTexture texture) {
@@ -289,8 +722,24 @@ public class ModelUtil {
         return loadScene(bytes, path, options, dataResolver);
     }
 
+    /**
+     * Drops source buffer copies after the importer has decoded the scene. The
+     * Java scene contains its own mesh, skeleton and animation arrays, so Bob's
+     * producer does not need to retain the original glTF buffers while emitting
+     * those artifacts.
+     */
+    public static void releaseSceneBuffers(Scene scene) {
+        if (scene == null || scene.buffers == null) {
+            return;
+        }
+        for (Modelimporter.Buffer buffer : scene.buffers) {
+            buffer.buffer = null;
+        }
+        scene.buffers = new Modelimporter.Buffer[0];
+    }
+
     public static void unloadScene(Scene scene) {
-        // Intentionally a no-op; Scene does not currently own resources that need explicit release.
+        releaseSceneBuffers(scene);
     }
 
     private static Vector3 toDDFVector3(Modelimporter.Vector3 v) {
@@ -881,42 +1330,50 @@ public class ModelUtil {
         }
     }
 
+    private static boolean hasData(float[] data) {
+        return data != null && data.length > 0;
+    }
+
+    private static boolean hasData(int[] data) {
+        return data != null && data.length > 0;
+    }
+
     private static void copyVertex(Modelimporter.Mesh inMesh, int inIndex, Modelimporter.Mesh outMesh, int outIndex) {
-        if (inMesh.positions != null) {
+        if (hasData(inMesh.positions)) {
             copyFloatArray(inMesh.positions, inIndex, outMesh.positions, outIndex, 3);
         }
-        if (inMesh.normals != null) {
+        if (hasData(inMesh.normals)) {
             copyFloatArray(inMesh.normals, inIndex, outMesh.normals, outIndex, 3);
         }
-        if (inMesh.tangents != null) {
-            copyFloatArray(inMesh.tangents, inIndex, outMesh.tangents, outIndex, 3);
+        if (hasData(inMesh.tangents)) {
+            copyFloatArray(inMesh.tangents, inIndex, outMesh.tangents, outIndex, 4);
         }
-        if (inMesh.colors != null) {
+        if (hasData(inMesh.colors)) {
             copyFloatArray(inMesh.colors, inIndex, outMesh.colors, outIndex, 4);
         }
-        if (inMesh.weights != null) {
+        if (hasData(inMesh.weights)) {
             copyFloatArray(inMesh.weights, inIndex, outMesh.weights, outIndex, 4);
         }
-        if (inMesh.bones != null) {
+        if (hasData(inMesh.bones)) {
             copyIntArray(inMesh.bones, inIndex, outMesh.bones, outIndex, 4);
         }
-        if (inMesh.texCoords0 != null) {
+        if (hasData(inMesh.texCoords0)) {
             copyFloatArray(inMesh.texCoords0, inIndex, outMesh.texCoords0, outIndex, inMesh.texCoords0NumComponents);
         }
-        if (inMesh.texCoords1 != null) {
+        if (hasData(inMesh.texCoords1)) {
             copyFloatArray(inMesh.texCoords1, inIndex, outMesh.texCoords1, outIndex, inMesh.texCoords1NumComponents);
         }
         if (inMesh.morphTargets != null) {
             for (int m = 0; m < inMesh.morphTargets.length; ++m) {
                 MorphTarget si = inMesh.morphTargets[m];
                 MorphTarget di = outMesh.morphTargets[m];
-                if (si.positions != null) {
+                if (hasData(si.positions)) {
                     copyFloatArray(si.positions, inIndex, di.positions, outIndex, 3);
                 }
-                if (si.normals != null) {
+                if (hasData(si.normals)) {
                     copyFloatArray(si.normals, inIndex, di.normals, outIndex, 3);
                 }
-                if (si.tangents != null) {
+                if (hasData(si.tangents)) {
                     copyFloatArray(si.tangents, inIndex, di.tangents, outIndex, 4);
                 }
             }
@@ -941,39 +1398,40 @@ public class ModelUtil {
                 newMesh = new Mesh();
                 newMesh.material = inMesh.material;
                 newMesh.name = String.format("%s_%d", inMesh.name, outMeshes.size());
-                newMesh.aabb = new Modelimporter.Aabb();
+                newMesh.primitiveType = inMesh.primitiveType;
+                newMesh.aabb = ModelImporterJni.newAabb();
                 ModelImporterJni.expandAabb(newMesh.aabb, inMesh.aabb.min.x, inMesh.aabb.min.y, inMesh.aabb.min.z);
                 ModelImporterJni.expandAabb(newMesh.aabb, inMesh.aabb.max.x, inMesh.aabb.max.y, inMesh.aabb.max.z);
 
                 newMesh.texCoords0NumComponents = inMesh.texCoords0NumComponents;
                 newMesh.texCoords1NumComponents = inMesh.texCoords1NumComponents;
 
-                if (inMesh.positions != null)
+                if (hasData(inMesh.positions))
                     newMesh.positions = new float[MAX_SPLIT_VCOUNT*3];
-                if (inMesh.normals != null)
+                if (hasData(inMesh.normals))
                     newMesh.normals = new float[MAX_SPLIT_VCOUNT*3];
-                if (inMesh.tangents != null)
-                    newMesh.tangents = new float[MAX_SPLIT_VCOUNT*3];
-                if (inMesh.colors != null)
+                if (hasData(inMesh.tangents))
+                    newMesh.tangents = new float[MAX_SPLIT_VCOUNT*4];
+                if (hasData(inMesh.colors))
                     newMesh.colors = new float[MAX_SPLIT_VCOUNT * 4];
-                if (inMesh.weights != null)
+                if (hasData(inMesh.weights))
                     newMesh.weights = new float[MAX_SPLIT_VCOUNT * 4];
-                if (inMesh.bones != null)
+                if (hasData(inMesh.bones))
                     newMesh.bones = new int[MAX_SPLIT_VCOUNT * 4];
-                if (inMesh.texCoords0 != null)
+                if (hasData(inMesh.texCoords0))
                     newMesh.texCoords0 = new float[MAX_SPLIT_VCOUNT*3];
-                if (inMesh.texCoords1 != null)
+                if (hasData(inMesh.texCoords1))
                     newMesh.texCoords1 = new float[MAX_SPLIT_VCOUNT*3];
                 if (inMesh.morphTargets != null) {
                     newMesh.morphTargets = new MorphTarget[inMesh.morphTargets.length];
                     for (int mi = 0; mi < inMesh.morphTargets.length; ++mi) {
                         MorphTarget srcMt = inMesh.morphTargets[mi];
                         MorphTarget dstMt = new MorphTarget();
-                        if (srcMt.positions != null)
+                        if (hasData(srcMt.positions))
                             dstMt.positions = new float[MAX_SPLIT_VCOUNT * 3];
-                        if (srcMt.normals != null)
+                        if (hasData(srcMt.normals))
                             dstMt.normals = new float[MAX_SPLIT_VCOUNT * 3];
-                        if (srcMt.tangents != null)
+                        if (hasData(srcMt.tangents))
                             dstMt.tangents = new float[MAX_SPLIT_VCOUNT * 4];
                         newMesh.morphTargets[mi] = dstMt;
                     }
@@ -1030,7 +1488,7 @@ public class ModelUtil {
                 if (newMesh.normals != null)
                     newMesh.normals = Arrays.copyOf(newMesh.normals, vcount * 3);
                 if (newMesh.tangents != null)
-                    newMesh.tangents = Arrays.copyOf(newMesh.tangents, vcount * 3);
+                    newMesh.tangents = Arrays.copyOf(newMesh.tangents, vcount * 4);
                 if (newMesh.colors != null)
                     newMesh.colors = Arrays.copyOf(newMesh.colors, vcount * 4);
                 if (newMesh.weights != null)
@@ -1062,8 +1520,10 @@ public class ModelUtil {
 
     private static void splitMeshes(Model model) {
         List<Mesh> outMeshes = new ArrayList<>();
+        boolean didSplit = false;
         for (Mesh mesh : model.meshes) {
-            if ((mesh.positions.length / 3) < MAX_SPLIT_VCOUNT) {
+            if ((mesh.positions.length / 3) < MAX_SPLIT_VCOUNT ||
+                    mesh.primitiveType != Modelimporter.PrimitiveType.PRIMITIVE_TYPE_TRIANGLES) {
                 outMeshes.add(mesh);
                 continue;
             }
@@ -1071,11 +1531,36 @@ public class ModelUtil {
             List<Mesh> newMeshes = new ArrayList<>();
             splitMesh(mesh, newMeshes);
             outMeshes.addAll(newMeshes);
+            didSplit = true;
         }
 
-        if (outMeshes.size() != model.meshes.length) {
+        if (didSplit) {
             model.meshes = outMeshes.toArray(new Modelimporter.Mesh[0]);
         }
+    }
+
+    private static boolean needsLargeMeshSplit(Model model) {
+        if (model.meshes == null) {
+            return false;
+        }
+        for (Mesh mesh : model.meshes) {
+            if (mesh.positions != null &&
+                    mesh.positions.length / 3 >= MAX_SPLIT_VCOUNT &&
+                    mesh.primitiveType == Modelimporter.PrimitiveType.PRIMITIVE_TYPE_TRIANGLES) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static List<Integer> getModelsNeedingLargeMeshSplit(Scene scene) {
+        ArrayList<Integer> splitModelIndices = new ArrayList<>();
+        for (Model model : scene.models) {
+            if (!model.nameIsGenerated && needsLargeMeshSplit(model)) {
+                splitModelIndices.add(model.index);
+            }
+        }
+        return splitModelIndices;
     }
 
     // Splits meshes that are have more than 65K+ vertices
@@ -1146,6 +1631,8 @@ public class ModelUtil {
             meshBuilder.setIndices(ByteString.copyFrom(create16BitIndices(mesh.indices)));
         }
 
+        meshBuilder.setPrimitiveType(Rig.PrimitiveType.valueOf(mesh.primitiveType.getValue()));
+
         if (mesh.material != null)
             meshBuilder.setMaterialIndex(mesh.material.index);
         else
@@ -1154,11 +1641,15 @@ public class ModelUtil {
         if (mesh.morphTargets != null) {
             int morphN = mesh.morphTargets.length;
             meshBuilder.setMorphTargetCount(morphN);
-            PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
-            if (packedMorphTargetTexture != null) {
-                if (morphTextureCollector != null) {
-                    meshBuilder.setMorphTargetTexture(morphTextureCollector.add(packedMorphTargetTexture));
+            String morphTargetTexture = morphTextureCollector != null ? morphTextureCollector.get(mesh) : null;
+            if (morphTargetTexture == null) {
+                PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
+                if (packedMorphTargetTexture != null && morphTextureCollector != null) {
+                    morphTargetTexture = morphTextureCollector.add(mesh, packedMorphTargetTexture);
                 }
+            }
+            if (morphTargetTexture != null) {
+                meshBuilder.setMorphTargetTexture(morphTargetTexture);
             }
 
             float[] base = new float[morphN];
@@ -1181,6 +1672,7 @@ public class ModelUtil {
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
+        modelBuilder.setMeshIndex(model.index);
         // Preserve local transforms only for meshes that rely on the bone hierarchy at runtime.
         // Other rigid meshes in a skinned scene should keep their flattened world placement
         // to match the authored scene preview.
@@ -1192,6 +1684,21 @@ public class ModelUtil {
         }
         modelBuilder.setBoneId(MurmurHash.hash64(model.parentBone != null ? model.parentBone.name : ""));
 
+        return modelBuilder.build();
+    }
+
+    private static Rig.Model loadRawModel(Model model, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector, boolean includeGeometry) throws LoaderException {
+        Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
+
+        if (includeGeometry) {
+            for (Mesh mesh : model.meshes) {
+                modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH, morphTextureCollector));
+            }
+        }
+
+        modelBuilder.setLocal(MathUtil.vecmathIdentityTransform());
+        modelBuilder.setId(MurmurHash.hash64(model.name));
+        modelBuilder.setMeshIndex(model.index);
         return modelBuilder.build();
     }
 
@@ -1207,28 +1714,36 @@ public class ModelUtil {
         }
     }
 
-    private static int getNumMorphTargetTextures(Node node) {
-        int count = 0;
+    private static void collectMorphTargetMeshes(Node node, HashMap<MorphTargetTextureKey, Boolean> meshes) {
         if (node.model != null && node.model.meshes != null) {
             for (Mesh mesh : node.model.meshes) {
                 if (mesh.morphTargets != null && mesh.morphTargets.length > 0) {
-                    ++count;
+                    meshes.put(new MorphTargetTextureKey(mesh), Boolean.TRUE);
                 }
             }
         }
 
         for (Node child : node.children) {
-            count += getNumMorphTargetTextures(child);
+            collectMorphTargetMeshes(child, meshes);
         }
-        return count;
     }
 
     public static int getNumMorphTargetTextures(Scene scene) {
-        int count = 0;
+        HashMap<MorphTargetTextureKey, Boolean> meshes = new HashMap<MorphTargetTextureKey, Boolean>();
         for (Node root : scene.rootNodes) {
-            count += getNumMorphTargetTextures(root);
+            collectMorphTargetMeshes(root, meshes);
         }
-        return count;
+        for (Model model : scene.models) {
+            if (model.nameIsGenerated) {
+                continue;
+            }
+            for (Mesh mesh : model.meshes) {
+                if (mesh.morphTargets != null && mesh.morphTargets.length > 0) {
+                    meshes.put(new MorphTargetTextureKey(mesh), Boolean.TRUE);
+                }
+            }
+        }
+        return meshes.size();
     }
 
     private static Scene loadInternal(Scene scene) {
@@ -1238,6 +1753,10 @@ public class ModelUtil {
     }
 
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
+        loadModels(scene, meshSetBuilder, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, Collections.emptySet());
+    }
+
+    public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector, Set<Integer> forcedRawModelIndices) throws LoaderException {
         ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
         meshSetBuilder.addAllMaterials(loadMaterials(scene));
@@ -1247,6 +1766,21 @@ public class ModelUtil {
             loadModelInstances(root, skeleton, models, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector);
         }
         meshSetBuilder.addAllModels(models);
+
+        HashSet<Integer> instantiatedModelIndices = new HashSet<>();
+        for (Rig.Model model : models) {
+            instantiatedModelIndices.add(model.getMeshIndex());
+        }
+
+        ArrayList<Rig.Model> rawModels = new ArrayList<>();
+        for (Model model : scene.models) {
+            if (model.nameIsGenerated) {
+                continue;
+            }
+            boolean includeGeometry = forcedRawModelIndices.contains(model.index) || !instantiatedModelIndices.contains(model.index);
+            rawModels.add(loadRawModel(model, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, includeGeometry));
+        }
+        meshSetBuilder.addAllRawModels(rawModels);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
 
         for (Modelimporter.Bone bone : skeleton) {

@@ -595,5 +595,10 @@ void EnableRenderObjectConstants(dmRender::RenderObject* ro, HComponentRenderCon
     dmRender::SetNamedConstants(ro->m_ConstantBuffer, constants->m_RenderConstants.Begin(), constants->m_RenderConstants.Size());
 }
 
+dmRender::HNamedConstantBuffer GetRenderConstantsNamedBuffer(HComponentRenderConstants constants)
+{
+    return constants->m_ConstantBuffer;
+}
+
 
 }

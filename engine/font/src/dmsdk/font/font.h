@@ -45,14 +45,16 @@ enum FontResult
  * FontType
  * @enum
  * @name FontType
- * @member FONT_TYPE_STBTTF
- * @member FONT_TYPE_STBOTF
+ * @member FONT_TYPE_TTF
+ * @member FONT_TYPE_OTF
+ * @member FONT_TYPE_GLYPH_BANK
  * @member FONT_TYPE_UNKNOWN = 0xFFFFFFFF
  */
 enum FontType
 {
-    FONT_TYPE_STBTTF,
-    FONT_TYPE_STBOTF,
+    FONT_TYPE_TTF,
+    FONT_TYPE_OTF,
+    FONT_TYPE_GLYPH_BANK,
 
     FONT_TYPE_UNKNOWN = 0xFFFFFFFF // used to make it 4 bytes size
 };
@@ -242,9 +244,9 @@ uint32_t FontGetGlyphIndex(HFont font, uint32_t codepoint);
  * @struct
  * @name FontGlyphOptions
  * @member m_Scale [type: float] The font scale
- * @member m_GenerateImage [type: bool] If true, generates an SDF image, and fills out the glyph.m_Bitmap structure.
- * @member m_StbttSDFPadding [type: int] The sdk padding value (valid for FONT_TYPE_STBTTF fonts)
- * @member m_StbttSDFOnEdgeValue [type: int] Where the edge value is located (valid for FONT_TYPE_STBTTF fonts)
+ * @member m_GenerateImage [type: bool] If true, generates an SDF image and uses its sampled bounds and origin for glyph dimensions and left bearing. Advances remain unchanged.
+ * @member m_StbttSDFPadding [type: int] The SDF padding value (valid for FONT_TYPE_TTF and FONT_TYPE_OTF fonts)
+ * @member m_StbttSDFOnEdgeValue [type: int] Where the edge value is located (valid for FONT_TYPE_TTF and FONT_TYPE_OTF fonts)
  */
 struct FontGlyphOptions
 {

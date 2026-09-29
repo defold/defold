@@ -254,7 +254,8 @@
      "font"
      {:font "/builtins/fonts/vera_mo_bd.ttf"
       :material "/builtins/fonts/font.material"
-      :size 10}
+      :size 10
+      :styles {:name "style_name"}}
 
      "go"
      {:components {:id "component_id"
@@ -740,7 +741,7 @@
                       openable-in-view-type? (into #{} (map :id) view-types)]
                   (testing proj-path
                     (is (not (g/error? (g/node-value resource-node :_properties))))
-                    (when (openable-in-view-type? :cljfx-form-view)
+                    (when (openable-in-view-type? :form)
                       (is (not (g/error? (g/node-value resource-node :form-data)))))
                     (when (openable-in-view-type? :scene)
                       (is (not (g/error? (g/node-value resource-node :scene)))))

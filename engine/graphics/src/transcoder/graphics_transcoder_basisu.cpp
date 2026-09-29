@@ -120,12 +120,8 @@ namespace dmGraphics
         uint32_t m_OriginalWidth;
         uint32_t m_OriginalHeight;
         uint32_t m_TotalBlocks;
-        uint32_t m_Size;
-        union
-        {
-            uint32_t m_BytesPerBlock; // For compressed format
-            uint32_t m_BytesPerSlice; // For uncompressed format
-        };
+        uint32_t m_Size;          // Number of bytes the basis transcoder writes for this level
+        uint32_t m_BytesPerBlock; // For compressed formats only
     };
 
     struct ImageTranscodeState
@@ -143,9 +139,9 @@ namespace dmGraphics
         uint32_t                  m_SrcDataSize;
     };
 
-    static void TranscoderDeleteStateArray(ImageTranscodeState* states, uint8_t num_states)
+    static void TranscoderDeleteStateArray(ImageTranscodeState* states, uint32_t num_states)
     {
-        for (int i = 0; i < num_states; ++i)
+        for (uint32_t i = 0; i < num_states; ++i)
         {
             delete[] states[i].m_LevelData;
         }
@@ -215,6 +211,41 @@ namespace dmGraphics
         return true;
     }
 
+    // The basis transcoder only produces RGBA32 for the uncompressed formats, so LUMINANCE,
+    // LUMINANCE_ALPHA and RGB have to be packed down from four channels afterwards. Returns 0 for
+    // the formats that are used as-is. Must agree with dmGraphics::GetTextureFormatBitsPerPixel(),
+    // which is what the rest of the engine sizes these formats with (kept local so that this
+    // library doesn't have to link the graphics core).
+    static uint32_t GetPackedChannelCount(basist::transcoder_texture_format transcoder_format, dmGraphics::TextureFormat graphics_format)
+    {
+        if (transcoder_format != basist::transcoder_texture_format::cTFRGBA32)
+        {
+            return 0;
+        }
+
+        switch(graphics_format)
+        {
+        case dmGraphics::TEXTURE_FORMAT_LUMINANCE:       return 1;
+        case dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA: return 2;
+        case dmGraphics::TEXTURE_FORMAT_RGB:             return 3;
+        default:                                         return 0; // TEXTURE_FORMAT_RGBA, no packing needed
+        }
+    }
+
+    // Size of one image slice as it is handed to the graphics API. For the packed formats this is
+    // smaller than what the transcoder writes (m_Size), and it is the packed size that every
+    // consumer assumes: res_texture.cpp passes it as TextureParams::m_DataSize, and all adapters
+    // read array layers / cubemap faces as tightly packed slices at that stride.
+    static uint32_t GetTranscodedSliceSize(const ImageTranscodeLevelData& level, basist::transcoder_texture_format transcoder_format, dmGraphics::TextureFormat graphics_format)
+    {
+        uint32_t num_channels = GetPackedChannelCount(transcoder_format, graphics_format);
+        if (num_channels > 0)
+        {
+            return level.m_OriginalWidth * level.m_OriginalHeight * num_channels;
+        }
+        return level.m_Size;
+    }
+
     static bool TranscodeLevel(const char* path, ImageTranscodeState& state, uint8_t* level_data, uint8_t level_index,  basist::transcoder_texture_format transcoder_format, dmGraphics::TextureFormat graphics_format)
     {
         int image_index = 0;
@@ -239,35 +270,23 @@ namespace dmGraphics
             }
 
             // If we wanted a Luminance, LuminanceAlpha or RGB
-            // let's convert back to those formats
-            if (transcoder_format == basist::transcoder_texture_format::cTFRGBA32 && graphics_format != dmGraphics::TEXTURE_FORMAT_RGBA)
+            // let's convert back to those formats.
+            // This shrinks the slice to GetTranscodedSliceSize() bytes, which is the stride
+            // Transcode() lays the images out with - the two must not disagree, or every slice past
+            // the first ends up at the wrong offset (https://github.com/defold/defold/issues/12868).
+            uint32_t num_channels = GetPackedChannelCount(transcoder_format, graphics_format);
+            if (num_channels > 0)
             {
-                int num_channels = 0;
-                if (graphics_format == dmGraphics::TEXTURE_FORMAT_LUMINANCE)
+                uint8_t* p = level_data;
+                uint8_t* pend = level_data + state.m_LevelData[level_index].m_Size;
+                uint8_t* packed_dst = level_data;
+                while (p < pend)
                 {
-                    num_channels = 1;
-                }
-                else if (graphics_format == dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA)
-                {
-                    num_channels = 2;
-                }
-                else if (graphics_format == dmGraphics::TEXTURE_FORMAT_RGB)
-                {
-                    num_channels = 3;
-                }
-                if (num_channels > 0)
-                {
-                    uint8_t* p = level_data;
-                    uint8_t* pend = level_data + state.m_LevelData[level_index].m_Size;
-                    uint8_t* packed_dst = level_data;
-                    while (p < pend)
+                    for (uint32_t c = 0; c < num_channels; ++c)
                     {
-                        for (int c = 0; c < num_channels; ++c)
-                        {
-                            *packed_dst++ = p[c];
-                        }
-                        p += 4;
+                        *packed_dst++ = p[c];
                     }
+                    p += 4;
                 }
             }
         }
@@ -324,7 +343,7 @@ namespace dmGraphics
 
             if (!TranscodeInitializeState(path, image_transcoders[i], ptr, size, transcoder_format))
             {
-                delete[] image_transcoders;
+                TranscoderDeleteStateArray(image_transcoders, images_and_mipmap_count);
                 return false;
             }
 
@@ -335,32 +354,41 @@ namespace dmGraphics
 
         for (int i = 0; i < max_mipmap_count; ++i)
         {
-            uint32_t data_size        = image_transcoders[transcoder_index].m_LevelData[0].m_Size;
-            uint8_t* data_write_ptr   = new uint8_t[data_size * image_count];
-            images[i]                 = data_write_ptr;
-            sizes[i]                  = data_size;
+            const ImageTranscodeLevelData& level = image_transcoders[transcoder_index].m_LevelData[0];
 
-            bool level_result = true;
+            uint32_t transcode_size = level.m_Size;
+            uint32_t slice_size     = GetTranscodedSliceSize(level, transcoder_format, format);
+
+            // Slice j is transcoded in place at data_write_ptr + j * slice_size. Transcoding it
+            // temporarily spills up to transcode_size bytes into the slices that haven't been
+            // written yet, and the packing step immediately shrinks it back down to slice_size, so
+            // only the last slice needs room for that spill.
+            uint32_t alloc_size     = (image_count - 1) * slice_size + dmMath::Max(slice_size, transcode_size);
+            uint8_t* data_write_ptr = new uint8_t[alloc_size];
+
+            images[i] = data_write_ptr;
+            sizes[i]  = slice_size;
 
             for (int j = 0; j < image_count; ++j)
             {
-                level_result = TranscodeLevel(path, image_transcoders[transcoder_index], data_write_ptr, 0, transcoder_format, format);
-                data_write_ptr += data_size;
-                transcoder_index++;
-
-                if (!level_result)
+                if (!TranscodeLevel(path, image_transcoders[transcoder_index], data_write_ptr, 0, transcoder_format, format))
                 {
-                    dmLogError("Transcoding failed on level %d for %s\n", i, path);
-                    delete[] data_write_ptr;
-                    TranscoderDeleteStateArray(image_transcoders, image_count);
+                    dmLogError("Transcoding failed on level %d for %s", i, path);
+                    delete[] images[i];
+                    images[i] = 0;
+                    sizes[i]  = 0;
+                    TranscoderDeleteStateArray(image_transcoders, images_and_mipmap_count);
                     return false;
                 }
+
+                data_write_ptr += slice_size;
+                transcoder_index++;
             }
         }
 
         *num_transcoded_mips = max_mipmap_count;
 
-        TranscoderDeleteStateArray(image_transcoders, image_count);
+        TranscoderDeleteStateArray(image_transcoders, images_and_mipmap_count);
         return true;
     }
 }

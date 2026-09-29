@@ -22,9 +22,11 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/static_assert.h>
 #include <dlib/time.h>
 #include <dlib/utf8.h>
 
+#include <font/font.h>
 #include <font/fontcollection.h>
 #include <font/text_layout.h>
 #include <render/font/fontmap.h>
@@ -35,13 +37,92 @@
 
 namespace dmGameSystem
 {
+    DM_STATIC_ASSERT((uint32_t)dmRenderDDF::CompiledStyle::PIXELS == (uint32_t)TEXT_FONT_SIZE_PIXELS, Font_Size_Pixels_Mismatch);
+    DM_STATIC_ASSERT((uint32_t)dmRenderDDF::CompiledStyle::EM == (uint32_t)TEXT_FONT_SIZE_EM, Font_Size_Em_Mismatch);
+    DM_STATIC_ASSERT((uint32_t)dmRenderDDF::CompiledStyle::OFFSET == (uint32_t)TEXT_FONT_SIZE_OFFSET, Font_Size_Offset_Mismatch);
+
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
+    const static dmhash_t EXT_HASH_OTF = dmHashString64("otf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
 
     struct ImageDataHeader
     {
         uint8_t m_Compression; // FontGlyphCompression
     };
+
+    static bool RegisterFontStyles(HFontCollection collection, const dmRenderDDF::FontMap* ddf)
+    {
+        for (uint32_t i = 0; i < ddf->m_Styles.m_Count; ++i)
+        {
+            const dmRenderDDF::CompiledStyle& source = ddf->m_Styles[i];
+            if (!source.m_Name[0] || source.m_NameHash != dmHashString64(source.m_Name) ||
+                FontCollectionGetNamedStyle(collection, source.m_NameHash) ||
+                source.m_FaceColor.m_Count != 4 || source.m_OutlineColor.m_Count != 4 || source.m_ShadowColor.m_Count != 4 ||
+                (source.m_FontSizeUnit != dmRenderDDF::CompiledStyle::PIXELS &&
+                 source.m_FontSizeUnit != dmRenderDDF::CompiledStyle::EM &&
+                 source.m_FontSizeUnit != dmRenderDDF::CompiledStyle::OFFSET) ||
+                (source.m_Flags & ~1023u) || source.m_Effects.m_Count > UINT16_MAX)
+                return false;
+            TextRenderStyle style = {};
+            memcpy(style.m_FaceColor, source.m_FaceColor.m_Data, sizeof(style.m_FaceColor));
+            memcpy(style.m_OutlineColor, source.m_OutlineColor.m_Data, sizeof(style.m_OutlineColor));
+            memcpy(style.m_ShadowColor, source.m_ShadowColor.m_Data, sizeof(style.m_ShadowColor));
+            style.m_Flags = source.m_Flags;
+            style.m_FontSize = source.m_FontSize;
+            style.m_FontSizeUnit = (TextFontSizeUnit)(uint32_t)source.m_FontSizeUnit;
+            style.m_OutlineWidth = source.m_OutlineWidth;
+            style.m_ShadowX = source.m_ShadowX;
+            style.m_ShadowY = source.m_ShadowY;
+            style.m_ShadowBlur = source.m_ShadowBlur;
+            style.m_OutlineAlpha = source.m_OutlineAlpha;
+            style.m_ShadowAlpha = source.m_ShadowAlpha;
+            TextNamedStyleDecoration decoration = {};
+            decoration.m_Flags = source.m_DecorationFlags;
+            decoration.m_UnderlinePattern = source.m_UnderlinePattern;
+            decoration.m_StrikePattern = source.m_StrikePattern;
+            dmArray<TextEffect> effects;
+            effects.SetCapacity(source.m_Effects.m_Count);
+            for (uint32_t j = 0; j < source.m_Effects.m_Count; ++j)
+            {
+                const dmRenderDDF::StyleEffect& input = source.m_Effects[j];
+                TextEffect                      effect = {};
+                effect.m_Type = (uint16_t)input.m_Type;
+                if (input.m_Fit > TEXT_EFFECT_FIT_TEXT)
+                    return false;
+                if (effect.m_Type == TEXT_EFFECT_GRADIENT)
+                {
+                    if (input.m_Colors.m_Count != 16 || input.m_GradientMode > TEXT_GRADIENT_MODE_QUAD)
+                        return false;
+                    memcpy(effect.m_Gradient.m_BottomLeft, input.m_Colors.m_Data, 16 * sizeof(float));
+                    effect.m_Flags = TEXT_EFFECT_AFFECTS_COLOR;
+                    effect.m_Gradient.m_Hz = input.m_Hz;
+                    effect.m_Gradient.m_Fit = input.m_Fit;
+                    effect.m_Gradient.m_Mode = input.m_GradientMode;
+                }
+                else if (effect.m_Type == TEXT_EFFECT_WAVE)
+                {
+                    effect.m_Flags = TEXT_EFFECT_AFFECTS_POSITION;
+                    effect.m_Wave.m_Amplitude = input.m_Amplitude;
+                    effect.m_Wave.m_Hz = input.m_Hz;
+                    effect.m_Wave.m_Wavelength = input.m_Wavelength;
+                    effect.m_Wave.m_Fit = input.m_Fit;
+                }
+                else if (effect.m_Type == TEXT_EFFECT_SHAKE)
+                {
+                    effect.m_Flags = TEXT_EFFECT_AFFECTS_POSITION;
+                    effect.m_Shake.m_Amplitude = input.m_Amplitude;
+                    effect.m_Shake.m_Hz = input.m_Hz;
+                    effect.m_Shake.m_Fit = input.m_Fit;
+                }
+                else
+                    return false;
+                effects.Push(effect);
+            }
+            FontCollectionSetNamedStyle(collection, source.m_NameHash, style, effects.Begin(), effects.Size());
+            FontCollectionSetNamedStyleDecoration(collection, source.m_NameHash, decoration);
+        }
+        return true;
+    }
 
     template<typename T>
     static void SwapVar(T& a, T& b)
@@ -312,7 +393,6 @@ namespace dmGameSystem
     {
         // If it's empty, we don't have a glyph bank
         return ddf->m_GlyphBank[0] == 0;
-
     }
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
@@ -342,7 +422,6 @@ namespace dmGameSystem
             {
                 return result;
             }
-
         }
         return dmResource::RESULT_OK;
     }
@@ -377,20 +456,16 @@ namespace dmGameSystem
 
     static float CalcSdfValue(float padding, float width)
     {
-        float on_edge_value = dmGameSystem::FontGenGetEdgeValue(); // [0 .. 255] e.g. 191
-        const float base_edge = SDF_EDGE_VALUE * 255.0f;
-
-        // Described in the stb_truetype.h as "what value the SDF should increase by when moving one SDF "pixel" away from the edge"
-        float pixel_dist_scale = (float)on_edge_value/padding;
-
-        return (base_edge - (pixel_dist_scale * width)) / 255.0f;;
+        return SDF_EDGE_VALUE - FONT_SDF_DISTANCE_SCALE * width / padding;
     }
 
-    static void SetupParamsBase(dmRenderDDF::FontMap* ddf, const char* filename, dmRender::FontMapParams* params)
+    static void SetupParamsBase(dmRenderDDF::FontMap* ddf, dmhash_t name_hash, dmRender::FontMapParams* params)
     {
-        params->m_NameHash           = dmHashString64(filename);
+        params->m_NameHash           = name_hash;
         params->m_ShadowX            = ddf->m_ShadowX;
         params->m_ShadowY            = ddf->m_ShadowY;
+        params->m_ShadowBlur         = ddf->m_ShadowBlur;
+        params->m_OutlineWidth       = ddf->m_OutlineWidth;
         params->m_OutlineAlpha       = ddf->m_OutlineAlpha;
         params->m_ShadowAlpha        = ddf->m_ShadowAlpha;
         params->m_Alpha              = ddf->m_Alpha;
@@ -404,10 +479,9 @@ namespace dmGameSystem
         params->m_IsDynamic          = 0;
     }
 
-    static void GetMaxCellSize(HFont hfont, float scale, const char* text, float* cell_width, float* cell_height)
+    static float GetMaxCellWidth(HFont hfont, float scale, const char* text)
     {
-        *cell_width = 0;
-        *cell_height = 0;
+        float cell_width = 0;
 
         FontGlyphOptions options;
 
@@ -423,15 +497,15 @@ namespace dmGameSystem
             FontResult r = FontGetGlyph(hfont, codepoint, &options, &glyph);
             if (r == FONT_RESULT_OK)
             {
-                *cell_width = dmMath::Max(*cell_width, glyph.m_Width);
-                *cell_height = dmMath::Max(*cell_height, glyph.m_Height);
+                cell_width = dmMath::Max(cell_width, glyph.m_Width);
             }
         }
+        return cell_width;
     }
 
     static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, HFont hfont, dmRender::FontMapParams* params)
     {
-        if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f) {
+        if (ddf->m_ShadowBlur > 0.0f) {
             params->m_GlyphChannels = 3;
         }
         else {
@@ -485,12 +559,14 @@ namespace dmGameSystem
         if (!all_chars && has_chars)
         {
             // We can make a guesstimate of the needed cache and cell sizes
-            float cell_width, cell_height;
-            GetMaxCellSize(hfont, scale, ddf->m_Characters, &cell_width, &cell_height);
+            float cell_width = GetMaxCellWidth(hfont, scale, ddf->m_Characters);
+            int32_t cell_ascent = (int32_t)ceilf(params->m_MaxAscent) + (int32_t)ceilf(padding);
+            int32_t cell_descent = (int32_t)ceilf(params->m_MaxDescent) + (int32_t)ceilf(padding);
 
+            // The cell and its baseline must use the same padded vertical extents.
             params->m_CacheCellWidth     = (uint32_t)ceilf(cell_width) + 2 * ceilf(padding);
-            params->m_CacheCellHeight    = (uint32_t)ceilf(cell_height) + 2 * ceilf(padding);
-            params->m_CacheCellMaxAscent = (uint32_t)ceilf(params->m_MaxAscent) + ceilf(padding);
+            params->m_CacheCellHeight    = (uint32_t)dmMath::Max(1, cell_ascent + cell_descent);
+            params->m_CacheCellMaxAscent = cell_ascent;
 
             if (dynamic_cache_size)
             {
@@ -515,7 +591,7 @@ namespace dmGameSystem
         }
     }
 
-    static void SetupParamsForGlyphBank(dmRenderDDF::FontMap* ddf, const char* filename, dmRenderDDF::GlyphBank* glyph_bank, dmRender::FontMapParams* params)
+    static void SetupParamsForGlyphBank(dmRenderDDF::FontMap* ddf, const char* filename, dmFontDDF::GlyphBank* glyph_bank, dmRender::FontMapParams* params)
     {
         params->m_GlyphChannels      = glyph_bank->m_GlyphChannels;
         params->m_CacheWidth         = glyph_bank->m_CacheWidth;
@@ -592,7 +668,7 @@ namespace dmGameSystem
     static dmResource::Result CreateFont(dmRender::HRenderContext context, dmRenderDDF::FontMap* ddf, const char* path, FontResource* resource)
     {
         dmRender::FontMapParams params;
-        SetupParamsBase(ddf, path, &params);
+        SetupParamsBase(ddf, resource->m_PathHash, &params);
 
         HFont hfont;
 
@@ -605,11 +681,17 @@ namespace dmGameSystem
         else
         {
             hfont = dmGameSystem::GetFont(resource->m_GlyphBankResource);
-            dmRenderDDF::GlyphBank* glyph_bank = GetGlyphBank(resource->m_GlyphBankResource);
+            dmFontDDF::GlyphBank* glyph_bank = GetGlyphBank(resource->m_GlyphBankResource);
             SetupParamsForGlyphBank(ddf, path, glyph_bank, &params);
         }
 
         HFontCollection font_collection = FontCollectionCreate();
+        if (!RegisterFontStyles(font_collection, ddf))
+        {
+            dmLogError("Invalid style table in font '%s'", path);
+            FontCollectionDestroy(font_collection);
+            return dmResource::RESULT_INVALID_DATA;
+        }
         FontCollectionAddFont(font_collection, hfont);
 
         params.m_FontCollection = font_collection;
@@ -713,6 +795,7 @@ namespace dmGameSystem
             SetupDynamicFontState(params->m_Factory, font);
         }
 
+        font->m_PathHash = ResourceDescriptorGetNameHash(params->m_Resource);
         r = CreateFont((dmRender::HRenderContext) params->m_Context, ddf, path, font);
         if (r != dmResource::RESULT_OK)
         {
@@ -721,7 +804,6 @@ namespace dmGameSystem
             return r;
         }
 
-        font->m_PathHash = ResourceDescriptorGetNameHash(params->m_Resource);
         dmResource::SetResource(params->m_Resource, font);
         dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font));
         return r;
@@ -761,9 +843,12 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        const char* path = params->m_Filename;
+        // resource.set() provides a hash and buffer without a filename.
+        const dmhash_t path_hash = ResourceDescriptorGetNameHash(params->m_Resource);
+        const char* path = params->m_Filename ? params->m_Filename : dmHashReverseSafe64(path_hash);
         FontResource* tmp_font_map = new FontResource;
         tmp_font_map->m_Factory = params->m_Factory;
+        tmp_font_map->m_PathHash = path_hash;
 
         dmResource::Result r = AcquireResources(params->m_Factory, ddf, tmp_font_map, path);
         if(r != dmResource::RESULT_OK)
@@ -887,7 +972,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResFontAddFontByPathHash(dmResource::HFactory factory, FontResource* resource, dmhash_t ttf_hash)
+    dmResource::Result ResFontAddFontByPathHash(dmResource::HFactory factory, FontResource* resource, dmhash_t path_hash)
     {
         if (!resource->m_TTFResource) // Only dynamic fonts are supported
         {
@@ -896,14 +981,16 @@ namespace dmGameSystem
         }
 
         dmGameSystem::TTFResource* ttfresource;
-        dmResource::Result r = dmResource::GetWithExt(factory, ttf_hash, EXT_HASH_TTF, (void**)&ttfresource);
+        dmResource::Result r = dmResource::GetWithExt(factory, path_hash, EXT_HASH_TTF, (void**)&ttfresource);
+        if (r == dmResource::RESULT_INVALID_FILE_EXTENSION)
+            r = dmResource::GetWithExt(factory, path_hash, EXT_HASH_OTF, (void**)&ttfresource);
         if (dmResource::RESULT_OK != r)
         {
-            dmLogError("Failed to get ttf '%s': %d", dmHashReverseSafe64(ttf_hash), r);
+            dmLogError("Failed to get font '%s': %d", dmHashReverseSafe64(path_hash), r);
             return dmResource::RESULT_RESOURCE_NOT_FOUND;
         }
 
-        r = AddFontInternal(factory, resource, ttfresource, ttf_hash);
+        r = AddFontInternal(factory, resource, ttfresource, path_hash);
         if (r == dmResource::RESULT_OK)
         {
             ++resource->m_Version;
@@ -921,9 +1008,11 @@ namespace dmGameSystem
 
         dmGameSystem::TTFResource* ttfresource;
         dmResource::Result r = dmResource::GetWithExt(factory, ttf_path, "ttf", (void**)&ttfresource);
+        if (r == dmResource::RESULT_INVALID_FILE_EXTENSION)
+            r = dmResource::GetWithExt(factory, ttf_path, "otf", (void**)&ttfresource);
         if (dmResource::RESULT_OK != r)
         {
-            dmLogError("Failed to get ttf '%s': %d", ttf_path, r);
+            dmLogError("Failed to get font '%s': %d", ttf_path, r);
             return dmResource::RESULT_RESOURCE_NOT_FOUND;
         }
 
@@ -975,9 +1064,9 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    // static void PrintGlyph(uint32_t codepoint, dmRenderDDF::GlyphBank::Glyph* glyph, FontResource* font)
+    // static void PrintGlyph(uint32_t codepoint, dmFontDDF::GlyphBank::Glyph* glyph, FontResource* font)
     // {
-    //     dmRenderDDF::GlyphBank* glyph_bank = font->m_GlyphBankResource->m_DDF;
+    //     dmFontDDF::GlyphBank* glyph_bank = font->m_GlyphBankResource->m_DDF;
 
     //     printf("    ");
     //     printf("c: '%c' 0x%0X w: %.2f    ", codepoint, codepoint, glyph->m_Width);
@@ -999,7 +1088,7 @@ namespace dmGameSystem
     //     printf("\n");
     // }
 
-    // static void PrintGlyphs(FontResource* font, const uint32_t* key, dmRenderDDF::GlyphBank::Glyph** pglyph)
+    // static void PrintGlyphs(FontResource* font, const uint32_t* key, dmFontDDF::GlyphBank::Glyph** pglyph)
     // {
     //     PrintGlyph(*key, *pglyph, font);
     // }

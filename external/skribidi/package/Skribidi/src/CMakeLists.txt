@@ -96,34 +96,50 @@ FetchContent_MakeAvailable(budouxc)
 #
 set(SKRIBIDI_SOURCE_FILES
 	emoji_data.h
+	skb_attributes.c
+	skb_attribute_collection.c
 	skb_canvas.c
 	skb_common.c
 	skb_common_internal.h
 	skb_editor.c
+	skb_editor_rules.c
 	skb_font_collection.c
 	skb_font_collection_internal.h
 	skb_icon_collection.c
 	skb_icon_collection_internal.h
 	skb_image_atlas.c
 	skb_layout.c
+	skb_layout_internal.h
 	skb_layout_cache.c
 	skb_rasterizer.c
+	skb_rich_layout.c
+	skb_rich_layout_internal.h
+	skb_rich_text.c
+	skb_rich_text_internal.h
+	skb_text.c
+	skb_text_internal.h
 )
 
 set(SKRIBIDI_API_FILES
+	../include/skb_attributes.h
+	../include/skb_attribute_collection.h
 	../include/skb_canvas.h
 	../include/skb_common.h
 	../include/skb_editor.h
+	../include/skb_editor_rules.h
 	../include/skb_font_collection.h
 	../include/skb_icon_collection.h
 	../include/skb_image_atlas.h
 	../include/skb_layout.h
 	../include/skb_layout_cache.h
 	../include/skb_rasterizer.h
+	../include/skb_rich_layout.h
+	../include/skb_rich_text.h
+	../include/skb_text.h
 )
 
 
-add_library(skribidi ${SKRIBIDI_SOURCE_FILES} ${SKRIBIDI_API_FILES})
+add_library(skribidi ${SKRIBIDI_LIBRARY_TYPE} ${SKRIBIDI_SOURCE_FILES} ${SKRIBIDI_API_FILES})
 
 target_include_directories(skribidi
   PUBLIC
@@ -140,12 +156,14 @@ set_target_properties(skribidi PROPERTIES
 	C_STANDARD 17
     C_STANDARD_REQUIRED YES
     C_EXTENSIONS YES
+	C_VISIBILITY_PRESET hidden
+	VISIBILITY_INLINES_HIDDEN YES
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
 	DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX}
 )
 
-if(NOT MSVC)
+if(NOT WIN32)
 	target_link_libraries(skribidi PUBLIC m)
 endif()
 
@@ -153,6 +171,18 @@ target_link_libraries(skribidi PRIVATE harfbuzz SheenBidi libunibreak budouxc)
 
 if(MINGW)
     target_compile_options(harfbuzz PRIVATE -Wa,-mbig-obj)
+endif()
+
+if (MSVC)
+	target_sources(skribidi PRIVATE skribidi.natvis)
+endif()
+
+if (SKRIBIDI_BUILD_SHARED_LIBRARY)
+	target_compile_definitions(skribidi PRIVATE SKB_BUILD_DLL)
+
+	if (WIN32)
+		target_compile_definitions(skribidi INTERFACE SKB_DLL)
+	endif()
 endif()
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" PREFIX "src" FILES ${SKRIBIDI_SOURCE_FILES})

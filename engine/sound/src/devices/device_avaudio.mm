@@ -69,6 +69,7 @@ namespace dmDeviceAVAudio
     static const double IOS_MAX_TRANSIENT_IO_BUFFER_DURATION = 0.12;
 #endif
 
+#if TARGET_OS_IPHONE
     static uint32_t GetBufferCountForDuration(uint32_t mix_rate, uint32_t frames_per_buffer, double duration)
     {
         if (mix_rate == 0 || frames_per_buffer == 0 || duration <= 0.0)
@@ -79,6 +80,7 @@ namespace dmDeviceAVAudio
         uint32_t frames = (uint32_t)(duration * (double)mix_rate + 0.5);
         return (frames + frames_per_buffer - 1) / frames_per_buffer;
     }
+#endif
 
     static uint32_t DeviceAVAudioGetEffectiveBufferCount(AVAudioDevice* device)
     {

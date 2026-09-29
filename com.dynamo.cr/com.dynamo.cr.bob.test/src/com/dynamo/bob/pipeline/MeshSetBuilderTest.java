@@ -14,11 +14,13 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
+import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
 import org.apache.commons.io.FileUtils;
@@ -27,6 +29,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -55,6 +60,43 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     @Before
     public void setup() {
         addTestFiles();
+    }
+
+    private static int countInputs(Task task, String path) {
+        int count = 0;
+        for (IResource input : task.getInputs()) {
+            if (path.equals(input.getPath())) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    private static String makeExternalBufferGltf() {
+        return "{" +
+                "\"asset\":{\"version\":\"2.0\"}," +
+                "\"buffers\":[" +
+                "{\"uri\":\"mesh.bin\",\"byteLength\":1}," +
+                "{\"uri\":\"mesh.bin\",\"byteLength\":1}," +
+                "{\"uri\":\"data:application/octet-stream;base64,AA==\",\"byteLength\":1}" +
+                "]}";
+    }
+
+    private static byte[] makeGlb(String json) {
+        byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
+        int paddedJsonLength = (jsonBytes.length + 3) & ~3;
+        int totalLength = 12 + 8 + paddedJsonLength;
+        ByteBuffer glb = ByteBuffer.allocate(totalLength).order(ByteOrder.LITTLE_ENDIAN);
+        glb.putInt(0x46546c67);
+        glb.putInt(2);
+        glb.putInt(totalLength);
+        glb.putInt(paddedJsonLength);
+        glb.putInt(0x4e4f534a);
+        glb.put(jsonBytes);
+        while (glb.position() < totalLength) {
+            glb.put((byte) ' ');
+        }
+        return glb.array();
     }
 
     // Return the exception as string if the validation fails
@@ -148,5 +190,103 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
             }
             assertTrue(found);
         }
+    }
+
+    @Test
+    public void testExternalBuffersAreInputsOfMeshsetProducer() throws Exception {
+        addFile("/mesh.bin", new byte[] { 0 });
+        addFile("/mesh.gltf", makeExternalBufferGltf());
+
+        Task meshsetTask = getProject().createTask(getProject().getResource("/mesh.gltf"), MeshsetBuilder.class);
+
+        assertEquals(1, countInputs(meshsetTask, "mesh.gltf"));
+        assertEquals(1, countInputs(meshsetTask, "mesh.bin"));
+        assertEquals(2, meshsetTask.getInputs().size());
+    }
+
+    @Test
+    public void testExternalBuffersResolveRelativeToSceneResource() throws Exception {
+        addFile("/buffers/mesh.bin", new byte[] { 1, 2, 3 });
+        addFile("/models/mesh.gltf", "{" +
+                "\"asset\":{\"version\":\"2.0\"}," +
+                "\"buffers\":[{\"uri\":\"../buffers/mesh.bin\",\"byteLength\":3}]}");
+
+        IResource sceneResource = getProject().getResource("/models/mesh.gltf");
+        Task meshsetTask = getProject().createTask(sceneResource, MeshsetBuilder.class);
+
+        assertEquals(1, countInputs(meshsetTask, "buffers/mesh.bin"));
+    }
+
+    @Test
+    public void testMorphOutputsAreDiscoveredWithImporterFallback() throws Exception {
+        String gltf = "{" +
+                "\"asset\":{\"version\":\"2.0\"}," +
+                "\"accessors\":[" +
+                "{\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"," +
+                "\"min\":[0,0,0],\"max\":[0,0,0]}," +
+                "{\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"}]," +
+                "\"meshes\":[{\"name\":\"MorphMesh\",\"primitives\":[{" +
+                "\"attributes\":{\"POSITION\":0},\"targets\":[{\"POSITION\":1}]}]}]," +
+                "\"nodes\":[{\"mesh\":0}],\"scenes\":[{\"nodes\":[0]}],\"scene\":0}";
+        addFile("/morph.gltf", gltf);
+
+        Task meshsetTask = getProject().createTask(getProject().getResource("/morph.gltf"), MeshsetBuilder.class);
+
+        assertEquals(4, meshsetTask.getOutputs().size());
+        assertEquals("build/morph_morph_0.texturec", meshsetTask.output(3).getPath());
+    }
+
+    @Test
+    public void testGlbMetadataScanFindsExternalBuffersAndMorphTargets() throws Exception {
+        String json = "{" +
+                "\"asset\":{\"version\":\"2.0\"}," +
+                "\"buffers\":[{\"uri\":\"mesh.bin\",\"byteLength\":1}]," +
+                "\"meshes\":[{\"name\":\"Named\",\"primitives\":[{\"targets\":[{}]}]}]}";
+
+        ModelUtil.ModelMetadata metadata = ModelUtil.getModelMetadata(makeGlb(json), "/mesh.glb");
+
+        assertEquals(1, metadata.externalBufferUris().size());
+        assertEquals("mesh.bin", metadata.externalBufferUris().get(0));
+        assertTrue(metadata.hasMorphTargets());
+    }
+
+    @Test
+    public void testModelAndCollisionObjectShareMeshsetProducer() throws Exception {
+        addFile("/mesh.bin", new byte[] { 0 });
+        addFile("/mesh.gltf", makeExternalBufferGltf());
+        addFile("/mesh.model",
+                "mesh: \"/mesh.gltf\"\n" +
+                "mesh_name: \"Ground\"\n" +
+                "mesh_index: 0\n");
+        addFile("/mesh.collisionobject",
+                "type: COLLISION_OBJECT_TYPE_STATIC\n" +
+                "mass: 0\n" +
+                "embedded_collision_shape {\n" +
+                "  shapes {\n" +
+                "    shape_type: TYPE_MESH\n" +
+                "    id: \"mesh\"\n" +
+                "    position { x: 0 y: 0 z: 0 }\n" +
+                "    rotation { x: 0 y: 0 z: 0 w: 1 }\n" +
+                "    index: 0\n" +
+                "    count: 0\n" +
+                "    mesh_scene: \"/mesh.gltf\"\n" +
+                "    mesh_name: \"Ground\"\n" +
+                "    mesh_index: 0\n" +
+                "  }\n" +
+                "}\n");
+
+        Task modelTask = getProject().createTask(getProject().getResource("/mesh.model"), ModelBuilder.class);
+        Task collisionObjectTask = getProject().createTask(getProject().getResource("/mesh.collisionobject"), CollisionObjectBuilder.class);
+
+        assertEquals(1, countInputs(modelTask, "build/mesh.meshsetc"));
+        assertEquals(1, countInputs(collisionObjectTask, "build/mesh.meshsetc"));
+
+        int meshsetTaskCount = 0;
+        for (Task task : getProject().getTasks()) {
+            if (task.getBuilder() instanceof MeshsetBuilder && "mesh.gltf".equals(task.firstInput().getPath())) {
+                ++meshsetTaskCount;
+            }
+        }
+        assertEquals(1, meshsetTaskCount);
     }
 }

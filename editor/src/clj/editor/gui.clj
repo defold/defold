@@ -1247,11 +1247,12 @@
   (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
 
   (property id g/Str (default (protobuf/default Gui$NodeDesc :id))
+            (dynamic tooltip (properties/tooltip-dynamic :gui :id))
             (dynamic error (g/fnk [_node-id id id-counts] (prop-unique-id-error _node-id :id id id-counts id-message)))
             (dynamic visible not-override-node?))
   (property generated-id g/Str ; Just for presentation.
             (dynamic label (properties/label-dynamic :id))
-            (dynamic tooltip (properties/tooltip-dynamic :id))
+            (dynamic tooltip (properties/tooltip-dynamic :gui :id))
             (value (gu/passthrough id)) ; see (output id ...) below
             (dynamic read-only? (g/constantly true))
             (dynamic visible override-node?))
@@ -2148,10 +2149,11 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource-localized error-gui-font-not-found-in-scene-message-fn :font))
 
-(g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha]
+(g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha ^:raw style]
   (assoc visual-base-node-msg
     :manual-size manual-size
     :text text
+    :style style
     :line-break line-break
     :font font
     :text-leading text-leading
@@ -2173,6 +2175,7 @@
             (set (layout-property-setter manual-size)))
   (property text g/Str (default (protobuf/default Gui$NodeDesc :text))
             (dynamic edit-type (layout-property-edit-type text {:type :multi-line-text}))
+            (dynamic error (g/fnk [markup-error] markup-error))
             (dynamic label (properties/label-dynamic :gui :text))
             (dynamic tooltip (properties/tooltip-dynamic :gui :text))
             (value (layout-property-getter text))
@@ -2183,6 +2186,15 @@
             (dynamic tooltip (properties/tooltip-dynamic :gui :line-break))
             (value (layout-property-getter line-break))
             (set (layout-property-setter line-break)))
+  (property style g/Str (default "default")
+            (dynamic label (properties/label-dynamic :font :style))
+            (dynamic tooltip (properties/tooltip-dynamic :font :style))
+            (dynamic edit-type (g/fnk [font-data]
+                                 (wrap-layout-property-edit-type style (font/style-choices (:font-map font-data)))))
+            (dynamic error (g/fnk [_node-id font-data style]
+                             (font/style-error _node-id (:font-map font-data) style)))
+            (value (layout-property-getter style))
+            (set (layout-property-setter style)))
   (property font g/Str (default (protobuf/default Gui$NodeDesc :font))
             (dynamic edit-type (g/fnk [basic-gui-scene-info]
                                  (let [font-names (:font-names basic-gui-scene-info)]
@@ -2239,7 +2251,7 @@
             (value (layout-property-getter shadow-alpha))
             (set (layout-property-setter shadow-alpha)))
 
-  (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :style :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [costly-gui-scene-info font]
                                     (let [font-datas (:font-datas costly-gui-scene-info)]
@@ -2255,7 +2267,7 @@
                        offset (pivot-offset pivot manual-size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
                        font-map (get-in text-data [:font-data :font-map])
-                       texture-recip-uniform (font/get-texture-recip-uniform font-map)
+                       texture-recip-uniform (some-> font-map font/get-texture-recip-uniform)
                        material-shader (when (not (empty? material)) material-shader)
                        font-shaders (:font-shaders costly-gui-scene-info)
                        font-shader (or material-shader (get font-shaders font) (get font-shaders ""))
@@ -2269,27 +2281,46 @@
                     :color color+alpha
                     :override-material-shader font-shader
                     :renderable-tags #{:gui-text}})))
-  (output text-layout g/Any :cached (g/fnk [manual-size font-data text line-break text-leading text-tracking]
-                                           (font/layout-text (:font-map font-data) text line-break (first manual-size) text-tracking text-leading)))
+  (output markup-error g/Any :cached (g/fnk [_node-id font-data text]
+                                            (font/markup-error _node-id :text (:font-map font-data) text)))
+  (output text-layout g/Any :cached (g/fnk [manual-size font-data text line-break text-leading text-tracking style]
+                                           (font/layout-text (some-> font-data :font-map (assoc :style style)) text line-break (first manual-size) text-tracking text-leading)))
   (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                          [(:width text-layout) (:height text-layout) 0]))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha aabb-size pivot]
-                                   (cond-> {:text-layout text-layout
-                                            :font-data font-data
-                                            :color (assoc color 3 alpha)
-                                            :outline (assoc outline 3 outline-alpha)
-                                            :shadow (assoc shadow 3 shadow-alpha)
-                                            :align (pivot->h-align pivot)}
-                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
-                                                                          h (second aabb-size)]
-                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha aabb-size manual-size pivot]
+                                   (let [text-data {:text-layout text-layout
+                                                    :font-data font-data
+                                                    :color (assoc color 3 alpha)
+                                                    :outline (assoc outline 3 outline-alpha)
+                                                    :shadow (assoc shadow 3 shadow-alpha)
+                                                    :align (pivot->h-align pivot)}]
+                                     (cond
+                                       (nil? font-data)
+                                       text-data
+
+                                       (get-in font-data [:font-map :native-renderer-spec])
+                                       (assoc text-data
+                                              :box-height (second manual-size)
+                                              :offset (pivot-offset pivot manual-size)
+                                              :vertical-align (pivot->v-align pivot))
+
+                                       :else
+                                       (assoc text-data :offset (let [[x y] (pivot-offset pivot aabb-size)
+                                                                      h (second aabb-size)]
+                                                                  [x (+ y (- h (:max-ascent text-layout)))]))))))
   (output own-build-errors g/Any
-          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font]
-            (let [font-names (:font-names basic-gui-scene-info)]
+          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node costly-gui-scene-info font layout->prop->value]
+            (let [font-names (:font-names basic-gui-scene-info)
+                  font-datas (:font-datas costly-gui-scene-info)]
               (g/package-errors
                 _node-id
                 build-errors-visual-node
+                (mapv (fn [props]
+                        (font/style-error _node-id
+                                          (:font-map (get font-datas (:font props)))
+                                          (:style props "default")))
+                      (coll/vals layout->prop->value))
                 (validate-font _node-id font-names font))))))
 
 (defmethod update-gui-resource-reference [::TextNode :font]
@@ -2654,8 +2685,8 @@
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
                              (prop-resource-error _node-id :texture texture texture-message)))
-            (dynamic label (properties/label-dynamic :gui :texture))
-            (dynamic tooltip (properties/tooltip-dynamic :gui :texture))
+            (dynamic label (properties/label-dynamic :gui.resource :texture))
+            (dynamic tooltip (properties/tooltip-dynamic :gui.resource :texture))
             (dynamic edit-type (g/fnk [^:unsafe _evaluation-context _node-id]
                                  (let [basis (:basis _evaluation-context)
                                        project (project/get-project basis _node-id)
@@ -2704,6 +2735,8 @@
             (set (partial update-gui-resource-references :font)))
   (property font resource/Resource ; Required protobuf field.
             (value (gu/passthrough font-resource))
+            (dynamic label (properties/label-dynamic :gui.resource :font))
+            (dynamic tooltip (properties/tooltip-dynamic :gui.resource :font))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
                      evaluation-context self old-value new-value
@@ -2848,8 +2881,8 @@
                      [:resource :particlefx-resource]
                      [:build-targets :dep-build-targets]
                      [:scene :particlefx-scene])))
-            (dynamic label (properties/label-dynamic :gui :particlefx))
-            (dynamic tooltip (properties/tooltip-dynamic :gui :particlefx))
+            (dynamic label (properties/label-dynamic :gui.resource :particlefx))
+            (dynamic tooltip (properties/tooltip-dynamic :gui.resource :particlefx))
             (dynamic error (g/fnk [_node-id particlefx]
                              (prop-resource-error _node-id :particlefx particlefx particlefx-message)))
             (dynamic edit-type (g/constantly
@@ -4750,7 +4783,7 @@
 
 ;; SDK api
 (defn register-node-tree-attachment-node-type [workspace node-type]
-  (concat
+  (g/non-undoable
     ;; add the node type to gui scene's :nodes list (node tree root)
     (attachment/register workspace GuiSceneNode :nodes :add {node-type add-attachment-to-gui-scene-node})
     ;; add the node type to gui node's :nodes list (branches)
@@ -5074,7 +5107,7 @@
     :icon text-icon
     :defaults (assoc visual-base-node-defaults
                 :manual-size default-manual-size
-                :text "<text>")}
+                :text "-text-")}
    {:type :type-template
     :node-type TemplateNode
     :display-name outline-template-message
@@ -5126,7 +5159,7 @@
   (apply update resource-types (:ext pb-def) f args))
 
 (defn- update-gui-resource-type-tx-data [workspace f & args]
-  (concat
+  (g/non-undoable
     (apply g/update-property workspace :resource-types update-gui-resource-type-map f args)
     (apply g/update-property workspace :resource-types-non-editable update-gui-resource-type-map f args)))
 

@@ -48,11 +48,16 @@ public final class AppManifestMigration {
                 "engine_service_null",
                 "extension",
                 "font",
+                "font_render",
+                "font_richtext",
+                "font_richtext_null",
                 "font_skribidi",
                 "gameobject",
                 "gamesys",
+                "gamesys_gui",
                 "gamesys_model",
                 "gamesys_model_null",
+                "gamesys_particle",
                 "gamesys_rig",
                 "gamesys_rig_null",
                 "graphics",
@@ -68,6 +73,7 @@ public final class AppManifestMigration {
                 "graphics_webgpu",
                 "graphics_webgpu_wagyu",
                 "gui",
+                "gui_null",
                 "hid",
                 "hid_null",
                 "image",
@@ -81,6 +87,7 @@ public final class AppManifestMigration {
                 "lua",
                 "model",
                 "particle",
+                "particle_null",
                 "physics",
                 "physics_2d",
                 "physics_2d_defold",
@@ -100,13 +107,13 @@ public final class AppManifestMigration {
                 "record",
                 "record_null",
                 "render",
-                "render_font_default",
                 "resource",
                 "rig",
                 "rig_null",
                 "script",
                 "script_box2d",
                 "script_box2d_defold",
+                "script_bullet3d",
                 "sound",
                 "sound_nosimd",
                 "sound_null",
@@ -115,6 +122,7 @@ public final class AppManifestMigration {
                 "zip_noasan")) {
             addWindowsLibraryNames(names, library, library);
         }
+        addWindowsLibraryNames(names, "render_font_default", "font_render");
         addWindowsLibraryNames(names, "mbedtls", "dmbedtls");
         addWindowsLibraryNames(names, "mbedtls_noasan", "dmbedtls_noasan");
         WINDOWS_LIBRARY_NAMES = Collections.unmodifiableMap(names);

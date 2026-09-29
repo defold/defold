@@ -34,15 +34,13 @@
                      (get-in manifest [:platforms platform :context :excludeLibs])))
               (is (= ["script_box2d" "gamesys_model_null" "gamesys_rig_null"]
                      (get-in manifest [:platforms platform :context :libs])))
-              (is (= ["render_font_default" "dmbedtls" "dmbedtls_noasan" "gameobject"
-                      (if (= platform :x86-win32) "libfont_render" "font_render.lib")
-                      "dmbedtls" "dmbedtls_noasan"]
+              (is (= ["font_render" "dmbedtls" "dmbedtls_noasan" "gameobject" "font_render" "dmbedtls" "dmbedtls_noasan"]
                      (get-in manifest [:platforms platform :context :engineLibs]))))
-            (is (= ["render_font_default" "dmbedtls" "dmbedtls_noasan"]
+            (is (= ["font_render" "dmbedtls" "dmbedtls_noasan"]
                    (get-in manifest [:platforms :win32 :context :excludeLibs])))
-            (is (= ["render_font_default" "dmbedtls" "dmbedtls_noasan" "libbox2d_defold" "libopus.lib" "vpx" "vulkan-1" "libcustom.lib"]
+            (is (= ["font_render" "dmbedtls" "dmbedtls_noasan" "libbox2d_defold" "libopus.lib" "vpx" "vulkan-1" "libcustom.lib"]
                    (get-in manifest [:platforms :win32 :context :libs])))
-            (is (= ["render_font_default" "render_font_default" "dmbedtls" "dmbedtls" "dmbedtls_noasan" "dmbedtls_noasan"]
+            (is (= ["font_render" "font_render" "dmbedtls" "dmbedtls" "dmbedtls_noasan" "dmbedtls_noasan"]
                    (get-in manifest [:platforms :win32 :context :engineLibs])))
             (testing "Other platforms, the root context, and symbols are preserved"
               (doseq [path [[:context]
@@ -66,17 +64,17 @@
   (test-util/with-temp-project-content
     {"/current.appmanifest"
      ["# Preserve comments and formatting"
-      "platforms: {win32: {context: {libs: [render_font_default, dmbedtls, libcustom.lib]}}}"]
-
-     "/unknown-libraries.appmanifest"
-     ["platforms: {win32: {context: {libs: [libfont_render, libfont_richtext, libfont_richtext_null, libgamesys_gui, libgamesys_particle, libgui_null, libparticle_null, libscript_bullet3d]}}}"]
+      "platforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}"]
 
      "/invalid.appmanifest"
      ["platforms: ["]
 
+     "/scalar.appmanifest"
+     ["true"]
+
      "/malformed.appmanifest"
      ["platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}"]}
-    (doseq [proj-path ["/current.appmanifest" "/unknown-libraries.appmanifest" "/invalid.appmanifest" "/malformed.appmanifest"]]
+    (doseq [proj-path ["/current.appmanifest" "/invalid.appmanifest" "/scalar.appmanifest" "/malformed.appmanifest"]]
       (let [manifest-node (test-util/resource-node project proj-path)
             save-data (g/node-value manifest-node :save-data)]
         (is (false? (:dirty save-data)))
@@ -230,6 +228,20 @@
                                 :mobile {:context {:libs []}}}}
                    setting
                    identity)))))))
+  (testing "rich text can be replaced with its null implementation"
+    (is (false? (app-manifest/get-setting-value {} app-manifest/rich-text-setting)))
+    (let [excluded-manifest (app-manifest/set-setting-value {} app-manifest/rich-text-setting true)
+          included-manifest (app-manifest/set-setting-value excluded-manifest app-manifest/rich-text-setting false)]
+      (is (true? (app-manifest/get-setting-value excluded-manifest app-manifest/rich-text-setting)))
+      (is (contains? (set (get-in excluded-manifest [:platforms :arm64-osx :context :excludeLibs]))
+                     "font_richtext"))
+      (is (contains? (set (get-in excluded-manifest [:platforms :arm64-osx :context :libs]))
+                     "font_richtext_null"))
+      (is (false? (app-manifest/get-setting-value included-manifest app-manifest/rich-text-setting)))
+      (is (not (contains? (set (get-in included-manifest [:platforms :arm64-osx :context :excludeLibs]))
+                          "font_richtext")))
+      (is (not (contains? (set (get-in included-manifest [:platforms :arm64-osx :context :libs]))
+                          "font_richtext_null")))))
   (testing "choice setting is a enum of options or nil (indeterminate) setting"
     (let [setting (app-manifest/make-choice-setting
                     :all [(app-manifest/boolean-toggle :desktop :enabled true)
@@ -284,12 +296,34 @@
                        (app-manifest/update-setting-value setting update-fn)
                        (app-manifest/get-setting-value setting))))))))))
 
+;; Verifies the combined 2D/3D physics selection round-trips and excludes the
+;; Bullet3D script library and symbol on every platform exactly when 3D is disabled.
+;; This prevents editor writes from linking an unavailable API or stripping the
+;; API from projects that still use 3D physics.
+(deftest physics-setting-test
+  (testing "Bullet script API follows the 3D physics selection"
+    (doseq [[selection exclude-bullet-script]
+            [[{:2d :none :3d false} true]
+             [{:2d :legacy :3d false} true]
+             [{:2d :v3 :3d false} true]
+             [{:2d :none :3d true} false]
+             [{:2d :v3 :3d true} false]
+             [{:2d :legacy :3d true} false]]]
+      (let [manifest (app-manifest/set-setting-value {} app-manifest/physics-setting selection)]
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/physics-setting)))
+        (doseq [platform app-manifest/all-platforms]
+          (let [context (get-in manifest [:platforms platform :context])]
+            (is (= exclude-bullet-script
+                   (contains? (set (:excludeLibs context)) "script_bullet3d")))
+            (is (= exclude-bullet-script
+                   (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt")))))))))
+
 (deftest android-graphics-setting-test
   (testing "OpenGL-only Android excludes Vulkan link inputs"
     (let [manifest (-> {}
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :both)
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :open-gl))]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_opengles"} (:libs context)))
           (is (some #{"dmglfw"} (:libs context)))
@@ -302,7 +336,7 @@
           (is (some #{"GLESv2"} (:dynamicLibs context)))))))
   (testing "Vulkan-only Android excludes OpenGL ES link inputs"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-android :vulkan)]
-      (doseq [platform [:armv7-android :arm64-android]]
+      (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_vulkan"} (:libs context)))
           (is (some #{"dmglfw_vulkan"} (:libs context)))
@@ -385,7 +419,7 @@
   (testing "Metal-only iOS includes Metal and excludes OpenGL/Vulkan"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :metal)]
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
-      (doseq [platform [:arm64-ios :x86_64-ios]]
+      (doseq [platform [:arm64-ios :arm64_sim-ios]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_metal"} (:libs context)))
           (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
@@ -401,7 +435,7 @@
   (testing "Vulkan-only iOS keeps the simulator OpenGL fallback"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :vulkan)
           arm64-context (get-in manifest [:platforms :arm64-ios :context])
-          simulator-context (get-in manifest [:platforms :x86_64-ios :context])]
+          simulator-context (get-in manifest [:platforms :arm64_sim-ios :context])]
       (is (= :vulkan (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
       (is (some #{"graphics_vulkan"} (:libs arm64-context)))
       (is (some #{"MoltenVK"} (:libs arm64-context)))
@@ -437,6 +471,9 @@
         (is (= false (g/node-value manifest :exclude-record)))
         (is (= :debug-only (g/node-value manifest :profiler)))
         (is (= false (g/node-value manifest :exclude-sound)))
+        (is (= false (g/node-value manifest :exclude-gui)))
+        (is (= false (g/node-value manifest :exclude-particle-fx)))
+        (is (= false (g/node-value manifest :exclude-tilemap)))
         (is (= false (g/node-value manifest :exclude-input)))
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
@@ -445,7 +482,8 @@
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
         (is (= :open-gl (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
-        (is (= :web-gl (g/node-value manifest :graphics-web)))))
+        (is (= :web-gl (g/node-value manifest :graphics-web)))
+        (is (true? (g/node-value manifest :use-rich-text)))))
     (testing "/app_manifest/exclude_physics_2d.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics_2d.appmanifest")]
         (is (= :none (g/node-value manifest :physics-2d)))
@@ -661,4 +699,26 @@
       (is (true? (g/node-value manifest :exclude-record)))
       (g/set-property! manifest :exclude-record false)
       (is (false? (string/includes? (text) "record_null")))
-      (is (false? (g/node-value manifest :exclude-record))))))
+      (is (false? (g/node-value manifest :exclude-record)))
+
+      (g/set-property! manifest :exclude-gui true)
+      (g/set-property! manifest :exclude-particle-fx true)
+      (g/set-property! manifest :exclude-tilemap true)
+      (is (string/includes? (text) "gui_null"))
+      (is (string/includes? (text) "particle_null"))
+      (is (string/includes? (text) "ResourceTypeTileMap"))
+      (is (true? (g/node-value manifest :exclude-gui)))
+      (is (true? (g/node-value manifest :exclude-particle-fx)))
+      (is (true? (g/node-value manifest :exclude-tilemap)))
+
+      (g/set-property! manifest :exclude-gui false)
+      (g/set-property! manifest :exclude-particle-fx false)
+      (g/set-property! manifest :exclude-tilemap false)
+      (is (false? (string/includes? (text) "gui_null")))
+      (is (false? (string/includes? (text) "particle_null")))
+      (is (false? (string/includes? (text) "ResourceTypeTileMap")))
+
+      (testing "indeterminate rich-text settings remain indeterminate"
+        (g/set-property! manifest :manifest
+                         {:platforms {:arm64-osx {:context {:libs ["font_richtext_null"]}}}})
+        (is (nil? (g/node-value manifest :use-rich-text)))))))

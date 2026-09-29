@@ -10,18 +10,16 @@ Imported revision:
 
 This external package contains only the runtime pieces used by Defold:
 
-- Native C++ runtime from `vkq_library/vkquality/src/main/cpp`, excluding upstream tests.
-- Java startup mitigation and JNI wrapper classes from `vkq_library/vkquality/src/main/java`.
+- Native C++ runtime from `vkq_library/vkquality/src/main/cpp`, excluding upstream tests and the
+  JNI entry points used by the Unity Java wrapper.
 - Default `vkqualitydata.vkq` runtime data asset.
 - Apache 2.0 license.
 
-The upstream Gradle project, Unity sample project, editor tool, and tests are intentionally not
-vendored here. The package is built with CMake through `scripts/build.py build_external
---package=vkquality`. The Java annotation dependency on AndroidX was removed from
-`StartupMitigation.java` so the jar can be built with Defold's existing Android SDK classpath.
+The upstream Gradle project, Java and Unity wrappers, Unity sample project, editor tool, and tests
+are intentionally not vendored here. The package is built with CMake through `scripts/build.py
+build_external --package=vkquality`.
 
-VkQuality is packaged as `libvkquality.so` because the upstream Java wrapper loads the native
-runtime with `System.loadLibrary("vkquality")` and exposes the recommendation API through JNI
-methods implemented in `vkquality_c.cpp`. Building it as a static library would require changing
-the Java wrapper to load Defold's engine library instead, linking the VkQuality objects into the
-engine shared library, and preserving/exporting the JNI symbols from that library.
+VkQuality is packaged as an optional `libvkquality.so`. On Android builds containing both Vulkan
+and OpenGL ES, Defold loads its C API at runtime and passes the physical-device properties gathered
+by Defold's Vulkan support probe to `vkQuality_initializeFlagsInfo`. This avoids VkQuality creating
+an additional Vulkan instance and lets builds without a fallback graphics adapter omit the library.

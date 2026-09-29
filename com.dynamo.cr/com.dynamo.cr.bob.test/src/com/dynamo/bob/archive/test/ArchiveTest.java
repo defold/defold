@@ -404,11 +404,11 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, excludedResources);
+        List<ArchiveEntry> archiveEntries = instance.write(outFileIndex, outFileData, excludedResources);
 
-        assertEquals(2, instance.getArchiveEntrySize());
-        assertEquals("/main.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());    // 987bcab01b929eb2c07877b224215c92
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // 2c1743a391305fbf367df8e4f069f9f9
+        assertEquals(2, archiveEntries.size());
+        assertEquals("/main.collectionproxyc", archiveEntries.get(0).getRelativeFilename());    // 987bcab01b929eb2c07877b224215c92
+        assertEquals("/main.collectionc", archiveEntries.get(1).getRelativeFilename());         // 2c1743a391305fbf367df8e4f069f9f9
     }
 
     @SuppressWarnings("unused")
@@ -432,13 +432,13 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, excludedResources);
+        List<ArchiveEntry> archiveEntries = instance.write(outFileIndex, outFileData, excludedResources);
 
-        assertEquals(4, instance.getArchiveEntrySize());
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
-        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
-        assertEquals("/level1.goc", instance.getArchiveEntry(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
+        assertEquals(4, archiveEntries.size());
+        assertEquals("/level1.collectionproxyc", archiveEntries.get(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", archiveEntries.get(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", archiveEntries.get(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
+        assertEquals("/level1.goc", archiveEntries.get(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
     }
 
     @SuppressWarnings("unused")
@@ -462,13 +462,13 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, excludedResources);
+        List<ArchiveEntry> archiveEntries = instance.write(outFileIndex, outFileData, excludedResources);
 
-        assertEquals(4, instance.getArchiveEntrySize());
-        assertEquals("/shared.goc", instance.getArchiveEntry(0).getRelativeFilename());
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(1).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(2).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
-        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(3).getRelativeFilename());  // bc05302047f95ca60709254556402710
+        assertEquals(4, archiveEntries.size());
+        assertEquals("/shared.goc", archiveEntries.get(0).getRelativeFilename());
+        assertEquals("/level1.collectionproxyc", archiveEntries.get(1).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", archiveEntries.get(2).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", archiveEntries.get(3).getRelativeFilename());  // bc05302047f95ca60709254556402710
     }
 
     @SuppressWarnings("unused")
@@ -492,13 +492,13 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, excludedResources);
+        List<ArchiveEntry> archiveEntries = instance.write(outFileIndex, outFileData, excludedResources);
 
-        assertEquals(4, instance.getArchiveEntrySize());
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
-        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
-        assertEquals("/level1.goc", instance.getArchiveEntry(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
+        assertEquals(4, archiveEntries.size());
+        assertEquals("/level1.collectionproxyc", archiveEntries.get(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", archiveEntries.get(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", archiveEntries.get(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
+        assertEquals("/level1.goc", archiveEntries.get(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
     }
 
     @SuppressWarnings("unused")
@@ -521,13 +521,13 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, excludedResources);
+        List<ArchiveEntry> archiveEntries = instance.write(outFileIndex, outFileData, excludedResources);
 
-        assertEquals(4, instance.getArchiveEntrySize());
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
-        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
-        assertEquals("/level1.goc", instance.getArchiveEntry(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
+        assertEquals(4, archiveEntries.size());
+        assertEquals("/level1.collectionproxyc", archiveEntries.get(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", archiveEntries.get(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", archiveEntries.get(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
+        assertEquals("/level1.goc", archiveEntries.get(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
 
     }
 
@@ -553,13 +553,13 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, excludedResources);
+        List<ArchiveEntry> archiveEntries = instance.write(outFileIndex, outFileData, excludedResources);
 
-        assertEquals(4, instance.getArchiveEntrySize());
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
-        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
-        assertEquals("/level1.goc", instance.getArchiveEntry(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
+        assertEquals(4, archiveEntries.size());
+        assertEquals("/level1.collectionproxyc", archiveEntries.get(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", archiveEntries.get(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", archiveEntries.get(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
+        assertEquals("/level1.goc", archiveEntries.get(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
     }
 
     @SuppressWarnings("unused")
@@ -583,11 +583,11 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, excludedResources);
+        List<ArchiveEntry> archiveEntries = instance.write(outFileIndex, outFileData, excludedResources);
 
-        assertEquals(2, instance.getArchiveEntrySize());
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
+        assertEquals(2, archiveEntries.size());
+        assertEquals("/level1.collectionproxyc", archiveEntries.get(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", archiveEntries.get(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
     }
 
 

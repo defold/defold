@@ -27,6 +27,13 @@
 #define WIDTH 8u
 #define HEIGHT 4u
 
+TEST(dmPlatform, WindowCreateParamsInitialize)
+{
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    ASSERT_TRUE(params.m_FocusOnShow);
+}
+
 class dmPlatformTest : public jc_test_base_class
 {
 protected:
@@ -149,6 +156,10 @@ TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
     ReferenceAndroidSymbol(&dmPlatform::GetAndroidJavaVM);
     ReferenceAndroidSymbol(&dmPlatform::GetAndroidActivity);
     ReferenceAndroidSymbol(&dmPlatform::GetAndroidApp);
+    ReferenceAndroidSymbol(&dmPlatform::AcquireAndroidWindow);
+    ReferenceAndroidSymbol(&dmPlatform::WaitForAndroidWindow);
+    ReferenceAndroidSymbol(&dmPlatform::IsAndroidWindowCurrent);
+    ReferenceAndroidSymbol(&dmPlatform::ReleaseAndroidWindow);
     ReferenceAndroidSymbol(&dmPlatform::GetSafeAreaAndroid);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidInputMethod);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidFullscreenParameters);

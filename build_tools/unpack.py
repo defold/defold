@@ -25,9 +25,12 @@ def zip(filepath, dest_dir):
 def dmg(filepath, dest_dir):
     system = platform.system()
     if system == "Darwin":
-        run.shell_command("hdiutil attach %s" % filepath)
-        shutil.copytree("/Volumes/Defold/Defold.app", os.path.join(dest_dir, "Defold.app"))
-        run.shell_command("hdiutil detach /Volumes/Defold")
+        with tempfile.TemporaryDirectory(prefix="defold-dmg-") as mountpoint:
+            run.command(["hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mountpoint, filepath])
+            try:
+                shutil.copytree(os.path.join(mountpoint, "Defold.app"), os.path.join(dest_dir, "Defold.app"))
+            finally:
+                run.command(["hdiutil", "detach", mountpoint])
     elif system == "Linux":
         mountpoint = tempfile.mkdtemp()
         run.shell_command("mount -t hfsplus %s %s" % (filepath, mountpoint))

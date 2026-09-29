@@ -1,0 +1,406 @@
+{
+  "version": "1.13.1",
+  "revision": "574678c7d44be490d874fbed2d0ae6211feec4d9",
+  "purpose": "Original offline SDF edge coverage; no narrowing or compatibility patches.",
+  "bob": {
+    "path": "/Applications/Defold_Stable.app/Contents/Resources/packages/defold-574678c7d44be490d874fbed2d0ae6211feec4d9.jar",
+    "sha256": "72d7faa7409bc7f237c381c029c53d81eb12a8d272f8162c3152c5aa3c951941"
+  },
+  "engine": {
+    "path": "/private/tmp/defold-font-render-cache/stable-layout0-rich0-metal-arm64-macos/build-home/engine/engine/build/arm64-macos/src/test/font_render/test_font_render",
+    "sha256": "f35333bbd04cf2059684ba1a45184a94501911ab7ed28da1b8c91c7600b7ee80",
+    "backend": "metal",
+    "font_and_renderer_release_source_sha256": {
+      "engine/font/src/dmsdk/font/font.h": "f1ab6ff750d309b879e6335bb9570b91e76ea0f3509e5658e12fffd3c2ffd821",
+      "engine/font/src/dmsdk/font/fontcollection.h": "65e931da6ac37ed019748db0bba3cfa31141725e0901b768f49a20e0d1a1d0b5",
+      "engine/font/src/dmsdk/font/text_layout.h": "38835cdf05092a853c959150326ed12417665493d024d729d5d55da1358a2466",
+      "engine/font/src/external/stb_truetype.h": "ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab",
+      "engine/font/src/font.cpp": "4d99f87d92bca36b8af7071cc3c58de94682b92ef695c010550204f9482a649a",
+      "engine/font/src/font.h": "9a539acc6be640cfa3c29f64e1e92be3422ffea7f9eca7ae45770b64467d853b",
+      "engine/font/src/font_private.h": "ecd7579b21851b93eb0043872248bb56233660df6ecd161a488c9a70173a2024",
+      "engine/font/src/font_ttf.cpp": "f3902af199855b4db38c9c40c1b911468a3dbb3678cf98dd7841d4682bf3e6f5",
+      "engine/font/src/font_ttf.h": "da7b945562408c41203793490ea98b3080bb7efc20d9c11240a8c232267988e3",
+      "engine/font/src/fontcollection.cpp": "ff0a7a92c7e1c424da5c5382315fd49f7ca968914fef03c6e648a209b1bfdc6b",
+      "engine/font/src/fontcollection.h": "d3afc65bb436f8995d1d4213773af9a452e21931e903da2018cf52bbafedf8ff",
+      "engine/font/src/test/test_font.cpp": "3aa3c8c49ab74e709eb5c566cc911b6d8db87a5741cf4d3ff7c692f767e454d9",
+      "engine/font/src/text_layout.cpp": "09f4c694e3e02f4d859d73da18e09e3e69300b8593a6e26e5c89eb9900093beb",
+      "engine/font/src/text_layout.h": "27b5f789dc9bbe2c9a03d9879f1675ac9de2680561126aec86117fdae32e23c0",
+      "engine/font/src/text_layout_legacy.cpp": "2f45f2c3886eb4f4cef7439728fba884baff21b0ce6d1a4ca9ef83e70c27bf1c",
+      "engine/font/src/text_layout_skribidi.cpp": "58da3247f4f9feab7e8bfd5e2bae877b45c9ae16779eedd244345ac5b25f9804",
+      "engine/font/src/util.cpp": "a4d770fd54ddc3020e213e8189ee579d8573716f6d6defcb07af7a4dc0828eb3",
+      "engine/font/src/util.h": "b45563e99bd575467063aa3b5d29ad26dd8ad16d2a8a9936b59b1b66f0fa70fa",
+      "engine/render/src/render/font/default/font_default_vertex.cpp": "4c551561836f440576da8687d16272733e86714019ec30f305a308eb621ee4b1",
+      "engine/render/src/render/font/font_glyphbank.cpp": "9c187858dd58e68965e097ce18ede5ec92416a3fccbae2b16e1c0803e552a7b4",
+      "engine/render/src/render/font/font_glyphbank.h": "09f4a33b2f935a1d5f6e501878a323875dc4a40c04ef580bfcd2820dd90a8670",
+      "engine/render/src/render/font/font_renderer.cpp": "82f08b61c4b6e34ed14bf41eea06712ded3aec2b54b9ea76af01d106172f743b",
+      "engine/render/src/render/font/font_renderer.h": "ef310f30f8fc30ebc3d3834ed48876a723b6abb9ed8b266c646bba8e3054a69b",
+      "engine/render/src/render/font/font_renderer_api.h": "76cb927bed792d342b61de368dc1787b90197bb631c10169cac71d2214a0232d",
+      "engine/render/src/render/font/font_renderer_default.h": "e627f796e23407fa8b492a8a1f76c523a63989962f665091bb2e8e9ac10ae057",
+      "engine/render/src/render/font/font_renderer_private.h": "37a27e0de226760b90703b39ee54e1c2c42acad7c436bf00bfcaf3584c8425d6",
+      "engine/render/src/render/font/fontmap.cpp": "8571bf898761e22b38b9beaa82829237e979a962ee26b0f8a2c2aa2f861a7847",
+      "engine/render/src/render/font/fontmap.h": "31ad82b564863c10ddbaff55da071397b2f4d1ec25f7fe0934675406ca3f11d7",
+      "engine/render/src/render/font/fontmap_private.h": "3f4be0c763265a44c067990900c75e70ac25de6804f14261ecd5cf444f74747e"
+    }
+  },
+  "capture": {
+    "sample_scale": 8,
+    "display_zoom": 4,
+    "normalization": "Shared fixed capture_geometry.json rectangle; no image scaling or registration. Label baselines use source font ascent. Labels also move (-1.5, +0.5) font pixels (Y up), scaled by the requested screen scale, to remove legacy horizontal padding and corner-sampling offsets.",
+    "sampling": "Test-only vertex shader magnifies geometry after the unmodified renderer computes smoothing. The fragment shader and compiler are byte-for-byte 1.13.1.",
+    "configurations": "The six offline glyph-bank captures are shared across four current configurations. This single H has no rich-text markup or shaping; offline banks use legacy layout.",
+    "harness_sha256": {
+      "capture.h": "1e99f9ee89bedf47a5531951f16bccda29f98f9a90e168dca6bce85b5654e5e1",
+      "capture.cpp": "d8d9da50b68c29d6d8af69679103ef57040ddf523a059f7a1c6180683977808d",
+      "CMakeLists.txt": "dd4e4bcfd6e8405c018eebbd0a0c2a4d5f69dbecb49d59a4e46b43eb6a1b07f7",
+      "engine_hidden.cpp": "e86995adf8c21bfd38ceb0b3fd33e4d06b22e4f96f8c70f227ce5272ad2d326c",
+      "capture_readback_spirv.h": "39b85b047557b768f55d62e95e269933213b3094dcf41b0d6f4f80454ee196af",
+      "capture_vulkan.cpp": "e1e6d4a3ca96a03766482b103f43d311ff31e438d73ffb53741370a0498d2fe1",
+      "capture_metal.mm": "6fc305aeb946f7b93d4a6cc911f132b014de8dff5cd3995ca005736e36e1e536",
+      "capture_readback.comp": "07651bdfc9e87d926eb5cd8fd2b583c5494dec3f4e5e71580701f7d0c6ae3c6d",
+      "capture_window.cpp": "88e362a0785151539febaebf6e453eb4e9a89411518965801e4395a19327a076"
+    },
+    "origin_adjustment_font_pixels": [
+      -1.5,
+      0.5
+    ],
+    "origin_adjustment_reason": "1.13.1 Fontc.GetFontMapPadding adds one horizontal pixel without shifting the stored left bearing; DistanceFieldGenerator.render samples integer pixel coordinates. Native generation uses the padded bitmap origin and pixel centers. These source conventions imply (-1 - 0.5, +0.5), independently of captured pixels."
+  },
+  "font_sha256": {
+    "WorkSans.ttf": "f50f61f2ba738e239442d40bf1069adb195c224b6a5a73a581fc2f3ed62a9f63",
+    "SourceCodePro-Regular.otf": "9f9664e2edf6f045c11e774f9bd0be6993971f2544a39061a5ce478b96b051f8"
+  },
+  "geometry": {
+    "single_line": {
+      "width": 640,
+      "height": 100,
+      "origin_x": 20,
+      "origin_top": 20,
+      "layout_width": 3000
+    },
+    "english": {
+      "width": 640,
+      "height": 920,
+      "origin_x": 20,
+      "origin_top": 20,
+      "layout_width": 600
+    },
+    "arabic": {
+      "width": 640,
+      "height": 1820,
+      "origin_x": 20,
+      "origin_top": 20,
+      "layout_width": 600
+    },
+    "ttf_edge_half": {
+      "width": 120,
+      "height": 128,
+      "origin_x": 8,
+      "origin_top": -16,
+      "layout_width": 3000
+    },
+    "ttf_edge_one": {
+      "width": 192,
+      "height": 208,
+      "origin_x": -8,
+      "origin_top": -48,
+      "layout_width": 3000
+    },
+    "ttf_edge_two": {
+      "width": 336,
+      "height": 376,
+      "origin_x": -32,
+      "origin_top": -120,
+      "layout_width": 3000
+    },
+    "otf_edge_half": {
+      "width": 104,
+      "height": 120,
+      "origin_x": 8,
+      "origin_top": -24,
+      "layout_width": 3000
+    },
+    "otf_edge_one": {
+      "width": 168,
+      "height": 208,
+      "origin_x": 0,
+      "origin_top": -64,
+      "layout_width": 3000
+    },
+    "otf_edge_two": {
+      "width": 288,
+      "height": 384,
+      "origin_x": -24,
+      "origin_top": -144,
+      "layout_width": 3000
+    }
+  },
+  "fixture_sources": {
+    "bootstrap/capture.render_script": "-- Fixed test projection and the normal builtin font materials.\nfunction init(self)\n    self.labels = render.predicate({\"tile\"})\n    self.gui = render.predicate({\"gui\"})\n    self.clear = { [graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 0, 0, 1),\n                   [graphics.BUFFER_TYPE_DEPTH_BIT] = 1, [graphics.BUFFER_TYPE_STENCIL_BIT] = 0 }\n    self.projection = vmath.matrix4_orthographic(0, 960, 0, 2048, -1, 1)\n    self.target = render.render_target({\n        [graphics.BUFFER_TYPE_COLOR0_BIT] = { format = graphics.TEXTURE_FORMAT_RGBA, width = 960, height = 2048,\n            min_filter = graphics.TEXTURE_FILTER_NEAREST, mag_filter = graphics.TEXTURE_FILTER_NEAREST },\n        [graphics.BUFFER_TYPE_DEPTH_BIT] = { format = graphics.TEXTURE_FORMAT_DEPTH, width = 960, height = 2048 },\n        [graphics.BUFFER_TYPE_STENCIL_BIT] = { format = graphics.TEXTURE_FORMAT_STENCIL, width = 960, height = 2048 }\n    })\nend\n\nfunction update(self)\n    -- Draw and capture a dedicated texture, independent of the host window.\n    render_test.set_render_target(self.target)\n    render.set_render_target(self.target)\n    render.set_depth_mask(true)\n    render.set_stencil_mask(0xff)\n    render.clear(self.clear)\n    render.set_viewport(0, 0, 960, 2048)\n    render.set_view(vmath.matrix4())\n    render.set_projection(self.projection)\n    render.set_depth_mask(false)\n    render.disable_state(graphics.STATE_DEPTH_TEST)\n    render.disable_state(graphics.STATE_CULL_FACE)\n    render.enable_state(graphics.STATE_BLEND)\n    render.set_blend_func(graphics.BLEND_FACTOR_SRC_ALPHA, graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)\n    render.draw(self.labels)\n    render.enable_state(graphics.STATE_STENCIL_TEST)\n    render.draw(self.gui)\n    render.disable_state(graphics.STATE_STENCIL_TEST)\n    render.disable_state(graphics.STATE_BLEND)\n    -- Capture the actual queued text data before the normal frame cleanup.\n    render_test.flush_and_snapshot()\nend\n",
+    "bootstrap/main.collection": "name: \"main\"\ninstances { id: \"loader\" prototype: \"/bootstrap/loader.go\" }\ninstances { id: \"markers\" prototype: \"/bootstrap/markers.go\" }\n",
+    "bootstrap/loader.script": "local cases = {\"#ttf_sdf_single_edge_half\",\"#ttf_sdf_single_edge_one\",\"#ttf_sdf_single_edge_two\",\"#otf_sdf_single_edge_half\",\"#otf_sdf_single_edge_one\",\"#otf_sdf_single_edge_two\"}\n\nlocal function next_case(self)\n    self.index = self.index + 1\n    if self.index > #cases then\n        msg.post(\"@system:\", \"exit\", {code=0})\n        return\n    end\n    self.proxy = cases[self.index]\n    msg.post(self.proxy, \"async_load\")\nend\nfunction init(self)\n    self.index = 0\n    next_case(self)\nend\nfunction on_message(self, id, message, sender)\n    if id == hash(\"proxy_loaded\") then\n        msg.post(sender, \"init\")\n        msg.post(sender, \"enable\")\n    elseif id == hash(\"case_done\") then\n        msg.post(self.proxy, \"disable\")\n        msg.post(self.proxy, \"final\")\n        msg.post(self.proxy, \"unload\")\n    elseif id == hash(\"proxy_unloaded\") then\n        next_case(self)\n    end\nend\n",
+    "bootstrap/capture.render": "script: \"/bootstrap/capture.render_script\"\n",
+    "bootstrap/markers.go": "components { id: \"gui\" component: \"/bootstrap/markers.gui\" }\n",
+    "bootstrap/loader.go": "components { id: \"loader\" component: \"/bootstrap/loader.script\" }\ncomponents { id: \"ttf_sdf_single_edge_half\" component: \"/cases/ttf_sdf_single_edge_half.collectionproxy\" }\ncomponents { id: \"ttf_sdf_single_edge_one\" component: \"/cases/ttf_sdf_single_edge_one.collectionproxy\" }\ncomponents { id: \"ttf_sdf_single_edge_two\" component: \"/cases/ttf_sdf_single_edge_two.collectionproxy\" }\ncomponents { id: \"otf_sdf_single_edge_half\" component: \"/cases/otf_sdf_single_edge_half.collectionproxy\" }\ncomponents { id: \"otf_sdf_single_edge_one\" component: \"/cases/otf_sdf_single_edge_one.collectionproxy\" }\ncomponents { id: \"otf_sdf_single_edge_two\" component: \"/cases/otf_sdf_single_edge_two.collectionproxy\" }\n",
+    "bootstrap/markers.gui": "material: \"/builtins/materials/gui.material\"\nadjust_reference: ADJUST_REFERENCE_DISABLED\nnodes { id: \"top_left\" type: TYPE_BOX position { x: 4 y: 2044 } size { x: 8 y: 8 } color { x: 1 y: 0 z: 0 w: 1 } }\nnodes { id: \"top_right\" type: TYPE_BOX position { x: 956 y: 2044 } size { x: 8 y: 8 } color { x: 0 y: 1 z: 0 w: 1 } }\nnodes { id: \"bottom_left\" type: TYPE_BOX position { x: 4 y: 4 } size { x: 8 y: 8 } color { x: 0 y: 0 z: 1 w: 1 } }\nnodes { id: \"bottom_right\" type: TYPE_BOX position { x: 956 y: 4 } size { x: 8 y: 8 } color { x: 1 y: 1 z: 0 w: 1 } }\n",
+    "cases/ttf_sdf_single_edge_one.script": "function init(self) self.frames = 0 end\nfunction update(self, dt)\n    self.frames = self.frames + 1\n    if self.frames == 6 then render_test.capture(\"ttf_sdf_single_edge_one\") end\n    if self.frames > 6 and not self.done and render_test.is_complete() then\n        self.done = true\n        msg.post(\"main:/loader#loader\", \"case_done\")\n    end\nend\n",
+    "cases/ttf_sdf_single_edge_one.collection": "name: \"ttf_sdf_single_edge_one\"\ninstances { id: \"text\" prototype: \"/cases/ttf_sdf_single_edge_one-text.go\" position { x: -1.5 y: 0.7399979 } scale3 { x: 1 y: 1 z: 1 } }\ninstances { id: \"driver\" prototype: \"/cases/ttf_sdf_single_edge_one.go\" }\n",
+    "cases/ttf_sdf_single_edge_half.label": "size { x: 3000 y: 544 }\ncolor { x: 1 y: 1 z: 1 w: 1 }\noutline { w: 0 }\nshadow { w: 0 }\npivot: PIVOT_NW\nline_break: false\ntext: \"H\"\nfont: \"/reference/ttf.font\"\nmaterial: \"/reference/label-df.material\"\n",
+    "cases/otf_sdf_single_edge_half.collection": "name: \"otf_sdf_single_edge_half\"\ninstances { id: \"text\" prototype: \"/cases/otf_sdf_single_edge_half-text.go\" position { x: -0.75 y: 0.50599955 } scale3 { x: 0.5 y: 0.5 z: 1 } }\ninstances { id: \"driver\" prototype: \"/cases/otf_sdf_single_edge_half.go\" }\n",
+    "cases/otf_sdf_single_edge_one.collection": "name: \"otf_sdf_single_edge_one\"\ninstances { id: \"text\" prototype: \"/cases/otf_sdf_single_edge_one-text.go\" position { x: -1.5 y: 1.0119991 } scale3 { x: 1 y: 1 z: 1 } }\ninstances { id: \"driver\" prototype: \"/cases/otf_sdf_single_edge_one.go\" }\n",
+    "cases/otf_sdf_single_edge_half.go": "components { id: \"driver\" component: \"/cases/otf_sdf_single_edge_half.script\" }\n",
+    "cases/ttf_sdf_single_edge_one.go": "components { id: \"driver\" component: \"/cases/ttf_sdf_single_edge_one.script\" }\n",
+    "cases/ttf_sdf_single_edge_half.collectionproxy": "collection: \"/cases/ttf_sdf_single_edge_half.collection\"\n",
+    "cases/ttf_sdf_single_edge_half.go": "components { id: \"driver\" component: \"/cases/ttf_sdf_single_edge_half.script\" }\n",
+    "cases/otf_sdf_single_edge_half.collectionproxy": "collection: \"/cases/otf_sdf_single_edge_half.collection\"\n",
+    "cases/ttf_sdf_single_edge_two-text.go": "components { id: \"label\" component: \"/cases/ttf_sdf_single_edge_two.label\" }\n",
+    "cases/otf_sdf_single_edge_two-text.go": "components { id: \"label\" component: \"/cases/otf_sdf_single_edge_two.label\" }\n",
+    "cases/ttf_sdf_single_edge_two.go": "components { id: \"driver\" component: \"/cases/ttf_sdf_single_edge_two.script\" }\n",
+    "cases/ttf_sdf_single_edge_two.script": "function init(self) self.frames = 0 end\nfunction update(self, dt)\n    self.frames = self.frames + 1\n    if self.frames == 6 then render_test.capture(\"ttf_sdf_single_edge_two\") end\n    if self.frames > 6 and not self.done and render_test.is_complete() then\n        self.done = true\n        msg.post(\"main:/loader#loader\", \"case_done\")\n    end\nend\n",
+    "cases/ttf_sdf_single_edge_one.label": "size { x: 3000 y: 544 }\ncolor { x: 1 y: 1 z: 1 w: 1 }\noutline { w: 0 }\nshadow { w: 0 }\npivot: PIVOT_NW\nline_break: false\ntext: \"H\"\nfont: \"/reference/ttf.font\"\nmaterial: \"/reference/label-df.material\"\n",
+    "cases/otf_sdf_single_edge_half.script": "function init(self) self.frames = 0 end\nfunction update(self, dt)\n    self.frames = self.frames + 1\n    if self.frames == 6 then render_test.capture(\"otf_sdf_single_edge_half\") end\n    if self.frames > 6 and not self.done and render_test.is_complete() then\n        self.done = true\n        msg.post(\"main:/loader#loader\", \"case_done\")\n    end\nend\n",
+    "cases/ttf_sdf_single_edge_half.script": "function init(self) self.frames = 0 end\nfunction update(self, dt)\n    self.frames = self.frames + 1\n    if self.frames == 6 then render_test.capture(\"ttf_sdf_single_edge_half\") end\n    if self.frames > 6 and not self.done and render_test.is_complete() then\n        self.done = true\n        msg.post(\"main:/loader#loader\", \"case_done\")\n    end\nend\n",
+    "cases/otf_sdf_single_edge_two.label": "size { x: 3000 y: 544 }\ncolor { x: 1 y: 1 z: 1 w: 1 }\noutline { w: 0 }\nshadow { w: 0 }\npivot: PIVOT_NW\nline_break: false\ntext: \"H\"\nfont: \"/reference/otf.font\"\nmaterial: \"/reference/label-df.material\"\n",
+    "cases/otf_sdf_single_edge_one.script": "function init(self) self.frames = 0 end\nfunction update(self, dt)\n    self.frames = self.frames + 1\n    if self.frames == 6 then render_test.capture(\"otf_sdf_single_edge_one\") end\n    if self.frames > 6 and not self.done and render_test.is_complete() then\n        self.done = true\n        msg.post(\"main:/loader#loader\", \"case_done\")\n    end\nend\n",
+    "cases/otf_sdf_single_edge_half.label": "size { x: 3000 y: 544 }\ncolor { x: 1 y: 1 z: 1 w: 1 }\noutline { w: 0 }\nshadow { w: 0 }\npivot: PIVOT_NW\nline_break: false\ntext: \"H\"\nfont: \"/reference/otf.font\"\nmaterial: \"/reference/label-df.material\"\n",
+    "cases/otf_sdf_single_edge_one.collectionproxy": "collection: \"/cases/otf_sdf_single_edge_one.collection\"\n",
+    "cases/ttf_sdf_single_edge_half-text.go": "components { id: \"label\" component: \"/cases/ttf_sdf_single_edge_half.label\" }\n",
+    "cases/ttf_sdf_single_edge_one.collectionproxy": "collection: \"/cases/ttf_sdf_single_edge_one.collection\"\n",
+    "cases/otf_sdf_single_edge_one-text.go": "components { id: \"label\" component: \"/cases/otf_sdf_single_edge_one.label\" }\n",
+    "cases/ttf_sdf_single_edge_one-text.go": "components { id: \"label\" component: \"/cases/ttf_sdf_single_edge_one.label\" }\n",
+    "cases/ttf_sdf_single_edge_two.label": "size { x: 3000 y: 544 }\ncolor { x: 1 y: 1 z: 1 w: 1 }\noutline { w: 0 }\nshadow { w: 0 }\npivot: PIVOT_NW\nline_break: false\ntext: \"H\"\nfont: \"/reference/ttf.font\"\nmaterial: \"/reference/label-df.material\"\n",
+    "cases/otf_sdf_single_edge_one.go": "components { id: \"driver\" component: \"/cases/otf_sdf_single_edge_one.script\" }\n",
+    "cases/otf_sdf_single_edge_one.label": "size { x: 3000 y: 544 }\ncolor { x: 1 y: 1 z: 1 w: 1 }\noutline { w: 0 }\nshadow { w: 0 }\npivot: PIVOT_NW\nline_break: false\ntext: \"H\"\nfont: \"/reference/otf.font\"\nmaterial: \"/reference/label-df.material\"\n",
+    "cases/otf_sdf_single_edge_two.collectionproxy": "collection: \"/cases/otf_sdf_single_edge_two.collection\"\n",
+    "cases/otf_sdf_single_edge_two.go": "components { id: \"driver\" component: \"/cases/otf_sdf_single_edge_two.script\" }\n",
+    "cases/otf_sdf_single_edge_half-text.go": "components { id: \"label\" component: \"/cases/otf_sdf_single_edge_half.label\" }\n",
+    "cases/ttf_sdf_single_edge_two.collectionproxy": "collection: \"/cases/ttf_sdf_single_edge_two.collection\"\n",
+    "cases/ttf_sdf_single_edge_half.collection": "name: \"ttf_sdf_single_edge_half\"\ninstances { id: \"text\" prototype: \"/cases/ttf_sdf_single_edge_half-text.go\" position { x: -0.75 y: 0.36999895 } scale3 { x: 0.5 y: 0.5 z: 1 } }\ninstances { id: \"driver\" prototype: \"/cases/ttf_sdf_single_edge_half.go\" }\n",
+    "cases/otf_sdf_single_edge_two.collection": "name: \"otf_sdf_single_edge_two\"\ninstances { id: \"text\" prototype: \"/cases/otf_sdf_single_edge_two-text.go\" position { x: -3 y: 2.0239982 } scale3 { x: 2 y: 2 z: 1 } }\ninstances { id: \"driver\" prototype: \"/cases/otf_sdf_single_edge_two.go\" }\n",
+    "cases/otf_sdf_single_edge_two.script": "function init(self) self.frames = 0 end\nfunction update(self, dt)\n    self.frames = self.frames + 1\n    if self.frames == 6 then render_test.capture(\"otf_sdf_single_edge_two\") end\n    if self.frames > 6 and not self.done and render_test.is_complete() then\n        self.done = true\n        msg.post(\"main:/loader#loader\", \"case_done\")\n    end\nend\n",
+    "cases/ttf_sdf_single_edge_two.collection": "name: \"ttf_sdf_single_edge_two\"\ninstances { id: \"text\" prototype: \"/cases/ttf_sdf_single_edge_two-text.go\" position { x: -3 y: 1.4799958 } scale3 { x: 2 y: 2 z: 1 } }\ninstances { id: \"driver\" prototype: \"/cases/ttf_sdf_single_edge_two.go\" }\n",
+    "reference/font-df.vp": "#version 140\n\n// positions are in world space\nin mediump vec4 position;\nin mediump vec2 texcoord0;\nin mediump vec4 sdf_params;\nin mediump vec4 face_color;\nin mediump vec4 outline_color;\nin mediump vec4 shadow_color;\nin mediump vec3 layer_mask;\n\nout mediump vec2 var_texcoord0;\nout mediump vec4 var_face_color;\nout mediump vec4 var_outline_color;\nout mediump vec4 var_shadow_color;\nout mediump vec4 var_sdf_params;\nout mediump vec4 var_layer_mask;\n\nuniform vs_uniforms\n{\n    highp mat4 view_proj;\n};\n\nvoid main()\n{\n    var_texcoord0 = texcoord0;\n    var_face_color = vec4(face_color.xyz * face_color.w, face_color.w);\n    var_outline_color = vec4(outline_color.xyz * outline_color.w, outline_color.w);\n    var_shadow_color = vec4(shadow_color.xyz * shadow_color.w, shadow_color.w);\n    var_sdf_params = sdf_params;\n    var_layer_mask.rgb = layer_mask;\n    var_layer_mask.a = layer_mask.r * layer_mask.g * layer_mask.b;\n    gl_Position = view_proj * vec4(position.xy * 8.0 + vec2(32.0, 2016.0), position.z, 1.0);\n}\n",
+    "reference/ttf.font": "font: \"/reference/WorkSans.ttf\"\nmaterial: \"/builtins/fonts/font-df.material\"\nsize: 32\nantialias: 1\nalpha: 1\noutline_alpha: 0\noutline_width: 0\nshadow_alpha: 0\nshadow_blur: 0\noutput_format: TYPE_DISTANCE_FIELD\nrender_mode: MODE_SINGLE_LAYER\ncharacters: \"H\"\n",
+    "reference/label-df.material": "name: \"label\"\ntags: \"tile\"\nvertex_program: \"/reference/font-df.vp\"\nfragment_program: \"/reference/font-df.fp\"\nvertex_constants {\n  name: \"view_proj\"\n  type: CONSTANT_TYPE_VIEWPROJ\n}\n",
+    "reference/otf.font": "font: \"/reference/SourceCodePro-Regular.otf\"\nmaterial: \"/builtins/fonts/font-df.material\"\nsize: 32\nantialias: 1\nalpha: 1\noutline_alpha: 0\noutline_width: 0\nshadow_alpha: 0\nshadow_blur: 0\noutput_format: TYPE_DISTANCE_FIELD\nrender_mode: MODE_SINGLE_LAYER\ncharacters: \"H\"\n",
+    "reference/font-df.fp": "#version 140\n\nin mediump vec2 var_texcoord0;\nin mediump vec4 var_face_color;\nin mediump vec4 var_outline_color;\nin mediump vec4 var_shadow_color;\nin mediump vec4 var_sdf_params;\nin mediump vec4 var_layer_mask;\n\nout vec4 out_fragColor;\n\nuniform mediump sampler2D texture_sampler;\n\nvoid main()\n{\n    mediump vec4 df_sample = texture(texture_sampler, var_texcoord0);\n\n    mediump float distance        = df_sample.x;\n    mediump float distance_shadow = df_sample.z;\n\n    mediump float sdf_edge      = var_sdf_params.x;\n    mediump float sdf_outline   = var_sdf_params.y;\n    mediump float sdf_smoothing = var_sdf_params.z;\n    mediump float sdf_shadow    = var_sdf_params.w;\n\n    // If there is no blur, the shadow should behave in the same way as the outline.\n    mediump float sdf_shadow_as_outline = floor(sdf_shadow);\n    // If this is a single layer font, we must make sure to not mix alpha between layers.\n    mediump float sdf_is_single_layer   = var_layer_mask.a;\n\n    mediump float face_alpha      = smoothstep(sdf_edge - sdf_smoothing, sdf_edge + sdf_smoothing, distance);\n    mediump float outline_alpha   = smoothstep(sdf_outline - sdf_smoothing, sdf_outline + sdf_smoothing, distance);\n    mediump float shadow_alpha    = smoothstep(sdf_shadow - sdf_smoothing, sdf_edge + sdf_smoothing, distance_shadow);\n\n    shadow_alpha = mix(shadow_alpha,outline_alpha,sdf_shadow_as_outline);\n\n    out_fragColor = face_alpha * var_face_color * var_layer_mask.x +\n        outline_alpha * var_outline_color * var_layer_mask.y * (1.0 - face_alpha * sdf_is_single_layer) +\n        shadow_alpha * var_shadow_color * var_layer_mask.z * (1.0 - min(1.0,outline_alpha + face_alpha) * sdf_is_single_layer);\n}\n",
+    "game.project": "[project]\ntitle = 1.13.1 SDF edge references\n[bootstrap]\nmain_collection = /bootstrap/main.collectionc\nrender = /bootstrap/capture.renderc\n[display]\nwidth = 960\nheight = 2048\nhigh_dpi = 0\nsamples = 0\nvsync = 0\n[font]\nruntime_generation = 0\n[shader]\noutput_msl = 1\n[collection_proxy]\nmax_count = 8\n[script]\nshared_state = 1\n"
+  },
+  "images": {
+    "legacy-rich/otf_sdf_single_edge_half.png": {
+      "sha256": "6fcc1c7b44476f22fe1411c19e5e746c9646ea03bd0d204efb72790781822f77",
+      "edge_width_pixels": 0.6119791666666665,
+      "dimensions": [
+        104,
+        120
+      ],
+      "capture_case": "otf_sdf_single_edge_half"
+    },
+    "legacy-plain/otf_sdf_single_edge_half.png": {
+      "sha256": "6fcc1c7b44476f22fe1411c19e5e746c9646ea03bd0d204efb72790781822f77",
+      "edge_width_pixels": 0.6119791666666665,
+      "dimensions": [
+        104,
+        120
+      ],
+      "capture_case": "otf_sdf_single_edge_half"
+    },
+    "full-rich/otf_sdf_single_edge_half.png": {
+      "sha256": "6fcc1c7b44476f22fe1411c19e5e746c9646ea03bd0d204efb72790781822f77",
+      "edge_width_pixels": 0.6119791666666665,
+      "dimensions": [
+        104,
+        120
+      ],
+      "capture_case": "otf_sdf_single_edge_half"
+    },
+    "full-plain/otf_sdf_single_edge_half.png": {
+      "sha256": "6fcc1c7b44476f22fe1411c19e5e746c9646ea03bd0d204efb72790781822f77",
+      "edge_width_pixels": 0.6119791666666665,
+      "dimensions": [
+        104,
+        120
+      ],
+      "capture_case": "otf_sdf_single_edge_half"
+    },
+    "legacy-rich/otf_sdf_single_edge_one.png": {
+      "sha256": "d49d984e0009a2f55c3d2bfb3fe46c027041bd6591bb06de6d57de83a7a995f6",
+      "edge_width_pixels": 0.6063701923076923,
+      "dimensions": [
+        168,
+        208
+      ],
+      "capture_case": "otf_sdf_single_edge_one"
+    },
+    "legacy-plain/otf_sdf_single_edge_one.png": {
+      "sha256": "d49d984e0009a2f55c3d2bfb3fe46c027041bd6591bb06de6d57de83a7a995f6",
+      "edge_width_pixels": 0.6063701923076923,
+      "dimensions": [
+        168,
+        208
+      ],
+      "capture_case": "otf_sdf_single_edge_one"
+    },
+    "full-rich/otf_sdf_single_edge_one.png": {
+      "sha256": "d49d984e0009a2f55c3d2bfb3fe46c027041bd6591bb06de6d57de83a7a995f6",
+      "edge_width_pixels": 0.6063701923076923,
+      "dimensions": [
+        168,
+        208
+      ],
+      "capture_case": "otf_sdf_single_edge_one"
+    },
+    "full-plain/otf_sdf_single_edge_one.png": {
+      "sha256": "d49d984e0009a2f55c3d2bfb3fe46c027041bd6591bb06de6d57de83a7a995f6",
+      "edge_width_pixels": 0.6063701923076923,
+      "dimensions": [
+        168,
+        208
+      ],
+      "capture_case": "otf_sdf_single_edge_one"
+    },
+    "legacy-rich/otf_sdf_single_edge_two.png": {
+      "sha256": "5ef91f30bba48d0d57c3325753fc32e5ecb76cf1406c2286d34c0c07a4a14df7",
+      "edge_width_pixels": 0.6106770833333335,
+      "dimensions": [
+        288,
+        384
+      ],
+      "capture_case": "otf_sdf_single_edge_two"
+    },
+    "legacy-plain/otf_sdf_single_edge_two.png": {
+      "sha256": "5ef91f30bba48d0d57c3325753fc32e5ecb76cf1406c2286d34c0c07a4a14df7",
+      "edge_width_pixels": 0.6106770833333335,
+      "dimensions": [
+        288,
+        384
+      ],
+      "capture_case": "otf_sdf_single_edge_two"
+    },
+    "full-rich/otf_sdf_single_edge_two.png": {
+      "sha256": "5ef91f30bba48d0d57c3325753fc32e5ecb76cf1406c2286d34c0c07a4a14df7",
+      "edge_width_pixels": 0.6106770833333335,
+      "dimensions": [
+        288,
+        384
+      ],
+      "capture_case": "otf_sdf_single_edge_two"
+    },
+    "full-plain/otf_sdf_single_edge_two.png": {
+      "sha256": "5ef91f30bba48d0d57c3325753fc32e5ecb76cf1406c2286d34c0c07a4a14df7",
+      "edge_width_pixels": 0.6106770833333335,
+      "dimensions": [
+        288,
+        384
+      ],
+      "capture_case": "otf_sdf_single_edge_two"
+    },
+    "legacy-rich/ttf_sdf_single_edge_half.png": {
+      "sha256": "f70df96b8e78f11b584123cae809c2ae3d5c5ae9facc027f99ece19f930525a9",
+      "edge_width_pixels": 0.6119791666666665,
+      "dimensions": [
+        120,
+        128
+      ],
+      "capture_case": "ttf_sdf_single_edge_half"
+    },
+    "legacy-plain/ttf_sdf_single_edge_half.png": {
+      "sha256": "f70df96b8e78f11b584123cae809c2ae3d5c5ae9facc027f99ece19f930525a9",
+      "edge_width_pixels": 0.6119791666666665,
+      "dimensions": [
+        120,
+        128
+      ],
+      "capture_case": "ttf_sdf_single_edge_half"
+    },
+    "full-rich/ttf_sdf_single_edge_half.png": {
+      "sha256": "f70df96b8e78f11b584123cae809c2ae3d5c5ae9facc027f99ece19f930525a9",
+      "edge_width_pixels": 0.6119791666666665,
+      "dimensions": [
+        120,
+        128
+      ],
+      "capture_case": "ttf_sdf_single_edge_half"
+    },
+    "full-plain/ttf_sdf_single_edge_half.png": {
+      "sha256": "f70df96b8e78f11b584123cae809c2ae3d5c5ae9facc027f99ece19f930525a9",
+      "edge_width_pixels": 0.6119791666666665,
+      "dimensions": [
+        120,
+        128
+      ],
+      "capture_case": "ttf_sdf_single_edge_half"
+    },
+    "legacy-rich/ttf_sdf_single_edge_one.png": {
+      "sha256": "ba5f252d30b6c422d2fce3964cd731f6f9faddded3f31b56dec38628fa51b5fe",
+      "edge_width_pixels": 0.6130208333333331,
+      "dimensions": [
+        192,
+        208
+      ],
+      "capture_case": "ttf_sdf_single_edge_one"
+    },
+    "legacy-plain/ttf_sdf_single_edge_one.png": {
+      "sha256": "ba5f252d30b6c422d2fce3964cd731f6f9faddded3f31b56dec38628fa51b5fe",
+      "edge_width_pixels": 0.6130208333333331,
+      "dimensions": [
+        192,
+        208
+      ],
+      "capture_case": "ttf_sdf_single_edge_one"
+    },
+    "full-rich/ttf_sdf_single_edge_one.png": {
+      "sha256": "ba5f252d30b6c422d2fce3964cd731f6f9faddded3f31b56dec38628fa51b5fe",
+      "edge_width_pixels": 0.6130208333333331,
+      "dimensions": [
+        192,
+        208
+      ],
+      "capture_case": "ttf_sdf_single_edge_one"
+    },
+    "full-plain/ttf_sdf_single_edge_one.png": {
+      "sha256": "ba5f252d30b6c422d2fce3964cd731f6f9faddded3f31b56dec38628fa51b5fe",
+      "edge_width_pixels": 0.6130208333333331,
+      "dimensions": [
+        192,
+        208
+      ],
+      "capture_case": "ttf_sdf_single_edge_one"
+    },
+    "legacy-rich/ttf_sdf_single_edge_two.png": {
+      "sha256": "fd19309e083137c496b2cf66cc0363588954ed5b44a314cbb6e6ec0d627325f5",
+      "edge_width_pixels": 0.61328125,
+      "dimensions": [
+        336,
+        376
+      ],
+      "capture_case": "ttf_sdf_single_edge_two"
+    },
+    "legacy-plain/ttf_sdf_single_edge_two.png": {
+      "sha256": "fd19309e083137c496b2cf66cc0363588954ed5b44a314cbb6e6ec0d627325f5",
+      "edge_width_pixels": 0.61328125,
+      "dimensions": [
+        336,
+        376
+      ],
+      "capture_case": "ttf_sdf_single_edge_two"
+    },
+    "full-rich/ttf_sdf_single_edge_two.png": {
+      "sha256": "fd19309e083137c496b2cf66cc0363588954ed5b44a314cbb6e6ec0d627325f5",
+      "edge_width_pixels": 0.61328125,
+      "dimensions": [
+        336,
+        376
+      ],
+      "capture_case": "ttf_sdf_single_edge_two"
+    },
+    "full-plain/ttf_sdf_single_edge_two.png": {
+      "sha256": "fd19309e083137c496b2cf66cc0363588954ed5b44a314cbb6e6ec0d627325f5",
+      "edge_width_pixels": 0.61328125,
+      "dimensions": [
+        336,
+        376
+      ],
+      "capture_case": "ttf_sdf_single_edge_two"
+    }
+  }
+}

@@ -54,6 +54,7 @@
     :script-property-type-vector4  :property-type-vector4
     :script-property-type-quat     :property-type-quat
     :script-property-type-boolean  :property-type-boolean
+    :script-property-type-text     :property-type-text
     :script-property-type-resource :property-type-hash))
 
 (defn script-property-type->property-type
@@ -67,6 +68,7 @@
     :script-property-type-vector4 t/Vec4
     :script-property-type-quat t/Vec3
     :script-property-type-boolean g/Bool
+    :script-property-type-text g/Str
     :script-property-type-resource resource/Resource))
 
 (def resource-kind->workspace->extensions
@@ -87,8 +89,14 @@
     (workspace->extensions workspace evaluation-context)))
 
 (defn script-property-edit-type [workspace prop-type resource-kind script-property-type evaluation-context]
-  (let [base-map (if (= resource/Resource prop-type)
+  (let [base-map (cond
+                   (= resource/Resource prop-type)
                    {:type prop-type :ext (resource-kind-extensions workspace resource-kind evaluation-context)}
+
+                   (= :script-property-type-text script-property-type)
+                   {:type :multi-line-text}
+
+                   :else
                    {:type prop-type})]
     (assoc base-map :script-property-type script-property-type)))
 
@@ -113,7 +121,15 @@
                                           "resource" (resource/proj-path resource)}))))))
 
 (defn validate-value-against-edit-type [node-id prop-kw prop-name value edit-type]
-  (when (= resource/Resource (:type edit-type))
+  (cond
+    (and (= :script-property-type-text (:script-property-type edit-type))
+         (string? value)
+         (not= -1 (.indexOf ^String value (int \u0000))))
+    (g/->error node-id prop-kw :fatal value
+               (localization/message "error.property-cannot-contain-nul"
+                                     {"property" (validation/format-name prop-name)}))
+
+    (= resource/Resource (:type edit-type))
     (resource-assignment-error node-id prop-kw prop-name value (:ext edit-type))))
 
 (defn lua-info->script-properties [lua-info]

@@ -34,12 +34,55 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Screen-dimming modes
+     * @enum
+     * @name window.DIMMING
+     * @member window.DIMMING_OFF dimming mode off Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
+     * @member window.DIMMING_ON dimming mode on Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
+     * @member window.DIMMING_UNKNOWN dimming mode unknown Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction. This mode indicates that the dim mode can't be determined, or that the platform doesn't support dimming.
+     */
+
+    /*# Window events
+     * @enum
+     * @name window.WINDOW_EVENT
+     * @member window.WINDOW_EVENT_DEICONIFIED deiconified window event [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is restored after being iconified.
+     * @member window.WINDOW_EVENT_FOCUS_GAINED focus gained window event This event is sent to a window event listener when the game window or app screen has gained focus. This event is also sent at game startup and the engine gives focus to the game.
+     * @member window.WINDOW_EVENT_FOCUS_LOST focus lost window event This event is sent to a window event listener when the game window or app screen has lost focus.
+     * @member window.WINDOW_EVENT_ICONIFIED iconify window event [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is iconified (reduced to an application icon in a toolbar, application tray or similar).
+     * @member window.WINDOW_EVENT_RESIZED resized window event This event is sent to a window event listener when the game window or app screen is resized. The new size is passed along in the data field to the event listener.
+     */
+
+    /*# Window event data
+     *
+     * Width and height are present for [ref:window.WINDOW_EVENT_RESIZED] and
+     * absent for other window events.
+     *
+     * @struct
+     * @name window.event_data
+     * @member width? [type:integer] Window width after a resize.
+     * @member height? [type:integer] Window height after a resize.
+     */
+
+    /*# Window safe-area data
+     * @struct
+     * @name window.safe_area
+     * @member x [type:integer] Safe-area x-coordinate.
+     * @member y [type:integer] Safe-area y-coordinate.
+     * @member width [type:integer] Safe-area width.
+     * @member height [type:integer] Safe-area height.
+     * @member inset_left [type:integer] Inset from the left window edge.
+     * @member inset_top [type:integer] Inset from the top window edge.
+     * @member inset_right [type:integer] Inset from the right window edge.
+     * @member inset_bottom [type:integer] Inset from the bottom window edge.
+     */
+
 enum WindowEvent
 {
     WINDOW_EVENT_FOCUS_LOST = 0,
     WINDOW_EVENT_FOCUS_GAINED = 1,
     WINDOW_EVENT_RESIZED = 2,
     WINDOW_EVENT_ICONFIED = 3,
+    WINDOW_EVENT_ICONIFIED = 3,
     WINDOW_EVENT_DEICONIFIED = 4,
 };
 
@@ -106,25 +149,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @name window.set_listener
  *
- * @param callback [type:function(self, event, data)|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
- *
- * `self`
- * : [type:object] The calling script
- *
- * `event`
- * : [type:constant] The type of event. Can be one of these:
- *
- * - `window.WINDOW_EVENT_FOCUS_LOST`
- * - `window.WINDOW_EVENT_FOCUS_GAINED`
- * - `window.WINDOW_EVENT_RESIZED`
- * - `window.WINDOW_EVENT_ICONIFIED`
- * - `window.WINDOW_EVENT_DEICONIFIED`
- *
- * `data`
- * : [type:table] The callback value `data` is a table which currently holds these values
- *
- * - [type:number] `width`: The width of a resize event. nil otherwise.
- * - [type:number] `height`: The height of a resize event. nil otherwise.
+ * @param callback [type:fun(self:script_instance, event:window.WINDOW_EVENT, data:window.event_data)|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
  *
  * @examples
  *
@@ -134,8 +159,8 @@ static void RunCallback(CallbackInfo* cbinfo)
  *         print("window.WINDOW_EVENT_FOCUS_LOST")
  *     elseif event == window.WINDOW_EVENT_FOCUS_GAINED then
  *         print("window.WINDOW_EVENT_FOCUS_GAINED")
- *     elseif event == window.WINDOW_EVENT_ICONFIED then
- *         print("window.WINDOW_EVENT_ICONFIED")
+ *     elseif event == window.WINDOW_EVENT_ICONIFIED then
+ *         print("window.WINDOW_EVENT_ICONIFIED")
  *     elseif event == window.WINDOW_EVENT_DEICONIFIED then
  *         print("window.WINDOW_EVENT_DEICONIFIED")
  *     elseif event == window.WINDOW_EVENT_RESIZED then
@@ -210,10 +235,7 @@ static int SetMouseLock(lua_State* L)
  * This function has no effect on platforms that does not support dimming.
  *
  * @name window.set_dim_mode
- * @param mode [type:constant] The mode for screen dimming
- *
- * - `window.DIMMING_ON`
- * - `window.DIMMING_OFF`
+ * @param mode [type:window.DIMMING] The mode for screen dimming
  */
 
 static int SetDimMode(lua_State* L)
@@ -248,11 +270,7 @@ static int SetDimMode(lua_State* L)
  * On platforms that does not support dimming, `window.DIMMING_UNKNOWN` is always returned.
  *
  * @name window.get_dim_mode
- * @return mode [type:constant] The mode for screen dimming
- *
- * - `window.DIMMING_UNKNOWN`
- * - `window.DIMMING_ON`
- * - `window.DIMMING_OFF`
+ * @return mode [type:window.DIMMING] The mode for screen dimming
  */
 static int GetDimMode(lua_State* L)
 {
@@ -269,8 +287,8 @@ static int GetDimMode(lua_State* L)
  * This returns the current window size (width and height).
  *
  * @name window.get_size
- * @return width [type:number] The window width
- * @return height [type:number] The window height
+ * @return width [type:integer] The window width
+ * @return height [type:integer] The window height
  */
 static int GetSize(lua_State* L)
 {
@@ -289,19 +307,7 @@ static int GetSize(lua_State* L)
  * this returns the full window size and zero insets.
  *
  * @name window.get_safe_area
- * @return safe_area [type:table] safe area data
- *
- * `safe_area`
- * : [type:table] table containing these keys:
- *
- * - [type:number] `x`
- * - [type:number] `y`
- * - [type:number] `width`
- * - [type:number] `height`
- * - [type:number] `inset_left`
- * - [type:number] `inset_top`
- * - [type:number] `inset_right`
- * - [type:number] `inset_bottom`
+ * @return safe_area [type:window.safe_area] safe area data
  */
 static int GetSafeArea(lua_State* L)
 {
@@ -414,8 +420,8 @@ static int SetTitle(lua_State* L)
  * Sets the window size. Works on desktop platforms only.
  *
  * @name window.set_size
- * @param width [type:number] Width of window
- * @param height [type:number] Height of window
+ * @param width [type:integer] Width of window
+ * @param height [type:integer] Height of window
  */
 static int SetSize(lua_State* L)
 {
@@ -434,8 +440,8 @@ static int SetSize(lua_State* L)
  * Sets the window position.
  *
  * @name window.set_position
- * @param x [type:number] Horizontal position of window
- * @param y [type:number] Vertical position of window
+ * @param x [type:integer] Horizontal position of window
+ * @param y [type:integer] Vertical position of window
  */
 static int SetPosition(lua_State* L)
 {
@@ -464,69 +470,13 @@ static const luaL_reg Module_methods[] =
     {0, 0}
 };
 
-/*# focus lost window event
- *
- * This event is sent to a window event listener when the game window or app screen has lost focus.
- *
- * @name window.WINDOW_EVENT_FOCUS_LOST
- * @constant
- */
 
-/*# focus gained window event
- *
- * This event is sent to a window event listener when the game window or app screen has
- * gained focus.
- * This event is also sent at game startup and the engine gives focus to the game.
- *
- * @name window.WINDOW_EVENT_FOCUS_GAINED
- * @constant
- */
 
-/*# resized window event
- *
- * This event is sent to a window event listener when the game window or app screen is resized.
- * The new size is passed along in the data field to the event listener.
- *
- * @name window.WINDOW_EVENT_RESIZED
- * @constant
- */
 
-/*# iconify window event
- *
- * [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is
- * iconified (reduced to an application icon in a toolbar, application tray or similar).
- *
- * @name window.WINDOW_EVENT_ICONFIED
- * @constant
- */
 
-/*# deiconified window event
- *
- * [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is
- * restored after being iconified.
- *
- * @name window.WINDOW_EVENT_DEICONIFIED
- * @constant
- */
 
-/*# dimming mode on
-  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
-  * @name window.DIMMING_ON
-  * @constant
-  */
 
-/*# dimming mode off
-  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
-  * @name window.DIMMING_OFF
-  * @constant
-  */
 
-/*# dimming mode unknown
-  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
-  * This mode indicates that the dim mode can't be determined, or that the platform doesn't support dimming.
-  * @name window.DIMMING_UNKNOWN
-  * @constant
-  */
 
 static void LuaInit(lua_State* L)
 {
@@ -540,7 +490,8 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(WINDOW_EVENT_FOCUS_LOST)
     SETCONSTANT(WINDOW_EVENT_FOCUS_GAINED)
     SETCONSTANT(WINDOW_EVENT_RESIZED)
-    SETCONSTANT(WINDOW_EVENT_ICONFIED)
+    SETCONSTANT(WINDOW_EVENT_ICONFIED)      // https://github.com/defold/defold/issues/12910
+    SETCONSTANT(WINDOW_EVENT_ICONIFIED)
     SETCONSTANT(WINDOW_EVENT_DEICONIFIED)
 
     SETCONSTANT(DIMMING_UNKNOWN)
@@ -580,7 +531,7 @@ void ScriptWindowOnWindowIconify(bool iconify)
 {
     CallbackInfo cbinfo;
     cbinfo.m_Info = &g_Window;
-    cbinfo.m_Event = iconify ? WINDOW_EVENT_ICONFIED : WINDOW_EVENT_DEICONIFIED;
+    cbinfo.m_Event = iconify ? WINDOW_EVENT_ICONIFIED : WINDOW_EVENT_DEICONIFIED;
     RunCallback(&cbinfo);
 }
 

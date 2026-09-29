@@ -96,7 +96,10 @@ if(MODELC_IS_DESKTOP)
             "${MODELC_GENERATED_JAVA}"
             "${MODELC_SRC_DIR}/java/com/dynamo/bob/pipeline/ModelImporterJni.java"
     COMMAND "${Java_JAR_EXECUTABLE}" cf "${MODELC_JAR}" -C "${MODELC_CLASSES_DIR}" .
-    DEPENDS modelc_bindings "${MODELC_SRC_DIR}/java/com/dynamo/bob/pipeline/ModelImporterJni.java"
+    DEPENDS
+      modelc_bindings
+      "${MODELC_GENERATED_JAVA}"
+      "${MODELC_SRC_DIR}/java/com/dynamo/bob/pipeline/ModelImporterJni.java"
     COMMENT "Packaging modelimporter.jar")
   add_custom_target(modelimporter_jar ALL DEPENDS "${MODELC_JAR}")
   add_dependencies(modelimporter_jar modelc_bindings)

@@ -21,6 +21,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/render/render.h>
+#include <rig/rig_ddf.h>
 
 namespace dmRigDDF
 {
@@ -64,6 +65,7 @@ namespace dmGameSystem
         dmRigDDF::Model*        m_Model;   // For the transform
         dmRigDDF::Mesh*         m_Mesh;
         TextureResource*        m_MorphTargetTexture;
+        dmhash_t                m_MorphModelId;
     };
 
     struct MaterialTextureInfo
@@ -92,6 +94,7 @@ namespace dmGameSystem
 
         dmArray<MeshInfo>        m_Meshes;
         dmArray<MaterialInfo>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
+        dmRigDDF::Model          m_SelectedModel;
     };
 }
 

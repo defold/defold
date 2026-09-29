@@ -29,6 +29,11 @@ namespace dmImage
         return RESULT_IMAGE_ERROR;
     }
 
+    bool IsHDR(const void* buffer, uint32_t buffer_size)
+    {
+        return false;
+    }
+
     void Free(Image* image)
     { }
 

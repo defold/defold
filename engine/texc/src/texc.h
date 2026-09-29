@@ -22,8 +22,6 @@
  */
 namespace dmTexc
 {
-    // Matches the enums in graphics_ddf.proto
-
     enum PixelFormat
     {
         PF_L8,
@@ -60,6 +58,9 @@ namespace dmTexc
         PF_RGBA_ASTC_10x10,
         PF_RGBA_ASTC_12x10,
         PF_RGBA_ASTC_12x12,
+
+        PF_RGBA16F,
+        PF_RGBA32F,
     };
 
     enum ColorSpace
@@ -111,6 +112,7 @@ namespace dmTexc
     };
 
     Image*   CreateImage(const char* path, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, uint32_t data_size, uint8_t* data);
+    void     DestroyLoadedImage(Image* image);
     void     CreatePreviewImage(uint32_t width, uint32_t height, uint32_t data_size, const uint8_t* input_data, uint8_t* output_data);
     void     DestroyImage(Image* image);
 

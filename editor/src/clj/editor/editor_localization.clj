@@ -33,7 +33,7 @@
               (resource/proj-path resource)
               #(data/lines-reader lines)))))
 
-(defn- additional-load-fn [project self _resource]
+(defn- connect-fn [project self _resource]
   (g/with-auto-evaluation-context evaluation-context
     (let [bundle (project/editor-localization-bundle project evaluation-context)]
       (g/connect self :resource-path+reader-fn bundle :resource-path+reader-fns))))
@@ -47,6 +47,6 @@
     :icon "icons/32/Icons_05-Project-info.png"
     :category (localization/message "resource.category.editor")
     :language "properties"
-    :additional-load-fn additional-load-fn
+    :connect-fn connect-fn
     :view-types [:code :default]
     :view-opts {:code {:grammar java-properties/grammar}}))

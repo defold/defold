@@ -73,7 +73,7 @@ namespace dmScript
         dmResource::HFactory        m_ResourceFactory;
         dmGraphics::HContext        m_GraphicsContext;
         dmHashTable64<Module>       m_Modules;
-        dmHashTable64<Module*>      m_PathToModule;
+        dmHashTable64<dmhash_t>     m_PathToModule;
         dmHashTable64<int>          m_HashInstances;
         dmArray<HScriptExtension>   m_ScriptExtensions;
         lua_State*                  m_LuaState;

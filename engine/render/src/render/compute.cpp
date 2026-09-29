@@ -103,7 +103,12 @@ namespace dmRender
 
     bool SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
-        return SetProgramSampler(compute_program->m_Samplers, compute_program->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, min_filter, mag_filter, max_anisotropy);
+        return SetComputeProgramSampler(compute_program, name_hash, unit, u_wrap, v_wrap, u_wrap, min_filter, mag_filter, max_anisotropy);
+    }
+
+    bool SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    {
+        return SetProgramSampler(compute_program->m_Samplers, compute_program->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy);
     }
 
     uint32_t GetComputeProgramSamplerUnit(HComputeProgram compute_program, dmhash_t name_hash)

@@ -17,6 +17,8 @@
 #include <dlib/image.h>
 #include <string.h> // memcmp
 
+#include <astcenc/astcenc.h>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
@@ -217,6 +219,19 @@ TEST_F(TexcTest, PreMultipliedAlpha)
         ASSERT_TRUE(dmTexc::PreMultiplyAlpha(image));
         dmTexc::DestroyImage(image);
     }
+}
+
+TEST_F(TexcTest, ConvertRGBA32FToRGBA16FRoundsMantissaIntoExponent)
+{
+    float rgba32f[4] = { 1.9999f, 1.0f, 0.0f, -1.9999f };
+    uint16_t rgba16f[4] = {};
+
+    ASSERT_TRUE(dmTexc::ConvertRGBA32FToPf((const uint8_t*)rgba32f, 1, 1, dmTexc::PF_RGBA16F, rgba16f));
+
+    ASSERT_EQ(0x4000, rgba16f[0]);
+    ASSERT_EQ(0x3c00, rgba16f[1]);
+    ASSERT_EQ(0x0000, rgba16f[2]);
+    ASSERT_EQ(0xc000, rgba16f[3]);
 }
 
 
@@ -533,6 +548,54 @@ TEST(TexcCompileTestASTC, Encode)
 
     dmTexc::DestroyImage(image);
     free(image_data);
+}
+
+TEST(TexcCompileTestASTC, EncodeHDR)
+{
+    const uint32_t width = 4;
+    const uint32_t height = 4;
+    float image_data[width * height * 4];
+    for (uint32_t i = 0; i < width * height; ++i)
+    {
+        image_data[i * 4 + 0] = 2.0f + (float)i * 0.25f;
+        image_data[i * 4 + 1] = 1.0f;
+        image_data[i * 4 + 2] = 0.5f;
+        image_data[i * 4 + 3] = 1.0f;
+    }
+
+    dmTexc::ASTCEncodeSettings settings;
+    memset(&settings, 0, sizeof(settings));
+    settings.m_Path = "hdr";
+    settings.m_Width = width;
+    settings.m_Height = height;
+    settings.m_PixelFormat = dmTexc::PF_RGBA32F;
+    settings.m_ColorSpace = dmTexc::CS_LRGB;
+    settings.m_Data = (uint8_t*)image_data;
+    settings.m_DataCount = sizeof(image_data);
+    settings.m_NumThreads = 1;
+    settings.m_QualityLevel = 10.0f;
+    settings.m_OutPixelFormat = dmTexc::PF_RGBA_ASTC_4x4;
+
+    uint8_t* out = 0;
+    uint32_t out_size = 0;
+    ASSERT_TRUE(dmTexc::ASTCEncode(&settings, &out, &out_size));
+    ASSERT_EQ(16U, out_size);
+
+    astcenc_config config;
+    astcenc_error status = astcenc_config_init(ASTCENC_PRF_HDR_RGB_LDR_A, 4, 4, 1, 10.0f, ASTCENC_FLG_DECOMPRESS_ONLY, &config);
+    ASSERT_EQ(ASTCENC_SUCCESS, status);
+
+    astcenc_context* context = 0;
+    status = astcenc_context_alloc(&config, 1, &context);
+    ASSERT_EQ(ASTCENC_SUCCESS, status);
+
+    astcenc_block_info block_info;
+    status = astcenc_get_block_info(context, out, &block_info);
+    ASSERT_EQ(ASTCENC_SUCCESS, status);
+    ASSERT_TRUE(block_info.is_hdr_block);
+
+    astcenc_context_free(context);
+    free(out);
 }
 
 int main(int argc, char **argv)

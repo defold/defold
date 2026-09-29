@@ -292,7 +292,7 @@
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vertex-buffer)))))
 
 (g/defnk produce-camera-scene
-[_node-id fov aspect-ratio auto-aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height project-render-clear-color]
+  [_node-id fov aspect-ratio auto-aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height project-render-clear-color]
   ;; TODO: Better AABB calculation
   (let [^double ext-x far-z
         ^double ext-y far-z
@@ -402,7 +402,7 @@
     :icon camera-icon
     :icon-class :property
     :category (localization/message "resource.category.components")
-    :view-types [:cljfx-form-view :text]
+    :view-types [:form :text]
     :view-opts {}
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{}}}

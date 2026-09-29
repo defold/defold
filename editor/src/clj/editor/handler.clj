@@ -362,7 +362,8 @@
                (fnk env)
                (catch Exception e
                  (when (not= :run fsym)
-                   (swap! throwing-handlers assoc throwing-id fnk))
+                   (swap! throwing-handlers assoc throwing-id fnk)
+                   (error-reporting/report-disabled-functionality!))
                  (error-reporting/report-exception!
                    (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
                                     (:command handler) (:name command-context) fsym (.getMessage e))

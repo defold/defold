@@ -56,6 +56,17 @@
                       (into {}))]
     (id->node id)))
 
+(deftest invalid-markup-is-gui-text-property-warning-test
+  (test-util/with-loaded-project
+    (let [scene (project/get-resource-node project "/editor1/test.gui")
+          text-node (gui-node scene "text")]
+      (test-util/with-prop [text-node :text "valid\n<color>bad</size>"]
+        (let [property-error (test-util/prop-error text-node :text)]
+          (is (g/error-warning? property-error))
+          (is (g/error-warning? (g/node-value text-node :markup-error)))
+          (is (not (g/error? (g/node-value text-node :text-layout))))
+          (is (not (g/error? (g/node-value text-node :own-build-errors)))))))))
+
 (defn- gui-resources-node [resources-node-outline-key scene]
   (->> (g/node-value scene :node-outline)
        (:children)
@@ -221,6 +232,8 @@
     (g/connect resources-node :name-counts entry-node :name-counts)))
 
 (defn- register-test-gui-extensions [workspace]
+  ;; We're deliberately not supplying {:undoable false} to g/transact because we
+  ;; want to test that the transaction steps are all wrapped in g/non-undoable.
   (g/transact
     (concat
       (gui/register-custom-node-type-info
@@ -279,8 +292,10 @@
           test-vector4 (vector-of :float 4.0 5.0 6.0 7.0)
           test-hash "hash_value"
           source-resources [{:name "beta" :path "/beta.testguiresource"}
-                            {:name "alpha" :path "/alpha.testguiresource"}]]
+                            {:name "alpha" :path "/alpha.testguiresource"}]
+          undo-stack-count-before (g/undo-stack-count :undo/global)]
       (register-test-gui-extensions workspace)
+      (is (= undo-stack-count-before (g/undo-stack-count :undo/global)))
       (doseq [editability [:editable :non-editable]
               :let [gui-resource-type (get (workspace/get-resource-type-map workspace editability) "gui")
                     node-type-info (get-in gui-resource-type [:gui-node-type-registry :custom-type-name->type-info "TestCustom"])
@@ -985,7 +1000,7 @@
 
 (deftest paste-gui-resource-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui/resources/button.gui")
 
           check!
@@ -1035,7 +1050,7 @@
 
 (deftest rename-referenced-gui-resource
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui_resources/gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-choices]
         (testing (format "Renaming %s resource updates references" resource-id)
@@ -1058,7 +1073,7 @@
 
 (deftest rename-referenced-gui-resource-ignores-visible-layout
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (project/get-resource-node project "/gui/resources/button.gui")
           font-node (gui-font scene "button_font")
           text-node (gui-node scene "text")]
@@ -1073,7 +1088,7 @@
   ;; that refer to resources in the template scene are updated after the rename.
   ;; This is covered by template-layout-resource-rename-test below.
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
           scene (test-util/resource-node project "/gui_resources/uses_gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-choices expected-tmpl-choices]
@@ -1098,7 +1113,7 @@
 
 (deftest rename-referenced-gui-resource-in-outer-scene
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
           scene (test-util/resource-node project "/gui_resources/replaces_gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-tmpl-name expected-choices]
@@ -1153,7 +1168,7 @@
 (deftest introduce-missing-referenced-gui-resource
   (test-util/with-loaded-project
     (let [[workspace project _app-view] (test-util/setup! world)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           shapes {:box (gui-node scene "box")
                   :pie (gui-node scene "pie")
@@ -1203,7 +1218,7 @@
 (deftest introduce-missing-referenced-gui-resource-in-template
   (test-util/with-loaded-project
     (let [[workspace project _app-view] (test-util/setup! world)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           template-shapes {:box (gui-node template-scene "box")
                            :pie (gui-node template-scene "pie")
@@ -1352,7 +1367,7 @@
 
 (deftest reordering-does-not-wipe-layout-overrides
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)
           layouts (g/node-feeding-into scene :layout-names)
@@ -1789,7 +1804,7 @@
 
 (deftest template-layout-data-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
 
       (let [proj-path "/gui/template_layout/button.gui"]
         (testing proj-path
@@ -2497,7 +2512,7 @@
 
 (deftest template-layout-add-referenced-layout-to-referencing-scene-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (with-open [_ (make-restore-point!)]
         (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_button.gui")
               referenced-scene (project/get-resource-node project "/gui/template_layout/button.gui")
@@ -2628,7 +2643,7 @@
 
 (deftest template-layout-add-referencing-layout-to-referenced-scene-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (with-open [_ (make-restore-point!)]
         (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_button.gui")
               referenced-scene (project/get-resource-node project "/gui/template_layout/button.gui")
@@ -3043,7 +3058,7 @@
 
 (deftest template-layout-resource-rename-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (let [referencing-scene (project/get-resource-node project "/gui/resources/panel.gui")
             referenced-scene (project/get-resource-node project "/gui/resources/button.gui")
 
@@ -3391,7 +3406,7 @@
 
 (deftest template-layout-shadowing-resource-rename-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (let [referencing-scene (project/get-resource-node project "/gui/resources/shadowing_panel.gui")
             referenced-scene (project/get-resource-node project "/gui/resources/shadowing_button.gui")
 
@@ -4164,3 +4179,50 @@
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value)
                  (round-layout->node->field->value)))))))
+
+(deftest selected-font-style-layout-and-template-overrides
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [scene (test-util/resource-node project "/gui/resources/button.gui")
+          node (gui-node scene "text")]
+      (is (= "default" (g/node-value node :style)))
+      (test-util/prop! node :style "link")
+      (is (= "link" (:style (g/node-value node :text-layout))))
+      (with-visible-layout! scene "Landscape"
+        (test-util/prop! node :style "")
+        (is (= "" (:style (g/node-value node :text-layout)))))
+      (is (= "link" (g/node-value node :style)))
+      (is (= "" (get-in (g/node-value node :layout->prop->override) ["Landscape" :style])))
+      (test-util/with-prop [node :style "missing"]
+        (is (g/error-fatal? (test-util/prop-error node :style))))
+      (let [saved (g/node-value scene :save-value)
+            text (coll/first-where #(= "text" (:id %)) (:nodes saved))
+            landscape (coll/first-where #(= "Landscape" (:name %)) (:layouts saved))
+            override (coll/first-where #(= "text" (:id %)) (:nodes landscape))]
+        (is (= "link" (:style text)))
+        (is (= "" (:style override)))
+        (is (contains? (set (:overridden-fields override)) 51))))))
+
+(deftest selected-font-style-template-override
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [button (test-util/resource-node project "/gui/template_layout/button.gui")
+          panel (test-util/resource-node project "/gui/template_layout/panel_button.gui")
+          text (gui-node button "text")
+          template-text (gui-node panel "button/text")]
+      (test-util/prop! text :style "link")
+      (is (= "link" (g/node-value template-text :style)))
+      (test-util/prop! template-text :style "")
+      (is (= "" (g/node-value template-text :style)))
+      (let [saved (coll/first-where #(= "button/text" (:id %)) (:nodes (g/node-value panel :save-value)))]
+        (is (= "" (:style saved)))
+        (is (contains? (set (:overridden-fields saved)) 51)))
+      (test-util/prop! text :style "default")
+      (is (= "" (g/node-value template-text :style))))))
+
+(deftest missing-style-in-hidden-layout-is-build-error
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [scene (test-util/resource-node project "/gui/resources/button.gui")
+          node (gui-node scene "text")]
+      (with-visible-layout! scene "Landscape"
+        (test-util/prop! node :style "missing"))
+      (is (= "default" (g/node-value node :style)))
+      (is (g/error-fatal? (g/node-value scene :build-targets))))))

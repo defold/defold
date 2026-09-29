@@ -14,6 +14,8 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <sys/types.h>
 #include <sys/utsname.h>
 #import <Foundation/NSFileManager.h>
 #import <Foundation/Foundation.h>
@@ -34,9 +36,24 @@
 
 namespace dmSys
 {
+    FILE* FileOpen64(const char* path)
+    {
+        return fopen(path, "rb");
+    }
+
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return fseeko(file, (off_t)offset, SEEK_SET);
+    }
+
     char* GetEnv(const char* name)
     {
         return dmSysPosix::GetEnv(name);
+    }
+
+    Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        return dmSysPosix::GetHostFileName(buffer, buffer_size, path);
     }
 
     Result Rename(const char* dst_filename, const char* src_filename)
@@ -308,8 +325,14 @@ namespace dmSys
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
 
-        NSString *device_language = [[NSLocale preferredLanguages]objectAtIndex:0];
-        dmStrlCpy(info->m_DeviceLanguage, [device_language UTF8String], sizeof(info->m_DeviceLanguage));
+        NSArray* preferred_languages = [NSLocale preferredLanguages];
+        if ([preferred_languages count] > 0)
+        {
+            SystemInfo preferred_info;
+            NSString* preferred_language = [preferred_languages objectAtIndex:0];
+            FillLanguageTerritory([preferred_language UTF8String], &preferred_info);
+            dmStrlCpy(info->m_DeviceLanguage, preferred_info.m_DeviceLanguage, sizeof(info->m_DeviceLanguage));
+        }
     }
 
     void GetSecureInfo(SystemInfo* info)
@@ -373,6 +396,15 @@ namespace dmSys
 
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
+
+        NSArray* preferred_languages = [NSLocale preferredLanguages];
+        if ([preferred_languages count] > 0)
+        {
+            SystemInfo preferred_info;
+            NSString* preferred_language = [preferred_languages objectAtIndex:0];
+            FillLanguageTerritory([preferred_language UTF8String], &preferred_info);
+            dmStrlCpy(info->m_DeviceLanguage, preferred_info.m_DeviceLanguage, sizeof(info->m_DeviceLanguage));
+        }
     }
 
     void GetSecureInfo(SystemInfo* info)

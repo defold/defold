@@ -30,6 +30,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_UWrap;
         TextureWrap   m_VWrap;
+        TextureWrap   m_WWrap;
         float         m_Anisotropy;
     };
 

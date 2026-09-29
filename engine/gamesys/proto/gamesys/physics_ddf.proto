@@ -38,13 +38,14 @@ message ConvexShape
 
 message CollisionShape
 {
-    /* NOTE: These values must match ConvexShape.Type above */
+    /* NOTE: The values shared with ConvexShape.Type above must match. */
     enum Type
     {
         TYPE_SPHERE = 0;
         TYPE_BOX = 1;
         TYPE_CAPSULE = 2;
         TYPE_HULL = 3;
+        TYPE_MESH = 4;
     }
 
     /*
@@ -70,10 +71,16 @@ message CollisionShape
         required uint32 count           = 5;
         optional string id              = 6;
         optional uint64 id_hash         = 7 [(runtime_only) = true];
+        optional string mesh_scene      = 8 [(resource) = true];
+        optional string mesh_name       = 9;
+        optional uint32 mesh_index      = 10;
+        optional uint32 triangle_index  = 11 [(runtime_only) = true];
+        optional uint32 triangle_count  = 12 [(runtime_only) = true];
     }
 
     repeated Shape shapes = 1;
     repeated float data   = 2;
+    repeated uint32 indices = 3 [(runtime_only) = true];
 }
 
 /* This should coincide with CollisionObjectType in physics-lib */
@@ -295,7 +302,7 @@ message RequestRayCast
  * @param normal [type:vector3] the normal of the surface of the collision object where it was hit
  * @param id [type:hash] the instance id of the hit collision object
  * @param group [type:hash] the collision group of the hit collision object as a hashed name
- * @param request_id [type:number] id supplied when the ray cast was requested
+ * @param request_id [type:integer] id supplied when the ray cast was requested
  */
 message RayCastResponse
 {
@@ -315,7 +322,7 @@ message RayCastResponse
  *
  * @message
  * @name ray_cast_missed
- * @param request_id [type:number] id supplied when the ray cast was requested
+ * @param request_id [type:integer] id supplied when the ray cast was requested
  */
 message RayCastMissed
 {
@@ -361,6 +368,18 @@ message ContactPoint
     required uint64         group                    = 7;
 }
 
+/*# contact-point object information
+ * @struct
+ * @name message.physics.contact_point_info
+ * @member position [type:vector3] contact point position in world space
+ * @member instance_position [type:vector3] object position in world space
+ * @member normal [type:vector3] contact normal pointing from the other object toward this object
+ * @member relative_velocity [type:vector3] object velocity relative to the other object
+ * @member mass [type:number] object mass in kilograms
+ * @member id [type:hash] object identifier
+ * @member group [type:hash] object collision group
+ */
+
 /*# reports a contact point between two collision objects in cases where a listener is specified.
  * See [ref:physics.set_event_listener].
  *
@@ -375,45 +394,8 @@ message ContactPoint
  * @name contact_point_event
  * @param applied_impulse [type:number] the impulse the contact resulted in
  * @param distance [type:number] the penetration distance between the objects, which is always positive
- * @param a [type:table] contact point information for object A
- *
- * `position`
- * : [type:vector3] The world position of object A
- *
- * `id`
- * : [type:hash] The ID of object A
- *
- * `group`
- * : [type:hash] The collision group of object A
- *
- * `relative_velocity`
- * : [type:vector3] The relative velocity of the collision object A as observed from B object
- *
- * `mass`
- * : [type:number] The mass of the collision object A in kg
- *
- * `normal`
- * : [type:vector3] normal in world space of the contact point, which points from B object towards A object
- *
- * @param b [type:table] contact point information for object B
- *
- * `position`
- * : [type:vector3] The world position of object B
- *
- * `id`
- * : [type:hash] The ID of object B
- *
- * `group`
- * : [type:hash] The collision group of object B
- *
- * `relative_velocity`
- * : [type:vector3] The relative velocity of the collision object B as observed from A object
- *
- * `mass`
- * : [type:number] The mass of the collision object B in kg
- *
- * `normal`
- * : [type:vector3] normal in world space of the contact point, which points from A object towards B object
+ * @param a [type:message.physics.contact_point_info] contact point information for object A
+ * @param b [type:message.physics.contact_point_info] contact point information for object B
  *
  * @examples
  *
@@ -467,6 +449,14 @@ message Collision
     required uint64 group                            = 3;
 }
 
+/*# collision object information
+ * @struct
+ * @name message.physics.collision_info
+ * @member position [type:vector3] object position in world space
+ * @member id [type:hash] object identifier
+ * @member group [type:hash] object collision group
+ */
+
 /*# reports a collision between two collision objects in cases where a listener is specified.
  * See [ref:physics.set_event_listener].
  *
@@ -478,27 +468,8 @@ message Collision
  *
  * @message
  * @name collision_event
- * @param a [type:table] collision information for object A
- *
- * `position`
- * : [type:vector3] The world position of object A
- *
- * `id`
- * : [type:hash] The ID of object A
- *
- * `group`
- * : [type:hash] The collision group of object A
- *
- * @param b [type:table] collision information for object B
- *
- * `position`
- * : [type:vector3] The world position of object B
- *
- * `id`
- * : [type:hash] The ID of object B
- *
- * `group`
- * : [type:hash] The collision group of object B
+ * @param a [type:message.physics.collision_info] collision information for object A
+ * @param b [type:message.physics.collision_info] collision information for object B
  *
  * @examples
  *
@@ -538,6 +509,13 @@ message Trigger
     required uint64 group                           = 2;
 }
 
+/*# trigger interaction object information
+ * @struct
+ * @name message.physics.trigger_info
+ * @member id [type:hash] object identifier
+ * @member group [type:hash] object collision group
+ */
+
 /*# reports interaction (enter/exit) between a trigger collision object and another collision object
  * See [ref:physics.set_event_listener].
  *
@@ -550,20 +528,8 @@ message Trigger
  * @message
  * @name trigger_event
  * @param enter [type:boolean] if the interaction was an entry or not
- * @param a [type:table] interaction information for object A
- * `id`
- * : [type:hash] The ID of object A
- *
- * `group`
- * : [type:hash] The collision group of object A
- *
- * @param b [type:table] collision information for object B
- *
- * `id`
- * : [type:hash] The ID of object B
- *
- * `group`
- * : [type:hash] The collision group of object B
+ * @param a [type:message.physics.trigger_info] interaction information for object A
+ * @param b [type:message.physics.trigger_info] interaction information for object B
  *
  * @examples
  *

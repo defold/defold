@@ -33,6 +33,7 @@ import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
 import com.dynamo.gamesys.proto.ModelProto.Texture;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
+import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.RigScene;
 
 // for editing we use ModelDesc but in runtime Model
@@ -40,6 +41,46 @@ import com.dynamo.rig.proto.Rig.RigScene;
 @ProtoParams(srcClass = ModelDesc.class, messageClass = Model.class)
 @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
 public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
+
+    private Task createSubTaskOutput(String inputPath, String field, Task.TaskBuilder taskBuilder,
+                                     int outputIndex) throws CompileExceptionError {
+        IResource inputResource = BuilderUtil.checkResource(project, taskBuilder.firstInput(), field, inputPath);
+        Task subTask = project.createTask(inputResource);
+        if (subTask == null || subTask.output(outputIndex) == null) {
+            throw new CompileExceptionError(inputResource, 0,
+                    String.format("Unsupported resource type for '%s': '%s'", field, inputResource.getPath()));
+        }
+        taskBuilder.addInput(subTask.output(outputIndex));
+        return subTask;
+    }
+
+    private int resolveMeshIndex(ModelDesc.Builder modelDescBuilder, IResource modelResource) throws CompileExceptionError {
+        String meshName = modelDescBuilder.getMeshName();
+        if (meshName.isEmpty()) {
+            if (modelDescBuilder.hasMeshIndex()) {
+                throw new CompileExceptionError(modelResource, 0, "Model mesh has an index but no name");
+            }
+            return -1;
+        }
+
+        String meshPath = modelDescBuilder.getMesh();
+        String suffix = BuilderUtil.getSuffix(meshPath).toLowerCase();
+        if (!suffix.equals("gltf") && !suffix.equals("glb")) {
+            throw new CompileExceptionError(modelResource, 0, "Model mesh is only supported for glTF and GLB scenes");
+        }
+
+        IResource sceneResource = BuilderUtil.checkResource(project, modelResource, "mesh", meshPath);
+        try {
+            IResource meshSetResource = sceneResource.changeExt(".meshsetc");
+            MeshSet meshSet = MeshSet.parseFrom(meshSetResource.getContent());
+            int requestedMeshIndex = modelDescBuilder.hasMeshIndex() ? modelDescBuilder.getMeshIndex() : -1;
+            return ModelUtil.resolveNamedMesh(meshSet, meshName, requestedMeshIndex).getMeshIndex();
+        } catch (IllegalArgumentException e) {
+            throw new CompileExceptionError(sceneResource, 0, e.getMessage());
+        } catch (IOException e) {
+            throw new CompileExceptionError(sceneResource, 0, e.getMessage(), e);
+        }
+    }
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
@@ -51,13 +92,17 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
             .addOutput(input.changeExt(params.outExt()))
             .addOutput(input.changeExt(".rigscenec"));
 
-        createSubTask(modelDescBuilder.getMesh(), "mesh", taskBuilder);
+        createSubTaskOutput(modelDescBuilder.getMesh(), "mesh", taskBuilder, 0);
 
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            createSubTask(modelDescBuilder.getSkeleton(), "skeleton", taskBuilder);
+            String suffix = BuilderUtil.getSuffix(modelDescBuilder.getSkeleton()).toLowerCase();
+            createSubTaskOutput(modelDescBuilder.getSkeleton(), "skeleton", taskBuilder,
+                    suffix.equals("gltf") || suffix.equals("glb") ? 1 : 0);
         }
         if((!modelDescBuilder.getAnimations().isEmpty())) {
-            createSubTask(modelDescBuilder.getAnimations(), "animations", taskBuilder);
+            String suffix = BuilderUtil.getSuffix(modelDescBuilder.getAnimations()).toLowerCase();
+            createSubTaskOutput(modelDescBuilder.getAnimations(), "animations", taskBuilder,
+                    suffix.equals("gltf") || suffix.equals("glb") ? 2 : 0);
         }
 
         if (modelDescBuilder.getMaterialsCount() > 0) {
@@ -90,6 +135,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         ModelDesc.Builder modelDescBuilder = getSrcBuilder(task.firstInput());
+        int selectedMeshIndex = resolveMeshIndex(modelDescBuilder, task.firstInput());
 
         // Rigscene
         RigScene.Builder rigBuilder = RigScene.newBuilder();
@@ -124,6 +170,9 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         IResource resource = task.firstInput();
         Model.Builder model = Model.newBuilder();
         model.setRigScene(BuilderUtil.getRelativePath(this.project, task.output(1)));
+        if (selectedMeshIndex >= 0) {
+            model.setMeshIndex(selectedMeshIndex);
+        }
 
         if (modelDescBuilder.getMaterialsCount() > 0)
         {

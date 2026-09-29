@@ -54,7 +54,6 @@
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
-#include <gamesys/components/comp_gui.h> // For the URL callbacks etc
 #include <gameobject/gameobject.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
@@ -65,10 +64,14 @@
 #include <render/render.h>
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
-#include <particle/particle.h>
 #include <platform/window.hpp>
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
+
+#if defined(_WIN32)
+    #include <dmsdk/dlib/safe_windows.h>
+    #include <timeapi.h>
+#endif
 
 #include "engine_service.h"
 #include "engine_version.h"
@@ -118,13 +121,43 @@ DM_PROPERTY_U32(rmtp_LuaRefs, 0, PROFILE_PROPERTY_FRAME_RESET, "# Lua references
 namespace dmEngine
 {
 #if !(defined(DM_PLATFORM_VENDOR))
-    bool PlatformInitialize() { return true; }
-    void PlatformFinalize() {}
+#if defined(_WIN32)
+    static bool g_TimerResolutionEnabled = false;
+#endif
+
+    bool PlatformInitialize()
+    {
+#if defined(_WIN32)
+        // Improve Sleep() accuracy for engine-side frame pacing. This request is
+        // held until shutdown, where every successful call is balanced.
+        g_TimerResolutionEnabled = timeBeginPeriod(1) == TIMERR_NOERROR;
+#endif
+        return true;
+    }
+
+    void PlatformFinalize()
+    {
+#if defined(_WIN32)
+        if (g_TimerResolutionEnabled)
+        {
+            timeEndPeriod(1);
+            g_TimerResolutionEnabled = false;
+        }
+#endif
+    }
 #endif
 
     using namespace dmVMath;
 
 #define SYSTEM_SOCKET_NAME "@system"
+
+    // Policy rate used when swap-interval pacing is requested but presentation
+    // cannot currently pace the frame, such as when rendering is disabled.
+    // Headless engines remain unpaced unless an explicit update frequency is set.
+    // This is deliberately independent of display refresh-rate discovery, which
+    // may be unavailable, stale, or ambiguous for windowed and variable-refresh output.
+    static const uint32_t DEFAULT_TIMER_PACING_FREQUENCY = 60;
+    static const uint32_t FRAME_PACING_TIME_BASE = 1000000; // Microseconds per second
 
     dmEngineService::HEngineService g_EngineService = 0;
 
@@ -425,7 +458,16 @@ namespace dmEngine
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
     , m_RunWhileIconified(false)
-    , m_UseSwVSync(false)
+    , m_SwapInterval(0)
+    , m_EffectiveSwapInterval(~0U)
+    , m_PreviousFrameTime(dmTime::GetMonotonicTime())
+    , m_NextFrameTime(0)
+    , m_FramePacingFrequency(0)
+    , m_FrameTimeRemainder(0)
+    , m_PacedFrameTimeDebt(0.0f)
+    , m_AccumFrameTime(0.0f)
+    , m_UpdateFrequency(0)
+    , m_FixedUpdateFrequency(0)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -447,8 +489,6 @@ namespace dmEngine
         m_SpriteContext.m_MaxSpriteCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
-        m_AccumFrameTime = 0;
-        m_PreviousFrameTime = dmTime::GetMonotonicTime();
         m_HttpCache = 0;
         m_DependenciesJsonResource = 0;
         m_DependenciesJsonSize = 0;
@@ -670,48 +710,51 @@ namespace dmEngine
         }
     }
 
-    static bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size)
+    bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size)
     {
+        char p1[DMPATH_MAX_PATH];   // mount: game.projectc
+        char p2[DMPATH_MAX_PATH];   // mount: build/default/game.projectc
+        char p3[DMPATH_MAX_PATH];   // game.projectc if resource path is provided
+        const char* paths[3] = { p1, p2, 0x0 };
+
         if (argc > 1 && argv[argc-1][0] != '-')
         {
-            dmStrlCpy(project_file, argv[argc-1], project_file_size);
-            return true;
-        }
-        else
-        {
-            char p1[DMPATH_MAX_PATH];
-            char p2[DMPATH_MAX_PATH];
-            char p3[DMPATH_MAX_PATH];
-            char* paths[3];
-            uint32_t count = 0;
-
-            const char* mountstr = "";
-#if defined(__NX__)
-            mountstr = "data:/";
-#endif
-            // there's no way to check for a named mount, and it will assert
-            // So we'll only enter here if it's set on this platform
-            if (dmSys::GetEnv("DM_HOSTFS") != 0)
-                mountstr = dmSys::GetEnv("DM_HOSTFS");
-
-            dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
-            dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
-            paths[count++] = p1;
-            paths[count++] = p2;
-
-            if (resources_path)
+            // only care about the last provided arg if it is a .projectc file
+            const char* lastarg = argv[argc-1];
+            const char* suffix = ".projectc";
+            size_t arg_len = strlen(lastarg);
+            size_t suffix_len = strlen(suffix);
+            if ((suffix_len <= arg_len) && strcmp(lastarg + arg_len - suffix_len, suffix) == 0)
             {
-                dmPath::Concat(resources_path, "game.projectc", p3, sizeof(p3));
-                paths[count++] = p3;
+                dmStrlCpy(project_file, lastarg, project_file_size);
+                return true;
             }
+        }
 
-            for (uint32_t i = 0; i < count; ++i)
+        const char* mountstr = "";
+#if defined(__NX__)
+        mountstr = "data:/";
+#endif
+        // there's no way to check for a named mount, and it will assert
+        // So we'll only enter here if it's set on this platform
+        if (dmSys::GetEnv("DM_HOSTFS") != 0)
+            mountstr = dmSys::GetEnv("DM_HOSTFS");
+
+        dmPath::Concat(mountstr, "game.projectc", p1, sizeof(p1));
+        dmPath::Concat(mountstr, "build/default/game.projectc", p2, sizeof(p2));
+
+        if (resources_path)
+        {
+            dmPath::Concat(resources_path, "game.projectc", p3, sizeof(p3));
+            paths[2] = p3;
+        }
+
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+        {
+            if (paths[i] && dmSys::ResourceExists(paths[i]))
             {
-                if (dmSys::ResourceExists(paths[i]))
-                {
-                    dmStrlCpy(project_file, paths[i], project_file_size);
-                    return true;
-                }
+                dmStrlCpy(project_file, paths[i], project_file_size);
+                return true;
             }
         }
 
@@ -749,46 +792,107 @@ namespace dmEngine
         return loadind_key_result == dmSSLSocket::RESULT_OK;
     }
 
+    /**
+     * Applies the effective swap interval to the graphics context. Engine-side
+     * pacing requests interval 0 to disable presentation vsync where supported.
+     * @param engine [type:HEngine] engine instance
+     */
+    static void ApplyEffectiveSwapInterval(HEngine engine)
+    {
+        // An explicit update frequency is timer-paced on platforms whose engine
+        // owns the application loop. Request interval 0 to avoid an additional
+        // vsync wait. The backend or driver may still impose presentation waits,
+        // and waiting for available GPU resources can also block the frame.
+        uint32_t effective_swap_interval = UseEngineFramePacing() && engine->m_UpdateFrequency != 0 ? 0 : engine->m_SwapInterval;
+        if (effective_swap_interval != engine->m_EffectiveSwapInterval)
+        {
+            dmGraphics::SetSwapInterval(engine->m_GraphicsContext, effective_swap_interval);
+            engine->m_EffectiveSwapInterval = effective_swap_interval;
+        }
+    }
+
+    /**
+     * Calculates the next absolute frame deadline by adding the duration of one
+     * frame at the specified frequency. Fractional microseconds are carried in
+     * the remainder so repeated calls do not accumulate integer rounding drift.
+     * @param deadline [type:uint64_t] absolute frame deadline in microseconds
+     * @param frequency [type:uint32_t] nonzero frame frequency in hertz
+     * @param remainder [type:uint32_t&] fractional remainder to update and carry between calls
+     * @return deadline [type:uint64_t] next absolute frame deadline in microseconds
+     */
+    uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder)
+    {
+        // A microsecond clock cannot represent periods shorter than one
+        // microsecond, so clamp such periods to one microsecond.
+        if (frequency >= FRAME_PACING_TIME_BASE)
+        {
+            remainder = 0;
+            return deadline + 1;
+        }
+
+        deadline += FRAME_PACING_TIME_BASE / frequency;
+
+        uint64_t accumulated_remainder = remainder + FRAME_PACING_TIME_BASE % frequency;
+        deadline += accumulated_remainder / frequency;
+        remainder = (uint32_t)(accumulated_remainder % frequency);
+        return deadline;
+    }
+
+    /**
+     * Resets the frame pacing deadline, frequency, and fractional remainder.
+     * @param engine [type:HEngine] engine instance
+     */
+    static void ResetFramePacing(HEngine engine)
+    {
+        engine->m_NextFrameTime = 0;
+        engine->m_FramePacingFrequency = 0;
+        engine->m_FrameTimeRemainder = 0;
+    }
+
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
         swap_interval = dmMath::Max(0, swap_interval);
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
-
-        if (!dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC))
+        if (engine->m_SwapInterval == (uint32_t) swap_interval)
         {
-            engine->m_UseSwVSync = swap_interval != 0;
+            return;
+        }
+
+        engine->m_SwapInterval = (uint32_t) swap_interval;
+        // Reset only when the fallback timer may depend on the new interval. An
+        // explicit update frequency does not, so preserve its deadline rather than
+        // allow an immediate extra frame.
+        if (engine->m_UpdateFrequency == 0)
+        {
+            ResetFramePacing(engine);
         }
     }
 
-    static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
+    void SetUpdateFrequency(HEngine engine, int32_t frequency)
     {
-        engine->m_UpdateFrequency = frequency;
-    }
-
-    struct LuaCallstackCtx
-    {
-        bool     m_First;
-        char*    m_Buffer;
-        uint32_t m_BufferSize;
-    };
-
-    static void GetLuaStackTraceCbk(lua_State* L, lua_Debug* entry, void* _ctx)
-    {
-        LuaCallstackCtx* ctx = (LuaCallstackCtx*)_ctx;
-
-        if (ctx->m_First)
+        if (frequency < 0)
         {
-            int32_t nwritten = dmSnPrintf(ctx->m_Buffer, ctx->m_BufferSize, "Lua Callstack:\n");
-            if (nwritten < 0)
-                nwritten = 0;
-            ctx->m_Buffer += nwritten;
-            ctx->m_BufferSize -= nwritten;
-            ctx->m_First = false;
+            dmLogWarning("Invalid update frequency %d. Falling back to variable frame rate.", frequency);
+            frequency = 0;
         }
 
-        uint32_t nwritten = dmScript::WriteLuaTracebackEntry(entry, ctx->m_Buffer, ctx->m_BufferSize);
-        ctx->m_Buffer += nwritten;
-        ctx->m_BufferSize -= nwritten;
+        uint32_t validated_frequency = (uint32_t) frequency;
+        // Reapplying the active value must not restart the established cadence.
+        if (engine->m_UpdateFrequency == validated_frequency)
+        {
+            return;
+        }
+
+        engine->m_UpdateFrequency = validated_frequency;
+
+        // Timing balances are measured in seconds and remain valid when the
+        // frequency changes. Reset only the cadence, not elapsed time.
+        uint64_t now = dmTime::GetMonotonicTime();
+        ResetFramePacing(engine);
+        if (validated_frequency != 0)
+        {
+            engine->m_FramePacingFrequency = validated_frequency;
+            engine->m_NextFrameTime = AdvanceFrameDeadline(now, validated_frequency, engine->m_FrameTimeRemainder);
+        }
     }
 
     static void LoadDependencyJson(HEngine engine)
@@ -825,11 +929,7 @@ namespace dmEngine
 
         if (engine->m_SharedScriptContext)
         {
-            LuaCallstackCtx ctx;
-            ctx.m_First = true;
-            ctx.m_Buffer = buffer;
-            ctx.m_BufferSize = buffersize;
-            dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
+            dmScript::WriteLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Lua Callstack:\n", buffer, buffersize);
         }
     }
 
@@ -1229,6 +1329,7 @@ namespace dmEngine
         window_params.m_Title                   = instance_index ? window_title : project_title;
         window_params.m_Fullscreen              = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
+        window_params.m_FocusOnShow             = (bool) dmConfigFile::GetInt(engine->m_Config, "display.focus_on_show", 1);
         window_params.m_BackgroundColor         = clear_color;
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 #if defined(__EMSCRIPTEN__)
@@ -1239,9 +1340,13 @@ namespace dmEngine
 
         if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL)
         {
-            window_params.m_OpenGLVersionHint        = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
+            window_params.m_GraphicsApiVersionHint   = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
             window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
         }
+
+#if defined(__EMSCRIPTEN__)
+        window_params.m_GraphicsApiVersionHint = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.webgl_version_hint", 2);
+#endif
 
         engine->m_Window = dmPlatform::NewWindow();
 
@@ -1300,8 +1405,6 @@ namespace dmEngine
         engine->m_FixedUpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.fixed_update_frequency", 60);
         engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 1.0f / 30);
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
-
-        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -1431,14 +1534,6 @@ namespace dmEngine
 
         dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
 
-        engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
-        engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_ParticleFXContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
-        engine->m_ParticleFXContext.m_MaxEmitterCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_EMITTER_COUNT_KEY, 64);
-        engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_GPU_COUNT_KEY, 1024);
-        engine->m_ParticleFXContext.m_MaxParticleBufferCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_CPU_COUNT_KEY, 1024);
-        engine->m_ParticleFXContext.m_Debug = false;
-
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
@@ -1478,10 +1573,6 @@ namespace dmEngine
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
         gui_params.m_HidContext = engine->m_HidContext;
-        gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
-        gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
-        gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
-        gui_params.m_GetTextMetricsCallback = (void (*)(const void *, const char *, float, bool, float, float, dmGui::TextMetrics *))dmGameSystem::GuiGetTextMetricsCallback;
 
         // If an extension changes window size at extensions initialization phase, engine should read that.
         physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
@@ -1576,10 +1667,6 @@ namespace dmEngine
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
         engine->m_LabelContext.m_Subpixels          = dmConfigFile::GetInt(engine->m_Config, "label.subpixels", 1);
 
-        engine->m_TilemapContext.m_RenderContext    = engine->m_RenderContext;
-        engine->m_TilemapContext.m_MaxTilemapCount  = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_count", 16);
-        engine->m_TilemapContext.m_MaxTileCount     = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_tile_count", 2048);
-
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
         engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
 
@@ -1619,6 +1706,7 @@ namespace dmEngine
         }
         engine->m_ResourceTypeContexts.Put(dmHashString64("fontc"), engine->m_RenderContext);
         engine->m_ResourceTypeContexts.Put(dmHashString64("lightc"), engine->m_RenderContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("tilemapc"), &engine->m_PhysicsContextBox2D);
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)
@@ -1628,9 +1716,9 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, physics_context, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
+        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, physics_context, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext);
+                                                                                                &engine->m_ModelContext, &engine->m_LabelContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
@@ -1805,7 +1893,11 @@ namespace dmEngine
             dmExtension::DispatchEvent( params, &event );
         }
 
+        // Establish the elapsed-time origin and first pacing deadline only after
+        // initialization has completed, so startup work cannot expire the first
+        // deadline before the application loop begins.
         engine->m_PreviousFrameTime = dmTime::GetMonotonicTime();
+        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
         return true;
 
@@ -1981,8 +2073,6 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
-        uint64_t frame_start = dmTime::GetMonotonicTime();
-
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
         if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED)
@@ -2155,9 +2245,9 @@ bail:
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
-                    // Update renderer with current time since engine start and frame delta-time.
+                    // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
-                    dmRender::SetFrameTime(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
+                    dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
@@ -2239,27 +2329,6 @@ bail:
                     dmExtension::PostRender(ext_params);
                 }
 
-                if (engine->m_UseSwVSync && engine->m_UpdateFrequency > 0)
-                {
-                    DM_PROFILE("SoftwareVsync");
-                    uint64_t current = dmTime::GetMonotonicTime();
-
-                    float target_time = dt; // already pre calculated by CalcTimeStep
-                    uint64_t elapsed = current - frame_start;
-                    uint64_t remainder = uint64_t(target_time*1000000) - elapsed;
-
-                    while (remainder > 500) // dont bother with less than 0.5ms
-                    {
-                        uint64_t t1 = dmTime::GetMonotonicTime();
-                        dmTime::Sleep(100); // sleep in chunks of 0.1ms
-                        uint64_t t2 = dmTime::GetMonotonicTime();
-                        uint64_t slept = t2 - t1;
-                        if (slept >= remainder)
-                            break;
-                        remainder -= slept;
-                    }
-                }
-
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
                 RecordData* record_data = &engine->m_RecordData;
@@ -2290,7 +2359,136 @@ bail:
         engine->m_Stats.m_TotalTime += dt;
     }
 
-    static void CalcTimeStep(HEngine engine, float& step_dt, uint32_t& num_steps)
+    /**
+     * Selects the frequency used by the engine-side frame pacer. An explicit
+     * update frequency set via SetUpdateFrequency() always wins. With a
+     * variable update frequency, Flip() normally provides the wait through
+     * vsync. Headless engines with a variable update frequency remain unpaced so
+     * they can run as fast as possible. When rendering is temporarily disabled
+     * on a graphical backend, the engine uses its fallback timer policy adjusted
+     * by the requested swap interval instead of relying on platform refresh-rate
+     * discovery.
+     * @return The timer-pacing frequency, or 0 when the engine timer is not needed
+     */
+    static uint32_t GetFramePacingFrequency(HEngine engine)
+    {
+        if (engine->m_UpdateFrequency != 0)
+        {
+            return engine->m_UpdateFrequency;
+        }
+
+        dmGraphics::AdapterFamily adapter_family = dmGraphics::GetInstalledAdapterFamily();
+        if (adapter_family == dmGraphics::ADAPTER_FAMILY_NULL ||
+            adapter_family == dmGraphics::ADAPTER_FAMILY_NONE)
+        {
+            return 0;
+        }
+
+        if (engine->m_SwapInterval == 0)
+        {
+            return 0;
+        }
+
+        bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
+        bool supports_vsync = dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC);
+        if (do_render && supports_vsync)
+        {
+            return 0;
+        }
+
+        return dmMath::Max(1U, DEFAULT_TIMER_PACING_FREQUENCY / engine->m_SwapInterval);
+    }
+
+    /**
+     * Apply engine-side pacing against the next absolute frame deadline. This
+     * function returns immediately if timer pacing is disabled, and only sleeps
+     * when the active deadline is still in the future.
+     * @return true when the engine timer owns pacing, and false otherwise
+     */
+    static bool PaceFrame(HEngine engine)
+    {
+        uint32_t pacing_frequency = GetFramePacingFrequency(engine);
+        if (pacing_frequency == 0)
+        {
+            ResetFramePacing(engine);
+            return false;
+        }
+
+        uint64_t now = dmTime::GetMonotonicTime();
+
+        if (engine->m_NextFrameTime == 0 || engine->m_FramePacingFrequency != pacing_frequency)
+        {
+            engine->m_NextFrameTime = now;
+            engine->m_FramePacingFrequency = pacing_frequency;
+            engine->m_FrameTimeRemainder = 0;
+        }
+
+        while (now < engine->m_NextFrameTime)
+        {
+            dmTime::Sleep((uint32_t)(engine->m_NextFrameTime - now));
+            now = dmTime::GetMonotonicTime();
+        }
+
+        engine->m_NextFrameTime = AdvanceFrameDeadline(engine->m_NextFrameTime, pacing_frequency, engine->m_FrameTimeRemainder);
+        if (engine->m_NextFrameTime <= now)
+        {
+            // Do not run several frames back-to-back when a deadline was missed.
+            engine->m_NextFrameTime = now;
+            engine->m_FrameTimeRemainder = 0;
+            engine->m_NextFrameTime = AdvanceFrameDeadline(engine->m_NextFrameTime, pacing_frequency, engine->m_FrameTimeRemainder);
+        }
+        return true;
+    }
+
+    /**
+     * Calculates the simulation step for a timer-paced frame. The signed balance
+     * tracks accounted elapsed time minus simulated time, not raw wall time.
+     * Elapsed time is capped at max(max_time_step, fixed_dt); any excess is
+     * discarded permanently. The fixed interval is allowed to exceed
+     * max_time_step when the application intentionally requests a low frame cap.
+     * Positive balance below one fixed step is retained. At or above that
+     * threshold, catch-up adds at most max(0, max_time_step - fixed_dt).
+     * Negative balance shortens the step, down to zero, and any remaining credit
+     * is retained for subsequent frames. Neither correction changes the pacer's
+     * deadlines or adds extra update/render passes.
+     * @param frame_dt [type:float] elapsed time for the current frame in seconds
+     * @param fixed_dt [type:float] requested fixed simulation step in seconds
+     * @param max_time_step [type:float] hitch limit in seconds; an intentional longer fixed interval takes precedence
+     * @param frame_time_balance [type:float&] accounted-elapsed-minus-simulated time balance to update
+     * @return step_dt [type:float] simulation step for the current frame
+     */
+    float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance)
+    {
+        float step_dt = fixed_dt;
+
+        frame_dt = dmMath::Min(frame_dt, dmMath::Max(max_time_step, fixed_dt));
+
+        // Keep a signed balance so a short frame can offset a previous catch-up
+        // correction instead of allowing that elapsed time to be counted twice.
+        frame_time_balance += frame_dt - fixed_dt;
+        if (frame_time_balance >= fixed_dt)
+        {
+            float max_correction = dmMath::Max(0.0f, max_time_step - fixed_dt);
+            float correction = dmMath::Min(frame_time_balance, max_correction);
+            step_dt += correction;
+            frame_time_balance -= correction;
+        }
+        else if (frame_time_balance < 0.0f)
+        {
+            // A clamped slow frame can be followed by a short interval while the
+            // pacer returns to its deadline. Do not advance a full fixed step
+            // when that would simulate more time than we have accounted for.
+            // Repay credit here; retaining it indefinitely would freeze variable
+            // updates when the application later disables the frame cap.
+            float correction = dmMath::Min(-frame_time_balance, step_dt);
+            step_dt -= correction;
+            frame_time_balance += correction;
+        }
+
+        return step_dt;
+    }
+
+    static void CalcTimeStep(HEngine engine, bool frame_was_paced, float& step_dt, uint32_t& num_steps)
     {
         uint64_t time = dmTime::GetMonotonicTime();
         uint64_t frame_time = time - engine->m_PreviousFrameTime; // The actual time between two engine frames
@@ -2298,15 +2496,22 @@ bail:
 
         float frame_dt = (float)(frame_time / 1000000.0);
 
-        // Never allow for large hitches
-        if (frame_dt > engine->m_MaxTimeStep) {
-            frame_dt = engine->m_MaxTimeStep;
-        }
-
         // Variable frame rate
         if (engine->m_UpdateFrequency == 0)
         {
-            step_dt = frame_dt;
+            // Never allow for large hitches.
+            frame_dt = dmMath::Min(frame_dt, engine->m_MaxTimeStep);
+
+            // A frequency change may leave time that was not simulated by the
+            // previous pacing mode. Apply as much as the maximum time step
+            // permits and retain the rest for later frames.
+            engine->m_PacedFrameTimeDebt += engine->m_AccumFrameTime + frame_dt;
+            engine->m_AccumFrameTime = 0.0f;
+
+            step_dt = dmMath::Clamp(engine->m_PacedFrameTimeDebt, 0.0f, engine->m_MaxTimeStep);
+            engine->m_PacedFrameTimeDebt -= step_dt;
+            // Variable-rate Step() performs one engine pass even when the
+            // monotonic clock has not advanced since the previous call.
             num_steps = 1;
             return;
         }
@@ -2314,22 +2519,45 @@ bail:
         // Fixed frame rate
         float fixed_dt = 1.0f / (float)engine->m_UpdateFrequency;
 
-        // We don't allow having a higher framerate than the actual variable frame rate
-        // since the update+render is currently coupled together and also Flip() would be called more than once.
-        // E.g. if the fixed_dt == 1/120 and the frame_dt == 1/60
-        if (fixed_dt < frame_dt)
+        if (frame_was_paced)
         {
-            fixed_dt = frame_dt;
+            // The timer controls cadence independently of the simulation step.
+            // Prefer a fixed step, shortening it to repay credit or enlarging it
+            // to catch up with accounted elapsed time. Hitch-clamped time is
+            // discarded, so accumulated dt need not match raw wall-clock time.
+            // Update and render remain coupled and run once per engine frame.
+            step_dt = CalcPacedTimeStep(frame_dt, fixed_dt, engine->m_MaxTimeStep, engine->m_PacedFrameTimeDebt);
+            num_steps = 1;
+
+            engine->m_AccumFrameTime = 0.0f;
         }
+        else
+        {
+            // Never allow for large hitches. Timer-paced frames perform this
+            // clamp relative to their intentional interval above.
+            frame_dt = dmMath::Min(frame_dt, engine->m_MaxTimeStep);
 
-        engine->m_AccumFrameTime += frame_dt;
+            // We don't allow having a higher framerate than the platform callback
+            // rate since update and render are currently coupled together and
+            // Flip() would otherwise be called more than once per callback.
+            // E.g. if fixed_dt == 1/120 and frame_dt == 1/60.
+            if (fixed_dt < frame_dt)
+            {
+                fixed_dt = frame_dt;
+            }
 
-        float num_steps_f = engine->m_AccumFrameTime / fixed_dt;
+            // Platform-owned loops may call Step more frequently than the requested
+            // fixed update rate. Accumulate their elapsed time so early callbacks run
+            // no update, while retaining any fractional time for the next callback.
+            engine->m_AccumFrameTime += frame_dt;
 
-        num_steps = (uint32_t)num_steps_f;
-        step_dt = fixed_dt;
+            float num_steps_f = engine->m_AccumFrameTime / fixed_dt;
 
-        engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
+            num_steps = (uint32_t)num_steps_f;
+            step_dt = fixed_dt;
+
+            engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
+        }
     }
 
     void Step(HEngine engine)
@@ -2341,7 +2569,23 @@ bail:
         float step_dt;      // The dt for each step (the game frame)
         uint32_t num_steps; // Number of times to loop over the StepFrame function
 
-        CalcTimeStep(engine, step_dt, num_steps);
+        // Pace before calculating dt so the wait is included in frame_time.
+        // This remains effective even when StepFrame skips rendering and Flip().
+        bool frame_was_paced = false;
+        // Choose at the frame boundary whether PaceFrame's timer or Flip's
+        // presentation vsync will wait for the next frame. Runtime setting changes
+        // made during StepFrame only update the requested state, so the current
+        // frame keeps the pacing request selected at its start. This avoids
+        // enabling presentation vsync halfway through a timer-paced frame;
+        // actual presentation waits still depend on the backend and driver.
+        // Platform-owned loops still apply their requested swap interval here even
+        // though they do not use the engine-side timer.
+        ApplyEffectiveSwapInterval(engine);
+        if (dmEngine::UseEngineFramePacing())
+        {
+            frame_was_paced = PaceFrame(engine);
+        }
+        CalcTimeStep(engine, frame_was_paced, step_dt, num_steps);
 
         for (uint32_t i = 0; i < num_steps; ++i)
         {
@@ -2479,7 +2723,7 @@ bail:
             else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor) // "set_update_frequency"
             {
                 dmSystemDDF::SetUpdateFrequency* m = (dmSystemDDF::SetUpdateFrequency*) message->m_Data;
-                SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
+                SetUpdateFrequency(self, m->m_Frequency);
             }
             else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor) // "hide_app"
             {

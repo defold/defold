@@ -21,6 +21,7 @@ import sys
 import io
 import codecs
 import html
+import difflib
 
 from optparse import OptionParser
 from markdown import Markdown
@@ -35,6 +36,12 @@ import pystache
 import json
 import yaml
 import script_doc_ddf_pb2
+
+
+# Version of the JSON interchange format consumed by defold.github.io.
+# Keep this separate from the Defold release/version: alpha, beta and stable
+# documentation archives can contain different format versions during rollout.
+JSON_FORMAT_VERSION = 2
 
 
 LUA_MTL = """
@@ -228,6 +235,191 @@ def _markdownify(t):
     return _strip_paragraph(t)
 
 
+_FENCED_CODE_LINE = re.compile(r'^[ ]{0,3}(?P<fence>`{3,}|~{3,})(?P<suffix>.*)$')
+
+
+def _fence_after_line(opening_fence, line):
+    fence_match = _FENCED_CODE_LINE.match(line)
+    if not fence_match:
+        return opening_fence
+
+    fence = fence_match.group("fence")
+    suffix = fence_match.group("suffix")
+    if opening_fence is None:
+        return fence
+    if (fence[0] == opening_fence[0]
+            and len(fence) >= len(opening_fence)
+            and not suffix.strip()):
+        return None
+    return opening_fence
+
+
+def _validate_fenced_code_blocks(text, context):
+    """Return validation errors for malformed Markdown fenced code blocks."""
+    errors = []
+    opening_fence = None
+    opening_line = None
+
+    for line_number, line in enumerate(text.splitlines(), 1):
+        match = _FENCED_CODE_LINE.match(line)
+        if not match:
+            continue
+
+        fence = match.group("fence")
+        suffix = match.group("suffix")
+        if opening_fence is None:
+            opening_fence = fence
+            opening_line = line_number
+            continue
+
+        if fence[0] != opening_fence[0] or len(fence) < len(opening_fence):
+            continue
+
+        if suffix.strip():
+            errors.append(
+                "%s has text after a closing '%s' fence on documentation line %d" %
+                (context, fence, line_number))
+            continue
+
+        opening_fence = None
+        opening_line = None
+
+    if opening_fence is not None:
+        errors.append(
+            "%s has an unclosed '%s' fence opened on documentation line %d" %
+            (context, opening_fence, opening_line))
+
+    return errors
+
+
+def _validate_document_markdown(doc, file):
+    source = file if file else "<string>"
+    errors = []
+
+    def validate(text, context):
+        for error in _validate_fenced_code_blocks(text, context):
+            errors.append("%s in file %s" % (error, source))
+
+    validate(doc.info.description, "document description")
+    for element in doc.elements:
+        validate(element.description, "'%s' description" % element.name)
+        validate(element.examples, "'%s' examples" % element.name)
+        validate(element.replaces, "'%s' replacement documentation" % element.name)
+        for note in element.notes:
+            validate(note, "'%s' note" % element.name)
+        for parameter in element.parameters:
+            validate(parameter.doc, "'%s' parameter '%s'" % (element.name, parameter.name))
+        for returnvalue in element.returnvalues:
+            validate(returnvalue.doc, "'%s' return value '%s'" % (element.name, returnvalue.name))
+        for member in element.members:
+            validate(member.doc, "'%s' member '%s'" % (element.name, member.name))
+
+    return errors
+
+
+def _validate_structured_documentation(doc, file):
+    """Reject code blocks that would be rendered inside API field tables."""
+    if doc.info.language != "Lua":
+        return []
+
+    source = file if file else "<string>"
+    errors = []
+
+    def validate(text, context):
+        if re.search(r'<pre(?:\s|>)', _markdownify(text)):
+            errors.append(
+                "%s contains a Markdown code block in file %s; "
+                "move executable examples to @examples" % (context, source))
+
+    for element in doc.elements:
+        for parameter in element.parameters:
+            validate(
+                parameter.doc,
+                "'%s' parameter '%s'" % (element.name, parameter.name))
+        for returnvalue in element.returnvalues:
+            validate(
+                returnvalue.doc,
+                "'%s' return value '%s'" % (element.name, returnvalue.name))
+        for member in element.members:
+            validate(
+                member.doc,
+                "'%s' member '%s'" % (element.name, member.name))
+
+    return errors
+
+
+_BOOLEAN_LITERAL_NAMES = frozenset(("true", "false"))
+
+
+def _validate_document_names(doc, file):
+    """Reject boolean literals used as names in generated API signatures."""
+    source = file if file else "<string>"
+    errors = []
+
+    def validate_name(name, value_kind, element_name):
+        if name in _BOOLEAN_LITERAL_NAMES:
+            errors.append(
+                "'%s' %s has invalid name '%s' in file %s" %
+                (element_name, value_kind, name, source))
+
+    def validate(values, value_kind, element_name):
+        for value in values:
+            validate_name(value.name, value_kind, element_name)
+
+    for element in doc.elements:
+        validate_name(element.name, "element", element.name)
+        validate(element.parameters, "parameter", element.name)
+        validate(element.returnvalues, "return value", element.name)
+        validate(element.members, "member", element.name)
+        validate(element.tparams, "template parameter", element.name)
+
+    return errors
+
+
+def _parse_tags(text):
+    """Parse documentation tags without treating fenced code as tags."""
+    return [
+        (tag, value)
+        for tag, value, _ in _parse_tag_records(text)
+    ]
+
+
+def _parse_tag_records(text):
+    """Parse documentation tags and retain their comment-relative lines."""
+    parsed_tags = []
+    current_tag = None
+    current_line = None
+    current_value_lines = []
+    opening_fence = None
+
+    def finish_tag():
+        if current_tag is not None:
+            parsed_tags.append((
+                current_tag,
+                "\n".join(current_value_lines).strip(),
+                current_line,
+            ))
+
+    for line_number, line in enumerate(text.splitlines(), 1):
+        tag_match = None
+        if opening_fence is None:
+            tag_match = re.match(r'^\s*@(\S+)(?:\s+(.*))?$', line)
+
+        if tag_match:
+            finish_tag()
+            current_tag = tag_match.group(1)
+            current_line = line_number
+            inline_value = tag_match.group(2)
+            current_value_lines = [] if inline_value is None else [inline_value]
+        elif current_tag is not None:
+            current_value_lines.append(line)
+
+        opening_fence = _fence_after_line(opening_fence, line)
+
+    finish_tag()
+    return parsed_tags
+
+
 def tags_to_proto_type(tags):
     # we sometimes annotate with "@type typedef" or "@type class" instead
     # of "@typedef" and "@class"
@@ -260,10 +452,23 @@ def proto_to_type(p):
     elif p == script_doc_ddf_pb2.CONSTANT: return 'constant'
     return "function"
 
+def _first_tag_offset(text):
+    opening_fence = None
+    offset = 0
+    for line_with_ending in text.splitlines(keepends=True):
+        line = line_with_ending.rstrip("\r\n")
+        if opening_fence is None and re.match(r'^\s*@\S+', line):
+            return offset
+        opening_fence = _fence_after_line(opening_fence, line)
+        offset += len(line_with_ending)
+    return len(text)
+
+
 def _parse_description(text):
-    desc_start = min(len(text), text.find('\n'))
+    first_newline = text.find('\n')
+    desc_start = len(text) if first_newline < 0 else first_newline
     brief = text[0:desc_start]
-    desc_end = min(len(text), text.find('\n@'))
+    desc_end = _first_tag_offset(text)
     description = text[desc_start:desc_end].strip()
     if not brief and description:
         brief = description.split('.\n')[0]
@@ -292,6 +497,15 @@ def _create_doc_info(tags):
 def _create_doc_element(tags):
     element = script_doc_ddf_pb2.Element()
     element.type = tags_to_proto_type(tags)
+
+    if element.type == script_doc_ddf_pb2.CONSTANT and tags.get("constant"):
+        value = element.parameters.add()
+        value.name = "value"
+        value.doc = ""
+        types, _ = extract_type_from_docstr(tags["constant"])
+        if isinstance(types, str):
+            types = [types]
+        value.types.extend(types)
 
     for value in tags["return"]:
         """ Some of the possible variations:
@@ -338,10 +552,11 @@ def _create_doc_element(tags):
             tmp = [tmp[0], '']
         member = element.members.add()
         member.name = tmp[0]
-        member.type, member.doc = extract_type_from_docstr(tmp[1])
+        member_types, member.doc = extract_type_from_docstr(tmp[1])
+        member.type = '|'.join(member_types) if isinstance(member_types, list) else member_types
 
     if 'examples' in tags:
-        element.examples = "".join(tags["examples"])
+        element.examples = "\n\n".join(tags["examples"])
 
     if 'replaces' in tags:
         element.replaces = tags["replaces"]
@@ -350,12 +565,7 @@ def _create_doc_element(tags):
 
 def _parse_comment(text):
     text = _strip_comment_stars(text)
-    # The regexp means match all strings that:
-    # * begins with line start, possible whitespace and an @
-    # * followed by non-white-space (the tag)
-    # * followed by possible spaces
-    # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
-    lst = re.findall(r'^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', text, re.MULTILINE)
+    lst = _parse_tags(text)
     tags = {
         "path": "",
         "language": "",
@@ -397,18 +607,231 @@ def _parse_comment(text):
 
     return element
 
-def extract_type_from_docstr(s):
-    # try to extract the type information
-    m = re.search(r'^\s*(?:\s*\[type:\s*([^\]]*)\])+\s*([\w\W]*)', s)
-    if m and m.group(1):
-        type_list = m.group(1).split("|")
-        if len(type_list) == 1:
-            type_list = type_list[0]
-        if m.group(2):
-            return type_list, m.group(2)
-        return type_list, ""
+def split_type_union(type_expression):
+    """Split a Lua type union without splitting nested type expressions."""
+    parts = []
+    start = 0
+    stack = []
+    pairs = {"]": "[", "}": "{", ")": "(", ">": "<"}
+    for index, char in enumerate(type_expression):
+        if char in "[{(<":
+            stack.append(char)
+        elif char in "]})>":
+            if not stack or stack[-1] != pairs[char]:
+                raise ValueError("Unbalanced Lua type expression: %s" % type_expression)
+            stack.pop()
+        elif char == "|" and not stack:
+            parts.append(type_expression[start:index].strip())
+            start = index + 1
+    if stack:
+        raise ValueError("Unbalanced Lua type expression: %s" % type_expression)
+    parts.append(type_expression[start:].strip())
+    if any(not part for part in parts):
+        raise ValueError("Invalid Lua type union: %s" % type_expression)
+    return parts
 
-    return "", s
+
+def _extract_balanced_type_tag(s):
+    match = re.match(r"^\s*\[type:\s*", s)
+    if not match:
+        return None
+
+    start = match.end()
+    square_depth = 1
+    brace_depth = 0
+    paren_depth = 0
+    angle_depth = 0
+    for index in range(start, len(s)):
+        char = s[index]
+        if char == "[":
+            square_depth += 1
+        elif char == "]":
+            square_depth -= 1
+            if square_depth == 0 and brace_depth == 0 and paren_depth == 0 and angle_depth == 0:
+                return s[start:index].strip(), s[index + 1:].lstrip()
+            if square_depth < 0:
+                break
+        elif char == "{":
+            brace_depth += 1
+        elif char == "}":
+            brace_depth -= 1
+        elif char == "(":
+            paren_depth += 1
+        elif char == ")":
+            paren_depth -= 1
+        elif char == "<":
+            angle_depth += 1
+        elif char == ">":
+            angle_depth -= 1
+
+        if min(square_depth, brace_depth, paren_depth, angle_depth) < 0:
+            break
+
+    raise ValueError("Unbalanced [type:...] tag: %s" % s)
+
+
+def extract_type_from_docstr(s):
+    extracted = _extract_balanced_type_tag(s)
+    if not extracted:
+        return "", s
+
+    type_expression, doc = extracted
+    if not type_expression:
+        return "", doc
+
+    type_list = split_type_union(type_expression)
+    return (type_list[0] if len(type_list) == 1 else type_list), doc
+
+
+_STRICT_LUA_TAGS = frozenset({
+    "class",
+    "constant",
+    "document",
+    "enum",
+    "examples",
+    "file",
+    "language",
+    "macro",
+    "member",
+    "message",
+    "name",
+    "namespace",
+    "note",
+    "param",
+    "path",
+    "property",
+    "replaces",
+    "return",
+    "struct",
+    "tparam",
+    "type",
+    "typedef",
+    "variable",
+    # These tags already occur in Lua API documentation. Keep accepting them
+    # until they have dedicated structured output instead of treating them as
+    # spelling mistakes.
+    "version",
+    "warning",
+})
+
+
+def _strict_tag_suggestion(tag):
+    matches = difflib.get_close_matches(
+        tag,
+        sorted(_STRICT_LUA_TAGS),
+        n=1,
+        cutoff=0.6)
+    return matches[0] if matches else None
+
+
+def _strict_type_expression(tag, value):
+    type_value = value
+    if tag in {"param", "member"}:
+        parts = value.split(None, 1)
+        if len(parts) < 2:
+            return None
+        type_value = parts[1]
+    elif tag == "return" and not value.lstrip().startswith("[type:"):
+        parts = value.split(None, 1)
+        if len(parts) < 2:
+            return None
+        type_value = parts[1]
+
+    extracted = _extract_balanced_type_tag(type_value)
+    if not extracted:
+        return None
+    return extracted[0]
+
+
+def validate_source_documentation(doc_str, file=None, require_document=False):
+    """Validate canonical source syntax in Defold ``/*#`` API comments.
+
+    The normal parser intentionally accepts some legacy forms for backwards
+    compatibility. This validation runs before normalization so build_docs can
+    prevent new malformed or legacy source documentation from being accepted
+    silently.
+    """
+    source = file if file else "<string>"
+    errors = []
+    document_found = False
+    current_language = None
+    comments = list(re.finditer(r'/\*#(.*?)\*/', doc_str, re.DOTALL))
+
+    for comment_match in comments:
+        comment_line = doc_str.count("\n", 0, comment_match.start()) + 1
+        comment_text = _strip_comment_stars(comment_match.group(1))
+        records = _parse_tag_records(comment_text)
+        tags = {}
+        for tag, value, relative_line in records:
+            tags.setdefault(tag, []).append((value, relative_line))
+
+        if "document" in tags:
+            document_found = True
+            language_values = tags.get("language", [])
+            current_language = (
+                language_values[-1][0]
+                if language_values
+                else "C++")
+
+        if "name" not in tags:
+            errors.append(
+                "%s:%d: documentation comment is missing required @name"
+                % (source, comment_line))
+
+        if current_language != "Lua":
+            continue
+
+        element_tags = set(tags)
+        typed_tags = {"param", "return"}
+        if element_tags & {"class", "struct"}:
+            typed_tags.add("member")
+
+        for tag, value, relative_line in records:
+            source_line = comment_line + relative_line - 1
+            if tag not in _STRICT_LUA_TAGS:
+                suggestion = _strict_tag_suggestion(tag)
+                suffix = "; did you mean @%s?" % suggestion if suggestion else ""
+                errors.append(
+                    "%s:%d: unknown Lua documentation tag @%s%s"
+                    % (source, source_line, tag, suffix))
+                continue
+
+            expression = None
+            try:
+                expression = _strict_type_expression(tag, value)
+            except ValueError as error:
+                errors.append("%s:%d: %s" % (source, source_line, error))
+                continue
+
+            if tag in typed_tags and expression is None:
+                errors.append(
+                    "%s:%d: @%s requires an explicit [type:...] declaration; "
+                    "use [type:any] if the broad type is intentional"
+                    % (source, source_line, tag))
+                continue
+
+            if expression is None:
+                continue
+            if re.match(r'^\[[^\[\]]+\]$', expression):
+                errors.append(
+                    "%s:%d: legacy array type '%s'; use '%s[]'"
+                    % (source, source_line, expression, expression[1:-1].strip()))
+            if re.search(r'(?<![A-Za-z0-9_.])function\s*\(', expression):
+                errors.append(
+                    "%s:%d: legacy callback type '%s'; use LuaLS fun(...) syntax"
+                    % (source, source_line, expression))
+
+    if require_document and comments and not document_found:
+        first_line = doc_str.count("\n", 0, comments[0].start()) + 1
+        errors.insert(
+            0,
+            "%s:%d: file contains /*# API comments but no @document comment"
+            % (source, first_line))
+
+    if errors:
+        raise ValueError(
+            "Strict documentation validation failed:\n"
+            + "\n".join("  " + error for error in errors))
 
 def is_optional(str):
     m = re.search(r'^\[(.*)\]', str)
@@ -419,10 +842,13 @@ def is_optional(str):
 
 
 LUA_TYPES = [
-    "string", "number", "boolean", "table", "userdata", "nil", "function", "thread",
+    "string", "number", "integer", "boolean", "table", "userdata", "nil", "function", "thread",
     "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
     "constant", "resource", "buffer", "any", "file",
-    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2ContactEdge", "b2Transform", "b2MassData", "bufferstream" ]
+    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2ContactEdge", "b2Transform", "b2MassData",
+    "btDiscreteDynamicsWorld", "btCollisionObject", "btRigidBody", "btCollisionShape", "btTypedConstraint", "bufferstream",
+    "resource_data", "buffer_data", "buffer_stream", "constant_buffer", "render_target", "render_predicate",
+    "socket_client", "socket_master", "socket_unconnected" ]
 CPP_TYPES = [
     "string", "float", "double", "long", "int", "bool", "char", "void",
     "int8_t", "uint8_t", "int16_t", "uint16_t", "int32_atomic_t", "int32_t", "uint32_t", "int64_t", "uint64_t",
@@ -430,35 +856,17 @@ CPP_TYPES = [
     "size_t",
     "jobject", "JNIEnv",
     "lua_State",
+    "android_app",
     "dmhash_t", "dmArray", "dmAllocator" ]
 
 def validate_lua_type(t, doc):
-    # function(self, node) -> function
-    if t.startswith("function("):
-        v = t.split("(")
-        t = v[0]
-
-    # only validate types in the same namespace
-    if "." in t:
-        v = t.split(".")
-        namespace = v[0]
-        if namespace != doc.info.namespace:
-            print("Ignoring type '%s' in '%s' (%s) since namespaces do not match" % (t, doc.info.name, doc.info.path))
-            return True
-
-    # standard Lua types
-    if t in LUA_TYPES:
-        return True
-
-    # is type defined in the same document?
-    for element in doc.elements:
-        if element.name == t:
-            return True
-
-    return False
+    # Lua types can refer to aliases, classes, enum families and messages from
+    # other documents. They are therefore validated by lua_annotations.py only
+    # after every Lua document and the official metadata have been loaded.
+    return True
 
 def validate_cpp_type(t, doc):
-    t = t.replace("*", "").replace("&", "").replace("const ", "").replace("unsigned ", "")
+    t = t.replace("*", "").replace("&", "").replace("const ", "").replace("unsigned ", "").replace("struct ", "")
 
     # ignore types with a namespace
     if "::" in t:
@@ -511,7 +919,14 @@ def parse_document(doc_str, file=None):
     lst = re.findall(r'/\*[\*#](.*?)\*/', doc_str, re.DOTALL)
     element_list = []
     doc_info = None
-    for comment_str in lst:
+    markdown_errors = []
+    source = file if file else "<string>"
+    for comment_index, comment_str in enumerate(lst, 1):
+        comment_text = _strip_comment_stars(comment_str)
+        for error in _validate_fenced_code_blocks(
+                comment_text, "documentation comment %d" % comment_index):
+            markdown_errors.append("%s in file %s" % (error, source))
+
         element = _parse_comment(comment_str)
         if type(element) is script_doc_ddf_pb2.Element:
             element_list.append(element)
@@ -529,6 +944,24 @@ def parse_document(doc_str, file=None):
             doc.info.language = "C++"
         else:
             doc.info.language = "Lua"
+
+    markdown_errors.extend(_validate_document_markdown(doc, file))
+    for err in markdown_errors:
+        print("  ERROR", err)
+    if markdown_errors:
+        raise ValueError("Malformed Markdown fenced code block")
+
+    structured_documentation_errors = _validate_structured_documentation(doc, file)
+    for err in structured_documentation_errors:
+        print("  ERROR", err)
+    if structured_documentation_errors:
+        raise ValueError("Code blocks are not allowed in structured documentation")
+
+    value_name_errors = _validate_document_names(doc, file)
+    for err in value_name_errors:
+        print("  ERROR", err)
+    if value_name_errors:
+        raise ValueError("Invalid documentation value name")
 
     if doc.info.name != "Editor":
         print("Validating %s types in %s (%s) %s" % (doc.info.language, doc.info.name, doc.info.path, file))
@@ -567,7 +1000,7 @@ def message_to_dict(message):
     ret = {}
     for field in message.DESCRIPTOR.fields:
         value = getattr(message, field.name)
-        if field.label == FieldDescriptor.LABEL_REPEATED:
+        if field.is_repeated:
             lst = []
             for element in value:
                 if isinstance(element, Message):
@@ -585,11 +1018,14 @@ def message_to_dict(message):
 
 def message_to_json_dict(message):
     d = message_to_dict(message)
+    d["format_version"] = JSON_FORMAT_VERSION
     for e in d["elements"]:
         e["description"] = _markdownify(e["description"])
         e["brief"] = _markdownify(e["brief"])
         e["examples"] = _markdownify(e["examples"])
         e["replaces"] = _markdownify(e["replaces"])
+        for member in e["members"]:
+            member["doc"] = _markdownify(member["doc"])
         for p in e["parameters"]:
             p["doc"] = _markdownify(p["doc"])
         for r in e["returnvalues"]:
@@ -725,8 +1161,7 @@ def write_lua_annotation(msg, output_file):
             for parameter in element["parameters"]:
                 parameter["types_string"] = "|".join([t for t in parameter["types"]])
                 parameter["doc"] = fixdoc(parameter["doc"])
-                if parameter["is_optional"] != True:
-                    parameter["is_optional"] = None
+                parameter["is_optional"] = parameter["is_optional"] in (True, "True")
             for rv in element["returnvalues"]:
                 rv["types_string"] = "|".join([t for t in rv["types"]])
                 rv["doc"] = fixdoc(rv["doc"])

@@ -16,12 +16,14 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 
+import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.FontStyles;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 
@@ -42,7 +44,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             return false;
 
         String path = fontDesc.getFont().toLowerCase();
-        return path.endsWith(".ttf");
+        return path.endsWith(".ttf") || path.endsWith(".otf");
     }
 
     @Override
@@ -65,7 +67,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         if (useRuntimeGeneration(fontDesc))
         {
             // input(2)
-            subTask = createSubTask(fontResource, CopyBuilders.TTFBuilder.class, taskBuilder);
+            Class<? extends Builder> fontBuilderClass = project.getBuilderFromExtension(fontResource);
+            subTask = createSubTask(fontResource, fontBuilderClass, taskBuilder);
         }
         else
         {
@@ -91,7 +94,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         {
             BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
             // leave glyphbank field empty, as we use that to check at runtime (to toggle runtime generation or not)
-            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
+            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf" or ".otf")
         }
         else
         {
@@ -112,6 +115,11 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setCharacters(fontDesc.getCharacters());
         }
 
+        try {
+            fontMapBuilder.addAllStyles(FontStyles.compileStyles(fontDesc));
+        } catch (IllegalArgumentException error) {
+            throw new CompileExceptionError(task.firstInput(), 0, error.getMessage(), error);
+        }
         fontMapBuilder.setSize(fontDesc.getSize());
         fontMapBuilder.setAntialias(fontDesc.getAntialias());
         fontMapBuilder.setShadowX(fontDesc.getShadowX());

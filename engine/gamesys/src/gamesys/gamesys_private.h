@@ -172,7 +172,7 @@ namespace dmGameSystem
     void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);
     void  PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr);
     void  PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttributeInfo* attribute, const uint8_t* value_ptr);
-    void  GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
+    void  GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureWrap* w_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
     void  GetConstantValuesFromLua(lua_State* L, dmRenderDDF::MaterialDesc::ConstantType* type, dmArray<dmVMath::Vector4>* scratch_values);
 
     // gamesys_resource.cpp
@@ -193,7 +193,6 @@ namespace dmGameSystem
         uint16_t                                  m_Height;
         uint16_t                                  m_Depth;
         uint16_t                                  m_MaxMipMaps;
-        uint16_t                                  m_TextureBpp;
         uint16_t                                  m_UsageFlags;
         uint8_t                                   m_LayerCount;
     };

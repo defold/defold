@@ -637,9 +637,28 @@ namespace dmGameSystem
  */
 
 /*# Box2D chain
+ *
+ * An opaque handle to a chain of connected segment shapes attached to a
+ * [type:b2Body]. Create one with [ref:b2d.body.create_chain], use the functions
+ * in `b2d.chain` to inspect or configure it, and release it with
+ * [ref:b2d.chain.destroy]. Destroying its body also destroys the chain.
+ *
  * @typedef
  * @name b2Chain
- * @param value [type:userdata]
+ * @param value [type:userdata] Box2D chain handle
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ * local chain = b2d.body.create_chain(body, {
+ *     vertices = {
+ *         vmath.vector3(-64, 0, 0),
+ *         vmath.vector3(0, 16, 0),
+ *         vmath.vector3(64, 0, 0),
+ *     },
+ * })
+ * print(b2d.chain.get_segment_count(chain))
+ * ```
  */
 
 /*# Destroy a chain.
@@ -665,21 +684,19 @@ namespace dmGameSystem
 /*# Get the number of segment shapes in a chain.
  * @name b2d.chain.get_segment_count
  * @param chain [type: b2Chain] chain
- * @return count [type: number] segment count
+ * @return count [type: integer] segment count
  */
 
 /*# Get the segment shapes owned by a chain.
  * @name b2d.chain.get_segments
  * @param chain [type: b2Chain] chain
- * @return segments [type: table] array of shape info tables for the chain segments. Each entry includes `shape_id`.
+ * @return segments [type:b2d.shape_info[]] chain segment shapes
  */
 
 /*# Get the chain geometry.
- * Returns a chain geometry table with `loop`, `segment_count`, and `vertices`.
- * Open chains also include `prev_vertex` and `next_vertex` ghost vertices.
  * @name b2d.chain.get_geometry
  * @param chain [type: b2Chain] chain
- * @return geometry [type: table] chain geometry table
+ * @return geometry [type:b2d.chain_geometry] chain geometry
  */
 
 /*# Get the parent chain for a chain segment shape.
@@ -718,12 +735,12 @@ namespace dmGameSystem
 /*# Get chain material id.
  * @name b2d.chain.get_material
  * @param chain [type: b2Chain] chain
- * @return material [type: number] chain material id
+ * @return material [type: integer] chain material id
  */
 
 /*# Set chain material id.
  * @warning This function is locked during callbacks.
  * @name b2d.chain.set_material
  * @param chain [type: b2Chain] chain
- * @param material [type: number] chain material id
+ * @param material [type: integer] chain material id
  */

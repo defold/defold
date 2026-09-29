@@ -53,6 +53,14 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Collection factory status values
+     * @enum
+     * @name collectionfactory.STATUS
+     * @member collectionfactory.STATUS_LOADED The collection factory resources are loaded.
+     * @member collectionfactory.STATUS_LOADING The collection factory resources are loading.
+     * @member collectionfactory.STATUS_UNLOADED The collection factory resources are unloaded.
+     */
+
     static int HashTableIndex(lua_State* L)
     {
         if (lua_isstring(L, -1))
@@ -84,27 +92,7 @@ namespace dmGameSystem
      *
      * @name collectionfactory.get_status
      * @param [url] [type:string|hash|url] the collection factory component to get status from
-     * @return status [type:constant] status of the collection factory component
-     *
-     * - `collectionfactory.STATUS_UNLOADED`
-     * - `collectionfactory.STATUS_LOADING`
-     * - `collectionfactory.STATUS_LOADED`
-     *
-     */
-    /*# unloaded
-     *
-     * @name collectionfactory.STATUS_UNLOADED
-     * @constant
-     */
-    /*# loading
-     *
-     * @name collectionfactory.STATUS_LOADING
-     * @constant
-     */
-    /*# loaded
-     *
-     * @name collectionfactory.STATUS_LOADED
-     * @constant
+     * @return status [type:collectionfactory.STATUS] status of the collection factory component
      */
     static int CollectionFactoryComp_GetStatus(lua_State* L)
     {
@@ -159,10 +147,10 @@ namespace dmGameSystem
      *
      * @name collectionfactory.load
      * @param [url] [type:string|hash|url] the collection factory component to load
-     * @param [complete_function] [type:function(self, url, result)] function to call when resources are loaded.
+     * @param [complete_function] [type:fun(self:script_instance, url:url, result:boolean)] function to call when resources are loaded.
      *
      * `self`
-     * : [type:object] The current object.
+     * : [type:script_instance] The current script instance.
      *
      * `url`
      * : [type:url] url of the collection factory component
@@ -242,9 +230,9 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the collection factory component to be used
      * @param [position] [type:vector3] position to assign to the newly spawned collection
      * @param [rotation] [type:quaternion] rotation to assign to the newly spawned collection
-     * @param [properties] [type:table] table of script properties to propagate to any new game object instances
+     * @param [properties] [type:table<hash, table<string|hash, any>>] table of script properties to propagate to any new game object instances
      * @param [scale] [type:number|vector3] uniform scaling to apply to the newly spawned collection (must be greater than 0).
-     * @return ids [type:table] a table mapping the id:s from the collection to the new instance id:s
+     * @return ids [type:table<hash, hash>] a table mapping the id:s from the collection to the new instance id:s
      * @examples
      *
      * How to spawn a collection of game objects:

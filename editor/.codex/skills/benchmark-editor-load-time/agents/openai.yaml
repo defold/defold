@@ -1,0 +1,4 @@
+interface:
+  display_name: "Benchmark Defold Editor Load Time"
+  short_description: "Benchmark Defold Editor project load time"
+  default_prompt: "Use $benchmark-editor-load-time to measure how this change affects Defold Editor project load time."

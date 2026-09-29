@@ -414,6 +414,8 @@ public class Project implements AutoCloseable {
                         !className.startsWith("com.dynamo.bob.pipeline.TexcLibrary") &&
                         !className.startsWith("com.dynamo.bob.pipeline.Shaderc") &&
                         !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
+                        !className.startsWith("com.dynamo.bob.font.FontRenderer") &&
+                        !className.startsWith("com.dynamo.bob.font.generated.") &&
                         // namespaces we don't need to scan
                         !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
                         // classes we don't need to bob light
@@ -428,7 +430,7 @@ public class Project implements AutoCloseable {
                 BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
                 if (builderParams != null) {
                     for (String inExt : builderParams.inExts()) {
-                        extToBuilder.put(inExt, (Class<? extends Builder>) klass);
+                        extToBuilder.put(StringUtil.toLowerCase(inExt), (Class<? extends Builder>) klass);
                         ResourceUtil.registerMapping(inExt, builderParams.outExt());
                     }
                     Builder.addParamsDigest(klass, this.getOptions(), builderParams);
@@ -499,7 +501,7 @@ public class Project implements AutoCloseable {
     }
 
     private Class<? extends Builder> getBuilderFromExtension(String input) {
-        String ext = "." + FilenameUtils.getExtension(input);
+        String ext = "." + StringUtil.toLowerCase(FilenameUtils.getExtension(input));
         Class<? extends Builder> builderClass = extToBuilder.get(ext);
         return builderClass;
     }
@@ -2027,7 +2029,7 @@ public class Project implements AutoCloseable {
                             final String[] platforms = getPlatformStrings();
                             Future<Void> remoteBuildFuture = null;
                             // Get or build engine binary
-                            boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                            boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this, getPlatform());
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
                             var buildPhases = commandProgress.split(3);

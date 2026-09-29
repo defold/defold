@@ -181,6 +181,8 @@ namespace dmPlatform
 #elif defined(DM_PLATFORM_IOS)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
+#elif defined(__EMSCRIPTEN__)
+        glfwOpenWindowHint(GLFW_WEBGL_VERSION, params.m_GraphicsApiVersionHint);
 #endif
 
         bool is_desktop = false;
@@ -190,10 +192,10 @@ namespace dmPlatform
         if (is_desktop)
         {
             uint32_t major = 3, minor = 3;
-            if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
+            if (!OpenGLGetVersion(params.m_GraphicsApiVersionHint, &major, &minor))
             {
                 dmLogWarning("OpenGL version hint %d is not supported. Using default version (%d.%d)",
-                    params.m_OpenGLVersionHint, major, minor);
+                    params.m_GraphicsApiVersionHint, major, minor);
             }
 
             // Use specific OpenGL version.

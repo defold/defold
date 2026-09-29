@@ -38,13 +38,13 @@ typedef uint32_t skb_icon_handle_t;
  * Create new icon collection.
  * @return create icon collection.
  */
-skb_icon_collection_t* skb_icon_collection_create(void);
+SKB_API skb_icon_collection_t* skb_icon_collection_create(void);
 
 /**
  * Destroy icon collection.
  * @param icon_collection icon collection to destroy.
  */
-void skb_icon_collection_destroy(skb_icon_collection_t* icon_collection);
+SKB_API void skb_icon_collection_destroy(skb_icon_collection_t* icon_collection);
 
 /**
  * Adds PicoSVG to the icon collection from memory.
@@ -55,7 +55,7 @@ void skb_icon_collection_destroy(skb_icon_collection_t* icon_collection);
  * @param icon_data_length length of the data in icon_data in bytes.
  * @return pointer to the added icon, or NULL if failed.
  */
-skb_icon_handle_t skb_icon_collection_add_picosvg_icon_from_data(skb_icon_collection_t* icon_collection, const char* name, const char* icon_data, const int32_t icon_data_length);
+SKB_API skb_icon_handle_t skb_icon_collection_add_picosvg_icon_from_data(skb_icon_collection_t* icon_collection, const char* name, const char* icon_data, const int32_t icon_data_length);
 
 #if !defined(SKB_NO_OPEN)
 /**
@@ -65,7 +65,7 @@ skb_icon_handle_t skb_icon_collection_add_picosvg_icon_from_data(skb_icon_collec
  * @param file_name name of the icon to add.
  * @return pointer to the added icon, or NULL if failed.
  */
-skb_icon_handle_t skb_icon_collection_add_picosvg_icon(skb_icon_collection_t* icon_collection, const char* name, const char* file_name);
+SKB_API skb_icon_handle_t skb_icon_collection_add_picosvg_icon(skb_icon_collection_t* icon_collection, const char* name, const char* file_name);
 #endif // !defined(SKB_NO_OPEN)
 
 /**
@@ -77,7 +77,7 @@ skb_icon_handle_t skb_icon_collection_add_picosvg_icon(skb_icon_collection_t* ic
  * @param height height of the icon to create.
  * @return pointer to the added icon, or 0 if failed.
  */
-skb_icon_handle_t skb_icon_collection_add_icon(skb_icon_collection_t* icon_collection, const char* name, float width, float height);
+SKB_API skb_icon_handle_t skb_icon_collection_add_icon(skb_icon_collection_t* icon_collection, const char* name, float width, float height);
 
 /**
  * Removes icons from collection.
@@ -85,7 +85,7 @@ skb_icon_handle_t skb_icon_collection_add_icon(skb_icon_collection_t* icon_colle
  * @param icon_handle handle to icon to remove.
  * @return true if the icon was removes.
  */
-bool skb_icon_collection_remove_icon(skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle);
+SKB_API bool skb_icon_collection_remove_icon(skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle);
 
 /**
  * Finds an icon based on name.
@@ -93,7 +93,7 @@ bool skb_icon_collection_remove_icon(skb_icon_collection_t* icon_collection, skb
  * @param name name of the icon to query.
  * @return pointer to the icon, or NULL if not found.
  */
-skb_icon_handle_t skb_icon_collection_find_icon(const skb_icon_collection_t* icon_collection, const char* name);
+SKB_API skb_icon_handle_t skb_icon_collection_find_icon(const skb_icon_collection_t* icon_collection, const char* name);
 
 /**
  * Set whether the icon should be rendered as RGBA or alpha mask.
@@ -102,22 +102,32 @@ skb_icon_handle_t skb_icon_collection_find_icon(const skb_icon_collection_t* ico
  * @param icon_handle handle to icon to modify.
  * @param is_color if true, the icon will be rendered as RGBA, if false, the icon will be rendered as alpha mask.
  */
-void skb_icon_collection_set_is_color(skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle, bool is_color);
+SKB_API void skb_icon_collection_set_is_color(skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle, bool is_color);
 
 /**
- * Calculates propertional scale to render icon at specific size.
+ * Calculates proportional scale to render icon at specific size.
  * For example, if icon size is 20, and you request 30, the scaling will be 1.5.
- * If width or height is set to -1, then uniform scaling is used.
+ * If width or height is set to SKB_SIZE_AUTO, then uniform scaling is used.
  * @param icon_collection icon collection to use.
  * @param icon_handle handle to the icon to query.
- * @param width requested with, if -1 the result x scale is same as y scale.
- * @param height requested with, if -1 the result y scale is same as x scale.
+ * @param width requested with, if SKB_SIZE_AUTO the result x scale is same as y scale.
+ * @param height requested with, if SKB_SIZE_AUTO the result y scale is same as x scale.
  * @return how much to scale the icon to get requested size.
  */
-skb_vec2_t skb_icon_collection_calc_proportional_scale(const skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle, float width, float height);
+SKB_API skb_vec2_t skb_icon_collection_calc_proportional_scale(const skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle, float width, float height);
+
+/**
+ * Calculates proportional size of the icon given either width or height.
+ * @param icon_collection icon collection to use.
+ * @param icon_handle handle to the icon to query.
+ * @param width requested with, if SKB_SIZE_AUTO the width will be calculated from height keeping aspect ratio.
+ * @param height requested with, if SKB_SIZE_AUTO the height will be calculated from width keeping aspect ratio.
+ * @return size of the icon.
+ */
+SKB_API skb_vec2_t skb_icon_collection_calc_proportional_size(const skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle, float width, float height);
 
 /** @return size of the icon. */
-skb_vec2_t skb_icon_collection_get_icon_size(const skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle);
+SKB_API skb_vec2_t skb_icon_collection_get_icon_size(const skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle);
 
 /**
  * Returns pointer to an icon. The icon pointer should not be stored for longer duration. Use skb_font_handle_t instead.
@@ -125,7 +135,10 @@ skb_vec2_t skb_icon_collection_get_icon_size(const skb_icon_collection_t* icon_c
  * @param icon_handle handle to the icon to query.
  * @return pointer to the specified icon.
  */
-const skb_icon_t* skb_icon_collection_get_icon(const skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle);
+SKB_API const skb_icon_t* skb_icon_collection_get_icon(const skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle);
+
+/** @returns the id of the icon collection, each icon collection has unique index. */
+SKB_API uint32_t skb_icon_collection_get_id(const skb_icon_collection_t* icon_collection);
 
 //
 // Icon Builder
@@ -151,33 +164,33 @@ typedef struct skb_icon_builder_t {
  * @param icon_handle icon handle to build.
  * @return
  */
-skb_icon_builder_t skb_icon_builder_make(skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle);
+SKB_API skb_icon_builder_t skb_icon_builder_make(skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle);
 
 /**
  * Begin new shape. Can be nested to create groups.
  * @param icon_builder pointer to icon builder.
  */
-void skb_icon_builder_begin_shape(skb_icon_builder_t* icon_builder);
+SKB_API void skb_icon_builder_begin_shape(skb_icon_builder_t* icon_builder);
 
 /**
  * Ends shape or group.
  * @param icon_builder pointer to icon builder.
  */
-void skb_icon_builder_end_shape(skb_icon_builder_t* icon_builder);
+SKB_API void skb_icon_builder_end_shape(skb_icon_builder_t* icon_builder);
 
 /**
  * Starts a new path in the current shape.
  * @param icon_builder pointer to icon builder.
  * @param pt starting point of the path.
  */
-void skb_icon_builder_move_to(skb_icon_builder_t* icon_builder, skb_vec2_t pt);
+SKB_API void skb_icon_builder_move_to(skb_icon_builder_t* icon_builder, skb_vec2_t pt);
 
 /**
  * Appends line to the current path.
  * @param icon_builder
  * @param pt line end position.
  */
-void skb_icon_builder_line_to(skb_icon_builder_t* icon_builder, skb_vec2_t pt);
+SKB_API void skb_icon_builder_line_to(skb_icon_builder_t* icon_builder, skb_vec2_t pt);
 
 /**
  * Appends quadratic bezier segment to the current path.
@@ -185,7 +198,7 @@ void skb_icon_builder_line_to(skb_icon_builder_t* icon_builder, skb_vec2_t pt);
  * @param cp control point of the curve.
  * @param pt curve end position.
  */
-void skb_icon_builder_quad_to(skb_icon_builder_t* icon_builder, skb_vec2_t cp, skb_vec2_t pt);
+SKB_API void skb_icon_builder_quad_to(skb_icon_builder_t* icon_builder, skb_vec2_t cp, skb_vec2_t pt);
 
 /**
  * Appends cubic bezier segment to the current path.
@@ -194,27 +207,27 @@ void skb_icon_builder_quad_to(skb_icon_builder_t* icon_builder, skb_vec2_t cp, s
  * @param cp1 second control point of the curve.
  * @param pt curve end position.
  */
-void skb_icon_builder_cubic_to(skb_icon_builder_t* icon_builder, skb_vec2_t cp0, skb_vec2_t cp1, skb_vec2_t pt);
+SKB_API void skb_icon_builder_cubic_to(skb_icon_builder_t* icon_builder, skb_vec2_t cp0, skb_vec2_t cp1, skb_vec2_t pt);
 
 /**
  * Closes the current path byt connect the last point to start point.
  * @param icon_builder pointer to icon builder.
  */
-void skb_icon_builder_close_path(skb_icon_builder_t* icon_builder);
+SKB_API void skb_icon_builder_close_path(skb_icon_builder_t* icon_builder);
 
 /**
  * Sets the opacity of current shape.
  * @param icon_builder pointer to icon builder.
  * @param opacity
  */
-void skb_icon_builder_fill_opacity(skb_icon_builder_t* icon_builder, float opacity);
+SKB_API void skb_icon_builder_fill_opacity(skb_icon_builder_t* icon_builder, float opacity);
 
 /**
  * Sets the fill of the current shape to solid color.
  * @param icon_builder pointer to icon builder.
  * @param color color to set
  */
-void skb_icon_builder_fill_color(skb_icon_builder_t* icon_builder, skb_color_t color);
+SKB_API void skb_icon_builder_fill_color(skb_icon_builder_t* icon_builder, skb_color_t color);
 
 /**
  * Sets the fill of the current shape to a linear gradient.
@@ -226,7 +239,7 @@ void skb_icon_builder_fill_color(skb_icon_builder_t* icon_builder, skb_color_t c
  * @param stops color stops for the gradient.
  * @param stops_count number of color stops.
  */
-void skb_icon_builder_fill_linear_gradient(skb_icon_builder_t* icon_builder, skb_vec2_t p0, skb_vec2_t p1, skb_mat2_t xform, skb_gradient_spread_t spread, skb_color_stop_t* stops, int32_t stops_count);
+SKB_API void skb_icon_builder_fill_linear_gradient(skb_icon_builder_t* icon_builder, skb_vec2_t p0, skb_vec2_t p1, skb_mat2_t xform, skb_gradient_spread_t spread, skb_color_stop_t* stops, int32_t stops_count);
 
 /**
  * Sets the fill of the current shape to a radial gradient.
@@ -239,7 +252,7 @@ void skb_icon_builder_fill_linear_gradient(skb_icon_builder_t* icon_builder, skb
  * @param stops color stops for the gradient.
  * @param stops_count number of color stops.
  */
-void skb_icon_builder_fill_radial_gradient(skb_icon_builder_t* icon_builder, skb_vec2_t p0, skb_vec2_t p1, float radius, skb_mat2_t xform, skb_gradient_spread_t spread, skb_color_stop_t* stops, int32_t stops_count);
+SKB_API void skb_icon_builder_fill_radial_gradient(skb_icon_builder_t* icon_builder, skb_vec2_t p0, skb_vec2_t p1, float radius, skb_mat2_t xform, skb_gradient_spread_t spread, skb_color_stop_t* stops, int32_t stops_count);
 
 /** @} */
 

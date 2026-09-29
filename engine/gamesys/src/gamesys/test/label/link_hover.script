@@ -1,0 +1,21 @@
+local function assert_layout_object_message(message)
+    assert(message.id == hash("icon"))
+    assert(message.type == hash("link"))
+    assert(message.src == "/icon.png")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("text_object_hovered") then
+        assert_layout_object_message(message)
+        self.hovered = true
+    elseif message_id == hash("text_object_clicked") then
+        assert_layout_object_message(message)
+        assert(self.hovered)
+        self.clicked = true
+    elseif message_id == hash("text_object_unhovered") then
+        assert_layout_object_message(message)
+        assert(self.hovered)
+        assert(self.clicked)
+        go.set_position(vmath.vector3(123.0, 0.0, 0.0))
+    end
+end

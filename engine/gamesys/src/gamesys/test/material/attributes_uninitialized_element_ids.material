@@ -1,0 +1,24 @@
+name: "attributes_uninitialized_element_ids"
+vertex_program: "/material/attributes_uninitialized_element_ids.vp"
+fragment_program: "/material/fragment_program_valid.fp"
+
+attributes {
+  name: "saturation"
+  double_values { v: 1 v: 0 v: 0 v: 0 }
+}
+attributes {
+  name: "tint"
+  double_values { v: 1 v: 1 v: 1 v: 1 }
+}
+attributes {
+  name: "transparency"
+  double_values { v: 1 v: 0 v: 0 v: 0 }
+}
+attributes {
+  name: "highlight"
+  double_values { v: 1 v: 1 v: 1 v: 1 }
+}
+attributes {
+  name: "dissolve"
+  double_values { v: 0 v: 0 v: 0 v: 0 }
+}

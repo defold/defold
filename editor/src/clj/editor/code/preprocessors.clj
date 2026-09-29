@@ -137,7 +137,9 @@ return m
             (try-create-lua-preprocessors lua-preprocessor-classes)]
         (if (seq faulty-class-names)
           (report-error! "dialog.lua-preprocessors-error.construct.header" faulty-class-names localization)
-          (g/set-property! code-preprocessors :lua-preprocessors created-lua-preprocessors))))))
+          (g/transact
+            {:undoable false}
+            (g/set-property code-preprocessors :lua-preprocessors created-lua-preprocessors)))))))
 
 (defn reload-lua-preprocessors! [code-preprocessors ^ClassLoader class-loader localization]
   (let [{:keys [lua-preprocessor-classes faulty-class-names]}

@@ -69,7 +69,6 @@
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
           project (test-util/setup-project! workspace)
-          project-graph-id (g/node-id->graph-id project)
 
           editable-code-resource-node-ids
           (g/with-auto-evaluation-context evaluation-context
@@ -100,15 +99,15 @@
       (is (all-clean?) "Clean after loading.")
       (set-code-resource-node-lines! edited-lines-by-code-resource-node-id)
       (is (all-dirty?) "Dirty after edit.")
-      (g/undo! project-graph-id)
+      (g/undo! :undo/global)
       (is (all-clean?) "Clean after edit -> undo.")
-      (g/redo! project-graph-id)
+      (g/redo! :undo/global)
       (is (all-dirty?) "Dirty after edit -> undo -> redo.")
       (test-util/save-project! project)
       (is (all-clean?) "Clean after edit -> save.")
-      (g/undo! project-graph-id)
+      (g/undo! :undo/global)
       (is (all-dirty?) "Dirty after edit -> save -> undo.")
-      (g/redo! project-graph-id)
+      (g/redo! :undo/global)
       (is (all-clean?) "Clean after edit -> save -> undo -> redo.")
       (set-code-resource-node-lines! original-lines-by-code-resource-node-id)
       (is (all-dirty?) "Dirty after edit -> save -> paste-original"))))

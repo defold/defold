@@ -144,4 +144,18 @@ namespace dmGameSystem
         }
         return AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, prototype, params->m_Filename);
     }
+
+    static ResourceResult RegisterResourceTypeParticleFX(HResourceTypeContext ctx, HResourceType type)
+    {
+        return (ResourceResult) dmResource::SetupType(ctx,
+                                                      type,
+                                                      0,
+                                                      ResParticleFXPreload,
+                                                      ResParticleFXCreate,
+                                                      0,
+                                                      ResParticleFXDestroy,
+                                                      ResParticleFXRecreate);
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeParticleFX, "particlefxc", dmGameSystem::RegisterResourceTypeParticleFX, 0);

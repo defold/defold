@@ -1,0 +1,13 @@
+components {
+  id: "script"
+  component: "/material/attributes_uninitialized_element_ids.script"
+}
+
+embedded_components {
+  id: "sprite"
+  type: "sprite"
+  data: "tile_set: \"/material/flipbook.tilesource\"\n"
+  "default_animation: \"anim\"\n"
+  "material: \"/material/attributes_uninitialized_element_ids.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+}

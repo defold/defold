@@ -90,6 +90,7 @@ def gen_doc(docs, name, renamed, indent=1, language='C++'):
     if not doc:
         return f"""    /*#
         * Generated from [ref:{name}]
+        * @name {renamed}
         */"""
 
     lines = []
@@ -293,4 +294,3 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
     l('') # always have a newline at the end
     return out_lines
-

@@ -19,8 +19,26 @@
 #include <string>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <dlib/zip.h>
+#include <dlib/zip_private.h>
+#include "zip/zip.h"
+
+static uint32_t g_ZipReadCalls;
+static uint64_t g_ZipReadBytes;
+
+// Track the amount of backing-file I/O performed by a ZIP operation.
+static size_t CountingReadFileAt(FILE* file, uint64_t offset, void* buffer, size_t size)
+{
+    if (dmSys::FileSeek64(file, offset) != 0)
+        return 0;
+
+    ++g_ZipReadCalls;
+    size_t read = fread(buffer, 1, size, file);
+    g_ZipReadBytes += read;
+    return read;
+}
 
 static bool ReadFile(const char* relative_path, std::string* out)
 {
@@ -56,21 +74,29 @@ static const uint8_t ExpectedDataBin[] = { 0, 1, 2, 3, 4, 5, 6, 7 };
 struct ZipArchiveParams
 {
     const char* m_Path;
-    bool        m_UseStream;
+    enum OpenMode
+    {
+        OPEN_FROM_PATH,
+        OPEN_FROM_UNNORMALIZED_PATH,
+        OPEN_FROM_MEMORY,
+        OPEN_FROM_FILE_RANGE,
+    } m_OpenMode;
 };
 
 class ZipArchiveTest : public jc_test_params_class<ZipArchiveParams>
 {
 protected:
     dmZip::HZip m_Zip;
+    FILE*        m_File;
     std::string m_Stream;
 
     virtual void SetUp()
     {
         m_Zip = 0;
+        m_File = 0;
 
         dmZip::Result zr;
-        if (GetParam().m_UseStream)
+        if (GetParam().m_OpenMode == ZipArchiveParams::OPEN_FROM_MEMORY)
         {
             ASSERT_TRUE(ReadFile(GetParam().m_Path, &m_Stream));
             zr = dmZip::OpenStream(m_Stream.data(), m_Stream.size(), &m_Zip);
@@ -79,7 +105,27 @@ protected:
         {
             char path[1024];
             dmTestUtil::MakeHostPath(path, sizeof(path), GetParam().m_Path);
-            zr = dmZip::Open(path, &m_Zip);
+            if (GetParam().m_OpenMode == ZipArchiveParams::OPEN_FROM_FILE_RANGE)
+            {
+                m_File = fopen(path, "rb");
+                ASSERT_NE((FILE*)0, m_File);
+                ASSERT_EQ(0, fseek(m_File, 0, SEEK_END));
+                long file_size = ftell(m_File);
+                ASSERT_GT(file_size, 0);
+                zr = dmZip::OpenFileRange(m_File, 0, (uint64_t)file_size, &m_Zip);
+            }
+            else
+            {
+                if (GetParam().m_OpenMode == ZipArchiveParams::OPEN_FROM_UNNORMALIZED_PATH)
+                {
+                    for (char* p = path; *p; ++p)
+                    {
+                        if (*p == '/')
+                            *p = '\\';
+                    }
+                }
+                zr = dmZip::Open(path, &m_Zip);
+            }
         }
 
         ASSERT_EQ(dmZip::RESULT_OK, zr);
@@ -89,7 +135,10 @@ protected:
     {
         if (m_Zip)
             dmZip::Close(m_Zip);
+        if (m_File)
+            fclose(m_File);
         m_Zip = 0;
+        m_File = 0;
         m_Stream.clear();
     }
 };
@@ -102,6 +151,104 @@ TEST(dmZip, NotExist)
     dmZip::HZip zip;
     dmZip::Result zr = dmZip::Open(path, &zip);
     ASSERT_NE(dmZip::RESULT_OK, zr);
+}
+
+// Verify that only the declared ZIP range is visible when unrelated data exists
+// before and after it, and that closing the ZIP leaves the caller-owned file open.
+TEST(dmZip, OpenFileRange)
+{
+    std::string archive;
+    std::string trailing_archive;
+    ASSERT_TRUE(ReadFile("src/test/data/zip/archive_deflated.zip", &archive));
+    ASSERT_TRUE(ReadFile("src/test/data/zip/foo.zip", &trailing_archive));
+
+    const char prefix[] = "not part of the zip";
+    FILE*      file = tmpfile();
+    ASSERT_NE((FILE*)0, file);
+    ASSERT_EQ(sizeof(prefix) - 1, fwrite(prefix, 1, sizeof(prefix) - 1, file));
+    ASSERT_EQ(archive.size(), fwrite(archive.data(), 1, archive.size(), file));
+    ASSERT_EQ(trailing_archive.size(), fwrite(trailing_archive.data(), 1, trailing_archive.size(), file));
+    ASSERT_EQ(0, fflush(file));
+
+    dmZip::HZip   zip = 0;
+    dmZip::Result zr = dmZip::OpenFileRange(file, sizeof(prefix) - 1, archive.size(), &zip);
+    ASSERT_EQ(dmZip::RESULT_OK, zr);
+    ASSERT_EQ(4u, dmZip::GetNumEntries(zip));
+
+    zr = dmZip::OpenEntry(zip, "hello.txt");
+    ASSERT_EQ(dmZip::RESULT_OK, zr);
+    uint32_t size = 0;
+    ASSERT_EQ(dmZip::RESULT_OK, dmZip::GetEntrySize(zip, &size));
+    ASSERT_EQ(10u, size);
+    char data[10];
+    ASSERT_EQ(dmZip::RESULT_OK, dmZip::GetEntryData(zip, data, sizeof(data)));
+    ASSERT_ARRAY_EQ_LEN("Hello Zip\n", data, sizeof(data));
+    dmZip::CloseEntry(zip);
+    dmZip::Close(zip);
+
+    // Closing the zip must not close the caller-owned file.
+    ASSERT_EQ(0, fseek(file, 0, SEEK_SET));
+    fclose(file);
+}
+
+// Verify that the range boundary is enforced and a ZIP truncated by that boundary
+// is rejected without returning a partially initialized handle.
+TEST(dmZip, OpenFileRangeRejectsTruncatedArchive)
+{
+    std::string archive;
+    ASSERT_TRUE(ReadFile("src/test/data/zip/archive_stored.zip", &archive));
+
+    FILE* file = tmpfile();
+    ASSERT_NE((FILE*)0, file);
+    ASSERT_EQ(archive.size(), fwrite(archive.data(), 1, archive.size(), file));
+    ASSERT_EQ(0, fflush(file));
+
+    dmZip::HZip   zip = 0;
+    dmZip::Result zr = dmZip::OpenFileRange(file, 0, archive.size() - 1, &zip);
+    ASSERT_NE(dmZip::RESULT_OK, zr);
+    ASSERT_EQ((dmZip::HZip)0, zip);
+    fclose(file);
+}
+
+// Verify that a partial read from a stored entry reads only its local header and
+// requested bytes, including when the requested size would overflow offset + size.
+TEST(dmZip, StoredPartialReadDoesNotScanFromStart)
+{
+    std::string archive;
+    ASSERT_TRUE(ReadFile("src/test/data/zip/archive_stored.zip", &archive));
+
+    const char prefix[] = "outside archive";
+    FILE* file = tmpfile();
+    ASSERT_NE((FILE*)0, file);
+    ASSERT_EQ(0, setvbuf(file, 0, _IONBF, 0));
+    ASSERT_EQ(sizeof(prefix) - 1, fwrite(prefix, 1, sizeof(prefix) - 1, file));
+    ASSERT_EQ(archive.size(), fwrite(archive.data(), 1, archive.size(), file));
+
+    zip_t* reader = zip_cstream_openwithoffset(file, sizeof(prefix) - 1,
+                                                archive.size(), 9,
+                                                CountingReadFileAt);
+    ASSERT_NE((zip_t*)0, reader);
+    ASSERT_EQ(0, zip_entry_open(reader, "dir/data.bin"));
+
+    uint8_t buffer[2];
+    const size_t offset = sizeof(ExpectedDataBin) - sizeof(buffer);
+    g_ZipReadCalls = 0;
+    g_ZipReadBytes = 0;
+    ssize_t nread = zip_entry_noallocreadwithoffset(reader, offset,
+                                                    (size_t)-1, buffer);
+    ASSERT_EQ((ssize_t)sizeof(buffer), nread);
+    ASSERT_ARRAY_EQ_LEN(ExpectedDataBin + offset, buffer, sizeof(buffer));
+
+    // Clamp without overflowing offset + size, and read only the local header
+    // and requested bytes. The iterator path also read and discarded all bytes
+    // preceding the requested offset.
+    ASSERT_EQ(2u, g_ZipReadCalls);
+    const uint64_t zip_local_header_size = 30;
+    ASSERT_EQ(zip_local_header_size + sizeof(buffer), g_ZipReadBytes);
+
+    ASSERT_EQ(0, zip_entry_close(reader));
+    zip_close(reader);
+    fclose(file);
 }
 
 TEST_P(ZipArchiveTest, Iterate)
@@ -186,10 +333,17 @@ TEST_P(ZipArchiveTest, ReadPartial)
 }
 
 const ZipArchiveParams params_zip_archives[] = {
-    { "src/test/data/zip/archive_deflated.zip", false },
-    { "src/test/data/zip/archive_stored.zip", false },
-    { "src/test/data/zip/archive_deflated.zip", true },
-    { "src/test/data/zip/archive_stored.zip", true },
+    // Preserve coverage of the existing filesystem and memory opening paths.
+    { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_PATH },
+    { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_PATH },
+    { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_MEMORY },
+    { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_MEMORY },
+    // Run all parameterized ZIP operations through the new bounded-file path.
+    { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_FILE_RANGE },
+    { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_FILE_RANGE },
+    // Open normalizes paths before passing them to the platform backend.
+    { "src/test/data/zip/archive_deflated.zip", ZipArchiveParams::OPEN_FROM_UNNORMALIZED_PATH },
+    { "src/test/data/zip/archive_stored.zip", ZipArchiveParams::OPEN_FROM_UNNORMALIZED_PATH },
 };
 
 INSTANTIATE_TEST_CASE_P(ZipArchiveOpenModes, ZipArchiveTest,

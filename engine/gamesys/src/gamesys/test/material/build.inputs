@@ -5,6 +5,8 @@
 /material/attributes_dynamic_go_animate.material
 /material/attributes_dynamic_go_set_get_sparse.go
 /material/attributes_dynamic_go_set_get_sparse.material
+/material/attributes_uninitialized_element_ids.go
+/material/attributes_uninitialized_element_ids.material
 /material/attributes_instancing_valid.material
 /material/attributes_many_streams_valid.material
 /material/attributes_texture_transform_multi.material

@@ -111,7 +111,6 @@ TEST(dmDoubleLinkedList, GetLast)
 
     dmDoubleLinkedList::ListNode nodes[2];
 
-    size_t node_size = sizeof(dmDoubleLinkedList::ListNode);
     dmDoubleLinkedList::ListNode* node_1 = &nodes[0];
     dmDoubleLinkedList::ListAdd(&list, node_1);
 
@@ -136,7 +135,6 @@ TEST(dmDoubleLinkedList, GetFirst)
     const uint32_t node_count = 5;
     dmDoubleLinkedList::ListNode nodes[node_count];
 
-    size_t node_size = sizeof(dmDoubleLinkedList::ListNode);
     for (size_t idx = 0; idx < node_count; ++idx)
     {
         dmDoubleLinkedList::ListNode* new_node = &nodes[idx];

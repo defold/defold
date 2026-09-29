@@ -60,11 +60,6 @@
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
 
-(defonce ^:private build-in-progress-atom (atom false))
-
-(defn build-in-progress? []
-  @build-in-progress-atom)
-
 (defn- PrintStream-on ^PrintStream [fn]
   (-> fn
       (PrintWriter-on nil)
@@ -169,7 +164,6 @@
          (ifn? render-progress!)
          (or (nil? log-output-stream) (instance? OutputStream log-output-stream))
          (ifn? task-cancelled?)]}
-  (reset! build-in-progress-atom true)
   (let [;; bob might notify the progress tracker AFTER it's done!
         render-progress! (progress/until-done render-progress!)
         provided-evaluation-context (some? evaluation-context)
@@ -211,7 +205,6 @@
       (catch Exception e
         {:exception e})
       (finally
-        (reset! build-in-progress-atom false)
         (System/setOut prev-out)
         (System/setErr prev-err)
         (LogHelper/setVerboseLogging false)

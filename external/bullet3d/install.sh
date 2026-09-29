@@ -1,34 +1,26 @@
 #!/usr/bin/env bash
 
-readonly BASE_URL=https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/bullet
-readonly FILE_URL=bullet-2.77.zip
+readonly BASE_URL=https://github.com/bulletphysics/bullet3/archive/refs/tags
+readonly FILE_URL=3.25.tar.gz
 readonly PRODUCT=bullet
-readonly VERSION=2.77
+readonly VERSION=3.25
 
 . ../common.sh
 
-function convert_line_endings() {
-    local platform=$(uname)
-    case $platform in
-         *linux)
-            DOS2UNIX=fromdos
-            ;;
-         *)
-            DOS2UNIX=dos2unix
-            ;;
-    esac
-    find . -type f -name "*.*" -exec $DOS2UNIX {} \;
-}
-
 function cmi_unpack() {
 	echo cmi_unpack
-    #unzip -q ../../download/$FILE_URL
-    unzip -q ../$FILE_URL
-    pushd ${PRODUCT}-${VERSION}
-    rm -rf Demos Extras UnitTests msvc Glut
-    # Convert line endings to unix style
-    convert_line_endings
-    popd
+    local archive_root=bullet3-${VERSION}
+    local package_root=${PRODUCT}-${VERSION}
+    mkdir -p ${package_root}
+    tar xfz ../../download/$FILE_URL --strip-components=1 -C ${package_root} \
+        ${archive_root}/VERSION \
+        ${archive_root}/LICENSE.txt \
+        ${archive_root}/AUTHORS.txt \
+        ${archive_root}/src/BulletCollision \
+        ${archive_root}/src/BulletDynamics \
+        ${archive_root}/src/LinearMath \
+        ${archive_root}/src/btBulletCollisionCommon.h \
+        ${archive_root}/src/btBulletDynamicsCommon.h
 }
 
 cmi_install

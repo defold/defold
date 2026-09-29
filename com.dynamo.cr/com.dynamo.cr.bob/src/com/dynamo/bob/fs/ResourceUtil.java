@@ -15,11 +15,14 @@
 package com.dynamo.bob.fs;
 
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.StringUtil;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Collections;
+
+import org.apache.commons.lang3.StringUtils;
 
 public class ResourceUtil {
 
@@ -34,7 +37,7 @@ public class ResourceUtil {
     protected static String buildDirectory = null;
 
     public static void registerMapping(String inExt, String outExt) {
-        extensionMapping.put(inExt, outExt);
+        extensionMapping.put(StringUtil.toLowerCase(inExt), outExt);
         minifySupport.add(outExt);
     }
 
@@ -58,15 +61,16 @@ public class ResourceUtil {
     }
 
     /**
-     * Optionally change suffix of filename if the requested input suffix matches
+     * Optionally change suffix of filename if the requested input suffix matches,
+     * ignoring character case
      * @param path path to change suffix for
      * @param from input suffix
      * @param to output suffix
      * @return modified path if input suffix matched, otherwise the original input path
      */
     public static String replaceExt(String path, String from, String to) {
-        if (path.endsWith(from)) {
-            return path.substring(0, path.lastIndexOf(from)).concat(to);
+        if (StringUtils.endsWithIgnoreCase(path, from)) {
+            return path.substring(0, path.length() - from.length()).concat(to);
         }
         return path;
     }
@@ -77,7 +81,7 @@ public class ResourceUtil {
     * @return the output suffix (including the '.')
     */
     public static String getOutputExt(String inExt) {
-        String outExt = extensionMapping.get(inExt); // Get the output ext, or use the inExt as default
+        String outExt = extensionMapping.get(StringUtil.toLowerCase(inExt)); // Get the output ext, or use the inExt as default
         if (outExt != null)
             return outExt;
         return inExt;

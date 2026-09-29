@@ -25,7 +25,6 @@
             [editor.code.script-intelligence :as si]
             [editor.code.transpilers :as code.transpilers]
             [editor.collision-groups :as collision-groups]
-            [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.editor-localization-bundle :as editor-localization-bundle]
             [editor.game-project-core :as gpc]
@@ -48,7 +47,6 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.java :as java]
-            [internal.util :as util]
             [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
@@ -368,7 +366,7 @@
 (defn node-load-infos->stored-disk-state [node-load-infos]
   (let [[disk-sha256s-by-node-id
          node-id+source-value-pairs]
-        (util/into-multiple
+        (iutil/into-multiple
           [{} []]
           [(keep (fn [{:keys [resource] :as node-load-info}]
                    (when (and (resource/file-resource? resource)
@@ -919,14 +917,15 @@
 (defn make-resource-node-tx-data [project node-type node-id resource]
   {:pre [(g/node-id? project)
          (g/node-id? node-id)
-         (resource/resource? resource)
-         (not (resource/folder? resource))]}
+         (resource/resource? resource)]}
   (e/concat
     (g/add-node
       (g/construct node-type
         :_node-id node-id
         :resource resource))
-    (g/connect node-id :node-id+resource project :node-id+resources)))
+    (g/connect node-id :node-id+resource project :node-id+resources)
+    (when-let [connect-fn (:connect-fn (resource/resource-type resource))]
+      (connect-fn project node-id resource))))
 
 (defn make-resource-nodes-tx-data [project node-id+resource-pairs]
   {:pre [(g/node-id? project)]}
@@ -946,16 +945,6 @@
                   (fn [[node-id resource]]
                     (make-resource-node-tx-data project node-type node-id resource))))))))
 
-(defn setup-game-project-tx-data [project game-project]
-  (when (some? game-project)
-    (assert (g/node-id? game-project))
-    (let [script-intelligence (script-intelligence project)]
-      (e/concat
-        (g/connect script-intelligence :build-errors game-project :build-errors)
-        (g/connect game-project :display-profiles-data project :display-profiles)
-        (g/connect game-project :texture-profiles-data project :texture-profiles)
-        (g/connect game-project :settings-map project :settings)))))
-
 (defn load-project!
   ([project]
    (load-project! project progress/null-render-progress!))
@@ -969,20 +958,6 @@
          transaction-metrics (du/make-metrics-collector)
          project-graph (g/node-id->graph-id project)
          node-id+resource-pairs (make-node-id+resource-pairs project-graph resources)
-
-         game-project-resource
-         (g/let-ec [basis (:basis evaluation-context)
-                    workspace (workspace project evaluation-context)]
-           (workspace/find-resource basis workspace "/game.project"))
-
-         game-project-node-id
-         (when game-project-resource
-           (coll/some
-             (fn [[node-id resource]]
-               (when (identical? game-project-resource resource)
-                 node-id))
-             node-id+resource-pairs))
-
          read-progress-span 1
          load-progress-span 3
          total-progress-span (+ read-progress-span load-progress-span)
@@ -997,30 +972,25 @@
          total-progress (progress/advance total-progress read-progress-span)
 
          ;; We can use full invalidation on the initial load since we have
-         ;; nothing in the cache and will reset the undo history afterward.
+         ;; nothing in the cache.
          full-invalidation-transact true
 
-         transact-opts {:metrics transaction-metrics
-                        :full-invalidation full-invalidation-transact}
+         transact-opts {:full-invalidation full-invalidation-transact
+                        :metrics transaction-metrics
+                        :undoable false}
 
          prelude-tx-data
-         (e/concat
-           (make-resource-nodes-tx-data project node-id+resource-pairs)
-
-           ;; Make sure the game.project node is property connected before
-           ;; loading the resource nodes, since establishing these connections
-           ;; will invalidate any dependent outputs in the cache.
-
-           ;; TODO(save-value-cleanup): There are implicit dependencies between
-           ;; texture profiles and image resources. We probably want to ensure
-           ;; the texture profiles are loaded before anything that makes
-           ;; implicit use of them to avoid potentially costly cache
-           ;; invalidation.
-           (setup-game-project-tx-data project game-project-node-id))
+         (make-resource-nodes-tx-data project node-id+resource-pairs)
 
          ;; Load the resource nodes. Referenced nodes will be loaded prior to
          ;; nodes that refer to them, provided the :dependencies-fn reports the
          ;; referenced proj-paths correctly.
+         ;;
+         ;; TODO(save-value-cleanup): There are implicit dependencies between
+         ;; texture profiles and image resources. We probably want to ensure
+         ;; the texture profiles are loaded before anything that makes
+         ;; implicit use of them to avoid potentially costly cache
+         ;; invalidation.
          migrated-resource-node-ids
          (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
            (du/measuring process-metrics :load-new-nodes
@@ -1131,15 +1101,15 @@
           nil)))))
 
 (handler/defhandler :edit.undo :global
-  (enabled? [project-graph] (g/has-undo? project-graph))
+  (enabled? [project-graph] (g/has-undo? :undo/global))
   (run [project-graph]
-    (g/undo! project-graph)
+    (g/undo! :undo/global)
     (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (handler/defhandler :edit.redo :global
-  (enabled? [project-graph] (g/has-redo? project-graph))
+  (enabled? [project-graph] (g/has-redo? :undo/global))
   (run [project-graph]
-    (g/redo! project-graph)
+    (g/redo! :undo/global)
     (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (handler/register-menu! ::menubar :editor.app-view/view
@@ -1177,23 +1147,22 @@
        (filter (comp (set open-resource-nodes) first))
        (into {})))
 
-(defn- perform-selection [basis project all-selections old-all-selections]
+(defn- perform-selection [basis project all-selections]
   (let [all-node-ids (->> all-selections
                           vals
                           (reduce into [])
                           distinct
                           vec)]
-    (when (not= old-all-selections all-selections)
-      (concat
-        (g/set-property project :all-selections all-selections)
-        (for [[node-id label] (g/sources-of basis project :all-selected-node-ids)]
-          (g/disconnect node-id label project :all-selected-node-ids))
-        (for [[node-id label] (g/sources-of basis project :all-selected-node-properties)]
-          (g/disconnect node-id label project :all-selected-node-properties))
-        (for [node-id all-node-ids]
-          (concat
-            (g/connect node-id :_node-id project :all-selected-node-ids)
-            (g/connect node-id :_properties project :all-selected-node-properties)))))))
+    (concat
+      (g/set-property project :all-selections all-selections)
+      (for [[node-id label] (g/sources-of basis project :all-selected-node-ids)]
+        (g/disconnect node-id label project :all-selected-node-ids))
+      (for [[node-id label] (g/sources-of basis project :all-selected-node-properties)]
+        (g/disconnect node-id label project :all-selected-node-properties))
+      (for [node-id all-node-ids]
+        (concat
+          (g/connect node-id :_node-id project :all-selected-node-ids)
+          (g/connect node-id :_properties project :all-selected-node-properties))))))
 
 (defn select
   [project resource-node node-ids open-resource-nodes evaluation-context]
@@ -1204,7 +1173,8 @@
                    [resource-node])
         old-all-selections (g/node-value project :all-selections evaluation-context)
         all-selections (update-selection old-all-selections open-resource-nodes resource-node node-ids)]
-    (perform-selection basis project all-selections old-all-selections)))
+    (when (not= old-all-selections all-selections)
+      (perform-selection basis project all-selections))))
 
 (defn- perform-sub-selection
   ([project all-sub-selections]
@@ -1226,11 +1196,12 @@
 (def ^:private make-resource-nodes-by-path-map
   (partial into {} (map (juxt (comp resource/proj-path second) first))))
 
-(defn- perform-resource-change-plan [plan project render-progress!]
+(defn perform-resource-change-plan [plan project render-progress!]
   (let [process-metrics (du/make-metrics-collector)
         resource-metrics (du/make-metrics-collector)
         transaction-metrics (du/make-metrics-collector)
-        transact-opts (du/when-metrics {:metrics transaction-metrics})
+        transact-opts {:metrics transaction-metrics
+                       :undoable false}
 
         collected-properties-by-resource
         (du/measuring process-metrics :collect-overridden-properties
@@ -1264,6 +1235,15 @@
           ;; created or already (still!) existing node.
           (or (resource->new-node-id resource)
               (resource->old-node-id resource)))]
+
+    ;; Significant resource changes can replace or delete nodes referenced by
+    ;; existing undo entries, so clear undo before the first mutation. Doing this
+    ;; up front also prevents a failed reload from leaving stale undo entries.
+    ;; All transactions from this point on will be non-undoable. Find out if we
+    ;; have any significant changes, but take care to exclude non-change
+    ;; information such as the list of :kept resources from this check.
+    (when (coll/any? coll/not-empty (vals (dissoc plan :invalidate-outputs :kept)))
+      (g/reset-undo! :undo/global))
 
     ;; Create the new nodes in the graph.
     (du/measuring process-metrics :make-new-nodes
@@ -1425,19 +1405,14 @@
                              (let [all-selections (-> old-all-selections
                                                       (dissoc-deleted)
                                                       (remap-selection old->new (comp vector first)))]
-                               (perform-selection basis project all-selections old-all-selections))
+                               (when (not= old-all-selections all-selections)
+                                 (perform-selection basis project all-selections)))
                              (let [all-sub-selections (-> old-all-sub-selections
                                                           (dissoc-deleted)
                                                           (remap-selection old->new (constantly [])))]
-                               (perform-sub-selection project all-sub-selections))))]
+                               (when (not= old-all-sub-selections all-sub-selections)
+                                 (perform-sub-selection project all-sub-selections)))))]
         (g/transact transact-opts tx-data)))
-
-    ;; Invalidating outputs is the only change that does not reset the undo
-    ;; history. This is a quick way to find out if we have any significant
-    ;; changes, but we must take care to also exclude non-change information
-    ;; such as the list of :kept resources from this check.
-    (when (some seq (vals (dissoc plan :invalidate-outputs :kept)))
-      (g/reset-undo! (graph project)))
 
     (du/when-metrics
       (reset! resource-change-metrics-atom
@@ -1503,6 +1478,7 @@
   differs from the currently installed dependencies in the workspace."
   [project]
   (g/transact
+    {:undoable false}
     (g/with-auto-evaluation-context evaluation-context
       (update-fetch-libraries-notification project evaluation-context)))
   nil)
@@ -1580,6 +1556,7 @@
   (property all-sub-selections g/Any)
 
   (input script-intelligence g/NodeID :cascade-delete)
+  (input code-transpilers g/NodeID :cascade-delete)
   (input editor-extensions g/NodeID :cascade-delete)
   (input script-annotations g/NodeID :cascade-delete)
   (input editor-localization-bundle g/NodeID :cascade-delete)
@@ -1591,6 +1568,8 @@
   (input settings g/Any :substitute nil)
   (input display-profiles g/Any)
   (input texture-profiles g/Any)
+  (input use-font-layout g/Bool)
+  (input use-rich-text g/Bool)
   (input collision-group-nodes g/Any :array :substitute gu/array-subst-remove-errors)
   (input build-settings g/Any)
   (input dependencies g/Any)
@@ -1624,6 +1603,8 @@
                                                                  (not (resource/read-only? resource))))))
                                                    save-data)))
   (output settings g/Any (g/fnk [settings] (or settings gpc/default-settings)))
+  (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
+  (output use-rich-text g/Bool (g/fnk [use-rich-text] (not (false? use-rich-text))))
   (output display-width g/Num (g/fnk [settings]
                                  (double (or (get settings ["display" "width"]) 0))))
   (output display-height g/Num (g/fnk [settings]
@@ -1705,9 +1686,8 @@
       [tx-data-context-map pending-resource-node-id nil]
       (let [graph-id (g/node-id->graph-id project)
             node-type (resource-node-type resource)
-            creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
-                               (g/connect resource-node-id :node-id+resource project :node-id+resources))
-            created-resource-node-id (first (g/tx-data-added-node-ids creation-tx-data))
+            created-resource-node-id (first (g/take-node-ids graph-id 1))
+            creation-tx-data (make-resource-node-tx-data project node-type created-resource-node-id resource)
             created-resource-nodes' (assoc (or created-resource-nodes {}) resource created-resource-node-id)
             tx-data-context-map' (assoc tx-data-context-map :created-resource-nodes created-resource-nodes')]
         [tx-data-context-map' created-resource-node-id creation-tx-data]))))
@@ -1784,22 +1764,17 @@
     (handle-resource-changes project-id changes render-progress!)))
 
 (defn make-project [graph workspace-id extensions]
-  (let [plugin-graph (g/make-graph! :history false :volatility 2)
-        code-preprocessors (workspace/code-preprocessors workspace-id)
+  (let [code-preprocessors (workspace/code-preprocessors workspace-id)
 
-        transpilers-id
+        project-id
         (first
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes plugin-graph [code-transpilers code.transpilers/CodeTranspilersNode]
-                (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)))))
-        project-id
-        (second
-          (g/tx-nodes-added
-            (g/transact
+              {:undoable false}
               (g/make-nodes graph
-                  [script-intelligence si/ScriptIntelligenceNode
-                   project [Project :workspace workspace-id]
+                  [project [Project :workspace workspace-id]
+                   code-transpilers code.transpilers/CodeTranspilersNode
+                   script-intelligence si/ScriptIntelligenceNode
                    script-annotations script-annotations/ScriptAnnotations
                    editor-localization-bundle editor-localization-bundle/EditorLocalizationBundle]
                 (g/connect workspace-id :root script-annotations :root)
@@ -1807,15 +1782,17 @@
                 (g/connect editor-localization-bundle :_node-id project :editor-localization-bundle)
                 (g/connect extensions :_node-id project :editor-extensions)
                 (g/connect script-intelligence :_node-id project :script-intelligence)
+                (g/connect code-transpilers :_node-id project :code-transpilers)
+                (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :dependencies project :dependencies)
                 (g/connect workspace-id :resource-list project :resources)
                 (g/set-graph-value graph :project-id project)
                 (g/set-graph-value graph :lsp (lsp/make project get-resource-node))
-                (g/set-graph-value graph :code-transpilers transpilers-id)))))]
+                (g/set-graph-value graph :code-transpilers code-transpilers)))))]
+
     (reload-plugins! project-id (g/node-value project-id :resources))
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
-    (g/reset-undo! graph)
     project-id))
 
 (defn read-dependencies [game-project-resource]
@@ -1906,7 +1883,7 @@
     (render-progress! (swap! progress progress/advance 1 (localization/message "progress.loading-project")))
     (let [project (make-project graph workspace-id extensions)
           populated-project (load-project! project (progress/nest-render-progress render-progress! @progress 8))]
-      ;; Prime the auto completion cache
+      ;; Prime the script API completion cache
       (g/node-value (script-intelligence project) :lua-completions)
       (du/log-statistics! "Project loaded")
       populated-project)))

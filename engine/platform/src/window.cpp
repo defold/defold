@@ -26,10 +26,11 @@ extern "C"
         }
 
         memset(params, 0, sizeof(*params));
-        params->m_Width   = 640;
-        params->m_Height  = 480;
-        params->m_Samples = 1;
-        params->m_Title   = "Defold Application";
+        params->m_Width       = 640;
+        params->m_Height      = 480;
+        params->m_Samples     = 1;
+        params->m_Title       = "Defold Application";
+        params->m_FocusOnShow = 1;
     }
 
     HWindow WindowNew(void)

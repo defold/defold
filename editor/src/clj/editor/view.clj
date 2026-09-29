@@ -36,6 +36,15 @@
   (output view-dirty g/Any (g/fnk [_node-id dirty] [_node-id dirty]))
   (output view-sidebar-panes g/Any (g/fnk [_node-id sidebar-panes] [_node-id sidebar-panes])))
 
+(g/defnode NonResourceWorkbenchView
+  (inherits WorkbenchView)
+  ;; A resource-backed view reports a nil value once its resource node is gone,
+  ;; which is what closes its tab during resource synchronization. Views that
+  ;; never had a resource report an empty map instead, so they stay open while
+  ;; still claiming no resource.
+  (output view-data g/Any (g/fnk [_node-id] [_node-id {}]))
+  (output sidebar-panes g/Any (g/constantly [])))
+
 (defn connect-resource-node [view resource-node]
   (concat
     (g/connect resource-node :_node-id view :resource-node)

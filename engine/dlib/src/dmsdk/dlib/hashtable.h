@@ -254,7 +254,7 @@ public:
     /*#
      * Check if the table is full
      * @name Full
-     * @return true if the table is full
+     * @return full [type:bool] true if the table is full
      */
     bool Full()
     {
@@ -264,7 +264,7 @@ public:
     /*#
      * Check if the table is empty
      * @name Empty
-     * @return true if the table is empty
+     * @return empty [type:bool] true if the table is empty
      */
     bool Empty()
     {

@@ -1,0 +1,89 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
+name: upload-build-reports
+description: Retain standalone build reports after successful or failed engine builds.
+inputs:
+  platform:
+    description: Engine target platform
+    required: true
+  reports:
+    description: Newline-separated repository-relative report file paths; paths and formats are preserved
+    default: |
+      engine/font/build/font-render-report/index.html
+runs:
+  using: composite
+  steps:
+    - name: Prepare report artifacts
+      id: prepare
+      shell: bash
+      env:
+        REPORT_PATHS: ${{ inputs.reports }}
+      run: |
+        staging=$(mktemp -d "$RUNNER_TEMP/build-reports.XXXXXX")
+        count=0
+        while IFS= read -r report; do
+          [ -n "$report" ] || continue
+          case "$report" in
+            /*|..|../*|*/../*|*/..)
+              printf 'Report paths must stay within the repository: %s\n' "$report" >&2
+              exit 1
+              ;;
+          esac
+          if [ -d "$report" ]; then
+            printf 'Expected a report file, got a directory: %s\n' "$report" >&2
+            exit 1
+          fi
+          mkdir -p "$(dirname "$staging/$report")"
+          if [ -f "$report" ]; then
+            cp "$report" "$staging/$report"
+          else
+            # An earlier build failure may prevent this report from being produced.
+            printf 'Build report unavailable: %s. See the engine job log. No tests are claimed to have passed.\n' "$report" > "$staging/$report.unavailable.txt"
+          fi
+          count=$((count + 1))
+        done <<< "$REPORT_PATHS"
+        if [ "$count" -eq 0 ]; then
+          printf 'No build report files configured\n' >&2
+          exit 1
+        fi
+        printf 'path=%s\n' "$staging" >> "$GITHUB_OUTPUT"
+    - name: Upload reports
+      id: upload
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: build-reports-${{ inputs.platform }}-${{ github.run_attempt }}
+        path: ${{ steps.prepare.outputs.path }}
+        if-no-files-found: error
+        retention-days: 14
+    - name: Link report and download command
+      if: always()
+      shell: bash
+      env:
+        REPORT_ARTIFACT: build-reports-${{ inputs.platform }}-${{ github.run_attempt }}
+        REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
+        REPORT_REPOSITORY: ${{ github.repository }}
+        REPORT_RUN: ${{ github.run_id }}
+      run: |
+        {
+          printf '## Build Reports\n\n'
+          if [ -n "$REPORT_URL" ]; then
+            printf '[Download build reports: %s](%s)\n\n' "$REPORT_ARTIFACT" "$REPORT_URL"
+          else
+            printf 'Build reports upload failed. See the artifact-upload step.\n\n'
+          fi
+          printf 'Download the report files (open HTML reports in your browser):\n\n```sh\n'
+          printf 'gh run download %s --repo %s --name %s --dir build-reports/%s\n' "$REPORT_RUN" "$REPORT_REPOSITORY" "$REPORT_ARTIFACT" "$REPORT_ARTIFACT"
+          printf '```\n'
+        } | tee -a "$GITHUB_STEP_SUMMARY"

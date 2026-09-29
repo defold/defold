@@ -561,6 +561,49 @@ public class ProjectBuildTest {
     }
 
     @Test
+    public void testArchiveBuildMergesExtensionCustomResources() throws IOException, CompileExceptionError, MultipleCompileException, ParseException {
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources = /project_resource.txt\n");
+        createFile(contentRoot, "project_resource.txt", "project");
+        createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
+        createFile(contentRoot, "extension1/ext.properties", "[project]\ncustom_resources.default = /extension1_resource.txt\n");
+        createFile(contentRoot, "extension1_resource.txt", "extension1");
+        createFile(contentRoot, "extension2/ext.manifest", "name: Extension2\n");
+        createFile(contentRoot, "extension2/ext.properties", "[project]\ncustom_resources.default = /extension2_resource.txt\n");
+        createFile(contentRoot, "extension2_resource.txt", "extension2");
+
+        buildArchive(false);
+
+        Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
+        assertTrue(hasResource(bundledManifestData, "/project_resource.txt"));
+        assertTrue(hasResource(bundledManifestData, "/extension1_resource.txt"));
+        assertTrue(hasResource(bundledManifestData, "/extension2_resource.txt"));
+
+        BobProjectProperties outputProperties = new BobProjectProperties();
+        outputProperties.load(new FileInputStream(new File(contentRoot, "build/game.projectc")));
+        String serializedCustomResourcesValue = outputProperties.getStringValue("project", "custom_resources");
+        String[] serializedCustomResources = outputProperties.getStringArrayValue("project", "custom_resources", new String[0]);
+        assertEquals(3, serializedCustomResourcesValue.split(", ", -1).length);
+        assertEquals(new HashSet<>(Arrays.asList("/project_resource.txt", "/extension1_resource.txt", "/extension2_resource.txt")),
+                     new HashSet<>(Arrays.asList(serializedCustomResources)));
+    }
+
+    @Test
+    public void testArchiveBuildPreservesCustomResourcePathSpelling() throws IOException, CompileExceptionError, MultipleCompileException, ParseException {
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources = foo/../assets/\n");
+        createFile(contentRoot, "assets/resource.txt", "resource");
+
+        buildArchive(false);
+
+        assertTrue(new File(contentRoot, "build/assets/resource.txt").isFile());
+
+        BobProjectProperties outputProperties = new BobProjectProperties();
+        outputProperties.load(new FileInputStream(new File(contentRoot, "build/game.projectc")));
+        assertEquals("foo/../assets/", outputProperties.getStringValue("project", "custom_resources"));
+    }
+
+    @Test
     public void testArchiveBuildWithLuaCustomResourceTreatsItAsLeaf() throws IOException, CompileExceptionError, MultipleCompileException {
         createDefaultFiles();
         createFile(contentRoot, "game.project",

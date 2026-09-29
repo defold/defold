@@ -32,10 +32,13 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.font.FontStyles;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
@@ -66,7 +69,7 @@ public class ProtoBuilders {
 
     public static String getTextureSetExt(String str) throws Exception {
         Map<String, String> types = TextureUtil.getAtlasFileTypes();
-        String suffix = "." + FilenameUtils.getExtension(str);
+        String suffix = "." + StringUtil.toLowerCase(FilenameUtils.getExtension(str));
         String replacement = types.getOrDefault(suffix, null);
         if (replacement != null) {
             return replacement;
@@ -331,6 +334,9 @@ public class ProtoBuilders {
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
             BuilderUtil.checkResource(this.project, resource, "font", messageBuilder.getFont());
+            if (!FontStyles.readStyleNames(this.project.getResource(messageBuilder.getFont())).contains(messageBuilder.getStyle()))
+                throw new CompileExceptionError(resource, 0, "Font style '" + messageBuilder.getStyle() + "' does not exist");
+            messageBuilder.setStyleHash(messageBuilder.getStyle().isEmpty() ? 0 : MurmurHash.hash64(messageBuilder.getStyle()));
             messageBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getMaterial(), "material", "materialc"));
             messageBuilder.setFont(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getFont(), "font", "fontc"));
             return messageBuilder;

@@ -17,12 +17,17 @@ test_err = false
 test_err_str = ""
 
 cursor_test_params = {
+    -- Playback none should apply the initial cursor and keep it unchanged,
+    -- regardless of the animation frame rate.
+    {"anim_none_0",     0.5, 1.0, {0.5, 0.5}},
+    {"anim_none_60",    0.5, 1.0, {0.5, 0.5}},
+
     {"anim_once",       0.0, 1.0, {0.0, 0.25, 0.5, 0.75, 1.0}},
     {"anim_once",      -1.0, 1.0, {0.0, 0.25, 0.5, 0.75, 1.0}}, -- Same as above, but cursor should be clamped
     {"anim_once",       1.0, 1.0, {1.0, 1.0}},                  -- Again, clamped, but will also be at end of anim.
-    {"anim_once_back",  0.0, 1.0, {0.0, 0.75, 0.5, 0.25, 0.0}},
+    {"anim_once_back",  0.0, 1.0, {1.0, 0.75, 0.5, 0.25, 0.0}},
     {"anim_loop",       0.0, 1.0, {0.0, 0.25, 0.5, 0.75, 1.0, 0.25, 0.5, 0.75}},
-    {"anim_loop_back",  0.0, 1.0, {0.0, 0.75, 0.5, 0.25, 0.0, 0.75, 0.5, 0.25}},
+    {"anim_loop_back",  0.0, 1.0, {1.0, 0.75, 0.5, 0.25, 0.0, 0.75, 0.5, 0.25}},
 
     -- Ping-pong in GUI is different from Sprite flipbook animations.
     -- In GUI the flipbook animations doesn't skip duplicate mid and ending frame.
@@ -33,6 +38,7 @@ cursor_test_params = {
 
     -- Cursor start
     {"anim_once",          0.5, 1.0, {0.5, 0.75, 1.0, 1.0}},
+    {"anim_once_back",    0.25, 1.0, {0.75, 0.5, 0.25, 0.0, 0.0}},
     {"anim_once_back",     0.5, 1.0, {0.5, 0.25, 0.0, 0.0}},
     {"anim_loop",          0.5, 1.0, {0.5, 0.75, 1.0, 0.25, 0.5, 0.75, 1.0}},
     {"anim_loop_back",     0.5, 1.0, {0.5, 0.25, 0.0, 0.75, 0.5, 0.25, 0.0}},
@@ -41,25 +47,25 @@ cursor_test_params = {
 
     -- Playback rate, x2 speed
     {"anim_once",          0.0, 2.0, {0.0, 0.5, 1.0, 1.0}},
-    {"anim_once_back",     0.0, 2.0, {0.0, 0.5, 0.0, 0.0}},
+    {"anim_once_back",     0.0, 2.0, {1.0, 0.5, 0.0, 0.0}},
     {"anim_loop",          0.0, 2.0, {0.0, 0.5, 1.0, 0.5, 1.0}},
-    {"anim_loop_back",     0.0, 2.0, {0.0, 0.5, 0.0, 0.5, 0.0}},
+    {"anim_loop_back",     0.0, 2.0, {1.0, 0.5, 0.0, 0.5, 0.0}},
     {"anim_once_pingpong", 0.0, 2.0, {0.0, 0.5, 1.0, 0.5, 0.0, 0.0}},
     {"anim_loop_pingpong", 0.0, 2.0, {0.0, 0.5, 1.0, 0.5, 0.0, 0.5, 1.0}},
 
     -- Playback rate, x0 speed
     {"anim_once",          0.0, 0.0, {0.0, 0.0, 0.0}},
-    {"anim_once_back",     0.0, 0.0, {0.0, 1.0, 1.0}},
+    {"anim_once_back",     0.0, 0.0, {1.0, 1.0, 1.0}},
     {"anim_loop",          0.0, 0.0, {0.0, 0.0, 0.0}},
-    {"anim_loop_back",     0.0, 0.0, {0.0, 1.0, 1.0}},
+    {"anim_loop_back",     0.0, 0.0, {1.0, 1.0, 1.0}},
     {"anim_once_pingpong", 0.0, 0.0, {0.0, 0.0, 0.0}},
     {"anim_loop_pingpong", 0.0, 0.0, {0.0, 0.0, 0.0}},
 
     -- Playback rate, -x2 speed
     {"anim_once",          0.0, -2.0, {0.0, 0.0, 0.0}},
-    {"anim_once_back",     0.0, -2.0, {0.0, 1.0, 1.0}},
+    {"anim_once_back",     0.0, -2.0, {1.0, 1.0, 1.0}},
     {"anim_loop",          0.0, -2.0, {0.0, 0.0, 0.0}},
-    {"anim_loop_back",     0.0, -2.0, {0.0, 1.0, 1.0}},
+    {"anim_loop_back",     0.0, -2.0, {1.0, 1.0, 1.0}},
     {"anim_once_pingpong", 0.0, -2.0, {0.0, 0.0, 0.0}},
     {"anim_loop_pingpong", 0.0, -2.0, {0.0, 0.0, 0.0}},
 }

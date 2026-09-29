@@ -23,7 +23,7 @@ And when the *archive_engine* step is run, all platform sdk's are downloaded and
 
 You can build each platform individually:
 
-    defold$ ./scripts/build.py build_platform_sdk --platform=x86_64-macos
+    defold$ ./scripts/build.py build_ext build_platform_sdk --platform=x86_64-macos
 
 ### build.yml
 
@@ -37,7 +37,7 @@ As we include this file in every sdk, we make it simple to update. You can updat
 Note that during the development of the SDK, you can run the local server, pointing it to your DYNAMO_HOME variable!
 This of course requires you to have build the engine beforehand:
 
-    defold$ ./scripts/build.py build_engine --platform=x86_64-macos
+    defold$ ./scripts/build.py build_ext build_engine --platform=x86_64-macos
 
 Set up the path for the DYNAMO_HOME variable:
 

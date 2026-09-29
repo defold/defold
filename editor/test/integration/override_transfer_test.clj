@@ -111,7 +111,7 @@
           :value "text from book.go"
           :type :property-type-hash}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/book.go" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
         (is (not (empty? (transferred-properties source-node-id :all))))
@@ -139,7 +139,7 @@
             :value "text from shelf.collection"
             :type :property-type-hash}]}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.collection" "referenced_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
         (is (= [["Pull Up \"text\" Override to \"book_script\" in \"/book.go\"" :ok]]
@@ -191,7 +191,7 @@
               :value "text from room.collection"
               :type :property-type-hash}]}]}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "referenced_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
         (is (= [["Pull Up \"text\" Override to \"referenced_book/book_script\" in \"/shelf.collection\"" :ok]
@@ -244,7 +244,7 @@
               :value "text from room.collection"
               :type :property-type-hash}]}]}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "embedded_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
         (is (= [["Pull Up \"text\" Override to \"embedded_book/book_script\" in \"/shelf.collection\"" :ok]]
@@ -305,7 +305,7 @@
               :value "text from room.collection"
               :type :property-type-hash}]}]}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "referenced_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
         (is (= [["Pull Up \"text\" Override to \"referenced_book/book_script\" in \"/shelf.collection\"" :ok]
@@ -348,7 +348,7 @@
         :id "book_text"
         :text "default text from book.gui"}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/book.gui" (localization/message "outline.gui.nodes") "book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
@@ -375,7 +375,7 @@
         :text "default text from shelf.gui"
         :overridden-fields [gui-text-pb-field-index]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book.gui" "")
       (set-gui-layout! project "/shelf.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.gui" (localization/message "outline.gui.nodes") "referenced_book" "referenced_book/book_text")
@@ -436,7 +436,7 @@
         :text "default text from room.gui"
         :overridden-fields [gui-text-pb-field-index]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book.gui" "")
       (set-gui-layout! project "/shelf.gui" "")
       (set-gui-layout! project "/room.gui" "")
@@ -495,14 +495,14 @@
           :text "landscape text from book_l.gui"
           :overridden-fields [gui-text-pb-field-index]}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book_l.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/book_l.gui" (localization/message "outline.gui.nodes") "book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
         (is (empty? (transferred-properties source-node-id :all)))
         (is (empty? transfer-overrides-plans))))
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/book_l.gui" (localization/message "outline.gui.nodes") "book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
@@ -547,7 +547,7 @@
         :text "default text from shelf.gui"
         :overridden-fields [gui-text-pb-field-index]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book_l.gui" "Landscape")
       (set-gui-layout! project "/shelf.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.gui" (localization/message "outline.gui.nodes") "referenced_book" "referenced_book/book_text")
@@ -610,7 +610,7 @@
           :text "landscape text from shelf_l.gui"
           :overridden-fields [gui-text-pb-field-index]}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book.gui" "")
       (set-gui-layout! project "/shelf_l.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" (localization/message "outline.gui.nodes") "referenced_book" "referenced_book/book_text")
@@ -645,7 +645,7 @@
                      :overridden-fields [gui-text-pb-field-index]}]}]}}
                (select-save-values project #{"/book.gui" "/shelf_l.gui"})))))
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book.gui" "")
       (set-gui-layout! project "/shelf_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" (localization/message "outline.gui.nodes") "referenced_book" "referenced_book/book_text")
@@ -713,7 +713,7 @@
           :text "landscape text from shelf_l.gui"
           :overridden-fields [gui-text-pb-field-index]}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book_l.gui" "Landscape")
       (set-gui-layout! project "/shelf_l.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" (localization/message "outline.gui.nodes") "referenced_book" "referenced_book/book_text")
@@ -756,7 +756,7 @@
                      :overridden-fields [gui-text-pb-field-index]}]}]}}
                (select-save-values project #{"/book_l.gui" "/shelf_l.gui"})))))
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book_l.gui" "")
       (set-gui-layout! project "/shelf_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" (localization/message "outline.gui.nodes") "referenced_book" "referenced_book/book_text")
@@ -795,7 +795,7 @@
                  [{:name "Landscape"}]}}
                (select-save-values project #{"/book_l.gui" "/shelf_l.gui"})))))
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book_l.gui" "")
       (set-gui-layout! project "/shelf_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" (localization/message "outline.gui.nodes") "referenced_book" "referenced_book/book_text")
@@ -858,7 +858,7 @@
         [{:name "tint"
           :double-values {:v [1.0 0.0 0.0 1.0]}}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/book.model")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
         (is (not (empty? (transferred-properties source-node-id :all))))
@@ -890,7 +890,7 @@
         [{:name "tint"
           :double-values {:v [1.0 0.0 0.0 1.0]}}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/book.particlefx" "emitter")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
         (is (not (empty? (transferred-properties source-node-id :all))))
@@ -916,7 +916,7 @@
       [{:name "tint"
         :double-values {:v [1.0 0.0 0.0 1.0]}}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/book.sprite")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
         (is (not (empty? (transferred-properties source-node-id :all))))
@@ -936,7 +936,7 @@
           :value "text from book.go"
           :type :property-type-hash}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/book.go" "book_script")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
         (is (not (empty? (transferred-properties source-node-id :all))))
@@ -970,7 +970,7 @@
        {:id "referenced_book_two"
         :prototype "/book.go"}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/book.go" "book_script")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
         (is (= [["Push Down \"text\" Override to 3 Descendants Across 2 Resources" :ok]]
@@ -1036,7 +1036,7 @@
             :value "text from shelf.collection"
             :type :property-type-hash}]}]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.collection" "referenced_book" "book_script")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
         (is (not (empty? (transferred-properties source-node-id :all))))
@@ -1078,7 +1078,7 @@
        {:id "referenced_shelf_two"
         :collection "/shelf.collection"}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.collection" "referenced_book" "book_script")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
         (is (= [["Push Down \"text\" Override to 3 Descendants Across 2 Resources" :ok]]
@@ -1149,7 +1149,7 @@
         :text "default text from shelf.gui"
         :overridden-fields [gui-text-pb-field-index]}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book.gui" "")
       (set-gui-layout! project "/shelf.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.gui" (localization/message "outline.gui.nodes") "referenced_book" "referenced_book/book_text")
@@ -1216,7 +1216,7 @@
         :id "referenced_shelf_two/referenced_book/book_text"
         :parent "referenced_shelf_two/referenced_book"}]}}
 
-    (test-util/with-changes-reverted project
+    (test-util/with-changes-reverted
       (set-gui-layout! project "/book.gui" "")
       (set-gui-layout! project "/shelf.gui" "")
       (set-gui-layout! project "/room_one.gui" "")

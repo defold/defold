@@ -58,22 +58,27 @@ set(GUI_TEST_LIBS
   graphics_proto
   extension
   resource
-  particle
   rig
   hid_null
   lua
   script
   gameobject)
 
-function(gui_configure_test target gui_lib run_test)
+function(gui_configure_test target gui_lib particle_lib run_test)
+  set(_gui_test_libs ${GUI_TEST_LIBS})
+  # The particle-null smoke test has no TLS-backed resource fixtures.
+  if(ARGC GREATER 4 AND ARGV4)
+    list(REMOVE_ITEM _gui_test_libs mbedtls)
+  endif()
   target_include_directories(${target} PRIVATE
     "${GUI_TEST_ROOT}"
     "${GUI_SRC_DIR}"
     "${GUI_TEST_GEN_DIR}")
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
-    ${GUI_TEST_LIBS}
+    ${_gui_test_libs}
     font
-    ${gui_lib})
+    ${gui_lib}
+    ${particle_lib})
   defold_target_link_socket(${target} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_app(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_glfw(${target} "${TARGET_PLATFORM}" PRIVATE)
@@ -100,22 +105,25 @@ defold_add_executable(test_gui
   "${GUI_TEST_ROOT}/test_gui.cpp"
   $<TARGET_OBJECTS:gui_test_generated>)
 add_dependencies(test_gui gui_test_generated)
-gui_configure_test(test_gui gui ON)
+gui_configure_test(test_gui gui particle ON)
 
 defold_add_executable(test_gui_script "${GUI_TEST_ROOT}/test_gui_script.cpp")
-gui_configure_test(test_gui_script gui ON)
+gui_configure_test(test_gui_script gui particle ON)
 
 defold_add_executable(test_gui_clipping "${GUI_TEST_ROOT}/test_gui_clipping.cpp")
-gui_configure_test(test_gui_clipping gui ON)
+gui_configure_test(test_gui_clipping gui particle ON)
+
+defold_add_executable(test_gui_particle_null "${GUI_TEST_ROOT}/test_gui_particle_null.cpp")
+gui_configure_test(test_gui_particle_null gui particle_null ON TRUE)
 
 defold_add_executable(test_gui_null
   "${GUI_TEST_ROOT}/test_gui.cpp"
   $<TARGET_OBJECTS:gui_test_generated>)
 add_dependencies(test_gui_null gui_test_generated)
-gui_configure_test(test_gui_null gui_null OFF)
+gui_configure_test(test_gui_null gui_null particle OFF)
 
 defold_add_executable(test_gui_script_null "${GUI_TEST_ROOT}/test_gui_script.cpp")
-gui_configure_test(test_gui_script_null gui_null OFF)
+gui_configure_test(test_gui_script_null gui_null particle OFF)
 
 defold_add_executable(test_gui_clipping_null "${GUI_TEST_ROOT}/test_gui_clipping.cpp")
-gui_configure_test(test_gui_clipping_null gui_null OFF)
+gui_configure_test(test_gui_clipping_null gui_null particle OFF)

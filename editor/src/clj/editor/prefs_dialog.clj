@@ -76,7 +76,8 @@
                 [:code :font :name]
                 [:code :zoom-on-scroll]
                 [:code :hover]
-                [:code :auto-closing-parens]]}
+                [:code :auto-closing-parens]
+                [:code :format-on-save]]}
        {:pattern (localization/message "prefs.tab.extensions")
         :paths [[:extensions :build-server]
                 [:extensions :build-server-username]

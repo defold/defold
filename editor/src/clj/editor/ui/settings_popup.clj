@@ -168,8 +168,7 @@
                :popup popup
                :desc
                {:fx/type fxui/color-picker
-                :value (let [[r g b a] (key state)]
-                         (Color. (float r) (float g) (float b) (float a)))
+                :value (fxui/vec->color (key state))
                 :on-value-changed (fn [^Color c]
                                     (let [color [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
                                       (swap-state assoc key color)

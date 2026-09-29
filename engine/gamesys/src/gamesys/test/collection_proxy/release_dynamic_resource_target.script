@@ -1,0 +1,12 @@
+function init(self)
+    local texture = resource.create_texture("/issue_13002.texturec", {
+        width = 1,
+        height = 1,
+        type = graphics.TEXTURE_TYPE_2D,
+        format = graphics.TEXTURE_FORMAT_RGBA,
+    })
+
+    msg.post("collection:/go#script", "dynamic_resource_created", {
+        resource = texture,
+    })
+end

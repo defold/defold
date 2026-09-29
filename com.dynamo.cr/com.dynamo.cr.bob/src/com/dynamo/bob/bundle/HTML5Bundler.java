@@ -28,7 +28,10 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +59,11 @@ public class HTML5Bundler implements IBundler {
 
     private static final String SplitFileDir = "archive";
     private static final String SplitFileJson = "archive_files.json";
+    private static final String GitAttributesName = ".gitattributes";
+    // dmloader.js verifies the size and sha1 of the text files in the bundle, which git
+    // changes when it rewrites their line endings. A .gitattributes in the bundle root also
+    // covers every subdirectory. See issue #10006.
+    private static final String GitAttributesContent = "* -text\n";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
     private static String SplitFileSHA1 = "";
 
@@ -165,6 +173,13 @@ public class HTML5Bundler implements IBundler {
             engineArguments.add("--verify-graphics-calls=false");
             properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
         }
+
+        // If the game archive is hosted somewhere else than index.html (typically a CDN) we let
+        // the engine_template.html emit a preconnect hint for that origin. Must be done after the
+        // local launch check above, since that resets the archive location prefix.
+        String archiveOrigin = getUrlOrigin((String)properties.get("DEFOLD_ARCHIVE_LOCATION_PREFIX"));
+        properties.put("DEFOLD_HAS_ARCHIVE_ORIGIN", archiveOrigin != null);
+        properties.put("DEFOLD_ARCHIVE_ORIGIN", archiveOrigin != null ? archiveOrigin : "");
 
         properties.put("DEFOLD_CUSTOM_CSS_INLINE", "");
         IResource customCSS = project.getResource("html5", "cssfile");
@@ -285,6 +300,35 @@ public class HTML5Bundler implements IBundler {
             finally {
                 IOUtils.closeQuietly(output);
             }
+        }
+    }
+
+    /**
+     * Get the origin (scheme://host[:port]) of an absolute or protocol relative url.
+     * @param url The url to get the origin from
+     * @return The origin, or null if the url is relative (ie same origin as index.html)
+     */
+    public static String getUrlOrigin(String url) {
+        if (url == null) {
+            return null;
+        }
+        // a protocol relative url ("//cdn.example.com/foo") inherits the scheme of the page
+        boolean protocolRelative = url.startsWith("//");
+        try {
+            URI uri = new URI(protocolRelative ? "https:" + url : url);
+            String host = uri.getHost();
+            String scheme = uri.getScheme();
+            if (host == null) {
+                return null;
+            }
+            if (!protocolRelative && !"http".equals(scheme) && !"https".equals(scheme)) {
+                return null;
+            }
+            String port = uri.getPort() != -1 ? ":" + uri.getPort() : "";
+            return (protocolRelative ? "//" : scheme + "://") + host + port;
+        }
+        catch (URISyntaxException e) {
+            return null;
         }
     }
 
@@ -411,6 +455,8 @@ public class HTML5Bundler implements IBundler {
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
         createSplitFiles(project, buildDir, splitDir);
+        // Before the bundle resources, so a project shipping its own wins.
+        createGitAttributes(appDir);
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into bundle directory
@@ -483,6 +529,10 @@ public class HTML5Bundler implements IBundler {
             }
         }
         BundleHelper.moveBundleIfNeed(project, appDir);
+    }
+
+    private void createGitAttributes(File appDir) throws IOException {
+        FileUtils.write(new File(appDir, GitAttributesName), GitAttributesContent, StandardCharsets.UTF_8);
     }
 
     private void createSplitFiles(Project project, File buildDir, File targetDir) throws IOException {

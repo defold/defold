@@ -160,6 +160,12 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testLightBuilderWithMixedCaseExtension() throws Exception {
+        assertLightTags("/light/Test.PoInT_LiGhT", POINT_LIGHT_SOURCE, "point_light");
+        assertNotNull(getFile("build/light/Test.point_light.lightc"));
+    }
+
+    @Test
     public void testLightBuilderColor() throws Exception {
         assertBuiltLightColor("/light/test.directional_light", LIGHT_SOURCE, 0.25, 0.5, 0.75);
         assertBuiltLightColor("/light/test.ambient_light", LIGHT_SOURCE, 0.25, 0.5, 0.75);

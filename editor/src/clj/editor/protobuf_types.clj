@@ -30,29 +30,29 @@
 (defn- migrate-texture-profile-format [compression-type compression-level]
   (let [compression-level-pb (when compression-level
                                (protobuf/val->pb-enum Graphics$TextureFormatAlternative$CompressionLevel compression-level))]
-   (case compression-type
-    :compression-type-webp
-    {:compressor TextureCompressorUncompressed/TextureCompressorName
-     :compressor-preset (TextureCompressorUncompressed/GetMigratedCompressionPreset)}
+    (case compression-type
+      :compression-type-webp
+      {:compressor TextureCompressorUncompressed/TextureCompressorName
+       :compressor-preset (TextureCompressorUncompressed/GetMigratedCompressionPreset)}
 
-    :compression-type-webp-lossy
-    {:compressor TextureCompressorBasisU/TextureCompressorName
-     :compressor-preset (TextureCompressorBasisU/GetMigratedCompressionPreset compression-level-pb)}
+      :compression-type-webp-lossy
+      {:compressor TextureCompressorBasisU/TextureCompressorName
+       :compressor-preset (TextureCompressorBasisU/GetMigratedCompressionPreset compression-level-pb)}
 
-    :compression-type-basis-uastc
-    {:compressor TextureCompressorBasisU/TextureCompressorName
-     :compressor-preset (TextureCompressorBasisU/GetMigratedCompressionPreset compression-level-pb)}
+      :compression-type-basis-uastc
+      {:compressor TextureCompressorBasisU/TextureCompressorName
+       :compressor-preset (TextureCompressorBasisU/GetMigratedCompressionPreset compression-level-pb)}
 
-    :compression-type-basis-etc1s
-    {:compressor TextureCompressorBasisU/TextureCompressorName
-     :compressor-preset (TextureCompressorBasisU/GetMigratedCompressionPreset compression-level-pb)}
+      :compression-type-basis-etc1s
+      {:compressor TextureCompressorBasisU/TextureCompressorName
+       :compressor-preset (TextureCompressorBasisU/GetMigratedCompressionPreset compression-level-pb)}
 
-    :compression-type-astc
-    {:compressor TextureCompressorASTC/TextureCompressorName
-     :compressor-preset (TextureCompressorASTC/GetMigratedCompressionPreset compression-level-pb)}
+      :compression-type-astc
+      {:compressor TextureCompressorASTC/TextureCompressorName
+       :compressor-preset (TextureCompressorASTC/GetMigratedCompressionPreset compression-level-pb)}
 
-    {:compressor TextureCompressorUncompressed/TextureCompressorName
-     :compressor-preset (TextureCompressorUncompressed/GetMigratedCompressionPreset)})))
+      {:compressor TextureCompressorUncompressed/TextureCompressorName
+       :compressor-preset (TextureCompressorUncompressed/GetMigratedCompressionPreset)})))
 
 (defn- sanitize-texture-profile-format [texture-format]
   (let [migrated-format (if (and (:compressor texture-format) (:compressor-preset texture-format))
@@ -100,7 +100,7 @@
                :category (localization/message "resource.category.project_settings")
                :pb-class Input$InputBinding
                :label (localization/message "resource.type.input-binding")
-               :view-types [:cljfx-form-view :text]}
+               :view-types [:form :text]}
               {:ext "convexshape"
                :label (localization/message "resource.type.convexshape")
                ; TODO - missing icon
@@ -108,7 +108,7 @@
                :pb-class Physics$ConvexShape}
               {:ext "texture_profiles"
                :label (localization/message "resource.type.texture-profiles")
-               :view-types [:cljfx-form-view :text]
+               :view-types [:form :text]
                :icon "icons/32/Icons_37-Texture-profile.png"
                :icon-class :property
                :category (localization/message "resource.category.project_settings")

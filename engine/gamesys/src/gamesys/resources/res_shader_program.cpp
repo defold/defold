@@ -18,13 +18,18 @@
 
 namespace dmGameSystem
 {
+    static const char* GetGraphicsError(const char* error_buffer)
+    {
+        return error_buffer[0] ? error_buffer : "No error information was provided by the graphics backend.";
+    }
+
     static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, const char* filename, dmGraphics::ShaderDesc* ddf, dmGraphics::HProgram* program)
     {
-        char error_buffer[1024] = {};
+        char error_buffer[4096] = {};
         dmGraphics::HProgram prog = dmGraphics::NewProgram(context, ddf, error_buffer, sizeof(error_buffer));
         if (prog == 0)
         {
-            dmLogError("Failed to create shader program '%s': %s", filename, error_buffer);
+            dmLogError("Failed to create shader program '%s': %s", filename, GetGraphicsError(error_buffer));
             return dmResource::RESULT_FORMAT_ERROR;
         }
         *program = prog;
@@ -80,8 +85,11 @@ namespace dmGameSystem
         }
 
         dmResource::Result res = dmResource::RESULT_OK;
-        if(!dmGraphics::ReloadProgram((dmGraphics::HContext) params->m_Context, resource, ddf))
+        char error_buffer[4096] = {};
+        if(!dmGraphics::ReloadProgram((dmGraphics::HContext) params->m_Context, resource, ddf, error_buffer, sizeof(error_buffer)))
         {
+            const char* filename = params->m_Filename ? params->m_Filename : "<unknown shader resource>";
+            dmLogError("Failed to reload shader program '%s': %s", filename, GetGraphicsError(error_buffer));
             res = dmResource::RESULT_FORMAT_ERROR;
         }
 

@@ -18,6 +18,7 @@ go.property("hash", hash(""))
 go.property("vector3", vmath.vector3())
 go.property("vector4", vmath.vector4())
 go.property("quat", vmath.quat())
+go.property("text", "default text")
 
 function init(self)
     assert(self.number == 200)
@@ -29,4 +30,5 @@ function init(self)
     assert(self.vector3 == vmath.vector3(1, 2, 3))
     assert(self.vector4 == vmath.vector4(1, 2, 3, 4))
     assert(self.quat == vmath.quat(1, 2, 3, 4))
+    assert(self.text == "spawned text")
 end

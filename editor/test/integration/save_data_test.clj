@@ -25,8 +25,9 @@
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
-            [internal.util :as util]
             [integration.test-util :as test-util]
+            [internal.system :as is]
+            [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.text-util :as text-util])
@@ -102,10 +103,7 @@
    {"[PROPERTY_TYPE_MATRIX4]" :unimplemented} ; There's currently no way to edit matrix script properties. But they can be declared and used at runtime.
 
    'dmGuiDDF.NodeDesc.Type
-   {"[TYPE_SPINE]" :deprecated} ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
-
-   'dmPhysicsDDF.CollisionShape.Type
-   {"[TYPE_HULL]" :runtime-only}}) ; If the .collisionobject file specifies a .convexshape for its collision_shape, it gets embedded as a TYPE_HULL in the compiled binary. We don't have any way of creating these from the editor yet.
+   {"[TYPE_SPINE]" :deprecated}}) ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
 
 (def ^:private pb-ignored-fields
   "This structure is used to exclude certain fields in protobuf-based file
@@ -187,7 +185,8 @@
 
    'dmGameSystemDDF.LabelDesc
    {:default
-    {"scale" :deprecated}} ; Migration tested in integration.label-test/label-migration-test.
+    {"scale" :deprecated ; Migration tested in integration.label-test/label-migration-test.
+     "style_hash" :runtime-only}}
 
    'dmGameSystemDDF.SpineSceneDesc
    {:default
@@ -303,6 +302,7 @@
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :unused
      "text" :unused
      "text_leading" :unused
@@ -333,6 +333,7 @@
      "spine_scene" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
      "spine_skin" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
      "spine_node_child" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test. This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
+     "style" :unused
      "template" :unused
      "template_node_child" :unused
      "text" :unused
@@ -367,6 +368,7 @@
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :unused
      "text" :unused
      "text_leading" :unused
@@ -390,6 +392,7 @@
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :unused
      "text" :unused
      "text_leading" :unused
@@ -426,6 +429,7 @@
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :non-overridable
      "text" :unused
      "text_leading" :unused
@@ -543,9 +547,32 @@
    {:default
     {"index" :allowed-default}}
 
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_BOX]"]
+   {:default
+    {"mesh_index" :unused
+     "mesh_name" :unused
+     "mesh_scene" :unused}}
+
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_CAPSULE]"]
+   {:default
+    {"mesh_index" :unused
+     "mesh_name" :unused
+     "mesh_scene" :unused}}
+
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_HULL]"]
+   {:default
+    {"count" :allowed-default}}
+
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_MESH]"]
+   {:default
+    {"count" :allowed-default}}
+
    ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_SPHERE]"]
    {:default
-    {"shape_type" :allowed-default}}
+    {"mesh_index" :unused
+     "mesh_name" :unused
+     "mesh_scene" :unused
+     "shape_type" :allowed-default}}
 
    ['dmPhysicsDDF.ConvexShape "[TYPE_SPHERE]"]
    {:default
@@ -804,13 +831,15 @@
                  :max-anisotropy 1.0
                  :name "albedo"
                  :wrap-u :wrap-mode-clamp-to-edge
-                 :wrap-v :wrap-mode-clamp-to-edge}
+                 :wrap-v :wrap-mode-clamp-to-edge
+                 :wrap-w :wrap-mode-repeat}
                 {:filter-mag :filter-mode-mag-linear
                  :filter-min :filter-mode-min-linear
                  :max-anisotropy 1.0
                  :name "normal"
                  :wrap-u :wrap-mode-clamp-to-edge
-                 :wrap-v :wrap-mode-clamp-to-edge}]
+                 :wrap-v :wrap-mode-clamp-to-edge
+                 :wrap-w :wrap-mode-repeat}]
                (g/node-value legacy-textures-material :samplers))))
       (let [legacy-element-count-material (project/get-resource-node project "/silently_migrated/legacy_vertex_attribute_element_count.material")
             legacy-attributes (g/node-value legacy-element-count-material :attributes)
@@ -1614,3 +1643,35 @@
 
       (testing "Save-related data is in cache after saving the project."
         (is (= {} (test-util/uncached-save-data-outputs-by-proj-path project)))))))
+
+(deftest no-substructure-remains-after-resource-node-deletion-test
+  (testing "Owned substructure is cleaned up after deleting resource nodes."
+    (let [surviving-node-type-kw?
+          #{:editor.code.preprocessors/CodePreprocessorsNode
+            :editor.code.script-annotations/ScriptAnnotations
+            :editor.code.script-intelligence/ScriptIntelligenceNode
+            :editor.code.transpilers/CodeTranspilersNode
+            :editor.code.transpilers/TranspilerNode
+            :editor.defold-project/Project
+            :editor.editor-extensions/EditorExtensions
+            :editor.editor-localization-bundle/EditorLocalizationBundle
+            :editor.notifications/NotificationsNode
+            :editor.workspace/Workspace
+            :integration.test-util/MockAppView}]
+      (test-util/with-loaded-project project-path
+        (let [resource-node-ids (vals (g/node-value project :nodes-by-resource-path))]
+          (g/transact
+            (g/delete-nodes resource-node-ids))
+          (let [leaked-node-frequencies
+                (->> @g/*the-system*
+                     (is/graphs)
+                     (eduction
+                       (map val)
+                       (mapcat :nodes)
+                       (map val)
+                       (map g/node-type)
+                       (map :k)
+                       (remove surviving-node-type-kw?))
+                     (frequencies)
+                     (into (sorted-map)))]
+            (is (= {} leaked-node-frequencies))))))))

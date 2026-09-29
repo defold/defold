@@ -22,7 +22,10 @@ namespace dmTime
 {
     void Sleep(uint32_t useconds)
     {
-        ::Sleep(useconds / 1000);
+        // Round up so a positive sub-millisecond wait does not become Sleep(0)
+        // and cause callers such as the frame pacer to poll until their deadline.
+        uint32_t milliseconds = useconds / 1000 + (useconds % 1000 != 0);
+        ::Sleep(milliseconds);
     }
 
     uint64_t GetTime()
@@ -45,6 +48,20 @@ namespace dmTime
         return t;
     }
 
+    // Convert Windows performance-counter ticks without multiplying the full
+    // uptime counter by 1000000 first. That product overflows uint64_t after
+    // about 21.35 days at 10 MHz, making the clock go backwards and breaking
+    // elapsed-time measurements and absolute-deadline comparisons.
+    // Split whole and fractional seconds to retain integer-microsecond precision.
+    // frequency must be nonzero; for Windows QueryPerformanceCounter frequencies
+    // the remainder's product fits in uint64_t, as must the resulting timestamp.
+    uint64_t PerformanceCounterToMicroseconds(uint64_t ticks, uint64_t frequency)
+    {
+        uint64_t seconds = ticks / frequency;
+        uint64_t remainder = ticks % frequency;
+        return seconds * 1000000ULL + remainder * 1000000ULL / frequency;
+    }
+
     static uint64_t frequency = 0;
 
     uint64_t GetMonotonicTime()
@@ -56,6 +73,6 @@ namespace dmTime
         }
         LARGE_INTEGER counter;
         QueryPerformanceCounter(&counter);
-        return (uint64_t)counter.QuadPart * 1000000ULL / frequency;
+        return PerformanceCounterToMicroseconds((uint64_t)counter.QuadPart, frequency);
     }
 }

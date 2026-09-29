@@ -301,9 +301,9 @@
     (fx.mutator/setter #(.setCellFactory ^ListView %1 %2))
     (fx.lifecycle/detached-prop-map fx.list-cell/props)
     :coerce
-    #(let [props-vol (volatile! {})]
-       (reify Callback
-         (call [_ _]
+    #(reify Callback
+       (call [_ _]
+         (let [props-vol (volatile! {})]
            (proxy [ListCell] []
              (updateItem [item empty]
                (let [^ListCell this this
@@ -409,6 +409,15 @@
     (mount-renderer-and-await-result! state-atom renderer)))
 
 (defn show-stateless-dialog-and-await-result!
+  "Creates a dialog, shows it and blocks the current thread until the dialog
+  delivers a result, then returns it
+
+  Args:
+    desc-fn    required, 1-argument fn that receives a `result-fn` and returns
+               an fx description of a dialog stage.
+
+  The dialog completes by calling `result-fn` with the result value, which
+  closes the stage and makes this fn return that value."
   [desc-fn]
   (let [event-loop-key (Object.)
         result-promise (promise)
@@ -963,16 +972,14 @@
           props
           (if-let [style-class (padding->style-class padding)]
             (-> props (dissoc :padding) (add-style-classes style-class))
-            (if (number? padding)
-              props
-              (throw (AssertionError. (str "Invalid padding: " padding))))))))))
+            props))))))
 
 (defn grid
   "Grid pane
 
   Supports all :grid-pane props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
@@ -986,7 +993,7 @@
 
   Supports all :h-box props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
@@ -1000,7 +1007,7 @@
 
   Supports all :v-box props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
@@ -1448,6 +1455,20 @@
         (Color. (.getRed c) (.getGreen c) (.getBlue c) 1.0)
         c))
     (catch IllegalArgumentException _)))
+
+(defn- clamp-unit
+  ^double [n]
+  (min 1.0 (max 0.0 (double n))))
+
+(defn vec->color
+  "Converts an [r g b] or [r g b a] vector to a Color, clamping each component
+  to the 0.0 .. 1.0 range that Color requires. Values outside that range occur
+  in the wild, and Color's constructor throws on them."
+  ^Color [[r g b a]]
+  (Color. (clamp-unit r)
+          (clamp-unit g)
+          (clamp-unit b)
+          (clamp-unit (or a 1.0))))
 
 (def ^:private on-color-dropper-mouse-pressed MouseEvent/.consume)
 

@@ -369,6 +369,8 @@
      :buttons [{:text (localization/message "updater.dialog.button.not-now")
                 :cancel-button true
                 :result :cancel}
+               {:text (localization/message "updater.dialog.button.skip-newer-version")
+                :result :skip}
                {:text (localization/message "updater.dialog.button.install-and-restart")
                 :result :restart}
                {:text (localization/message "updater.dialog.button.download-newer-version")
@@ -399,10 +401,12 @@
      :owner owner
      :buttons [{:text (localization/message "updater.dialog.button.not-now")
                 :cancel-button true
-                :result false}
+                :result :later}
+               {:text (localization/message "updater.dialog.button.skip-version")
+                :result :skip}
                {:text (localization/message "updater.dialog.button.download")
                 :default-button true
-                :result true}]}))
+                :result :update}]}))
 
 (defn- messages
   [ex-map]

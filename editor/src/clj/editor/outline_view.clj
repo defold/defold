@@ -772,8 +772,10 @@
         .getSelectionModel
         .getSelectedItems
         (^[ListChangeListener] ObservableList/.addListener
-          (fn [_]
-            (g/set-property! outline-view :tree-selection (ui/selection tree-view)))))
+          (fn [_change]
+            (g/transact
+              {:undoable false}
+              (g/set-property outline-view :tree-selection (ui/selection tree-view))))))
     (doto tree-view
       (ui/customize-tree-view! {:double-click-expand true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
@@ -790,7 +792,7 @@
       (ui/context! :outline {:outline-view outline-view} (->SelectionProvider tree-view) {} {Long :node-id
                                                                                              resource/Resource :link}))))
 
-(defn make-outline-view [view-graph project app-view localization]
+(defn make-outline-view [graph project app-view localization]
   (let [tree-view (doto (ExtendedTreeView.)
                     (.setId "outline")
                     (.setPrefWidth 269.0)
@@ -798,9 +800,10 @@
         outline-view (first
                        (g/tx-nodes-added
                          (g/transact
-                           (g/make-nodes view-graph [outline-view [OutlineView
-                                                                   :tree-view tree-view
-                                                                   :localization localization]]
+                           {:undoable false}
+                           (g/make-nodes graph [outline-view [OutlineView
+                                                              :tree-view tree-view
+                                                              :localization localization]]
                              (g/connect app-view :_node-id outline-view :app-view)))))]
     (setup-tree-view project tree-view outline-view app-view localization)
     outline-view))

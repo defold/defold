@@ -32,7 +32,7 @@ public class CopyCustomResourcesBuilder extends Builder {
         BobProjectProperties properties = project.getProjectProperties();
         Set<String> paths = new LinkedHashSet<>();
 
-        String[] resources = properties.getStringArrayValue("project", "custom_resources", new String[0]);
+        String[] resources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
         for (String s : resources) {
             s = s.trim();
             if (s.length() > 0) {

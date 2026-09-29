@@ -72,9 +72,9 @@ else()
         set(_platform_glfw_sources
             "${PLAT_SRC_DIR}/window.cpp"
             "${PLAT_SRC_DIR}/platform_window_glfw.cpp")
-        if (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
+        if (TARGET_PLATFORM MATCHES "arm64-ios|arm64_sim-ios")
             list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw_ios.mm")
-        elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
+        elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android|x86_64-android")
             list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw_android.cpp")
         endif()
     endif()
@@ -156,4 +156,6 @@ install(FILES
 
 # ********************* Tests *********************
 
-add_subdirectory(src/test)
+if(BUILD_TESTS)
+    add_subdirectory(src/test)
+endif()

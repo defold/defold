@@ -24,6 +24,7 @@ import com.dynamo.bob.util.TextureUtil;
 import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.font.proto.GlyphBankProto;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesys.proto.DataProto;
@@ -31,6 +32,7 @@ import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.Gui;
 import com.dynamo.gamesys.proto.ModelProto;
+import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
@@ -59,6 +61,12 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return CollectionDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("collisionobjectc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return CollisionObjectDesc.parseFrom(content);
             }
         });
         parseMap.put("scriptc", new IParser() {
@@ -202,7 +210,7 @@ public class ParseUtil {
         parseMap.put("glyph_bankc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                return Font.GlyphBank.parseFrom(content);
+                return GlyphBankProto.GlyphBank.parseFrom(content);
             }
         });
         parseMap.put("guic", new IParser() {

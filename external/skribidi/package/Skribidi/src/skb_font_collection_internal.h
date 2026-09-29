@@ -10,37 +10,52 @@
 
 // harfbuzz forward declarations
 typedef struct hb_font_t hb_font_t;
+typedef struct hb_set_t hb_set_t;
 
 typedef struct skb_font_collection_t {
 	uint32_t id;				// ID of the font collection.
+
 	skb_font_t* fonts;			// Array of fonts in the collection.
 	int32_t fonts_count;		// Number of fonts in the collection.
 	int32_t fonts_cap;			// Capacity of the fonts array.
-	int32_t empty_fonts_count;	// Number of empty fonts.
+
+	int32_t fonts_free_list;
+
 	skb_font_fallback_func_t* fallback_func;	// Function to call when no fonts are found.
 	void* fallback_context;						// Context passed to the fallback function.
 
 } skb_font_collection_t;
 
 typedef struct skb_font_t {
-	hb_font_t* hb_font;			// Associate harfbuzz font.
-	char* name;					// Name of the font (file name)
+	int32_t next_free;
+	uint32_t generation;		// Generation index used to identify stale handles.
+	skb_font_handle_t handle;	// Unique identifier of the font.
 	uint64_t hash;				// Hash of the name, used as unique identifier.
+	char* name;					// Name of the font (file name)
+
+	hb_font_t* hb_font;			// Associate harfbuzz font.
+	hb_set_t* unicodes;			// Set of codepoints supported by the font.
+
 	int32_t upem;				// units per em square.
 	float upem_scale;			// 1 / upem.
+
 	skb_font_metrics_t metrics;			// Font metrics (ascender, etc).
 	skb_caret_metrics_t caret_metrics;	// Caret metrics (offset, slope)
+
 	uint8_t* scripts;			// Supported scripts
 	int32_t scripts_count;		// Number of supported scripts
+
 	uint8_t font_family;		// font family identifier.
 	uint8_t style;				// Normal, italic, oblique (skb_font_style_t)
 	float stretch;				// From 0.5 (ultra condensed) -> 1.0 (normal) -> 2.0 (ultra wide).
 	int32_t weight;				// weight of the font (400 = regular).
-	uint32_t generation;		// Generation index used to identify stale handles.
-	skb_font_handle_t handle;	// Unique identifier of the font.
+
 	skb_baseline_set_t* baseline_sets;	// Baseline sets (one for each requested script/direction combo).
 	int32_t baseline_sets_count;		// Number of baseline sets
 	int32_t baseline_sets_cap;			// Capacity of the baseline sets
+
+	skb_rect2_t* glyph_bounds;	// Array of glyph bounds.
+	int32_t glyph_bounds_count;
 } skb_font_t;
 
 #endif // SKB_FONT_COLLECTION_INTERNAL_H

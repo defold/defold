@@ -171,9 +171,22 @@ static const dmShaderc::ShaderResource* GetShaderResourceByNameHash(const dmArra
     return 0;
 }
 
-static inline const char* FindFirstOccurance(const char* src, const char* text)
+static inline const char* FindFirstOccurrence(const dmArray<uint8_t>& data, const char* text)
 {
-    return strstr(src, text);
+    uint32_t text_size = (uint32_t) strlen(text);
+    if (text_size > data.Size())
+    {
+        return 0;
+    }
+
+    for (uint32_t i = 0; i <= data.Size() - text_size; ++i)
+    {
+        if (memcmp(data.Begin() + i, text, text_size) == 0)
+        {
+            return (const char*) data.Begin() + i;
+        }
+    }
+    return 0;
 }
 
 TEST(Shaderc, ModifyBindings)
@@ -217,12 +230,12 @@ TEST(Shaderc, ModifyBindings)
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 3) in vec4 position;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 4) in vec3 normal;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 5) in vec2 tex_coord;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "layout(location = 3) in vec4 position;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "layout(location = 4) in vec3 normal;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "layout(location = 5) in vec2 tex_coord;"));
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(binding = 3, std140) uniform matrices"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(binding = 4, std140) uniform extra"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "layout(binding = 3, std140) uniform matrices"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "layout(binding = 4, std140) uniform extra"));
 
     dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);
@@ -580,6 +593,7 @@ TEST(Shaderc, TestMetal)
 
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 TEST(Shaderc, TestMetalCompute)
@@ -632,7 +646,6 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     ASSERT_NE((void*) 0, dst);
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    const char* src = (const char*) dst->m_Data.Begin();
     const char* float_highp_block =
         "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
         "    precision highp float;\n"
@@ -640,8 +653,8 @@ TEST(Shaderc, GlslEsPrecisionOptions)
         "    precision mediump float;\n"
         "#endif";
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, float_highp_block));
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump int;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, float_highp_block));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision mediump int;"));
 
     dmShaderc::FreeShaderCompileResult(dst);
 
@@ -653,7 +666,6 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     ASSERT_NE((void*) 0, dst);
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    src = (const char*) dst->m_Data.Begin();
     const char* int_highp_block =
         "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
         "    precision highp int;\n"
@@ -661,8 +673,8 @@ TEST(Shaderc, GlslEsPrecisionOptions)
         "    precision mediump int;\n"
         "#endif";
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump float;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, int_highp_block));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision mediump float;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, int_highp_block));
 
     dmShaderc::FreeShaderCompileResult(dst);
 
@@ -674,11 +686,10 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     ASSERT_NE((void*) 0, dst);
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    src = (const char*) dst->m_Data.Begin();
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump float;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump int;"));
-    ASSERT_EQ((const char*) 0, FindFirstOccurance(src, "precision highp float;"));
-    ASSERT_EQ((const char*) 0, FindFirstOccurance(src, "precision highp int;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision mediump float;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision mediump int;"));
+    ASSERT_EQ((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision highp float;"));
+    ASSERT_EQ((const char*) 0, FindFirstOccurrence(dst->m_Data, "precision highp int;"));
 
     dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);

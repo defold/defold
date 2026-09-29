@@ -76,17 +76,17 @@ def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
-        return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios']
+        return platform not in ['wasm-web', 'wasm_pthread-web', 'arm64_sim-ios']
     if feature == 'dx12':
         return platform in ['x86_64-win32']
     if feature == 'opengl_compute':
-        return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
+        return platform not in ['wasm-web', 'wasm_pthread-web', 'arm64-ios', 'arm64_sim-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-ios', 'arm64-ios']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-android', 'arm64-ios', 'arm64_sim-ios']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     if feature == 'metal':
-        return platform in ['x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios']
+        return platform in ['x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -253,7 +253,7 @@ def platform_graphics_libs_and_symbols(platform):
     use_vulkan = False
     use_metal = Options.options.with_metal and platform_supports_feature(platform, 'metal', {})
 
-    if platform in ('x86_64-ios', 'arm64-ios'):
+    if platform in ('arm64-ios', 'arm64_sim-ios'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
     elif platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
@@ -262,7 +262,7 @@ def platform_graphics_libs_and_symbols(platform):
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         use_opengles = Options.options.with_opengl or not Options.options.with_vulkan
         use_vulkan = Options.options.with_vulkan or not Options.options.with_opengl
     else:
@@ -279,7 +279,7 @@ def platform_graphics_libs_and_symbols(platform):
 
     if use_vulkan:
         glfw_lib = 'DMGLFW'
-        if platform in ('armv7-android', 'arm64-android') and not use_opengles:
+        if platform in ('armv7-android', 'arm64-android', 'x86_64-android') and not use_opengles:
             glfw_lib = 'DMGLFW_VULKAN'
         graphics_libs += ['GRAPHICS_VULKAN', glfw_lib, 'VULKAN']
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
@@ -294,7 +294,7 @@ def platform_graphics_libs_and_symbols(platform):
 
     if use_metal:
         graphics_libs += ['GRAPHICS_METAL']
-        if platform in ('x86_64-ios', 'arm64-ios') and not use_opengl and not use_opengles and not use_vulkan:
+        if platform in ('arm64-ios', 'arm64_sim-ios') and not use_opengl and not use_opengles and not use_vulkan:
             graphics_libs += ['DMGLFW']
         graphics_libs += ['METAL']
         graphics_lib_symbols.append('GraphicsAdapterMetal')
@@ -382,19 +382,29 @@ def dmsdk_add_files(bld, target, source):
             bld.install_files(os.path.join(target, sdk_dir), f)
 
 def getAndroidNDKArch(target_arch):
-    return 'arm64' if 'arm64' == target_arch else 'arm'
+    if 'arm64' == target_arch:
+        return 'arm64'
+    if 'x86_64' == target_arch:
+        return 'x86_64'
+    return 'arm'
 
 def getAndroidArch(target_arch):
-    return 'arm64-v8a' if 'arm64' == target_arch else 'armeabi-v7a'
+    if 'arm64' == target_arch:
+        return 'arm64-v8a'
+    if 'x86_64' == target_arch:
+        return 'x86_64'
+    return 'armeabi-v7a'
 
 def getAndroidCompilerName(target_arch, api_version):
     if target_arch == 'arm64':
         return 'aarch64-linux-android%s-clang' % (api_version)
+    elif target_arch == 'x86_64':
+        return 'x86_64-linux-android%s-clang' % (api_version)
     else:
         return 'armv7a-linux-androideabi%s-clang' % (api_version)
 
 def getAndroidNDKAPIVersion(target_arch):
-    if target_arch == 'arm64':
+    if target_arch in ('arm64', 'x86_64'):
         return sdk.ANDROID_64_NDK_API_VERSION
     else:
         return sdk.ANDROID_NDK_API_VERSION
@@ -404,6 +414,10 @@ def getAndroidCompileFlags(target_arch):
     # -mthumb, -mfloat-abi, -mfpu are implicit on aarch64, removed from flags
     if 'arm64' == target_arch:
         return ['-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv8-a', '-fvisibility=hidden']
+    # NOTE: no -march for x86_64. The NDK's x86_64-linux-android<api>-clang wrapper already
+    # targets the baseline mandated by the Android x86_64 ABI (SSE4.2 + POPCNT).
+    elif 'x86_64' == target_arch:
+        return ['-DGOOGLE_PROTOBUF_NO_RTTI', '-fvisibility=hidden']
     # NOTE:
     # -fno-exceptions added
     else:
@@ -411,7 +425,8 @@ def getAndroidCompileFlags(target_arch):
 
 def getAndroidLinkFlags(target_arch):
     common_flags = ['-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
-    if target_arch == 'arm64':
+    # 16kb page alignment is required on 64 bit Android, x86_64 emulator images use it too
+    if target_arch in ('arm64', 'x86_64'):
         return common_flags + ['-Wl,-z,max-page-size=16384']
     else:
         return ['-Wl,--fix-cortex-a8'] + common_flags
@@ -585,7 +600,9 @@ def default_flags(self):
         if 'linux' in self.env['BUILD_PLATFORM']:
             self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
 
-    elif TargetOS.IOS == target_os and target_arch in ('armv7', 'arm64', 'x86_64'):
+    elif TargetOS.IOS == target_os and target_arch == 'arm64':
+        is_simulator = build_util.get_target_platform() == 'arm64_sim-ios'
+        version_min_flag = '-m%s-version-min=%s' % ('ios-simulator' if is_simulator else 'iphoneos', sdk.VERSION_IPHONEOS_MIN)
         extra_ccflags = []
         extra_linkflags = []
         if 'linux' in self.env['BUILD_PLATFORM']:
@@ -598,13 +615,11 @@ def default_flags(self):
             extra_linkflags += ['-fobjc-link-runtime']
 
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
-        swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
-        if 'x86_64' == target_arch:
-            swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
+        swift_dir = "%s/usr/lib/swift-%s/%s" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION, 'iphonesimulator' if is_simulator else 'iphoneos')
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, extra_ccflags + ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fvisibility=hidden',
-                                            '-arch', target_arch, '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN])
+                                            '-arch', target_arch, version_min_flag])
             self.env.append_value(f, ['-isysroot', sys_root])
 
             if f == 'CXXFLAGS':
@@ -612,10 +627,10 @@ def default_flags(self):
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
-            if 'x86_64' == target_arch:
+            if is_simulator:
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
-        self.env.append_value('LINKFLAGS', ['-arch', target_arch, '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN] + extra_linkflags)
+        self.env.append_value('LINKFLAGS', ['-arch', target_arch, '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', version_min_flag] + extra_linkflags)
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
     elif TargetOS.ANDROID == target_os:
@@ -828,14 +843,6 @@ def android_link_flags(self):
             # NOTE: This is a hack We change cprogram -> cshlib
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.env.append_value('LINKFLAGS', ['-shared'])
-
-@feature('cprogram', 'cxxprogram')
-@before('process_source')
-def osx_64_luajit(self):
-    # Was previously needed for 64bit OSX, but removed when we updated luajit-2.1.0-beta3,
-    # however it is still needed for 64bit iOS Simulator.
-    if self.env['PLATFORM'] == 'x86_64-ios':
-        self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
 
 @feature('skip_asan')
 @before('process_source')
@@ -1154,7 +1161,7 @@ Task.task_factory('app_bundle',
 
 def _strip_executable(bld, platform, target_arch, path):
     """ Strips the debug symbols from an executable """
-    if platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','armv7-android','arm64-android']:
+    if platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','arm64_sim-ios','armv7-android','arm64-android','x86_64-android']:
         return 0 # return ok, path is still unstripped
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
@@ -1304,10 +1311,8 @@ def android_package(task):
         print ('', file=f)
 
     with open(task.gdb_setup.abspath(), 'w') as f:
-        if 'arm64' == build_util.get_target_architecture():
-            print ('set solib-search-path ./libs/arm64-v8a:./obj/local/arm64-v8a/', file=f)
-        else:
-            print ('set solib-search-path ./libs/armeabi-v7a:./obj/local/armeabi-v7a/', file=f)
+        android_abi = getAndroidArch(build_util.get_target_architecture())
+        print ('set solib-search-path ./libs/%s:./obj/local/%s/' % (android_abi, android_abi), file=f)
 
     return 0
 
@@ -1320,7 +1325,7 @@ Task.task_factory('android_package',
 @after('apply_link')
 @feature('apk')
 def create_android_package(self):
-    if not re.match('arm.*?android', self.env['PLATFORM']):
+    if not re.match('.*?-android$', self.env['PLATFORM']):
         return
     Utils.def_attrs(self, android_package = None)
 
@@ -1344,10 +1349,8 @@ def create_android_package(self):
     except BuildUtilityException as ex:
         android_package_task.fatal(ex.msg)
 
-    if 'arm64' == build_util.get_target_architecture():
-        native_lib = self.path.get_bld().make_node("%s.android/libs/arm64-v8a/%s" % (exe_name, lib_name))
-    else:
-        native_lib = self.path.get_bld().make_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
+    android_abi = getAndroidArch(build_util.get_target_architecture())
+    native_lib = self.path.get_bld().make_node("%s.android/libs/%s/%s" % (exe_name, android_abi, lib_name))
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
     android_package_task.classes_dex = self.path.get_bld().make_node("%s.android/classes.dex" % (exe_name))
@@ -1355,10 +1358,7 @@ def create_android_package(self):
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.get_bld().make_node("%s.android/jni/Android.mk" % (exe_name))
     android_package_task.application_mk = self.path.get_bld().make_node("%s.android/jni/Application.mk" % (exe_name))
-    if 'arm64' == build_util.get_target_architecture():
-        android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/arm64-v8a/gdb.setup" % (exe_name))
-    else:
-        android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
+    android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/%s/gdb.setup" % (exe_name, android_abi))
 
     android_package_task.set_outputs([native_lib,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
@@ -1385,7 +1385,7 @@ task.sig_explicit_deps = sig_copy_stub
 @before('process_source')
 @feature('apk')
 def create_copy_glue(self):
-    if not re.match('arm.*?android', self.env['PLATFORM']):
+    if not re.match('.*?-android$', self.env['PLATFORM']):
         return
 
     stub = self.path.get_bld().find_or_declare('android_stub.cpp')
@@ -1447,7 +1447,7 @@ Task.task_factory('dex', '${D8} --dex --output ${TGT} ${SRC}',
 @after('apply_java')
 @feature('dex')
 def apply_dex(self):
-    if not re.match('arm.*?android', self.env['PLATFORM']):
+    if not re.match('.*?-android$', self.env['PLATFORM']):
         return
 
     jar = self.path.find_or_declare(self.destfile)
@@ -1534,6 +1534,20 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
         self.fatal('The file %s could not be found' % file_name)
 
     return ret
+
+def get_test_server_ip(platform, local_ip):
+    """The address a test device should use to reach a test server on this machine."""
+    if not 'android' in platform:
+        return local_ip
+
+    # The Android test harness sets up an 'adb reverse' tunnel for the port in the test
+    # config file, letting the device reach the server over its own loopback. The tunnel
+    # ends on whichever machine runs the adb server, so when we drive a device through a
+    # remote adb server we have to keep using the routable address instead.
+    if os.environ.get('ADB_SERVER_SOCKET', None) or os.environ.get('ANDROID_ADB_SERVER_ADDRESS', None):
+        return local_ip
+
+    return "localhost"
 
 def create_test_server_config(ctx, port=None, ip=None, config_name=None):
     local_ip = ip
@@ -1814,7 +1828,7 @@ def detect(conf):
         print ("Codesign unsupported (%s cannot codesign for %s)" % (host_platform, build_util.get_target_platform()))
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'wasm-web', 'wasm_pthread-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'arm64_sim-ios', 'wasm-web', 'wasm_pthread-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if target_os == TargetOS.WINDOWS:
@@ -1859,7 +1873,7 @@ def detect(conf):
         conf.env['AR']      = '%s/%sar' % (bin_dir, llvm_prefix)
         conf.env['RANLIB']  = '%s/%sranlib' % (bin_dir, llvm_prefix)
 
-    elif TargetOS.IOS == target_os and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
+    elif TargetOS.IOS == target_os and build_util.get_target_architecture() == 'arm64':
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
         if 'linux' in host_platform:
@@ -1889,7 +1903,7 @@ def detect(conf):
         conf.env['GCC-OBJCLINK'] = '-lobjc'
 
 
-    elif TargetOS.ANDROID == target_os and build_util.get_target_architecture() in ('armv7', 'arm64'):
+    elif TargetOS.ANDROID == target_os and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         bp_arch, bp_os = host_platform.split('-')
         exe_suffix = ''
@@ -2051,7 +2065,7 @@ def detect(conf):
         conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
-    if platform in ('x86_64-linux','arm64-linux','armv7-android','arm64-android'): # Currently the only platform exhibiting the behavior
+    if platform in ('x86_64-linux','arm64-linux','armv7-android','arm64-android','x86_64-android'): # Currently the only platform exhibiting the behavior
         conf.env['STLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
         conf.env['SHLIB_MARKER'] = ['-Wl,-end-group', '-Wl,-Bdynamic']
 

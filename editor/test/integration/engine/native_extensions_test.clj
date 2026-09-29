@@ -20,12 +20,10 @@
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
             [editor.engine.native-extensions :as native-extensions]
-            [editor.fs :as fs]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.yaml :as yaml]
             [integration.test-util :as test-util]
-            [service.log :as log]
             [support.test-support :refer [with-clean-system]]
             [util.repo :as repo])
   (:import [com.defold.extender.client ExtenderResource]
@@ -128,28 +126,26 @@
 (deftest ^:native-extensions app-manifest-context-test
   (testing "app manifest is synthesized with editor build options"
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+      (let [workspace (test-util/setup-workspace! world "test/resources/empty_project")
             project (test-util/setup-project! workspace)
             resources (make-extender-resources project "x86_64-macos")]
         (is (= {"context" expected-editor-build-context}
                (extender-resource-yaml resources "_app/app.manifest"))))))
   (testing "configured app manifest is merged with editor build options"
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
-            project (log/without-logging
-                      (test-util/setup-project! workspace))
+      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+            project (test-util/setup-project! workspace)
             resources (make-extender-resources project "x86_64-macos")
-            app-manifest-file (io/file (workspace/project-directory workspace) "checked.appmanifest")
+            app-manifest-file (io/file (workspace/project-directory workspace) "game.appmanifest")
             app-manifest (yaml/load (slurp app-manifest-file))]
         (is (= 1 (count (extender-resources resources "_app/app.manifest"))))
         (is (= (assoc app-manifest "context" expected-editor-build-context)
                (extender-resource-yaml resources "_app/app.manifest"))))))
   (testing "configured app manifest in flow style is merged as yaml data"
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
-            project (log/without-logging
-                      (test-util/setup-project! workspace))
-            app-manifest (project/get-resource-node project "/checked.appmanifest")]
+      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+            project (test-util/setup-project! workspace)
+            app-manifest (project/get-resource-node project "/game.appmanifest")]
         (test-util/set-code-editor-source! app-manifest "{\"platforms\": {\"wasm-web\": {\"context\": {}}}}\n")
         (let [resources (make-extender-resources project "wasm-web")]
           (is (= {"context" expected-editor-build-context
@@ -160,16 +156,60 @@
                    "context: true\n"]]
     (testing (str "configured invalid app manifest is uploaded unchanged: " (string/trim content))
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
-              project (log/without-logging
-                        (test-util/setup-project! workspace))
-              app-manifest (project/get-resource-node project "/checked.appmanifest")]
+        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+              project (test-util/setup-project! workspace)
+              app-manifest (project/get-resource-node project "/game.appmanifest")]
           (test-util/set-code-editor-source! app-manifest content)
           (let [resources (make-extender-resources project "x86_64-macos")]
             (is (= content
                    (extender-resource-content (extender-resource resources "_app/app.manifest"))))))))))
 
-(defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
+;; Verifies that opening a 1.13.1 2D-only manifest upgrades its Bullet3D exclusions
+;; and that Cmd+B uploads those exclusions, preventing missing Bullet linker symbols.
+(deftest ^:native-extensions legacy-bullet3d-app-manifest-migration-test
+  (test-util/with-temp-project-content
+    {"/game.project"
+     [{:path ["project" "title"]
+       :value "Empty project"}
+      {:path ["native_extension" "app_manifest"]
+       :value "/legacy.appmanifest"}]
+
+     "/legacy.appmanifest"
+     ["context:"
+      "  excludeLibs: [LinearMath, BulletDynamics, BulletCollision]"
+      "  excludeSymbols: []"
+      "platforms:"
+      "  arm64-osx:"
+      "    context:"
+      "      excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision]"
+      "      excludeSymbols: []"
+      "      libs: [physics_2d_defold]"
+      "  x86_64-win32:"
+      "    context:"
+      "      excludeLibs: [physics, libLinearMath, libBulletDynamics, libBulletCollision]"
+      "      excludeSymbols: []"
+      "  x86_64-linux:"
+      "    context:"
+      "      excludeLibs: [BulletDynamics]"]}
+    (let [manifest-node (project/get-resource-node project "/legacy.appmanifest")
+          manifest (g/node-value manifest-node :manifest)
+          upload (extender-resource-yaml (make-extender-resources project "arm64-macos") "_app/app.manifest")]
+      (is (true? (:dirty (g/node-value manifest-node :save-data))))
+      (doseq [platform [nil :arm64-osx :x86_64-win32]]
+        (let [context (if-not platform
+                        (:context manifest)
+                        (get-in manifest [:platforms platform :context]))
+              upload-context (if-not platform
+                               (get upload "context")
+                               (get-in upload ["platforms" (name platform) "context"]))]
+          (is (= 1 (get (frequencies (:excludeLibs context)) "script_bullet3d")))
+          (is (= ["ScriptBullet3DExt"] (:excludeSymbols context)))
+          (is (contains? (set (get upload-context "excludeLibs")) "script_bullet3d"))
+          (is (contains? (set (get upload-context "excludeSymbols")) "ScriptBullet3DExt"))))
+      (is (= ["BulletDynamics"]
+             (get-in manifest [:platforms :x86_64-linux :context :excludeLibs])))
+      (is (= ["physics_2d_defold"]
+             (get-in upload ["platforms" "arm64-osx" "context" "libs"]))))))
 
 (defn- blocking-async-build! [project prefs]
   @(app-view/async-build! project :prefs prefs))

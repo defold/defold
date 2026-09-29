@@ -968,7 +968,7 @@ namespace dmGraphics
         delete program;
     }
 
-    static bool NullReloadProgram(HContext _context, HProgram program, ShaderDesc* ddf)
+    static bool NullReloadProgram(HContext _context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         NullProgram* p = (NullProgram*) program;
 
@@ -1194,6 +1194,7 @@ namespace dmGraphics
     {
         NullContext* context = (NullContext*) _context;
         NullRenderTarget* rt = new NullRenderTarget();
+        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, 255, "Null");
 
         BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
@@ -1582,7 +1583,7 @@ namespace dmGraphics
         return HANDLE_RESULT_OK;
     }
 
-    static void NullSetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void NullSetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
         assert(texture);
         g_NullContext->m_Samplers[g_NullContext->m_TextureUnit].m_MinFilter = minfilter == TEXTURE_FILTER_DEFAULT ? g_NullContext->m_BaseContext.m_DefaultTextureMinFilter : minfilter;
@@ -1624,6 +1625,7 @@ namespace dmGraphics
         tex->m_Sampler.m_MagFilter = params.m_MagFilter;
         tex->m_Sampler.m_UWrap     = params.m_UWrap;
         tex->m_Sampler.m_VWrap     = params.m_VWrap;
+        tex->m_Sampler.m_WWrap     = params.m_WWrap;
         SetTextureResourceSize(&tex->m_Base, sizeof(NullTexture));
     }
 
@@ -1638,7 +1640,7 @@ namespace dmGraphics
         assert(tex->m_Data);
         context->m_Textures[unit] = texture;
         context->m_TextureUnit = unit;
-        NullSetTextureParams(_context, texture, tex->m_Sampler.m_MinFilter, tex->m_Sampler.m_MagFilter, tex->m_Sampler.m_UWrap, tex->m_Sampler.m_VWrap, tex->m_Sampler.m_Anisotropy);
+        NullSetTextureParams(_context, texture, tex->m_Sampler.m_MinFilter, tex->m_Sampler.m_MagFilter, tex->m_Sampler.m_UWrap, tex->m_Sampler.m_VWrap, tex->m_Sampler.m_WWrap, tex->m_Sampler.m_Anisotropy);
 
         tex->m_LastBoundUnit[id_index] = unit;
     }

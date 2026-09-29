@@ -74,6 +74,7 @@ namespace dmGraphics
         TextureFilter   m_MagFilter;
         TextureWrap     m_AddressModeU;
         TextureWrap     m_AddressModeV;
+        TextureWrap     m_AddressModeW;
         float           m_MaxAnisotropy;
         uint8_t         m_MaxLod;
     };
@@ -283,6 +284,7 @@ namespace dmGraphics
         uint32_t                           m_CurrentFrameIndex;
         uint32_t                           m_RtvDescriptorSize;
         uint32_t                           m_DsvDescriptorSize;
+        uint32_t                           m_SwapInterval;
         uint32_t                           m_NumFramesInFlight    : 2;
         uint32_t                           m_FrameBegun           : 1;
         uint32_t                           m_CullFaceChanged      : 1;
@@ -292,7 +294,7 @@ namespace dmGraphics
     };
 
     bool            CommonInitialize(DX12Context* context);
-    int16_t         CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
+    int16_t         CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, uint8_t maxLod, float max_anisotropy);
     void            FlushResourcesToDestroy(DX12FrameResource& current_frame_resource);
     void            SyncronizeFrame(DX12Context* context);; // wait for gpu to finish
     void            SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc);

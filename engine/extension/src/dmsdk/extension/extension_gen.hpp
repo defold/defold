@@ -251,6 +251,7 @@ namespace dmExtension
 
     /*#
         * Generated from [ref:ExtensionRegisterCallback]
+        * @name RegisterCallback
         */
     bool RegisterCallback(CallbackType callback_type, FCallback func);
 
@@ -677,5 +678,3 @@ namespace dmExtension
  * @name DM_PLATFORM_WINDOWS
  * @language C
  */
-
-

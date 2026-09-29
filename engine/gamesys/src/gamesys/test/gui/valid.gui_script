@@ -22,3 +22,22 @@ function update(self, dt)
     assert(self.x == 1)
     self.x = self.x + 1
 end
+
+local function assert_layout_object_message(message)
+    assert(message.type == hash("link"))
+    assert(message.id == hash("docs"))
+    assert(message.src == "https://www.defold.com", message.src)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("text_object_hovered") then
+        assert_layout_object_message(message)
+        gui.set_color(gui.get_node("text"), vmath.vector4(0.25, 1.0, 1.0, 1.0))
+    elseif message_id == hash("text_object_unhovered") then
+        assert_layout_object_message(message)
+        gui.set_color(gui.get_node("text"), vmath.vector4(0.5, 1.0, 1.0, 1.0))
+    elseif message_id == hash("text_object_clicked") then
+        assert_layout_object_message(message)
+        gui.set_text(gui.get_node("text"), "clicked")
+    end
+end

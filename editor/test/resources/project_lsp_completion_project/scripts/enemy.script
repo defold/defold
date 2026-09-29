@@ -1,0 +1,5 @@
+local shared = require("modules.shared")
+
+function init(self)
+    shared.init(self)
+end

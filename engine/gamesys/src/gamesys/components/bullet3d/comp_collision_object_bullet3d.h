@@ -26,6 +26,11 @@
 
 namespace dmGameSystem
 {
+    typedef void (*ScriptBullet3DInvalidateWorldCallback)(void* world);
+    typedef void (*ScriptBullet3DInvalidateCollisionObjectCallback)(void* collision_object);
+    typedef void (*ScriptBullet3DCollisionObjectEnabledCallback)(void* world, void* collision_object, bool enabled);
+    typedef void (*ScriptBullet3DProcessWorldQueriesCallback)(void* world);
+
     dmGameObject::CreateResult   CompCollisionObjectBullet3DNewWorld(const dmGameObject::ComponentNewWorldParams& params);
     dmGameObject::CreateResult   CompCollisionObjectBullet3DDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
     dmGameObject::CreateResult   CompCollisionObjectBullet3DCreate(const dmGameObject::ComponentCreateParams& params);
@@ -39,6 +44,19 @@ namespace dmGameSystem
     void                         CompCollisionObjectBullet3DOnReload(const dmGameObject::ComponentOnReloadParams& params);
     dmGameObject::PropertyResult CompCollisionObjectBullet3DGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
     dmGameObject::PropertyResult CompCollisionObjectBullet3DSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
+
+    // For script_bullet3d.cpp
+    void* CompCollisionObjectGetBullet3DWorld(dmGameObject::HComponentWorld _world);
+    bool  CompCollisionObjectIsBullet3DWorldLocked(dmGameObject::HComponentWorld _world);
+    void  CompCollisionObjectSetBullet3DWorldGravity(dmGameObject::HComponentWorld _world, const dmVMath::Vector3& gravity);
+    void* CompCollisionObjectGetBullet3DCollisionObject(dmGameObject::HComponent _component);
+    bool  CompCollisionObjectMakeBullet3DShapeOwned(dmGameObject::HComponentWorld _world, dmGameObject::HComponent _component, uint32_t shape_index, void** out_shape);
+    bool  CompCollisionObjectReplaceBullet3DShape(dmGameObject::HComponentWorld _world, dmGameObject::HComponent _component, uint32_t shape_index, void* new_shape);
+    void  CompCollisionObjectRefreshBullet3DShape(dmGameObject::HComponentWorld _world, dmGameObject::HComponent _component);
+    void  CompCollisionObjectSetBullet3DInvalidateWorldCallback(ScriptBullet3DInvalidateWorldCallback callback);
+    void  CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(ScriptBullet3DInvalidateCollisionObjectCallback callback);
+    void  CompCollisionObjectSetBullet3DCollisionObjectEnabledCallback(ScriptBullet3DCollisionObjectEnabledCallback callback);
+    void  CompCollisionObjectSetBullet3DProcessWorldQueriesCallback(ScriptBullet3DProcessWorldQueriesCallback callback);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_BULLET3D_H

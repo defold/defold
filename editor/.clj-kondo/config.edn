@@ -10,12 +10,14 @@
                         clojure.core/every? hooks.clojure-core/every?
                         clojure.core/fn hooks.clojure-core/fn-call
                         clojure.core/fn* hooks.clojure-core/fn-call
+                        clojure.core/keys hooks.clojure-core/keys
                         clojure.core/map hooks.clojure-core/map
                         clojure.core.cache/defcache hooks.clojure-core-cache/defcache
                         clojure.core/not-any? hooks.clojure-core/not-any?
                         clojure.core/not-empty hooks.clojure-core/not-empty
                         clojure.core/not-every? hooks.clojure-core/not-every?
                         clojure.core/some hooks.clojure-core/some
+                        clojure.core/vals hooks.clojure-core/vals
                         clojure.string/join hooks.clojure-string/join
                         clojure.test.check.clojure-test/defspec hooks.clojure-test-check-clojure-test/defspec
                         dynamo.graph/deftype hooks.dynamo-graph/deftype
