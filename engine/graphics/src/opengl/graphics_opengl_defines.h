@@ -55,6 +55,17 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #define GL_BGRA GL_BGRA_EXT
+#ifndef GL_SHADER_STORAGE_BUFFER
+// Android uses GLES2 headers, but loads GLES 3.1 entry points at runtime.
+// These enums must be available when compiling the runtime-gated SSBO path.
+#define GL_SHADER_STORAGE_BUFFER              0x90D2
+#endif
+#ifndef GL_MAX_SHADER_STORAGE_BLOCK_SIZE
+#define GL_MAX_SHADER_STORAGE_BLOCK_SIZE      0x90DE
+#endif
+#ifndef GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS
+#define GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS 0x90DD
+#endif
 #elif defined (__EMSCRIPTEN__)
 #include <GL/gl.h>
 #include <GL/glext.h>

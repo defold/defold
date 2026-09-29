@@ -3250,10 +3250,13 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLStorageBufferBarrier(OpenGLContext* context)
     {
     #if defined(GL_SHADER_STORAGE_BUFFER) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
-        if (context->m_StorageBufferSupport && context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+        if (context->m_StorageBufferSupport && !context->m_CurrentProgram->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Empty())
         {
+            // Order readonly draws before later shader writes too. A barrier
+            // after the writer cannot protect reads from an earlier draw.
             glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
-            context->m_StorageBufferUpdateBarrierPending = 1;
+            if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+                context->m_StorageBufferUpdateBarrierPending = 1;
             CHECK_GL_ERROR;
         }
     #else

@@ -1437,8 +1437,6 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
-        // Storage buffers are deliberately not advertised: there is no user-facing
-        // SSBO support path for Metal yet.
         if (context->m_ASTCArrayTextureSupport)
         {
             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
@@ -1473,7 +1471,7 @@ namespace dmGraphics
         limits.m_MaxComputeWorkgroupInvocations = (uint32_t) max_threads_per_threadgroup.width;
         limits.m_MaxComputeSharedMemorySize     = (uint32_t) context->m_Device->maxThreadgroupMemoryLength();
         limits.m_MaxUniformBufferRange          = 64 * 1024;
-        limits.m_MaxStorageBufferRange          = 1ull << 30;
+        limits.m_MaxStorageBufferRange          = context->m_Device->maxBufferLength();
 
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)

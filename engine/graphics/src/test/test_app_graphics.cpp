@@ -1748,6 +1748,7 @@ struct StorageBufferTest : ITest
         DispatchWrite(engine, 0); // The earlier draw must still read white.
         DrawCell(engine, 1, 0);
 
+        DrawCell(engine, 2, 1); // This read must finish before the fragment writer below.
         dmGraphics::EnableProgram(context, m_WriteProgram);
         dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_WriteProgram);
         dmGraphics::EnableStorageBuffer(context, m_Buffers[1], STORAGE_SET, STORAGE_BINDING);
@@ -1755,7 +1756,6 @@ struct StorageBufferTest : ITest
         // Its later consumers are at different pixels, requiring a global dependency.
         dmGraphics::SetViewport(context, 0, 0, 1, 1);
         dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
-        DrawCell(engine, 2, 2);
         DrawCell(engine, 3, 1, true);
         // Write again so the fragment consumer has its own write-to-read dependency.
         dmGraphics::EnableProgram(context, m_WriteProgram);
