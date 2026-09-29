@@ -1036,14 +1036,14 @@ var LibraryDefoldPlatform = {
   dmNativeGetJoystickParam: function(joy, param) {
     var result = 0; //GL_FALSE
     if (DefoldPlatform.joys[joy]) {
-      switch (DefoldPlatform.params[param]) {
-        case 0: // NATIVE_PRESENT
+      switch (param) {
+        case 0x00050001: // NATIVE_PRESENT
           result = 1; //GL_TRUE
           break;
-        case 1: // NATIVE_AXES
+        case 0x00050002: // NATIVE_AXES
           result = DefoldPlatform.joys[joy].axesCount;
           break;
-        case 2: // NATIVE_BUTTONS
+        case 0x00050003: // NATIVE_BUTTONS
           result = DefoldPlatform.joys[joy].buttonsCount;
           break;
         }

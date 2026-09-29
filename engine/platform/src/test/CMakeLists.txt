@@ -30,6 +30,22 @@ add_dependencies(test_platform platform_null)
 # Register into global build_tests and run_tests with working directory set to engine/input
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+    _defold_find_wasm_runner(_platform_js_test_runner)
+    if(_platform_js_test_runner)
+        add_custom_target(run_test_library_platform_js
+            COMMAND "${_platform_js_test_runner}" "${CMAKE_CURRENT_LIST_DIR}/test_library_platform.js"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../.."
+            USES_TERMINAL
+            VERBATIM)
+        if(TARGET run_tests)
+            add_dependencies(run_tests run_test_library_platform_js)
+        endif()
+    else()
+        message(WARNING "Bun or Node.js not found; run_test_library_platform_js is unavailable")
+    endif()
+endif()
+
 # ******************************************************************
 # test_platform_app (windowed test application)
 
