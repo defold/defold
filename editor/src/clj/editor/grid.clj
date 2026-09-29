@@ -260,8 +260,8 @@
     {:ratios [first-grid-ratio (- 1.0 ^double first-grid-ratio)]
      :sizes [grid-size-small grid-size-large]
      :aabbs (cond-> [(snap-out-to-grid aabb grid-size-small)]
-                    grid-size-large
-                    (conj (snap-out-to-grid aabb grid-size-large)))
+              grid-size-large
+              (conj (snap-out-to-grid aabb grid-size-large)))
      :plane plane}))
 
 (defn- grid-mode

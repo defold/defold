@@ -212,23 +212,23 @@
             (let [attribute-buffers
                   (cond-> {:semantic-type-position [positions]}
 
-                          (pos? normal-count)
-                          (assoc :semantic-type-normal [normals])
+                    (pos? normal-count)
+                    (assoc :semantic-type-normal [normals])
 
-                          (pos? tangent-count)
-                          (assoc :semantic-type-tangent [tangents])
+                    (pos? tangent-count)
+                    (assoc :semantic-type-tangent [tangents])
 
-                          (pos? color-count)
-                          (assoc :semantic-type-color [colors])
+                    (pos? color-count)
+                    (assoc :semantic-type-color [colors])
 
-                          (or (pos? texcoord0-count)
-                              (pos? texcoord1-count))
-                          (assoc :semantic-type-texcoord (cond-> [(when (pos? texcoord0-count) texcoord0s)]
-                                                                 (pos? texcoord1-count) (conj texcoord1s))))]
+                    (or (pos? texcoord0-count)
+                        (pos? texcoord1-count))
+                    (assoc :semantic-type-texcoord (cond-> [(when (pos? texcoord0-count) texcoord0s)]
+                                                     (pos? texcoord1-count) (conj texcoord1s))))]
               (cond-> {:attribute-buffers attribute-buffers}
 
-                      (not (neg? max-index))
-                      (assoc :index-buffer indices)))))))))
+                (not (neg? max-index))
+                (assoc :index-buffer indices)))))))))
 
 (defn- render-mesh-opaque [^GL2 gl render-args renderables]
   (let [renderable (first renderables)
@@ -739,10 +739,10 @@
                                    (and scene-aabb (seq augmented-model-scenes))
                                    (assoc-in [0 :aabb] scene-aabb))]
       (cond-> (assoc scene
-        :node-id new-node-id
-        :node-outline-key new-node-outline-key
-        :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
-        :children augmented-model-scenes)
+                :node-id new-node-id
+                :node-outline-key new-node-outline-key
+                :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
+                :children augmented-model-scenes)
         scene-aabb (assoc :aabb scene-aabb)))))
 
 (defn make-material-name->material-scene-info

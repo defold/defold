@@ -75,7 +75,7 @@
          (cond->> (map-indexed (fn [index resource]
                                  (pair (resource/proj-path resource)
                                        index)))
-                  resource-pred (comp (filter resource-pred)))
+           resource-pred (comp (filter resource-pred)))
          resources)))
 
 (g/defnk produce-referenced-component-proj-path->scene-index [referenced-component-resources]

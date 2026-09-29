@@ -106,8 +106,8 @@
 
 (handler/defhandler :vcs.revert :changes-view
   (enabled? [selection]
-            (and (disk-availability/available?)
-                 (pos? (count selection))))
+    (and (disk-availability/available?)
+         (pos? (count selection))))
   (run [async-reload! selection git changes-view workspace localization]
     (when (dialogs/make-confirmation-dialog
             localization
