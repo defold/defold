@@ -206,8 +206,7 @@
            (when-let [[_ port] (re-find #"Lua DAP debugger (?:listening on [^\s]+:|port: )(\d+)" output)]
              (let [port (parse-long port)]
                (when (and port (<= 1 port 65535))
-                 {:debugger-port port
-                  :debugger-port-pending false}))))))
+                 {:debugger-port port}))))))
 
 ;; Parse a line from engine output to extract engine version info.
 (defn parse-engine-version-line [line]
@@ -362,6 +361,4 @@
     (let [p (apply process/start! opts command args)]
       {:process p
        :name (.getName engine)
-       :log-stream (process/out p)
-       ;; The log sink replaces zero with the port selected by the engine.
-       :debugger-port (when debug 0)})))
+       :log-stream (process/out p)})))

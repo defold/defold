@@ -23,7 +23,6 @@
 (deftest launched-log-sink-port-discovery-test
   (let [target
         {:id "engine"
-         :debugger-port 0
          :log-stream ::stream}
         current (atom target)
         updates (atom [])]
@@ -43,10 +42,8 @@
           (sink (.repeat "x" 5001))
           (sink "ordinary game output")
           (is (= before @updates)))
-        (swap! current assoc :debugger-port-pending true)
         (sink "DEBUG:SCRIPT: Lua DAP debugger port: 49153")
         (is (= 49153 (:debugger-port @current)))
-        (is (false? (:debugger-port-pending @current)))
         (is (= "http://127.0.0.1:8001" (:url @current)))
         (is (= "8002" (:log-port @current)))
         (sink "INFO:ENGINE: Engine service started on port 8003")

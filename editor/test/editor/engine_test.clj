@@ -34,9 +34,9 @@
   (is (= 8175 (engine/debugger-port {:instance-index 3})))
   (doseq [address ["127.0.0.1" "0.0.0.0" "192.168.1.20"]
           prefix ["INFO:DEBUGGER: " ""]]
-    (is (= {:debugger-port 49152 :debugger-port-pending false}
+    (is (= {:debugger-port 49152}
            (engine/parse-launched-target-info (str prefix "Lua DAP debugger listening on " address ":49152")))))
-  (is (= {:debugger-port 49152 :debugger-port-pending false}
+  (is (= {:debugger-port 49152}
          (engine/parse-launched-target-info "DEBUG:SCRIPT: Lua DAP debugger port: 49152")))
   (doseq [line ["Lua DAP debugger port: 0"
                 "Lua DAP debugger port: 65536"
@@ -48,8 +48,7 @@
   (is (= {:address "127.0.0.1"
           :url "http://127.0.0.1:8001"
           :log-port "8002"
-          :debugger-port 49152
-          :debugger-port-pending false}
+          :debugger-port 49152}
          (engine/parse-launched-target-info
            (str "INFO:DLIB: Log server started on port 8002\n"
                 "INFO:ENGINE: Engine service started on port 8001\n"
@@ -78,7 +77,7 @@
                 "--config=debugger.port=0"
                 "--config=debugger.wait=1"
                 "--config=project.instance_index=3"] args))
-        (is (= 0 (:debugger-port target))))
+        (is (nil? (:debugger-port target))))
       (engine/launch! binary (io/file "/project") nil false 0 true)
       (is (= [] (into [] (drop 2) (peek @launches)))))))
 
