@@ -1413,6 +1413,8 @@ class Configuration(object):
                     if is_header(file) and ('ddf' in file or file.startswith('res_')):
                         includes.append(os.path.join(root, file))
 
+            # Extender's generated Android entry point uses the platform lifecycle API.
+            includes.append(os.path.join(self.dynamo_home, 'include/platform/platform_app.h'))
             self._add_files_to_zip(zip, includes, basedir, topfolder)
 
             zip.close()
@@ -1459,6 +1461,8 @@ class Configuration(object):
                     if is_header(file) and ('ddf' in file or file.startswith('res_')):
                         includes.append(os.path.join(root, file))
 
+            # Extender's generated Android entry point uses the platform lifecycle API.
+            includes.append(os.path.join(self.dynamo_home, 'include/platform/platform_app.h'))
             self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
 
             # Configs

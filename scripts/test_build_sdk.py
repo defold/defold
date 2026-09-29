@@ -127,6 +127,36 @@ class BuildSdkTests(unittest.TestCase):
 
 
 class PlatformSdkPackagingTests(unittest.TestCase):
+    # Both SDK archive formats must include the header used by Extender's Android entry point.
+    def test_android_sdk_includes_platform_application_header(self):
+        for platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                sdk_root = Path(directory)
+                files = {
+                    'extender/build.yml': 'context: {}',
+                    f'lib/{platform}/libplatform.a': 'platform archive',
+                    f'ext/lib/{platform}/libdependency.a': 'external archive',
+                    'share/java/platform_android.jar': 'platform Java classes',
+                    'include/platform/platform_app.h': 'platform application header',
+                    'sdk/include/dmsdk/dlib/android.h': 'Android SDK header',
+                }
+                for relative_path, contents in files.items():
+                    path = sdk_root / relative_path
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(contents)
+
+                configuration = build.Configuration.__new__(build.Configuration)
+                configuration.dynamo_home = str(sdk_root)
+                headers_path = sdk_root / 'defoldsdk_headers.zip'
+                with contextlib.redirect_stdout(io.StringIO()):
+                    archive_path, _ = configuration._package_platform_sdk(platform)
+                    configuration._package_platform_sdk_headers(headers_path)
+
+                for sdk_path in (archive_path, headers_path):
+                    with self.subTest(archive=Path(sdk_path).name), zipfile.ZipFile(sdk_path) as archive:
+                        self.assertEqual(b'platform application header', archive.read('defoldsdk/include/platform/platform_app.h'))
+                        self.assertEqual(b'Android SDK header', archive.read('defoldsdk/sdk/include/dmsdk/dlib/android.h'))
+
     def package_web_sdk(self, platform, external_javascript):
         with tempfile.TemporaryDirectory() as directory:
             sdk_root = Path(directory)
