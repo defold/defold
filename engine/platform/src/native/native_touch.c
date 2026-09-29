@@ -24,11 +24,18 @@ int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, 
     }
 
     int count = 0;
-    for (int i = 0; i < NATIVE_MAX_TOUCH && count < capacity; ++i)
+    for (int i = 0; i < NATIVE_MAX_TOUCH; ++i)
     {
         NativeTouch* touch = &states[i];
         if (!touch->Reference)
             continue;
+
+        if (count >= capacity)
+        {
+            if (cancelled)
+                touch->Phase = NATIVE_PHASE_ENDED;
+            continue;
+        }
 
         output[count] = *touch;
         if (cancelled)

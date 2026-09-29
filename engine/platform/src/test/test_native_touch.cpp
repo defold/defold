@@ -52,6 +52,32 @@ TEST(NativeTouch, CancellationPreservesPlatformSemantics)
     }
 }
 
+// Verifies cancellation beyond the output capacity releases all touches instead of repeatedly reporting the first touch as ended.
+TEST(NativeTouch, CancellationBeyondCapacityReleasesAllTouches)
+{
+    NativeTouch states[NATIVE_MAX_TOUCH] = {};
+    NativeTouch output[2] = {};
+    states[0].Reference = &states[0];
+    states[0].Phase = NATIVE_PHASE_STATIONARY;
+    states[0].Id = 7;
+    states[NATIVE_MAX_TOUCH - 1].Reference = &states[NATIVE_MAX_TOUCH - 1];
+    states[NATIVE_MAX_TOUCH - 1].Phase = NATIVE_PHASE_CANCELLED;
+    states[NATIVE_MAX_TOUCH - 1].Id = 8;
+    output[1].Id = 12345;
+
+    ASSERT_EQ(1, dmNativeReadTouches(states, output, 1, 1));
+    ASSERT_EQ(NATIVE_PHASE_STATIONARY, output[0].Phase);
+    ASSERT_EQ(7, output[0].Id);
+    ASSERT_EQ(1, dmNativeReadTouches(states, output, 1, 1));
+    ASSERT_EQ(NATIVE_PHASE_ENDED, output[0].Phase);
+    ASSERT_EQ(7, output[0].Id);
+    ASSERT_EQ(1, dmNativeReadTouches(states, output, 1, 1));
+    ASSERT_EQ(NATIVE_PHASE_ENDED, output[0].Phase);
+    ASSERT_EQ(8, output[0].Id);
+    ASSERT_EQ(0, dmNativeReadTouches(states, output, 1, 1));
+    ASSERT_EQ(12345, output[1].Id);
+}
+
 // Verifies a small output buffer is respected and touches that did not fit keep their pending phase.
 TEST(NativeTouch, CapacityPreservesPendingTouches)
 {
