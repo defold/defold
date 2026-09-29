@@ -606,17 +606,11 @@
     ;; Match supersets before subsets. OpenGL is supplied by engine defaults.
     (make-choice-setting
       :vulkan-dx12 (into [] cat [vulkan dx12 exclude-open-gl])
-
       :open-gl-vulkan-dx12 (into vulkan dx12)
-
       :vulkan (into vulkan exclude-open-gl)
-
       :dx12 (into dx12 exclude-open-gl)
-
       :open-gl-vulkan vulkan
-
       :open-gl-dx12 dx12
-
       :open-gl)))
 
 (def open-gl-android-toggles
