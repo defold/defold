@@ -4,6 +4,10 @@
 !/.gitattributes
 !/report.html
 !/file-loading.csv
+!/threaded/
+!/core/
 !/comparisons/
 /comparisons/*
 !/comparisons/c21-case-queries/
+
+!/unity/

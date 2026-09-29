@@ -1,0 +1,7 @@
+
+running 2 tests
+test tests::conflicting_updates_and_streaming_match_sequential_replay ... ok
+test tests::independent_fields_run_on_distinct_threads ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

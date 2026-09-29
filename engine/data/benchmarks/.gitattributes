@@ -1,5 +1,7 @@
 # Preserve recorded bytes so manifest hashes survive checkout on every platform.
 comparisons/** -text
+threaded/** -text
+core/** -text
 *.csv -text whitespace=cr-at-eol
 # Captured output and unified patches retain their original whitespace.
 *.log -whitespace

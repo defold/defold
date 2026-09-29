@@ -1,0 +1,381 @@
+{
+  "completed_utc": "2026-09-29T13:59:34.125569+00:00",
+  "rows": 1000000,
+  "samples": 7,
+  "platform": "macOS-27.0-arm64-arm-64bit",
+  "compiler_cpp": "Apple clang version 21.0.0 (clang-2100.3.25.1)",
+  "compiler_rust": "rustc 1.98.1 (48a229cea 2026-09-01) (Homebrew)",
+  "flecs": "v4.1.6-592-g9e874bca2",
+  "bevy": "0.19.1",
+  "entt": {
+    "path": "/Users/mathiaswesterdahl/notwork/external/entt",
+    "revision": "v4.0.0-60-ge0f4c3763",
+    "headers": {
+      "src/entt/config/config.h": "45ea2e8561a80baa8484bb012195f2f2916843c844d0080057d36dfeb8c31a1e",
+      "src/entt/config/macro.h": "20e3c4368034f1be2afc95de574551089aba48e1380049671d572feb42fc5d28",
+      "src/entt/config/version.h": "c80e21d32e423f1d550e8dc3e2d64e099235d2f0b4ac636e273b1d5092961fd3",
+      "src/entt/container/dense_map.hpp": "e2ce142928d39cf8f5edd8d6accbe92f64af622e51c650c2e0a67970589e3bbc",
+      "src/entt/container/dense_set.hpp": "72e5779b0e6c52ad74a1993aada0bb2dfce84dc10ad8b9c007ae5bf981d1ca68",
+      "src/entt/container/fwd.hpp": "48e9783d642874e2173c9730a712350692ef1acceb6f1624233ec7e4aa3efeea",
+      "src/entt/container/table.hpp": "c60e611873ae6cf44524426bfd3ac03e9efe55ff27bcf541cca9aa0f2c00b56e",
+      "src/entt/core/algorithm.hpp": "db6e6971fb14157bda5a1ba7012ba8205cc87788d14a395793d6d50c0b488723",
+      "src/entt/core/any.hpp": "d6558211f2353275421bd28383f83ca7f3c9424fb6023e3208e4693ff6d6f1a5",
+      "src/entt/core/bit.hpp": "e6a14ed889a65296fdd7c23d44386a9643adbe35def84c64f4e7efdba7650605",
+      "src/entt/core/compressed_pair.hpp": "a9baaa367c247214571c1aa6e6bf0a2e149baa286a913641920dccf46befb4e1",
+      "src/entt/core/concepts.hpp": "fd8d6891c0d8db4bc881d0f2233585127c19050ae08e0f48698a7874cecc2d29",
+      "src/entt/core/enum.hpp": "50218efe09cfb40f935e6703d26965621b40871413d38793081a7469412e50aa",
+      "src/entt/core/family.hpp": "d429318019b9d63ef3eff8a44fb6135917905d8e071b3f65d39fcab1a84e2e64",
+      "src/entt/core/fwd.hpp": "6b3422464a7ddfd3668184f7e0de7acea93eb1a730b0829f1b0693a5124bb7e1",
+      "src/entt/core/hashed_string.hpp": "9cb214f93b5c14c7f7ca090d99ffa416f59ae33d212e2804de43f849c6e645a1",
+      "src/entt/core/ident.hpp": "dd2e3c8616c7ffa7cb505f0f0c27682f90f3445715f49716ccba6ea780a3d293",
+      "src/entt/core/iterator.hpp": "d91b9eec7b06d191e56cd2b6c395ab715f858f9f47b0e4610dec869067a75522",
+      "src/entt/core/memory.hpp": "abbf1cac8d09363b5adba650354d4d0c9def2dcaaf63d35c258fc9bffbb50581",
+      "src/entt/core/monostate.hpp": "d5998a64b7192b026c77782216e613a4e0eb79d8e1a36c425ae1f2e08d0e99fd",
+      "src/entt/core/ranges.hpp": "5172e4cffa616dca5e33d10f4ca7ea3abe9303ea745522ebcb5a19796b6eab1e",
+      "src/entt/core/tuple.hpp": "9592623ec265e2f495230258f12034344d2405c254c3fef9a929c6624797574b",
+      "src/entt/core/type_info.hpp": "c8decdfe9f4bc1d80c587563f5664842a7696905c957ae5e71ab801ae774a6af",
+      "src/entt/core/type_traits.hpp": "3e8ddb202f882d46c8f9afc33b5711ed4a4072ee0b553b9a14dfcb77ce1a89b8",
+      "src/entt/core/utility.hpp": "8ec258214d34ed9a4813bda35019f0e01cf57df1f52042ca2b238abb769c53fc",
+      "src/entt/entity/component.hpp": "90228881e4fe05debd2b32eba49d9c231b36779408127199056fc8003c14d51a",
+      "src/entt/entity/entity.hpp": "5c5886b182617f360d576de40244a6b3c5d40a917e98b407a3feb81acdf6d9ad",
+      "src/entt/entity/fwd.hpp": "a37c1f0d0d85b4e7ce2a74c1809e387f9b34dbea5bdccaf4054e13cee4f5ff05",
+      "src/entt/entity/group.hpp": "3311615c1ce251b7eb29b36717ee4c1df333145327bc6378e1777f799422de66",
+      "src/entt/entity/handle.hpp": "8f0c654f2186006ccac74d83da4fd22c31b87d788295fe0d3f5aa2569c5e3aeb",
+      "src/entt/entity/helper.hpp": "175f20c29e868321978c0c55eb1d22cc6be153943cfe11f01f983eff5397830a",
+      "src/entt/entity/io.hpp": "38a3f26408b2d48bc0c7ac26cf3346d28eeb33214dc824b952babceaa6c716d2",
+      "src/entt/entity/mixin.hpp": "aa5e4389fd89b3517a290c05f51bcdcc761ecb67113d79f26bc5e3c7294dbe04",
+      "src/entt/entity/organizer.hpp": "5e3eaba95a36a7909d492541d2428156e5fce62697e19a63356946b3b951ca0f",
+      "src/entt/entity/ranges.hpp": "3ed83456e763323bbca467c6d3588b1803a41b81be9906c82eeb833b3ffcbbca",
+      "src/entt/entity/registry.hpp": "90b70d0b483ad2d369c3a802eafcdb5bd190c0e04ee8acfcecd5b75f18134905",
+      "src/entt/entity/runtime_view.hpp": "cc8b13649eaf23e4828eda8418874a9589c8b7cfe5b4914560222df39f252504",
+      "src/entt/entity/snapshot.hpp": "3c36d1520440649c8f59c26cd2fd799cbf5ca1bb8c3dc1216fdfedf90c528ccc",
+      "src/entt/entity/sparse_set.hpp": "60ee74b80cf75e5e2d6e7cec7f7f5506e78521f4133bfb2961ffb086024b4402",
+      "src/entt/entity/storage.hpp": "871b2045dd6b9fece219b0d6037938ef993852dcbb9e556a40f8b359c41d56fd",
+      "src/entt/entity/view.hpp": "8b2419816e333e8c3ef9c0cd5bdd854e72ab3f476161e36e8a11270cddd31f3a",
+      "src/entt/entt.hpp": "f545d47efb902e8c1f40433f538569f9c9a56088683b821c410a3e4783d5d82e",
+      "src/entt/fwd.hpp": "509ef8dd053ead41d8c9555bee3a3603dff0dacd723922680e7be54fadbdeaa3",
+      "src/entt/graph/adjacency_matrix.hpp": "f40cd7615cda4d38dc3ff77e50d59b5cc120b3cbf8bd85956f9a0f02ce8dc572",
+      "src/entt/graph/dot.hpp": "bdb259a920ccb90fd4f6ad388cbad1e3a106fb888752ee81f6474f2845900270",
+      "src/entt/graph/flow.hpp": "68440b755cdaeb12cb868c739e036b5fb425a548e579d6755a2e2412f4890b99",
+      "src/entt/graph/fwd.hpp": "2ddc1e9d2cdc7424cbf443d40b9db6bd299ab1f3eb2490ab9838c5bf796c7ee0",
+      "src/entt/locator/locator.hpp": "9870502f6a57c8e2b095b9aa85eeca2a086060dbe0a8b6b112ca0a725087d12f",
+      "src/entt/meta/adl_pointer.hpp": "cea9e4d2079ab6fe0e77bd64d73b75c7c965ec097d91b5ff658744aa5b0ca2ce",
+      "src/entt/meta/container.hpp": "5c808901e1a87f9c563e2343b89f1c122fde99596aeabab088802fe9f96aedaa",
+      "src/entt/meta/context.hpp": "713fe1a8400885f20185fdc2e6097ec2a8702c0752f998f95a1240b47e678df8",
+      "src/entt/meta/factory.hpp": "04dd98b26bb5f1eadaf698dd4fafc0012c05736047f731ca186d497dbc8356c4",
+      "src/entt/meta/fwd.hpp": "174997ef2ec5ceeef5b6a64b645a4bc6ee8476060a80ff7b2fdf52d6d89f176c",
+      "src/entt/meta/meta.hpp": "cb9f21511da8956c39e9313f9754b4fb3f63355f6cfaf2938f48ad311f832d46",
+      "src/entt/meta/node.hpp": "5904298b29caf856db7116c0682622c3cbfcfba749af57c11d704999d9685e3e",
+      "src/entt/meta/pointer.hpp": "b492086faecee75a950d886c9ab16901cbff20495710347097b74d44780ba6c4",
+      "src/entt/meta/policy.hpp": "2060237b597282c2257201a143d5e94af7ba7e55eaba884a55f722a2bf6afbe4",
+      "src/entt/meta/range.hpp": "e6223d9f1ae42f3bbabf0793c5f3c8166a5c2279559b17087e4482f574c55b0d",
+      "src/entt/meta/resolve.hpp": "70ae685355818337d947ee01e3d0ae6c1ac2865277a18b398702d8e8c4208d4b",
+      "src/entt/meta/template.hpp": "29ee4a9fe69081aba9b231372a1bb75b1bd57c8a2c15ae5fbef006be584ca73a",
+      "src/entt/meta/type_traits.hpp": "8c450389ec4cd56ff0b68bda47c44cddcdfe71c0c3f29e64fea7502034edda6f",
+      "src/entt/meta/utility.hpp": "0ecf706f67b1d10567299188a0773d0eefa9ae3143a48c3d3d6eeaa6b4f4067a",
+      "src/entt/poly/fwd.hpp": "7fab3cd3dad12b513fc072563cb7335ffc831db8800df7e0543a02d562f8fb94",
+      "src/entt/poly/poly.hpp": "243ee565292af5c67ecae0a80d1ae351ed48f32c76994c32ef0e34616bd19e75",
+      "src/entt/process/fwd.hpp": "4843218023842d0f150c89b9d0b87f3d7a12c2310b64f683ce266496e40bff2d",
+      "src/entt/process/process.hpp": "84257fafec4707e329f7c798cdba7a2cf9b1631c023284b54c9a6bb6d782ab88",
+      "src/entt/process/scheduler.hpp": "72d55056535aaeee7f33e1cb0c2166eb25a7ba485ec5c80f325f9fc915ea650b",
+      "src/entt/resource/cache.hpp": "ebfb1bda0d065d6a4b9b40c6e4c77ed5a28cd54646ca73ea7b5f1948de98e147",
+      "src/entt/resource/fwd.hpp": "3d6a6b7ea77ea768b465201cbc738d0720e861a80671abcb4c7f07192f826558",
+      "src/entt/resource/loader.hpp": "0c4ab98561ec98018244e1e0b9ed8451090eaf522a377db191064ebb04264f42",
+      "src/entt/resource/resource.hpp": "a7d45cd92c33a1ea6ea8d9bc33308185f0c8e24f0ef3451a37a616b1d2595ea6",
+      "src/entt/signal/delegate.hpp": "77353825b861ce5651f80a65ad80e96598f32be9234cf5c01f174bb6aed22b42",
+      "src/entt/signal/dispatcher.hpp": "f92307fce27408fd68d8bf4e463dbd282211c939fc47d005995f163909c0bf1c",
+      "src/entt/signal/emitter.hpp": "1c788cdb7abba6f97a03ea36c818699005def4b99ba35b24260bb9f2a2f05cac",
+      "src/entt/signal/fwd.hpp": "1262a54d70fb35e076fb8db027aede9b13fccbfaaabde374881c615d35278603",
+      "src/entt/signal/sigh.hpp": "cee207cb80a53337e218910e97462d73ccc83f9595f9a84ad95f92ce7b2e1ffe",
+      "src/entt/stl/algorithm.hpp": "6e4189e134d292bb59338cb7713ebfe0b47bb2a385f4d8f0fc15c3f46208a393",
+      "src/entt/stl/array.hpp": "49d4b436cf27828be323fba0b769b762c78c1a77ed807ee62e66083180b3c35d",
+      "src/entt/stl/atomic.hpp": "e556c0a595c7e387673099acdddef99daad7e78c543f24578e578d38ffc16c38",
+      "src/entt/stl/bit.hpp": "f0929ad7c99eda38ed35379c4ffe003c82fce75bd414fde040c7b423be5f2fab",
+      "src/entt/stl/compare.hpp": "7ae1e03a2e0d5c9b5ffb40a4c690853da4bd6625689b66049d561110e8c64a93",
+      "src/entt/stl/concepts.hpp": "e2575a305f12a0fff5ea0907beb4d14be704a3331d3828a743ad08828216f8a4",
+      "src/entt/stl/cstddef.hpp": "7b3d116c8c3b43ed51153c6bb63b21e471f033b18fa256efb44a10a43f438982",
+      "src/entt/stl/cstdint.hpp": "039f89db987e349860631c31c2fe6cc72cd05a000ed82b9fa09ef9a7a7b8d9ca",
+      "src/entt/stl/functional.hpp": "67bbd799aab99ad69e3534fd9f1f0e90142bea43c63647dc857283eec0a27038",
+      "src/entt/stl/iterator.hpp": "1eb08b72f9becefd5192616b5d0738d0f1a4e423d9c425c05d4aa51dc069454e",
+      "src/entt/stl/memory.hpp": "58fda7411a5f9f0bf4aa7a044ccd9c2f95f8e22d330527d068e92935c65759ab",
+      "src/entt/stl/string.hpp": "2aa5d7b6d6cf2e93d89bc4c2a4822603802122ebba41857f21d080da9d370eef",
+      "src/entt/stl/string_view.hpp": "cf3a42deb7d5b48c01907d0d066c28154125ad32edf5c393d63ee0bed57c3868",
+      "src/entt/stl/tuple.hpp": "1ac21fbc1779d2c9bc285c1187e124bb724fe7d40a8618642e42e22e4aaf92ca",
+      "src/entt/stl/type_traits.hpp": "11b89dce1a6f6af559b7b02d9094d0e90e50859586b419539f698454b179b3d3",
+      "src/entt/stl/utility.hpp": "9f87f297d7cbe987681ad7238382a2d8b78d291a6be57f6e62f806e8a02e1ff6",
+      "src/entt/stl/vector.hpp": "d909be4278e85621433cc89657f503dbf661a5756c6f7be2d2a09adc679db0ba",
+      "src/entt/tools/davey.hpp": "e60f41c8329a69e171c2e6bd1e0be16104b6030619ea3da92d75a014f985646d",
+      "src/entt/tools.hpp": "7afb9378da7b064d0128e150ecc35b5c6b8abacbe6b9ba3cc56fcbb531221c84"
+    }
+  },
+  "cases": [
+    "create_population",
+    "spawn_wave",
+    "despawn_wave",
+    "movement",
+    "explosion_r50_first",
+    "nearby_lights",
+    "position_lookup"
+  ],
+  "configuration": "One dense mutable Defold table per type, native scalar overrides over shared construction defaults, typed batch ID reads; Flecs/Bevy separate components; EnTT separate component pools and ordinary views without owning groups; inline Light; one pass; no sanitizers; separate allocation builds.",
+  "validation": "Every backend, sample and measurement mode agrees on operation count, hit count and checksum (1e-7 relative tolerance for reductions). Per-row movement, health, creation and stale-ID checks plus tracked teardown run outside timing.",
+  "commands": [
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release",
+        "--target",
+        "benchmark_data_mixed",
+        "benchmark_data_memory",
+        "benchmark_data_core_entt",
+        "benchmark_data_core_entt_memory",
+        "-j",
+        "6"
+      ],
+      "env": {}
+    },
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "--release",
+        "--bin",
+        "benchmark-data-bevy",
+        "--manifest-path",
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/bevy/Cargo.toml",
+        "--target-dir",
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/bevy-core-release"
+      ],
+      "env": {
+        "CARGO_HOME": "/private/tmp/defold-data-bevy-cargo",
+        "RUSTFLAGS": "",
+        "CARGO_ENCODED_RUSTFLAGS": ""
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "--release",
+        "--bin",
+        "benchmark-data-bevy",
+        "--manifest-path",
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/bevy/Cargo.toml",
+        "--target-dir",
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/bevy-core-memory-release",
+        "--features",
+        "memory"
+      ],
+      "env": {
+        "CARGO_HOME": "/private/tmp/defold-data-bevy-cargo",
+        "RUSTFLAGS": "",
+        "CARGO_ENCODED_RUSTFLAGS": ""
+      }
+    },
+    {
+      "command": [
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "command": [
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "flecs_columns",
+        "core"
+      ]
+    },
+    {
+      "command": [
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/bevy-core-release/release/benchmark-data-bevy",
+        "1000000",
+        "7",
+        "bevy_columns",
+        "core"
+      ]
+    },
+    {
+      "command": [
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_core_entt",
+        "1000000",
+        "7",
+        "entt",
+        "core"
+      ]
+    },
+    {
+      "command": [
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_memory",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "command": [
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_memory",
+        "1000000",
+        "7",
+        "flecs_columns",
+        "core"
+      ]
+    },
+    {
+      "command": [
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/bevy-core-memory-release/release/benchmark-data-bevy",
+        "1000000",
+        "7",
+        "bevy_columns",
+        "core"
+      ]
+    },
+    {
+      "command": [
+        "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_core_entt_memory",
+        "1000000",
+        "7",
+        "entt",
+        "core"
+      ]
+    }
+  ],
+  "binaries": {
+    "data-timing": "9d271e770728a0e3ca68326ff09f951a46509bc4f876622d56623e014159c69c",
+    "flecs_columns-timing": "9d271e770728a0e3ca68326ff09f951a46509bc4f876622d56623e014159c69c",
+    "bevy_columns-timing": "da2ccd6439b99eba022ace48be64ea4bd58029cea57e05190f26af4c78466dca",
+    "entt-timing": "e2942d330390d8afa957098599923fd0d5f210af60bbf32ac0190717c4a1e4dc",
+    "data-memory": "65e3194ba5f6034adbd9c4a1c08e4e945588bd67894e328ee5c495a5e8638390",
+    "flecs_columns-memory": "65e3194ba5f6034adbd9c4a1c08e4e945588bd67894e328ee5c495a5e8638390",
+    "bevy_columns-memory": "7b7ee34b340c6754e15cab55aa1792af94e3742c5d295ad46b5346156f75c0ff",
+    "entt-memory": "6d124f91c7d48eb5724a237f81843278eae532493ffdf363034713b293f9d70e"
+  },
+  "sources": {
+    "engine/data/src/data_field.cpp": "050f9f108f6e3f9615b563945de0ecf447ee1cda259b405d37d1b9ef64c3af73",
+    "engine/data/src/data.cpp": "82ed199fd7bafd06023d7e2eed1c3b6600b0754c772aca4847c6a4c2a99bedb0",
+    "engine/data/src/data_iter.cpp": "b8fa02bd386bee107e843b43d8bc8102676197cecccab2eb0122310d1e3ea28d",
+    "engine/data/src/data_query.cpp": "d7680f9273290b1e329d10ab428146ff9f0608dbbf5805d912155f12e1e43d3b",
+    "engine/data/src/data_io.cpp": "1d2dca8992fc8a178c77cd1bcc847050077c5bf6c575078d7fb43b02674ebcf6",
+    "engine/data/src/data.h": "0d974087a6fbe08448f170970cca017fdae96883ebb54e24e5cb0eecafa77b98",
+    "engine/data/src/dmsdk/data/data_query.h": "0c1b55f207e5c4a6cb349f99f37b6224c267c7a3e0a9cd35ee092a59e4eff393",
+    "engine/data/src/dmsdk/data/data_types.h": "5128657a73cb811b5523dd19517ad602732372cbaafe8642b7670736679a3c0a",
+    "engine/data/src/dmsdk/data/data_iter.h": "a729dfd87cdffc89189b404b5faeb90bcdef3d4fd2d8e88dd42974b2d3ee2910",
+    "engine/data/src/dmsdk/data/data.h": "295fa468a104c31ffe378c69169c9779b0840526c2a835b24df7f18de3201696",
+    "engine/data/src/dmsdk/data/data_field.h": "cb77c220f9ea787b92628ec7f2dcca89b25abf5f539d0179ce23249c43bdef0a",
+    "engine/data/src/test/benchmark_data_threaded_flecs_movement.cpp": "5bd6d779a3fcbe37dd202b18b7e07ab1d840231de8113c9294e38872066634a6",
+    "engine/data/src/test/benchmark_data_nearby_lights.cpp": "fe713ceb4448cd3cd76ac8fce6cfe30888df9bca961c89d4e8dcdeaa5fd37bee",
+    "engine/data/src/test/benchmark_data_mixed.cpp": "a04a18ec4fa0812fa9256685efea4c7d230f7b0af669d84d60997086d7e751dc",
+    "engine/data/src/test/benchmark_data_threaded_flecs.cpp": "514a4772c48fa6b97c2ebb80b9bd0fbd3a3e6ba895de32d0e3923b719bbe4f97",
+    "engine/data/src/test/benchmark_data_explosion.cpp": "6e8c14bac1c73c7a3be7826bf1343d9701fa3cfcbbe8538c6bf0aaf1b60cae87",
+    "engine/data/src/test/benchmark_data_create.cpp": "29e3767443d8316053fb59dcc007ab9eabbccf21ecd3756184845ac635b84701",
+    "engine/data/src/test/benchmark_data_threaded_flecs_explosion.cpp": "e861c2f240350aa28f89bc66e2ea84c37cccd314de1c26dc0e27e7ae26ed6980",
+    "engine/data/src/test/benchmark_data_threaded_regenerate.cpp": "9c7b6d3e13794cca66096811c67fe8544f4a7213866c50958b5da5f28aa82cd6",
+    "engine/data/src/test/benchmark_data_threaded_movement.cpp": "09b9d6728191602c9b141b8282ec1b1f797c5f9d68a623dde3ea70a76dc9bec7",
+    "engine/data/src/test/benchmark_data_threaded.cpp": "14e4443ca44f112a36214bf77ac5990bb7ca4d5a127f339c65f1f4d6e6cb138a",
+    "engine/data/src/test/benchmark_data_size_defold.cpp": "958714f3f921095b53b8762c45bb342168d67623ec71681bbb08ffc31b505979",
+    "engine/data/src/test/benchmark_data_threaded_entt_explosion.cpp": "b5e4ddf80022139d888ea18e562edb30a4d781a0581bb8007b8521f2f7fecf26",
+    "engine/data/src/test/benchmark_data_threaded_flecs_regenerate.cpp": "c241499f500ed82a3e7ddbd64f6a705f033a464602bd6b78a2235330a241e54f",
+    "engine/data/src/test/benchmark_data_add.cpp": "e15ad9672a57a7c5b449c5945fa425138470c2a82d8586e2cc3c7572a5dbd6d9",
+    "engine/data/src/test/benchmark_data_light_color.cpp": "9bf1e660e2a1c23bcaf07735e64b5b63b5a3c0882baf74947f1b63ae60dd81a4",
+    "engine/data/src/test/benchmark_data_health_position.cpp": "496a0d616a4d61657bb178c504694a46b8223602e635016c7e582ba909df8071",
+    "engine/data/src/test/benchmark_data_threaded_flecs_lights.cpp": "2d717b184657d402d0a0ccda618c349ad4570762c047d5de39fca70ce774d4f0",
+    "engine/data/src/test/benchmark_data_threaded_entt_regenerate.cpp": "e7360fa9ff46f65c8475fdcdb5b2deb5937daa5f842b01d32753a08d38b607a6",
+    "engine/data/src/test/benchmark_data_threaded_memory.cpp": "e1673fb33c81d221366805be77363a7d0a927560e6683794f5a227dddf6b7af4",
+    "engine/data/src/test/benchmark_data_common.cpp": "0c44018804db8e2fde45d454cd190b9b2c8df7ba3d6dfd69a2d0140a2838b2ef",
+    "engine/data/src/test/benchmark_data_threaded_explosion.cpp": "475da4614e0d4103859e715ef527079fa03cb5baaaa33d6179d2c9ab3200d96a",
+    "engine/data/src/test/benchmark_data_core_entt.cpp": "306ee67818256e68f395fc5ded2809254bf20dc98b66d642d28cfd5589ec1818",
+    "engine/data/src/test/benchmark_data_churn.cpp": "df5cde462458a94adf257abd2edb16017b626864fada9ecd1c2348699669555a",
+    "engine/data/src/test/benchmark_data_packed_access.cpp": "393488f765a71ec27c00eeb861188fd8a0e0b6478a62964d6d1394062f53723d",
+    "engine/data/src/test/benchmark_data_threaded_fixture.cpp": "9aa1b036fc51cdbdea3c2baab9f8a806b204f8da8c075fc5c273b6dad58fdcac",
+    "engine/data/src/test/benchmark_data_core.cpp": "e5204a9349dd198988337d6b3ebc2ca764e36663fd741be94dc1eccb3584b3e2",
+    "engine/data/src/test/benchmark_data_threaded_entt_movement.cpp": "6c7e7535266e541abf8378f5bfe5ab782805900705691242f62e8fed69e9cf18",
+    "engine/data/src/test/benchmark_data_size_flecs.cpp": "e9def2389ba8a2a0e09206de2ca887fbe9d17216d247c0c4a19404a13625dc9b",
+    "engine/data/src/test/benchmark_data_shuffled_position.cpp": "919cbbfd5d9aca07315be1cb020cead24c9a16a5ebc5be6dc9eb45a49394fcf0",
+    "engine/data/src/test/benchmark_data_threaded_lights.cpp": "223ef76bd472969a6c9028f9384a9c480eeade4a1371f985236963a695c6fcbe",
+    "engine/data/src/test/benchmark_data_threaded_entt.cpp": "ac8c0d80e01f6793514e1684c3b7fa5fbec4fc89430a817b003a74fc6ab5d98a",
+    "engine/data/src/test/benchmark_data_size_entt.cpp": "cddb6f70caaf22bab3e0b701bd442ed57a55753494f1c2bf2154b8c259a18756",
+    "engine/data/src/test/benchmark_data_threaded_entt_lights.cpp": "3d52c026232c38b1d380f9c7ffab6b8a410156f7c7a47f4814d54690c3265eab",
+    "engine/data/src/test/benchmark_data_packed.cpp": "e3c96607248b430bbf9575bf161a343d767c735ce52b9dd559ef7ecccc0ef6f1",
+    "engine/data/src/test/benchmark_data_blob_load.cpp": "e7d4cbea7ba85142c912635d9890353333ed9677814333fcf28d985d93f335a3",
+    "engine/data/src/test/benchmark_data_movement.cpp": "39e9f3877803c3a1814c5bbcdc92fddc3346d160722baef82d008cb79dceaf95",
+    "engine/data/src/test/benchmark_data_size_empty.cpp": "abe56594f6172cacb5d9b33cd974c8c589cf52844ebe456c0cb601f2cb520f04",
+    "engine/data/src/test/benchmark_data_common.h": "2def7d7a82ac6d3432506ec3f8e5fbf4d6bb6cb873863fc8f9d0c6b7bc659293",
+    "engine/data/src/test/benchmark_memory.cpp": "58981fc1e022782f2bbe4acbc73957da376c1695c21cdea10ec08aca041b94aa",
+    "engine/data/src/test/benchmark_memory.h": "877ad4cf63c2029c82c71fe901f4bce7970a922b1f228752d0802f20393fe680",
+    "engine/data/src/test/CMakeLists.txt": "88de4405b0c8473992fbb0162dbeff12523fd8c46a557aa096e6b47260c008c0",
+    "engine/data/src/test/run_core_benchmark.py": "a9ca6394dec1349629cddee78a7dd2e473345adc3ae327207665a3aaef1d1b63",
+    "engine/data/src/test/bevy/src/backend.rs": "82a353b78f2432b07afd863fc622ddf7415c997f2ed8bf562e0ba46835c02e7d",
+    "engine/data/src/test/bevy/src/memory.rs": "a2509e634aa28985c26ae17641f19e2eb5a339e81b01fbf0c563824248084807",
+    "engine/data/src/test/bevy/src/fixture.rs": "cabfacb993ad88941221680a126b81821926d7fcaec4b4ff5f8d04594101d472",
+    "engine/data/src/test/bevy/src/main.rs": "0c8f3175dd7b7a03c8761fe2dda530bc2ed7c0c17541497fd81cfc6ab8d5ca15",
+    "engine/data/src/test/bevy/src/core/movement.rs": "e5780bb10ac226d1651c9cbd2c07b795614e58c4738bb38945622cb0a4b1b20f",
+    "engine/data/src/test/bevy/src/core/mod.rs": "11cf92c1301212aa702a937cc0d77291d5529f71657b7388fb44f545bb6ad6dc",
+    "engine/data/src/test/bevy/src/core/position_lookup.rs": "7d0ca81a6892215abd0adbfbb2f8a9465d33dc078d5e140926713d11fa9ab822",
+    "engine/data/src/test/bevy/src/core/nearby_lights.rs": "7354feb829233a3ed477b40a7063b6e3f48eb426a2156b627a59caf7ff7177a8",
+    "engine/data/src/test/bevy/src/threaded/movement.rs": "1f20a34b75ee50b404920f257150c3b108aec5b1fc5675e441f5c6fc85b8e64c",
+    "engine/data/src/test/bevy/src/threaded/explosion.rs": "07ac5b889a488aa0250b6bae806f9135c85ea4c03255dd1b1a9dbdf10808c0ef",
+    "engine/data/src/test/bevy/src/threaded/lights.rs": "7eb8a6174d6258ee35dc15fa3568d014e968d4c1a4911c7ea681c62d5d2bd367",
+    "engine/data/src/test/bevy/src/threaded/main.rs": "e31254fee8cf4e0adbb597bc601f730f47bc366cbe546cdd5dd096f1d8d5f3a5",
+    "engine/data/src/test/bevy/src/threaded/regenerate.rs": "10be6bf30a8f2d69a1e4628713c9f0208f410c17dffeaab0c28a4e5cf254e130",
+    "engine/data/src/test/bevy/src/threaded/common.rs": "cfab7454f94b6c911e23354a04469fcc3c69e2e47a8f18b1335b763eb21084db",
+    "engine/data/src/test/bevy/Cargo.toml": "11ca2b51728ec398766ab8802e1d7768e291f7613377bc341a520c4a87e9fc3d",
+    "engine/data/src/test/bevy/Cargo.lock": "296dd72e51d4885ad75ee250120bfcfbb4f7c1e2bf3fab2beac71ccea7659ab9",
+    "engine/data/src/test/benchmark_data_entt.h": "165fe5d7e9d701ce020ed03a69f654ca47948bbda620b3f25f45d985ccc37c3b"
+  },
+  "files": {
+    "flecs_columns-timing.csv": "65370db08125d27ed2a12ed00d038ea2ed30b8e49e85da8d0c53da09a101388d",
+    "bevy-timing-build.log": "90c8a1a69c0155761cff4bfe0e61bbee007961d2b96729d2127c2e0c291489dd",
+    "bevy-memory-build.log": "90c8a1a69c0155761cff4bfe0e61bbee007961d2b96729d2127c2e0c291489dd",
+    "flecs_columns-timing.log": "f7b15cb7c4270d9612c1204e159c07d0b07fcc5ba73cc6483d0960ad8514601b",
+    "data-memory.csv": "076bab449ac66e424610d49621bdb2cb6883b8b4c26b13def46d66bda41e999f",
+    "bevy_columns-timing.csv": "59708e4dba9f7ec6bf765d24894fef2cceb41137ff33447aac1a06796567c2b1",
+    "data-memory.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "bevy_columns-timing.log": "4a4ef1efa658fa601d28aaea14b44baedf70636f9e26379980f5548e366ae693",
+    "entt-timing.log": "3555ad753ba532bbd141bbfe9164bb590cf11f806ddf3cc5bfd659f87cd98f2d",
+    "entt-timing.csv": "3d2f27f50fcddb67f4ec7456d2104d7a9546f7b076028897d1b9bf3e6d9d074d",
+    "entt-memory.log": "3555ad753ba532bbd141bbfe9164bb590cf11f806ddf3cc5bfd659f87cd98f2d",
+    "entt-memory.csv": "936e47e72b2476699d4186b1cf5071e4d75b28504354262248caa8a61b5f4283",
+    "bevy_columns-memory.csv": "573294f00386d87d5e24cc3f829185b16a532bd021ec9119cc460e8b2107f3bf",
+    "data-timing.csv": "0142c7e1ed89760135bd3e1483ceac69f907562bfb67434583be10b52588bbb6",
+    "cpp-build.log": "d3f31f4af75dd0c79fc9cd41557ba979ff0233ca39c2deca3843f4313fa76f55",
+    "bevy_columns-memory.log": "4a4ef1efa658fa601d28aaea14b44baedf70636f9e26379980f5548e366ae693",
+    "data-timing.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "flecs_columns-memory.csv": "f87fd62497e0144831ec054e95cee1bd935c4aefecdf33915cb99ab7aa328d58",
+    "flecs_columns-memory.log": "f7b15cb7c4270d9612c1204e159c07d0b07fcc5ba73cc6483d0960ad8514601b"
+  },
+  "post_measurement_formatting": {
+    "note": "Before committing, repository clang-format adjusted horizontal whitespace in the files below. Tokens and line counts are unchanged. Measured source/binary hashes and raw results are preserved; formatted_sha256 identifies the committed spelling.",
+    "files": {
+      "engine/data/src/test/benchmark_data_size_flecs.cpp": {
+        "measured_sha256": "e9def2389ba8a2a0e09206de2ca887fbe9d17216d247c0c4a19404a13625dc9b",
+        "formatted_sha256": "e2c5353bdeb24f5c8fb394862add2b8290e2db5e3ba85b4369c9abcb084739f9"
+      },
+      "engine/data/src/test/benchmark_data_threaded.cpp": {
+        "measured_sha256": "14e4443ca44f112a36214bf77ac5990bb7ca4d5a127f339c65f1f4d6e6cb138a",
+        "formatted_sha256": "d0c76a243ff924e3e128a27afd25b36a98bae8dd03945fccb137b190c306edc4"
+      },
+      "engine/data/src/test/benchmark_data_threaded.h": {
+        "measured_sha256": "608863c907e91895443dac709feea11287ff2d4de9a624dd86a0cebbff9919c9",
+        "formatted_sha256": "25a69b9fb2ccb154eb0071d02da27bd2e796e99b68621eafe0e7889093f75232"
+      },
+      "engine/data/src/test/benchmark_data_threaded_entt.cpp": {
+        "measured_sha256": "ac8c0d80e01f6793514e1684c3b7fa5fbec4fc89430a817b003a74fc6ab5d98a",
+        "formatted_sha256": "0f1b086a2cb64ba48f2985fb0f54727d514082a40e49c06d265cac28aa8b0adc"
+      },
+      "engine/data/src/test/benchmark_data_threaded_flecs.cpp": {
+        "measured_sha256": "514a4772c48fa6b97c2ebb80b9bd0fbd3a3e6ba895de32d0e3923b719bbe4f97",
+        "formatted_sha256": "4ad43a0a4bd00a2feff1348f98dfbe46f1a3b4225727addb1c299a3d6ad84c66"
+      }
+    }
+  }
+}

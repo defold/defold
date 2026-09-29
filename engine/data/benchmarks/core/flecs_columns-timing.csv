@@ -1,0 +1,55 @@
+# suite=core; seven standalone cases; one pass; three live queries; no alternate layouts
+# packed_rows=0; packed mode repeats prototype values and groups owners; sources built/validated outside timing
+# Flecs 4.1.6; seed=305419896; samples=7; one warmup; read_passes=1; damage=25; explosion_radius=50
+# Data: inline Light + dense rows per resource table + pooled registrations + shared defaults/reset; Flecs: inline Light, mutable components; no serialization or disk I/O
+# Type percentages: SpotLight=10,PointLight=15,Player=1,Enemy=24,Pickup=25,Breakable=25; dense owners are per row; packed owners are per group
+backend,operation,rows,sample,operations,hits,batches,total_ms,ns_per_operation,checksum
+flecs_columns,create_population,1000000,1,1000000,0,0,2.476000,2.476,0.000000000
+flecs_columns,movement,1000000,1,250000,0,2,0.149000,0.596,-353078.000000000
+flecs_columns,explosion_r50_first,1000000,1,500000,125290,3,1.318000,2.636,71071818.000000000
+flecs_columns,nearby_lights,1000000,1,250000,62383,2,0.625000,2.500,37144.550850000
+flecs_columns,position_lookup,1000000,1,1000000,0,0,19.990000,19.990,-1453538.000000000
+flecs_columns,spawn_wave,1000000,1,100000,0,0,1.234000,12.340,0.000000000
+flecs_columns,despawn_wave,1000000,1,10000,0,0,1.874000,187.400,0.000000000
+flecs_columns,create_population,1000000,2,1000000,0,0,2.330000,2.330,0.000000000
+flecs_columns,movement,1000000,2,250000,0,2,0.144000,0.576,-353078.000000000
+flecs_columns,explosion_r50_first,1000000,2,500000,125290,3,1.304000,2.608,71071818.000000000
+flecs_columns,nearby_lights,1000000,2,250000,62383,2,0.606000,2.424,37144.550850000
+flecs_columns,position_lookup,1000000,2,1000000,0,0,20.132000,20.132,-1453538.000000000
+flecs_columns,spawn_wave,1000000,2,100000,0,0,1.164000,11.640,0.000000000
+flecs_columns,despawn_wave,1000000,2,10000,0,0,1.847000,184.700,0.000000000
+flecs_columns,create_population,1000000,3,1000000,0,0,2.557000,2.557,0.000000000
+flecs_columns,movement,1000000,3,250000,0,2,0.147000,0.588,-353078.000000000
+flecs_columns,explosion_r50_first,1000000,3,500000,125290,3,1.354000,2.708,71071818.000000000
+flecs_columns,nearby_lights,1000000,3,250000,62383,2,0.611000,2.444,37144.550850000
+flecs_columns,position_lookup,1000000,3,1000000,0,0,20.446000,20.446,-1453538.000000000
+flecs_columns,spawn_wave,1000000,3,100000,0,0,1.135000,11.350,0.000000000
+flecs_columns,despawn_wave,1000000,3,10000,0,0,1.757000,175.700,0.000000000
+flecs_columns,create_population,1000000,4,1000000,0,0,2.761000,2.761,0.000000000
+flecs_columns,movement,1000000,4,250000,0,2,0.146000,0.584,-353078.000000000
+flecs_columns,explosion_r50_first,1000000,4,500000,125290,3,1.419000,2.838,71071818.000000000
+flecs_columns,nearby_lights,1000000,4,250000,62383,2,0.608000,2.432,37144.550850000
+flecs_columns,position_lookup,1000000,4,1000000,0,0,25.965000,25.965,-1453538.000000000
+flecs_columns,spawn_wave,1000000,4,100000,0,0,1.570000,15.700,0.000000000
+flecs_columns,despawn_wave,1000000,4,10000,0,0,2.029000,202.900,0.000000000
+flecs_columns,create_population,1000000,5,1000000,0,0,3.275000,3.275,0.000000000
+flecs_columns,movement,1000000,5,250000,0,2,0.146000,0.584,-353078.000000000
+flecs_columns,explosion_r50_first,1000000,5,500000,125290,3,1.369000,2.738,71071818.000000000
+flecs_columns,nearby_lights,1000000,5,250000,62383,2,0.633000,2.532,37144.550850000
+flecs_columns,position_lookup,1000000,5,1000000,0,0,23.310000,23.310,-1453538.000000000
+flecs_columns,spawn_wave,1000000,5,100000,0,0,1.199000,11.990,0.000000000
+flecs_columns,despawn_wave,1000000,5,10000,0,0,1.930000,193.000,0.000000000
+flecs_columns,create_population,1000000,6,1000000,0,0,2.975000,2.975,0.000000000
+flecs_columns,movement,1000000,6,250000,0,2,0.144000,0.576,-353078.000000000
+flecs_columns,explosion_r50_first,1000000,6,500000,125290,3,1.331000,2.662,71071818.000000000
+flecs_columns,nearby_lights,1000000,6,250000,62383,2,0.610000,2.440,37144.550850000
+flecs_columns,position_lookup,1000000,6,1000000,0,0,20.855000,20.855,-1453538.000000000
+flecs_columns,spawn_wave,1000000,6,100000,0,0,1.202000,12.020,0.000000000
+flecs_columns,despawn_wave,1000000,6,10000,0,0,2.060000,206.000,0.000000000
+flecs_columns,create_population,1000000,7,1000000,0,0,2.865000,2.865,0.000000000
+flecs_columns,movement,1000000,7,250000,0,2,0.146000,0.584,-353078.000000000
+flecs_columns,explosion_r50_first,1000000,7,500000,125290,3,1.318000,2.636,71071818.000000000
+flecs_columns,nearby_lights,1000000,7,250000,62383,2,0.620000,2.480,37144.550850000
+flecs_columns,position_lookup,1000000,7,1000000,0,0,20.957000,20.957,-1453538.000000000
+flecs_columns,spawn_wave,1000000,7,100000,0,0,1.226000,12.260,0.000000000
+flecs_columns,despawn_wave,1000000,7,10000,0,0,2.039000,203.900,0.000000000

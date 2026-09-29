@@ -1,0 +1,18 @@
+Segment __PAGEZERO: 4294967296 (zero fill) 
+Segment __TEXT: 32768
+	Section __text: 20636
+	Section __stubs: 192
+	Section __stub_helper: 168
+	Section __cstring: 276
+	Section __const: 1
+	total 21273
+Segment __DATA_CONST: 16384
+	Section __const: 736
+	Section __got: 48
+	total 784
+Segment __DATA: 16384
+	Section __la_symbol_ptr: 96
+	Section __data: 296
+	total 392
+Segment __LINKEDIT: 16384
+total 4295049216
