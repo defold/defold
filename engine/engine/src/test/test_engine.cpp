@@ -35,6 +35,10 @@
 #include <stdlib.h>
 #endif
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
+#endif
+
 extern "C" void dmExportedSymbols();
 
 #ifndef CONTENT_ROOT
@@ -211,6 +215,31 @@ TEST_F(EngineTest, TextInputActionFromHid)
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/text_input/text_input.collectionc", "--config=input.game_binding=/text_input/text_input.input_bindingc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunTextInput, 0, 0));
 }
+
+#if defined(__EMSCRIPTEN__)
+// Startup must print the console banner without browser globals, as required by Node 20 in CI.
+TEST_F(EngineTest, ConsoleBannerWithoutNavigator)
+{
+    int navigator_removed = EM_ASM_INT({
+        Module.testNavigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+        delete globalThis.navigator;
+        return typeof navigator === 'undefined';
+    });
+
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=html5.show_console_banner=1", "--config=bootstrap.main_collection=/text_input/text_input.collectionc", "--config=input.game_binding=/text_input/text_input.input_bindingc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    int result = Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunTextInput, 0, 0);
+
+    EM_ASM({
+        if (Module.testNavigatorDescriptor) {
+            Object.defineProperty(globalThis, 'navigator', Module.testNavigatorDescriptor);
+        }
+        delete Module.testNavigatorDescriptor;
+    });
+    ASSERT_EQ(1, navigator_removed);
+    ASSERT_EQ(0, result);
+}
+#endif
 
 TEST_F(EngineTest, ProjectFail)
 {

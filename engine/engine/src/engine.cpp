@@ -1068,7 +1068,7 @@ namespace dmEngine
         if (1 == dmConfigFile::GetInt(engine->m_Config, "html5.show_console_banner", 1))
         {
             EM_ASM({
-                if (navigator.userAgent.toLowerCase().indexOf('chrome') > -1) {
+                if (typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().indexOf('chrome') > -1) {
                     console.log("%c    %c    Made with Defold    %c    %c    https://www.defold.com",
                         "background: #fd6623; padding:5px 0; border: 5px;",
                         "background: #272c31; color: #fafafa; padding:5px 0;",
