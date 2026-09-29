@@ -28,7 +28,7 @@ if(TARGET_PLATFORM MATCHES "android$")
 endif()
 
 defold_add_library(extension STATIC ${EXTENSION_SOURCES})
-if(TARGET_PLATFORM_OS MATCHES "^(ios|android)$")
+if(TARGET_PLATFORM_OS MATCHES "^(ios|android)$" AND TARGET platform_sdk_headers)
   add_dependencies(extension platform_sdk_headers)
 endif()
 target_include_directories(extension PUBLIC
