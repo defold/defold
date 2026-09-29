@@ -5,6 +5,16 @@ target_link_libraries(test_data PRIVATE data)
 defold_target_link_libraries(test_data "${TARGET_PLATFORM}" testmain dlib profile_null)
 defold_register_test_target(test_data ON "${DATA_ROOT}")
 
+if(WITH_TSAN)
+  if(NOT TARGET dlib)
+    message(FATAL_ERROR "Threading tests require a source-built, TSAN-instrumented dlib. Configure from the repository root with DEFOLD_SELECTED_ENGINE_LIBS=dlib,testmain,data.")
+  endif()
+  defold_add_executable(test_data_threaded "${CMAKE_CURRENT_LIST_DIR}/test_data_threaded.cpp")
+  target_link_libraries(test_data_threaded PRIVATE data)
+  defold_target_link_libraries(test_data_threaded "${TARGET_PLATFORM}" testmain dlib profile_null)
+  defold_register_test_target(test_data_threaded ON "${DATA_ROOT}")
+endif()
+
 # Flecs is a benchmark input, never a runtime dependency or an automatic download.
 set(DEFOLD_DATA_FLECS_DIR "" CACHE PATH "Flecs checkout containing distr/flecs.c and distr/flecs.h")
 if(DEFOLD_DATA_FLECS_DIR)

@@ -19,6 +19,7 @@
 #include "../data.h"
 
 extern "C" int TestDataFromC(HDataStore store);
+extern "C" int TestDataStoreLifecycleFromC(void);
 
 // Keep existing boundary/value cases concise while exercising only the new public
 // typed cursor API. Indexed generic operations below remain internal test coverage.
@@ -108,14 +109,6 @@ static DataResult SetTestFieldVector3(const DataIterator* batch, uint32_t row, u
     return result == DATA_RESULT_OK ? DataFieldIterSetVector3(&iterator, value) : result;
 }
 
-static DataResult GetTestStructPropertyVector3(const DataIterator* batch, uint32_t row, uint32_t field, uint64_t property, DataVector3* value)
-{
-    DataRowIterator   rows;
-    DataFieldIterator iterator;
-    DataResult        result = SelectTestField(batch, row, field, &rows, &iterator);
-    return result == DATA_RESULT_OK ? DataFieldIterGetStructPropertyVector3(&iterator, property, value) : result;
-}
-
 static DataValue Number(double v)
 {
     DataValue x = {};
@@ -156,11 +149,11 @@ static DataValue List(const DataValue* values, uint32_t count)
     return x;
 }
 
-static DataValue Struct(const uint64_t* names, const DataValue* values, uint32_t count)
+static DataValue Struct(const uint64_t* names, const DataValueType* types, const DataValueData* values, uint32_t count)
 {
     DataValue x = {};
     x.m_Type = DATA_VALUE_TYPE_STRUCT;
-    DataStruct object = { names, values, count, 0, 0 };
+    DataStruct object = { .m_Names = names, .m_Types = types, .m_Values = values, .m_Count = count };
     x.m_Value.m_Struct = object;
     return x;
 }
@@ -184,17 +177,34 @@ static DataValue Matrix()
     return v;
 }
 
+// Keep single-value fixtures concise; bulk-input tests use the separate arrays directly.
+static DataResult AddTestRow(HDataStore store, uint64_t type, DataOwnerId owner, const DataValue* values, uint32_t count, DataId* out_id, uint64_t component_id = 0)
+{
+    dmArray<DataValueType> types;
+    dmArray<DataValueData> payloads;
+    types.SetCapacity(count);
+    types.SetSize(count);
+    payloads.SetCapacity(count);
+    payloads.SetSize(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        types[i] = values[i].m_Type;
+        payloads[i] = values[i].m_Value;
+    }
+    return DataAddRow(store, type, owner, types.Begin(), payloads.Begin(), count, out_id, component_id);
+}
+
 static DataResult Register(HDataStore store, uint64_t type, const uint64_t* tags = 0, uint32_t tag_count = 0)
 {
-    DataPropertyDesc meta[] = { { 10, DATA_VALUE_TYPE_NUMBER, 0 }, { 20, DATA_VALUE_TYPE_STRING, 8 } };
-    DataTableDesc    desc = { type, tags, tag_count, meta, 2, 16 };
+    DataFieldDesc meta[] = { { 10, DATA_VALUE_TYPE_NUMBER, 0 }, { 20, DATA_VALUE_TYPE_STRING, 8 } };
+    DataTableDesc desc = { type, tags, tag_count, meta, 2, 16 };
     return DataRegisterTable(store, &desc);
 }
 
 static DataResult Add(HDataStore store, uint64_t type, DataOwnerId owner, double number, const char* string, DataId* id)
 {
     DataValue values[] = { Number(number), String(string) };
-    return DataAddRow(store, type, owner, values, 2, id);
+    return AddTestRow(store, type, owner, values, 2, id);
 }
 
 static DataResult Load(HDataStore store, const uint8_t* bytes, uint32_t size, HDataBlobInstance* instance, DataOwnerId owner = 0)
@@ -231,18 +241,18 @@ TEST(Data, StringOwnershipAndSelfAssignment)
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, 1, 2.5, text, &id));
     text[0] = 'X';
     DataValue out;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 20, &out));
     ASSERT_STREQ("copied", out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, id, 20, &out));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, id, 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 20, &out));
     ASSERT_STREQ("copied", out.m_Value.m_String);
     DataValue replacement = String(text);
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, id, 20, &replacement));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, id, 20, &replacement));
     text[1] = 'Y';
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 20, &out));
     ASSERT_STREQ("Xopied", out.m_Value.m_String);
     replacement = String(0);
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetProperty(store, id, 20, &replacement));
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, id, 20, &replacement));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
 }
 
@@ -254,7 +264,7 @@ TEST(Data, GrowthSwapRemovalAndStaleIds)
     for (uint32_t i = 0; i < 257; ++i)
         ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, i, i, "value", &ids[i]));
     DataValue out;
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetProperty(store, 0, 10, &out));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, 0, 10, &out));
     for (uint32_t i = 0; i < 257; i += 2)
     {
         ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[i]));
@@ -262,9 +272,9 @@ TEST(Data, GrowthSwapRemovalAndStaleIds)
     }
     for (uint32_t i = 1; i < 257; i += 2)
     {
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[i], 10, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[i], 10, &out));
         ASSERT_EQ((double)i, out.m_Value.m_Number);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[i], 20, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[i], 20, &out));
         ASSERT_STREQ("value", out.m_Value.m_String);
     }
     for (uint32_t i = 0; i < 257; i += 2)
@@ -272,14 +282,14 @@ TEST(Data, GrowthSwapRemovalAndStaleIds)
         DataId replacement;
         ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, i, -1, "new", &replacement));
         ASSERT_NE(ids[i], replacement);
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetProperty(store, ids[i], 10, &out));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, ids[i], 10, &out));
     }
     ASSERT_EQ(DATA_RESULT_OK, DataUnregisterTable(store, 1));
     ASSERT_EQ(DATA_RESULT_OK, Register(store, 1));
     DataId replacement;
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, 0, 42, "reregistered", &replacement));
     for (uint32_t i = 0; i < 257; ++i)
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetProperty(store, ids[i], 10, &out));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, ids[i], 10, &out));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
 }
 
@@ -319,7 +329,7 @@ TEST(Data, LiveQueriesTagsOwnersAndCopiedDescriptors)
             DataOwnerId owner = DataIterGetOwnerId(&it, row);
             ASSERT_TRUE(owner == 7 || owner == 8);
             DataValue out;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, DataIterGetId(&it, row), 10, &out));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, DataIterGetId(&it, row), 10, &out));
             ++total;
         }
     }
@@ -374,8 +384,10 @@ TEST(Data, StructuralLockBlocksMutations)
     HDataBlobInstance unchanged_instance = instance;
     ASSERT_EQ(DATA_RESULT_LOCKED, Register(store, 2));
     ASSERT_EQ(DATA_RESULT_LOCKED, Add(store, 1, 3, 2, "two", &unchanged));
-    DataValue   values[] = { Number(2), String("two") };
-    DataRowDesc add = { 3, values, 2, 0 };
+    DataValue     values[] = { Number(2), String("two") };
+    DataValueType types[] = { DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_STRING };
+    DataValueData payloads[] = { values[0].m_Value, values[1].m_Value };
+    DataRowDesc   add = { .m_Owner = 3, .m_Types = types, .m_Values = payloads, .m_ValueCount = 2 };
     ASSERT_EQ(DATA_RESULT_LOCKED, DataAddRows(store, 1, &add, 1, &unchanged));
     ASSERT_EQ((DataId)123, unchanged);
     ASSERT_EQ(DATA_RESULT_LOCKED, DataRemoveRow(store, id));
@@ -413,22 +425,22 @@ TEST(Data, NestedQueriesAndWritesPreserveBatches)
 {
     HDataStore store = DataCreateStore();
     ASSERT_EQ(DATA_RESULT_OK, Register(store, 1));
-    DataPropertyDesc meta[] = { { 10, DATA_VALUE_TYPE_NUMBER, 8 }, { 20, DATA_VALUE_TYPE_STRING, 24 } };
-    DataTableDesc    table = { 2, 0, 0, meta, 2, 32 };
+    DataFieldDesc meta[] = { { 10, DATA_VALUE_TYPE_NUMBER, 8 }, { 20, DATA_VALUE_TYPE_STRING, 24 } };
+    DataTableDesc table = { 2, 0, 0, meta, 2, 32 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
     DataId ids[2][4];
     for (uint32_t t = 0; t < 2; ++t)
         for (uint32_t r = 0; r < 4; ++r)
             ASSERT_EQ(DATA_RESULT_OK, Add(store, t + 1, r == 1 ? 8 : 7, t * 10 + r, "base", &ids[t][r]));
 
-    DataOwnerId       owner = 7;
-    DataQueryProperty fields[] = { { 10, DATA_VALUE_TYPE_NUMBER }, { 20, DATA_VALUE_TYPE_STRING } };
-    DataQueryDesc     desc = { &owner, 1, 0, 0, fields, 2 };
-    HDataQuery        query;
+    DataOwnerId    owner = 7;
+    DataQueryField fields[] = { { 10, DATA_VALUE_TYPE_NUMBER }, { 20, DATA_VALUE_TYPE_STRING } };
+    DataQueryDesc  desc = { &owner, 1, 0, 0, fields, 2 };
+    HDataQuery     query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
     // A second query and iterator must not replace the first iterator's batch state.
-    DataQueryProperty other_fields[] = { fields[1], fields[0] };
-    desc.m_Properties = other_fields;
+    DataQueryField other_fields[] = { fields[1], fields[0] };
+    desc.m_Fields = other_fields;
     HDataQuery other_query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &other_query));
     DataStoreLock(store);
@@ -477,37 +489,37 @@ TEST(Data, NestedQueriesAndWritesPreserveBatches)
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
 }
 
-TEST(Data, BoundPropertyQueries)
+TEST(Data, BoundFieldQueries)
 {
-    HDataStore        store = DataCreateStore();
-    uint64_t          tag = 8;
-    DataOwnerId       owner = 7;
-    DataQueryProperty fields[] = { { 20, DATA_VALUE_TYPE_STRING }, { 10, DATA_VALUE_TYPE_NUMBER } };
-    DataQueryDesc     desc = { &owner, 1, &tag, 1, fields, 2 };
-    HDataQuery        query;
+    HDataStore     store = DataCreateStore();
+    uint64_t       tag = 8;
+    DataOwnerId    owner = 7;
+    DataQueryField fields[] = { { 20, DATA_VALUE_TYPE_STRING }, { 10, DATA_VALUE_TYPE_NUMBER } };
+    DataQueryDesc  desc = { &owner, 1, &tag, 1, fields, 2 };
+    HDataQuery     query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
-    fields[0].m_Property = 999; // Query owns the original filter/binding order.
+    fields[0].m_Field = 999; // Query owns the original filter/binding order.
     ASSERT_EQ(DATA_RESULT_OK, Register(store, 1, &tag, 1));
-    DataPropertyDesc swapped[] = { { 20, DATA_VALUE_TYPE_STRING, 0 }, { 10, DATA_VALUE_TYPE_NUMBER, 8 } };
-    DataTableDesc    table = { 2, &tag, 1, swapped, 2, 16 };
+    DataFieldDesc swapped[] = { { 20, DATA_VALUE_TYPE_STRING, 0 }, { 10, DATA_VALUE_TYPE_NUMBER, 8 } };
+    DataTableDesc table = { 2, &tag, 1, swapped, 2, 16 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
-    DataPropertyDesc wrong[] = { { 10, DATA_VALUE_TYPE_STRING, 0 }, { 20, DATA_VALUE_TYPE_STRING, 8 } };
+    DataFieldDesc wrong[] = { { 10, DATA_VALUE_TYPE_STRING, 0 }, { 20, DATA_VALUE_TYPE_STRING, 8 } };
     table.m_Type = 3;
-    table.m_Properties = wrong;
+    table.m_Fields = wrong;
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
     table.m_Type = 4;
-    table.m_Properties = swapped;
-    table.m_PropertyCount = 1;
+    table.m_Fields = swapped;
+    table.m_FieldCount = 1;
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table)); // Missing number.
     ASSERT_EQ(DATA_RESULT_OK, Register(store, 5));               // Missing tag.
     DataId ids[6];
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, 7, 1, "one", &ids[0]));
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, 8, 99, "other owner", &ids[1]));
     DataValue values[] = { String("two"), Number(2) };
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 2, 7, values, 2, &ids[2]));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 2, 7, values, 2, &ids[2]));
     values[1] = String("wrong kind");
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 3, 7, values, 2, &ids[3]));
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 4, 7, values, 1, &ids[4]));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 3, 7, values, 2, &ids[3]));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 4, 7, values, 1, &ids[4]));
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 5, 7, 3, "no tag", &ids[5]));
     DataStoreLock(store);
     DataIterator it = DataQueryIter(query);
@@ -522,9 +534,9 @@ TEST(Data, BoundPropertyQueries)
         DataValue changed = Number(44);
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataIterSetField(&it, 0, 0, &changed));
         ASSERT_EQ(DATA_RESULT_OK, DataIterSetField(&it, 0, 1, &changed));
-        ASSERT_EQ(DATA_RESULT_OK, DataIterGetProperty(&it, 0, 10, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataIterGetFieldByHash(&it, 0, 10, &out));
         ASSERT_EQ(44.0, out.m_Value.m_Number);
-        ASSERT_EQ(DATA_RESULT_OK, DataResetProperty(store, DataIterGetId(&it, 0), 10));
+        ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, DataIterGetId(&it, 0), 10));
         ASSERT_EQ(DATA_RESULT_OK, DataIterGetField(&it, 0, 1, &out));
         ASSERT_EQ((double)DataIterGetType(&it), out.m_Value.m_Number);
         ASSERT_EQ(DATA_RESULT_OK, DataIterGetField(&it, 0, 0, &out));
@@ -548,16 +560,13 @@ TEST(Data, BoundPropertyQueries)
     ASSERT_EQ(DATA_RESULT_OK, DataIterGetField(&it, 0, 1, &out));
     ASSERT_EQ(2.0, out.m_Value.m_Number);
     DataDestroyQuery(query);
-    desc.m_Properties = 0;
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(store, &desc, &query));
-    desc.m_Properties = fields;
     fields[0].m_Type = (DataValueType)99;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(store, &desc, &query));
     DataStoreUnlock(store);
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
 }
 
-TEST(Data, BoundPackedProperties)
+TEST(Data, BoundPackedFields)
 {
     HDataStore source = DataCreateStore();
     ASSERT_EQ(DATA_RESULT_OK, Register(source, 1));
@@ -568,10 +577,10 @@ TEST(Data, BoundPackedProperties)
     uint8_t* bytes = new uint8_t[size];
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, bytes, size, &size));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(source));
-    HDataStore        store = DataCreateStore();
-    DataQueryProperty fields[] = { { 10, DATA_VALUE_TYPE_NUMBER }, { 20, DATA_VALUE_TYPE_STRING } };
-    DataQueryDesc     desc = { 0, 0, 0, 0, fields, 2 };
-    HDataQuery        query;
+    HDataStore     store = DataCreateStore();
+    DataQueryField fields[] = { { 10, DATA_VALUE_TYPE_NUMBER }, { 20, DATA_VALUE_TYPE_STRING } };
+    DataQueryDesc  desc = { 0, 0, 0, 0, fields, 2 };
+    HDataQuery     query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
     HDataBlobInstance instance;
     ASSERT_EQ(DATA_RESULT_OK, Load(store, bytes, size, &instance));
@@ -603,37 +612,37 @@ TEST(Data, BoundPackedProperties)
 
 TEST(Data, SharedMetadataAndDenseRows)
 {
-    HDataStore       store = DataCreateStore();
-    DataPropertyDesc meta[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_NUMBER, 16 }, { 30, DATA_VALUE_TYPE_NUMBER, 24 } };
-    DataTableDesc    desc = { 1, 0, 0, meta, 3, 32 };
+    HDataStore    store = DataCreateStore();
+    DataFieldDesc meta[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_NUMBER, 16 }, { 30, DATA_VALUE_TYPE_NUMBER, 24 } };
+    DataTableDesc desc = { 1, 0, 0, meta, 3, 32 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &desc));
-    meta[0].m_Property = 999; // The construction descriptor is copied once.
+    meta[0].m_Field = 999; // The construction descriptor is copied once.
     DataValue values[] = { Vector3(1, 2, 3), Number(4), Number(10) };
     DataId    ids[3];
     for (uint32_t i = 0; i < 3; ++i)
-        ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 1, i, values, 3, &ids[i]));
+        ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 1, i, values, 3, &ids[i]));
     DataTable* table = store->m_Tables[0];
-    ASSERT_EQ(3u, table->m_Owned->m_Properties.Size());
+    ASSERT_EQ(3u, table->m_Owned->m_Fields.Size());
     ASSERT_EQ(96u, table->m_Owned->m_BaseRows.Size()); // Three 32-byte rows, with no per-row names or kind tags.
     ASSERT_EQ(0, memcmp(table->m_Owned->m_BaseRows.Begin(), table->m_Owned->m_BaseRows.Begin() + 32, 32));
     ASSERT_EQ((uintptr_t)0, (uintptr_t)table->m_Owned->m_BaseValues);
     ASSERT_EQ((uintptr_t)0, (uintptr_t)table->m_Payloads);
     DataValue out;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[1], 10, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1], 10, &out));
     ASSERT_EQ(2.0f, out.m_Value.m_Vector3[1]);
     DataValue changed = Vector3(0.25f, 0.5f, 0.75f);
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, ids[1], 10, &changed));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[1], 10, &changed));
     ASSERT_EQ(96u, table->m_Values.Size());
     ASSERT_EQ(0, memcmp(table->m_Values.Begin(), table->m_Owned->m_BaseRows.Begin(), 32));
     ASSERT_NE(0, memcmp(table->m_Values.Begin() + 32, table->m_Owned->m_BaseRows.Begin() + 32, 32));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[1], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1], 20, &out));
     ASSERT_EQ(4.0, out.m_Value.m_Number); // Updating color preserves the other mutable fields.
     changed = Number(3);
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetProperty(store, ids[1], 10, &changed));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[1], 10, &out));
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, ids[1], 10, &changed));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1], 10, &out));
     ASSERT_EQ(0.5f, out.m_Value.m_Vector3[1]);
-    ASSERT_EQ(DATA_RESULT_OK, DataResetProperty(store, ids[1], 10));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[1], 10, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, ids[1], 10));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1], 10, &out));
     ASSERT_EQ(2.0f, out.m_Value.m_Vector3[1]);
     ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
     ASSERT_EQ((uintptr_t)0, (uintptr_t)table->m_Payloads);
@@ -643,63 +652,217 @@ TEST(Data, SharedMetadataAndDenseRows)
 
 TEST(Data, MetadataAndBulkValidation)
 {
-    HDataStore       store = DataCreateStore();
-    DataPropertyDesc meta[] = { { 1, DATA_VALUE_TYPE_NUMBER, 0 }, { 2, DATA_VALUE_TYPE_BOOLEAN, 8 } };
-    DataTableDesc    desc = { 1, 0, 0, meta, 2, 16 };
+    HDataStore    store = DataCreateStore();
+    DataFieldDesc meta[] = { { 1, DATA_VALUE_TYPE_NUMBER, 0 }, { 2, DATA_VALUE_TYPE_BOOLEAN, 8 } };
+    DataTableDesc desc = { 1, 0, 0, meta, 2, 16 };
     meta[1].m_Offset = 7;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &desc));
     meta[1].m_Offset = 16;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &desc));
     meta[1].m_Offset = 8;
-    meta[1].m_Property = 1;
+    meta[1].m_Field = 1;
     ASSERT_EQ(DATA_RESULT_ALREADY_EXISTS, DataRegisterTable(store, &desc));
-    meta[1].m_Property = 2;
+    meta[1].m_Field = 2;
     meta[1].m_Type = (DataValueType)99;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &desc));
     meta[1].m_Type = DATA_VALUE_TYPE_BOOLEAN;
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &desc));
     ASSERT_EQ(DATA_RESULT_ALREADY_EXISTS, DataRegisterTable(store, &desc));
-    DataValue   values[] = { Number(4), Boolean(1), Number(5), Boolean(2) };
-    DataRowDesc rows[] = { { 1, values, 2, 7 }, { 2, values + 2, 2, 8 } };
-    DataId      ids[] = { 123, 456 };
+    DataValueType types[] = { DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_BOOLEAN };
+    DataValueData values[] = { { .m_Number = 4 }, { .m_Boolean = 1 }, { .m_Number = 5 }, { .m_Boolean = 2 } };
+    DataRowDesc   rows[] = {
+        { .m_Owner = 1, .m_Types = types, .m_Values = values, .m_ValueCount = 2, .m_ComponentId = 7 },
+        { .m_Owner = 2, .m_Types = types, .m_Values = values + 2, .m_ValueCount = 2, .m_ComponentId = 8 }
+    };
+    DataId ids[] = { 123, 456 };
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, rows, 2, ids));
     ASSERT_EQ((DataId)123, ids[0]);
     ASSERT_EQ((DataId)456, ids[1]);
     ASSERT_EQ(0u, store->m_Tables[0]->m_Rows.Size());
-    values[3] = Boolean(0);
+    values[3].m_Boolean = 0;
     rows[1].m_ValueCount = 1;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, rows, 2, ids));
     rows[1].m_ValueCount = 2;
-    values[2] = String("wrong kind");
+    types[0] = DATA_VALUE_TYPE_STRING;
+    values[2].m_String = "wrong kind";
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, rows, 2, ids));
-    values[2] = Number(5);
+    types[0] = DATA_VALUE_TYPE_NUMBER;
+    values[2].m_Number = 5;
+    rows[1].m_Types = 0;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, rows, 2, ids));
+    rows[1].m_Types = types;
+    rows[1].m_Values = 0;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, rows, 2, ids));
+    rows[1].m_Values = values + 2;
     ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, rows, 2, ids));
     ASSERT_EQ(32u, store->m_Tables[0]->m_Owned->m_BaseRows.Size());
-    values[0] = Number(99);
+    values[0].m_Number = 99;
+    types[0] = DATA_VALUE_TYPE_STRING; // Insertion no longer depends on either input array.
     DataValue out = Number(123);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[0], 1, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0], 1, &out));
     ASSERT_EQ(4.0, out.m_Value.m_Number);
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetProperty(store, ids[0], 999, &out));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, ids[0], 999, &out));
     ASSERT_EQ(4.0, out.m_Value.m_Number);
     ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, 0, 0, 0));
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, 0, 1, ids));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
 }
 
+TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
+{
+    DataFieldDesc fields[] = {
+        { .m_Field = 10, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 0 },
+        { .m_Field = 20, .m_Type = DATA_VALUE_TYPE_BOOLEAN, .m_Offset = 8 },
+        { .m_Field = 30, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 12 },
+        { .m_Field = 40, .m_Type = DATA_VALUE_TYPE_VECTOR4, .m_Offset = 24 },
+        { .m_Field = 50, .m_Type = DATA_VALUE_TYPE_MATRIX4, .m_Offset = 40 }
+    };
+    const DataValueType types[] = { DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_BOOLEAN, DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_VECTOR4, DATA_VALUE_TYPE_MATRIX4 };
+    DataTableDesc       table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = 104 };
+    HDataStore          store = DataCreateStore();
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
+    DataValueData values[3][5] = {};
+    DataRowDesc   rows[3] = {};
+    for (uint32_t r = 0; r < 3; ++r)
+    {
+        values[r][0].m_Number = 100 + r;
+        values[r][1].m_Boolean = r & 1;
+        for (uint32_t f = 2; f < 5; ++f)
+            for (uint32_t v = 0; v < DataTypeSize(types[f]) / sizeof(float); ++v)
+                values[r][f].m_Matrix4[v] = (float)(100 * r + 10 * f + v);
+        rows[r] = { .m_Owner = 20 + r, .m_Types = types, .m_Values = values[r], .m_ValueCount = 5, .m_ComponentId = 30 + r };
+    }
+    DataId old_ids[2], ids[] = { 123, 456, 789 };
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, rows, 2, old_ids));
+    ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, old_ids[0]));
+    values[2][1].m_Boolean = 2;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, rows, 3, ids));
+    ASSERT_EQ((DataId)123, ids[0]);
+    ASSERT_EQ((DataId)789, ids[2]);
+    ASSERT_EQ(1u, store->m_Tables[0]->m_Rows.Size());
+    ASSERT_EQ(2u, store->m_Tables[0]->m_Owned->m_BaseCount);
+    values[2][1].m_Boolean = 0;
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, rows, 3, ids));
+    ASSERT_EQ((uint32_t)old_ids[0], (uint32_t)ids[0]); // Reused slot with a new generation, followed by fresh slots.
+    ASSERT_NE(old_ids[0], ids[0]);
+    ASSERT_EQ(4u, store->m_Slots.Size());
+    double number;
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, old_ids[0], 10, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, old_ids[1], 10, &number));
+    ASSERT_EQ(101.0, number);
+    for (uint32_t r = 0; r < 3; ++r)
+    {
+        const DataSlot* slot = FindSlot(store, ids[r]);
+        ASSERT_EQ((DataOwnerId)(20 + r), slot->m_Table->m_Rows[slot->m_Row].m_Owner);
+        ASSERT_EQ((uint64_t)(30 + r), DataGetComponentId(store, ids[r]));
+        ASSERT_EQ(DATA_RESULT_OK, DataSetFieldNumber(store, ids[r], 10, -1));
+        ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[r]));
+        for (uint32_t f = 0; f < 5; ++f)
+        {
+            DataValue value;
+            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], fields[f].m_Field, &value));
+            ASSERT_EQ(0, memcmp(&values[r][f], &value.m_Value, DataTypeSize(types[f])));
+        }
+        const uint8_t* bytes = GetFieldBytes(slot->m_Table, &slot->m_Table->m_Rows[slot->m_Row], 0);
+        ASSERT_EQ(0, bytes[9] | bytes[10] | bytes[11]); // Padding is initialized for every appended row.
+    }
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+}
+
+TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
+{
+    DataFieldDesc members[] = {
+        { .m_Field = 10, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 0 },
+        { .m_Field = 20, .m_Type = DATA_VALUE_TYPE_BOOLEAN, .m_Offset = 12 }
+    };
+    DataStructDesc layout = { .m_Fields = members, .m_FieldCount = 2, .m_Size = 16 };
+    DataFieldDesc  field = { .m_Field = 1, .m_Type = DATA_VALUE_TYPE_STRUCT, .m_Struct = &layout };
+    DataTableDesc  table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 16 };
+    HDataStore     store = DataCreateStore();
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
+    uint64_t      names[] = { 10, 20, 20, 10 };
+    DataValueType types[] = { DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_BOOLEAN, DATA_VALUE_TYPE_BOOLEAN, DATA_VALUE_TYPE_VECTOR3 };
+    DataValueData children[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Boolean = 1 }, { .m_Boolean = 2 }, { .m_Vector3 = { 4, 5, 6 } } };
+    DataValueData values[] = {
+        { .m_Struct = { .m_Names = names, .m_Types = types, .m_Values = children, .m_Count = 2 } },
+        { .m_Struct = { .m_Names = names + 2, .m_Types = types + 2, .m_Values = children + 2, .m_Count = 2 } }
+    };
+    const DataValueType kind = DATA_VALUE_TYPE_STRUCT;
+    DataRowDesc         rows[] = {
+        { .m_Types = &kind, .m_Values = values, .m_ValueCount = 1 },
+        { .m_Types = &kind, .m_Values = values + 1, .m_ValueCount = 1 }
+    };
+    DataId ids[] = { 123, 456 };
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ((DataId)123, ids[0]);
+    ASSERT_EQ((DataId)456, ids[1]);
+    ASSERT_EQ(0u, store->m_Tables[0]->m_Rows.Size());
+    ASSERT_EQ(0u, store->m_Tables[0]->m_Owned->m_BaseCount);
+    children[2].m_Boolean = 0;
+    types[3] = DATA_VALUE_TYPE_NUMBER;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, rows, 2, ids));
+    types[3] = DATA_VALUE_TYPE_VECTOR3;
+    names[3] = 99;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, rows, 2, ids));
+    names[3] = 10;
+    ASSERT_EQ((DataId)123, ids[0]);
+    ASSERT_EQ((DataId)456, ids[1]);
+    ASSERT_EQ(0u, store->m_Tables[0]->m_Rows.Size());
+    ASSERT_EQ(0u, store->m_Tables[0]->m_Owned->m_BaseCount);
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, rows, 2, ids));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        DataValue object, color, enabled;
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[i], 1, &object));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 10, &color));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 20, &enabled));
+        ASSERT_EQ(i ? 6.0f : 3.0f, color.m_Value.m_Vector3[2]);
+        ASSERT_EQ(i ? 0 : 1, enabled.m_Value.m_Boolean);
+    }
+    // Borrowed inline views keep working through the general input path.
+    HDataStore copy = DataCreateStore();
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(copy, &table));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        DataValue view;
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[i], 1, &view));
+        values[i] = view.m_Value;
+    }
+    DataId copied[2];
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRows(copy, 1, rows, 2, copied));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        DataValue object, color, enabled;
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(copy, copied[i], 1, &object));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 10, &color));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 20, &enabled));
+        ASSERT_EQ(i ? 6.0f : 3.0f, color.m_Value.m_Vector3[2]);
+        ASSERT_EQ(i ? 0 : 1, enabled.m_Value.m_Boolean);
+    }
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(copy));
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+}
+
+TEST(Data, CApiStoreLifecycle)
+{
+    ASSERT_EQ(0, TestDataStoreLifecycleFromC());
+}
+
 TEST(Data, CApiMathAndNestedViews)
 {
-    HDataStore       store = DataCreateStore();
-    DataPropertyDesc meta[] = { { 42, DATA_VALUE_TYPE_NUMBER, 0 }, { 43, DATA_VALUE_TYPE_VECTOR3, 8 }, { 44, DATA_VALUE_TYPE_VECTOR4, 20 }, { 45, DATA_VALUE_TYPE_MATRIX4, 36 }, { 46, DATA_VALUE_TYPE_STRUCT, 104 }, { 47, DATA_VALUE_TYPE_BOOLEAN, 112 }, { 48, DATA_VALUE_TYPE_STRING, 120 } };
-    uint64_t         tag = 7;
-    DataTableDesc    desc = { 1, &tag, 1, meta, 7, 128 };
+    HDataStore    store = DataCreateStore();
+    DataFieldDesc meta[] = { { 42, DATA_VALUE_TYPE_NUMBER, 0 }, { 43, DATA_VALUE_TYPE_VECTOR3, 8 }, { 44, DATA_VALUE_TYPE_VECTOR4, 20 }, { 45, DATA_VALUE_TYPE_MATRIX4, 36 }, { 46, DATA_VALUE_TYPE_STRUCT, 104 }, { 47, DATA_VALUE_TYPE_BOOLEAN, 112 }, { 48, DATA_VALUE_TYPE_STRING, 120 } };
+    uint64_t      tag = 7;
+    DataTableDesc desc = { 1, &tag, 1, meta, 7, 128 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &desc));
     DataValue vec4 = {};
     vec4.m_Type = DATA_VALUE_TYPE_VECTOR4;
-    uint64_t  color_name = 10;
-    DataValue color = Vector3(1.0f, 0.5f, 0.25f);
-    DataValue values[] = { Number(17), Vector3(1, 1, 1), vec4, Matrix(), Struct(&color_name, &color, 1), Boolean(0), String("initial") };
-    DataId    id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 1, 123, values, 7, &id));
+    uint64_t            color_name = 10;
+    const DataValueType color_type = DATA_VALUE_TYPE_VECTOR3;
+    DataValueData       color = { .m_Vector3 = { 1.0f, 0.5f, 0.25f } };
+    DataValue           values[] = { Number(17), Vector3(1, 1, 1), vec4, Matrix(), Struct(&color_name, &color_type, &color, 1), Boolean(0), String("initial") };
+    DataId              id;
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 1, 123, values, 7, &id));
     ASSERT_EQ(0, TestDataFromC(store));
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, 0, 0, &size));
@@ -709,21 +872,21 @@ TEST(Data, CApiMathAndNestedViews)
     HDataBlobInstance instance;
     ASSERT_EQ(DATA_RESULT_OK, Load(loaded, bytes, size, &instance, 123));
     DataMatrix4 loaded_matrix;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyMatrix4(loaded, FirstId(loaded), 45, &loaded_matrix));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldMatrix4(loaded, FirstId(loaded), 45, &loaded_matrix));
     ASSERT_EQ(44.0f, loaded_matrix.m_Values[3 * 4 + 2]);
     DataValue out;
     for (uint32_t i = 1; i <= 3; ++i)
     {
         DataValue original;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, meta[i].m_Property, &original));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(loaded, FirstId(loaded), meta[i].m_Property, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, meta[i].m_Field, &original));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(loaded, FirstId(loaded), meta[i].m_Field, &out));
         ASSERT_EQ(original.m_Type, out.m_Type);
         ASSERT_EQ(0, memcmp(&original.m_Value, &out.m_Value, DataTypeSize(original.m_Type)));
     }
     ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
     for (uint32_t i = 1; i <= 3; ++i)
     {
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, meta[i].m_Property, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, meta[i].m_Field, &out));
         ASSERT_EQ(values[i].m_Type, out.m_Type);
         ASSERT_EQ(0, memcmp(&values[i].m_Value, &out.m_Value, DataTypeSize(out.m_Type)));
     }
@@ -736,10 +899,10 @@ TEST(Data, CApiMathAndNestedViews)
 TEST(Data, AlignedMathReadsPreserveFloatBits)
 {
     // Zero, negative zero, subnormal, infinities and a NaN with a payload.
-    const uint32_t   bits[] = { 0, 0x80000000, 1, 0x7f800000, 0xff800000, 0x7fc01234, 0x3f800000, 0xbf800000, 0, 0x80000000, 1, 0x7f800000, 0xff800000, 0x7fc01234, 0x3f800000, 0xbf800000 };
-    DataPropertyDesc meta[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_VECTOR4, 12 }, { 30, DATA_VALUE_TYPE_MATRIX4, 28 } };
-    DataTableDesc    desc = { 1, 0, 0, meta, 3, 92 };
-    DataValue        values[3] = {};
+    const uint32_t bits[] = { 0, 0x80000000, 1, 0x7f800000, 0xff800000, 0x7fc01234, 0x3f800000, 0xbf800000, 0, 0x80000000, 1, 0x7f800000, 0xff800000, 0x7fc01234, 0x3f800000, 0xbf800000 };
+    DataFieldDesc  meta[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_VECTOR4, 12 }, { 30, DATA_VALUE_TYPE_MATRIX4, 28 } };
+    DataTableDesc  desc = { 1, 0, 0, meta, 3, 92 };
+    DataValue      values[3] = {};
     for (uint32_t i = 0; i < 3; ++i)
     {
         values[i].m_Type = meta[i].m_Type;
@@ -748,7 +911,7 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
     HDataStore source = DataCreateStore();
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &desc));
     DataId id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 0, values, 3, &id));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 0, values, 3, &id));
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
@@ -767,24 +930,24 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
             for (uint32_t i = 0; i < 3; ++i)
             {
                 if (overridden)
-                    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, row, meta[i].m_Property, &values[i]));
+                    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, row, meta[i].m_Field, &values[i]));
                 DataValue value;
-                ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, row, meta[i].m_Property, &value));
+                ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, row, meta[i].m_Field, &value));
                 ASSERT_EQ(meta[i].m_Type, value.m_Type);
                 ASSERT_EQ(0, memcmp(bits, &value.m_Value, DataTypeSize(value.m_Type)));
             }
             DataVector3 vector3;
             DataVector4 vector4;
             DataMatrix4 matrix;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyVector3(store, row, 10, &vector3));
-            ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyVector4(store, row, 20, &vector4));
-            ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyMatrix4(store, row, 30, &matrix));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector3(store, row, 10, &vector3));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector4(store, row, 20, &vector4));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetFieldMatrix4(store, row, 30, &matrix));
             ASSERT_EQ(0, memcmp(bits, vector3.m_Values, sizeof(vector3.m_Values)));
             ASSERT_EQ(0, memcmp(bits, vector4.m_Values, sizeof(vector4.m_Values)));
             ASSERT_EQ(0, memcmp(bits, matrix.m_Values, sizeof(matrix.m_Values)));
-            DataQueryProperty fields[] = { { 30, DATA_VALUE_TYPE_MATRIX4 }, { 10, DATA_VALUE_TYPE_VECTOR3 }, { 20, DATA_VALUE_TYPE_VECTOR4 } };
-            DataQueryDesc     query_desc = { 0, 0, 0, 0, fields, 3 };
-            HDataQuery        query;
+            DataQueryField fields[] = { { 30, DATA_VALUE_TYPE_MATRIX4 }, { 10, DATA_VALUE_TYPE_VECTOR3 }, { 20, DATA_VALUE_TYPE_VECTOR4 } };
+            DataQueryDesc  query_desc = { 0, 0, 0, 0, fields, 3 };
+            HDataQuery     query;
             ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &query_desc, &query));
             uint32_t matrix_field = DataQueryFindField(query, &fields[0]);
             uint32_t vector3_field = DataQueryFindField(query, &fields[1]);
@@ -811,23 +974,27 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
 
 TEST(Data, BinaryGoldenSharedMetadata)
 {
-    // Two eight-byte rows share one 32-byte metadata entry.
+    // Two eight-byte rows share one 24-byte metadata entry.
     // clang-format off
     const uint8_t DM_ALIGNED(8) expected[] = {
-        'D','M','D','T',8,0,0,0, 1,0,0,0,120,0,0,0, 24,0,0,0,0,0,0,0,
-        1,0,0,0,0,0,0,0, 0,0,0,0,1,0,0,0, 2,0,0,0,8,0,0,0, 1,0,0,0,0,0,0,0,
-        10,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 8,0,0,0,0,0,0,0,
+        'D','M','D','T',1,0,0,0, 1,0,0,0,104,0,0,0, 24,0,0,0,0,0,0,0,
+        1,0,0,0,0,0,0,0, 0,0,1,0,2,0,0,0, 8,0,0,0,1,0,0,0,
+        10,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,8,0,0,0,
         7,0,0,0,0,0,0,0, 8,0,0,0,0,0,0,0,
         0,0,0,0,0,0,0xf8,0x3f, 0,0,0,0,0,0,0,0xc0
     };
     // clang-format on
-    HDataStore       store = DataCreateStore();
-    DataPropertyDesc meta = { 10, DATA_VALUE_TYPE_NUMBER, 0 };
-    DataTableDesc    desc = { 1, 0, 0, &meta, 1, 8 };
+    HDataStore    store = DataCreateStore();
+    DataFieldDesc meta = { 10, DATA_VALUE_TYPE_NUMBER, 0 };
+    DataTableDesc desc = { 1, 0, 0, &meta, 1, 8 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &desc));
-    DataValue   values[] = { Number(1.5), Number(-2) };
-    DataId      ids[2];
-    DataRowDesc rows[] = { { 100, values, 1, 7 }, { 200, values + 1, 1, 8 } };
+    const DataValueType types[] = { DATA_VALUE_TYPE_NUMBER };
+    DataValueData       values[] = { { .m_Number = 1.5 }, { .m_Number = -2 } };
+    DataId              ids[2];
+    DataRowDesc         rows[] = {
+        { .m_Owner = 100, .m_Types = types, .m_Values = values, .m_ValueCount = 1, .m_ComponentId = 7 },
+        { .m_Owner = 200, .m_Types = types, .m_Values = values + 1, .m_ValueCount = 1, .m_ComponentId = 8 }
+    };
     ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, rows, 2, ids));
     uint8_t  DM_ALIGNED(8) bytes[sizeof(expected)];
     uint32_t size = 0;
@@ -842,7 +1009,7 @@ TEST(Data, BinaryGoldenSharedMetadata)
     HDataStore        loaded = DataCreateStore();
     HDataBlobInstance instance;
     ASSERT_EQ(DATA_RESULT_OK, Load(loaded, expected, sizeof(expected), &instance));
-    ASSERT_EQ((uintptr_t)(expected + 104), (uintptr_t)(GetInstanceTable(instance, 0)->m_Blob + GetInstanceTable(instance, 0)->m_Offsets.m_Rows));
+    ASSERT_EQ((uintptr_t)(expected + 88), (uintptr_t)(GetInstanceTable(instance, 0)->m_Blob + GetInstanceTable(instance, 0)->m_Offsets.m_Rows));
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(loaded, bytes, size, &size));
     ASSERT_EQ(0, memcmp(expected, bytes, size));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(loaded));
@@ -857,9 +1024,9 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     ASSERT_EQ(DATA_RESULT_OK, Register(source, 2, &tag, 1));
     DataValue values[] = { Number(1), String("shared") };
     DataId    id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 999, values, 2, &id, 11));
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 999, values, 2, &id, 12));
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 2, 999, values, 2, &id, 13));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 999, values, 2, &id, 11));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 999, values, 2, &id, 12));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 2, 999, values, 2, &id, 13));
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
     uint8_t* memory = new uint8_t[size];
@@ -904,7 +1071,7 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
             ASSERT_TRUE(component >= 11 && component <= 13);
             ids[owner][component - 11] = row;
             DataValue out;
-            ASSERT_EQ(DATA_RESULT_OK, DataIterGetProperty(&it, r, 20, &out));
+            ASSERT_EQ(DATA_RESULT_OK, DataIterGetFieldByHash(&it, r, 20, &out));
             ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
             ++total;
         }
@@ -914,23 +1081,23 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(source));
     DataDestroyBlob(blob);
     DataValue change = String("override");
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, ids[0][0], 20, &change));
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, ids[0][1], 20, &change));
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, ids[0][2], 20, &change));
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, ids[1][0], 20, &change));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[0][0], 20, &change));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[0][1], 20, &change));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[0][2], 20, &change));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[1][0], 20, &change));
     DataValue out;
     it = DataQueryIter(query);
     ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
     ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[0][0]));
-    ASSERT_EQ(DATA_RESULT_OK, DataIterGetProperty(&it, 0, 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataIterGetFieldByHash(&it, 0, 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[0][1], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0][1], 20, &out));
     ASSERT_STREQ("override", out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[0][2], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0][2], 20, &out));
     ASSERT_STREQ("override", out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[1][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1][0], 20, &out));
     ASSERT_STREQ("override", out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, ids[0][0], 20, &change));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[0][0], 20, &change));
     DataStoreUnlock(store);
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[0][1]));
     ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataResetRow(store, ids[0][1]));
@@ -938,25 +1105,25 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     it = DataQueryIter(query);
     DataResetBlob(first);
     ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetProperty(store, ids[0][1], 20, &out));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[0][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, ids[0][1], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0][0], 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[0][2], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0][2], 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[1][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1][0], 20, &out));
     ASSERT_STREQ("override", out.m_Value.m_String);
     DataStoreUnlock(store);
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(first));
     for (uint32_t i = 0; i < 3; ++i)
     {
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetProperty(store, ids[0][i], 20, &out));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[1][i], 20, &out));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, ids[0][i], 20, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1][i], 20, &out));
     }
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, ids[1][0], 20, &out));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[1][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[1][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1][0], 20, &out));
     ASSERT_NE(string, (uintptr_t)out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataResetProperty(store, ids[1][0], 20));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[1][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, ids[1][0], 20));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1][0], 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(second));
     DataStoreLock(store);
@@ -975,16 +1142,17 @@ TEST(Data, NestedViewsAllKindsAndReset)
     DataValue vec4 = {};
     vec4.m_Type = DATA_VALUE_TYPE_VECTOR4;
     vec4.m_Value.m_Vector4[3] = 8.0f;
-    DataValue        elements[] = { Null(), Number(1.5), Boolean(1), String("shared"), Vector3(1, 2, 3), vec4, Matrix(), List(0, 0), Struct(0, 0, 0) };
-    DataValue        fields[] = { List(elements, 9), String("shared") };
-    uint64_t         names[] = { 10, 20 };
-    DataValue        value = Struct(names, fields, 2);
-    DataPropertyDesc meta = { 1, DATA_VALUE_TYPE_STRUCT, 0 };
-    DataTableDesc    desc = { 1, 0, 0, &meta, 1, 8 };
-    HDataStore       source = DataCreateStore();
+    DataValue           elements[] = { Null(), Number(1.5), Boolean(1), String("shared"), Vector3(1, 2, 3), vec4, Matrix(), List(0, 0), Struct(0, 0, 0, 0) };
+    const DataValueType types[] = { DATA_VALUE_TYPE_LIST, DATA_VALUE_TYPE_STRING };
+    DataValueData       fields[] = { List(elements, 9).m_Value, String("shared").m_Value };
+    uint64_t            names[] = { 10, 20 };
+    DataValue           value = Struct(names, types, fields, 2);
+    DataFieldDesc       meta = { 1, DATA_VALUE_TYPE_STRUCT, 0 };
+    DataTableDesc       desc = { 1, 0, 0, &meta, 1, 8 };
+    HDataStore          source = DataCreateStore();
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &desc));
     DataId id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 0, &value, 1, &id));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 0, &value, 1, &id));
     elements[1] = Number(99);
     names[0] = 99;
     uint32_t size;
@@ -997,10 +1165,10 @@ TEST(Data, NestedViewsAllKindsAndReset)
     ASSERT_EQ(DATA_RESULT_OK, Load(store, bytes, size, &instance));
     id = FirstId(store);
     DataValue object, list, child, shared;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 1, &object));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &object));
     ASSERT_EQ((uintptr_t)(bytes), (uintptr_t)object.m_Value.m_Struct.m_Buffer);
     ASSERT_EQ((uintptr_t)0, (uintptr_t)object.m_Value.m_Struct.m_Values);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&object.m_Value.m_Struct, 10, &list));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 10, &list));
     ASSERT_EQ(9u, list.m_Value.m_List.m_Count);
     for (uint32_t i = 0; i < 9; ++i)
     {
@@ -1017,23 +1185,23 @@ TEST(Data, NestedViewsAllKindsAndReset)
                 ASSERT_EQ((float)j + 0.5f, child.m_Value.m_Matrix4[j]);
     }
     ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetListValue(&list.m_Value.m_List, 9, &child));
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetStructProperty(&object.m_Value.m_Struct, 99, &child));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetStructField(&object.m_Value.m_Struct, 99, &child));
     ASSERT_EQ(DATA_RESULT_OK, DataGetListValue(&list.m_Value.m_List, 3, &child));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&object.m_Value.m_Struct, 20, &shared));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 20, &shared));
     ASSERT_EQ((uintptr_t)child.m_Value.m_String, (uintptr_t)shared.m_Value.m_String);
     ASSERT_TRUE((const uint8_t*)shared.m_Value.m_String >= bytes && (const uint8_t*)shared.m_Value.m_String < bytes + size);
     ASSERT_EQ((uintptr_t)(bytes), (uintptr_t)GetInstanceTable(instance, 0)->m_Blob); // Values remain borrowed.
     ASSERT_EQ((uintptr_t)0, (uintptr_t)instance->m_Payloads);
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, id, 1, &object)); // Copy only when explicitly setting.
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 1, &child));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, id, 1, &object)); // Copy only when explicitly setting.
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &child));
     ASSERT_TRUE(child.m_Value.m_Struct.m_Buffer != object.m_Value.m_Struct.m_Buffer);
     ASSERT_EQ((uintptr_t)0, (uintptr_t)child.m_Value.m_Struct.m_Values);
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, id, 1, &child)); // Owned view self-assignment.
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 1, &child));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&child.m_Value.m_Struct, 20, &shared));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, id, 1, &child)); // Owned view self-assignment.
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &child));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&child.m_Value.m_Struct, 20, &shared));
     ASSERT_STREQ("shared", shared.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataResetProperty(store, id, 1));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 1, &child));
+    ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, id, 1));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &child));
     ASSERT_EQ(object.m_Value.m_Struct.m_Offset, child.m_Value.m_Struct.m_Offset);
     DataResetBlob(instance);
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, roundtrip, size, &size));
@@ -1046,18 +1214,19 @@ TEST(Data, NestedViewsAllKindsAndReset)
 
 TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
 {
-    HDataStore       store = DataCreateStore();
-    DataPropertyDesc meta = { 1, DATA_VALUE_TYPE_STRUCT, 0 };
-    DataTableDesc    desc = { 1, 0, 0, &meta, 1, 8 };
+    HDataStore    store = DataCreateStore();
+    DataFieldDesc meta = { 1, DATA_VALUE_TYPE_STRUCT, 0 };
+    DataTableDesc desc = { 1, 0, 0, &meta, 1, 8 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &desc));
-    uint64_t    names[] = { 10, 20 };
-    DataValue   fields[] = { Vector3(1, 2, 3), Number(4) };
-    DataValue   value = Struct(names, fields, 2);
-    DataRowDesc rows[128];
-    DataId      ids[128];
+    uint64_t            names[] = { 10, 20 };
+    const DataValueType types[] = { DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_NUMBER };
+    DataValueData       fields[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 4 } };
+    DataValue           value = Struct(names, types, fields, 2);
+    DataRowDesc         rows[128];
+    DataId              ids[128];
     for (uint32_t i = 0; i < 128; ++i)
     {
-        DataRowDesc row = { i, &value, 1, 0 };
+        DataRowDesc row = { .m_Owner = i, .m_Types = &value.m_Type, .m_Values = &value.m_Value, .m_ValueCount = 1 };
         rows[i] = row;
     }
     ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, rows, 128, ids));
@@ -1068,23 +1237,23 @@ TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
     ASSERT_EQ(memory.m_BaseUsed, memory.m_BaseCapacity);
 
     DataValue borrowed;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[0], 1, &borrowed));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0], 1, &borrowed));
     ASSERT_TRUE(borrowed.m_Value.m_Struct.m_Buffer != 0);
     ASSERT_EQ((uintptr_t)0, (uintptr_t)borrowed.m_Value.m_Struct.m_Values);
     for (uint32_t i = 0; i < 128; ++i)
-        rows[i].m_Values = &borrowed;
+        rows[i].m_Values = &borrowed.m_Value;
     // Growing row/arena storage must keep the source view valid until copying ends.
     ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, rows, 128, ids));
-    fields[1] = Number(99);
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, ids[0], 1, &value));
+    fields[1].m_Number = 99;
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[0], 1, &value));
     ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
     for (uint32_t i = 0; i < 128; ++i)
     {
         DataValue object, child;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[i], 1, &object));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&object.m_Value.m_Struct, 10, &child));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[i], 1, &object));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 10, &child));
         ASSERT_EQ(3.0f, child.m_Value.m_Vector3[2]);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&object.m_Value.m_Struct, 20, &child));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 20, &child));
         ASSERT_EQ(4.0, child.m_Value.m_Number);
     }
     GetDataMemoryStats(store, &memory);
@@ -1095,31 +1264,39 @@ TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
 
 TEST(Data, NestedValidationAndDepth)
 {
-    HDataStore       store = DataCreateStore();
-    DataPropertyDesc meta = { 1, DATA_VALUE_TYPE_LIST, 0 };
-    DataTableDesc    desc = { 1, 0, 0, &meta, 1, 8 };
+    HDataStore    store = DataCreateStore();
+    DataFieldDesc meta = { 1, DATA_VALUE_TYPE_LIST, 0 };
+    DataTableDesc desc = { 1, 0, 0, &meta, 1, 8 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &desc));
     DataValue base = List(0, 0);
     DataId    id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 1, 0, &base, 1, &id));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 1, 0, &base, 1, &id));
     DataValue invalid = List(0, 1);
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetProperty(store, id, 1, &invalid));
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, id, 1, &invalid));
     invalid = List(&invalid, 1);
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetProperty(store, id, 1, &invalid));
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, id, 1, &invalid));
     DataValue bad = Boolean(2);
     invalid = List(&bad, 1);
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetProperty(store, id, 1, &invalid));
-    uint64_t  names[] = { 10, 10 };
-    DataValue fields[] = { Null(), Null() };
-    DataValue object = Struct(names, fields, 2);
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, id, 1, &invalid));
+    uint64_t      names[] = { 10, 10 };
+    DataValueType types[] = { DATA_VALUE_TYPE_NULL, DATA_VALUE_TYPE_NULL };
+    DataValueData fields[2] = {};
+    DataValue     object = Struct(names, types, fields, 2);
     invalid = List(&object, 1);
-    ASSERT_EQ(DATA_RESULT_ALREADY_EXISTS, DataSetProperty(store, id, 1, &invalid));
+    ASSERT_EQ(DATA_RESULT_ALREADY_EXISTS, DataSetField(store, id, 1, &invalid));
+    names[1] = 20;
+    object.m_Value.m_Struct.m_Types = 0;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, id, 1, &invalid));
+    object.m_Value.m_Struct.m_Types = types;
+    types[1] = (DataValueType)99;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, id, 1, &invalid));
+    types[1] = DATA_VALUE_TYPE_NULL;
     DataValue values[DATA_MAX_NESTING + 2];
     values[0] = Number(1);
     for (uint32_t i = 1; i < DATA_MAX_NESTING + 2; ++i)
         values[i] = List(&values[i - 1], 1);
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, id, 1, &values[DATA_MAX_NESTING]));
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetProperty(store, id, 1, &values[DATA_MAX_NESTING + 1]));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, id, 1, &values[DATA_MAX_NESTING]));
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, id, 1, &values[DATA_MAX_NESTING + 1]));
     uint8_t  DM_ALIGNED(8) bytes[4096];
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, bytes, sizeof(bytes), &size));
@@ -1127,7 +1304,7 @@ TEST(Data, NestedValidationAndDepth)
     ASSERT_EQ(DATA_RESULT_OK, DataLoadBlob(bytes, size, &blob));
     DataDestroyBlob(blob);
     // Last number becomes an empty list, which would add a 65th container.
-    uint32_t container = (uint32_t)ReadDataInteger(bytes + 96, 8);
+    uint32_t container = (uint32_t)ReadDataInteger(bytes + 24 + DATA_TABLE_HEADER_SIZE + DATA_FIELD_META_SIZE + 8, 8);
     for (uint32_t i = 1; i < DATA_MAX_NESTING; ++i)
         container = (uint32_t)ReadDataInteger(bytes + container + 12, 4);
     WriteDataInteger(bytes + container + 8, DATA_VALUE_TYPE_LIST, 4);
@@ -1139,17 +1316,17 @@ TEST(Data, NestedValidationAndDepth)
 
 TEST(Data, MalformedBlobDirectoryLayoutAndValues)
 {
-    HDataStore       source = DataCreateStore();
-    DataPropertyDesc meta[] = { { 1, DATA_VALUE_TYPE_BOOLEAN, 0 }, { 2, DATA_VALUE_TYPE_STRING, 8 }, { 3, DATA_VALUE_TYPE_LIST, 16 } };
-    DataTableDesc    desc = { 1, 0, 0, meta, 3, 24 };
+    HDataStore    source = DataCreateStore();
+    DataFieldDesc meta[] = { { 1, DATA_VALUE_TYPE_BOOLEAN, 0 }, { 2, DATA_VALUE_TYPE_STRING, 8 }, { 3, DATA_VALUE_TYPE_LIST, 16 } };
+    DataTableDesc desc = { 1, 0, 0, meta, 3, 24 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &desc));
     desc.m_Type = 2;
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &desc));
     DataValue item = Number(2);
     DataValue values[] = { Boolean(1), String("text"), List(&item, 1) };
     DataId    id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 0, values, 3, &id));
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 2, 0, values, 3, &id));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 0, values, 3, &id));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 2, 0, values, 3, &id));
     uint8_t  DM_ALIGNED(8) bytes[1024], saved[1024];
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, bytes, sizeof(bytes), &size));
@@ -1163,8 +1340,8 @@ TEST(Data, MalformedBlobDirectoryLayoutAndValues)
         ASSERT_EQ((uintptr_t)sentinel, (uintptr_t)output);
     }
     uint32_t second = (uint32_t)ReadDataInteger(bytes + 20, 4);
-    // First table starts at 24, metadata at 56, row bytes at 160.
-    const uint32_t corrupt[] = { 0, 4, 8, 12, 16, 20, 32, 36, 40, 44, 48, 52, 64, 68, 72, 76, 80, 84, 96, 100, 104, 108, 112, 116, 128, 132, 136, 140, 144, 148, 160, 168, 176 };
+    // First table starts at 24, metadata at 48, row bytes at 128.
+    const uint32_t corrupt[] = { 0, 4, 8, 12, 16, 20, 32, 34, 36, 40, 44, 46, 56, 60, 64, 66, 68, 80, 84, 88, 90, 92, 104, 108, 112, 114, 116, 128, 136, 144 };
     for (uint32_t i = 0; i < sizeof(corrupt) / sizeof(corrupt[0]); ++i)
     {
         bytes[corrupt[i]] = 0xff;
@@ -1173,17 +1350,17 @@ TEST(Data, MalformedBlobDirectoryLayoutAndValues)
         ASSERT_EQ((uintptr_t)sentinel, (uintptr_t)output);
         memcpy(bytes, saved, size);
     }
-    bytes[second + 20] = 0;
+    bytes[second + offsetof(DataTableHeader, m_RowStride)] = 0;
     HDataBlob output = sentinel;
     ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &output));
     memcpy(bytes, saved, size);
-    memcpy(bytes + 88, bytes + 56, 8); // Repeated property name in shared metadata.
+    memcpy(bytes + 72, bytes + 48, 8); // Repeated field name in shared metadata.
     ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &output));
     memcpy(bytes, saved, size);
-    WriteDataInteger(bytes + 100, 0, 4); // String overlaps boolean in every row.
+    WriteDataInteger(bytes + 84, 0, 4); // String overlaps boolean in every row.
     ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &output));
     memcpy(bytes, saved, size);
-    uint32_t nested = (uint32_t)ReadDataInteger(bytes + 176, 8);
+    uint32_t nested = (uint32_t)ReadDataInteger(bytes + 144, 8);
     bytes[nested + 8] = 99;
     ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &output));
     memcpy(bytes, saved, size);
@@ -1214,18 +1391,18 @@ TEST(Data, EmptyNullAndBorrowedResourceReuse)
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
     ASSERT_EQ(1u, blob->m_RefCount);
     DataDestroyBlob(blob);
-    DataPropertyDesc meta = { 1, DATA_VALUE_TYPE_NULL, 0 };
-    DataTableDesc    desc = { 1, 0, 0, &meta, 1, 0 };
+    DataFieldDesc meta = { 1, DATA_VALUE_TYPE_NULL, 0 };
+    DataTableDesc desc = { 1, 0, 0, &meta, 1, 0 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &desc));
     DataValue value = Null();
     DataId    id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 0, &value, 1, &id));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(source, id, 1, &value));
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(source, id, 1, &value));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 0, &value, 1, &id));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(source, id, 1, &value));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(source, id, 1, &value));
     DataTableDesc empty = { 2, 0, 0, 0, 0, 0 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &empty));
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 2, 0, 0, 0, &id));
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetProperty(source, id, 1, &value));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 2, 0, 0, 0, &id));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(source, id, 1, &value));
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, bytes, sizeof(bytes), &size));
     ASSERT_EQ(DATA_RESULT_OK, DataLoadBlob(bytes, size, &blob));
     ASSERT_EQ(2u, blob->m_TableCount);
@@ -1237,7 +1414,7 @@ TEST(Data, EmptyNullAndBorrowedResourceReuse)
     ASSERT_EQ(DATA_RESULT_OK, DataAddBlob(another, blob, 2, &second));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
     ASSERT_EQ(2u, blob->m_RefCount);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(another, FirstId(another), 1, &value));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(another, FirstId(another), 1, &value));
     ASSERT_EQ(DATA_VALUE_TYPE_NULL, value.m_Type);
     DataDestroyBlob(blob);
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(another));
@@ -1251,8 +1428,8 @@ TEST(Data, ResetAddedValuesAllocationBlocksAndDefaults)
     DataId first, second;
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, 1, 17, "original", &first));
     DataValue value = String("new baseline");
-    ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, first, 20, &value));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, first, 20, &value));
+    ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, first, 20, &value));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, first, 20, &value));
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, 2, 23, value.m_Value.m_String, &second));
     char large[8193];
     memset(large, 'L', sizeof(large) - 1);
@@ -1260,23 +1437,23 @@ TEST(Data, ResetAddedValuesAllocationBlocksAndDefaults)
     for (uint32_t cycle = 0; cycle < 3; ++cycle)
     {
         value = String(large);
-        ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, first, 20, &value));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, first, 20, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, first, 20, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, first, 20, &value));
         ASSERT_STREQ(large, value.m_Value.m_String);
-        ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, first, 20, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, first, 20, &value));
         for (uint32_t i = 0; i < 300; ++i)
         {
             value = String("replacement");
-            ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, first, 20, &value));
+            ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, first, 20, &value));
         }
         ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, first, 20, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, first, 20, &value));
         ASSERT_STREQ("original", value.m_Value.m_String);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, second, 20, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, second, 20, &value));
         ASSERT_STREQ("new baseline", value.m_Value.m_String);
     }
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataResetProperty(store, 0, 20));
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataResetProperty(store, first, 999));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataResetField(store, 0, 20));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataResetField(store, first, 999));
     ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataResetTable(store, 999));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
 }
@@ -1287,16 +1464,74 @@ int main(int argc, char** argv)
     return jc_test_run_all();
 }
 
+TEST(Data, TypedLookupHashCollisionsAndWideIndexes)
+{
+    const uint32_t count = 258;
+    DataFieldDesc  fields[count];
+    DataValue      values[count];
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        fields[i] = { .m_Field = 1 + 16 * i, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = i * 16 };
+        values[i] = Number(i);
+    }
+    // Colliding names have different kinds; two direct candidates exceed 255.
+    fields[1].m_Type = DATA_VALUE_TYPE_VECTOR3;
+    values[1] = Vector3(1, 2, 3);
+    fields[256].m_Field = 2;
+    fields[257].m_Field = 0;
+    DataTableDesc desc = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = count, .m_RowStride = count * 16 };
+    HDataStore    source = DataCreateStore();
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &desc));
+    DataId original;
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 0, values, count, &original));
+    uint32_t size;
+    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
+    uint8_t* bytes = new uint8_t[size];
+    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, bytes, size, &size));
+    HDataStore        loaded = DataCreateStore();
+    HDataBlobInstance instance;
+    ASSERT_EQ(DATA_RESULT_OK, Load(loaded, bytes, size, &instance));
+    HDataStore stores[] = { source, loaded };
+    DataId     ids[] = { original, FirstId(loaded) };
+    for (uint32_t mode = 0; mode < 2; ++mode)
+    {
+        HDataStore  store = stores[mode];
+        DataId      id = ids[mode];
+        double      number;
+        DataVector3 vector;
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, 1, &number));
+        ASSERT_EQ(0.0, number);
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector3(store, id, 17, &vector));
+        ASSERT_EQ(3.0f, vector.m_Values[2]);
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, fields[255].m_Field, &number));
+        ASSERT_EQ(255.0, number);
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, 2, &number));
+        ASSERT_EQ(256.0, number);
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, 0, &number));
+        ASSERT_EQ(257.0, number);
+        number = 123;
+        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataGetFieldNumber(store, id, 17, &number));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, id, 1 + 16 * count, &number));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, id, 3, &number));
+        ASSERT_EQ(123.0, number);
+        ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, id));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, id, 2, &number));
+        ASSERT_EQ(123.0, number);
+        ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+    }
+    delete[] bytes;
+}
+
 TEST(Data, TypedAccessErrorsPackedValuesAndReset)
 {
     HDataStore source = DataCreateStore();
     // Field order differs from query binding order.
-    DataPropertyDesc meta[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_STRING, 16 }, { 30, DATA_VALUE_TYPE_BOOLEAN, 24 } };
-    DataTableDesc    table = { 1, 0, 0, meta, 3, 32 };
+    DataFieldDesc meta[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_STRING, 16 }, { 30, DATA_VALUE_TYPE_BOOLEAN, 24 } };
+    DataTableDesc table = { 1, 0, 0, meta, 3, 32 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &table));
     DataValue values[] = { Vector3(1, 2, 3), String("packed"), Boolean(1) };
     DataId    original;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 0, values, 3, &original));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 0, values, 3, &original));
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
@@ -1310,10 +1545,10 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
     HDataStore stores[] = { source, loaded };
     for (uint32_t mode = 0; mode < 2; ++mode)
     {
-        HDataStore        store = stores[mode];
-        DataQueryProperty fields[] = { { 30, DATA_VALUE_TYPE_BOOLEAN }, { 10, DATA_VALUE_TYPE_VECTOR3 }, { 20, DATA_VALUE_TYPE_STRING } };
-        DataQueryDesc     desc = { 0, 0, 0, 0, fields, 3 };
-        HDataQuery        query;
+        HDataStore     store = stores[mode];
+        DataQueryField fields[] = { { 30, DATA_VALUE_TYPE_BOOLEAN }, { 10, DATA_VALUE_TYPE_VECTOR3 }, { 20, DATA_VALUE_TYPE_STRING } };
+        DataQueryDesc  desc = { 0, 0, 0, 0, fields, 3 };
+        HDataQuery     query;
         ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
         DataStoreLock(store);
         DataIterator it = DataQueryIter(query);
@@ -1322,7 +1557,7 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
         ASSERT_EQ(7.0f, vector.m_Values[0]);
         ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
         DataId id = DataIterGetId(&it, 0);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyVector3(store, id, 10, &vector));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector3(store, id, 10, &vector));
         ASSERT_EQ(1.0f, vector.m_Values[0]);
         ASSERT_EQ(3.0f, vector.m_Values[2]);
         const char* string;
@@ -1332,44 +1567,44 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
             ASSERT_TRUE(string >= (const char*)bytes && string < (const char*)bytes + size);
 
         double number = 123;
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataGetPropertyNumber(store, id, 10, &number));
+        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataGetFieldNumber(store, id, 10, &number));
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestFieldNumber(&it, 0, 1, &number));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetPropertyNumber(store, 0, 10, &number));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetPropertyNumber(store, id, 99, &number));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, 0, 10, &number));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, id, 99, &number));
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestFieldNumber(&it, 1, 1, &number));
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestFieldNumber(&it, 0, 3, &number));
         ASSERT_EQ(123.0, number);
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetPropertyNumber(store, id, 10, 4));
+        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetFieldNumber(store, id, 10, 4));
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, SetTestFieldNumber(&it, 0, 1, 4));
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, SetTestFieldVector3(&it, 1, 1, &vector));
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetPropertyBoolean(store, id, 30, 2));
+        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetFieldBoolean(store, id, 30, 2));
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, SetTestFieldBoolean(&it, 0, 0, 2));
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetPropertyString(store, id, 20, 0));
+        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetFieldString(store, id, 20, 0));
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, SetTestFieldString(&it, 0, 2, 0));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataSetPropertyVector3(store, 0, 10, &vector));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataSetPropertyVector3(store, id, 99, &vector));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataSetFieldVector3(store, 0, 10, &vector));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataSetFieldVector3(store, id, 99, &vector));
         DataMemoryStats memory;
         GetDataMemoryStats(store, &memory);
         ASSERT_EQ((uint64_t)0, memory.m_PayloadBlocks);
 
         vector.m_Values[1] = 8;
-        ASSERT_EQ(DATA_RESULT_OK, DataSetPropertyVector3(store, id, 10, &vector));
+        ASSERT_EQ(DATA_RESULT_OK, DataSetFieldVector3(store, id, 10, &vector));
         vector.m_Values[1] = 99; // Set copied the caller's math value.
         ASSERT_EQ(DATA_RESULT_OK, GetTestFieldVector3(&it, 0, 1, &vector));
         ASSERT_EQ(8.0f, vector.m_Values[1]);
         ASSERT_EQ(DATA_RESULT_OK, SetTestFieldBoolean(&it, 0, 0, 0));
         uint8_t boolean = 1;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyBoolean(store, id, 30, &boolean));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldBoolean(store, id, 30, &boolean));
         ASSERT_EQ(0, boolean);
         char replacement[] = "changed";
-        ASSERT_EQ(DATA_RESULT_OK, DataSetPropertyString(store, id, 20, replacement));
+        ASSERT_EQ(DATA_RESULT_OK, DataSetFieldString(store, id, 20, replacement));
         replacement[0] = 'X';
-        ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyString(store, id, 20, &string));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, id, 20, &string));
         ASSERT_STREQ("changed", string);
         ASSERT_EQ(DATA_RESULT_OK, SetTestFieldString(&it, 0, 2, string));
         ASSERT_EQ(DATA_RESULT_OK, GetTestFieldString(&it, 0, 2, &string));
         ASSERT_STREQ("changed", string);
-        ASSERT_EQ(DATA_RESULT_OK, DataResetProperty(store, id, 10));
+        ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, id, 10));
         ASSERT_EQ(DATA_RESULT_OK, GetTestFieldVector3(&it, 0, 1, &vector));
         ASSERT_EQ(2.0f, vector.m_Values[1]);
         if (mode)
@@ -1378,14 +1613,14 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
             ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
         ASSERT_EQ(DATA_RESULT_OK, GetTestFieldBoolean(&it, 0, 0, &boolean));
         ASSERT_EQ(1, boolean);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyString(store, id, 20, &string));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, id, 20, &string));
         ASSERT_STREQ("packed", string);
         GetDataMemoryStats(store, &memory);
         ASSERT_EQ((uint64_t)0, memory.m_PayloadBlocks);
         DataStoreUnlock(store);
         ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, id));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetPropertyVector3(store, id, 10, &vector));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataSetPropertyVector3(store, id, 10, &vector));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldVector3(store, id, 10, &vector));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataSetFieldVector3(store, id, 10, &vector));
         ASSERT_EQ(2.0f, vector.m_Values[1]);
         DataDestroyQuery(query);
     }
@@ -1409,10 +1644,10 @@ TEST(Data, BoundQueryRegistrationChurn)
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(source));
     HDataBlob blob;
     ASSERT_EQ(DATA_RESULT_OK, DataLoadBlob(bytes, size, &blob));
-    HDataStore        store = DataCreateStore();
-    DataQueryProperty fields[] = { { 10, DATA_VALUE_TYPE_NUMBER }, { 20, DATA_VALUE_TYPE_STRING } };
-    DataQueryDesc     desc = { 0, 0, 0, 0, fields, 2 };
-    HDataQuery        query;
+    HDataStore     store = DataCreateStore();
+    DataQueryField fields[] = { { 10, DATA_VALUE_TYPE_NUMBER }, { 20, DATA_VALUE_TYPE_STRING } };
+    DataQueryDesc  desc = { 0, 0, 0, 0, fields, 2 };
+    HDataQuery     query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
     // Cross registration pages and grow dense storage, then reuse slots with live queries.
     const uint32_t    count = 600;
@@ -1478,144 +1713,32 @@ TEST(Data, BoundQueryRegistrationChurn)
     delete[] bytes;
 }
 
-TEST(Data, TypedStructVector3Reads)
-{
-    HDataStore       source = DataCreateStore();
-    DataPropertyDesc meta[] = { { 1, DATA_VALUE_TYPE_NUMBER, 0 }, { 2, DATA_VALUE_TYPE_STRUCT, 8 } };
-    DataTableDesc    table = { 1, 0, 0, meta, 2, 16 };
-    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &table));
-    uint64_t       names[] = { 20, 10 };
-    uint64_t       reversed_names[] = { 10, 20 };
-    const uint32_t bits[] = { 0x80000000, 0x7f800000, 0x7fc01234 };
-    DataValue      color = Vector3(0, 0, 0);
-    memcpy(color.m_Value.m_Vector3, bits, sizeof(bits));
-    DataValue children[] = { Number(5), color };
-    DataValue reversed_children[] = { color, Number(5) };
-    DataValue wrong_kind = Number(5);
-    DataValue objects[] = { Struct(names, children, 2), Struct(reversed_names, reversed_children, 2), Struct(0, 0, 0), Struct(reversed_names, &wrong_kind, 1) };
-    for (uint32_t r = 0; r < 4; ++r)
-    {
-        DataValue values[] = { Number(r), objects[r] };
-        DataId    id;
-        ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, r, values, 2, &id));
-    }
-    uint32_t size;
-    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
-    uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, bytes, size, &size));
-
-    for (uint32_t packed = 0; packed < 2; ++packed)
-    {
-        HDataStore        store = packed ? DataCreateStore() : source;
-        HDataBlobInstance instance = 0;
-        if (packed)
-            ASSERT_EQ(DATA_RESULT_OK, Load(store, bytes, size, &instance));
-        DataQueryProperty fields[] = { { 2, DATA_VALUE_TYPE_STRUCT }, { 1, DATA_VALUE_TYPE_NUMBER } };
-        DataQueryDesc     desc = { 0, 0, 0, 0, fields, 2 };
-        HDataQuery        query;
-        ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
-        DataStoreLock(store);
-        DataIterator it = DataQueryIter(query);
-        DataVector3  out = { { 9, 8, 7 } };
-        DataVector3  unchanged = out;
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestStructPropertyVector3(&it, 0, 0, 10, &out));
-        ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
-        ASSERT_EQ(4u, DataIterGetCount(&it));
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestStructPropertyVector3(&it, 4, 0, 10, &out));
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestStructPropertyVector3(&it, 0, 2, 10, &out));
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestStructPropertyVector3(&it, 0, 1, 10, &out));
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestStructPropertyVector3(&it, 0, 0, 20, &out));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, GetTestStructPropertyVector3(&it, 0, 0, 99, &out));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, GetTestStructPropertyVector3(&it, 2, 0, 10, &out));
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestStructPropertyVector3(&it, 3, 0, 10, &out));
-        ASSERT_EQ(0, memcmp(&unchanged, &out, sizeof(out)));
-        for (uint32_t r = 0; r < 2; ++r)
-        {
-            ASSERT_EQ(DATA_RESULT_OK, GetTestStructPropertyVector3(&it, r, 0, 10, &out));
-            ASSERT_EQ(0, memcmp(bits, out.m_Values, sizeof(bits)));
-        }
-
-        // Unfiltered field iteration retrieves container metadata from the table.
-        DataQueryDesc all_desc = {};
-        HDataQuery    all_query;
-        ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &all_desc, &all_query));
-        DataIterator all = DataQueryIter(all_query);
-        ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&all));
-        ASSERT_EQ(DATA_RESULT_OK, GetTestStructPropertyVector3(&all, 0, 1, 10, &out));
-        ASSERT_EQ(0, memcmp(bits, out.m_Values, sizeof(bits)));
-        DataDestroyQuery(all_query);
-
-        DataId    id = DataIterGetId(&it, 1);
-        DataValue replacement_children[] = { Number(8), Vector3(4, 5, 6) };
-        DataValue replacement = Struct(names, replacement_children, 2);
-        ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, id, 2, &replacement));
-        ASSERT_EQ(DATA_RESULT_OK, GetTestStructPropertyVector3(&it, 1, 0, 10, &out));
-        ASSERT_EQ(0, memcmp(replacement_children[1].m_Value.m_Vector3, out.m_Values, sizeof(out)));
-        ASSERT_EQ(DATA_RESULT_OK, DataResetProperty(store, id, 2));
-        ASSERT_EQ(DATA_RESULT_OK, GetTestStructPropertyVector3(&it, 1, 0, 10, &out));
-        ASSERT_EQ(0, memcmp(bits, out.m_Values, sizeof(bits)));
-        ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, id, 2, &replacement));
-        if (packed)
-            DataResetBlob(instance);
-        else
-            ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
-        ASSERT_EQ(DATA_RESULT_OK, GetTestStructPropertyVector3(&it, 1, 0, 10, &out));
-        ASSERT_EQ(0, memcmp(bits, out.m_Values, sizeof(bits)));
-
-        if (!packed)
-        {
-            // Owner filtering starts a batch at a nonzero row index.
-            DataOwnerId owner = 1;
-            desc.m_OwnerIds = &owner;
-            desc.m_OwnerIdCount = 1;
-            HDataQuery filtered;
-            ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &filtered));
-            DataIterator selected = DataQueryIter(filtered);
-            ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&selected));
-            ASSERT_EQ(1u, DataIterGetCount(&selected));
-            ASSERT_EQ(DATA_RESULT_OK, GetTestStructPropertyVector3(&selected, 0, 0, 10, &out));
-            ASSERT_EQ(0, memcmp(bits, out.m_Values, sizeof(bits)));
-            DataDestroyQuery(filtered);
-        }
-        ASSERT_EQ(DATA_RESULT_END, DataIterNext(&it));
-        out = unchanged;
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestStructPropertyVector3(&it, 0, 0, 10, &out));
-        it = DataQueryIter(query);
-        ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
-        DataStoreUnlock(store);
-        ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, id));
-        ASSERT_EQ(0, memcmp(&unchanged, &out, sizeof(out)));
-        DataDestroyQuery(query);
-        ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
-    }
-    delete[] bytes;
-}
-
 extern "C" int TestInlineDataFromC(HDataStore store);
 
 TEST(Data, InlineCompositionQueriesAndRoundtrip)
 {
     // Nested fixed layouts preserve C alignment and include variable data.
-    DataPropertyDesc light_fields[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_STRING, 16 }, { 30, DATA_VALUE_TYPE_LIST, 24 } };
-    DataStructDesc   light = { light_fields, 3, 32 };
-    DataPropertyDesc wrapper_fields[] = { { 40, DATA_VALUE_TYPE_STRUCT, 8, &light } };
-    DataStructDesc   wrapper = { wrapper_fields, 1, 40 };
-    DataPropertyDesc fields[] = { { 1, DATA_VALUE_TYPE_NUMBER, 0 }, { 2, DATA_VALUE_TYPE_STRUCT, 8, &wrapper }, { 3, DATA_VALUE_TYPE_BOOLEAN, 48 } };
-    DataTableDesc    table = { 1, 0, 0, fields, 3, 56 };
-    HDataStore       source = DataCreateStore();
+    DataFieldDesc  light_fields[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_STRING, 16 }, { 30, DATA_VALUE_TYPE_LIST, 24 } };
+    DataStructDesc light = { light_fields, 3, 32 };
+    DataFieldDesc  wrapper_fields[] = { { 40, DATA_VALUE_TYPE_STRUCT, 8, &light } };
+    DataStructDesc wrapper = { wrapper_fields, 1, 40 };
+    DataFieldDesc  fields[] = { { 1, DATA_VALUE_TYPE_NUMBER, 0 }, { 2, DATA_VALUE_TYPE_STRUCT, 8, &wrapper }, { 3, DATA_VALUE_TYPE_BOOLEAN, 48 } };
+    DataTableDesc  table = { 1, 0, 0, fields, 3, 56 };
+    HDataStore     source = DataCreateStore();
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &table));
     // Changing a declaration after registration cannot alter the compiled layout.
     light_fields[0].m_Offset = 999;
-    uint64_t  names[] = { 30, 10, 20 };
-    DataValue list_items[] = { Number(7), String("shared") };
-    DataValue children[] = { List(list_items, 2), Vector3(1, 2, 3), String("shared") };
-    DataValue light_value = Struct(names, children, 3);
-    uint64_t  light_name = 40;
-    DataValue values[] = { Number(5), Struct(&light_name, &light_value, 1), Boolean(1) };
-    DataId    original;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 1, values, 3, &original));
+    uint64_t            names[] = { 30, 10, 20 };
+    DataValue           list_items[] = { Number(7), String("shared") };
+    const DataValueType child_types[] = { DATA_VALUE_TYPE_LIST, DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_STRING };
+    DataValueData       children[] = { List(list_items, 2).m_Value, Vector3(1, 2, 3).m_Value, String("shared").m_Value };
+    DataValue           light_value = Struct(names, child_types, children, 3);
+    uint64_t            light_name = 40;
+    DataValue           values[] = { Number(5), Struct(&light_name, &light_value.m_Type, &light_value.m_Value, 1), Boolean(1) };
+    DataId              original;
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 1, values, 3, &original));
     ASSERT_EQ(7u, source->m_Tables[0]->m_MetadataCount);
-    ASSERT_EQ(32u, GetPropertyMeta(source->m_Tables[0], 3).m_Size);
+    ASSERT_EQ(32u, GetFieldMeta(source->m_Tables[0], 3).m_Size);
 
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
@@ -1630,15 +1753,15 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         HDataBlobInstance instance = 0;
         if (packed)
             ASSERT_EQ(DATA_RESULT_OK, Load(store, bytes, size, &instance));
-        uint64_t          color_path[] = { 40, 10 }, string_path[] = { 40, 20 }, list_path[] = { 40, 30 };
-        DataQueryProperty properties[] = {
+        uint64_t       color_path[] = { 40, 10 }, string_path[] = { 40, 20 }, list_path[] = { 40, 30 };
+        DataQueryField fields[] = {
             { 2, DATA_VALUE_TYPE_VECTOR3, color_path, 2 },
             { 2, DATA_VALUE_TYPE_STRING, string_path, 2 },
             { 2, DATA_VALUE_TYPE_LIST, list_path, 2 },
             { 1, DATA_VALUE_TYPE_NUMBER },
             { 2, DATA_VALUE_TYPE_STRUCT }
         };
-        DataQueryDesc desc = { 0, 0, 0, 0, properties, 5 };
+        DataQueryDesc desc = { 0, 0, 0, 0, fields, 5 };
         HDataQuery    query;
         ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
         color_path[0] = string_path[0] = 99; // Query owns its path hashes.
@@ -1675,10 +1798,10 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         HDataStore        changed_store = DataCreateStore();
         HDataBlobInstance changed_instance;
         ASSERT_EQ(DATA_RESULT_OK, Load(changed_store, changed_blob, changed_size, &changed_instance));
-        uint64_t          changed_paths[] = { 40, 10, 40, 20 };
-        DataQueryProperty changed_fields[] = { { 2, DATA_VALUE_TYPE_VECTOR3, changed_paths, 2 }, { 2, DATA_VALUE_TYPE_STRING, changed_paths + 2, 2 } };
-        DataQueryDesc     changed_desc = { 0, 0, 0, 0, changed_fields, 2 };
-        HDataQuery        changed_query;
+        uint64_t       changed_paths[] = { 40, 10, 40, 20 };
+        DataQueryField changed_fields[] = { { 2, DATA_VALUE_TYPE_VECTOR3, changed_paths, 2 }, { 2, DATA_VALUE_TYPE_STRING, changed_paths + 2, 2 } };
+        DataQueryDesc  changed_desc = { 0, 0, 0, 0, changed_fields, 2 };
+        HDataQuery     changed_query;
         ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(changed_store, &changed_desc, &changed_query));
         DataStoreLock(changed_store);
         DataIterator changed_it = DataQueryIter(changed_query);
@@ -1690,7 +1813,7 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         DataStoreUnlock(changed_store);
         DataDestroyQuery(changed_query);
         ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(changed_store));
-        ASSERT_EQ(DATA_RESULT_OK, DataResetProperty(store, id, 2));
+        ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, id, 2));
         ASSERT_EQ(DATA_RESULT_OK, GetTestFieldVector3(&it, 0, 0, &color));
         ASSERT_EQ(1.0f, color.m_Values[0]);
         ASSERT_EQ(DATA_RESULT_OK, GetTestFieldString(&it, 0, 1, &string));
@@ -1718,22 +1841,12 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         else
             ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
         ASSERT_EQ(0, TestInlineDataFromC(store));
-        // A selected struct path keeps its child metadata in the shared binding.
-        DataQueryProperty light_property = { 2, DATA_VALUE_TYPE_STRUCT, &light_name, 1 };
-        DataQueryDesc     light_desc = { 0, 0, 0, 0, &light_property, 1 };
-        HDataQuery        light_query;
-        ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &light_desc, &light_query));
-        DataIterator light_it = DataQueryIter(light_query);
-        ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&light_it));
-        ASSERT_EQ(DATA_RESULT_OK, GetTestStructPropertyVector3(&light_it, 0, 0, 10, &color));
-        ASSERT_EQ(3.0f, color.m_Values[2]);
-        DataDestroyQuery(light_query);
         DataValue view, light_view;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 2, &view));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&view.m_Value.m_Struct, 40, &light_view));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&light_view.m_Value.m_Struct, 10, &child));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 2, &view));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&view.m_Value.m_Struct, 40, &light_view));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&light_view.m_Value.m_Struct, 10, &child));
         ASSERT_EQ(3.0f, child.m_Value.m_Vector3[2]);
-        ASSERT_EQ(DATA_RESULT_OK, DataSetProperty(store, id, 2, &view)); // Borrowed self-assignment.
+        ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, id, 2, &view)); // Borrowed self-assignment.
         uint8_t* roundtrip = new uint8_t[size];
         uint32_t written;
         ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, roundtrip, size, &written));
@@ -1755,20 +1868,20 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
 
 TEST(Data, InlineLayoutAndPathValidation)
 {
-    HDataStore       store = DataCreateStore();
-    DataPropertyDesc members[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_NUMBER, 16 } };
-    DataStructDesc   light = { members, 2, 24 };
-    DataPropertyDesc fields[] = { { 1, DATA_VALUE_TYPE_STRUCT, 0, &light } };
-    DataTableDesc    table = { 1, 0, 0, fields, 1, 24 };
+    HDataStore     store = DataCreateStore();
+    DataFieldDesc  members[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_NUMBER, 16 } };
+    DataStructDesc light = { members, 2, 24 };
+    DataFieldDesc  fields[] = { { 1, DATA_VALUE_TYPE_STRUCT, 0, &light } };
+    DataTableDesc  table = { 1, 0, 0, fields, 1, 24 };
     light.m_Size = 8;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &table));
     light.m_Size = 24;
     members[1].m_Offset = 4;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &table));
     members[1].m_Offset = 16;
-    members[1].m_Property = 10;
+    members[1].m_Field = 10;
     ASSERT_EQ(DATA_RESULT_ALREADY_EXISTS, DataRegisterTable(store, &table));
-    members[1].m_Property = 20;
+    members[1].m_Field = 20;
     fields[0].m_Type = DATA_VALUE_TYPE_VECTOR3;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &table));
     fields[0].m_Type = DATA_VALUE_TYPE_STRUCT;
@@ -1777,29 +1890,30 @@ TEST(Data, InlineLayoutAndPathValidation)
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &table));
     fields[0].m_Struct = &light;
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
-    uint64_t  names[] = { 10, 20 };
-    DataValue children[] = { Vector3(1, 2, 3), Number(4) };
-    DataValue value = Struct(names, children, 2);
-    DataId    id = 0;
-    children[1] = Boolean(1);
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRow(store, 1, 0, &value, 1, &id));
-    children[1] = Number(4);
+    uint64_t      names[] = { 10, 20 };
+    DataValueType child_types[] = { DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_NUMBER };
+    DataValueData children[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 4 } };
+    DataValue     value = Struct(names, child_types, children, 2);
+    DataId        id = 0;
+    child_types[1] = DATA_VALUE_TYPE_BOOLEAN;
+    children[1].m_Boolean = 1;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, AddTestRow(store, 1, 0, &value, 1, &id));
+    child_types[1] = DATA_VALUE_TYPE_NUMBER;
+    children[1].m_Number = 4;
     names[1] = 99;
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRow(store, 1, 0, &value, 1, &id));
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, AddTestRow(store, 1, 0, &value, 1, &id));
     names[1] = 20;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 1, 0, &value, 1, &id));
-    children[1] = Boolean(1);
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetProperty(store, id, 1, &value));
-    uint64_t          path = 10;
-    DataQueryProperty property = { 1, DATA_VALUE_TYPE_VECTOR3, &path, 1 };
-    DataQueryDesc     desc = { 0, 0, 0, 0, &property, 1 };
-    HDataQuery        query;
-    property.m_Path = 0;
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 1, 0, &value, 1, &id));
+    child_types[1] = DATA_VALUE_TYPE_BOOLEAN;
+    children[1].m_Boolean = 1;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, id, 1, &value));
+    uint64_t       path = 10;
+    DataQueryField field = { 1, DATA_VALUE_TYPE_VECTOR3, &path, 1 };
+    DataQueryDesc  desc = { 0, 0, 0, 0, &field, 1 };
+    HDataQuery     query;
+    field.m_PathCount = DATA_MAX_NESTING + 1;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(store, &desc, &query));
-    property.m_Path = &path;
-    property.m_PathCount = DATA_MAX_NESTING + 1;
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(store, &desc, &query));
-    property.m_PathCount = 1;
+    field.m_PathCount = 1;
     path = 99;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
     DataStoreLock(store);
@@ -1807,7 +1921,7 @@ TEST(Data, InlineLayoutAndPathValidation)
     ASSERT_EQ(DATA_RESULT_END, DataIterNext(&it));
     DataDestroyQuery(query);
     path = 10;
-    property.m_Type = DATA_VALUE_TYPE_NUMBER;
+    field.m_Type = DATA_VALUE_TYPE_NUMBER;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
     it = DataQueryIter(query);
     ASSERT_EQ(DATA_RESULT_END, DataIterNext(&it));
@@ -1819,11 +1933,12 @@ TEST(Data, InlineLayoutAndPathValidation)
     memcpy(saved, bytes, size);
     HDataBlob      blob;
     const uint32_t metadata = 24 + DATA_TABLE_HEADER_SIZE;
-    const uint32_t corrupt[] = { metadata + 16, metadata + 20, metadata + 24, metadata + DATA_PROPERTY_META_SIZE + 16, metadata + 2 * DATA_PROPERTY_META_SIZE + 12 };
+    const uint32_t corrupt[] = { metadata + offsetof(DataFileFieldMeta, m_ChildIndex), metadata + offsetof(DataFileFieldMeta, m_ChildCount), metadata + offsetof(DataFileFieldMeta, m_ByteSize), metadata + DATA_FIELD_META_SIZE + offsetof(DataFileFieldMeta, m_ChildIndex), metadata + 2 * DATA_FIELD_META_SIZE + offsetof(DataFileFieldMeta, m_ByteOffset) };
+    const uint32_t widths[] = { 2, 2, 4, 2, 4 };
     const uint32_t values[] = { 0, UINT32_MAX, 25, 1, 4 };
     for (uint32_t i = 0; i < 5; ++i)
     {
-        WriteDataInteger(bytes + corrupt[i], values[i], 4);
+        WriteDataInteger(bytes + corrupt[i], values[i], widths[i]);
         ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &blob));
         memcpy(bytes, saved, size);
     }
@@ -1835,24 +1950,25 @@ TEST(Data, InlineLayoutAndPathValidation)
 
 TEST(Data, InlinePathsBindDifferentTablesAndTrackRegistration)
 {
-    HDataStore        store = DataCreateStore();
-    uint64_t          path = 10;
-    DataQueryProperty field = { 1, DATA_VALUE_TYPE_VECTOR3, &path, 1 };
-    DataQueryDesc     query_desc = { 0, 0, 0, 0, &field, 1 };
-    HDataQuery        query;
+    HDataStore     store = DataCreateStore();
+    uint64_t       path = 10;
+    DataQueryField field = { 1, DATA_VALUE_TYPE_VECTOR3, &path, 1 };
+    DataQueryDesc  query_desc = { 0, 0, 0, 0, &field, 1 };
+    HDataQuery     query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &query_desc, &query));
-    DataPropertyDesc members[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_NUMBER, 16 } };
-    DataStructDesc   light = { members, 2, 24 };
-    uint64_t         names[] = { 10, 20 };
-    DataValue        children[] = { Vector3(1, 2, 3), Number(4) };
-    DataValue        value = Struct(names, children, 2);
-    DataId           ids[3];
+    DataFieldDesc  members[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_NUMBER, 16 } };
+    DataStructDesc light = { members, 2, 24 };
+    uint64_t       names[] = { 10, 20 };
+    DataValueType  child_types[] = { DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_NUMBER };
+    DataValueData  children[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 4 } };
+    DataValue      value = Struct(names, child_types, children, 2);
+    DataId         ids[3];
     for (uint32_t i = 0; i < 3; ++i)
     {
-        DataPropertyDesc root = { 1, DATA_VALUE_TYPE_STRUCT, i * 8, i < 2 ? &light : 0 };
-        DataTableDesc    table = { i + 1, 0, 0, &root, 1, i * 8 + (i < 2 ? 24u : 8u) };
+        DataFieldDesc root = { 1, DATA_VALUE_TYPE_STRUCT, i * 8, i < 2 ? &light : 0 };
+        DataTableDesc table = { i + 1, 0, 0, &root, 1, i * 8 + (i < 2 ? 24u : 8u) };
         ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
-        ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, i + 1, i, &value, 1, &ids[i]));
+        ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, i + 1, i, &value, 1, &ids[i]));
     }
     DataStoreLock(store);
     DataIterator it = DataQueryIter(query);
@@ -1868,24 +1984,18 @@ TEST(Data, InlinePathsBindDifferentTablesAndTrackRegistration)
         ASSERT_EQ(DATA_RESULT_OK, GetTestFieldVector3(&it, 0, 0, &color));
         ASSERT_EQ(8.0f, color.m_Values[0]);
         DataValue object, intensity;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, DataIterGetId(&it, 0), 1, &object));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&object.m_Value.m_Struct, 20, &intensity));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, DataIterGetId(&it, 0), 1, &object));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 20, &intensity));
         ASSERT_EQ(4.0, intensity.m_Value.m_Number);
         ++visited;
     }
     ASSERT_EQ(2u, visited);
     ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
-    field.m_Type = DATA_VALUE_TYPE_STRUCT;
-    field.m_PathCount = 0;
-    HDataQuery roots;
-    ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &query_desc, &roots));
-    it = DataQueryIter(roots);
+    it = DataQueryIter(query);
     ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
     DataVector3 color;
-    ASSERT_EQ(DATA_RESULT_OK, GetTestStructPropertyVector3(&it, 0, 0, 10, &color));
+    ASSERT_EQ(DATA_RESULT_OK, GetTestFieldVector3(&it, 0, 0, &color));
     ASSERT_EQ(1.0f, color.m_Values[0]);
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, GetTestStructPropertyVector3(&it, 0, 0, 99, &color));
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestStructPropertyVector3(&it, 0, 0, 20, &color));
     DataStoreUnlock(store);
     ASSERT_EQ(DATA_RESULT_OK, DataUnregisterTable(store, 1));
     DataStoreLock(store);
@@ -1893,7 +2003,6 @@ TEST(Data, InlinePathsBindDifferentTablesAndTrackRegistration)
     ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
     ASSERT_EQ((uint64_t)2, DataIterGetType(&it));
     ASSERT_EQ(DATA_RESULT_END, DataIterNext(&it));
-    DataDestroyQuery(roots);
     DataDestroyQuery(query);
     DataStoreUnlock(store);
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
@@ -1901,12 +2010,12 @@ TEST(Data, InlinePathsBindDifferentTablesAndTrackRegistration)
 
 TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
 {
-    HDataStore       store = DataCreateStore();
-    DataPropertyDesc fields[10] = {};
-    DataValue        values[10];
+    HDataStore    store = DataCreateStore();
+    DataFieldDesc fields[10] = {};
+    DataValue     values[10];
     for (uint32_t p = 0; p < 10; ++p)
     {
-        fields[p].m_Property = p;
+        fields[p].m_Field = p;
         fields[p].m_Type = DATA_VALUE_TYPE_NUMBER;
         fields[p].m_Offset = p * 8;
         values[p] = Number(p);
@@ -1915,7 +2024,7 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
     DataId ids[3];
     for (uint32_t r = 0; r < 3; ++r)
-        ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 1, r == 2 ? 8 : 7, values, 10, &ids[r], r + 11));
+        ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 1, r == 2 ? 8 : 7, values, 10, &ids[r], r + 11));
     DataMemoryStats before, after;
     GetDataMemoryStats(store, &before);
     ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[0]));
@@ -1924,11 +2033,11 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
 
     for (uint32_t r = 0; r < 3; ++r)
         for (uint32_t p = 0; p < 10; ++p)
-            ASSERT_EQ(DATA_RESULT_OK, DataSetPropertyNumber(store, ids[r], p, 100 * (r + 1) + p));
-    DataOwnerId       owner = 7;
-    DataQueryProperty field = { 9, DATA_VALUE_TYPE_NUMBER };
-    DataQueryDesc     desc = { &owner, 1, 0, 0, &field, 1 };
-    HDataQuery        query;
+            ASSERT_EQ(DATA_RESULT_OK, DataSetFieldNumber(store, ids[r], p, 100 * (r + 1) + p));
+    DataOwnerId    owner = 7;
+    DataQueryField field = { 9, DATA_VALUE_TYPE_NUMBER };
+    DataQueryDesc  desc = { &owner, 1, 0, 0, &field, 1 };
+    HDataQuery     query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
     DataStoreLock(store);
     DataIterator it = DataQueryIter(query);
@@ -1941,7 +2050,7 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
         ASSERT_EQ((uint64_t)(r + 11), DataGetComponentId(store, ids[r]));
         for (uint32_t p = 0; p < 10; ++p)
         {
-            ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, ids[r], p, &number));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[r], p, &number));
             ASSERT_EQ((double)(r ? 100 * (r + 1) + p : p), number);
         }
     }
@@ -1953,9 +2062,9 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     GetDataMemoryStats(store, &before);
     for (uint32_t cycle = 0; cycle < 16; ++cycle)
     {
-        ASSERT_EQ(DATA_RESULT_OK, DataSetPropertyNumber(store, ids[0], 9, 500));
+        ASSERT_EQ(DATA_RESULT_OK, DataSetFieldNumber(store, ids[0], 9, 500));
         ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[0]));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, ids[0], 9, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[0], 9, &number));
         ASSERT_EQ(9.0, number);
     }
     GetDataMemoryStats(store, &after);
@@ -1966,16 +2075,16 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[0]));
     ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataResetRow(store, ids[0]));
     ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[2])); // Swap removal moved this row.
-    ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, ids[2], 9, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[2], 9, &number));
     ASSERT_EQ(9.0, number);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, ids[1], 9, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[1], 9, &number));
     ASSERT_EQ(209.0, number);
     DataDestroyQuery(query);
 
     DataTableDesc empty = { 2, 0, 0, 0, 0, 0 };
     DataId        empty_id;
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &empty));
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 2, 7, 0, 0, &empty_id));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 2, 7, 0, 0, &empty_id));
     ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, empty_id));
     ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataResetRow(store, ids[0]));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
@@ -1983,17 +2092,17 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
 
 extern "C" int TestDataEmptyFieldFromC(const DataFieldIterator* field);
 
-TEST(Data, FieldIterationWithoutPropertyFilters)
+TEST(Data, FieldIterationWithoutFieldFilters)
 {
-    HDataStore       source = DataCreateStore();
-    DataPropertyDesc meta[] = { { 10, DATA_VALUE_TYPE_NUMBER, 0 }, { 20, DATA_VALUE_TYPE_STRING, 8 }, { 30, DATA_VALUE_TYPE_VECTOR3, 16 }, { 40, DATA_VALUE_TYPE_NULL, 0 } };
-    DataTableDesc    table = { 1, 0, 0, meta, 4, 32 };
+    HDataStore    source = DataCreateStore();
+    DataFieldDesc meta[] = { { 10, DATA_VALUE_TYPE_NUMBER, 0 }, { 20, DATA_VALUE_TYPE_STRING, 8 }, { 30, DATA_VALUE_TYPE_VECTOR3, 16 }, { 40, DATA_VALUE_TYPE_NULL, 0 } };
+    DataTableDesc table = { 1, 0, 0, meta, 4, 32 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &table));
     DataValue values[] = { Number(10), String("original"), Vector3(1, 2, 3), Null() };
     DataId    id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 7, values, 4, &id));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 7, values, 4, &id));
     values[0] = Number(20);
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 8, values, 4, &id));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 8, values, 4, &id));
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
@@ -2092,14 +2201,14 @@ TEST(Data, FieldIterationWithoutPropertyFilters)
         DataDestroyQuery(query);
 
         // Treat requested fields as a set, identifying values by name in either descriptor order.
-        DataQueryProperty requested[][2] = {
+        DataQueryField requested[][2] = {
             { { 30, DATA_VALUE_TYPE_VECTOR3 }, { 10, DATA_VALUE_TYPE_NUMBER } },
             { { 10, DATA_VALUE_TYPE_NUMBER }, { 30, DATA_VALUE_TYPE_VECTOR3 } }
         };
         for (uint32_t order = 0; order < 2; ++order)
         {
-            desc.m_Properties = requested[order];
-            desc.m_PropertyCount = 2;
+            desc.m_Fields = requested[order];
+            desc.m_FieldCount = 2;
             ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
             batch = DataQueryIter(query);
             ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&batch));
@@ -2150,14 +2259,14 @@ TEST(Data, FieldCursorUsesBatchRelativeRowsAfterRemoval)
     for (uint32_t row = 0; row < 6; ++row)
         ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, row % 2, row + 10, "base", &ids[row]));
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[1])); // Last row moves; its base bytes do not.
-    DataOwnerId       owner = 1;
-    DataQueryProperty property = { 10, DATA_VALUE_TYPE_NUMBER };
+    DataOwnerId    owner = 1;
+    DataQueryField field = { 10, DATA_VALUE_TYPE_NUMBER };
     for (uint32_t requested = 0; requested < 2; ++requested)
     {
-        DataQueryDesc desc = { &owner, 1, 0, 0, requested ? &property : 0, requested };
+        DataQueryDesc desc = { &owner, 1, 0, 0, requested ? &field : 0, requested };
         HDataQuery    query;
         ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
-        uint32_t handle = DataQueryFindField(query, &property);
+        uint32_t handle = DataQueryFindField(query, &field);
         ASSERT_EQ(requested != 0, handle != UINT32_MAX);
         DataStoreLock(store);
         DataIterator batch = DataQueryIter(query);
@@ -2179,7 +2288,7 @@ TEST(Data, FieldCursorUsesBatchRelativeRowsAfterRemoval)
                 if (requested)
                     ASSERT_EQ(number, *DataFieldGetNumber(&rows, handle));
                 ASSERT_EQ(DATA_RESULT_OK, DataFieldIterSetNumber(&field, 99));
-                ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, id, 10, &number));
+                ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, 10, &number));
                 ASSERT_EQ(99.0, number);
                 ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, id));
                 ASSERT_EQ(DATA_RESULT_OK, DataFieldIterGetNumber(&field, &number));
@@ -2201,9 +2310,9 @@ TEST(Data, DeferredRemovalUsesStableIds)
     HDataStore store = DataCreateStore();
     ASSERT_EQ(DATA_RESULT_OK, Register(store, 1));
     ASSERT_EQ(DATA_RESULT_OK, Register(store, 2));
-    DataQueryProperty property = { 10, DATA_VALUE_TYPE_NUMBER };
-    DataQueryDesc     desc = { 0, 0, 0, 0, &property, 1 };
-    HDataQuery        query;
+    DataQueryField field = { 10, DATA_VALUE_TYPE_NUMBER };
+    DataQueryDesc  desc = { 0, 0, 0, 0, &field, 1 };
+    HDataQuery     query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
     dmArray<DataId> removals;
     removals.SetCapacity(64);
@@ -2238,7 +2347,7 @@ TEST(Data, DeferredRemovalUsesStableIds)
         ASSERT_EQ(33u, removals.Size());
         // Queued IDs are still readable before the caller applies its buffer.
         double value;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, removals[0], 10, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, removals[0], 10, &value));
         DataStoreUnlock(store);
         for (uint32_t r = 0; r < removals.Size(); ++r)
             ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, removals[r]));
@@ -2261,7 +2370,7 @@ TEST(Data, DeferredRemovalUsesStableIds)
         for (uint32_t r = 0; r < 64; ++r)
         {
             if (r % 2 == 0 || r == 63)
-                ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetPropertyNumber(store, ids[r], 10, &value));
+                ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, ids[r], 10, &value));
             else
                 ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[r]));
         }
@@ -2277,7 +2386,7 @@ TEST(Data, EmptyRowHasNoFields)
     DataTableDesc table = { 1, 0, 0, 0, 0, 0 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
     DataId id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 1, 7, 0, 0, &id));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 1, 7, 0, 0, &id));
     DataQueryDesc desc = {};
     HDataQuery    query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
@@ -2298,11 +2407,11 @@ TEST(Data, EmptyRowHasNoFields)
 
 TEST(Data, AlignedLayoutValidation)
 {
-    HDataStore       store = DataCreateStore();
-    DataPropertyDesc members[] = { { 1, DATA_VALUE_TYPE_NUMBER, 0 }, { 2, DATA_VALUE_TYPE_BOOLEAN, 8 } };
-    DataStructDesc   inner = { members, 2, 16 };
-    DataPropertyDesc root = { 3, DATA_VALUE_TYPE_STRUCT, 0, &inner };
-    DataTableDesc    table = { 1, 0, 0, &root, 1, 24 };
+    HDataStore     store = DataCreateStore();
+    DataFieldDesc  members[] = { { 1, DATA_VALUE_TYPE_NUMBER, 0 }, { 2, DATA_VALUE_TYPE_BOOLEAN, 8 } };
+    DataStructDesc inner = { members, 2, 16 };
+    DataFieldDesc  root = { 3, DATA_VALUE_TYPE_STRUCT, 0, &inner };
+    DataTableDesc  table = { 1, 0, 0, &root, 1, 24 };
     members[0].m_Offset = 1;
     members[1].m_Offset = 9;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &table));
@@ -2318,11 +2427,12 @@ TEST(Data, AlignedLayoutValidation)
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &table));
     table.m_RowStride = 24;
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
-    uint64_t  names[] = { 1, 2 };
-    DataValue children[] = { Number(17), Boolean(1) };
-    DataValue value = Struct(names, children, 2);
-    DataId    id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 1, 0, &value, 1, &id));
+    uint64_t            names[] = { 1, 2 };
+    const DataValueType child_types[] = { DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_BOOLEAN };
+    DataValueData       children[] = { { .m_Number = 17 }, { .m_Boolean = 1 } };
+    DataValue           value = Struct(names, child_types, children, 2);
+    DataId              id;
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 1, 0, &value, 1, &id));
     uint8_t  DM_ALIGNED(8) bytes[512], saved[512];
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, bytes, sizeof(bytes), &size));
@@ -2338,7 +2448,7 @@ TEST(Data, AlignedLayoutValidation)
     delete[] unaligned;
     uint32_t       table_offset = (uint32_t)ReadDataInteger(bytes + 16, 4);
     uint32_t       metadata = table_offset + DATA_TABLE_HEADER_SIZE;
-    const uint32_t offsets[] = { 4, table_offset + 20, metadata + 12, metadata + 24, metadata + DATA_PROPERTY_META_SIZE + 12 };
+    const size_t   offsets[] = { 4, table_offset + offsetof(DataTableHeader, m_RowStride), metadata + offsetof(DataFileFieldMeta, m_ByteOffset), metadata + offsetof(DataFileFieldMeta, m_ByteSize), metadata + DATA_FIELD_META_SIZE + offsetof(DataFileFieldMeta, m_ByteOffset) };
     const uint32_t values[] = { 7, 25, 4, 9, 1 };
     for (uint32_t i = 0; i < 5; ++i)
     {
@@ -2363,7 +2473,7 @@ TEST(Data, NativeFieldPointersAndReset)
         DataVector4 m_Vector4;
         DataMatrix4 m_Matrix4;
     };
-    DataPropertyDesc fields[] = {
+    DataFieldDesc fields[] = {
         { 1, DATA_VALUE_TYPE_NUMBER, offsetof(NativeRow, m_Number) },
         { 2, DATA_VALUE_TYPE_BOOLEAN, offsetof(NativeRow, m_Boolean) },
         { 3, DATA_VALUE_TYPE_VECTOR3, offsetof(NativeRow, m_Vector3) },
@@ -2380,7 +2490,7 @@ TEST(Data, NativeFieldPointersAndReset)
         values[4].m_Value.m_Matrix4[i] = (float)i;
     DataId ids[3];
     for (uint32_t i = 0; i < 3; ++i)
-        ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, i, values, 5, &ids[i]));
+        ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, i, values, 5, &ids[i]));
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
@@ -2407,7 +2517,7 @@ TEST(Data, NativeFieldPointersAndReset)
         DataId id = FirstId(store);
         ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, id));
         double number;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, id, 1, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, 1, &number));
         ASSERT_EQ(17.0, number);
         if (packed)
             DataResetBlob(instance);
@@ -2424,17 +2534,17 @@ TEST(Data, NativeFieldPointersAndReset)
 
 TEST(Data, QueryFieldHandlesSurviveTableChanges)
 {
-    HDataStore        store = DataCreateStore();
-    DataQueryProperty properties[] = { { 30, DATA_VALUE_TYPE_VECTOR3 }, { 10, DATA_VALUE_TYPE_NUMBER } };
-    DataQueryDesc     desc = { 0, 0, 0, 0, properties, 2 };
-    HDataQuery        query;
+    HDataStore     store = DataCreateStore();
+    DataQueryField fields[] = { { 30, DATA_VALUE_TYPE_VECTOR3 }, { 10, DATA_VALUE_TYPE_NUMBER } };
+    DataQueryDesc  desc = { 0, 0, 0, 0, fields, 2 };
+    HDataQuery     query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
-    uint32_t vector_field = DataQueryFindField(query, &properties[0]);
-    uint32_t number_field = DataQueryFindField(query, &properties[1]);
+    uint32_t vector_field = DataQueryFindField(query, &fields[0]);
+    uint32_t number_field = DataQueryFindField(query, &fields[1]);
     ASSERT_NE(UINT32_MAX, vector_field);
     ASSERT_NE(UINT32_MAX, number_field);
     ASSERT_NE(vector_field, number_field);
-    DataQueryProperty invalid = { 30, DATA_VALUE_TYPE_VECTOR3, 0, 1 };
+    DataQueryField invalid = { 30, DATA_VALUE_TYPE_VECTOR3, 0, 1 };
     ASSERT_EQ(UINT32_MAX, DataQueryFindField(query, &invalid));
     invalid.m_PathCount = DATA_MAX_NESTING + 1;
     ASSERT_EQ(UINT32_MAX, DataQueryFindField(query, &invalid));
@@ -2447,14 +2557,14 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
     // Reuse the handles after END and across registration/removal with new offsets.
     for (uint32_t pass = 0; pass < 3; ++pass)
     {
-        DataPropertyDesc meta[] = { { 10, DATA_VALUE_TYPE_NUMBER, pass * 8 }, { 30, DATA_VALUE_TYPE_VECTOR3, pass * 8 + 8 } };
-        DataTableDesc    table = { 1, 0, 0, meta, 2, pass * 8 + 24 };
+        DataFieldDesc meta[] = { { 10, DATA_VALUE_TYPE_NUMBER, pass * 8 }, { 30, DATA_VALUE_TYPE_VECTOR3, pass * 8 + 8 } };
+        DataTableDesc table = { 1, 0, 0, meta, 2, pass * 8 + 24 };
         ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
         DataValue values[] = { Number(10 + pass), Vector3(1, 2, 3) };
         DataId    id;
-        ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 1, 0, values, 2, &id));
-        ASSERT_EQ(vector_field, DataQueryFindField(query, &properties[0]));
-        ASSERT_EQ(number_field, DataQueryFindField(query, &properties[1]));
+        ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, 1, 0, values, 2, &id));
+        ASSERT_EQ(vector_field, DataQueryFindField(query, &fields[0]));
+        ASSERT_EQ(number_field, DataQueryFindField(query, &fields[1]));
         for (uint32_t traversal = 0; traversal < 2; ++traversal)
         {
             DataStoreLock(store);
@@ -2480,20 +2590,21 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
 
 TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
 {
-    DataPropertyDesc members[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_NUMBER, 16 }, { 30, DATA_VALUE_TYPE_STRING, 24 } };
-    DataStructDesc   light = { members, 3, 32 };
-    uint64_t         names[] = { 10, 20, 30 };
-    DataValue        first[] = { Vector3(1, 2, 3), Number(7), String("shared") };
-    DataValue        second[] = { Vector3(9, 8, 7), Number(6), String("other") };
-    DataValue        values[] = { Struct(names, first, 3), Struct(names, second, 3) };
-    HDataStore       source = DataCreateStore();
+    DataFieldDesc       members[] = { { 10, DATA_VALUE_TYPE_VECTOR3, 0 }, { 20, DATA_VALUE_TYPE_NUMBER, 16 }, { 30, DATA_VALUE_TYPE_STRING, 24 } };
+    DataStructDesc      light = { members, 3, 32 };
+    uint64_t            names[] = { 10, 20, 30 };
+    const DataValueType types[] = { DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_STRING };
+    DataValueData       first[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 7 }, { .m_String = "shared" } };
+    DataValueData       second[] = { { .m_Vector3 = { 9, 8, 7 } }, { .m_Number = 6 }, { .m_String = "other" } };
+    DataValue           values[] = { Struct(names, types, first, 3), Struct(names, types, second, 3) };
+    HDataStore          source = DataCreateStore();
     for (uint32_t i = 0; i < 2; ++i)
     {
-        DataPropertyDesc roots[] = { { 1, DATA_VALUE_TYPE_STRUCT, i * 8, &light }, { 2, DATA_VALUE_TYPE_STRUCT, i * 8 + 32, &light } };
-        DataTableDesc    table = { i + 1, 0, 0, roots, 2, i * 8 + 64 };
+        DataFieldDesc roots[] = { { 1, DATA_VALUE_TYPE_STRUCT, i * 8, &light }, { 2, DATA_VALUE_TYPE_STRUCT, i * 8 + 32, &light } };
+        DataTableDesc table = { i + 1, 0, 0, roots, 2, i * 8 + 64 };
         ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &table));
         DataId id;
-        ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, i + 1, i, values, 2, &id));
+        ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, i + 1, i, values, 2, &id));
     }
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
@@ -2507,18 +2618,18 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
     HDataStore stores[] = { source, loaded };
     for (uint32_t packed = 0; packed < 2; ++packed)
     {
-        HDataStore        store = stores[packed];
-        uint64_t          color = 10;
-        DataQueryProperty properties[] = { { 2, DATA_VALUE_TYPE_VECTOR3, &color, 1 }, { 1, DATA_VALUE_TYPE_VECTOR3, &color, 1 } };
-        DataQueryDesc     desc = { 0, 0, 0, 0, properties, 2 };
-        HDataQuery        query;
+        HDataStore     store = stores[packed];
+        uint64_t       color = 10;
+        DataQueryField fields[] = { { 2, DATA_VALUE_TYPE_VECTOR3, &color, 1 }, { 1, DATA_VALUE_TYPE_VECTOR3, &color, 1 } };
+        DataQueryDesc  desc = { 0, 0, 0, 0, fields, 2 };
+        HDataQuery     query;
         ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
         // Lookup uses names/paths even when the descriptors change order.
-        DataQueryProperty swap = properties[0];
-        properties[0] = properties[1];
-        properties[1] = swap;
-        uint32_t field = DataQueryFindField(query, &properties[0]);
-        uint32_t other = DataQueryFindField(query, &properties[1]);
+        DataQueryField swap = fields[0];
+        fields[0] = fields[1];
+        fields[1] = swap;
+        uint32_t field = DataQueryFindField(query, &fields[0]);
+        uint32_t other = DataQueryFindField(query, &fields[1]);
         ASSERT_NE(UINT32_MAX, field);
         ASSERT_NE(UINT32_MAX, other);
         ASSERT_NE(field, other);
@@ -2543,10 +2654,10 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
             ASSERT_EQ(42.0f, DataFieldGetVector3(&rows, field)->m_Values[0]);
             ASSERT_EQ(9.0f, DataFieldGetVector3(&rows, other)->m_Values[0]);
             DataValue root, child;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 1, &root));
-            ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&root.m_Value.m_Struct, 20, &child));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &root));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&root.m_Value.m_Struct, 20, &child));
             ASSERT_EQ(7.0, child.m_Value.m_Number);
-            ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&root.m_Value.m_Struct, 30, &child));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&root.m_Value.m_Struct, 30, &child));
             ASSERT_STREQ("shared", child.m_Value.m_String);
             DataMemoryStats before, after;
             GetDataMemoryStats(store, &before);
@@ -2554,7 +2665,7 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
             GetDataMemoryStats(store, &after);
             ASSERT_EQ(before.m_PayloadUsed, after.m_PayloadUsed);
             ASSERT_EQ(before.m_PayloadBlocks, after.m_PayloadBlocks);
-            ASSERT_EQ(DATA_RESULT_OK, DataResetProperty(store, id, 1));
+            ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, id, 1));
             ASSERT_EQ(2.0f, DataFieldGetVector3(&rows, field)->m_Values[1]);
             DataFieldGetVector3Mut(&rows, field)->m_Values[2] = 44;
             ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, id));
@@ -2574,21 +2685,22 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
 
 TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
 {
-    DataPropertyDesc members[] = { { 10, DATA_VALUE_TYPE_NUMBER, 0 }, { 20, DATA_VALUE_TYPE_STRING, 8 }, { 30, DATA_VALUE_TYPE_LIST, 16 } };
-    DataStructDesc   layout = { members, 3, 24 };
-    DataPropertyDesc root = { 1, DATA_VALUE_TYPE_STRUCT, 0, &layout };
-    DataTableDesc    table = { 1, 0, 0, &root, 1, 24 };
-    HDataStore       source = DataCreateStore();
+    DataFieldDesc  members[] = { { 10, DATA_VALUE_TYPE_NUMBER, 0 }, { 20, DATA_VALUE_TYPE_STRING, 8 }, { 30, DATA_VALUE_TYPE_LIST, 16 } };
+    DataStructDesc layout = { members, 3, 24 };
+    DataFieldDesc  root = { 1, DATA_VALUE_TYPE_STRUCT, 0, &layout };
+    DataTableDesc  table = { 1, 0, 0, &root, 1, 24 };
+    HDataStore     source = DataCreateStore();
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &table));
-    uint64_t  names[] = { 10, 20, 30 };
-    DataValue list_values[] = { String("nested"), Number(7) };
-    DataValue values[] = { Number(0), String("shared"), List(list_values, 2) };
-    DataValue object = Struct(names, values, 3);
+    uint64_t            names[] = { 10, 20, 30 };
+    DataValue           list_values[] = { String("nested"), Number(7) };
+    const DataValueType types[] = { DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_STRING, DATA_VALUE_TYPE_LIST };
+    DataValueData       values[] = { Number(0).m_Value, String("shared").m_Value, List(list_values, 2).m_Value };
+    DataValue           object = Struct(names, types, values, 3);
     for (uint32_t r = 0; r < 3; ++r)
     {
-        values[0] = Number(10 + r);
+        values[0].m_Number = 10 + r;
         DataId id;
-        ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 0, &object, 1, &id, r));
+        ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 0, &object, 1, &id, r));
     }
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
@@ -2603,12 +2715,12 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
     ASSERT_EQ(DATA_RESULT_OK, DataAddBlob(store, blob, 1, &first));
     ASSERT_EQ(DATA_RESULT_OK, DataAddBlob(store, blob, 2, &second));
     DataDestroyBlob(blob);
-    uint64_t          number_name = 10, string_name = 20;
-    DataQueryProperty properties[] = { { 1, DATA_VALUE_TYPE_NUMBER, &number_name, 1 }, { 1, DATA_VALUE_TYPE_STRING, &string_name, 1 } };
-    DataQueryDesc     desc = { 0, 0, 0, 0, properties, 2 };
-    HDataQuery        query;
+    uint64_t       number_name = 10, string_name = 20;
+    DataQueryField fields[] = { { 1, DATA_VALUE_TYPE_NUMBER, &number_name, 1 }, { 1, DATA_VALUE_TYPE_STRING, &string_name, 1 } };
+    DataQueryDesc  desc = { 0, 0, 0, 0, fields, 2 };
+    HDataQuery     query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
-    uint32_t number_field = DataQueryFindField(query, &properties[0]);
+    uint32_t number_field = DataQueryFindField(query, &fields[0]);
     ASSERT_NE(UINT32_MAX, number_field);
     DataId      ids[2][3] = {};
     const char* shared_list_string = 0;
@@ -2628,16 +2740,16 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
             if (!owner)
                 *DataFieldGetNumberMut(&rows, number_field) += 100;
             DataValue current, child, element;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 1, &current));
-            ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&current.m_Value.m_Struct, 20, &child));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &current));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&current.m_Value.m_Struct, 20, &child));
             ASSERT_STREQ("shared", child.m_Value.m_String);
             ASSERT_TRUE((uintptr_t)child.m_Value.m_String >= (uintptr_t)bytes && (uintptr_t)child.m_Value.m_String < (uintptr_t)(bytes + size));
             DataFieldIterator field = DataRowIterFields(&rows);
             while (DataFieldIterNext(&field) == DATA_RESULT_OK)
                 if (!owner && DataFieldIterGetNameHash(&field) == 20)
                     ASSERT_EQ(DATA_RESULT_OK, DataFieldIterSetString(&field, "replacement"));
-            ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, id, 1, &current));
-            ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&current.m_Value.m_Struct, 30, &child));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &current));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&current.m_Value.m_Struct, 30, &child));
             ASSERT_EQ(DATA_RESULT_OK, DataGetListValue(&child.m_Value.m_List, 0, &element));
             ASSERT_STREQ("nested", element.m_Value.m_String);
             if (!shared_list_string)
@@ -2653,10 +2765,10 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
         for (uint32_t component = owner ? 0 : 1; component < 3; ++component)
         {
             DataValue current, child;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetProperty(store, ids[owner][component], 1, &current));
-            ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&current.m_Value.m_Struct, 10, &child));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[owner][component], 1, &current));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&current.m_Value.m_Struct, 10, &child));
             ASSERT_EQ(10.0 + component, child.m_Value.m_Number);
-            ASSERT_EQ(DATA_RESULT_OK, DataGetStructProperty(&current.m_Value.m_Struct, 20, &child));
+            ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&current.m_Value.m_Struct, 20, &child));
             ASSERT_STREQ("shared", child.m_Value.m_String);
         }
     ASSERT_EQ(0, memcmp(saved, bytes, size));
@@ -2675,9 +2787,9 @@ TEST(Data, PooledRegistrationResetAndRemovalAfterSlotReuse)
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &empty));
     DataValue values[] = { Number(10), String("shared") };
     DataId    id;
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 0, values, 2, &id, 11));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 0, values, 2, &id, 11));
     values[0] = Number(20);
-    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(source, 1, 0, values, 2, &id, 12));
+    ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 0, values, 2, &id, 12));
     uint32_t size;
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
@@ -2700,8 +2812,8 @@ TEST(Data, PooledRegistrationResetAndRemovalAfterSlotReuse)
             uint32_t slot = GetInstanceSlots(instances[i])[r];
             ids[i][r] = ((uint64_t)store->m_Slots[slot].m_Generation << 32) | slot;
             ASSERT_EQ((uint64_t)(11 + r), DataGetComponentId(store, ids[i][r]));
-            ASSERT_EQ(DATA_RESULT_OK, DataSetPropertyNumber(store, ids[i][r], 10, 100 + i));
-            ASSERT_EQ(DATA_RESULT_OK, DataSetPropertyString(store, ids[i][r], 20, i ? "second" : "first"));
+            ASSERT_EQ(DATA_RESULT_OK, DataSetFieldNumber(store, ids[i][r], 10, 100 + i));
+            ASSERT_EQ(DATA_RESULT_OK, DataSetFieldString(store, ids[i][r], 20, i ? "second" : "first"));
         }
     ASSERT_TRUE(first->m_Payloads != 0 && second->m_Payloads != 0);
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[0][0]));
@@ -2716,34 +2828,500 @@ TEST(Data, PooledRegistrationResetAndRemovalAfterSlotReuse)
     ASSERT_TRUE(second->m_Payloads != 0);
     double      number;
     const char* string;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, ids[0][1], 10, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[0][1], 10, &number));
     ASSERT_EQ(20.0, number);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyString(store, ids[0][1], 20, &string));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, ids[0][1], 20, &string));
     ASSERT_STREQ("shared", string);
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(first));
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetPropertyNumber(store, ids[0][1], 10, &number));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, reused, 10, &number));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, ids[0][1], 10, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, reused, 10, &number));
     ASSERT_EQ(500.0, number);
     for (uint32_t r = 0; r < 2; ++r)
     {
-        ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, ids[1][r], 10, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[1][r], 10, &number));
         ASSERT_EQ(101.0, number);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyString(store, ids[1][r], 20, &string));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, ids[1][r], 20, &string));
         ASSERT_STREQ("second", string);
     }
     DataResetBlob(second);
     for (uint32_t r = 0; r < 2; ++r)
     {
-        ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyNumber(store, ids[1][r], 10, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[1][r], 10, &number));
         ASSERT_EQ(10.0 + r * 10, number);
         ASSERT_EQ((uint64_t)(11 + r), DataGetComponentId(store, ids[1][r]));
     }
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(second));
     ASSERT_EQ((uintptr_t)0, (uintptr_t)store->m_Pools);
     ASSERT_EQ(1u, store->m_Tables.Size());
-    ASSERT_EQ(DATA_RESULT_OK, DataGetPropertyString(store, reused, 20, &string));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, reused, 20, &string));
     ASSERT_STREQ("independent", string);
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(source));
+    delete[] bytes;
+}
+
+TEST(Data, CompactMetadataLimitsRoundTrip)
+{
+    // A reusable binary tree reaches 65,535 entries with only two siblings per
+    // level, keeping validation linear instead of constructing one huge flat type.
+    DataStructDesc layouts[15] = {};
+    DataFieldDesc  members[15][2] = {};
+    for (uint32_t depth = 0; depth < 15; ++depth)
+    {
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            DataFieldDesc field = {
+                .m_Field = i + 1,
+                .m_Type = depth == 14 ? DATA_VALUE_TYPE_NULL : DATA_VALUE_TYPE_STRUCT,
+                .m_Struct = depth == 14 ? 0 : &layouts[depth + 1]
+            };
+            members[depth][i] = field;
+        }
+        layouts[depth].m_Fields = members[depth];
+        layouts[depth].m_FieldCount = 2;
+    }
+    DataFieldDesc roots[] = {
+        { .m_Field = 1, .m_Type = DATA_VALUE_TYPE_STRUCT, .m_Struct = layouts },
+        { .m_Field = 2, .m_Type = DATA_VALUE_TYPE_NULL }
+    };
+    uint64_t* tags = new uint64_t[DATA_MAX_TAG_COUNT];
+    for (uint32_t i = 0; i < DATA_MAX_TAG_COUNT; ++i)
+        tags[i] = i;
+    HDataStore    store = DataCreateStore();
+    DataTableDesc desc = { .m_Type = 1, .m_Tags = tags, .m_TagCount = DATA_MAX_TAG_COUNT + 1, .m_Fields = roots, .m_FieldCount = 1 };
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &desc));
+    desc.m_TagCount = DATA_MAX_TAG_COUNT;
+    desc.m_FieldCount = DATA_MAX_METADATA_COUNT + 1;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &desc));
+    desc.m_FieldCount = 2;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &desc)); // Nested total is 65,536.
+    ASSERT_EQ(0u, store->m_Tables.Size());
+    desc.m_FieldCount = 1;
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &desc));
+    ASSERT_EQ(DATA_MAX_METADATA_COUNT, (uint32_t)store->m_Tables[0]->m_MetadataCount);
+    uint32_t size;
+    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, 0, 0, &size));
+    uint8_t* bytes = new uint8_t[size];
+    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, bytes, size, &size));
+    HDataStore        loaded = DataCreateStore();
+    HDataBlobInstance instance;
+    ASSERT_EQ(DATA_RESULT_OK, Load(loaded, bytes, size, &instance));
+    DataTable* table = GetInstanceTable(instance, 0);
+    ASSERT_EQ(DATA_MAX_METADATA_COUNT, (uint32_t)table->m_MetadataCount);
+    ASSERT_EQ(DATA_MAX_TAG_COUNT, (uint32_t)table->m_TagCount);
+    ASSERT_EQ((uint64_t)(DATA_MAX_TAG_COUNT - 1), GetTableTag(table, DATA_MAX_TAG_COUNT - 1));
+    for (uint32_t i = 0; i < DATA_MAX_METADATA_COUNT; ++i)
+    {
+        DataFieldMeta expected = GetFieldMeta(store->m_Tables[0], i);
+        DataFieldMeta actual = GetFieldMeta(table, i);
+        ASSERT_EQ(expected.m_Field, actual.m_Field);
+        ASSERT_EQ(expected.m_ChildIndex, actual.m_ChildIndex);
+        ASSERT_EQ(expected.m_ChildCount, actual.m_ChildCount);
+    }
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(loaded));
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+    delete[] bytes;
+    delete[] tags;
+}
+
+TEST(Data, CompactMetadataPreservesWideByteOffsets)
+{
+    HDataStore    store = DataCreateStore();
+    DataFieldDesc field = { .m_Field = 10, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 65536 };
+    DataTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 65548 };
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
+    DataValueType type = DATA_VALUE_TYPE_VECTOR3;
+    DataValueData value = { .m_Vector3 = { 3, 5, 7 } };
+    DataId        id;
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 1, 42, &type, &value, 1, &id));
+    uint32_t size;
+    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, 0, 0, &size));
+    uint8_t* bytes = new uint8_t[size];
+    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, bytes, size, &size));
+    HDataStore        loaded = DataCreateStore();
+    HDataBlobInstance instance;
+    ASSERT_EQ(DATA_RESULT_OK, Load(loaded, bytes, size, &instance));
+    DataQueryField requested = { .m_Field = 10, .m_Type = DATA_VALUE_TYPE_VECTOR3 };
+    DataQueryDesc  desc = { .m_Fields = &requested, .m_FieldCount = 1 };
+    HDataQuery     query;
+    ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(loaded, &desc, &query));
+    uint32_t handle = DataQueryFindField(query, &requested);
+    DataStoreLock(loaded);
+    DataIterator it = DataQueryIter(query);
+    ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
+    DataRowIterator rows = DataIterRows(&it);
+    ASSERT_EQ(DATA_RESULT_OK, DataRowIterNext(&rows));
+    const DataVector3* actual = DataFieldGetVector3(&rows, handle);
+    ASSERT_EQ(0, memcmp(value.m_Vector3, actual, sizeof(DataVector3)));
+    ASSERT_EQ(65548u, it.m_RowStride);
+    DataStoreUnlock(loaded);
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyQuery(query));
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(loaded));
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+    delete[] bytes;
+}
+
+TEST(Data, CompactQueryFieldsValidateBeforeNarrowing)
+{
+    HDataStore     store = DataCreateStore();
+    uint64_t       path[DATA_MAX_NESTING] = {};
+    DataQueryField field = { .m_Field = 1, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Path = path, .m_PathCount = DATA_MAX_NESTING, .m_Access = DATA_ACCESS_READ_WRITE };
+    DataQueryDesc  desc = { .m_Fields = &field, .m_FieldCount = 1 };
+    HDataQuery     query;
+    ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
+    ASSERT_EQ(0u, DataQueryFindField(query, &field));
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyQuery(query));
+    field.m_PathCount = 65536;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(store, &desc, &query));
+    field.m_PathCount = DATA_MAX_NESTING;
+    field.m_Access = (DataAccess)256;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+}
+
+TEST(Data, TemplateRowsPreserveNativeOverridesAndSharedDefaults)
+{
+    DataFieldDesc members[] = {
+        { .m_Field = 60, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 0 },
+        { .m_Field = 61, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 16 }
+    };
+    DataStructDesc light = { .m_Fields = members, .m_FieldCount = 2, .m_Size = 24 };
+    DataFieldDesc  fields[] = {
+        { .m_Field = 1, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 0 },
+        { .m_Field = 2, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 8 },
+        { .m_Field = 3, .m_Type = DATA_VALUE_TYPE_VECTOR4, .m_Offset = 20 },
+        { .m_Field = 4, .m_Type = DATA_VALUE_TYPE_MATRIX4, .m_Offset = 36 },
+        { .m_Field = 5, .m_Type = DATA_VALUE_TYPE_BOOLEAN, .m_Offset = 100 },
+        { .m_Field = 6, .m_Type = DATA_VALUE_TYPE_STRUCT, .m_Offset = 104, .m_Struct = &light },
+        { .m_Field = 7, .m_Type = DATA_VALUE_TYPE_STRING, .m_Offset = 128 }
+    };
+    DataTableDesc desc = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 7, .m_RowStride = 136 };
+    HDataStore    store = DataCreateStore();
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &desc));
+    uint64_t      names[] = { 61, 60 }; // Default member order differs from metadata order.
+    DataValueType light_types[] = { DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_VECTOR3 };
+    DataValueData light_values[] = { { .m_Number = 17 }, { .m_Vector3 = { 1, 2, 3 } } };
+    DataValueType types[] = { DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_VECTOR4, DATA_VALUE_TYPE_MATRIX4, DATA_VALUE_TYPE_BOOLEAN, DATA_VALUE_TYPE_STRUCT, DATA_VALUE_TYPE_STRING };
+    char          text[] = "shared default";
+    DataValueData defaults[] = {
+        { .m_Number = 10 }, {}, {}, {}, { .m_Boolean = 1 }, { .m_Struct = { .m_Names = names, .m_Types = light_types, .m_Values = light_values, .m_Count = 2 } }, { .m_String = text }
+    };
+    DataRowDesc prototype = { .m_Types = types, .m_Values = defaults, .m_ValueCount = 7 };
+    struct NativeInput
+    {
+        double  m_Number;
+        float   m_Vector3[3];
+        float   m_Vector4[4];
+        float   m_Matrix4[16];
+        uint8_t m_Boolean;
+    };
+    NativeInput input[3] = {};
+    DataRowDesc rows[3] = {};
+    for (uint32_t r = 0; r < 3; ++r)
+    {
+        input[r].m_Number = r * 10;
+        input[r].m_Boolean = r & 1;
+        for (uint32_t i = 0; i < 3; ++i)
+            input[r].m_Vector3[i] = r * 10 + i;
+        for (uint32_t i = 0; i < 4; ++i)
+            input[r].m_Vector4[i] = r * 20 + i;
+        for (uint32_t i = 0; i < 16; ++i)
+            input[r].m_Matrix4[i] = r * 30 + i;
+        rows[r].m_Owner = 100 + r;
+        rows[r].m_ComponentId = 200 + r;
+    }
+    uint64_t        color = 60;
+    DataRowOverride overrides[] = {
+        { .m_Field = { .m_Field = 6, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Path = &color, .m_PathCount = 1 }, .m_Values = input[0].m_Vector3, .m_Stride = sizeof(NativeInput) },
+        { .m_Field = { .m_Field = 4, .m_Type = DATA_VALUE_TYPE_MATRIX4 }, .m_Values = input[0].m_Matrix4, .m_Stride = sizeof(NativeInput) },
+        { .m_Field = { .m_Field = 3, .m_Type = DATA_VALUE_TYPE_VECTOR4 }, .m_Values = input[0].m_Vector4, .m_Stride = sizeof(NativeInput) },
+        { .m_Field = { .m_Field = 2, .m_Type = DATA_VALUE_TYPE_VECTOR3 }, .m_Values = input[0].m_Vector3, .m_Stride = 0 }, // Broadcast one value.
+        { .m_Field = { .m_Field = 1, .m_Type = DATA_VALUE_TYPE_NUMBER }, .m_Values = &input[0].m_Number, .m_Stride = sizeof(NativeInput) },
+        { .m_Field = { .m_Field = 5, .m_Type = DATA_VALUE_TYPE_BOOLEAN }, .m_Values = &input[0].m_Boolean, .m_Stride = sizeof(NativeInput) }
+    };
+    DataId ids[] = { 111, 222, 333 };
+    input[2].m_Boolean = 2;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRowsFromTemplate(store, 1, &prototype, overrides, 6, rows, 3, ids));
+    input[2].m_Boolean = 0;
+    color = 99;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRowsFromTemplate(store, 1, &prototype, overrides, 6, rows, 3, ids));
+    color = 60;
+    overrides[0].m_Field.m_Type = DATA_VALUE_TYPE_NUMBER;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRowsFromTemplate(store, 1, &prototype, overrides, 6, rows, 3, ids));
+    overrides[0].m_Field.m_Type = DATA_VALUE_TYPE_VECTOR3;
+    ASSERT_EQ((DataId)111, ids[0]);
+    ASSERT_EQ((DataId)333, ids[2]);
+    ASSERT_EQ(0u, store->m_Tables[0]->m_Rows.Size());
+    ASSERT_EQ(0u, store->m_Tables[0]->m_Owned->m_BaseCount);
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRowsFromTemplate(store, 1, &prototype, overrides, 6, rows, 3, ids));
+    const char* original;
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, ids[0], 7, &original));
+    text[0] = 'X'; // Borrowed inputs may change or die after insertion.
+    for (uint32_t r = 0; r < 3; ++r)
+    {
+        DataValue actual;
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 1, &actual));
+        ASSERT_EQ(input[r].m_Number, actual.m_Value.m_Number);
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 2, &actual));
+        ASSERT_EQ(0, memcmp(input[0].m_Vector3, actual.m_Value.m_Vector3, 12));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 3, &actual));
+        ASSERT_EQ(0, memcmp(input[r].m_Vector4, actual.m_Value.m_Vector4, 16));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 4, &actual));
+        ASSERT_EQ(0, memcmp(input[r].m_Matrix4, actual.m_Value.m_Matrix4, 64));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 5, &actual));
+        ASSERT_EQ(input[r].m_Boolean, actual.m_Value.m_Boolean);
+        DataValue object;
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 6, &object));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 60, &actual));
+        ASSERT_EQ(0, memcmp(input[r].m_Vector3, actual.m_Value.m_Vector3, 12));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 61, &actual));
+        ASSERT_EQ(17.0, actual.m_Value.m_Number);
+        const char* shared;
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, ids[r], 7, &shared));
+        ASSERT_EQ(original, shared);
+        ASSERT_STREQ("shared default", shared);
+        ASSERT_EQ((uint64_t)(200 + r), DataGetComponentId(store, ids[r]));
+        ASSERT_EQ(DATA_RESULT_OK, DataSetFieldNumber(store, ids[r], 1, -1));
+        ASSERT_EQ(DATA_RESULT_OK, DataSetFieldString(store, ids[r], 7, "replacement"));
+        ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[r]));
+        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 1, &actual));
+        ASSERT_EQ(input[r].m_Number, actual.m_Value.m_Number);
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, ids[r], 7, &shared));
+        ASSERT_EQ(original, shared);
+    }
+    // Append after growth and slot reuse without disturbing earlier baselines.
+    ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[1]));
+    DataId appended[3];
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRowsFromTemplate(store, 1, &prototype, 0, 0, rows, 3, appended));
+    for (uint32_t r = 0; r < 3; ++r)
+    {
+        double value;
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, appended[r], 1, &value));
+        ASSERT_EQ(10.0, value);
+    }
+    ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[2]));
+    double number;
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[2], 1, &number));
+    ASSERT_EQ(input[2].m_Number, number);
+    DataRowOverride repeated[17];
+    for (uint32_t i = 0; i < 17; ++i)
+        repeated[i] = overrides[4];
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRowsFromTemplate(store, 1, &prototype, repeated, 17, rows, 3, appended));
+    for (uint32_t r = 0; r < 3; ++r)
+    {
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, appended[r], 1, &number));
+        ASSERT_EQ(input[r].m_Number, number);
+    }
+    DataRowOverride reference = {
+        .m_Field = { .m_Field = 7, .m_Type = DATA_VALUE_TYPE_STRING },
+        .m_Values = text
+    };
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRowsFromTemplate(store, 1, &prototype, &reference, 1, rows, 3, appended));
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRowsFromTemplate(store, 1, &prototype, 0, 0, 0, 0, 0));
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+}
+
+TEST(Data, FreeSlotCountExcludesRetiredGenerations)
+{
+    HDataStore    store = DataCreateStore();
+    DataTableDesc table = { .m_Type = 1 };
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
+    DataRowDesc rows[6] = {};
+    DataId      ids[6];
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, rows, 4, ids));
+    ASSERT_EQ(0u, store->m_FreeSlotCount);
+    ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[0]));
+    ASSERT_EQ(1u, store->m_FreeSlotCount);
+    // An exhausted generation is retired permanently rather than reusable.
+    store->m_Slots[(uint32_t)ids[1]].m_Generation = UINT32_MAX;
+    DataId retired = ((uint64_t)UINT32_MAX << 32) | (uint32_t)ids[1];
+    ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, retired));
+    ASSERT_EQ(1u, store->m_FreeSlotCount);
+    DataId added[2];
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, rows, 2, added));
+    ASSERT_EQ(0u, store->m_FreeSlotCount);
+    ASSERT_EQ(5u, store->m_Slots.Size());
+    ASSERT_NE(ids[0], added[0]);
+    ASSERT_EQ((uint32_t)ids[0], (uint32_t)added[0]);
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataRemoveRow(store, ids[0]));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataRemoveRow(store, retired));
+    ASSERT_EQ(DATA_RESULT_OK, DataUnregisterTable(store, 1));
+    ASSERT_EQ(4u, store->m_FreeSlotCount);
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, rows, 6, ids));
+    ASSERT_EQ(0u, store->m_FreeSlotCount);
+    ASSERT_EQ(7u, store->m_Slots.Size());
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+}
+
+TEST(Data, BatchVector3MatchesScalarGetter)
+{
+    HDataStore    store = DataCreateStore();
+    DataFieldDesc vector = { .m_Field = 42, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 0 };
+    DataFieldDesc number = { .m_Field = 42, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 0 };
+    DataFieldDesc missing = { .m_Field = 43, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 0 };
+    DataFieldDesc collision[] = {
+        { .m_Field = 58, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 0 },
+        { .m_Field = 42, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 12 }
+    };
+    DataTableDesc tables[] = {
+        { .m_Type = 1, .m_Fields = &vector, .m_FieldCount = 1, .m_RowStride = 12 },
+        { .m_Type = 2, .m_Fields = &number, .m_FieldCount = 1, .m_RowStride = 8 },
+        { .m_Type = 3, .m_Fields = &missing, .m_FieldCount = 1, .m_RowStride = 12 },
+        { .m_Type = 4, .m_Fields = collision, .m_FieldCount = 2, .m_RowStride = 24 }
+    };
+    DataValueType vector_types[] = { DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_VECTOR3 };
+    DataValueType number_type = DATA_VALUE_TYPE_NUMBER;
+    DataValueData vectors[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Vector3 = { 4, 5, 6 } } };
+    DataValueData scalar = { .m_Number = 1 };
+    DataId        valid[5];
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &tables[i]));
+        ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, tables[i].m_Type, i, i == 1 ? &number_type : vector_types, i == 1 ? &scalar : vectors, tables[i].m_FieldCount, &valid[i]));
+    }
+    DataId stale = valid[0];
+    ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, stale));
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRow(store, 1, 77, vector_types, vectors, 1, &valid[0]));
+    // Include a packed row alongside independent rows in the same store.
+    uint32_t size;
+    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, 0, 0, &size));
+    uint8_t* bytes = new uint8_t[size];
+    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, bytes, size, &size));
+    HDataBlob         blob;
+    HDataBlobInstance instance;
+    ASSERT_EQ(DATA_RESULT_OK, DataLoadBlob(bytes, size, &blob));
+    ASSERT_EQ(DATA_RESULT_OK, DataAddBlob(store, blob, 88, &instance));
+    valid[4] = MakeId(store, GetInstanceSlots(instance)[0]);
+    DataId            ids[83];
+    DataVector3       actual[83];
+    DataResult        results[83];
+    const DataVector3 untouched = { .m_Values = { -99, -99, -99 } };
+    for (uint32_t i = 0; i < 83; ++i)
+    {
+        ids[i] = i % 8 < 5 ? valid[i % 8] : i % 8 == 5 ? stale :
+        i % 8 == 6                                     ? UINT64_MAX :
+                                                         0;
+        actual[i] = untouched;
+    }
+    DataStoreLock(store);
+    DataGetFieldVector3Batch(store, ids, 42, 83, actual, results);
+    for (uint32_t i = 0; i < 83; ++i)
+    {
+        DataVector3 expected = untouched;
+        ASSERT_EQ(DataGetFieldVector3(store, ids[i], 42, &expected), results[i]);
+        ASSERT_EQ(0, memcmp(&actual[i], &expected, sizeof(expected)));
+    }
+    DataGetFieldVector3Batch(store, 0, 42, 0, 0, 0);
+    DataStoreUnlock(store);
+    ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(instance));
+    DataDestroyBlob(blob);
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+    delete[] bytes;
+}
+
+TEST(Data, NativeRowsValidateBeforeWritingAcrossBlocks)
+{
+    const uint32_t count = 1031;
+    struct NativeRow
+    {
+        uint8_t     m_Enabled;
+        DataVector3 m_Position;
+    };
+    NativeRow   input[count];
+    DataRowDesc rows[count] = {};
+    DataId      ids[count];
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        input[i].m_Enabled = i & 1;
+        input[i].m_Position.m_Values[0] = (float)i;
+        input[i].m_Position.m_Values[1] = 2;
+        input[i].m_Position.m_Values[2] = 3;
+        rows[i].m_Owner = i + 1;
+        ids[i] = 99;
+    }
+    DataFieldDesc fields[] = {
+        { .m_Field = 1, .m_Type = DATA_VALUE_TYPE_BOOLEAN, .m_Offset = offsetof(NativeRow, m_Enabled) },
+        { .m_Field = 2, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = offsetof(NativeRow, m_Position) }
+    };
+    DataTableDesc   table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(NativeRow) };
+    DataValueType   types[] = { DATA_VALUE_TYPE_BOOLEAN, DATA_VALUE_TYPE_VECTOR3 };
+    DataValueData   values[] = { { .m_Boolean = 1 }, { .m_Vector3 = { 4, 5, 6 } } };
+    DataRowDesc     defaults = { .m_Types = types, .m_Values = values, .m_ValueCount = 2 };
+    DataRowOverride overrides[] = {
+        { .m_Field = { .m_Field = 1, .m_Type = DATA_VALUE_TYPE_BOOLEAN }, .m_Values = &input[0].m_Enabled, .m_Stride = sizeof(NativeRow) },
+        { .m_Field = { .m_Field = 2, .m_Type = DATA_VALUE_TYPE_VECTOR3 }, .m_Values = &input[0].m_Position, .m_Stride = sizeof(NativeRow) }
+    };
+    HDataStore store = DataCreateStore();
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
+    input[count - 1].m_Enabled = 2;
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRowsFromTemplate(store, 1, &defaults, overrides, 2, rows, count, ids));
+    ASSERT_TRUE(FindTable(store, 1)->m_Rows.Empty());
+    for (uint32_t i = 0; i < count; ++i)
+        ASSERT_EQ(99u, ids[i]);
+
+    input[count - 1].m_Enabled = 0;
+    ASSERT_EQ(DATA_RESULT_OK, DataAddRowsFromTemplate(store, 1, &defaults, overrides, 2, rows, count, ids));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        uint8_t     enabled;
+        DataVector3 position;
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldBoolean(store, ids[i], 1, &enabled));
+        ASSERT_EQ(input[i].m_Enabled, enabled);
+        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector3(store, ids[i], 2, &position));
+        ASSERT_EQ(0, memcmp(&input[i].m_Position, &position, sizeof(position)));
+    }
+    DataVector3 changed = { .m_Values = { -1, -2, -3 } };
+    ASSERT_EQ(DATA_RESULT_OK, DataSetFieldVector3(store, ids[count - 1], 2, &changed));
+    ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[count - 1]));
+    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector3(store, ids[count - 1], 2, &changed));
+    ASSERT_EQ((float)(count - 1), changed.m_Values[0]);
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+}
+
+TEST(Data, BatchStringsAcrossOwnedAndPackedRows)
+{
+    HDataStore store = DataCreateStore();
+    ASSERT_EQ(DATA_RESULT_OK, Register(store, 1));
+    DataId ids[131];
+    char   text[32];
+    for (uint32_t i = 0; i < 131; ++i)
+    {
+        snprintf(text, sizeof(text), "value-%u", i);
+        ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, i, i, text, &ids[i]));
+    }
+    uint32_t size;
+    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, 0, 0, &size));
+    uint8_t* bytes = new uint8_t[size];
+    ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, bytes, size, &size));
+    HDataBlob         blob;
+    HDataBlobInstance instance;
+    ASSERT_EQ(DATA_RESULT_OK, DataLoadBlob(bytes, size, &blob));
+    ASSERT_EQ(DATA_RESULT_OK, DataAddBlob(store, blob, 999, &instance));
+    for (uint32_t i = 0; i < 131; i += 2)
+        ids[i] = MakeId(store, GetInstanceSlots(instance)[i]);
+    const char* strings[131];
+    DataResult  results[131];
+    DataGetFieldStringBatch(store, ids, 20, 131, strings, results);
+    for (uint32_t i = 0; i < 131; ++i)
+    {
+        snprintf(text, sizeof(text), "value-%u", i);
+        ASSERT_EQ(DATA_RESULT_OK, results[i]);
+        ASSERT_STREQ(text, strings[i]);
+    }
+    // Wrong kinds and missing names leave every borrowed output untouched.
+    const char* previous = strings[130];
+    DataGetFieldStringBatch(store, ids, 10, 131, strings, results);
+    ASSERT_EQ(previous, strings[130]);
+    for (uint32_t i = 0; i < 131; ++i)
+        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, results[i]);
+    DataGetFieldStringBatch(store, ids, 999, 131, strings, results);
+    ASSERT_EQ(previous, strings[130]);
+    for (uint32_t i = 0; i < 131; ++i)
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, results[i]);
+    DataGetFieldStringBatch(store, 0, 20, 0, 0, 0);
+    ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(instance));
+    DataDestroyBlob(blob);
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
     delete[] bytes;
 }
