@@ -1622,6 +1622,7 @@
                 reset-column-width (if (coll/any? form/optional-field? item-fields) line-height 0)]
             ;; One grid for all rows, so the label column fits the widest label.
             {:fx/type fx.grid-pane/lifecycle
+             :min-width 375
              :hgap 8
              :vgap line-spacing
              :column-constraints [{:fx/type fx.column-constraints/lifecycle
@@ -1662,9 +1663,9 @@
                 :fit-to-width true
                 :fit-to-height true
                 :vbar-policy :never
+                :min-viewport-height 1
                 :min-width 160
                 :content {:fx/type fx.v-box/lifecycle
-                          :min-width 375
                           :padding 10
                           :spacing line-spacing
                           :children (if selected-item-fields
