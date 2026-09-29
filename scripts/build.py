@@ -1112,6 +1112,7 @@ class Configuration(object):
             [
                 'boto3==1.36.3',
                 'requests==2.34.2',
+                'PyYAML==6.0.3',
             ])
 
     def install_ext(self):
