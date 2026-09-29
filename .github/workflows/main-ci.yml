@@ -142,7 +142,7 @@ jobs:
             platform: wasm-web
             runner: ubuntu-22.04
             timeout: 45
-            engine_args: "--skip-builtins --skip-docs --skip-tests"
+            engine_args: "--skip-builtins --skip-docs"
             emsdk: true
           - name: "bld-eng-web (wasm_pthread-web)"
             platform: wasm_pthread-web
@@ -301,7 +301,7 @@ jobs:
       - name: "Verify emsdk"
         if: matrix.emsdk
         run: "emcc -v && export | grep EM"
-      - name: "Setup Node for browser tests"
+      - name: "Setup Node for WASM tests"
         if: matrix.platform == 'wasm-web'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.0.1
         with:
@@ -386,6 +386,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
         run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
+      # Browser lifecycle tests need Chromium in addition to the regular Node/Bun tests.
       - name: "Install browser test dependencies"
         if: matrix.platform == 'wasm-web'
         working-directory: engine/platform/src/test/browser
@@ -397,7 +398,6 @@ jobs:
         timeout-minutes: 5
         run: |
           source ci/env.sh
-          cmake -S . -B engine/build/wasm-web -DBUILD_TESTS=ON
           xvfb-run --auto-servernum cmake --build engine/build/wasm-web --target run_test_native_web_browser
       - name: "Upload browser test results"
         if: "!cancelled() && matrix.platform == 'wasm-web'"

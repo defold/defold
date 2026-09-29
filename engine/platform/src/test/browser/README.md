@@ -46,7 +46,7 @@ have an explicit run target so ordinary `run_tests` does not require Playwright.
 Missing dependencies, browser errors, assertion failures and timeouts fail the
 run; the tests are not silently skipped.
 
-CI invokes this target in the `wasm-web` job, even though the engine build uses
-`--skip-tests`. It uploads the Playwright report, browser console logs, and
-failure screenshots/traces. Local reports are in `playwright-report/` and
-`test-results/` alongside this file.
+CI runs the regular `wasm-web` tests during the engine build, then invokes this
+browser target in a separate Chromium/Xvfb step. It uploads the Playwright
+report, browser console logs, and failure screenshots/traces. Local reports
+are in `playwright-report/` and `test-results/` alongside this file.

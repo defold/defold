@@ -1800,7 +1800,7 @@ class Configuration(object):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
         supported_tests['x86_64-win32'] = ['x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
-        supported_tests['x86_64-linux'] = []
+        supported_tests['x86_64-linux'] = ['wasm-web']
         supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web']
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web']
 
