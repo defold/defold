@@ -67,6 +67,44 @@ def skip_filename(filepath):
 def has_defold_license(s):
     return re.search(RE_LICENSE, s[0:2000], flags=re.DOTALL) is not None
 
+def find_defold_license_header(contents, comment):
+    marker = comment.strip().encode('ascii')
+    offset = 0
+    start = None
+    newline = b'\n'
+    for line in contents[:LICENSE_HEADER_BYTES].splitlines(keepends=True):
+        text = line.lstrip(b' \t')
+        if start is None:
+            if text.startswith(marker) and b'Copyright' in text and b'The Defold Foundation' in text:
+                start = offset
+                if line.endswith(b'\r\n'):
+                    newline = b'\r\n'
+        elif text.strip() and not text.startswith(marker):
+            return None
+
+        if start is not None:
+            # Do not replace a mixed header if it contains an unrelated copyright notice.
+            if b'Copyright' in text and not any(notice in text for notice in (
+                    b'The Defold Foundation', b'Copyright 2014-2020 King',
+                    b'Copyright 2009-2014 Ragnar Svensson',
+                    b'Copyright 2009-2014 Christian Murray')):
+                return None
+            if b'specific language governing permissions and limitations under the License.' in text:
+                return start, offset + len(line), marker, newline
+        offset += len(line)
+    return None
+
+def has_full_defold_license(header, marker):
+    expected = [line.encode('utf-8') for line in LICENSE.splitlines() if line]
+    matched = 0
+    for line in header.splitlines():
+        text = line.strip()
+        if text.startswith(marker) and text[len(marker):].strip() == expected[matched]:
+            matched += 1
+            if matched == len(expected):
+                return True
+    return False
+
 def has_other_license(s):
     return ("Copyright" in s or "License" in s) and not ("The Defold Foundation" in s)
 
@@ -140,9 +178,19 @@ def process_file(filepath):
 
     if has_defold_license(contents):
         updated = update_defold_copyright_year(original)
+        span = find_defold_license_header(updated, ext_to_comment[os.path.splitext(filepath)[1]])
+        if span:
+            start, end, marker, newline = span
+            if not has_full_defold_license(updated[start:end], marker):
+                replacement = license.encode('utf-8').replace(b'\n', newline) + newline
+                updated = updated[:start] + replacement + updated[end:]
+                print('Reapplied: ' + filepath)
+            elif updated != original:
+                print('Updated year: ' + filepath)
+        elif updated != original:
+            print('Updated year: ' + filepath)
         if updated == original:
             return
-        print('Updated year: ' + filepath)
     else:
         updated = apply_license(license, contents).encode('utf-8')
         print('Applied: ' + filepath)
