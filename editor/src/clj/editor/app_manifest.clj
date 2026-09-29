@@ -583,29 +583,40 @@
    [:open-gl-vulkan-dx12 "OpenGL & Vulkan & DX12"]])
 
 (def graphics-setting-windows
-  (let [vulkan (concat
-                 (exclude-libs-toggles windows ["platform"])
-                 (libs-toggles windows ["platform_vulkan" "graphics_vulkan" "vulkan"])
-                 (generic-contains-toggles windows :symbols ["GraphicsAdapterVulkan"]))
-        dx12 (concat
-               (libs-toggles windows ["graphics_dx12"])
-               ;; Preserve SDK filenames; also recognize the previously written bare names.
-               (for [platform windows
-                     library ["D3D12" "DXGI" "d3dcompiler"]]
-                 (contains-toggle platform :libs (str library ".lib")
-                                  [(str library ".lib") library]))
-               (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"]))
-        exclude-open-gl (concat
-                          (exclude-libs-toggles windows ["graphics"])
-                          (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterOpenGL"]))]
+  (let [vulkan (into [] cat
+                     [(exclude-libs-toggles windows ["platform"])
+                      (libs-toggles windows ["platform_vulkan" "graphics_vulkan" "vulkan"])
+                      (generic-contains-toggles windows :symbols ["GraphicsAdapterVulkan"])])
+
+        dx12 (into [] cat
+                   [(libs-toggles windows ["graphics_dx12"])
+                    ;; Preserve SDK filenames; also recognize the previously written bare names.
+                    (into []
+                          (mapcat (fn [platform]
+                                    (mapv (fn [library]
+                                            (contains-toggle platform :libs (str library ".lib")
+                                                             [(str library ".lib") library]))
+                                          ["D3D12" "DXGI" "d3dcompiler"])))
+                          windows)
+                    (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"])])
+
+        exclude-open-gl (into [] cat
+                              [(exclude-libs-toggles windows ["graphics"])
+                               (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterOpenGL"])])]
     ;; Match supersets before subsets. OpenGL is supplied by engine defaults.
     (make-choice-setting
-      :vulkan-dx12 (concat vulkan dx12 exclude-open-gl)
-      :open-gl-vulkan-dx12 (concat vulkan dx12)
-      :vulkan (concat vulkan exclude-open-gl)
-      :dx12 (concat dx12 exclude-open-gl)
+      :vulkan-dx12 (into [] cat [vulkan dx12 exclude-open-gl])
+
+      :open-gl-vulkan-dx12 (into vulkan dx12)
+
+      :vulkan (into vulkan exclude-open-gl)
+
+      :dx12 (into dx12 exclude-open-gl)
+
       :open-gl-vulkan vulkan
+
       :open-gl-dx12 dx12
+
       :open-gl)))
 
 (def open-gl-android-toggles
