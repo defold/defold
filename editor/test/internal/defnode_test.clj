@@ -270,8 +270,8 @@
   (property a-property g/Str))
 
 (g/defnode TwoPropertyNode
- (property a-property g/Str (default "default value"))
- (property another-property g/Int))
+  (property a-property g/Str (default "default value"))
+  (property another-property g/Int))
 
 (g/defnode InheritedPropertyNode
   (inherits TwoPropertyNode)
@@ -291,7 +291,7 @@
 (g/defnode GetterFnPropertyNode
   (property reports-higher g/Int
             (value (g/fnk [_this]
-                          (inc (or (get _this :int-val) 0))))))
+                     (inc (or (get _this :int-val) 0))))))
 
 (g/defnode StaticPropertyNode
   (property static-property g/Str
@@ -602,7 +602,6 @@
   (let [dependencies              (g/input-dependencies PropertyDynamicsNode)
         affects-properties-output #(contains? (get dependencies %) :_properties)]
 
-
     (are [t x] (contains? (-> t g/input-dependencies x) :_properties)
       PropertyDynamicsNode          :an-input
       PropertyDynamicsNode          :third-input
@@ -855,9 +854,9 @@
 (g/defnode CustomPropertiesOutput
   (output _properties g/Properties :cached
           (g/fnk [_declared-properties]
-                 (assoc-in _declared-properties [:properties :from-custom-output] {:node-id 0
-                                                                                   :type    g/Bool
-                                                                                   :value true}))))
+            (assoc-in _declared-properties [:properties :from-custom-output] {:node-id 0
+                                                                              :type    g/Bool
+                                                                              :value true}))))
 
 (g/defnode InheritFromCustomProperties
   (inherits CustomPropertiesOutput))
@@ -891,7 +890,7 @@
 
 (defn- override [node-id]
   (-> (g/override node-id {})
-    tx-nodes))
+      tx-nodes))
 
 (deftest overridden-properties
   (testing "is empty for an original node"

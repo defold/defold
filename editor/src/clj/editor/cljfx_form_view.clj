@@ -150,8 +150,9 @@
               (workspace/resolve-workspace-resource workspace))))
 
 (defn- text-field [props]
-  (assoc props :fx/type fx.text-field/lifecycle
-         :style-class ["text-field" "cljfx-form-text-field"]))
+  (assoc props
+    :fx/type fx.text-field/lifecycle
+    :style-class ["text-field" "cljfx-form-text-field"]))
 
 (defn- add-image-fit-size [{:keys [fit-size] :as props}]
   (-> props
@@ -168,8 +169,9 @@
     add-image-fit-size))
 
 (defn- icon-button [props]
-  (cond-> (assoc props :fx/type fx.button/lifecycle
-                 :style-class ["button" "cljfx-form-icon-button"])
+  (cond-> (assoc props
+            :fx/type fx.button/lifecycle
+            :style-class ["button" "cljfx-form-icon-button"])
 
     (contains? props :image)
     add-image))
@@ -219,8 +221,9 @@
 
 (defn- default-cell-input-view [field]
   (wrap-cancel-on-escape
-    (assoc field :fx/type form-input-view
-           :on-value-changed (:on-commit field))
+    (assoc field
+      :fx/type form-input-view
+      :on-value-changed (:on-commit field))
     (:on-cancel field)))
 
 (defmethod cell-input-view :default [field]
@@ -396,8 +399,6 @@
 
 ;; region color input
 
-(defn- clamp-unit ^double [^double n] (min 1.0 (max 0.0 n)))
-
 (defn- color->value
   "Assocs the color into the old value to retain its vector and number types."
   [value ^Color color]
@@ -406,8 +407,8 @@
               0 (coerce (.getRed color))
               1 (coerce (.getGreen color))
               2 (coerce (.getBlue color)))
-            (= 4 (count value))
-            (assoc 3 (coerce (.getOpacity color))))))
+      (= 4 (count value))
+      (assoc 3 (coerce (.getOpacity color))))))
 
 ;; The color picker calls :on-value-changed directly, so we need the
 ;; map-event-handler to dispatch the form event ourselves.
@@ -415,18 +416,14 @@
   {:compose [{:fx/type fxui/ext-map-event-handler}
              {:fx/type fx/ext-get-env :env [:prefs]}]}
   [{:keys [value on-value-changed map-event-handler prefs]}]
-  (let [[r g b a] value]
-    {:fx/type fxui/color-picker
-     :max-width normal-field-width
-     :prefs prefs
-     :ignore-alpha (not= 4 (count value))
-     :value (Color. (clamp-unit (double r))
-                    (clamp-unit (double g))
-                    (clamp-unit (double b))
-                    (clamp-unit (double (or a 1.0))))
-     :on-value-changed (fn [^Color color]
-                         (map-event-handler
-                           (assoc on-value-changed :fx/event (color->value value color))))}))
+  {:fx/type fxui/color-picker
+   :max-width normal-field-width
+   :prefs prefs
+   :ignore-alpha (not= 4 (count value))
+   :value (fxui/vec->color value)
+   :on-value-changed (fn [^Color color]
+                       (map-event-handler
+                         (assoc on-value-changed :fx/event (color->value value color))))})
 
 (defmethod form-input-view :color [{:keys [value on-value-changed] :as field}]
   {:fx/type form-color-picker-view
@@ -824,17 +821,18 @@
 (defmethod form-input-view :list [{:keys [value on-value-changed]
                                    :or {value []}
                                    :as field}]
-  (assoc field :fx/type list-input
-         :max-width normal-field-width
-         :on-edited {:event-type :edit-list-item
-                     :value value
-                     :on-value-changed on-value-changed}
-         :on-added {:event-type :add-list-items
-                    :value value
-                    :on-value-changed on-value-changed}
-         :on-removed {:event-type :remove-list-items
-                      :value value
-                      :on-value-changed on-value-changed}))
+  (assoc field
+    :fx/type list-input
+    :max-width normal-field-width
+    :on-edited {:event-type :edit-list-item
+                :value value
+                :on-value-changed on-value-changed}
+    :on-added {:event-type :add-list-items
+               :value value
+               :on-value-changed on-value-changed}
+    :on-removed {:event-type :remove-list-items
+                 :value value
+                 :on-value-changed on-value-changed}))
 
 ;; endregion
 
@@ -1372,19 +1370,20 @@
                                                            :value value
                                                            :on-value-changed on-value-changed}}))}
                            (cond->
-                             (assoc field :fx/type form-input-view
-                                    :value (if (= ::no-value field-value)
-                                             (form/field-default field)
-                                             field-value)
-                                    :on-value-changed {:event-type :2panel-value-set
-                                                       :index selected-index
-                                                       :value-path (:path field)
-                                                       :value value
-                                                       :set fn-setter
-                                                       :on-value-changed on-value-changed}
-                                    :state-path field-state-path
-                                    :localization-state localization-state
-                                    :resource-string-converter resource-string-converter)
+                             (assoc field
+                               :fx/type form-input-view
+                               :value (if (= ::no-value field-value)
+                                        (form/field-default field)
+                                        field-value)
+                               :on-value-changed {:event-type :2panel-value-set
+                                                  :index selected-index
+                                                  :value-path (:path field)
+                                                  :value value
+                                                  :set fn-setter
+                                                  :on-value-changed on-value-changed}
+                               :state-path field-state-path
+                               :localization-state localization-state
+                               :resource-string-converter resource-string-converter)
                              (not= ::no-value field-state)
                              (assoc :state field-state))]}))))
                  (:sections
@@ -1867,13 +1866,16 @@
 (defn- make-form-view [parent resource-node opts]
   (let [{:keys [workspace project prefs tab localization]} opts
         view-id (make-form-view-node! parent resource-node workspace project prefs localization)
-        repaint-timer (ui/->timer 30 "refresh-form-view"
-                                  (fn [_timer _elapsed _dt]
-                                    (g/node-value view-id :form-view)))]
+
+        dispose-repaint-timer!
+        (ui/node-timer!
+          parent 30 "refresh-form-view"
+          (fn [_elapsed-time]
+            (g/node-value view-id :form-view)))]
+
     (g/node-value view-id :form-view)
-    (ui/timer-start! repaint-timer)
     (ui/on-closed! tab (fn [_]
-                         (ui/timer-stop! repaint-timer)
+                         (dispose-repaint-timer!)
                          ;; dispose the state to e.g. unwatch the localization
                          ((g/node-value view-id :renderer) nil)))
     view-id))

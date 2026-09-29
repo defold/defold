@@ -2,10 +2,11 @@
 
 CI is based on [GitHub Actions](https://github.com/features/actions). Current and old jobs can be seen on the [Actions page](https://github.com/defold/defold/actions) of the main Defold repository.
 
-The Defold CI jobs are divided into three main categories, each represented by a separate GitHub Actions Workflow:
+The Defold CI jobs are divided into separate GitHub Actions workflows:
 
 * [Main](/.github/workflows/main-ci.yml) - Builds and tests changes to all branches. The workflow varies slightly depending on the type of branch being built (dev, beta, master or a feature branch).
 * [PR - ok to test](/.github/workflows/pr-ok-to-test.yml) - Builds a reviewed external (fork) pull request through `Main`. See [External contributions](#external-contributions) below.
+* [PR - Release notes](/.github/workflows/check-release-notes.yml) - Checks release notes metadata for pull requests without building the engine or editor.
 * [Engine Nightly](/.github/workflows/engine-nightly.yml) - Runs Address Sanitizer (ASAN) and Valgrind nightly to detect leaks and other problems. This is done on the `dev` branch.
 
 The workflow files listed above sets up the jobs and distributes them to multiple workers to build, test and release the engine and/or editor. The bulk of the work is done in the [ci.py](/ci/ci.py) script.
@@ -22,6 +23,38 @@ unmerged feature commits and failed ancestry checks stop the job before checkout
 Branch names still select release channels. Publication checks that all editor
 download bundles exist for that commit and channel before changing tags or channel
 pointers.
+
+## Pull request release notes check
+
+The `Release notes` check passes when the PR has `skip release notes`. Otherwise, it
+uses the same GitHub closing issue links and skip-label rule as the release notes generator:
+each closing issue must belong to a **defold organization** project named `1.x.x`
+(numeric components, for example `1.12.0`), unless that issue has `skip release notes`.
+When there are no closing issues, the PR itself must belong to a version project.
+
+If the PR contributes release notes, its description must also contain text after the
+generator removes the checklist, issue references and technical notes. Write the user-facing
+description before those sections. No text is required when the PR has `skip release notes`
+or all its closing issues have that label.
+
+On failure, the check creates or updates one GitHub Actions bot comment with the problems
+and how to fix them. Once the check passes, that comment changes to a success message.
+A passing check with no previous failure comment stays silent, and unchanged results do
+not rewrite the comment. Newer runs cancel any in-progress check for the same PR.
+
+Draft PRs are skipped before starting a runner. The check runs on PR creation, reopening,
+commits, description edits, PR label changes, and marking ready for review. Returning a PR
+to draft cancels any in-progress check. After changing a project, an issue label, or a
+manually linked issue, **re-run the check** to read the current metadata. GitHub Actions
+does not provide a Projects v2 membership trigger for this repository workflow.
+
+It uses the existing `SERVICES_GITHUB_TOKEN` secret, which needs `read:project` access,
+and downloads just three scripts in parallel from the trusted workflow commit. The job
+uses the runner's preinstalled GitHub CLI and Python standard library, with no checkout,
+package installation or build setup. To run it locally, set
+`GITHUB_TOKEN` and run `python3 scripts/check_release_notes.py --pull-request <number>`.
+Comment updates are enabled only by `--comment`, using the separate `GH_TOKEN` supplied
+by GitHub Actions with `pull-requests: write` permission.
 
 ## How to trigger builds manually
 
@@ -78,7 +111,7 @@ request deletes the branch.
 ### What a contrib build does differently
 
 Mirroring a fork into this repository removes the trust boundary GitHub normally puts
-around fork pull requests: the build executes `wscript`s, `CMakeLists.txt`, Gradle files,
+around fork pull requests: the build executes `CMakeLists.txt`, Gradle files,
 `ci/**`, `scripts/build.py` and the editor's Clojure tasks straight from the pull request.
 Log redaction is not a control against that, so a run on `contrib/**` simply does not get
 the credentials:

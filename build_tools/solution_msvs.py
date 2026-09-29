@@ -150,7 +150,6 @@ def _engine_source_files(defold_root):
         'CMakeLists.txt',
         'README.md',
         'sdk_gen.json',
-        'wscript',
     }
     source_extensions = {
         '.bat', '.c', '.cc', '.cmake', '.cpp', '.cxx', '.h', '.hpp',

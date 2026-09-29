@@ -43,6 +43,8 @@ public class ShaderCompilePipeline {
     private static final String WGSL_FLIPPED_VERTEX_ENTRY_POINT_BASE = "_defold_webgpu_main_flipped";
 
     public static class Options {
+        // Editor previews bind individual uniforms instead of uniform buffers.
+        public boolean glslEmitUboAsPlainUniforms;
         public boolean splitTextureSamplers;
         public boolean remapVertexFragmentIOForHLSL;
         public ArrayList<String> defines = new ArrayList<>();
@@ -347,7 +349,7 @@ public class ShaderCompilePipeline {
             opts.removeUnusedVariables = 0;
         }
 
-        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
+        if (this.options.glslEmitUboAsPlainUniforms || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
             opts.glslEmitUboAsPlainUniforms = 1;
         }
 

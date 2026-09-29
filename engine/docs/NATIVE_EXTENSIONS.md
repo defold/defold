@@ -23,21 +23,24 @@ And when the *archive_engine* step is run, all platform sdk's are downloaded and
 
 You can build each platform individually:
 
-    defold$ ./scripts/build.py build_ext build_platform_sdk --platform=x86_64-macos
+    defold$ ./scripts/build.py install_ext build_platform_sdk --platform=x86_64-macos
 
 ### build.yml
 
 An important part of the sdk is the *defold/share/extender/build.yml* which controls the compiler settings for the server.
 As we include this file in every sdk, we make it simple to update. You can update it simply by running:
 
-    $ waf install
+    $ cmake --build engine/build/arm64-macos --target extender
+    $ cmake --install share/extender/build/arm64-macos
+
+Run these commands from the repository root, replacing `arm64-macos` with your configured platform.
 
 ### During development
 
 Note that during the development of the SDK, you can run the local server, pointing it to your DYNAMO_HOME variable!
 This of course requires you to have build the engine beforehand:
 
-    defold$ ./scripts/build.py build_ext build_engine --platform=x86_64-macos
+    defold$ ./scripts/build.py install_ext build_engine --platform=x86_64-macos
 
 Set up the path for the DYNAMO_HOME variable:
 
@@ -69,7 +72,7 @@ The native extensions are only supported via Editor 2.
 
 ### Build
 
-The setup steps are described [here](./editor/README.md)
+The setup steps are described [here](../../editor/README.md)
 
 ### Run
 

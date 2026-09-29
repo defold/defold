@@ -40,7 +40,7 @@
 (defn- new-prototype [prototype-msg]
   (let [^bytes data (protobuf/map->bytes Particle$ParticleFX prototype-msg)]
     (-> (ParticleLibrary/Particle_NewPrototype (ByteBuffer/wrap data) (count data))
-      (update-tile-sources prototype-msg))))
+        (update-tile-sources prototype-msg))))
 
 (defn- reload-prototype [^Pointer prototype prototype-msg]
   (let [^bytes data (protobuf/map->bytes Particle$ParticleFX prototype-msg)]
@@ -148,23 +148,22 @@
     (ParticleLibrary/Particle_StartInstance context instance))
   sim)
 
-
 (defn simulate [sim dt fetch-anim-fn instance-transforms]
   (let [anim-callback (reify ParticleLibrary$FetchResourcesCallback
                         (invoke [_ params out-data]
                           (fetch-resources params out-data fetch-anim-fn)))
         sim (if (sleeping? sim)
               (-> sim
-                (reset)
-                (start))
+                  (reset)
+                  (start))
               sim)
         context (:context sim)]
     (doseq [[instance transform] (map vector (:instances sim) instance-transforms)]
       (set-instance-transform context instance transform))
     (ParticleLibrary/Particle_Update context dt anim-callback)
     (-> sim
-      (assoc :last-dt dt)
-      (update :elapsed-time #(+ % dt)))))
+        (assoc :last-dt dt)
+        (update :elapsed-time #(+ % dt)))))
 
 (defn- attribute-name-key->byte-buffer ^ByteBuffer [name-key vertex-attribute-bytes]
   (when-let [attribute-bytes (get vertex-attribute-bytes name-key)]

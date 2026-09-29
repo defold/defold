@@ -1548,8 +1548,8 @@ public class Project implements AutoCloseable {
 
     private static LinkedHashSet<String> getDefaultShaderAdapters(Platform platform) {
         LinkedHashSet<String> adapters = new LinkedHashSet<>();
-        if (platform.isMacOS()) {
-            adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
+        if (platform.isMacOS() || platform == Platform.Arm64IosSim) {
+            adapters.add(ShaderCompilers.SHADER_ADAPTER_METAL);
         } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
             adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGLES);
@@ -1647,6 +1647,9 @@ public class Project implements AutoCloseable {
 
     public static String getShaderAdaptersOption(Platform platform, List<Map<String, Object>> platformsSettings) {
         LinkedHashSet<String> adapters = getDefaultShaderAdapters(platform);
+        if (platform == Platform.Arm64IosSim) {
+            return String.join(",", adapters);
+        }
         LinkedHashSet<String> adaptersToAdd = new LinkedHashSet<>();
         LinkedHashSet<String> adaptersToRemove = new LinkedHashSet<>();
         for (Map<String, Object> platformSettings : platformsSettings) {
@@ -2010,7 +2013,6 @@ public class Project implements AutoCloseable {
             var split = progress.split(commands.length + 1L); // + 1 for reading classes
             // it should be done before scanJavaClasses to have updated options
             configurePreBuildProjectOptions();
-            resourceWalker.initIgnorePatterns();
             {
                 TimeProfiler.start("scanJavaClasses");
                 try (var readClassesProgress = split.subtask()) {

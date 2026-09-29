@@ -28,7 +28,7 @@ set -e
 
 TARGET_DIR="$(pwd)/local_sdks"
 
-XCODE_CONTENTS="/Applications/Xcode.app/Contents"
+XCODE_CONTENTS="$(cd "$(/usr/bin/xcode-select -p)/.." && pwd)"
 PLATFORMS="$XCODE_CONTENTS/Developer/Platforms"
 XCODE="$XCODE_CONTENTS/Developer/Toolchains"
 
@@ -65,7 +65,7 @@ function make_archive() {
 function package_platform() {
     local platform=$1
     pushd $PLATFORMS/${platform}.platform/Developer/SDKs/
-    # Pick the symlink with the most version components, e.g. MacOSX26.5.sdk over MacOSX26.sdk
+    # Pick the symlink with the most version components, e.g. MacOSX27.0.sdk over MacOSX27.sdk
     PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l | awk -F'.' '{print NF, $0}' | sort -rn | head -1 | cut -d' ' -f2-)
     PLATFORM_FOLDER=$(readlink ${PLATFORM_SYMLINK})
 

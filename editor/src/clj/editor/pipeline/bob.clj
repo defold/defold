@@ -181,10 +181,10 @@
                   build-err (PrintStream-on #(doto log-stream-writer (.print %) .flush))]
         (let [workspace (project/workspace project evaluation-context)
               options (cond-> options
-                              (not (contains? options "root"))
-                              (assoc "root" ".")
-                              (not (contains? options "verbose"))
-                              (assoc "verbose" true))
+                        (not (contains? options "root"))
+                        (assoc "root" ".")
+                        (not (contains? options "verbose"))
+                        (assoc "verbose" true))
               [cli-options internal-options] (parse-options (.toPath (workspace/project-directory basis workspace)) options)
               cli-args (-> [] (into cli-options) (into commands))]
           (log/info :bob-command (string/join " " (into ["java" "-jar" "bob.jar"] (map quote-arg-if-needed) cli-args)))

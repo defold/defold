@@ -61,7 +61,6 @@ the `do-gl` macro from `editor.gl`."
 (defn put-ushort [^ByteBuffer bb position v] (.putShort  bb ^int position (.shortValue (Long. (bit-and v 0xffff)))))
 (defn put-uint   [^ByteBuffer bb position v] (.putInt    bb ^int position (.intValue   (Long. (bit-and v 0xffffffff)))))
 
-
 (defn get-byte   [^ByteBuffer bb position]   (.get       bb ^int position))
 (defn get-short  [^ByteBuffer bb position]   (.getShort  bb position))
 (defn get-int    [^ByteBuffer bb position]   (.getInt    bb position))
@@ -70,7 +69,6 @@ the `do-gl` macro from `editor.gl`."
 (defn get-ubyte  [^ByteBuffer bb position]   (bit-and 0xff       (short (.get bb ^int position))))
 (defn get-ushort [^ByteBuffer bb position]   (bit-and 0xffff     (long  (.getShort bb position))))
 (defn get-uint   [^ByteBuffer bb position]   (bit-and 0xffffffff (int   (.getInt bb position))))
-
 
 (def type-sizes
   {'ubyte  Buffers/SIZEOF_BYTE
@@ -121,7 +119,7 @@ the `do-gl` macro from `editor.gl`."
 (defn- component-size [[name size type & _]]
   (* size (type-sizes type)))
 
-(defn- attribute-name [[name components & _ ]]
+(defn- attribute-name [[name components & _]]
   (assert (<= 1 components 4))
   (take components (map (comp symbol str) (repeat name) ["-x" "-y" "-z" "-w"])))
 
@@ -196,8 +194,8 @@ the `do-gl` macro from `editor.gl`."
     `(fn [~'slices ~(with-meta 'idx {:tag 'long}) [~@names]]
        (let ~(into [] (apply concat (vals multiplications)))
          ~@(map (fn [i nm setter refer]
-                 (list setter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) refer nm))
-               (range (count names)) names setters references)))))
+                  (list setter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) refer nm))
+                (range (count names)) names setters references)))))
 
 (defn- make-vertex-getter
   [vertex-format]
@@ -259,11 +257,11 @@ the `do-gl` macro from `editor.gl`."
   (cons   [this val]
     (throw (UnsupportedOperationException. "Cons would be slow here. Use 'transient' to create an editable vertex buffer.")))
   (assocN [this key val]
-    (throw (UnsupportedOperationException. "Assoc would be slow here. Use 'transient' to create an editable vertex buffer." )))
+    (throw (UnsupportedOperationException. "Assoc would be slow here. Use 'transient' to create an editable vertex buffer.")))
   (assoc  [this key val]
-    (throw (UnsupportedOperationException. "Assoc would be slow here. Use 'transient' to create an editable vertex buffer." )))
+    (throw (UnsupportedOperationException. "Assoc would be slow here. Use 'transient' to create an editable vertex buffer.")))
   (pop    [this]
-    (throw (UnsupportedOperationException. "Pop would be slow here. Use 'transient' to create an editable vertex buffer." ))))
+    (throw (UnsupportedOperationException. "Pop would be slow here. Use 'transient' to create an editable vertex buffer."))))
 
 (defonce/type TransientVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicBoolean editable ^AtomicLong position set-fn get-fn]
   b/ByteStringCoding

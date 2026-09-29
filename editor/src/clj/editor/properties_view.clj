@@ -271,34 +271,34 @@
    (resolve-scrubber input-desc property alignment ->value identity))
   ([input-desc property alignment ->value ->number]
    (cond-> input-desc
-           (not (properties/read-only? property))
-           (assoc
-             :hover-overlay
-             {:fx/type fxui/hover-overlay
-              :padding 1
-              :alignment alignment
-              :content
-              {:fx/type fxui/scrubber
-               :on-scrubbed
-               (fn []
-                 (let [{min-value :min
-                        max-value :max
-                        :keys [precision]
-                        :or {precision 1.0}} (:edit-type property)
-                       precision (double precision)
-                       opseq (gensym)
-                       initial-values (properties/values property)
-                       doubles-vol (volatile! (mapv (comp double ->number) initial-values))]
-                   (fn [^double delta]
-                     (let [new-doubles (vswap!
-                                         doubles-vol
-                                         coll/mapv->
-                                         #(cond-> (+ ^double % (* delta precision))
-                                                  min-value (max (double min-value))
-                                                  max-value (min (double max-value))))
-                           new-values (mapv #(->value (initial-values %) (new-doubles %))
-                                            (range (count new-doubles)))]
-                       (set-values! property new-values opseq)))))}}))))
+     (not (properties/read-only? property))
+     (assoc
+       :hover-overlay
+       {:fx/type fxui/hover-overlay
+        :padding 1
+        :alignment alignment
+        :content
+        {:fx/type fxui/scrubber
+         :on-scrubbed
+         (fn []
+           (let [{min-value :min
+                  max-value :max
+                  :keys [precision]
+                  :or {precision 1.0}} (:edit-type property)
+                 precision (double precision)
+                 opseq (gensym)
+                 initial-values (properties/values property)
+                 doubles-vol (volatile! (mapv (comp double ->number) initial-values))]
+             (fn [^double delta]
+               (let [new-doubles (vswap!
+                                   doubles-vol
+                                   coll/mapv->
+                                   #(cond-> (+ ^double % (* delta precision))
+                                      min-value (max (double min-value))
+                                      max-value (min (double max-value))))
+                     new-values (mapv #(->value (initial-values %) (new-doubles %))
+                                      (range (count new-doubles)))]
+                 (set-values! property new-values opseq)))))}}))))
 
 (defn- scrubbed-int [_ ^double n]
   (int (Math/round n)))
@@ -466,9 +466,6 @@
             (resolve-validation property localization-state)
             (resolve-scrubber property :left #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
 
-(defn- vec->color [[r g b a]]
-  (Color. (float r) (float g) (float b) (float (or a 1.0))))
-
 (defmethod make-control-view types/Color [property {:keys [prefs]} localization-state]
   (let [values (properties/values property)
         value (properties/unify-values values)
@@ -476,7 +473,7 @@
         old-num (coalesced-property->old-num property)
         coerce (if (math/float32? old-num) float double)]
     (-> {:fx/type fxui/color-picker
-         :value (some-> value vec->color)
+         :value (some-> value fxui/vec->color)
          :on-value-changed
          (fn [^Color new-color]
            (set-values! property
@@ -486,7 +483,7 @@
                                            1 (coerce (.getGreen new-color))
                                            2 (coerce (.getBlue new-color)))
                                     (cond-> (not ignore-alpha)
-                                            (assoc 3 (coerce (.getOpacity new-color))))))
+                                      (assoc 3 (coerce (.getOpacity new-color))))))
                               values)))
          :ignore-alpha ignore-alpha
          :prefs prefs
@@ -549,8 +546,8 @@
         {:keys [ext dialog-accept-fn]} (:edit-type property)
         ext-set (if (string? ext) #{ext} (set ext))
         dialog-opts (cond-> {}
-                            ext (assoc :ext ext)
-                            dialog-accept-fn (assoc :accept-fn dialog-accept-fn))
+                      ext (assoc :ext ext)
+                      dialog-accept-fn (assoc :accept-fn dialog-accept-fn))
         read-only (properties/read-only? property)
         openable (and (resource/openable-resource? value) (resource/exists? value))
         tooltip (property-validation-tooltip property localization-state)]

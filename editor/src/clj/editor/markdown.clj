@@ -77,7 +77,6 @@
   (when (instance? Element node)
     (.attr ^Element node name)))
 
-
 (defn- query-params->map
   [params]
   (when (not (string/blank? params))
@@ -224,9 +223,9 @@
   (let [newline (number? (or (peek content) 0))
         ^String left-normalized-text
         (cond-> text
-                paragraph StringUtil/normaliseWhitespace    ;; \s+ => \s
-                (and newline paragraph) string/triml
-                (and newline (not paragraph)) (string/replace #"^(\s)+\n" ""))
+          paragraph StringUtil/normaliseWhitespace    ;; \s+ => \s
+          (and newline paragraph) string/triml
+          (and newline (not paragraph)) (string/replace #"^(\s)+\n" ""))
         ;; on the right, we don't add the trailing whitespace, but instead we save it
         ;; to insert later
         normalized-text (string/trimr left-normalized-text)
@@ -241,12 +240,12 @@
           (add-view (text-view normalized-text ctx))
           (assoc :whitespace-prefix (when trailing-whitespace (assoc ctx :text trailing-whitespace))))
       (cond-> acc
-              trailing-whitespace
-              (assoc :whitespace-prefix (if paragraph
-                                          (or whitespace-prefix (assoc ctx :text trailing-whitespace))
-                                          (if whitespace-prefix
-                                            (assoc ctx :text (str (:text whitespace-prefix) trailing-whitespace))
-                                            (assoc ctx :text trailing-whitespace))))))))
+        trailing-whitespace
+        (assoc :whitespace-prefix (if paragraph
+                                    (or whitespace-prefix (assoc ctx :text trailing-whitespace))
+                                    (if whitespace-prefix
+                                      (assoc ctx :text (str (:text whitespace-prefix) trailing-whitespace))
+                                      (assoc ctx :text trailing-whitespace))))))))
 
 (defn- add-separator
   "Add separator after text-flow-children vector; if there is already a
@@ -521,13 +520,13 @@
               (-> ctx
                   (style tag)
                   (cond-> (pos? (count href))
-                          (assoc :on-mouse-clicked (fn/partial #'open-link! (:base-url ctx) (:base-resource ctx) (:project ctx) href))))))
+                    (assoc :on-mouse-clicked (fn/partial #'open-link! (:base-url ctx) (:base-resource ctx) (:project ctx) href))))))
       "kbd" (add-view acc (kbd-view node ctx))
       "img" (with-separators acc 3 1 add-view (image-view node ctx))
       "span" (let [class (attr node "class")]
                (case class
                  ("icon-alert" "icon-attention" "icon-android" "icon-html5"
-                   "icon-ios" "icon-linux" "icon-macos" "icon-osx" "icon-windows")
+                               "icon-ios" "icon-linux" "icon-macos" "icon-osx" "icon-windows")
                  (-> acc
                      (add-view (icon-view (subs class (count "icon-"))))
                      (layout-children node ctx))

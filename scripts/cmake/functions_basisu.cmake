@@ -7,7 +7,7 @@ function(defold_import_basisu library platform)
 
   set(_path "${DEFOLD_SDK_ROOT}/ext/lib/${platform}/${CMAKE_STATIC_LIBRARY_PREFIX}${library}${CMAKE_STATIC_LIBRARY_SUFFIX}")
   if(NOT EXISTS "${_path}")
-    message(FATAL_ERROR "Missing ${_path}. Run ./scripts/build.py --platform=${platform} build_ext first.")
+    message(FATAL_ERROR "Missing ${_path}. Run ./scripts/build.py --platform=${platform} install_ext first.")
   endif()
 
   add_library(${library} STATIC IMPORTED GLOBAL)

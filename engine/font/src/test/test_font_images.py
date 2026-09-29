@@ -769,11 +769,15 @@ class FontImageReportTest(unittest.TestCase):
                 self.assertEqual(4,summary['passed'])
                 self.assertEqual('',output.getvalue())
                 Image.new('RGB',(8,8),'black').save(images/'legacy-rich'/(case['id']+'.png'))
-                with contextlib.redirect_stdout(output):
-                    summary = report.build_reports(images,root/'report',{},False)
+                with contextlib.redirect_stdout(output), mock.patch('sys.argv', [
+                    'make_report.py', '--images', str(images), '--output', str(root/'report')
+                ]):
+                    self.assertEqual(1, report.main())
+                summary = json.loads((root/'report/results.json').read_text(encoding="utf-8"))['summary']
                 self.assertEqual(1,summary['failed'])
                 self.assertEqual(3,summary['passed'])
                 self.assertIn('Reproduce:',output.getvalue())
+                self.assertIn('Foreground likeness', (root/'report/index.html').read_text(encoding="utf-8"))
                 page=root/'report/cases'/('legacy-rich-'+case['id'])/'index.html'
                 self.assertIn('--case '+case['id'],page.read_text(encoding="utf-8"))
                 self.assertTrue((page.parent/'actual.png').exists())
