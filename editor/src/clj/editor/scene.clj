@@ -217,13 +217,15 @@
 (defn- camera-inset-aspect-ratio [selected-camera-renderable]
   (let [{:keys [is-orthographic auto-aspect-ratio aspect-ratio display-width display-height]} (:user-data selected-camera-renderable)
         project-width (double (or display-width 0.0))
-        project-height (double (or display-height 0.0))]
-    (if (or is-orthographic auto-aspect-ratio)
-      (when (and (pos? project-width) (pos? project-height))
-        (/ project-width project-height))
-      (let [camera-aspect-ratio (double (or aspect-ratio 0.0))]
-        (when (pos? camera-aspect-ratio)
-          camera-aspect-ratio)))))
+        project-height (double (or display-height 0.0))
+        effective-aspect-ratio (double (or (if (or is-orthographic auto-aspect-ratio)
+                                             (when (and (pos? project-width) (pos? project-height))
+                                               (/ project-width project-height))
+                                             aspect-ratio)
+                                           0.0))]
+    (when (and (pos? effective-aspect-ratio)
+               (Double/isFinite effective-aspect-ratio))
+      effective-aspect-ratio)))
 
 (defn- make-camera-inset-camera [selected-camera-renderable ^double aspect-ratio]
   {:pre [(valid-camera-inset-orthographic-zoom? selected-camera-renderable)]}
@@ -301,10 +303,10 @@
     (when (valid-camera-inset-orthographic-zoom? selected-camera-renderable)
       (when-let [aspect-ratio (camera-inset-aspect-ratio selected-camera-renderable)]
         (let [aspect-ratio (double aspect-ratio)
-              display-height camera-inset-height
-              display-width (* display-height aspect-ratio)
-              render-width (* display-width camera-inset-render-scale)
-              render-height (* display-height camera-inset-render-scale)
+              display-width (min camera-inset-width (* camera-inset-height aspect-ratio))
+              display-height (min camera-inset-height (/ camera-inset-width aspect-ratio))
+              render-width (max 1.0 (* display-width camera-inset-render-scale))
+              render-height (max 1.0 (* display-height camera-inset-render-scale))
               clear-color (or (:render-clear-color (:user-data selected-camera-renderable))
                               [0.0 0.0 0.0 1.0])]
           {:camera (make-camera-inset-camera selected-camera-renderable aspect-ratio)
@@ -529,11 +531,11 @@
                                  (let [[w h] (vp-dims camera-inset-viewport)
                                        buffered-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
                                    (scene-cache/prune-context! gl)
-                                   buffered-image))
-            camera-inset-image (SwingFXUtils/toFXImage camera-inset-frame nil)]
-        {:image camera-inset-image
-         :width display-width
-         :height display-height}))))
+                                   buffered-image))]
+        (when camera-inset-frame
+          {:image (SwingFXUtils/toFXImage camera-inset-frame nil)
+           :width display-width
+           :height display-height})))))
 
 (defn- apply-pass-overrides
   [pass renderable]

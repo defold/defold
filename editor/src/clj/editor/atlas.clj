@@ -330,8 +330,8 @@
   (output scene g/Any produce-image-scene)
   (output build-errors g/Any (g/fnk [_node-id id id-counts maybe-image-resource]
                                (g/package-errors _node-id
-                                                 (validate-image-resource _node-id maybe-image-resource)
-                                                 (validate-image-id _node-id id id-counts)))))
+                                 (validate-image-resource _node-id maybe-image-resource)
+                                 (validate-image-id _node-id id id-counts)))))
 
 (defn- sort-by-and-strip-order [images]
   (->> images
@@ -484,12 +484,12 @@
   (output scene g/Any :cached produce-animation-scene)
   (output own-build-errors g/Any (g/fnk [_node-id fps id id-counts]
                                    (g/package-errors _node-id
-                                                     (validate-animation-id _node-id id id-counts)
-                                                     (validate-animation-fps _node-id fps))))
+                                     (validate-animation-id _node-id id id-counts)
+                                     (validate-animation-fps _node-id fps))))
   (output build-errors g/Any (g/fnk [_node-id child-build-errors own-build-errors]
                                (g/package-errors _node-id
-                                                 child-build-errors
-                                                 own-build-errors))))
+                                 child-build-errors
+                                 own-build-errors))))
 
 (g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size img-ddf anim-ddf rename-patterns]
   (protobuf/make-map-without-defaults AtlasProto$Atlas
@@ -859,15 +859,15 @@
   (output scene            g/Any          :cached produce-scene)
   (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns]
                                             (g/package-errors _node-id
-                                                              (validate-margin _node-id margin)
-                                                              (validate-inner-padding _node-id inner-padding)
-                                                              (validate-extrude-borders _node-id extrude-borders)
-                                                              (validate-max-page-size _node-id max-page-size)
-                                                              (validate-rename-patterns _node-id rename-patterns))))
+                                              (validate-margin _node-id margin)
+                                              (validate-inner-padding _node-id inner-padding)
+                                              (validate-extrude-borders _node-id extrude-borders)
+                                              (validate-max-page-size _node-id max-page-size)
+                                              (validate-rename-patterns _node-id rename-patterns))))
   (output build-errors     g/Any          (g/fnk [_node-id child-build-errors own-build-errors]
                                             (g/package-errors _node-id
-                                                              child-build-errors
-                                                              own-build-errors))))
+                                              child-build-errors
+                                              own-build-errors))))
 
 (defn- make-image-nodes
   [attach-fn parent image-msgs]

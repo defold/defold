@@ -173,8 +173,8 @@
       (doto dropper-area
         (.addEventHandler KeyEvent/ANY (ui/event-handler event (key-pressed-handler! color-dropper pick-fn event)))
         (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event
-                                                                    (.consume ^MouseEvent event)
-                                                                    (paint-magnifier! color-dropper canvas (.getSceneX ^MouseEvent event) (.getSceneY ^MouseEvent event))))
+                                                   (.consume ^MouseEvent event)
+                                                   (paint-magnifier! color-dropper canvas (.getSceneX ^MouseEvent event) (.getSceneY ^MouseEvent event))))
         (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! color-dropper pick-fn)))
         (.requestFocus))
 

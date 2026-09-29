@@ -15,6 +15,7 @@
 
 
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import time
 import os
@@ -746,10 +747,13 @@ def init_editor(options, platform, jdk):
     invoke_lein(init_command, jdk_path=jdk)
 
 def run_tests(jdk):
-    invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
-    invoke_lein(['with-profile', '+headless', 'test'], jdk_path=jdk)
-    # test that docs can be successfully produced
-    write_docs('target/docs', jdk_path=jdk)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        cljfmt_check = executor.submit(invoke_lein, ['cljfmt', 'check'], jdk_path=jdk)
+        invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
+        invoke_lein(['with-profile', '+headless', 'test'], jdk_path=jdk)
+        # test that docs can be successfully produced
+        write_docs('target/docs', jdk_path=jdk)
+        cljfmt_check.result()
 
 def test(options):
     for platform in options.target_platform:

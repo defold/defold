@@ -53,11 +53,11 @@
 (def ^:private max-ticks 100)
 (def ^:private max-label-chars 15)
 (def ^:private vertex-buffer-size (+ (* 2 max-ticks) ;; tick lines
-                                    (* 6 max-ticks max-label-chars) ;; labels
-                                    (* 2 2) ;; cursor markers
-                                    (* 6 2) ;; backgrounds
-                                    (* 2 2) ;; borders
-                                    ))
+                                     (* 6 max-ticks max-label-chars) ;; labels
+                                     (* 2 2) ;; cursor markers
+                                     (* 6 2) ;; backgrounds
+                                     (* 2 2) ;; borders
+                                     ))
 
 (defn- char->w ^long [c]
   (case c
@@ -150,12 +150,12 @@
         offset (Math/ceil start)]
     (->> (for [i (range count)]
            (* (+ offset i) factor))
-      (reduce (fn [res vw]
-                (let [vs (screen-fn vw)]
-                  (if (screen-filter-fn vs)
-                    (conj res [vw vs])
-                    res)))
-              []))))
+         (reduce (fn [res vw]
+                   (let [vs (screen-fn vw)]
+                     (if (screen-filter-fn vs)
+                       (conj res [vw vs])
+                       res)))
+                 []))))
 
 (defn- unproject [camera viewport x y]
   (let [p (c/camera-unproject camera viewport (Point3d. x y 0.0))]
@@ -168,7 +168,7 @@
             (let [mag (int (Math/floor (Math/log10 max-diff)))]
               (when (<= mag 0)
                 (format "%%.%df" (inc (Math/abs mag))))))))
-    "%.0f"))
+      "%.0f"))
 
 (g/defnk produce-renderables [camera viewport cursor-pos vertex-buffer]
   (if (and (not (types/empty-space? viewport)) (c/mode-2d? camera))

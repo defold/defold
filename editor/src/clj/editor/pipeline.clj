@@ -91,11 +91,11 @@
               :user-data {:pb-class pb-class
                           :pb-map pb-map}}
 
-             (coll/not-empty dep-build-targets)
-             (assoc :deps dep-build-targets)
+       (coll/not-empty dep-build-targets)
+       (assoc :deps dep-build-targets)
 
-             (coll/not-empty dynamic-deps)
-             (assoc :dynamic-deps dynamic-deps)))))
+       (coll/not-empty dynamic-deps)
+       (assoc :dynamic-deps dynamic-deps)))))
 
 ;;--------------------------------------------------------------------
 
@@ -140,8 +140,8 @@
                   fused-build-resource (:resource fused-build-target)]
               (cond-> [(pair original-build-resource fused-build-resource)]
 
-                      counterpart-build-resource
-                      (conj (pair counterpart-build-resource fused-build-resource))))))
+                counterpart-build-resource
+                (conj (pair counterpart-build-resource fused-build-resource))))))
         (flatten deps)))
 
 (defn prune-artifact-map [artifact-map build-targets-by-content-hash]

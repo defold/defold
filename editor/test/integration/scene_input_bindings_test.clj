@@ -63,8 +63,8 @@
 
 (defn- open-tile-map-scene-view! [project app-view path width height]
   (test-util/open-scene-view! project app-view path width height
-                               {:grid tile-map/TileMapGrid
-                                :tool-controller tile-map/TileMapController}))
+                              {:grid tile-map/TileMapGrid
+                               :tool-controller tile-map/TileMapController}))
 
 (defn- make-curve-view! [app-view]
   (let [view (curve-view/make-view! app-view nil nil nil test-util/localization {} false)]
@@ -438,11 +438,11 @@
         ;; Sanity: the base binding (primary, no modifiers) must NOT pan,
         ;; because the override replaced it.
         (let [input-state (reduce
-                           (partial dispatch-action! view)
-                           (input/make-input-state)
-                           [(action :mouse-moved 64.0 64.0 :primary [])
-                            (action :mouse-pressed 64.0 64.0 :primary [])
-                            (action :drag-detected 64.0 64.0 :primary [])])]
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :primary [])
+                             (action :mouse-pressed 64.0 64.0 :primary [])
+                             (action :drag-detected 64.0 64.0 :primary [])])]
           (is (not= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
           (dispatch-action! view input-state (action :mouse-released 64.0 64.0 :primary [])))
 
@@ -450,11 +450,11 @@
             "Camera should be unchanged when only the base binding's action is dispatched.")
 
         (let [input-state (reduce
-                           (partial dispatch-action! view)
-                           (input/make-input-state)
-                           [(action :mouse-moved 64.0 64.0 :secondary [:control])
-                            (action :mouse-pressed 64.0 64.0 :secondary [:control])
-                            (action :drag-detected 64.0 64.0 :secondary [:control])])]
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :secondary [:control])
+                             (action :mouse-pressed 64.0 64.0 :secondary [:control])
+                             (action :drag-detected 64.0 64.0 :secondary [:control])])]
           (is (= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
           (let [input-state (dispatch-action! view input-state (action :mouse-moved 80.0 64.0 :secondary [:control]))
                 input-state (update-tick! view input-state 2)]

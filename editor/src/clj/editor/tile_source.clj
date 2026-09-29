@@ -493,15 +493,15 @@
         y-border (* scale-y tile-border-size)
         npoints (transduce (map :count) + convex-hulls)]
     (persistent!
-     (reduce (fn [vbuf [x y]]
-               (if-let [{:keys [points collision-group]} (nth convex-hulls (+ x (* y cols)) nil)]
-                 (let [offset-x (+ 0.5 (* x (+ x-border w)) x-border)
-                       offset-y (+ 0.5 (* (- rows y 1) (+ y-border h)) y-border)
-                       translated-points (translate-hull-points points offset-x offset-y)
-                       color (collision-groups/color collision-group)]
-                   (conj-hull-outline! vbuf translated-points color))))
-             (->pos-color-vtx (* 2 npoints))
-             (for [y (range rows) x (range cols)] [x y])))))
+      (reduce (fn [vbuf [x y]]
+                (if-let [{:keys [points collision-group]} (nth convex-hulls (+ x (* y cols)) nil)]
+                  (let [offset-x (+ 0.5 (* x (+ x-border w)) x-border)
+                        offset-y (+ 0.5 (* (- rows y 1) (+ y-border h)) y-border)
+                        translated-points (translate-hull-points points offset-x offset-y)
+                        color (collision-groups/color collision-group)]
+                    (conj-hull-outline! vbuf translated-points color))))
+              (->pos-color-vtx (* 2 npoints))
+              (for [y (range rows) x (range cols)] [x y])))))
 
 (defn- render-hulls
   [^GL2 gl render-args node-id tile-set-attributes convex-hulls scale-factor]
@@ -1003,11 +1003,11 @@
 (defmethod scene/attach-tool-controller ::ToolController
   [_ tool-id view-id resource-id]
   (concat
-   (g/connect view-id :selection tool-id :selected-node-ids)
-   (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
-   (g/connect resource-id :convex-hulls tool-id :convex-hulls)
-   (g/connect resource-id :collision-group-node->group tool-id :collision-group-node->group)
-   (g/connect resource-id :_node-id tool-id :tile-source-node)))
+    (g/connect view-id :selection tool-id :selected-node-ids)
+    (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
+    (g/connect resource-id :convex-hulls tool-id :convex-hulls)
+    (g/connect resource-id :collision-group-node->group tool-id :collision-group-node->group)
+    (g/connect resource-id :_node-id tool-id :tile-source-node)))
 
 (defn- make-animation-node [self _project select-fn animation]
   {:pre [(map? animation)]} ; Tile$Animation in map format.
@@ -1116,21 +1116,21 @@
 (handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection evaluation-context] (selection->tile-source selection evaluation-context))
   (label [selection user-data]
-         (if-not user-data
-           (localization/message "command.edit.add-embedded-component.variant.tile-source")
-           (:label user-data)))
+    (if-not user-data
+      (localization/message "command.edit.add-embedded-component.variant.tile-source")
+      (:label user-data)))
   (options [selection user-data]
-           (when-not user-data
-             [{:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")
-               :icon animation-icon
-               :command :edit.add-embedded-component
-               :user-data {:action add-animation-node!
-                           :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")}}
-              {:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")
-               :icon collision-icon
-               :command :edit.add-embedded-component
-               :user-data {:action add-collision-group-node!
-                           :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")}}]))
+    (when-not user-data
+      [{:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")
+        :icon animation-icon
+        :command :edit.add-embedded-component
+        :user-data {:action add-animation-node!
+                    :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")}}
+       {:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")
+        :icon collision-icon
+        :command :edit.add-embedded-component
+        :user-data {:action add-collision-group-node!
+                    :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")}}]))
   (run [selection user-data app-view]
     (g/let-ec [tile-source-node (selection->tile-source selection evaluation-context)]
       ((:action user-data) tile-source-node (fn [node-ids] (app-view/select app-view node-ids))))))

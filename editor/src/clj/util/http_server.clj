@@ -183,8 +183,8 @@
                                                         (when-not data-is-body (content-type data))))
                      (provide-header "content-length" length))]
      (cond-> {:status status}
-             headers (assoc :headers headers)
-             (and data (or (not length) (pos? length))) (assoc :body data)))))
+       headers (assoc :headers headers)
+       (and data (or (not length) (pos? length))) (assoc :body data)))))
 
 (defn json-response
   ([json-value]
@@ -323,8 +323,8 @@
                                               (transient {})
                                               (.entrySet (.getRequestHeaders exchange))))
                                  :body (.getRequestBody exchange)}
-                                query
-                                (assoc :query query))]
+                          query
+                          (assoc :query query))]
             (-> (try
                   (future/wrap (handler request))
                   (catch Throwable e (future/failed e)))

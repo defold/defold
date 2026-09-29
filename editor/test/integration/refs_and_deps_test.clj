@@ -19,5 +19,5 @@
             (testing (str "dep on " dep)
               (is (contains? (:refs (dep-map dep)) path) (str path " depends on " dep ", but " dep " is not referenced by " path))))
           (doseq [ref refs]
-            (testing (str "ref by "ref)
+            (testing (str "ref by " ref)
               (is (contains? (:deps (dep-map ref)) path) (str path " is referenced by " ref ", but " ref " does not depend on " path)))))))))

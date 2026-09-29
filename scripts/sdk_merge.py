@@ -1,3 +1,17 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 import os
 import shutil
 import tempfile
@@ -54,18 +68,62 @@ def download_platform_sdk_zips(netloc, base_prefix, platforms):
                 pass
 
 
-def merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, canonical_platform='x86_64-linux'):
-    """
-    Merge multiple per-platform SDK zips into `extract_dir` by selecting a single source zip per output path.
-    - Seeds the selection with `canonical_platform` first for determinism.
-    - Adds files from other platforms only if the path hasn't been selected yet.
-    """
+def _ordered_platform_sdk_zips(platform_zips, canonical_platform):
+    """Order SDKs from highest to lowest precedence."""
     platform_to_zip = {p: z for p, z in platform_zips}
     if canonical_platform not in platform_to_zip:
         canonical_platform = platform_zips[0][0]
 
     ordered_platform_zips = [(canonical_platform, platform_to_zip[canonical_platform])]
     ordered_platform_zips.extend([(p, z) for p, z in platform_zips if p != canonical_platform])
+    return ordered_platform_zips
+
+
+def _merge_extender_configs(ordered_platform_zips):
+    # build.py imports this module before install_release_dependencies runs.
+    import yaml
+
+    configs = {}
+    contents = {}
+    changed = set()
+    for platform, zip_path in ordered_platform_zips:
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            for name in zf.namelist():
+                if name != 'defoldsdk/extender/build.yml' and not (
+                        name.startswith('defoldsdk/extender/variants/') and name.endswith('.appmanifest')):
+                    continue
+                data = zf.read(name)
+                try:
+                    config = yaml.safe_load(data)
+                except yaml.YAMLError as error:
+                    raise ValueError(f'Invalid extender config in {platform}: {name}: {error}') from error
+                if not isinstance(config, dict) or not isinstance(config.get('platforms'), dict):
+                    raise ValueError(f'Expected a platforms mapping in {platform}: {name}')
+                if name not in configs:
+                    configs[name] = config
+                    contents[name] = data
+                    continue
+                # Keep common settings and existing platform sections from the
+                # highest-precedence SDK. Do not concatenate flags or libraries.
+                platforms = configs[name]['platforms']
+                for target, settings in config['platforms'].items():
+                    if target not in platforms:
+                        platforms[target] = settings
+                        changed.add(name)
+
+    for name in changed:
+        contents[name] = yaml.safe_dump(configs[name], sort_keys=False).encode('utf-8')
+    return contents
+
+
+def merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, canonical_platform='x86_64-linux'):
+    """
+    Merge multiple per-platform SDK zips into `extract_dir`.
+    Extender configurations combine platform sections; other files use the first
+    available copy, with `canonical_platform` taking precedence.
+    """
+    ordered_platform_zips = _ordered_platform_sdk_zips(platform_zips, canonical_platform)
+    extender_configs = _merge_extender_configs(ordered_platform_zips)
 
     selected_by_path = {}  # filename -> (zip_path, platform)
     for platform, zip_path in ordered_platform_zips:
@@ -93,7 +151,10 @@ def merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, canonical_plat
                 out_path = os.path.join(extract_dir, filename)
                 os.makedirs(os.path.dirname(out_path), exist_ok=True)
                 with zf.open(filename, 'r') as src, open(out_path, 'wb') as dst:
-                    shutil.copyfileobj(src, dst)
+                    if filename in extender_configs:
+                        dst.write(extender_configs[filename])
+                    else:
+                        shutil.copyfileobj(src, dst)
                 perm = (getattr(info, 'external_attr', 0) >> 16) & 0o7777
                 if perm:
                     os.chmod(out_path, perm)
@@ -104,22 +165,32 @@ def merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, canonical_plat
 def merge_platform_sdk_zips_with_zipmerge(zipmerge_path, platform_zips, output_zip_path, canonical_platform='x86_64-linux'):
     """
     Merge multiple per-platform SDK zips with zipmerge directly into `output_zip_path`.
-    Later zipmerge inputs overwrite earlier entries, so put `canonical_platform` last for highest precedence.
+    Later inputs overwrite earlier entries. Apply merged extender configurations last.
     """
-    platform_to_zip = {p: z for p, z in platform_zips}
-    if canonical_platform not in platform_to_zip:
-        canonical_platform = platform_zips[0][0]
-
-    ordered_platform_zips = [(p, z) for p, z in platform_zips if p != canonical_platform]
-    ordered_platform_zips.append((canonical_platform, platform_to_zip[canonical_platform]))
+    ordered_platform_zips = _ordered_platform_sdk_zips(platform_zips, canonical_platform)
+    extender_configs = _merge_extender_configs(ordered_platform_zips)
 
     os.makedirs(os.path.dirname(output_zip_path), exist_ok=True)
     if os.path.exists(output_zip_path):
         os.unlink(output_zip_path)
 
     print("Merging platform SDKs with", zipmerge_path)
-    print("Highest precedence SDK platform:", canonical_platform)
-    run.command([zipmerge_path, '-s', output_zip_path] + [z for _, z in ordered_platform_zips])
+    print("Highest precedence SDK platform:", ordered_platform_zips[0][0])
+    merge_inputs = ordered_platform_zips[1:] + ordered_platform_zips[:1]
+    args = [zipmerge_path, '-s', output_zip_path] + [z for _, z in merge_inputs]
+    if extender_configs:
+        # A final overlay replaces entries rather than adding duplicate ZIP members.
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temporary:
+            config_zip_path = temporary.name
+        try:
+            with zipfile.ZipFile(config_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for name, data in sorted(extender_configs.items()):
+                    zf.writestr(name, data)
+            run.command(args + [config_zip_path])
+        finally:
+            os.unlink(config_zip_path)
+    else:
+        run.command(args)
     print("Merged platform SDKs into", output_zip_path)
 
 

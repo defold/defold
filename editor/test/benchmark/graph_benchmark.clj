@@ -193,7 +193,7 @@
     (when (seq actions)
       (let [[node property value] (first actions)]
         (g/transact
-         (g/set-property node property value))
+          (g/set-property node property value))
 
         (if (= 0 (mod i 11))
           (let [[view output] (first pulls)]
@@ -224,20 +224,20 @@
                                  (repeatedly #(rand-nth views))
                                  (repeat :scene))]
       (do-benchmark
-       (format "Run %s transactions of setting a property and pulling values" n)
-       (loop [i       0
-              actions actions
-              pulls   pulls]
-         (when (seq actions)
-           (let [[node property value] (first actions)]
-             (g/transact
-              (g/set-property node property value))
+        (format "Run %s transactions of setting a property and pulling values" n)
+        (loop [i       0
+               actions actions
+               pulls   pulls]
+          (when (seq actions)
+            (let [[node property value] (first actions)]
+              (g/transact
+                (g/set-property node property value))
 
-             (if (= 0 (mod i 11))
-               (let [[view output] (first pulls)]
-                 (g/node-value view output)
-                 (recur (inc i) (next actions) (next pulls)))
-               (recur (inc i) (next actions) pulls)))))))))
+              (if (= 0 (mod i 11))
+                (let [[view output] (first pulls)]
+                  (g/node-value view output)
+                  (recur (inc i) (next actions) (next pulls)))
+                (recur (inc i) (next actions) pulls)))))))))
 
 (defn run-many-transactions []
   (println "=======")
@@ -251,14 +251,14 @@
   (println "======="))
 
 (defn run-benchmarks []
- (network-creation)
- (add-one-node)
- (add-one-node-delete-one-node)
- (set-property-some-nodes)
- (add-two-nodes-and-connect-them)
- (add-two-nodes-and-connect-and-disconnect-them)
- (run-many-transactions)
- (one-node-value-bench))
+  (network-creation)
+  (add-one-node)
+  (add-one-node-delete-one-node)
+  (set-property-some-nodes)
+  (add-two-nodes-and-connect-them)
+  (add-two-nodes-and-connect-and-disconnect-them)
+  (run-many-transactions)
+  (one-node-value-bench))
 
 (defn -main [& args]
   (println "Running benchmarks and outputing results to ./test/benchmark/bench-results.txt")

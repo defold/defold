@@ -89,8 +89,8 @@
           (is (= selection (g/node-value node :graphics-osx)))
           (is (= migrated-content (resource-node/save-data-content save-data)))))))
   (doseq [manifest [{} {:platforms {:osx {:context {:libs ["graphics_metal"]}}}}
-                   {:platforms {:osx {:context {:libs ["platform_vulkan"] :excludeLibs ["platform_vulkan"]}}}}
-                   {:platforms {:osx {:context {:libs ["platform_vulkan"] :excludeLibs "invalid"}}}}]]
+                    {:platforms {:osx {:context {:libs ["platform_vulkan"] :excludeLibs ["platform_vulkan"]}}}}
+                    {:platforms {:osx {:context {:libs ["platform_vulkan"] :excludeLibs "invalid"}}}}]]
     (is (= manifest (#'app-manifest/migrate-macos-vulkan-platform manifest)))))
 
 (deftest unchanged-app-manifest-load-test
@@ -805,7 +805,7 @@
 
       (testing "indeterminate rich-text settings remain indeterminate"
         (g/set-property! manifest :manifest
-                         {:platforms {:arm64-osx {:context {:libs ["font_richtext_null"]}}}})
+          {:platforms {:arm64-osx {:context {:libs ["font_richtext_null"]}}}})
         (is (nil? (g/node-value manifest :use-rich-text)))))))
 
 (deftest simulator-graphics-migration-test

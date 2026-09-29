@@ -113,8 +113,8 @@
                                   (partition 2 1)
                                   (reduce (fn [res [[x0 y0] [x1 y1]]]
                                             (-> res
-                                                   (conj [x0 y0 0.0 r g b a])
-                                                   (conj [x1 y1 0.0 r g b a]))) res))))
+                                                (conj [x0 y0 0.0 r g b a])
+                                                (conj [x1 y1 0.0 r g b a]))) res))))
                          [] splines+colors)
         curve-vcount (count curve-vs)
         world-lines (when (< 0 curve-vcount)
@@ -172,8 +172,8 @@
                                                                                          (.scale tangent-length))]
                                                                                  [(* (.x v) sx) (* (.y v) sy)])]
                                                                    (cond-> []
-                                                                           (< i last-i) (conj [[x y 0.0] [(+ x tx) (+ y ty) 0.0] c])
-                                                                           (> i first-i) (conj [[x y 0.0] [(- x tx) (- y ty) 0.0] c])))
+                                                                     (< i last-i) (conj [[x y 0.0] [(+ x tx) (+ y ty) 0.0] c])
+                                                                     (> i first-i) (conj [[x y 0.0] [(- x tx) (- y ty) 0.0] c])))
                                                                  [])))
                                                         (mapcat identity))))
                                                splines color-hues)]
