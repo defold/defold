@@ -395,17 +395,17 @@ jobs:
           - id: switch
             title: "Switch"
             repo: "defold/defold-switch"
-            ref: "${{ vars.SWITCH_PRIVATE_REF || 'dev' }}"
+            ref: "${{ vars.SWITCH_PRIVATE_REF }}"
             platform: "arm64-nx64"
           - id: ps
             title: "PlayStation"
             repo: "defold/defold-ps4"
-            ref: "${{ vars.PS_PRIVATE_REF || 'dev' }}"
+            ref: "${{ vars.PS_PRIVATE_REF }}"
             platform: "x86_64-ps4,x86_64-ps5"
           - id: xbox
             title: "Xbox"
             repo: "defold/defold-xbox"
-            ref: "${{ vars.XBOX_PRIVATE_REF || 'dev' }}"
+            ref: "${{ vars.XBOX_PRIVATE_REF }}"
             platform: "x86_64-xbone"
     runs-on: ubuntu-latest
     permissions:
@@ -430,16 +430,21 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
+          PRIVATE_REF: ${{ matrix.ref }}
         run: |
           public_branch="${{ env.BUILD_BRANCH || github.ref_name }}"
+          # Match release branches unless a console-specific ref overrides them.
+          private_ref="dev"
           channel="alpha"
           release="false"
           case "$public_branch" in
             master)
+              private_ref="master"
               channel="stable"
               release="true"
               ;;
             beta)
+              private_ref="beta"
               channel="beta"
               release="true"
               ;;
@@ -447,11 +452,13 @@ jobs:
               release="true"
               ;;
           esac
+          private_ref="${PRIVATE_REF:-$private_ref}"
+          echo "Dispatching public branch '$public_branch' with private ref '$private_ref'"
           request_id="${{ github.run_id }}-${{ github.run_attempt }}-$(uuidgen | tr -d '-' | cut -c 1-12)"
 
           gh workflow run private-ci.yml \
             --repo ${{ matrix.repo }} \
-            --ref "${{ matrix.ref }}" \
+            --ref "$private_ref" \
             -f public_repo="${{ github.repository }}" \
             -f public_branch="$public_branch" \
             -f public_sha="${{ github.event.client_payload.sha || github.event.pull_request.head.sha || github.sha }}" \
