@@ -1,5 +1,13 @@
 [0/2] Re-checking globbed directories...
-[1/3] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_size_defold.dir/benchmark_data_size_defold.cpp.o
+[1/5] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_size_flecs.dir/benchmark_data_size_flecs.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_size_flecs.cpp:13:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[2/5] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_size_defold.dir/benchmark_data_size_defold.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_size_defold.cpp:13:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
@@ -7,4 +15,5 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[2/3] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_size_defold
+[3/5] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_size_flecs
+[4/5] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_size_defold

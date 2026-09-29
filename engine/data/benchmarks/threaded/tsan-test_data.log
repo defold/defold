@@ -1,98 +1,98 @@
 [36mData[0m
 [36mData[0m.[33mStringOwnershipAndSelfAssignment[0m
-[36mData[0m.[33mStringOwnershipAndSelfAssignment[0m [32mPASS[0m (85 µs)
+[36mData[0m.[33mStringOwnershipAndSelfAssignment[0m [32mPASS[0m (108 µs)
 [36mData[0m.[33mGrowthSwapRemovalAndStaleIds[0m
-[36mData[0m.[33mGrowthSwapRemovalAndStaleIds[0m [32mPASS[0m (1223 µs)
+[36mData[0m.[33mGrowthSwapRemovalAndStaleIds[0m [32mPASS[0m (1434 µs)
 [36mData[0m.[33mLiveQueriesTagsOwnersAndCopiedDescriptors[0m
-[36mData[0m.[33mLiveQueriesTagsOwnersAndCopiedDescriptors[0m [32mPASS[0m (86 µs)
+[36mData[0m.[33mLiveQueriesTagsOwnersAndCopiedDescriptors[0m [32mPASS[0m (99 µs)
 [36mData[0m.[33mStructuralLockBlocksMutations[0m
-[36mData[0m.[33mStructuralLockBlocksMutations[0m [32mPASS[0m (116 µs)
+[36mData[0m.[33mStructuralLockBlocksMutations[0m [32mPASS[0m (150 µs)
 [36mData[0m.[33mNestedQueriesAndWritesPreserveBatches[0m
-[36mData[0m.[33mNestedQueriesAndWritesPreserveBatches[0m [32mPASS[0m (57 µs)
+[36mData[0m.[33mNestedQueriesAndWritesPreserveBatches[0m [32mPASS[0m (74 µs)
 [36mData[0m.[33mBoundFieldQueries[0m
-[36mData[0m.[33mBoundFieldQueries[0m [32mPASS[0m (61 µs)
+[36mData[0m.[33mBoundFieldQueries[0m [32mPASS[0m (80 µs)
 [36mData[0m.[33mBoundPackedFields[0m
-[36mData[0m.[33mBoundPackedFields[0m [32mPASS[0m (36 µs)
+[36mData[0m.[33mBoundPackedFields[0m [32mPASS[0m (43 µs)
 [36mData[0m.[33mSharedMetadataAndDenseRows[0m
-[36mData[0m.[33mSharedMetadataAndDenseRows[0m [32mPASS[0m (20 µs)
+[36mData[0m.[33mSharedMetadataAndDenseRows[0m [32mPASS[0m (35 µs)
 [36mData[0m.[33mMetadataAndBulkValidation[0m
-[36mData[0m.[33mMetadataAndBulkValidation[0m [32mPASS[0m (23 µs)
+[36mData[0m.[33mMetadataAndBulkValidation[0m [32mPASS[0m (18 µs)
 [36mData[0m.[33mBulkAppendPreservesDefaultsAndReusesSlots[0m
-[36mData[0m.[33mBulkAppendPreservesDefaultsAndReusesSlots[0m [32mPASS[0m (30 µs)
+[36mData[0m.[33mBulkAppendPreservesDefaultsAndReusesSlots[0m [32mPASS[0m (45 µs)
 [36mData[0m.[33mInlineBulkValidationIsAtomicAcrossMemberOrders[0m
-[36mData[0m.[33mInlineBulkValidationIsAtomicAcrossMemberOrders[0m [32mPASS[0m (29 µs)
+[36mData[0m.[33mInlineBulkValidationIsAtomicAcrossMemberOrders[0m [32mPASS[0m (34 µs)
 [36mData[0m.[33mCApiStoreLifecycle[0m
 [36mData[0m.[33mCApiStoreLifecycle[0m [32mPASS[0m (1 µs)
 [36mData[0m.[33mCApiMathAndNestedViews[0m
-[36mData[0m.[33mCApiMathAndNestedViews[0m [32mPASS[0m (89 µs)
+[36mData[0m.[33mCApiMathAndNestedViews[0m [32mPASS[0m (113 µs)
 [36mData[0m.[33mAlignedMathReadsPreserveFloatBits[0m
-[36mData[0m.[33mAlignedMathReadsPreserveFloatBits[0m [32mPASS[0m (54 µs)
+[36mData[0m.[33mAlignedMathReadsPreserveFloatBits[0m [32mPASS[0m (78 µs)
 [36mData[0m.[33mBinaryGoldenSharedMetadata[0m
-[36mData[0m.[33mBinaryGoldenSharedMetadata[0m [32mPASS[0m (25 µs)
+[36mData[0m.[33mBinaryGoldenSharedMetadata[0m [32mPASS[0m (30 µs)
 [36mData[0m.[33mBlobMutableRowsSharedMetadataAndGroupLifetime[0m
-[36mData[0m.[33mBlobMutableRowsSharedMetadataAndGroupLifetime[0m [32mPASS[0m (82 µs)
+[36mData[0m.[33mBlobMutableRowsSharedMetadataAndGroupLifetime[0m [32mPASS[0m (106 µs)
 [36mData[0m.[33mNestedViewsAllKindsAndReset[0m
-[36mData[0m.[33mNestedViewsAllKindsAndReset[0m [32mPASS[0m (81 µs)
+[36mData[0m.[33mNestedViewsAllKindsAndReset[0m [32mPASS[0m (105 µs)
 [36mData[0m.[33mCompactNestedBulkStorageAndBorrowedInsertion[0m
-[36mData[0m.[33mCompactNestedBulkStorageAndBorrowedInsertion[0m [32mPASS[0m (445 µs)
+[36mData[0m.[33mCompactNestedBulkStorageAndBorrowedInsertion[0m [32mPASS[0m (534 µs)
 [36mData[0m.[33mNestedValidationAndDepth[0m
-[36mData[0m.[33mNestedValidationAndDepth[0m [32mPASS[0m (116 µs)
+[36mData[0m.[33mNestedValidationAndDepth[0m [32mPASS[0m (140 µs)
 [36mData[0m.[33mMalformedBlobDirectoryLayoutAndValues[0m
-[36mData[0m.[33mMalformedBlobDirectoryLayoutAndValues[0m [32mPASS[0m (109 µs)
+[36mData[0m.[33mMalformedBlobDirectoryLayoutAndValues[0m [32mPASS[0m (149 µs)
 [36mData[0m.[33mEmptyNullAndBorrowedResourceReuse[0m
-[36mData[0m.[33mEmptyNullAndBorrowedResourceReuse[0m [32mPASS[0m (83 µs)
+[36mData[0m.[33mEmptyNullAndBorrowedResourceReuse[0m [32mPASS[0m (117 µs)
 [36mData[0m.[33mResetAddedValuesAllocationBlocksAndDefaults[0m
-[36mData[0m.[33mResetAddedValuesAllocationBlocksAndDefaults[0m [32mPASS[0m (1145 µs)
+[36mData[0m.[33mResetAddedValuesAllocationBlocksAndDefaults[0m [32mPASS[0m (1382 µs)
 [36mData[0m.[33mTypedLookupHashCollisionsAndWideIndexes[0m
-[36mData[0m.[33mTypedLookupHashCollisionsAndWideIndexes[0m [32mPASS[0m (3238 µs)
+[36mData[0m.[33mTypedLookupHashCollisionsAndWideIndexes[0m [32mPASS[0m (3893 µs)
 [36mData[0m.[33mTypedAccessErrorsPackedValuesAndReset[0m
-[36mData[0m.[33mTypedAccessErrorsPackedValuesAndReset[0m [32mPASS[0m (57 µs)
+[36mData[0m.[33mTypedAccessErrorsPackedValuesAndReset[0m [32mPASS[0m (82 µs)
 [36mData[0m.[33mBoundQueryRegistrationChurn[0m
-[36mData[0m.[33mBoundQueryRegistrationChurn[0m [32mPASS[0m (6.981 ms)
+[36mData[0m.[33mBoundQueryRegistrationChurn[0m [32mPASS[0m (7.776 ms)
 [36mData[0m.[33mInlineCompositionQueriesAndRoundtrip[0m
-[36mData[0m.[33mInlineCompositionQueriesAndRoundtrip[0m [32mPASS[0m (202 µs)
+[36mData[0m.[33mInlineCompositionQueriesAndRoundtrip[0m [32mPASS[0m (223 µs)
 [36mData[0m.[33mInlineLayoutAndPathValidation[0m
-[36mData[0m.[33mInlineLayoutAndPathValidation[0m [32mPASS[0m (41 µs)
+[36mData[0m.[33mInlineLayoutAndPathValidation[0m [32mPASS[0m (38 µs)
 [36mData[0m.[33mInlinePathsBindDifferentTablesAndTrackRegistration[0m
-[36mData[0m.[33mInlinePathsBindDifferentTablesAndTrackRegistration[0m [32mPASS[0m (33 µs)
+[36mData[0m.[33mInlinePathsBindDifferentTablesAndTrackRegistration[0m [32mPASS[0m (48 µs)
 [36mData[0m.[33mResetOneComponentPreservesOtherRowsAndReusesStorage[0m
-[36mData[0m.[33mResetOneComponentPreservesOtherRowsAndReusesStorage[0m [32mPASS[0m (77 µs)
+[36mData[0m.[33mResetOneComponentPreservesOtherRowsAndReusesStorage[0m [32mPASS[0m (83 µs)
 [36mData[0m.[33mFieldIterationWithoutFieldFilters[0m
-[36mData[0m.[33mFieldIterationWithoutFieldFilters[0m [32mPASS[0m (79 µs)
+[36mData[0m.[33mFieldIterationWithoutFieldFilters[0m [32mPASS[0m (92 µs)
 [36mData[0m.[33mFieldCursorUsesBatchRelativeRowsAfterRemoval[0m
-[36mData[0m.[33mFieldCursorUsesBatchRelativeRowsAfterRemoval[0m [32mPASS[0m (36 µs)
+[36mData[0m.[33mFieldCursorUsesBatchRelativeRowsAfterRemoval[0m [32mPASS[0m (50 µs)
 [36mData[0m.[33mDeferredRemovalUsesStableIds[0m
-[36mData[0m.[33mDeferredRemovalUsesStableIds[0m [32mPASS[0m (392 µs)
+[36mData[0m.[33mDeferredRemovalUsesStableIds[0m [32mPASS[0m (444 µs)
 [36mData[0m.[33mEmptyRowHasNoFields[0m
-[36mData[0m.[33mEmptyRowHasNoFields[0m [32mPASS[0m (11 µs)
+[36mData[0m.[33mEmptyRowHasNoFields[0m [32mPASS[0m (17 µs)
 [36mData[0m.[33mAlignedLayoutValidation[0m
 [36mData[0m.[33mAlignedLayoutValidation[0m [32mPASS[0m (23 µs)
 [36mData[0m.[33mNativeFieldPointersAndReset[0m
-[36mData[0m.[33mNativeFieldPointersAndReset[0m [32mPASS[0m (113 µs)
+[36mData[0m.[33mNativeFieldPointersAndReset[0m [32mPASS[0m (121 µs)
 [36mData[0m.[33mQueryFieldHandlesSurviveTableChanges[0m
-[36mData[0m.[33mQueryFieldHandlesSurviveTableChanges[0m [32mPASS[0m (40 µs)
+[36mData[0m.[33mQueryFieldHandlesSurviveTableChanges[0m [32mPASS[0m (50 µs)
 [36mData[0m.[33mNestedFieldPointersSharePayloadsAndPreserveSiblings[0m
-[36mData[0m.[33mNestedFieldPointersSharePayloadsAndPreserveSiblings[0m [32mPASS[0m (102 µs)
+[36mData[0m.[33mNestedFieldPointersSharePayloadsAndPreserveSiblings[0m [32mPASS[0m (106 µs)
 [36mData[0m.[33mMutableInlineReferencesAndInstanceResetAfterRemoval[0m
-[36mData[0m.[33mMutableInlineReferencesAndInstanceResetAfterRemoval[0m [32mPASS[0m (98 µs)
+[36mData[0m.[33mMutableInlineReferencesAndInstanceResetAfterRemoval[0m [32mPASS[0m (109 µs)
 [36mData[0m.[33mPooledRegistrationResetAndRemovalAfterSlotReuse[0m
-[36mData[0m.[33mPooledRegistrationResetAndRemovalAfterSlotReuse[0m [32mPASS[0m (64 µs)
+[36mData[0m.[33mPooledRegistrationResetAndRemovalAfterSlotReuse[0m [32mPASS[0m (74 µs)
 [36mData[0m.[33mCompactMetadataLimitsRoundTrip[0m
-[36mData[0m.[33mCompactMetadataLimitsRoundTrip[0m [32mPASS[0m (61.16 ms)
+[36mData[0m.[33mCompactMetadataLimitsRoundTrip[0m [32mPASS[0m (63.304 ms)
 [36mData[0m.[33mCompactMetadataPreservesWideByteOffsets[0m
-[36mData[0m.[33mCompactMetadataPreservesWideByteOffsets[0m [32mPASS[0m (92 µs)
+[36mData[0m.[33mCompactMetadataPreservesWideByteOffsets[0m [32mPASS[0m (106 µs)
 [36mData[0m.[33mCompactQueryFieldsValidateBeforeNarrowing[0m
-[36mData[0m.[33mCompactQueryFieldsValidateBeforeNarrowing[0m [32mPASS[0m (14 µs)
+[36mData[0m.[33mCompactQueryFieldsValidateBeforeNarrowing[0m [32mPASS[0m (23 µs)
 [36mData[0m.[33mTemplateRowsPreserveNativeOverridesAndSharedDefaults[0m
-[36mData[0m.[33mTemplateRowsPreserveNativeOverridesAndSharedDefaults[0m [32mPASS[0m (73 µs)
+[36mData[0m.[33mTemplateRowsPreserveNativeOverridesAndSharedDefaults[0m [32mPASS[0m (80 µs)
 [36mData[0m.[33mFreeSlotCountExcludesRetiredGenerations[0m
-[36mData[0m.[33mFreeSlotCountExcludesRetiredGenerations[0m [32mPASS[0m (16 µs)
+[36mData[0m.[33mFreeSlotCountExcludesRetiredGenerations[0m [32mPASS[0m (13 µs)
 [36mData[0m.[33mBatchVector3MatchesScalarGetter[0m
-[36mData[0m.[33mBatchVector3MatchesScalarGetter[0m [32mPASS[0m (60 µs)
+[36mData[0m.[33mBatchVector3MatchesScalarGetter[0m [32mPASS[0m (122 µs)
 [36mData[0m.[33mNativeRowsValidateBeforeWritingAcrossBlocks[0m
-[36mData[0m.[33mNativeRowsValidateBeforeWritingAcrossBlocks[0m [32mPASS[0m (535 µs)
+[36mData[0m.[33mNativeRowsValidateBeforeWritingAcrossBlocks[0m [32mPASS[0m (564 µs)
 [36mData[0m.[33mBatchStringsAcrossOwnedAndPackedRows[0m
-[36mData[0m.[33mBatchStringsAcrossOwnedAndPackedRows[0m [32mPASS[0m (897 µs)
-[36mData[0m took 78.988 ms
-Ran 47 tests, with 224283 assertions in 78.988 ms
+[36mData[0m.[33mBatchStringsAcrossOwnedAndPackedRows[0m [32mPASS[0m (901 µs)
+[36mData[0m took 83.789 ms
+Ran 47 tests, with 223926 assertions in 83.789 ms
 47 tests [32mPASSED[0m and 0 skipped

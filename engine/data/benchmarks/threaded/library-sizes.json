@@ -7,16 +7,16 @@
   "rows": [
     {
       "backend": "Defold data",
-      "archive_bytes": 677640,
-      "archive_stripped_bytes": 81600,
+      "archive_bytes": 667616,
+      "archive_stripped_bytes": 79136,
       "file_bytes": 85384,
       "section_bytes": 27394,
       "extra_file_bytes": 35392,
       "extra_section_bytes": 27180,
       "cloc": {
         "blank": 526,
-        "comment": 1324,
-        "code": 3606,
+        "comment": 1330,
+        "code": 3607,
         "nFiles": 11
       },
       "cloc_scope": "engine/data/src, excluding test/ and dlib"
@@ -57,20 +57,20 @@
   "method": "Clang Release -O2, no LTO or sanitizers; strip -S -x; linker dead_strip. Linked deltas are relative to identical argument parsing/output without an ECS. Probes create position/health entities, query/update, get values and destroy. Defold archive excludes dlib; its linked probe includes required dlib code. Flecs uses the benchmark full default addon configuration, C API, counters/asserts disabled. EnTT is header-only, C++20, 64-bit entities, ENTT_USE_ATOMIC and ENTT_DISABLE_ASSERT. Linked sizes describe this two-component workload, not a complete engine or all features. System dynamic libraries and their code are excluded.",
   "input_sha256": {
     "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_size_empty": "e1176dd0ae700fb332b05a988d9cbe33a2a2e2d0fd53d52518a3f041b0176c36",
-    "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_size_defold": "eea12c61b9325c4cc23214ce49965eeb9ed323b1cc3bda422e22a32717ad5a19",
-    "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_size_flecs": "39d2cb2dfd28b523821fb5e75063d34a2a3294ce4b69cbbd30fd365db850540d",
+    "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_size_defold": "fd55caebb43a15aaefa9c35a062901fff1cb11d55b94fb39bf94c1f03a4d4661",
+    "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_size_flecs": "8e4e1f077aa367fc1e2900c72aaa7bdfcda960ec2afbcd31ee72c84ba33c775f",
     "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/benchmark_data_size_entt": "7bb88386a9155f4b7b6a65e39c7ff9cf971e3bea804928b6a803b915f73acfe2",
-    "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/libdata.a": "66debd5f684d3b35d22073f1aa8faae43c3787b886d61b73665ba512adaacf2e",
+    "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/libdata.a": "127940b79500773901d8ed17fda5b4c51e3f073cc81ba783fc7b38ccbc50bbf0",
     "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/data/build/arm64-macos/src/test/libdata_benchmark_flecs_threaded.a": "81b63585bbc85be369d9747d90b2ea1d524ccd13f48f03581223a2f614249e92",
     "/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-release/engine/dlib/build/arm64-macos/libdlib.a": "a7080d97d6113a93dd546309de964147507943fc51ce3dad8b45b3b4b067777f"
   },
   "stripped_sha256": {
     "benchmark_data_size_empty": "db28fa13a68bb862d0e19a7d856c7d5af43b5dbdf0f3b9b7e6842b71f6644f40",
-    "benchmark_data_size_defold": "64a68954db4fcdaac3e24d3211e71442bf5f4fda4afa57019c7a086491080ee9",
-    "benchmark_data_size_flecs": "becae412365d07a374f3c5fef57237b71949f3e984c27d053b658ae237de5207",
+    "benchmark_data_size_defold": "2f17cce07cbc4fa7dfe746ae2885e12aed4525dfb1336e9adfa42efe581a2fed",
+    "benchmark_data_size_flecs": "6693bfedcdb1e9ed21a82aac288e9ac582ee9d11b92f191d4950039763b7f31f",
     "benchmark_data_size_entt": "e1cc4d2c08f5aadf79b6bc013285cc5348b5bdf470894092900e06f4ac456e28",
-    "libdata.a": "6d72c3bccdc24925458f39bb947c8ace24a4f804e6e39dab1a7e117687dfe696",
-    "libdata_benchmark_flecs_threaded.a": "c7e4b840b84b1e5c8e75ce8ee3905c67dbf6cbd0509d34805ea97d96cc4480fb"
+    "libdata.a": "791d995a60d0422577ef5db76b64dd8f827bd6b91f737ed5142cbe9093d61ba0",
+    "libdata_benchmark_flecs_threaded.a": "37fb9d570b9de14edb0e79d225ea35475ad0b5e649dcd0c8b51947f11d89e0ce"
   },
   "compile_commands": {
     "data.cpp": "/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ -DCONFIG_USE_DEV_URANDOM -DDDF_EXPOSE_DESCRIPTORS -DDM_HAVE_PLATFORM_COMPUTE_SUPPORT -DDM_HOSTFS=\\\"\\\" -DDM_MBEDTLS_DISABLE_ASM -DDM_MBEDTLS_ERROR_STRERROR_DUMMY -DDM_PLATFORM_64BIT -DDM_PLATFORM_MACOS -DDM_USE_CMAKE -DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED -DGL_SILENCE_DEPRECATION -DGOOGLE_PROTOBUF_NO_RTTI -DHAVE_HIDDEN -DMBEDTLS_THREADING_ALT -DMBEDTLS_THREADING_C -DMBEDTLS_USER_CONFIG_FILE=\\\"mbedtls_user_config.h\\\" -DMINIZ_NO_TIME -DTF_PSA_CRYPTO_USER_CONFIG_FILE=\\\"tf_psa_crypto_user_config.h\\\" -DVALGRIND -DZIP_ENABLE_DEFLATE=0 -DZIP_ENABLE_INFLATE=1 -DZIP_HAVE_SYMLINK=0 -DZLIB_CONST -DZ_HAVE_UNISTD_H -D__STDC_LIMIT_MACROS -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/crash/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/ddf/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/engine/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/extension/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/font/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/gameobject/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/gamesys/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/graphics/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/gui/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/hid/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/input/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/jni/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/liveupdate/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/lua/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/modelc/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/particle/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/physics/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/platform/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/profiler/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/record/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/render/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/resource/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/rig/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/script/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/sdk/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/shaderc/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/sound/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/testmain/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/texc/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/tools/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-sdk/include -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-sdk/sdk/include -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/defold -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/include -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/include -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/drivers/builtin/include -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/zip -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/library -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/core -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/dispatch -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/drivers/builtin/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/drivers/everest/include -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/drivers/p256-m -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/drivers/pqcp/include -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/extras -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/platform -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src/mbedtls/tf-psa-crypto/utilities -isystem /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-sdk/ext/include/arm64-macos -isystem /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-sdk/ext/include -O2 -g -std=c++14 -arch arm64 -isysroot /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk -fcolor-diagnostics -mmacosx-version-min=10.15 -target arm64-apple-darwin19 -isystem /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1 -stdlib=libc++ -nostdinc++ -Wall -Wno-nontrivial-memcall -Werror=format -Werror=return-type -fvisibility=hidden -fno-exceptions -fno-rtti -g -fPIC -O2 -o engine/data/build/arm64-macos/CMakeFiles/data.dir/src/data.cpp.o -c /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/data.cpp",
@@ -85,14 +85,14 @@
     "benchmark_data_size_entt.cpp": "/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ -DDDF_EXPOSE_DESCRIPTORS -DDM_HAVE_PLATFORM_COMPUTE_SUPPORT -DDM_HOSTFS=\\\"\\\" -DDM_PLATFORM_64BIT -DDM_PLATFORM_MACOS -DDM_USE_CMAKE -DENTT_DISABLE_ASSERT -DENTT_USE_ATOMIC -DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED -DGL_SILENCE_DEPRECATION -DGOOGLE_PROTOBUF_NO_RTTI -D__STDC_LIMIT_MACROS -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/crash/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/ddf/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/dlib/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/engine/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/extension/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/font/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/gameobject/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/gamesys/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/graphics/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/gui/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/hid/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/input/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/jni/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/liveupdate/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/lua/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/modelc/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/particle/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/physics/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/platform/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/profiler/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/record/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/render/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/resource/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/rig/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/script/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/sdk/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/shaderc/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/sound/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/testmain/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/texc/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/tools/src -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-sdk/include -I/Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-sdk/sdk/include -isystem /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-sdk/ext/include/arm64-macos -isystem /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/build/threaded-sdk/ext/include -isystem /Users/mathiaswesterdahl/notwork/external/entt/src -O2 -g -std=c++20 -arch arm64 -isysroot /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk -fcolor-diagnostics -mmacosx-version-min=10.15 -target arm64-apple-darwin19 -isystem /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1 -stdlib=libc++ -nostdinc++ -Wall -Wno-nontrivial-memcall -Werror=format -Werror=return-type -fvisibility=hidden -fno-exceptions -fno-rtti -g -fPIC -O2 -o engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_size_entt.dir/benchmark_data_size_entt.cpp.o -c /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_size_entt.cpp"
   },
   "source_sha256": {
-    "benchmark_data_size_defold.cpp": "958714f3f921095b53b8762c45bb342168d67623ec71681bbb08ffc31b505979",
-    "benchmark_data_size_flecs.cpp": "e9def2389ba8a2a0e09206de2ca887fbe9d17216d247c0c4a19404a13625dc9b",
+    "benchmark_data_size_defold.cpp": "d6a74ff9d0bea38b72e34d7fa3e7b203288a47cb5a0e2d0452177dd942dc285a",
+    "benchmark_data_size_flecs.cpp": "e2c5353bdeb24f5c8fb394862add2b8290e2db5e3ba85b4369c9abcb084739f9",
     "benchmark_data_size_entt.cpp": "cddb6f70caaf22bab3e0b701bd442ed57a55753494f1c2bf2154b8c259a18756",
     "benchmark_data_size_empty.cpp": "abe56594f6172cacb5d9b33cd974c8c589cf52844ebe456c0cb601f2cb520f04"
   },
   "cloc": {
     "version": "2.04",
-    "generated_utc": "2026-09-29T13:58:58.016198+00:00",
+    "generated_utc": "2026-09-29T14:30:32.507891+00:00",
     "method": "Physical C/C++ code lines, excluding comments and blank lines. Original library sources and headers only; excludes tests, examples, third-party dependencies and duplicate amalgamated distributions. Counts all source regardless of build flags.",
     "libraries": {
       "Defold data": {
@@ -101,41 +101,41 @@
           "header": {
             "cloc_url": "github.com/AlDanial/cloc",
             "cloc_version": "2.04",
-            "elapsed_seconds": 0.0117459297180176,
+            "elapsed_seconds": 0.011760950088501,
             "n_files": 11,
-            "n_lines": 5456,
-            "files_per_second": 936.49462103682,
-            "lines_per_second": 464501.332034263
+            "n_lines": 5463,
+            "files_per_second": 935.298587038051,
+            "lines_per_second": 464503.289180806
           },
           "C++": {
             "nFiles": 5,
             "blank": 261,
             "comment": 128,
-            "code": 2747
+            "code": 2748
           },
           "C/C++ Header": {
             "nFiles": 6,
             "blank": 265,
-            "comment": 1196,
+            "comment": 1202,
             "code": 859
           },
           "SUM": {
             "blank": 526,
-            "comment": 1324,
-            "code": 3606,
+            "comment": 1330,
+            "code": 3607,
             "nFiles": 11
           }
         },
         "source_sha256": {
           "engine/data/src/data.cpp": "82ed199fd7bafd06023d7e2eed1c3b6600b0754c772aca4847c6a4c2a99bedb0",
-          "engine/data/src/data.h": "0d974087a6fbe08448f170970cca017fdae96883ebb54e24e5cb0eecafa77b98",
-          "engine/data/src/data_field.cpp": "050f9f108f6e3f9615b563945de0ecf447ee1cda259b405d37d1b9ef64c3af73",
+          "engine/data/src/data.h": "56a6f333c78cbb9f93c7cc3a7d8fe1ce736b5d676832eed44303d3c3497ea943",
+          "engine/data/src/data_field.cpp": "6e1bc4bfaf945f19285ac960392f1b3f3d69a4a15da689cdbf68a7b33edb594c",
           "engine/data/src/data_io.cpp": "1d2dca8992fc8a178c77cd1bcc847050077c5bf6c575078d7fb43b02674ebcf6",
-          "engine/data/src/data_iter.cpp": "b8fa02bd386bee107e843b43d8bc8102676197cecccab2eb0122310d1e3ea28d",
+          "engine/data/src/data_iter.cpp": "6b2d03fe9a502ab4ef84a9e0ab86d7010731fb895a7b6f76c5480b7465a93c01",
           "engine/data/src/data_query.cpp": "d7680f9273290b1e329d10ab428146ff9f0608dbbf5805d912155f12e1e43d3b",
           "engine/data/src/dmsdk/data/data.h": "295fa468a104c31ffe378c69169c9779b0840526c2a835b24df7f18de3201696",
-          "engine/data/src/dmsdk/data/data_field.h": "cb77c220f9ea787b92628ec7f2dcca89b25abf5f539d0179ce23249c43bdef0a",
-          "engine/data/src/dmsdk/data/data_iter.h": "a729dfd87cdffc89189b404b5faeb90bcdef3d4fd2d8e88dd42974b2d3ee2910",
+          "engine/data/src/dmsdk/data/data_field.h": "27786f7eca774af0e25ddadc41bf85d7891b8184eed65c2286e63188fa4ed8ca",
+          "engine/data/src/dmsdk/data/data_iter.h": "cdf45c96af6d90896afc93c428a6cdaf672ce1f31aae6c6b3bf85c66fbcd4556",
           "engine/data/src/dmsdk/data/data_query.h": "0c1b55f207e5c4a6cb349f99f37b6224c267c7a3e0a9cd35ee092a59e4eff393",
           "engine/data/src/dmsdk/data/data_types.h": "5128657a73cb811b5523dd19517ad602732372cbaafe8642b7670736679a3c0a"
         }
@@ -146,11 +146,11 @@
           "header": {
             "cloc_url": "github.com/AlDanial/cloc",
             "cloc_version": "2.04",
-            "elapsed_seconds": 0.226611137390137,
+            "elapsed_seconds": 0.248149871826172,
             "n_files": 404,
             "n_lines": 156710,
-            "files_per_second": 1782.78969274343,
-            "lines_per_second": 691537.061261936
+            "files_per_second": 1628.0483927995,
+            "lines_per_second": 631513.523850517
           },
           "C": {
             "nFiles": 167,
@@ -590,11 +590,11 @@
           "header": {
             "cloc_url": "github.com/AlDanial/cloc",
             "cloc_version": "2.04",
-            "elapsed_seconds": 0.0425851345062256,
+            "elapsed_seconds": 0.0439770221710205,
             "n_files": 95,
             "n_lines": 24019,
-            "files_per_second": 2230.82540660079,
-            "lines_per_second": 564023.109906783
+            "files_per_second": 2160.21902598494,
+            "lines_per_second": 546171.587211918
           },
           "C/C++ Header": {
             "nFiles": 95,
