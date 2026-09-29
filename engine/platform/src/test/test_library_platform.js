@@ -22,13 +22,22 @@ const joystickParams = ["PRESENT", "AXES", "BUTTONS", "HATS"].map(name =>
     Number(nativeHeader.match(new RegExp("^#define NATIVE_" + name + "\\s+(0x[0-9A-Fa-f]+)", "m"))[1]));
 
 function loadEnvironment() {
+    const listeners = new Map();
     const context = vm.createContext({
         console,
         Module: {},
         MainLoop: { currentFrameNumber: 1 },
         navigator: { getGamepads: () => [] },
         window: { addEventListener() {}, removeEventListener() {} },
-        document: { addEventListener() {}, removeEventListener() {} },
+        document: {
+            fullscreenElement: null,
+            addEventListener: (type, callback) => listeners.set(type, callback),
+            removeEventListener: type => listeners.delete(type),
+            exitFullscreen() {
+                this.fullscreenElement = null;
+                listeners.get("fullscreenchange")();
+            }
+        },
         autoAddDeps() {},
         addToLibrary() {},
         stringToNewUTF8: value => value,
@@ -41,6 +50,12 @@ function loadEnvironment() {
     vm.runInContext(source, context, { filename: libraryPath });
     context.DefoldPlatform = context.LibraryDefoldPlatform.$DefoldPlatform;
     context.LibraryDefoldPlatform.dmNativeInitJS();
+    context.createFullscreenElement = () => ({
+        requestFullscreen() {
+            context.document.fullscreenElement = this;
+            listeners.get("fullscreenchange")();
+        }
+    });
     return context;
 }
 
@@ -73,7 +88,34 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
 }
 
-for (const test of [testGamepadCapabilitiesAndInput]) {
+// Verify the bundled loader enters and exits fullscreen through the renamed backend for every supported target.
+function testLoaderFullscreenToggle() {
+    const loaderPath = path.resolve(__dirname,
+        "../../../../com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/bundle/resources/web/dmloader.js");
+    // Fullscreen has no template inputs; omit optional sections and fill scalar placeholders for evaluation.
+    const loader = fs.readFileSync(loaderPath, "utf8")
+        .replace(/\{\{![\s\S]*?\}\}/g, "")
+        .replace(/\{\{[#^]([^}]+)\}\}[\s\S]*?\{\{\/\1\}\}/g, "")
+        .replace(/\{\{[^}]+\}\}/g, "0");
+    for (const target of ["canvas", "container", "explicit"]) {
+        const context = loadEnvironment();
+        vm.runInContext(loader, context, { filename: loaderPath });
+        context.Module.canvas = context.createFullscreenElement();
+        if (target !== "canvas")
+            context.Module.fullScreenContainer = context.createFullscreenElement();
+        const explicit = target === "explicit" ? context.createFullscreenElement() : undefined;
+        const expected = explicit || context.Module.fullScreenContainer || context.Module.canvas;
+
+        context.Module.toggleFullscreen(explicit);
+        assert.strictEqual(context.document.fullscreenElement, expected);
+        assert.strictEqual(context.DefoldPlatform.isFullscreen, true);
+        context.Module.toggleFullscreen(explicit);
+        assert.strictEqual(context.document.fullscreenElement, null);
+        assert.strictEqual(context.DefoldPlatform.isFullscreen, false);
+    }
+}
+
+for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle]) {
     try {
         test();
         process.stdout.write(test.name + " passed\n");
