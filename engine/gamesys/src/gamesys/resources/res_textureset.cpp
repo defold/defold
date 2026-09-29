@@ -15,6 +15,7 @@
 #include <string.h>
 #include "res_textureset.h"
 
+#include <dlib/atomic.h>
 #include <dlib/math.h>
 #include <render/render_ddf.h>
 #include <physics/physics.h>
@@ -23,6 +24,14 @@
 
 namespace dmGameSystem
 {
+    static int32_atomic_t g_NextTextureSetId = 0;
+
+    static uint32_t NextTextureSetId()
+    {
+        uint32_t id = (uint32_t)dmAtomicIncrement32(&g_NextTextureSetId) + 1;
+        return id != 0 ? id : (uint32_t)dmAtomicIncrement32(&g_NextTextureSetId) + 1;
+    }
+
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory,  dmGameSystemDDF::TextureSet* texture_set_ddf,
                                         TextureSetResource* tile_set, const char* filename, bool reload)
     {
@@ -162,6 +171,7 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(physics_context->m_Context, params->m_Factory, (dmGameSystemDDF::TextureSet*) params->m_PreloadData, tile_set, params->m_Filename, false);
         if (r == dmResource::RESULT_OK)
         {
+            tile_set->m_Id = NextTextureSetId();
             dmResource::SetResource(params->m_Resource, tile_set);
             dmResource::SetResourceSize(params->m_Resource, GetResourceSize(tile_set, params->m_BufferSize));
         }
@@ -207,6 +217,7 @@ namespace dmGameSystem
             tile_set->m_FrameIds.Swap(tmp_tile_set.m_FrameIds);
             dmResource::SetResourceSize(params->m_Resource, GetResourceSize(tile_set, params->m_BufferSize));
             tile_set->m_TexturesGeneration = current_generation + 1;
+            tile_set->m_Id = NextTextureSetId();
         }
         else
         {

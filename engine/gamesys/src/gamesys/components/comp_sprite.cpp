@@ -96,6 +96,9 @@ namespace dmGameSystem
         // Used after resolving info from all textures
         dmhash_t                        m_AnimationID;                      // The animation of the driving atlas
         uint32_t                        m_Frames[MAX_TEXTURE_COUNT];        // The resolved frame indices
+        uint32_t                        m_TextureSetIds[MAX_TEXTURE_COUNT]; // TextureSetResource::m_Id of each texture set the data was resolved from
+        uint32_t                        m_AnimationFrame;
+        uint8_t                         m_NumTextures;
         uint32_t                        m_LastAccessTick;
         uint32_t                        m_CacheKey;
         uint32_t                        m_VertexCount;
@@ -555,18 +558,10 @@ namespace dmGameSystem
         return component->m_Resource->m_Textures[texture_unit].m_TextureSet->m_Texture;
     }
 
-    uint8_t GetTextureResourceGeneration(const SpriteComponent* component, uint32_t texture_unit)
+    static inline uint32_t GetTextureSetId(const SpriteComponent* component, uint32_t index)
     {
-        if(texture_unit >= component->m_Resource->m_NumTextures)
-            return 0;
-
-        const SpriteResourceOverrides* overrides = component->m_Overrides;
-        if (overrides && texture_unit < overrides->m_Textures.Size())
-        {
-            if (overrides->m_Textures[texture_unit].m_TextureSet)
-                return overrides->m_Textures[texture_unit].m_TextureSet->m_TexturesGeneration;
-        }
-        return component->m_Resource->m_Textures[texture_unit].m_TextureSet->m_TexturesGeneration;
+        TextureSetResource* texture_set = GetTextureSetByIndex(component, index);
+        return texture_set ? texture_set->m_Id : 0;
     }
 
     dmGraphics::HTexture GetMaterialTexture(const SpriteComponent* component, uint32_t texture_unit)
@@ -717,14 +712,11 @@ namespace dmGameSystem
         }
 
         dmHashUpdateBuffer32(&state, resource->m_Textures, sizeof(SpriteTexture) * resource->m_NumTextures);
+        // Texture set addresses may be reused after a release, the ids are not
         for (size_t idx = 0; idx < resource->m_NumTextures; ++idx)
         {
-            uint8_t generation = GetTextureResourceGeneration(component, idx);
-            dmHashUpdateBuffer32(&state, &generation, sizeof(generation));
-        }
-        if (resource->m_NumTextures > 0)
-        {
-            dmHashUpdateBuffer32(&state, resource->m_Textures->m_TextureSet, sizeof(resource->m_Textures->m_TextureSet));
+            uint32_t id = GetTextureSetId(component, idx);
+            dmHashUpdateBuffer32(&state, &id, sizeof(id));
         }
         dmHashUpdateBuffer32(&state, resource->m_Material, sizeof(MaterialResource*));
 
@@ -1166,6 +1158,7 @@ namespace dmGameSystem
         dmhash_t anim_id = component->m_CurrentAnimation;
         uint32_t current_anim_frame_index = component->m_CurrentAnimationFrame;
         data->m_AnimationID = anim_id;
+        data->m_AnimationFrame = current_anim_frame_index;
 
         // For the first texture set, we figure out the actual frame index,
         // and from that index we figure out the name of that single frame animation.
@@ -1175,9 +1168,11 @@ namespace dmGameSystem
         bool uses_geometries = false;
 
         uint8_t texture_num = component->m_NumTextures;
+        data->m_NumTextures = texture_num;
         for (uint8_t i = 0; i < texture_num; ++i)
         {
             TextureSetResource* resource = GetTextureSetByIndex(component, i);
+            data->m_TextureSetIds[i] = resource->m_Id;
 
             const dmGameSystemDDF::TextureSet* texture_set_ddf = resource->m_TextureSet;
             const uint32_t* frame_indices = texture_set_ddf->m_FrameIndices.m_Data;
@@ -1460,6 +1455,23 @@ namespace dmGameSystem
         }
     }
 
+    // The cache key is a 32 bit hash, so a hit may still belong to other texture sets or another animation frame
+    static bool IsAnimationDataValid(const SpriteComponent* component, const AnimationData* data)
+    {
+        if (data->m_AnimationID != component->m_CurrentAnimation ||
+            data->m_AnimationFrame != component->m_CurrentAnimationFrame ||
+            data->m_NumTextures != component->m_NumTextures)
+        {
+            return false;
+        }
+        for (uint8_t i = 0; i < component->m_NumTextures; ++i)
+        {
+            if (data->m_TextureSetIds[i] != GetTextureSetId(component, i))
+                return false;
+        }
+        return true;
+    }
+
     static AnimationData* GetOrCreateAnimationData(SpriteWorld* sprite_world, const SpriteComponent* component)
     {
         // 1. Search in hastable
@@ -1467,16 +1479,28 @@ namespace dmGameSystem
         AnimationData** found = sprite_world->m_AnimationDataCache.m_Cache.Get(hash);
         if (found != 0x0)
         {
-            // updates only once per frame
-            if ((*found)->m_LastAccessTick != sprite_world->m_AnimationDataCache.m_CurrentEngineTick)
+            AnimationData* data = *found;
+            if (!IsAnimationDataValid(component, data))
             {
-                dmDoubleLinkedList::ListNode* node = (dmDoubleLinkedList::ListNode*)(*found);
-                dmDoubleLinkedList::ListRemove(&sprite_world->m_AnimationDataCache.m_LRU, node);
-                dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, node);
-                (*found)->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
+                dmDoubleLinkedList::ListNode node = data->m_ListNode;
+                uint32_t last_access_tick = data->m_LastAccessTick;
+                memset(data, 0, sizeof(AnimationData));
+                data->m_ListNode = node;
+                data->m_CacheKey = hash;
+                data->m_LastAccessTick = last_access_tick;
+                ResolveAnimationData(component, data);
             }
 
-            return *found;
+            // updates only once per frame
+            if (data->m_LastAccessTick != sprite_world->m_AnimationDataCache.m_CurrentEngineTick)
+            {
+                dmDoubleLinkedList::ListNode* node = (dmDoubleLinkedList::ListNode*)data;
+                dmDoubleLinkedList::ListRemove(&sprite_world->m_AnimationDataCache.m_LRU, node);
+                dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, node);
+                data->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
+            }
+
+            return data;
         }
 
         // 2. Create if doesn't exist
@@ -2805,5 +2829,20 @@ namespace dmGameSystem
     {
         SpriteComponent* comp = (SpriteComponent*) sprite_component;
         return comp->m_AnimationID;
+    }
+
+    void* GetSpriteComponentTextureSet(void* sprite_component)
+    {
+        return GetFirstTextureSet((SpriteComponent*) sprite_component);
+    }
+
+    uint32_t GetSpriteComponentAnimationDataHash(void* sprite_component)
+    {
+        return ((SpriteComponent*) sprite_component)->m_AnimationDataHash;
+    }
+
+    void SetSpriteComponentAnimationDataHash(void* sprite_component, uint32_t hash)
+    {
+        ((SpriteComponent*) sprite_component)->m_AnimationDataHash = hash;
     }
 }
