@@ -85,29 +85,39 @@
   "Given a texture-profile, return a simplified texture-profile that can be used
   for previewing purposes in editor. Will only produce data for one texture
   format."
-  [texture-profile]
+  [texture-profile ktx2]
   (let [platforms (:platforms texture-profile)
         platform-profile (or (coll/first-where #(= :os-id-generic (:os %)) platforms)
                              (first platforms))
         texture-format (first (:formats platform-profile))]
-    (when (and platform-profile texture-format)
+    (when (and platform-profile (or texture-format (and ktx2 (:keep-ktx2-format platform-profile))))
       {:name      "editor"
        :platforms [{:os                :os-id-generic
-                    :formats           [(update texture-format :format texture-format->editor-format)]
+                    :formats           [(if texture-format
+                                          (update texture-format :format texture-format->editor-format)
+                                          {:format :texture-format-rgba})]
+                    :keep-ktx2-format  (and ktx2 (:keep-ktx2-format platform-profile false))
                     :mipmaps           (:mipmaps platform-profile)
                     :max-texture-size  (:max-texture-size platform-profile)
-                    :premultiply-alpha (:premultiply-alpha platform-profile)}]})))
+                    :premultiply-alpha (:premultiply-alpha platform-profile)
+                    :regenerate-mipmaps (:regenerate-mipmaps platform-profile false)}]})))
+
+(defn make-ktx2-texture-image
+  ^TextureGenerator$GenerateResult [^bytes data texture-profile compress preview]
+  (let [texture-profile (if preview (make-preview-profile texture-profile true) texture-profile)
+        ^Graphics$TextureProfile profile (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))]
+    (TextureGenerator/generate data profile (boolean compress))))
 
 ;; SDK api (DEPRECATE 2-arity version with the next release of extension-texturepacker).
 (defn make-preview-texture-image
   (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile]
-   (let [preview-profile (make-preview-profile texture-profile)]
+   (let [preview-profile (make-preview-profile texture-profile false)]
      (make-texture-image image preview-profile false)))
   (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile flip-y]
    (if flip-y
      ;; TODO: We might be able to pass a flip-y bool arg to TexcLib.CreatePreviewImage and make this work for all
      (TextureGenerator/generateAtlasPreview image) ;; Fast path
-     (let [preview-profile (make-preview-profile texture-profile)]
+     (let [preview-profile (make-preview-profile texture-profile false)]
        (make-texture-image image preview-profile false flip-y)))))
 
 (defn make-cubemap-texture-images

@@ -40,7 +40,8 @@ if(TEXC_IS_DESKTOP)
     "${TEXC_SRC_DIR}/texc_enc_astc.cpp"
     "${TEXC_SRC_DIR}/texc_enc_basis.cpp"
     "${TEXC_SRC_DIR}/texc_enc_default.cpp"
-    "${TEXC_SRC_DIR}/texc_private.cpp")
+    "${TEXC_SRC_DIR}/texc_private.cpp"
+    "${TEXC_SRC_DIR}/texc_ktx2.cpp")
 
   set(TEXC_JAVA_DIR "${CMAKE_CURRENT_BINARY_DIR}/java")
   set(TEXC_JNI_DIR "${CMAKE_CURRENT_BINARY_DIR}/jni")

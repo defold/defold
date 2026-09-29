@@ -10,6 +10,8 @@ the upstream `CMakeLists.txt` for reference. Defold's build is in the parent
 `CMakeLists.txt`; it applies `defold.patch` to a build copy of the runtime
 transcoder to fix missing guards when the new codecs are disabled and remove
 an unused header dependency that breaks PS4 builds.
+`defold-encoder.patch` fixes the offline UASTC LDR encoder so its `.basis` output
+honors the selected linear/sRGB transfer function.
 `scripts/cmake/functions_basisu.cmake` imports the installed archives and their
 compiler settings into the separate engine/tools build.
 

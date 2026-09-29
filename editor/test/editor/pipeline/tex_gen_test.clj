@@ -17,7 +17,7 @@
             [clojure.test :refer :all]
             [editor.pipeline.tex-gen :as tex-gen])
   (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
-           [com.dynamo.graphics.proto Graphics$TextureImage]
+           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$CompressionType]
            [javax.imageio ImageIO]))
 
 (deftest gen-bytes
@@ -69,3 +69,23 @@
     (is (= "Default" (:name (tex-gen/match-texture-profile texture-profiles "/foo/bar.atlas"))))
     (is (= "Default" (:name (tex-gen/match-texture-profile texture-profiles "/foo/photos/not-a-png.atlas"))))
     (is (= "Photo"   (:name (tex-gen/match-texture-profile texture-profiles "/foo/photos/a-png.png"))))))
+
+(deftest keep-ktx2-format-without-format-alternatives
+  (let [bytes (with-open [stream (io/input-stream "../com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/ktx2/etc1s.ktx2")]
+                (.readAllBytes stream))
+        profile {:name "Keep"
+                 :platforms [{:os :os-id-generic
+                              :keep-ktx2-format true
+                              :mipmaps false
+                              :max-texture-size 4
+                              :premultiply-alpha false}]}
+        ^TextureGenerator$GenerateResult built (tex-gen/make-ktx2-texture-image bytes profile true false)
+        ^TextureGenerator$GenerateResult preview (tex-gen/make-ktx2-texture-image bytes profile false true)]
+    (is (= Graphics$TextureImage$CompressionType/COMPRESSION_TYPE_BASIS_ETC1S
+           (.. built textureImage (getAlternatives 0) getCompressionType)))
+    (is (= Graphics$TextureImage$CompressionType/COMPRESSION_TYPE_DEFAULT
+           (.. preview textureImage (getAlternatives 0) getCompressionType)))
+    (doseq [^TextureGenerator$GenerateResult result [built preview]]
+      (is (= 4 (.. result textureImage (getAlternatives 0) getWidth)))
+      (is (= 2 (.. result textureImage (getAlternatives 0) getHeight)))
+      (is (= 1 (count (.-imageDatas result)))))))

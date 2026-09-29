@@ -42,6 +42,7 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.pipeline.ModelImporterJni;
 import com.dynamo.bob.pipeline.ModelUtil;
 import com.dynamo.bob.pipeline.Modelimporter;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.gamesys.proto.ModelProto;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.google.protobuf.TextFormat;
@@ -979,6 +980,9 @@ public final class GltfContainer {
                 case "image/jpeg":
                     mimeExtension = "jpg";
                     break;
+                case "image/ktx2":
+                    mimeExtension = "ktx2";
+                    break;
                 default:
                     throw new IOException(String.format("unsupported image MIME type '%s'", mimeType));
             }
@@ -990,7 +994,7 @@ public final class GltfContainer {
             if ("jpeg".equals(uriExtension)) {
                 uriExtension = "jpg";
             }
-            if (!"png".equals(uriExtension) && !"jpg".equals(uriExtension)) {
+            if (!"png".equals(uriExtension) && !"jpg".equals(uriExtension) && !"ktx2".equals(uriExtension)) {
                 uriExtension = null;
             }
         }
@@ -1019,10 +1023,12 @@ public final class GltfContainer {
                 && (content[1] & 0xff) == 0xd8
                 && (content[2] & 0xff) == 0xff) {
             signatureExtension = "jpg";
+        } else if (TextureGenerator.isKtx2(content)) {
+            signatureExtension = "ktx2";
         }
 
         if (signatureExtension == null) {
-            throw new IOException("unsupported encoded image format; expected PNG or JPEG");
+            throw new IOException("unsupported encoded image format; expected PNG, JPEG, or KTX2");
         }
         if (mimeExtension != null && !mimeExtension.equals(signatureExtension)) {
             throw new IOException(String.format("image MIME type '%s' does not match encoded bytes", mimeType));
@@ -1035,7 +1041,7 @@ public final class GltfContainer {
     }
 
     private static String mimeTypeForExtension(String extension) {
-        return "png".equals(extension) ? "image/png" : "image/jpeg";
+        return "ktx2".equals(extension) ? "image/ktx2" : "png".equals(extension) ? "image/png" : "image/jpeg";
     }
 
     private static boolean isDataUri(String uri) {

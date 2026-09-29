@@ -78,7 +78,7 @@
    "font"          (constantly "font")
    "material"      (constantly "material")
    "buffer"        (constantly "buffer")
-   "texture"       (constantly (conj image/exts "cubemap" "render_target"))
+   "texture"       (constantly (conj image/exts "ktx2" "cubemap" "render_target"))
    "tile_source"   (constantly "tilesource")
    "render_target" (constantly "render_target")})
 

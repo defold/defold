@@ -42,10 +42,11 @@
   (children [_this] nil)
   (ext [_this] (resource/ext entry))
   (resource-type* [_this resource-types]
-    (assoc (resource/resource-type* entry resource-types)
-      :node-type EmbeddedImageNode
-      :load-fn load-embedded-image
-      :dependencies-fn embedded-image-dependencies))
+    (cond-> (assoc (resource/resource-type* entry resource-types)
+              :dependencies-fn embedded-image-dependencies)
+      (not= "ktx2" (resource/type-ext entry))
+      (assoc :node-type EmbeddedImageNode
+             :load-fn load-embedded-image)))
   (source-type [_this] :file)
   (exists? [_this] (resource/exists? entry))
   (read-only? [_this] true)
@@ -98,6 +99,9 @@
   (->connection [this] (io/input-stream this)))
 
 (core/register-record-type! EmbeddedImageResource)
+
+(defmethod resource/snapshot-dependencies EmbeddedImageResource [resource]
+  [(:buffer-path resource)])
 
 (defn asset-info
   "Returns glTF metadata attached to an embedded resource, or nil."

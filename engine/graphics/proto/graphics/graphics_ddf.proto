@@ -289,6 +289,12 @@ message PlatformProfile
     required bool mipmaps                       = 3;
     optional uint32 max_texture_size            = 4;
     optional bool premultiply_alpha             = 5 [default = true];
+    // Rebuild otherwise reusable compressed source levels using the selected preset.
+    optional bool recompress                    = 6 [default = false];
+    // Regenerate lower levels instead of retaining authored source mipmaps.
+    optional bool regenerate_mipmaps            = 7 [default = false];
+    // Use the source KTX2 compression format instead of the configured format alternatives.
+    optional bool keep_ktx2_format              = 8 [default = false];
 }
 
 message TextureProfile

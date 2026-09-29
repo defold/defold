@@ -750,6 +750,13 @@
                       (or ext (FilenameUtils/getExtension ^String path))
                       (if children :folder :file) children content data (editable? source) (loaded? source)))
 
+(defmulti snapshot-dependencies
+  "Returns resource paths whose file changes also invalidate this resource's contents."
+  class)
+
+(defmethod snapshot-dependencies :default [_resource]
+  nil)
+
 (defmulti expand
   "Expands a source Resource using only its input stream, dispatched by extension.
   Returns the source with its embedded Resource children. Must not read other files."
