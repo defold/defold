@@ -122,7 +122,7 @@
               :template "/extension.graphfree"
               :dependencies-fn (fn [read-opts owner-resource source-value]
                                  [((:resolve-proj-path-fn read-opts) owner-resource
-                                   (get-in source-value [:data "dependency"]))])))
+                                                                     (get-in source-value [:data "dependency"]))])))
           (let [resource-type (workspace/get-resource-type workspace "graphfree")
                 write-fn (:write-fn resource-type)
                 default-data {"default" "extension" "kept" true "dependency" "dependency.graphfree"}]

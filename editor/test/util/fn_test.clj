@@ -548,7 +548,6 @@
     (is (identical? (name `defined-function) (name (fn/declared-symbol defined-function))))
     (is (identical? (namespace `defined-function) (namespace (fn/declared-symbol defined-function))))))
 
-
 (deftest make-case-fn-test
   (let [case-fn (fn/make-case-fn {:a 1 :b 2 nil nil})]
 

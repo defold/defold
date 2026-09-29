@@ -345,8 +345,8 @@
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes)
                                      (:tiles-per-column tile-source-attributes))]
     (TextureSetGenerator/calculateLayoutResult
-     image-rects
-     (:margin tile-source-attributes)
-     (:inner-padding tile-source-attributes)
-     (:extrude-borders tile-source-attributes)
-     false true grid 0.0 0.0)))
+      image-rects
+      (:margin tile-source-attributes)
+      (:inner-padding tile-source-attributes)
+      (:extrude-borders tile-source-attributes)
+      false true grid 0.0 0.0)))

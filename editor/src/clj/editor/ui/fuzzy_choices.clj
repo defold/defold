@@ -102,8 +102,8 @@
 (defn- make-text-run-cljfx [text style-class]
   (cond-> {:fx/type fx.text/lifecycle
            :text text}
-          style-class
-          (assoc :style-class style-class)))
+    style-class
+    (assoc :style-class style-class)))
 
 (defn- matched-text-runs-cljfx [^String text matching-indices]
   (let [/ (inc (.lastIndexOf text "/"))]

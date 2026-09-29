@@ -23,15 +23,15 @@
 
 (handler/defhandler :run.open-profiler :global
   (run [web-server prefs]
-       (if (nil? (:address (targets/selected-target prefs)))
-         (ui/open-url (format "%s/engine-profiler" (http-server/local-url web-server)))
-         (ui/open-url (format "%s/engine-profiler?addr=%s:%d" (http-server/local-url web-server) (:address (targets/selected-target prefs)) port)))))
+    (if (nil? (:address (targets/selected-target prefs)))
+      (ui/open-url (format "%s/engine-profiler" (http-server/local-url web-server)))
+      (ui/open-url (format "%s/engine-profiler?addr=%s:%d" (http-server/local-url web-server) (:address (targets/selected-target prefs)) port)))))
 
 (handler/defhandler :run.open-resource-profiler :global
   (enabled? [prefs] (some? (targets/selected-target prefs)))
   (run [prefs]
-       (let [address (:address (targets/selected-target prefs))]
-         (ui/open-url (format "http://%s:8002/" address)))))
+    (let [address (:address (targets/selected-target prefs))]
+      (ui/open-url (format "http://%s:8002/" address)))))
 
 (defn routes []
   {"/engine-profiler/{*path}"

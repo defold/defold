@@ -106,17 +106,17 @@
         conn ^HttpURLConnection (get-connection uri)
         instance-index (:instance-index target)
         args (cond-> [(str "--config=resource.uri=" local-url)]
-                     debug
-                     (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
+               debug
+               (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
 
-                     true
-                     (conj (str local-url "/game.projectc"))
+               true
+               (conj (str local-url "/game.projectc"))
 
-                     (and instance-index (> instance-index 0))
-                     (conj (format "--config=project.instance_index=%d" instance-index))
+               (and instance-index (> instance-index 0))
+               (conj (format "--config=project.instance_index=%d" instance-index))
 
-                     (not focus)
-                     (conj "--config=display.focus_on_show=0"))]
+               (not focus)
+               (conj "--config=display.focus_on_show=0"))]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -308,21 +308,21 @@
         command (.getAbsolutePath engine)
         engine-arguments (prefs/get prefs [:run :engine-arguments])
         args (cond-> []
-                     defold-log-dir
-                     (into ["--config=project.write_log=1"
-                            (format "--config=project.log_dir=%s" defold-log-dir)])
+               defold-log-dir
+               (into ["--config=project.write_log=1"
+                      (format "--config=project.log_dir=%s" defold-log-dir)])
 
-                     debug
-                     (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
+               debug
+               (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
 
-                     (> instance-index 0)
-                     (conj (format "--config=project.instance_index=%d" instance-index))
+               (> instance-index 0)
+               (conj (format "--config=project.instance_index=%d" instance-index))
 
-                     (not focus)
-                     (conj "--config=display.focus_on_show=0")
+               (not focus)
+               (conj "--config=display.focus_on_show=0")
 
-                     (not (str/blank? engine-arguments))
-                     (into (remove str/blank?) (split-lines engine-arguments)))
+               (not (str/blank? engine-arguments))
+               (into (remove str/blank?) (split-lines engine-arguments)))
         env {"DM_SERVICE_PORT" (or (validate-service-port (System/getenv "DM_SERVICE_PORT"))
                                    "dynamic")
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])

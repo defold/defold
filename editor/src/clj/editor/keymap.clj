@@ -796,15 +796,15 @@
            shortcut-modifier (= KeyCombination$ModifierValue/DOWN (.getShortcut shortcut))]
        (if (= os :macos)
          (cond-> sb
-                 control (.append "⌃")
-                 alt (.append "⌥")
-                 shift (.append "⇧")
-                 (or meta shortcut-modifier) (.append "⌘"))
+           control (.append "⌃")
+           alt (.append "⌥")
+           shift (.append "⇧")
+           (or meta shortcut-modifier) (.append "⌘"))
          (cond-> sb
-                 (or control shortcut-modifier) (.append "Ctrl+")
-                 alt (.append "Alt+")
-                 shift (.append "Shift+")
-                 meta (.append "Meta+")))
+           (or control shortcut-modifier) (.append "Ctrl+")
+           alt (.append "Alt+")
+           shift (.append "Shift+")
+           meta (.append "Meta+")))
        (let [char-str (.getCharacter ^KeyCharacterCombination shortcut)]
          (if (= "'" char-str)
            (.append sb "\"'\"")
@@ -825,20 +825,20 @@
      ;; See https://github.com/microsoft/vscode/blob/7ec68793e7d971def8c2ea3f669b8f85ebc726a4/src/vs/base/common/keybindingLabels.ts#L130-L152
      (case os
        :macos (cond-> sb
-                      control (.append "Ctrl+")
-                      alt (.append "Alt+")
-                      shift (.append "Shift+")
-                      (or meta shortcut-modifier) (.append "Cmd+"))
+                control (.append "Ctrl+")
+                alt (.append "Alt+")
+                shift (.append "Shift+")
+                (or meta shortcut-modifier) (.append "Cmd+"))
        :win32 (cond-> sb
-                      (or control shortcut-modifier) (.append "Ctrl+")
-                      alt (.append "Alt+")
-                      shift (.append "Shift+")
-                      meta (.append "Win+"))
+                (or control shortcut-modifier) (.append "Ctrl+")
+                alt (.append "Alt+")
+                shift (.append "Shift+")
+                meta (.append "Win+"))
        :linux (cond-> sb
-                      (or control shortcut-modifier) (.append "Ctrl+")
-                      alt (.append "Alt+")
-                      shift (.append "Shift+")
-                      meta (.append "Meta+")))
+                (or control shortcut-modifier) (.append "Ctrl+")
+                alt (.append "Alt+")
+                shift (.append "Shift+")
+                meta (.append "Meta+")))
      (condp instance? shortcut
        KeyCharacterCombination
        (.append sb (.getCharacter ^KeyCharacterCombination shortcut))

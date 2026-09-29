@@ -49,13 +49,13 @@
         ; Several tracks can target the same bone, but there should not be
         ; multiple tracks that target the same channel for a bone.
         (doseq [[bone-id data-by-channel] (->> (:tracks animation)
-                                                  (group-by :bone-id)
-                                                  (sort-by key)
-                                                  (map (fn [[bone-id bone-tracks]]
-                                                         [bone-id (->> bone-tracks
-                                                                          (map #(dissoc % :bone-id))
-                                                                          (map remove-empty-channels)
-                                                                          (apply merge-with (constantly ::conflicting-data)))])))]
+                                               (group-by :bone-id)
+                                               (sort-by key)
+                                               (map (fn [[bone-id bone-tracks]]
+                                                      [bone-id (->> bone-tracks
+                                                                    (map #(dissoc % :bone-id))
+                                                                    (map remove-empty-channels)
+                                                                    (apply merge-with (constantly ::conflicting-data)))])))]
 
           (testing "Channels are not animated by multiple tracks"
             (doseq [[channel data] data-by-channel]
@@ -64,14 +64,14 @@
 
           (testing "Channel data matches expected strides"
             (are [stride channel]
-                 (= 0 (mod (count (data-by-channel channel)) stride))
+              (= 0 (mod (count (data-by-channel channel)) stride))
               3 :positions
               4 :rotations
               3 :scale))
 
           (testing "At least one key per channel"
             (are [stride channel]
-                 (<= stride (count (data-by-channel channel)))
+              (<= stride (count (data-by-channel channel)))
               3 :positions
               4 :rotations
               3 :scale)))))))

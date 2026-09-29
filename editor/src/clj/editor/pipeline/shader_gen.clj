@@ -127,9 +127,9 @@
                  :shader-source shader-source
                  :max-page-count max-page-count}
 
-                (coll/not-empty extra-key-value-pairs)
-                (into (partition-all 2)
-                      extra-key-value-pairs))]
+          (coll/not-empty extra-key-value-pairs)
+          (into (partition-all 2)
+                extra-key-value-pairs))]
 
     (ex-info ex-message ex-map cause)))
 
