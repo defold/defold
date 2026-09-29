@@ -40,14 +40,14 @@ def main():
     parser.add_argument("--build", type=Path, default=ROOT / "engine/data/build/unity")
     parser.add_argument("--output", type=Path, default=RESULTS / "unity")
     parser.add_argument("--reference", type=Path, default=RESULTS, help="Existing core/threaded benchmark results")
-    parser.add_argument("--threaded-validation", choices=("unity-safety",), help="Explicit exception to the TSAN policy: Unity Jobs/Burst safety checks, not TSAN")
+    parser.add_argument("--core-only", action="store_true", help="Run only the seven standalone cases; otherwise include the threaded workload")
     args = parser.parse_args()
     args.editor = args.editor.resolve()
     args.build = args.build.resolve()
     args.output = args.output.resolve()
     args.build.mkdir(parents=True, exist_ok=True)
     core = json.loads((args.reference / "core/run.json").read_text())
-    threaded = json.loads((args.reference / "threaded/manifest.json").read_text()) if args.threaded_validation else None
+    threaded = None if args.core_only else json.loads((args.reference / "threaded/manifest.json").read_text())
     rows, samples = core["rows"], core["samples"]
     if rows < 1000 or rows % 1000:
         parser.error("The shared fixture requires at least 1,000 rows in multiples of 1,000")
@@ -73,15 +73,14 @@ def main():
         if result.returncode:
             raise RuntimeError(f"Unity exited {result.returncode}; see {log}")
 
-    def build(validation):
-        name = "validation" if validation else "release"
+    def build():
+        name = "release"
         app = args.build / (name + ".app")
         log = args.build / (name + "-build.log")
-        env = {"UNITY_BURST_ENABLE_SAFETY_CHECKS_IN_PLAYER_BUILD": "1"} if validation else {}
         print(f"Building Unity {name} player (IL2CPP + Burst)", flush=True)
         execute([args.editor, "-batchmode", "-nographics", "-quit", "-projectPath", PROJECT,
                  "-executeMethod", "Defold.Data.Benchmarks.BenchmarkBuild.Build", "-benchmark-build", app,
-                 "-benchmark-validation", str(validation).lower(), "-logFile", log], args.build / (name + "-editor.log"), env)
+                 "-logFile", log], args.build / (name + "-editor.log"))
         if "BENCHMARK BUILD PASSED" not in log.read_text():
             raise ValueError(f"Build completion marker missing: {log}")
         info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
@@ -91,7 +90,11 @@ def main():
     def run(binary, validation, mode, workers=1):
         name = ("validation-" if validation else "") + mode + (f"-{workers}" if mode == "threaded" else "")
         csv_path, log = run_dir / (name + ".csv"), run_dir / (name + ".log")
-        command = [binary, "-batchmode", "-nographics", "-logFile", log, "-job-worker-count", workers,
+        command = [binary, "-batchmode", "-nographics"]
+        if validation:
+            command += ["-quit", "-projectPath", PROJECT,
+                        "-executeMethod", "Defold.Data.Benchmarks.BenchmarkBuild.Validate"]
+        command += ["-logFile", log, "-job-worker-count", workers,
                    "-benchmark-mode", mode, "-benchmark-output", csv_path, "-benchmark-rows", rows,
                    "-benchmark-samples", 1 if validation else samples, "-benchmark-validation", str(validation).lower()]
         if mode == "threaded":
@@ -102,17 +105,18 @@ def main():
         config = f"Burst=active; collections_safety={validation}; development={validation}"
         if "BENCHMARK PASSED" not in text or f"Benchmark Unity={version};" not in text or config not in text or re.search(r"Exception:|Assertion failed|InvalidOperationException", text):
             raise ValueError(f"Unity validation/configuration failed: {log}")
+        if validation and "BENCHMARK SAFETY: burst_force=True" not in text:
+            raise ValueError(f"Forced Burst safety checks missing: {log}")
         return csv_path.read_text()
 
-    validation_app, validation_binary = build(True)
     reference = read_csv((args.reference / "core/data-timing.csv").read_text())
-    validate_unity_core(read_csv(run(validation_binary, True, "core")), reference, rows, 1)
+    validate_unity_core(read_csv(run(args.editor, True, "core")), reference, rows, 1)
     if threaded:
         reference_threaded = read_csv((args.reference / "threaded/timing.csv").read_text())
         for workers in threaded["workers"]:
-            validate_unity_threaded(read_csv(run(validation_binary, True, "threaded", workers)), reference_threaded, threaded, [workers])
+            validate_unity_threaded(read_csv(run(args.editor, True, "threaded", workers)), reference_threaded, threaded, [workers])
 
-    release_app, release_binary = build(False)
+    release_app, release_binary = build()
     # Check the actual shipped executable, Burst code and IL2CPP binary. Library
     # names differ between Unity versions, so inspect all Mach-O files in the app.
     binaries = {}
@@ -151,7 +155,7 @@ def main():
         "platform": platform.platform(), "unity": version, "packages": packages,
         "configuration": "macOS arm64 standalone player; IL2CPP Release; Burst AOT; strict floating point; no development/safety/sanitizer instrumentation; no memory measurements",
         "memory_measured": False, "sanitizer": "none", "safety_checks": False,
-        "validation": {"core": "Unity development player with Collections/Jobs and forced Burst safety checks; per-row, count, hit and checksum validation",
+        "validation": {"core": "Unity editor with Collections/Jobs and forced Burst safety checks; per-row, count, hit and checksum validation",
                        "threaded": "unity-safety" if threaded else None,
                        "note": "Unity's prebuilt Jobs runtime is not TSAN-instrumented. Safety validation is separate from timings."},
         "threaded": {"frames": threaded["frames"], "warmup": threaded["warmup"], "workers": threaded["workers"]} if threaded else None,

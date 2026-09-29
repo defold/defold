@@ -1091,8 +1091,8 @@ are also available as Markdown for viewers that display HTML as source.
 
 ## Unity DOTS timing benchmark
 
-[`src/test/unity`](src/test/unity) is a minimal Unity 6000.5.7f1 project with
-Entities 1.4.8, Burst 1.8.29, Collections 2.6.8 and Mathematics 1.3.2. It uses the
+[`src/test/unity`](src/test/unity) is a minimal Unity 6000.6.3f1 project with
+Entities 6.6.0, Burst 2.0.0, Collections 6.6.0 and Mathematics 1.4.0. It uses the
 same seven standalone workloads and seeded fixture as the core suite. The
 threaded implementation includes the four updates, mixed-content replacement and
 enemy waves. Unity is excluded from memory tests and library-size measurements.
@@ -1101,22 +1101,21 @@ Run on macOS arm64 with an activated Unity license and Mac IL2CPP build support:
 
 ```sh
 python3 engine/data/src/test/run_unity_benchmark.py \
-  --editor /Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/MacOS/Unity
+  --editor /Applications/Unity/Hub/Editor/6000.6.3f1/Unity.app/Contents/MacOS/Unity
 ```
 
-The runner builds a development player for correctness/safety validation, then a
-separate optimized IL2CPP/Burst player for timing. It takes population and sample
-counts from the existing core run, verifies cross-backend counts/hits/checksums,
+The runner validates correctness in the editor with Collections/Jobs checks and
+forced Burst safety checks, then builds an optimized IL2CPP/Burst player for timing.
+It takes population and sample counts from the existing core run, verifies cross-backend counts/hits/checksums,
 and publishes `benchmarks/unity/run.json` and CSVs only after validation succeeds.
 Unity startup and per-row validation are excluded from timings. Build/player logs
 and incomplete runs stay in `build/unity`. No license activation is automated.
 
-To include the eighth workload, explicitly enable `--threaded-validation unity-safety`
-**only after accepting that exception to the TSAN requirement**. Unity's prebuilt
-Jobs runtime is not TSAN-instrumented. This mode validates all frames and worker
-counts in a separate development player with Collections/Jobs checks and forced
-Burst safety checks before collecting release timings. The report identifies
-this difference; it never describes Unity as TSAN-validated.
+All eight workloads run by default; use `--core-only` for the seven standalone cases.
+The threaded workload validates all frames and worker counts in separate editor
+runs with Collections/Jobs checks and forced Burst safety checks before collecting
+release timings. TSAN is required for the Defold library, not Unity. The report
+records Unity's validation separately and never describes it as TSAN-validated.
 
 Each case's queries and traversal live together under `Assets/Benchmark`.
 `BenchmarkThreaded.cs` uses read/write component masks to derive `JobHandle`

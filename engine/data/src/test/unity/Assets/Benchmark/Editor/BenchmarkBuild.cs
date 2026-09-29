@@ -12,6 +12,7 @@
 
 using System;
 using System.IO;
+using Unity.Burst;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -22,10 +23,19 @@ namespace Defold.Data.Benchmarks
 {
     public static class BenchmarkBuild
     {
+        public static void Validate()
+        {
+            BurstCompiler.Options.EnableBurstCompilation = true;
+            BurstCompiler.Options.EnableBurstCompileSynchronously = true;
+            BurstCompiler.Options.EnableBurstSafetyChecks = true;
+            BurstCompiler.Options.ForceEnableBurstSafetyChecks = true;
+            Debug.Log($"BENCHMARK SAFETY: burst_force={BurstCompiler.Options.ForceEnableBurstSafetyChecks}");
+            BenchmarkMain.Run();
+        }
+
         public static void Build()
         {
             string output = BenchmarkMain.Argument("-benchmark-build", "Builds/Benchmark.app");
-            bool safety = BenchmarkMain.Argument("-benchmark-validation", "false") == "true";
             PlayerSettings.companyName = "Defold";
             PlayerSettings.productName = "ECS Benchmark";
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.IL2CPP);
@@ -43,7 +53,7 @@ namespace Defold.Data.Benchmarks
                                      locationPathName = Path.GetFullPath(output),
                                      target = BuildTarget.StandaloneOSX,
                                      extraScriptingDefines = new[] { "UNITY_DISABLE_AUTOMATIC_SYSTEM_BOOTSTRAP" },
-                                     options = safety ? BuildOptions.Development : BuildOptions.None };
+                                     options = BuildOptions.None };
             BuildReport result = BuildPipeline.BuildPlayer(options);
             if (result.summary.result != BuildResult.Succeeded)
                 throw new Exception("Unity benchmark build failed: " + result.summary.result);
@@ -51,7 +61,7 @@ namespace Defold.Data.Benchmarks
             using (var versions =
                    new StreamWriter(Path.GetFullPath(output) + ".packages.txt")) foreach (var package in packages)
             versions.WriteLine(package.name + "=" + package.version);
-            Debug.Log($"BENCHMARK BUILD PASSED: {output}; safety={safety}");
+            Debug.Log($"BENCHMARK BUILD PASSED: {output}");
         }
     }
 }

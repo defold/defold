@@ -56,7 +56,7 @@ namespace Defold.Data.Benchmarks
             var removed = new int[fixture.Capacity];
             using var writer = new StreamWriter(output);
             writer.WriteLine(
-            "# sanitizer=none; Unity Jobs/Burst; safety validation uses a separate development player; memory not " +
+            "# sanitizer=none; Unity Jobs/Burst; safety validation uses a separate editor run; memory not " +
             "measured");
             writer.WriteLine(
             "backend,workers,frame,live_rows,frame_us,mutation_us,admission_order,light_sum,content_spawned,content_" +

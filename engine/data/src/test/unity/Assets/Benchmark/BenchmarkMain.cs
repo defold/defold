@@ -28,39 +28,7 @@ namespace Defold.Data.Benchmarks
         {
             try
             {
-                CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-                string mode = Argument("-benchmark-mode", "core");
-                string output = Argument("-benchmark-output", "unity-timing.csv");
-                int rows = int.Parse(Argument("-benchmark-rows", "1000000"));
-                int samples = int.Parse(Argument("-benchmark-samples", "7"));
-                Values.Check(rows >= 1000 && rows % 1000 == 0 && samples > 0, "invalid benchmark size");
-                using var probe = new NativeArray<int>(1, Allocator.Persistent);
-                new BurstProbe { Result = probe }.Run();
-                Values.Check(probe[0] == 1, "Burst must be enabled; managed fallback is not a timing result");
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                const bool safety = true;
-#else
-                const bool safety = false;
-#endif
-                Debug.Log(
-                $"Benchmark Unity={Application.unityVersion}; Burst=active; collections_safety={safety}; development={Debug.isDebugBuild}");
-                bool validation = Argument("-benchmark-validation", "false") == "true";
-                Values.Check(safety == validation && Debug.isDebugBuild == validation,
-                             "player safety/development configuration differs from requested mode");
-                if (mode == "core")
-                    Core.Run(output, rows, samples);
-                else if (mode == "threaded")
-                {
-                    int frames = int.Parse(Argument("-benchmark-frames", "32"));
-                    int workers = int.Parse(Argument("-job-worker-count", "1"));
-                    Values.Check(frames > 0 && frames <= 1000 &&
-                                 (workers == 1 || workers == 2 || workers == 4 || workers == 8),
-                                 "invalid frames/workers");
-                    Threaded.Run(output, rows, frames, workers);
-                }
-                else
-                    throw new ArgumentException("Unknown benchmark mode: " + mode);
-                Debug.Log("BENCHMARK PASSED");
+                Run();
                 Application.Quit(0);
             }
             catch (Exception error)
@@ -69,6 +37,43 @@ namespace Defold.Data.Benchmarks
                 Application.Quit(1);
             }
         }
+        public static void Run()
+        {
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            string mode = Argument("-benchmark-mode", "core");
+            string output = Argument("-benchmark-output", "unity-timing.csv");
+            int rows = int.Parse(Argument("-benchmark-rows", "1000000"));
+            int samples = int.Parse(Argument("-benchmark-samples", "7"));
+            Values.Check(rows >= 1000 && rows % 1000 == 0 && samples > 0, "invalid benchmark size");
+            using var probe = new NativeArray<int>(1, Allocator.Persistent);
+            new BurstProbe { Result = probe }.Run();
+            Values.Check(probe[0] == 1, "Burst must be enabled; managed fallback is not a timing result");
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            const bool safety = true;
+#else
+            const bool safety = false;
+#endif
+            Debug.Log(
+            $"Benchmark Unity={Application.unityVersion}; Burst=active; collections_safety={safety}; development={Debug.isDebugBuild}");
+            bool validation = Argument("-benchmark-validation", "false") == "true";
+            Values.Check(safety == validation && Debug.isDebugBuild == validation,
+                         "player safety/development configuration differs from requested mode");
+            if (mode == "core")
+                Core.Run(output, rows, samples);
+            else if (mode == "threaded")
+            {
+                int frames = int.Parse(Argument("-benchmark-frames", "32"));
+                int workers = int.Parse(Argument("-job-worker-count", "1"));
+                Values.Check(frames > 0 && frames <= 1000 &&
+                             (workers == 1 || workers == 2 || workers == 4 || workers == 8),
+                             "invalid frames/workers");
+                Threaded.Run(output, rows, frames, workers);
+            }
+            else
+                throw new ArgumentException("Unknown benchmark mode: " + mode);
+            Debug.Log("BENCHMARK PASSED");
+        }
+
         public static string Argument(string name, string fallback)
         {
             string[] args = Environment.GetCommandLineArgs();
