@@ -589,8 +589,11 @@
                  (generic-contains-toggles windows :symbols ["GraphicsAdapterVulkan"]))
         dx12 (concat
                (libs-toggles windows ["graphics_dx12"])
-               ;; Windows SDK libraries do not use the engine library prefix.
-               (generic-contains-toggles windows :libs ["D3D12" "DXGI" "d3dcompiler"])
+               ;; Preserve SDK filenames; also recognize the previously written bare names.
+               (for [platform windows
+                     library ["D3D12" "DXGI" "d3dcompiler"]]
+                 (contains-toggle platform :libs (str library ".lib")
+                                  [(str library ".lib") library]))
                (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"]))
         exclude-open-gl (concat
                           (exclude-libs-toggles windows ["graphics"])
