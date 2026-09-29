@@ -2425,6 +2425,10 @@ TEST_F(ModelTest, MeshAttributeRenderDataPurge)
 
 TEST_F(ModelTest, MeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap)
 {
+    // Rendering with the model material and an override creates two attribute cache
+    // entries. Both must stay initialized while used every frame, including past
+    // the old 7-bit counter limit (127) and the frame tick wrap from 254 to 0.
+    // After they expire, rendering again must reuse their slots so the cache stays bounded.
     dmGameSystem::MaterialResource* override_material_resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/material_local_vertexspace.materialc", (void**) &override_material_resource));
 
@@ -2446,6 +2450,8 @@ TEST_F(ModelTest, MeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap
         uint32_t initialized_count = 0;
         if (frame > 0)
         {
+            // Check before drawing: rendering could recreate an incorrectly purged
+            // entry and hide the lifetime bug from the assertions after drawing.
             ASSERT_EQ(2u, dmGameSystem::GetModelComponentAttributeRenderDataCount(component, &initialized_count));
             ASSERT_EQ(2u, initialized_count);
         }
@@ -2495,6 +2501,9 @@ TEST_F(ModelTest, MeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap
 
 TEST_F(ModelTest, MeshAttributeRenderDataPurgeAcrossFrameTickWrap)
 {
+    // An entry last used near the end of the tick range must still expire after
+    // more than 30 unused ticks, even when the counter wraps from 254 to 0.
+    // Ordinary subtraction would produce a negative age after wrap and delay cleanup.
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
@@ -2517,13 +2526,15 @@ TEST_F(ModelTest, MeshAttributeRenderDataPurgeAcrossFrameTickWrap)
     dmGraphics::HVertexDeclaration inst_decl;
 
     // The entry is still current on tick 240 and must survive this update.
+    // This also catches truncation of the last-used tick to the old 7-bit field.
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     dmGameSystem::GetModelComponentAttributeRenderData(component, 0, &vx_buffer, &vx_decl, &inst_decl);
     ASSERT_NE((dmGraphics::HVertexBuffer)0, vx_buffer);
     ASSERT_NE((dmGraphics::HVertexDeclaration)0, vx_decl);
 
-    // Advance through 254 -> 0 until the modular age exceeds the purge limit.
+    // Advance without rendering through 254 -> 0 until the modular age exceeds
+    // the purge limit, then verify that the cached GPU resources were released.
     for (uint32_t i = 0; i < 31; ++i)
     {
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
