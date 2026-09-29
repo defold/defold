@@ -581,6 +581,7 @@ public class ShaderProgramBuilder extends Builder {
             for (Shaderc.HLSLResourceMapping mapping : result.hLSLResourceMappings) {
                 ShaderDesc.HLSLResourceMapping.Builder hlslResourceMappingBuilder = ShaderDesc.HLSLResourceMapping.newBuilder();
                 hlslResourceMappingBuilder.setNameHash(mapping.nameHash);
+                hlslResourceMappingBuilder.setRootParameterIndex(mapping.rootParameterIndex);
                 hlslResourceMappingBuilder.setBinding(mapping.shaderResourceBinding);
                 hlslResourceMappingBuilder.setSet(mapping.shaderResourceSet);
                 builder.addHlslResourceMapping(hlslResourceMappingBuilder);

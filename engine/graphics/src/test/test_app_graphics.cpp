@@ -27,6 +27,12 @@
 #include <dlib/time.h>
 
 #include "test_app_graphics.h"
+#include "test_app_graphics_parity.h"
+#include <vector>
+#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
+#include <d3d12.h>
+#include <d3dcompiler.h>
+#endif
 
 #if defined(DM_GRAPHICS_DAWN)
 #include "../webgpu/graphics_webgpu_private.h"
@@ -243,6 +249,128 @@ struct ClearBackbufferTest : ITest
     }
 };
 
+
+// Same asymmetric image on all desktop adapters; validates orientation as well as BGRA channels.
+struct RasterParityTest : ITest
+{
+    dmGraphics::HProgram           m_Program = 0;
+    dmGraphics::HVertexBuffer      m_Vertices = 0;
+    dmGraphics::HVertexDeclaration m_Declaration = 0;
+    std::vector<uint8_t>           m_Pixels;
+    void                           Initialize(EngineCtx* engine) override
+    {
+        using namespace dmGraphics;
+        ShaderDesc  desc = {};
+        const char* vs = "#version 330\nin vec2 pos;out vec2 uv;void main(){gl_Position=vec4(pos,0,1);uv=pos*0.5+0.5;}";
+        const char* fs = "#version 330\nin vec2 uv;out vec4 color;void main(){color=vec4(step(0.5,uv.x),step(0.5,uv.y),1,1);}";
+        AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*)vs, strlen(vs));
+        AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*)fs, strlen(fs));
+        AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*)parity_vert, sizeof(parity_vert));
+        AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*)parity_frag, sizeof(parity_frag));
+#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
+        ID3DBlob* vertex = 0;
+        ID3DBlob* fragment = 0;
+        ID3DBlob* root = 0;
+        if (GetInstalledAdapterFamily() == ADAPTER_FAMILY_DIRECTX)
+        {
+            const char* hlsl_vs = "struct Out{float4 p:SV_Position;float2 uv:TEXCOORD0;}; Out main(float2 pos:TEXCOORD0){Out o;o.p=float4(pos,0,1);o.uv=pos*0.5+0.5;return o;}";
+            const char* hlsl_fs = "float4 main(float4 p:SV_Position,float2 uv:TEXCOORD0):SV_Target{return float4(step(0.5,uv.x),step(0.5,uv.y),1,1);}";
+            HRESULT     hr = D3DCompile(hlsl_vs, strlen(hlsl_vs), 0, 0, 0, "main", "vs_5_1", 0, 0, &vertex, 0);
+            if (SUCCEEDED(hr))
+                hr = D3DCompile(hlsl_fs, strlen(hlsl_fs), 0, 0, 0, "main", "ps_5_1", 0, 0, &fragment, 0);
+            D3D12_ROOT_SIGNATURE_DESC signature = {};
+            signature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+            if (SUCCEEDED(hr))
+                hr = D3D12SerializeRootSignature(&signature, D3D_ROOT_SIGNATURE_VERSION_1, &root, 0);
+            if (SUCCEEDED(hr))
+            {
+                AddShader(&desc, ShaderDesc::LANGUAGE_HLSL_51, ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*)vertex->GetBufferPointer(), vertex->GetBufferSize());
+                AddShader(&desc, ShaderDesc::LANGUAGE_HLSL_51, ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*)fragment->GetBufferPointer(), fragment->GetBufferSize());
+                desc.m_HlslRootSignature.m_Data = (uint8_t*)root->GetBufferPointer();
+                desc.m_HlslRootSignature.m_Count = root->GetBufferSize();
+            }
+            else
+                engine->m_Failed = true;
+        }
+#endif
+        AddShaderResource(&desc, "pos", ShaderDesc::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+        char error[1024] = {};
+        m_Program = NewProgram(engine->m_GraphicsContext, &desc, error, sizeof(error));
+        if (!m_Program)
+        {
+            dmLogError("Raster parity shader: %s", error);
+            engine->m_Failed = true;
+        }
+        DeleteShaderDesc(&desc);
+#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
+        if (vertex)
+            vertex->Release();
+        if (fragment)
+            fragment->Release();
+        if (root)
+            root->Release();
+#endif
+        const float vertices[] = { -1, -1, -1, 3, 3, -1 };
+        m_Vertices = NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertices), vertices, BUFFER_USAGE_STATIC_DRAW);
+        HVertexStreamDeclaration streams = NewVertexStreamDeclaration(engine->m_GraphicsContext);
+        AddVertexStream(streams, "pos", 2, TYPE_FLOAT, false);
+        m_Declaration = NewVertexDeclaration(engine->m_GraphicsContext, streams);
+        DeleteVertexStreamDeclaration(streams);
+    }
+    void Capture(EngineCtx* engine)
+    {
+        using namespace dmGraphics;
+        uint32_t width = GetWindowWidth(engine->m_GraphicsContext), height = GetWindowHeight(engine->m_GraphicsContext);
+        m_Pixels.assign(width * height * 4, 0);
+        ReadPixels(engine->m_GraphicsContext, 0, 0, width, height, m_Pixels.data(), m_Pixels.size());
+        for (uint32_t y = 0; y < height; ++y)
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                uint8_t* p = m_Pixels.data() + (y * width + x) * 4;
+                if (p[0] != 255 || p[1] != (y < height / 2 ? 255 : 0) || p[2] != (x >= width / 2 ? 255 : 0) || p[3] != 255)
+                {
+                    dmLogError("Raster parity mismatch at %u,%u: BGRA=%u,%u,%u,%u", x, y, p[0], p[1], p[2], p[3]);
+                    engine->m_Failed = true;
+                    engine->m_Running = false;
+                    return;
+                }
+            }
+        const char* path = getenv("DEFOLD_TEST_CAPTURE");
+        if (path && engine->m_WasRun == 3)
+        {
+            FILE* file = fopen(path, "wb");
+            if (file)
+            {
+                fwrite(m_Pixels.data(), 1, m_Pixels.size(), file);
+                fclose(file);
+            }
+            else
+                engine->m_Failed = true;
+        }
+    }
+    void Execute(EngineCtx* engine) override
+    {
+        using namespace dmGraphics;
+        SetViewport(engine->m_GraphicsContext, 0, 0, GetWindowWidth(engine->m_GraphicsContext), GetWindowHeight(engine->m_GraphicsContext));
+        DisableState(engine->m_GraphicsContext, STATE_CULL_FACE);
+        DisableState(engine->m_GraphicsContext, STATE_DEPTH_TEST);
+        Clear(engine->m_GraphicsContext, BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 0, 1, 0);
+        EnableProgram(engine->m_GraphicsContext, m_Program);
+        EnableVertexBuffer(engine->m_GraphicsContext, m_Vertices, 0);
+        EnableVertexDeclaration(engine->m_GraphicsContext, m_Declaration, 0, 0, m_Program);
+        Draw(engine->m_GraphicsContext, PRIMITIVE_TRIANGLES, 0, 3, 1);
+        // Vulkan's readback uses a separate command buffer and needs the frame submitted first.
+        if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_VULKAN)
+            Capture(engine);
+    }
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        dmGraphics::DisableProgram(engine->m_GraphicsContext);
+        dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::DeleteVertexBuffer(m_Vertices);
+        dmGraphics::DeleteVertexDeclaration(m_Declaration);
+    }
+};
 #if defined(DM_GRAPHICS_DAWN)
 #if defined(DM_PLATFORM_MACOS)
 bool WebGPUIsDisplaySyncEnabled();
@@ -1627,6 +1755,11 @@ static void* EngineCreate(int argc, char** argv)
     {
         window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_WEBGPU;
     }
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_DIRECTX)
+    {
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    }
+    if (HasArgument("msaa")) window_params.m_Samples = 4;
 
     WindowResult wr = dmPlatform::OpenWindow(engine->m_Window, window_params);
     if (WINDOW_RESULT_OK != wr)
@@ -1635,7 +1768,7 @@ static void* EngineCreate(int argc, char** argv)
         return 0;
     }
 
-    dmPlatform::ShowWindow(engine->m_Window);
+    if (!HasArgument("headless")) dmPlatform::ShowWindow(engine->m_Window);
 
     JobSystemCreateParams job_thread_create_param = {0};
     job_thread_create_param.m_ThreadCount = HasArgument("issue-12878") &&
@@ -1649,6 +1782,7 @@ static void* EngineCreate(int argc, char** argv)
 #if defined(DM_VULKAN_VALIDATION)
     graphics_context_params.m_UseValidationLayers     = 1;
 #endif
+    if (HasArgument("validate")) graphics_context_params.m_UseValidationLayers = 1;
     graphics_context_params.m_Window                  = engine->m_Window;
     graphics_context_params.m_Width                   = 512;
     graphics_context_params.m_Height                  = 512;
@@ -1673,7 +1807,12 @@ static void* EngineCreate(int argc, char** argv)
         engine->m_Failed = true;
     }
 
-    if (HasArgument("depth-texture"))
+    if (HasArgument("raster-parity"))
+    {
+        dmLogInfo("test_app_graphics: running RasterParityTest");
+        engine->m_Test = new RasterParityTest();
+    }
+    else if (HasArgument("depth-texture"))
     {
         dmLogInfo("test_app_graphics: running DepthTextureTest");
         engine->m_Test = new DepthTextureTest();
@@ -1783,7 +1922,18 @@ static UpdateResult EngineUpdate(void* _engine)
 
     JobSystemUpdate(engine->m_JobContext, 0);
 
+    if (HasArgument("resize") && engine->m_WasRun % 10 == 0)
+    {
+        const uint32_t size = 256 + (engine->m_WasRun % 40) * 4;
+        dmGraphics::SetWindowSize(engine->m_GraphicsContext, size, size);
+    }
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
+
+    if (HasArgument("resize-mid-frame") && engine->m_WasRun % 10 == 0)
+    {
+        const uint32_t size = 256 + (engine->m_WasRun % 40) * 4;
+        dmGraphics::SetWindowSize(engine->m_GraphicsContext, size, size);
+    }
 
     engine->m_Test->Execute(engine);
 
@@ -1800,6 +1950,8 @@ static UpdateResult EngineUpdate(void* _engine)
     }
 
     dmGraphics::Flip(engine->m_GraphicsContext);
+    if (HasArgument("raster-parity") && dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_VULKAN)
+        ((RasterParityTest*) engine->m_Test)->Capture(engine);
 
     if (ShouldAutoExit() && !HasArgument("issue-12898-12902") && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
     {
@@ -1845,12 +1997,13 @@ static const char* GetAdapterName(dmGraphics::AdapterFamily family)
         case dmGraphics::ADAPTER_FAMILY_VULKAN:   return "vulkan";
         case dmGraphics::ADAPTER_FAMILY_METAL:    return "metal";
         case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return "webgpu";
+        case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return "dx12";
         default: break;
     }
     return "unknown";
 }
 
-static void InstallAdapter(int argc, char **argv)
+static bool InstallAdapter(int argc, char **argv)
 {
     dmGraphics::AdapterFamily family = GetDefaultAdapterFamily();
 
@@ -1872,16 +2025,22 @@ static void InstallAdapter(int argc, char **argv)
         {
             family = dmGraphics::ADAPTER_FAMILY_METAL;
         }
+        else if (strcmp(argv[i], "dx12") == 0 || strcmp(argv[i], "directx") == 0)
+        {
+            family = dmGraphics::ADAPTER_FAMILY_DIRECTX;
+        }
         else if (strcmp(argv[i], "webgpu") == 0)
         {
             family = dmGraphics::ADAPTER_FAMILY_WEBGPU;
         }
     }
 
-    if (!dmGraphics::InstallAdapter(family))
+    if (!dmGraphics::InstallAdapter(family) || dmGraphics::GetInstalledAdapterFamily() != family)
     {
-        dmLogFatal("Unable to install %s graphics adapter.", GetAdapterName(family));
+        dmLogError("Requested %s graphics adapter is unavailable; refusing a fallback test.", GetAdapterName(family));
+        return false;
     }
+    return true;
 }
 
 TEST(App, Run)
@@ -1932,7 +2091,7 @@ int main(int argc, char **argv)
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 
-    InstallAdapter(argc, argv);
+    if (!InstallAdapter(argc, argv)) return 1;
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

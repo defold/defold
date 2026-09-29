@@ -2282,7 +2282,9 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        DestroyProgram((Program*) program);
+        // DX12 constructs a replacement first, preserving the active program on a failed reload.
+        if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_DIRECTX)
+            DestroyProgram((Program*) program);
         return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
     }
     uint32_t GetAttributeCount(HProgram prog)

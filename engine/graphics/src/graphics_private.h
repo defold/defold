@@ -515,6 +515,8 @@ namespace dmGraphics
     void                SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
     const Uniform*      GetUniform(HProgram prog, dmhash_t name_hash);
     const ShaderMeta*   GetShaderMeta(HProgram prog);
+    void DestroyProgram(Program* program);
+
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H
