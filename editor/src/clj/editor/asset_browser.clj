@@ -150,7 +150,10 @@
     (mapv path->resource roots)))
 
 (defn- temp-resource-file! [^File dir resource]
-  (let [target (File. dir ^String ((:export-name-fn (resource/resource-type resource)) resource))]
+  (let [resource-type (resource/resource-type resource)
+        export-name-fn (:export-name-fn resource-type)
+        ^String export-name (export-name-fn resource)
+        target (File. dir export-name)]
     (if (= :file (resource/source-type resource))
       (with-open [in (io/input-stream resource)
                   out (io/output-stream target)]
@@ -436,7 +439,7 @@
                                ext (resource/ext resource)]
                            (pair resource-file
                                  (io/file parent (cond-> new-base-name
-                                                   (and (not dir) (seq ext))
+                                                   (and (not dir) (coll/not-empty ext))
                                                    (str "." ext))))))
                        resources)]
     (when-not (some #(resource-watch/reserved-proj-path?

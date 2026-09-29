@@ -49,7 +49,7 @@
             [editor.shaders :as shaders]
             [editor.texture-util :as texture-util]
             [editor.workspace :as workspace]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
@@ -355,37 +355,37 @@
   "Builds sampler texture lifecycles, supplying fallback textures for missing or failed bindings."
   [_node-id samplers texture-binding-infos]
   (let [sampler-name->gpu-texture-generator
-        (into {}
-              (keep (fn [{:keys [sampler gpu-texture-generator]}]
-                      (when gpu-texture-generator
-                        [sampler gpu-texture-generator])))
-              texture-binding-infos)
+        (coll/into-> texture-binding-infos {}
+          (keep (fn [{:keys [sampler gpu-texture-generator]}]
+                  (when gpu-texture-generator
+                    [sampler gpu-texture-generator]))))
 
         explicit-texture-work
-        (into []
-              (keep-indexed
-                (fn [unit-index {:keys [name] :as sampler}]
-                  (when-let [gpu-texture-generator (sampler-name->gpu-texture-generator name)]
-                    [unit-index sampler gpu-texture-generator])))
-              samplers)
+        (coll/into-> samplers []
+          (keep-indexed
+            (fn [unit-index {:keys [name] :as sampler}]
+              (when-let [gpu-texture-generator (sampler-name->gpu-texture-generator name)]
+                [unit-index sampler gpu-texture-generator]))))
 
         ;; This generates CPU-side texture request data. GL upload happens later when the texture lifecycle is bound.
         explicit-textures
-        (into {}
-              (coll/pmapv
-                (fn [[unit-index {:keys [name] :as sampler} gpu-texture-generator]]
-                  (let [gpu-texture (texture-util/generate-gpu-texture gpu-texture-generator)]
-                    [name
-                     (-> (if (g/error-value? gpu-texture)
-                           @texture/placeholder
-                           gpu-texture)
-                         (texture/set-params (material/sampler->tex-params sampler))
-                         (texture/set-base-unit unit-index))]))
-                explicit-texture-work))
+        (->> explicit-texture-work
+             (coll/pmapv
+               (fn [[unit-index {:keys [name] :as sampler} gpu-texture-generator]]
+                 (let [gpu-texture (texture-util/generate-gpu-texture gpu-texture-generator)]
+                   (pair name
+                         (-> (if (g/error-value? gpu-texture)
+                               @texture/placeholder
+                               gpu-texture)
+                             (texture/set-params (material/sampler->tex-params sampler))
+                             (texture/set-base-unit unit-index))))))
+             (into {}))
 
-        fallback-texture (if (pos? (count explicit-textures))
-                           (val (first explicit-textures))
-                           @texture/black-pixel)]
+        fallback-texture
+        (if (pos? (count explicit-textures))
+          (val (first explicit-textures))
+          @texture/black-pixel)]
+
     (reduce
       (fn [textures-by-sampler-name {:keys [name]}]
         (cond-> textures-by-sampler-name
@@ -648,13 +648,15 @@
 (def ^:private model-aabb-outline-renderable
   (render-util/make-aabb-outline-renderable #{:model}))
 
+(def ^:private model-aabb-outline-render-fn (:render-fn model-aabb-outline-renderable))
+
 (defn- render-selected-model-aabb-outline
   "Draws mesh bounding boxes only when their own outline items are selected."
   [gl render-args renderables _renderable-count]
-  (let [selected-renderables (coll/filterv-> renderables #(= :self-selected (:selected %)))]
-    (when (coll/not-empty selected-renderables)
-      ((:render-fn model-aabb-outline-renderable)
-       gl render-args selected-renderables (count selected-renderables)))))
+  (let [selected-renderables (coll/filterv-> renderables #(= :self-selected (:selected %)))
+        renderable-count (count selected-renderables)]
+    (when (pos? renderable-count)
+      (model-aabb-outline-render-fn gl render-args selected-renderables renderable-count))))
 
 (def ^:private selected-model-aabb-outline-renderable
   (assoc model-aabb-outline-renderable
@@ -731,7 +733,8 @@
      :children child-scenes}))
 
 (g/defnk produce-source-scene
-  "Builds the scene used by model resources before glTF preview materials are applied."
+  "Builds the scene used by model resources before glTF preview materials are
+  applied."
   [_node-id mesh-scene-infos renderable-mesh-set]
   (make-scene _node-id renderable-mesh-set mesh-scene-infos))
 
@@ -743,7 +746,8 @@
           assoc :scene-node-id new-node-id))
 
 (defn- apply-material-scene-info
-  "Applies material render data to a mesh scene, preserving it when no material info is supplied."
+  "Applies material render data to a mesh scene, preserving it when no material
+  info is supplied."
   [mesh-scene scene-node-id material-scene-info]
   (if (nil? material-scene-info)
     mesh-scene
@@ -794,10 +798,9 @@
   "Applies glTF preview materials to both instantiated and raw model scenes."
   [_node-id source-scene material-scene-infos]
   (let [material-index->material-scene-info
-        (into {}
-              (comp (keep identity)
-                    (coll/pair-map-by :material-index))
-              material-scene-infos)
+        (coll/into-> material-scene-infos {}
+          (filter some?)
+          (coll/pair-map-by :material-index))
 
         apply-preview-materials
         (fn [model-scenes]
@@ -889,19 +892,28 @@
     (fn material-name->material-scene-info [^String material-name]
       (get usable-material-scene-infos-by-material-name material-name fallback-material-scene-info))))
 
+(def ^:private materials-gltf-metadata-group-presentation
+  {:icon material-icon
+   :label (localization/message "outline.gltf.materials")
+   :order 1})
+
+(def ^:private meshes-gltf-metadata-group-presentation
+  {:icon mesh-icon
+   :label (localization/message "outline.gltf.meshes")
+   :order 0})
+
+(def ^:private textures-gltf-metadata-group-presentation
+  {:icon texture-icon
+   :label (localization/message "outline.gltf.textures")
+   :order 2})
+
 (defn- gltf-metadata-group-presentation
   "Returns the localized label, icon and ordering for a glTF metadata group."
   [kind]
   (case kind
-    :materials {:icon material-icon
-                :label (localization/message "outline.gltf.materials")
-                :order 1}
-    :meshes {:icon mesh-icon
-             :label (localization/message "outline.gltf.meshes")
-             :order 0}
-    :textures {:icon texture-icon
-               :label (localization/message "outline.gltf.textures")
-               :order 2}))
+    :materials materials-gltf-metadata-group-presentation
+    :meshes meshes-gltf-metadata-group-presentation
+    :textures textures-gltf-metadata-group-presentation))
 
 (g/defnode GltfMetadataGroupNode
   (inherits core/Scope)
@@ -1106,23 +1118,20 @@
     (g/make-nodes [group-node [GltfMetadataGroupNode :kind kind]]
       (g/connect group-node :_node-id model-scene-node :nodes)
       (g/connect group-node :node-outline model-scene-node :child-outlines)
-      (into []
-            (map
-              (fn [descriptor]
-                (create-gltf-metadata-item-tx
-                  group-node model-scene-node node-type
-                  (select-keys descriptor property-keys)
-                  scene-info-output-label)))
-            (add-gltf-outline-labels descriptors)))))
+      (coll/into-> (add-gltf-outline-labels descriptors) []
+        (map (fn [descriptor]
+               (let [properties (select-keys descriptor property-keys)]
+                 (create-gltf-metadata-item-tx group-node model-scene-node node-type properties scene-info-output-label))))))))
 
 (g/defnode GltfPreviewTextureBinding
   (property sampler g/Str)
   (property texture resource/Resource
             (value (gu/passthrough texture-resource))
             (set (fn [evaluation-context self old-value new-value]
-                   (project/resource-setter evaluation-context self old-value new-value
-                                            [:resource :texture-resource]
-                                            [:gpu-texture-generator :gpu-texture-generator]))))
+                   (project/resource-setter
+                     evaluation-context self old-value new-value
+                     [:resource :texture-resource]
+                     [:gpu-texture-generator :gpu-texture-generator]))))
 
   (input texture-resource resource/Resource)
   (input gpu-texture-generator g/Any)
@@ -1141,12 +1150,13 @@
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
-                   (project/resource-setter evaluation-context self old-value new-value
-                                            [:resource :material-resource]
-                                            [:samplers :samplers]
-                                            [:shader :shader]
-                                            [:attribute-infos :material-attribute-infos]
-                                            [:vertex-space :vertex-space]))))
+                   (project/resource-setter
+                     evaluation-context self old-value new-value
+                     [:resource :material-resource]
+                     [:samplers :samplers]
+                     [:shader :shader]
+                     [:attribute-infos :material-attribute-infos]
+                     [:vertex-space :vertex-space]))))
 
   (input material-resource resource/Resource)
   (input material-attribute-infos g/Any)
@@ -1209,20 +1219,24 @@
 (defn load-model-scene-node [{:keys [project resolve-resource-fn]} {self :node-id resource :owner-resource external-buffer-uris :source-value}]
   (let [source-path (resource/path resource)
         resolve-resource #(resolve-resource-fn resource %)
+
         external-buffer-resources
-        (into []
-              (keep (fn [uri]
-                      (when-let [proj-path (gltf/uri->proj-path source-path uri)]
-                        (resolve-resource-fn resource proj-path))))
-              external-buffer-uris)
+        (coll/into-> external-buffer-uris []
+          (keep (fn [uri]
+                  (when-let [proj-path (gltf/uri->proj-path source-path uri)]
+                    (resolve-resource-fn resource proj-path)))))
+
         initial-tx-data
         (into (g/connect project :settings self :project-settings)
               (g/set-property self :external-buffer-resources external-buffer-resources))
+
         preview-tx-data
         (into initial-tx-data
               (mapcat #(create-gltf-preview-material-binding-tx self %))
               (gltf/material-binding-descriptors resource nil resolve-resource))
+
         {:keys [materials meshes textures]} (gltf/metadata-descriptors resource resolve-resource)]
+
     (into preview-tx-data
           (comp (keep identity) cat)
           [(create-gltf-metadata-group-tx
@@ -1235,8 +1249,7 @@
              nil)
            (create-gltf-metadata-group-tx
              self :textures GltfTextureInfoNode textures
-             [:basisu :image :image-index :image-name :index :mag-filter :mime-type :min-filter
-              :name :outline-label :sampler-index :source-kind :uri :wrap-s :wrap-t]
+             [:basisu :image :image-index :image-name :index :mag-filter :mime-type :min-filter :name :outline-label :sampler-index :source-kind :uri :wrap-s :wrap-t]
              nil)])))
 
 (g/defnode ModelSceneNode
@@ -1307,16 +1320,18 @@
 
 (defn- model-scene-dependencies [{:keys [include-editor-dependencies]} source-resource external-buffer-uris]
   (let [source-path (resource/path source-resource)
+
         external-buffer-proj-paths
         (coll/into-> external-buffer-uris []
           (keep #(gltf/uri->proj-path source-path %)))]
-    (if include-editor-dependencies
+
+    (if-not include-editor-dependencies
+      external-buffer-proj-paths
       (coll/into-> (resource/children source-resource)
         (into external-buffer-proj-paths (gltf/external-image-paths source-resource))
         resource/xform-recursive-resources
         (filter #(#{:material :image} (:kind (gltf/asset-info %))))
-        (map resource/proj-path))
-      external-buffer-proj-paths)))
+        (map resource/proj-path)))))
 
 (defn- gltf-mesh-dependencies [{:keys [include-editor-dependencies]} mesh-resource _source-value]
   (if include-editor-dependencies
@@ -1326,12 +1341,14 @@
 (defn- gltf-metadata-nodes-getter [kind]
   (fn [node evaluation-context]
     (let [basis (:basis evaluation-context)
+
           group-node
           (coll/first-where
             (fn [candidate]
               (and (= GltfMetadataGroupNode (g/node-type* basis candidate))
                    (= kind (g/node-value candidate :kind evaluation-context))))
             (attachment/nodes-getter node evaluation-context))]
+
       (if group-node
         (attachment/nodes-getter group-node evaluation-context)
         []))))

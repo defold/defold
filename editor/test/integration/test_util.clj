@@ -471,10 +471,7 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type* [this resource-types]
-    (let [types (resource-types true)]
-      (or (types (resource/type-ext this))
-          (types resource/placeholder-resource-type-ext))))
+  (lookup-resource-type [this editable->type-ext->resource-type] (resource/lookup-resource-type-impl this editable->type-ext->resource-type))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)

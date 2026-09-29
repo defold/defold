@@ -108,7 +108,7 @@
   resource/Resource
   (children [_] nil)
   (ext [_] "json")
-  (resource-type* [_ _resource-types]
+  (lookup-resource-type [_ _editable->type-ext->resource-type]
     {:ext "json"
      :label (localization/message "resource.type.custom")
      :build-ext "json"})
@@ -137,7 +137,7 @@
   resource/Resource
   (children [this] (resource/children resource))
   (ext [this] (resource/ext resource))
-  (resource-type* [this _resource-types]
+  (lookup-resource-type [this _editable->type-ext->resource-type]
     (let [ext (resource/ext this)]
       {:ext ext
        :label (localization/message "resource.type.custom")

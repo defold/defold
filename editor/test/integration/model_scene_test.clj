@@ -24,6 +24,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.material :as material]
+            [editor.math :as math]
             [editor.model-scene :as model-scene]
             [editor.properties :as properties]
             [editor.resource :as resource]
@@ -35,14 +36,14 @@
             [internal.graph.types :as gt]
             [service.log :as log]
             [support.test-support :as test-support]
-            [util.coll :as coll])
+            [util.coll :as coll :refer [pair]])
   (:import [ch.qos.logback.classic Logger]
            [ch.qos.logback.core.read ListAppender]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
            [java.util Base64]
            [java.util.concurrent CyclicBarrier TimeUnit]
-           [javax.vecmath Point3d Vector4d]
+           [javax.vecmath Point3d]
            [org.slf4j LoggerFactory]))
 
 (vtx/defvertex vtx-pos-nrm-tex
@@ -129,17 +130,13 @@
     (.array glb)))
 
 (defn- scene-mesh-user-data-by-material-index [scene]
-  (into {}
-        (comp
-          (drop 1)
-          (mapcat :children)
-          (map (fn [mesh-scene]
-                 (let [user-data (get-in mesh-scene [:renderable :user-data])]
-                   [(:material-index user-data) user-data]))))
-        (:children scene)))
-
-(defn- vector4d->vector [^Vector4d value]
-  [(.-x value) (.-y value) (.-z value) (.-w value)])
+  (coll/into-> (:children scene) {}
+    (drop 1)
+    (mapcat :children)
+    (map (fn [mesh-scene]
+           (let [user-data (get-in mesh-scene [:renderable :user-data])
+                 material-index (:material-index user-data)]
+             (pair material-index user-data))))))
 
 (defn- assert-read-only-property [node-id property-key expected-value]
   (let [node-properties (g/node-value node-id :_properties)]
@@ -253,10 +250,10 @@
                       (is (= #{expected-sampler-name}
                              (into #{} (map key) (:textures user-data))))
                       (is (= base-color-factor
-                             (vector4d->vector
+                             (math/vecmath->clj
                                (material-data "pbrMetallicRoughness.baseColorFactor"))))
                       (is (= [1.0 0.0 0.0 0.0]
-                             (vector4d->vector
+                             (math/vecmath->clj
                                (material-data "pbrMetallicRoughness.metallicRoughnessTextures"))))
                       (is (= image-node-id (:request-id actual-gpu-texture)))
                       (is (= (:texture-request-datas expected-gpu-texture)
@@ -318,6 +315,7 @@
                 (let [mesh-node-id (get-in meshes-group [:children 0 :node-id])
                       preview-scene (g/node-value source-node-id :scene)
                       mesh-model-scene (nth (:children preview-scene) 1)
+
                       scene-render-data
                       (scene/produce-scene-render-data
                         {:scene preview-scene
@@ -325,13 +323,16 @@
                          :hidden-renderable-tags #{}
                          :hidden-node-outline-key-paths #{}
                          :local-camera (camera/make-camera)})
+
                       mesh-picking-renderables
-                      (coll/filterv-> (get-in scene-render-data [:renderables pass/opaque-selection])
-                                      #(= mesh-node-id (:picking-node-id %)))
+                      (filterv #(= mesh-node-id (:picking-node-id %))
+                               (get-in scene-render-data [:renderables pass/opaque-selection]))
+
                       mesh-outline-renderable
                       (coll/first-where #(and (= mesh-node-id (:node-id %))
                                               (= :self-selected (:selected %)))
                                         (get-in scene-render-data [:renderables pass/outline]))]
+
                   (assert-read-only-property mesh-node-id :index 0)
                   (assert-read-only-property mesh-node-id :name "Body")
                   (assert-read-only-property mesh-node-id :primitive-count 2)
@@ -356,8 +357,11 @@
                     (assert-selected-property app-view material-node-id :name "Shared")))
 
                 (doseq [[texture-index texture-outline]
-                        (into [] (map-indexed vector) texture-outlines)]
+                        (into []
+                              (map-indexed vector)
+                              texture-outlines)]
                   (let [texture-node-id (:node-id texture-outline)
+
                         expected-values
                         (nth [{:mag-filter "Linear"
                                :min-filter "Linear"
@@ -370,6 +374,7 @@
                                :wrap-s "Clamp to Edge"
                                :wrap-t "Mirrored Repeat"}]
                              texture-index)]
+
                     (doseq [[property-key expected-value] expected-values]
                       (assert-read-only-property texture-node-id property-key expected-value))))
 

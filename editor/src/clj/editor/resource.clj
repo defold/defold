@@ -35,7 +35,7 @@
            [com.defold.editor Editor]
            [com.dynamo.bob.util PathUtil]
            [com.google.protobuf ByteString]
-           [java.io Closeable File FilterInputStream IOException InputStream]
+           [java.io Closeable File FilterInputStream IOException InputStream Writer]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
            [java.util.zip ZipEntry ZipFile]
@@ -50,7 +50,7 @@
 (defonce/protocol Resource
   (children [this])
   (ext [this])
-  (resource-type* [this resource-types])
+  (lookup-resource-type [this editable->type-ext->resource-type])
   (source-type [this])
   (exists? [this])
   (read-only? [this])
@@ -101,20 +101,23 @@
     (g/raw-property-value basis workspace property-label)))
 
 (defn resource-type
-  "Resolves a resource type from the resource's workspace.
-  The one-argument form reads the current basis; pass a basis to reuse a snapshot."
+  "Resolves a resource type from the resource's workspace. The one-argument form
+  reads the current basis; pass a basis to reuse a snapshot."
   ([resource]
    (resource-type resource (g/unsafe-basis)))
   ([resource basis]
    (let [workspace (workspace resource)]
-     (resource-type* resource
-                     {true (resource-types-by-type-ext basis workspace true)
-                      false (resource-types-by-type-ext basis workspace false)}))))
+     (lookup-resource-type
+       resource
+       {true (resource-types-by-type-ext basis workspace true)
+        false (resource-types-by-type-ext basis workspace false)}))))
 
-(defn- lookup-resource-type [resource resource-types]
-  (let [types (resource-types (editable? resource))]
-    (or (types (type-ext resource))
-        (types placeholder-resource-type-ext))))
+(defn lookup-resource-type-impl [resource editable->type-ext->resource-type]
+  (let [editable (editable? resource)
+        type-ext (type-ext resource)
+        type-ext->resource-type (editable->type-ext->resource-type editable)]
+    (or (type-ext->resource-type type-ext)
+        (type-ext->resource-type placeholder-resource-type-ext))))
 
 (defn- proj-path-exists? [basis workspace proj-path]
   (let [resources-by-proj-path (g/raw-property-value basis workspace :resource-map)]
@@ -453,7 +456,7 @@
   Resource
   (children [this] children)
   (ext [this] ext)
-  (resource-type* [this resource-types] (lookup-resource-type this resource-types))
+  (lookup-resource-type [this editable->type-ext->resource-type] (lookup-resource-type-impl this editable->type-ext->resource-type))
   (source-type [this] source-type)
   (exists? [this]
     (and (proj-path-exists? (g/unsafe-basis) workspace project-path)
@@ -534,7 +537,7 @@
        :editable (:editable r)
        :children (:children r)})))
 
-(defmethod print-method FileResource [file-resource ^java.io.Writer w]
+(defmethod print-method FileResource [file-resource ^Writer w]
   (.write w (format "{:FileResource %s}" (pr-str (proj-path file-resource)))))
 
 ;; Note that `data` is used for resource-hash, used to name
@@ -544,7 +547,7 @@
   Resource
   (children [this] nil)
   (ext [this] ext)
-  (resource-type* [this resource-types] (lookup-resource-type this resource-types))
+  (lookup-resource-type [this editable->type-ext->resource-type] (lookup-resource-type-impl this editable->type-ext->resource-type))
   (source-type [this] :file)
   (exists? [this] true)
   (read-only? [this] false)
@@ -567,7 +570,7 @@
 
 (core/register-record-type! MemoryResource)
 
-(defmethod print-method MemoryResource [memory-resource ^java.io.Writer w]
+(defmethod print-method MemoryResource [memory-resource ^Writer w]
   (.write w (format "{:MemoryResource %s}" (pr-str (ext memory-resource)))))
 
 (defn make-memory-resource [workspace resource-type data]
@@ -599,7 +602,7 @@
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
-  (resource-type* [this resource-types] (lookup-resource-type this resource-types))
+  (lookup-resource-type [this editable->type-ext->resource-type] (lookup-resource-type-impl this editable->type-ext->resource-type))
   (source-type [_this] (if zip-entry :file :folder))
   (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)
@@ -667,20 +670,20 @@
     (constantly "zip-resource")
     (fn [^ZipResource r]
       {:workspace (:workspace r)
-       :zip-uri   (.toString ^URI (:zip-uri r))
-       :name      (:name r)
-       :path      (:path r)
+       :zip-uri (.toString ^URI (:zip-uri r))
+       :name (:name r)
+       :path (:path r)
        :zip-entry (:zip-entry r)
-       :children  (:children r)})))
+       :children (:children r)})))
 
-(defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
+(defmethod print-method ZipResource [zip-resource ^Writer w]
   (.write w (format "{:ZipResource %s}" (pr-str (proj-path zip-resource)))))
 
 (defonce/record EmbeddedResource [source project-path ext source-type children content data editable loaded]
   Resource
   (children [_this] children)
   (ext [_this] ext)
-  (resource-type* [this resource-types] (lookup-resource-type this resource-types))
+  (lookup-resource-type [this editable->type-ext->resource-type] (lookup-resource-type-impl this editable->type-ext->resource-type))
   (source-type [_this] source-type)
   (exists? [_this] (proj-path-exists? (g/unsafe-basis) (workspace source) project-path))
   (read-only? [_this] true)
@@ -734,25 +737,33 @@
       (cond-> (select-keys resource [:source :project-path :ext :source-type :children :content :data :editable :loaded])
         (instance? ByteString (:content resource)) (update :content #(.toByteArray ^ByteString %))))))
 
-(defmethod print-method EmbeddedResource [resource ^java.io.Writer w]
+(defmethod print-method EmbeddedResource [resource ^Writer w]
   (.write w (format "{:EmbeddedResource %s}" (pr-str (proj-path resource)))))
 
 (defn make-resource-entry
-  "Creates a read-only entry in a physical file or ZIP entry. Content is ByteString or nil.
-  Resource names are path basenames. File/path coercion retains the physical origin;
-  abs-path is nil for entries."
+  "Creates a read-only entry in a physical file or ZIP entry. Content is
+  ByteString or nil. Resource names are path basenames. File/path coercion
+  retains the physical origin; abs-path is nil for entries."
   [source {:keys [path ext content children data]}]
   {:pre [(or (file-resource? source) (zip-resource? source))
          (= :file (source-type source))
          (not (string/starts-with? path "/"))
          (or (nil? content) (instance? ByteString content))]}
-  (->EmbeddedResource source (str (proj-path source) "/" path)
-                      (or ext (FilenameUtils/getExtension ^String path))
-                      (if children :folder :file) children content data (editable? source) (loaded? source)))
+  (->EmbeddedResource
+    source
+    (str (proj-path source) "/" path)
+    (or ext (FilenameUtils/getExtension ^String path))
+    (if children :folder :file)
+    children
+    content
+    data
+    (editable? source)
+    (loaded? source)))
 
 (defmulti expand
-  "Expands a source Resource using only its input stream, dispatched by extension.
-  Returns the source with its embedded Resource children. Must not read other files."
+  "Expands a source Resource using only its input stream, dispatched by
+  extension. Returns the source with its embedded Resource children. Must not
+  read other files."
   (fn [source _stream] (type-ext source)))
 
 (defmethod expand :default [source _stream] source)
@@ -773,29 +784,32 @@
                                  :exception exception)
                        source)))]
     (pair resource
-          (into {(proj-path resource) version}
-                (comp (coll/tree-xf children children)
-                      (map (juxt proj-path identity)))
-                (children resource)))))
+          (coll/into-> (children resource) {(proj-path resource) version}
+            (coll/tree-xf children children)
+            (coll/pair-map-by proj-path)))))
 
 (defn load-directory-resources
   "Constructs and expands a directory tree, returning its children and versions."
   [workspace ^File mount-root ^File root file-filter editable-proj-path? unloaded-proj-path?]
   (assert (and root (.isDirectory root)))
-  (let [[resource versions]
+  (let [root-path (.getPath mount-root)
+
+        [resource versions]
         (coll/ptree
           (fn file-tree-children [^File file]
             (when (.isDirectory file)
               (filterv file-filter (.listFiles file))))
           (fn file-tree-node [^File file child-results]
             (let [children (when child-results (mapv key child-results))
-                  resource (make-file-resource workspace (.getPath mount-root) file children editable-proj-path? unloaded-proj-path?)
+                  resource (make-file-resource workspace root-path file children editable-proj-path? unloaded-proj-path?)
                   version (str (.lastModified file))]
-              (if (.isDirectory file)
+              (if-not (.isDirectory file)
+                (expand-resource resource version)
                 (pair resource
-                      (into {(proj-path resource) version} (mapcat val) child-results))
-                (expand-resource resource version))))
+                      (coll/into-> child-results {(proj-path resource) version}
+                        (mapcat val))))))
           root)]
+
     {:tree (children resource)
      :versions (dissoc versions (proj-path resource))}))
 
@@ -840,7 +854,8 @@
       (let [child-results (mapv #(->zip-resources workspace zip-uri mtime path' %) entry)
             resource (ZipResource. workspace zip-uri entry-name path' nil (mapv key child-results))]
         (pair resource
-              (into {(proj-path resource) version} (mapcat val) child-results))))))
+              (coll/into-> child-results {(proj-path resource) version}
+                (mapcat val)))))))
 
 (defn load-zip-resources
   ([workspace ^File zip-file]
@@ -851,7 +866,8 @@
          results (mapv #(->zip-resources workspace zip-uri mtime "" %)
                        (load-zip zip-file base-path))]
      {:tree (mapv key results)
-      :versions (into {} (mapcat val) results)})))
+      :versions (coll/into-> results {}
+                  (mapcat val))})))
 
 (defn save-tracked?
   "Checks if the specified Resource should be connected to the save system."
@@ -882,20 +898,20 @@
 (defn expand-resource-moves
   "Includes embedded files when their containing file moves."
   [moved-proj-paths old-map new-map]
-  (into []
-        (mapcat (fn [[source-path target-path :as moved-paths]]
-                  (into [moved-paths]
-                        (comp xform-recursive-resources
-                              (filter #(= :file (source-type %)))
-                              (keep (fn [child]
-                                      (let [child-path (proj-path child)
-                                            target-child-path (str target-path (subs child-path (count source-path)))]
-                                        (when (= :file (some-> (get new-map target-child-path) source-type))
-                                          [child-path target-child-path])))))
-                        (when-let [source (get old-map source-path)]
-                          (when (= :file (source-type source))
-                            (children source))))))
-        moved-proj-paths))
+  (coll/into-> moved-proj-paths []
+    (mapcat
+      (fn [[source-path target-path :as moved-paths]]
+        (-> (when-let [source (get old-map source-path)]
+              (when (= :file (source-type source))
+                (children source)))
+            (coll/into-> [moved-paths]
+              xform-recursive-resources
+              (filter #(= :file (source-type %)))
+              (keep (fn [child]
+                      (let [child-path (proj-path child)
+                            target-child-path (str target-path (subs child-path (count source-path)))]
+                        (when (= :file (some-> (get new-map target-child-path) source-type))
+                          (pair child-path target-child-path)))))))))))
 
 (defn resource-map [roots]
   (coll/pair-map-by proj-path roots))

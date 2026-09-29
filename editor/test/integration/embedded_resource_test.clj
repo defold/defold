@@ -28,9 +28,8 @@
 (deftest expansion-is-independent-of-workspace-resource-types
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
         extension "embedded-test"]
-    (.addMethod ^clojure.lang.MultiFn resource/expand extension
-                (fn [source stream]
-                  (assoc source :children [(resource/make-resource-entry source {:path "text" :ext "txt" :content (ByteString/readFrom stream)})])))
+    (defmethod resource/expand extension [source stream]
+      (assoc source :children [(resource/make-resource-entry source {:path "text" :ext "txt" :content (ByteString/readFrom stream)})]))
     (try
       (with-open [_deleter (test-util/make-directory-deleter project-path)]
         (doseq [index (range 16)]

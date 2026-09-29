@@ -208,9 +208,9 @@
           resource-nodes (g/node-value project :nodes-by-resource-path)
           basis (g/now)]
       (doseq [[resource-path node-id] resource-nodes
-              :when (.startsWith resource-path "/test")
-              :let [resource (resource-node/resource basis node-id)]]
-        (let [resource-type (resource/resource-type resource)
+              :when (.startsWith resource-path "/test")]
+        (let [resource (resource-node/resource basis node-id)
+              resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
               save-value (g/node-value node-id :save-value)
               expected-dependencies (expected-dependencies resource-path)

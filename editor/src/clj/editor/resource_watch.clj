@@ -182,10 +182,11 @@
           unloaded-proj-path? (g/raw-property-value basis workspace :unloaded-proj-path?)
           lib-results (library/cached project-directory library-uris)
           new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)
-          snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
-                                             (make-directory-snapshot workspace project-directory project-directory editable-proj-path? unloaded-proj-path?)
-                                             (make-debugger-snapshot workspace)
-                                             (make-library-snapshots new-library-snapshot-cache lib-results)))]
+          snapshot (combine-snapshots
+                     (list* (make-builtins-snapshot workspace)
+                            (make-directory-snapshot workspace project-directory project-directory editable-proj-path? unloaded-proj-path?)
+                            (make-debugger-snapshot workspace)
+                            (make-library-snapshots new-library-snapshot-cache lib-results)))]
       {:snapshot snapshot
        :snapshot-cache new-library-snapshot-cache})))
 

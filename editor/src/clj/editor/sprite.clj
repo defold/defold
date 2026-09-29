@@ -298,7 +298,7 @@
   (reify resource/Resource
     (children [_])
     (ext [_] "")
-    (resource-type* [_ _resource-types])
+    (lookup-resource-type [_ _editable->type-ext->resource-type])
     (source-type [_])
     (exists? [_] false)
     (read-only? [_] true)

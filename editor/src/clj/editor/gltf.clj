@@ -22,6 +22,7 @@
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.texture-util :as texture-util]
+            [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.http-server :as http-server]
@@ -41,8 +42,8 @@
   resource/Resource
   (children [_this] nil)
   (ext [_this] (resource/ext entry))
-  (resource-type* [_this resource-types]
-    (assoc (resource/resource-type* entry resource-types)
+  (lookup-resource-type [_this editable->type-ext->resource-type]
+    (assoc (resource/lookup-resource-type entry editable->type-ext->resource-type)
       :node-type EmbeddedImageNode
       :load-fn load-embedded-image
       :dependencies-fn embedded-image-dependencies))
@@ -63,14 +64,15 @@
   io/IOFactory
   (make-input-stream [_this _opts]
     (let [source (:source entry)
-          ;; This lookup is safe for graph invalidation: EmbeddedImageNode explicitly
-          ;; connects to the backing resource node, so buffer changes invalidate its
-          ;; image outputs. Direct readers (e.g. copy/extract) have no backing-resource
-          ;; supplied by the graph and resolve the buffer from the workspace here.
+          ;; This lookup is safe for graph invalidation: EmbeddedImageNode
+          ;; explicitly connects to the backing resource node, so buffer changes
+          ;; invalidate its image outputs. Direct readers (e.g. copy/extract)
+          ;; have no backing-resource supplied by the graph and resolve the
+          ;; buffer from the workspace here.
           buffer (or backing-resource
                      (if (= buffer-path (resource/proj-path source))
                        source
-                       (get (g/raw-property-value (g/unsafe-basis) (resource/workspace source) :resource-map) buffer-path)))]
+                       (workspace/find-resource (g/unsafe-basis) (resource/workspace source) buffer-path)))]
       (when-not buffer
         (throw (FileNotFoundException. buffer-path)))
       (let [stream (io/input-stream buffer)]
@@ -341,7 +343,7 @@
 (defn- load-embedded-image
   [{:keys [project resolve-resource-fn editable->type-ext->resource-type] :as load-opts}
    {:keys [node-id resource] :as node-load-info}]
-  (let [image-type (resource/resource-type* (:entry resource) editable->type-ext->resource-type)]
+  (let [image-type (resource/lookup-resource-type (:entry resource) editable->type-ext->resource-type)]
     (into (vec ((:load-fn image-type) load-opts node-load-info))
           (g/expand-ec
             (fn [evaluation-context]

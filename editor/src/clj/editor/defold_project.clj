@@ -211,7 +211,7 @@
   {:pre [(g/node-id? node-id)]}
   (let [resource-metrics (:resource-metrics read-opts)
         {:keys [lazy-loaded read-fn] :as resource-type}
-        (resource/resource-type* resource (:editable->type-ext->resource-type read-opts))
+        (resource/lookup-resource-type resource (:editable->type-ext->resource-type read-opts))
 
         ;; Seeing as how we're operating on a list of resources that we got from
         ;; the file system itself, you might assume that every resource will
@@ -1553,7 +1553,8 @@
                                        (ui/contexts (ui/main-scene) true)
                                        :private/add-dependency
                                        {:dep-url "https://github.com/defold/asset-pbr/archive/refs/heads/master.zip"})}]})))
-       (if (not= desired-deps installed-deps)
+       (if (= desired-deps installed-deps)
+         (notifications/close notifications ::dependencies-changed)
          (notifications/show
            notifications
            {:id ::dependencies-changed
@@ -1563,8 +1564,7 @@
                        :on-action #(ui/execute-command
                                      (ui/contexts (ui/main-scene) true)
                                      :project.fetch-libraries
-                                     nil)}]})
-         (notifications/close notifications ::dependencies-changed))])))
+                                     nil)}]}))])))
 
 (defn update-library-notifications!
   "Updates notifications for dependency changes and newly imported materials."
@@ -1666,21 +1666,19 @@
 
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
-                                                               (->> all-selections
-                                                                    (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
-                                                                    (into {})))))
+                                                               (coll/map-vals
+                                                                 #(filterv selected-node-id-set %)
+                                                                 all-selections))))
   (output selected-node-properties-by-resource-node g/Any :cached (g/fnk [all-selected-node-properties all-selections]
-                                                                    (let [props (->> all-selected-node-properties
-                                                                                     (map (fn [p] [(:node-id p) p]))
-                                                                                     (into {}))]
-                                                                      (->> all-selections
-                                                                           (map (fn [[key vals]] [key (vec (keep props vals))]))
-                                                                           (into {})))))
+                                                                    (let [props (coll/pair-map-by :node-id all-selected-node-properties)]
+                                                                      (coll/map-vals
+                                                                        #(into [] (keep props) %)
+                                                                        all-selections))))
   (output sub-selections-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
                                                           (let [selected-node-id-set (set all-selected-node-ids)]
-                                                            (->> all-sub-selections
-                                                                 (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
-                                                                 (into {})))))
+                                                            (coll/map-vals
+                                                              #(filterv (comp selected-node-id-set first) %)
+                                                              all-sub-selections))))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv :save-value save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
