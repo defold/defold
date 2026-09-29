@@ -17,6 +17,7 @@
 // Modified for Defold's native browser lifecycle, input and canvas backend.
 
 var LibraryDefoldPlatform = {
+  $DefoldPlatform__deps: ['$Browser', '$MainLoop'],
   $DefoldPlatform: {
 
     keyFunc: null,

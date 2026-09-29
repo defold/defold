@@ -54,6 +54,30 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
     endif()
 endif()
 
+if(TARGET_PLATFORM STREQUAL "wasm-web")
+    # This target runs in a browser and must not use the Node filesystem prelude.
+    defold_add_executable(test_native_web_browser "${CMAKE_CURRENT_LIST_DIR}/test_native_web_browser.cpp")
+    defold_target_link_libraries(test_native_web_browser "${TARGET_PLATFORM}"
+        dlib
+        profile_null
+        platform)
+    target_link_options(test_native_web_browser PRIVATE -sENVIRONMENT=web -sASSERTIONS=1 -sEXIT_RUNTIME=0)
+    defold_register_test_target(test_native_web_browser OFF)
+
+    find_program(_platform_browser_node NAMES node nodejs)
+    if(NOT _platform_browser_node)
+        set(_platform_browser_node node)
+    endif()
+    add_custom_target(run_test_native_web_browser
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "DEFOLD_BROWSER_TEST_JS=$<TARGET_FILE:test_native_web_browser>"
+            "${_platform_browser_node}" "${CMAKE_CURRENT_LIST_DIR}/browser/node_modules/@playwright/test/cli.js" test
+        WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/browser"
+        DEPENDS test_native_web_browser
+        USES_TERMINAL
+        VERBATIM)
+endif()
+
 # ******************************************************************
 # test_platform_app (windowed test application)
 
