@@ -14,9 +14,7 @@ add_compile_definitions(DLIB_LOG_DOMAIN="HID")
 
 # Sources
 set(HID_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
-set(HID_DEPENDENCIES
-    dlib
-    platform)
+set(HID_DEPENDENCIES dlib)
 set(HID_NULL_DEPENDENCIES
     dlib
     platform_null)
@@ -61,6 +59,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64_sim-ios)$
     target_link_libraries(hid PUBLIC "-framework GameController")
 endif()
 defold_target_link_libraries(hid "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_DEPENDENCIES})
+defold_target_link_platform(hid "${TARGET_PLATFORM}" SCOPE PUBLIC)
 if(DEFOLD_PLATFORM_HID_LIBS)
     target_link_libraries(hid PUBLIC ${DEFOLD_PLATFORM_HID_LIBS})
 endif()
@@ -129,7 +128,7 @@ if(BUILD_TESTS)
 
     # Compare HID GUIDs with the private native backend on mobile and web.
     if(TARGET_PLATFORM_OS STREQUAL "android" OR TARGET_PLATFORM_OS STREQUAL "web")
-        target_link_libraries(test_hid PRIVATE platform)
+        defold_target_link_platform(test_hid "${TARGET_PLATFORM}" SCOPE PRIVATE)
     endif()
 
     defold_target_link_glfw(test_hid "${TARGET_PLATFORM}" PRIVATE)
