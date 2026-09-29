@@ -120,6 +120,42 @@ add_subdirectory("${DEFOLD_HOME}/engine/extension" extension)
                                     for dependency in extension.get('dependencies', [])]
                     self.assertEqual(in_tree == 'ON', 'platform_sdk_headers' in dependencies)
 
+    # Web consumers need exactly one backend JS library, including links through a static library.
+    def test_web_consumers_link_platform_javascript(self):
+        for platform in ('wasm-web', 'wasm_pthread-web'):
+            for in_tree in ('OFF', 'ON'):
+                with self.subTest(platform=platform, in_tree=in_tree), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(web_link_test LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST C CXX)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+set(TARGET_PLATFORM_OS web)
+set(BUILD_TESTS OFF)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+file(WRITE "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}/js/library_platform.js" "")
+if(IN_TREE_PLATFORM)
+    add_subdirectory("${DEFOLD_HOME}/engine/platform" platform)
+endif()
+add_subdirectory("${DEFOLD_HOME}/engine/hid" hid)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.cpp" "int main() { return 0; }\\n")
+add_executable(platform_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.cpp")
+target_link_libraries(platform_consumer PRIVATE hid)
+''')
+                    consumer = self.configure_target(
+                        root, 'platform_consumer', TARGET_PLATFORM=platform, IN_TREE_PLATFORM=in_tree)
+                    link_command = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
+                    if in_tree == 'ON':
+                        repository = Path(__file__).resolve().parent.parent
+                        library = repository / 'engine/platform/src/native/web/library_platform.js'
+                    else:
+                        library = root / 'sdk/lib' / platform / 'js/library_platform.js'
+                    self.assertIn('--js-library=' + library.as_posix(), link_command)
+                    self.assertEqual(1, link_command.count('library_platform.js'))
+
 
 if __name__ == '__main__':
     unittest.main()
