@@ -1,45 +1,177 @@
-<svg xml:space="preserve" xmlns="http://www.w3.org/2000/svg" width="1080" height="644" viewBox="0 0 1080 644" role="img" aria-labelledby="title desc">
-<title id="title">Shared property metadata and fixed-stride byte rows</title>
-<desc id="desc">The packed blob has an eight-byte DMDT and version header, a table directory, all component tables and one string area. A point-light table declares color, intensity and range once with their kinds and byte offsets. Each 32-byte row contains only Vector3 color, four padding bytes and two double-precision numbers. Component identifiers are separate from the value rows.</desc>
-<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker></defs>
-<style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}.small{font-size:15px;fill:#52657a}.mono{font-family:Menlo,Consolas,monospace;font-size:16px}.box{fill:white;stroke:#c3d0dd;stroke-width:1.5}.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
-<rect width="1080" height="644" rx="12" fill="#f5f8fc"/>
-<text x="28" y="40" class="title">Shared metadata once per table; only value bytes in each row</text>
-<rect x="28" y="72" width="310" height="55" rx="6" fill="#e5ecfa" stroke="#c3d0dd"/>
-<text x="46" y="96" class="label">DMDT · version 8</text>
-<text x="46" y="116" class="small">8-byte file header</text>
-<rect x="28" y="138" width="310" height="84" rx="6" class="box"/>
-<text x="46" y="165" class="label">Table directory</text>
-<text x="46" y="190" class="small">Table count · string-area offset</text>
-<text x="46" y="212" class="small">Offsets to all component tables</text>
-<rect x="28" y="234" width="310" height="112" rx="6" fill="#e2f3ee" stroke="#a1c8bd"/>
-<text x="46" y="262" class="label">point_light table</text>
-<text x="46" y="288" class="small">Header · tags · shared metadata</text>
-<text x="46" y="311" class="small">Component IDs · byte rows</text>
-<text x="46" y="334" class="small">Nested payloads, when present</text>
-<rect x="28" y="358" width="310" height="75" rx="6" fill="#e2f3ee" stroke="#a1c8bd"/>
-<text x="46" y="388" class="label">spot_light table</text>
-<text x="46" y="416" class="small">Its own metadata and row layout</text>
-<rect x="28" y="445" width="310" height="82" rx="6" fill="#fff1da" stroke="#d5b675"/>
-<text x="46" y="476" class="label">Shared string area</text>
-<text x="46" y="507" class="small">Equal strings share the same bytes</text>
-<path d="M 338 290 H 358 V 194 H 382" class="arrow"/>
-<rect x="390" y="72" width="662" height="244" rx="8" class="box"/>
-<text x="410" y="104" class="label">PointLight metadata · row stride = 32 bytes</text>
-<text x="410" y="142" class="small">Name hash</text><text x="655" y="142" class="small">Kind</text><text x="844" y="142" class="small">Byte offset</text>
-<path d="M 410 151 H 1032" stroke="#d7e1ec"/>
-<text x="410" y="182" class="mono">hash("color")</text><text x="655" y="182" class="mono">Vector3</text><text x="844" y="182" class="mono">0</text>
-<text x="410" y="219" class="mono">hash("intensity")</text><text x="655" y="219" class="mono">Number</text><text x="844" y="219" class="mono">16</text>
-<text x="410" y="256" class="mono">hash("range")</text><text x="655" y="256" class="mono">Number</text><text x="844" y="256" class="mono">24</text>
-<text x="410" y="296" class="small">Component name hashes are stored separately from row bytes.</text>
-<text x="410" y="354" class="label">uint8_t rows[row_count × 32]</text>
-<text x="480" y="383" class="small">color · 12 B</text><text x="660" y="383" class="small">pad</text><text x="744" y="383" class="small">intensity · 8 B</text><text x="916" y="383" class="small">range · 8 B</text>
-<rect x="410" y="393" width="240" height="44" fill="#e2f3ee" stroke="#a1c8bd"/><rect x="650" y="393" width="64" height="44" fill="#e8edf2" stroke="#c3d0dd"/><rect x="714" y="393" width="159" height="44" fill="#e5ecfa" stroke="#c3d0dd"/><rect x="873" y="393" width="159" height="44" fill="#fff1da" stroke="#d5b675"/>
-<text x="444" y="421" class="mono">1.0, 1.0, 1.0</text><text x="771" y="421" class="mono">1.0</text><text x="925" y="421" class="mono">10.0</text>
-<rect x="410" y="442" width="240" height="44" fill="#e2f3ee" stroke="#a1c8bd"/><rect x="650" y="442" width="64" height="44" fill="#e8edf2" stroke="#c3d0dd"/><rect x="714" y="442" width="159" height="44" fill="#e5ecfa" stroke="#c3d0dd"/><rect x="873" y="442" width="159" height="44" fill="#fff1da" stroke="#d5b675"/>
-<text x="444" y="470" class="mono">1.0, 0.5, 0.0</text><text x="771" y="470" class="mono">2.0</text><text x="925" y="470" class="mono">20.0</text>
-<text x="410" y="518" class="small">Further rows use exactly the same layout.</text>
-<text x="28" y="570">Vector3 uses float32; Number uses float64. Padding is chosen by the producer.</text>
-<text x="28" y="599">String and dynamic struct/list slots hold blob offsets; declared structs live inline.</text>
-<text x="28" y="628" class="small">The light templates currently use a color list; the illustrated Vector3 layout requires explicit producer conversion.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1080" viewBox="0 0 1240 1080" role="img" aria-labelledby="title desc">
+<!-- Copyright 2026 The Defold Foundation
+Licensed under the Defold License version 1.0 (the "License"); you may not use
+this file except in compliance with the License.
+
+You may obtain a copy of the License, together with FAQs at
+https://www.defold.com/license
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License. -->
+<title id="title">File Format: overview, struct layouts and references</title>
+<desc id="desc">The directory references the PointLight and SpotLight tables and the shared string area. On the right, table_offsets selects a DataTableHeader. Table counts describe the metadata array and fixed-stride rows. DataFileFieldMeta m_ChildIndex selects child entries in the same metadata array; m_ByteOffset locates a value relative to its parent row or inline struct. Solid arrows show offset or index references, and dashed arrows show layout expansion or sizes. Struct layouts list byte offsets, names and types.</desc>
+<defs>
+<marker id="reference-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#237c76"/></marker>
+<marker id="layout-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker>
+</defs>
+<style>
+text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}
+.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}
+.small{font-size:15px;fill:#52657a}.field{font-family:Menlo,Consolas,monospace;font-size:13px}
+.reference{fill:none;stroke:#237c76;stroke-width:2;marker-end:url(#reference-arrow)}
+.layout{fill:none;stroke:#52657a;stroke-width:1.8;stroke-dasharray:5 4;marker-end:url(#layout-arrow)}
+.reference-label{font-size:14px;fill:#237c76}
+</style>
+<rect width="1240" height="1080" rx="12" fill="#f5f8fc"/>
+<text x="28" y="40" class="title">File Format: overview and struct layouts</text>
+<rect x="64" y="94" width="310" height="68" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="122" class="label">DMDT  |  version 1</text>
+<text x="82" y="147" class="small">FOURCC + little-endian uint32</text>
+<rect x="64" y="190" width="310" height="110" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="218" class="label">Table directory</text>
+<text x="82" y="243" class="small">Table count · string-area offset</text>
+<text x="82" y="278" class="small">Offsets to each table</text>
+<rect x="64" y="350" width="310" height="105" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="382" class="label">PointLight table</text>
+<text x="82" y="410">Metadata + rows + payloads</text>
+<text x="82" y="438" class="small">Expanded at right</text>
+<rect x="64" y="483" width="310" height="86" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="515" class="label">SpotLight table</text>
+<text x="82" y="545" class="small">Its own metadata and row stride</text>
+<rect x="64" y="606" width="310" height="92" rx="7" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="638" class="label">Shared string area</text>
+<text x="82" y="668" class="small">Equal strings use the same bytes</text>
+<rect x="454" y="94" width="320" height="178" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="468" y="123" class="label">DataFileHeader · 8 bytes</text>
+<text x="468" y="151" class="small">Byte</text>
+<text x="524" y="151" class="small">Name</text>
+<text x="678" y="151" class="small">Type</text>
+<path d="M 468 160 H 760" stroke="#c3d0dd"/>
+<text x="468" y="182" class="field">0</text>
+<text x="524" y="182" class="field">m_Magic</text>
+<text x="678" y="182" class="field">char[4]</text>
+<text x="468" y="207" class="field">4</text>
+<text x="524" y="207" class="field">m_Version</text>
+<text x="678" y="207" class="field">uint32_t</text>
+<text x="468" y="244" class="small">magic = &quot;DMDT&quot;, version = 1</text>
+<rect x="824" y="94" width="320" height="178" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="838" y="123" class="label">DataFileDirectory · byte 8</text>
+<text x="838" y="151" class="small">Byte</text>
+<text x="894" y="151" class="small">Name</text>
+<text x="1048" y="151" class="small">Type</text>
+<path d="M 838 160 H 1130" stroke="#c3d0dd"/>
+<text x="838" y="182" class="field">0</text>
+<text x="894" y="182" class="field">m_TableCount</text>
+<text x="1048" y="182" class="field">uint32_t</text>
+<text x="838" y="207" class="field">4</text>
+<text x="894" y="207" class="field">m_StringsOffset</text>
+<text x="1048" y="207" class="field">uint32_t</text>
+<text x="838" y="232" class="field">8</text>
+<text x="894" y="232" class="field">table_offsets</text>
+<text x="1048" y="232" class="field">uint32_t[]</text>
+<rect x="454" y="350" width="320" height="278" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="468" y="379" class="label">DataTableHeader · 24 bytes</text>
+<text x="468" y="407" class="small">Byte</text>
+<text x="524" y="407" class="small">Name</text>
+<text x="678" y="407" class="small">Type</text>
+<path d="M 468 416 H 760" stroke="#c3d0dd"/>
+<text x="468" y="438" class="field">0</text>
+<text x="524" y="438" class="field">m_TypeHash</text>
+<text x="678" y="438" class="field">uint64_t</text>
+<text x="468" y="463" class="field">8</text>
+<text x="524" y="463" class="field">m_TagCount</text>
+<text x="678" y="463" class="field">uint16_t</text>
+<text x="468" y="488" class="field">10</text>
+<text x="524" y="488" class="field">m_FieldCount</text>
+<text x="678" y="488" class="field">uint16_t</text>
+<text x="468" y="513" class="field">12</text>
+<text x="524" y="513" class="field">m_RowCount</text>
+<text x="678" y="513" class="field">uint32_t</text>
+<text x="468" y="538" class="field">16</text>
+<text x="524" y="538" class="field">m_RowStride</text>
+<text x="678" y="538" class="field">uint32_t</text>
+<text x="468" y="563" class="field">20</text>
+<text x="524" y="563" class="field">m_MetadataCount</text>
+<text x="678" y="563" class="field">uint16_t</text>
+<text x="468" y="588" class="field">22</text>
+<text x="524" y="588" class="field">m_Reserved</text>
+<text x="678" y="588" class="field">uint16_t</text>
+<rect x="824" y="350" width="320" height="278" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="838" y="379" class="label">DataFileFieldMeta · 24 bytes</text>
+<text x="838" y="407" class="small">Byte</text>
+<text x="894" y="407" class="small">Name</text>
+<text x="1048" y="407" class="small">Type</text>
+<path d="M 838 416 H 1130" stroke="#c3d0dd"/>
+<text x="838" y="438" class="field">0</text>
+<text x="894" y="438" class="field">m_NameHash</text>
+<text x="1048" y="438" class="field">uint64_t</text>
+<text x="838" y="463" class="field">8</text>
+<text x="894" y="463" class="field">m_Kind</text>
+<text x="1048" y="463" class="field">uint32_t</text>
+<text x="838" y="488" class="field">12</text>
+<text x="894" y="488" class="field">m_ByteOffset</text>
+<text x="1048" y="488" class="field">uint32_t</text>
+<text x="838" y="513" class="field">16</text>
+<text x="894" y="513" class="field">m_ChildIndex</text>
+<text x="1048" y="513" class="field">uint16_t</text>
+<text x="838" y="538" class="field">18</text>
+<text x="894" y="538" class="field">m_ChildCount</text>
+<text x="1048" y="538" class="field">uint16_t</text>
+<text x="838" y="563" class="field">20</text>
+<text x="894" y="563" class="field">m_ByteSize</text>
+<text x="1048" y="563" class="field">uint32_t</text>
+<rect x="454" y="750" width="690" height="224" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="468" y="779" class="label">PointLight row · 32 bytes, inline Light expanded</text>
+<text x="468" y="807" class="small">Byte</text>
+<text x="552" y="807" class="small">Name</text>
+<text x="814" y="807" class="small">Type</text>
+<path d="M 468 816 H 1130" stroke="#c3d0dd"/>
+<text x="468" y="838" class="field">0</text>
+<text x="552" y="838" class="field">light</text>
+<text x="814" y="838" class="field">Light (24 bytes)</text>
+<text x="468" y="863" class="field">0</text>
+<text x="568" y="863" class="field">light.color</text>
+<text x="814" y="863" class="field">float[3]</text>
+<text x="468" y="888" class="field">12</text>
+<text x="568" y="888" class="field">light.padding</text>
+<text x="814" y="888" class="field">uint8_t[4]</text>
+<text x="468" y="913" class="field">16</text>
+<text x="568" y="913" class="field">light.intensity</text>
+<text x="814" y="913" class="field">double</text>
+<text x="468" y="938" class="field">24</text>
+<text x="552" y="938" class="field">range</text>
+<text x="814" y="938" class="field">double</text>
+<path d="M 64 274 H 34 V 386 H 64" class="reference"/>
+<path d="M 34 386 V 526 H 64" class="reference"/>
+<circle cx="34" cy="386" r="3" fill="#237c76"/>
+<path d="M 374 240 H 410 V 652 H 374" class="reference"/>
+<text x="426" y="447" class="reference-label" text-anchor="middle" transform="rotate(-90 426 447)">m_StringsOffset</text>
+<path d="M 374 128 H 454" class="layout"/>
+<path d="M 774 158 H 824" class="layout"/>
+<text x="799" y="146" class="small" text-anchor="middle">+8</text>
+<path d="M 374 386 H 402 Q 410 370 418 386 H 454" class="layout"/>
+<path d="M 898 272 V 310 H 614 V 350" class="reference"/>
+<text x="624" y="300" class="reference-label">table_offsets[t]</text>
+<path d="M 1144 513 H 1160 V 330 H 994 V 350" class="reference"/>
+<text x="925" y="316" class="reference-label">m_ChildCount children</text>
+<path d="M 744 628 V 660 H 984 V 628" class="layout"/>
+<text x="824" y="690" class="small">m_MetadataCount entries</text>
+<path d="M 614 628 V 750" class="layout"/>
+<text x="637" y="704" class="small">m_RowCount ×</text>
+<text x="637" y="727" class="small">m_RowStride bytes</text>
+<path d="M 1144 488 H 1152 Q 1160 472 1168 488 H 1188 V 858 H 1144" class="reference"/>
+<text x="1209" y="676" class="reference-label" text-anchor="middle" transform="rotate(-90 1209 676)">parent + m_ByteOffset</text>
+<text x="64" y="758" class="label">Reading the arrows</text>
+<path d="M 64 788 H 110" class="reference"/>
+<text x="122" y="793" class="small">Offset / index reference</text>
+<path d="M 64 820 H 110" class="layout"/>
+<text x="122" y="825" class="small">Layout expansion / size</text>
+<text x="64" y="865" class="small">Directory offsets start at the blob.</text>
+<text x="64" y="893" class="small">Field offsets start at the row</text>
+<text x="64" y="916" class="small">or containing inline struct.</text>
+<text x="64" y="954" class="small">Padding is not a named field.</text>
+<text x="28" y="1017" class="small">Within each table: header → tags → metadata → component names → rows → dynamic payloads</text>
+<text x="28" y="1051" class="small">Fixed structs are in data.h. table_offsets[] follows DataFileDirectory; reserved fields are zero. Byte is struct-relative.</text>
 </svg>

@@ -1,32 +1,86 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="490" viewBox="0 0 1040 490" role="img" aria-labelledby="title desc">
-<title id="title">Inline Light members and query-bound offsets</title>
-<desc id="desc">A reusable Light construction description declares color and intensity. Registration compiles it into each containing table's shared metadata. PointLight and SpotLight rows embed their own Light bytes. A query for light.color resolves the combined offset once per table; each row read uses that offset without searching member metadata.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="654" viewBox="0 0 1080 654" role="img" aria-labelledby="title desc">
+<!-- Copyright 2026 The Defold Foundation
+Licensed under the Defold License version 1.0 (the "License"); you may not use
+this file except in compliance with the License.
+
+You may obtain a copy of the License, together with FAQs at
+https://www.defold.com/license
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License. -->
+<title id="title">Example: PointLight and SpotLight both contain Light</title>
+<desc id="desc">Light has Vector3 color at byte zero, four padding bytes, and Number intensity at byte sixteen, for a size of twenty-four bytes. PointLight adds range for a thirty-two-byte row. SpotLight also adds two cone angles for a forty-eight-byte row. Each table has its own shared metadata; Light bytes are embedded in every row.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker></defs>
-<style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}.small{font-size:15px;fill:#52657a}.box{fill:white;stroke:#c3d0dd;stroke-width:1.5}.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
-<rect width="1040" height="490" rx="12" fill="#f5f8fc"/>
-<text x="28" y="38" class="title">Inline composition: resolve member paths once per table</text>
-<rect x="290" y="64" width="460" height="70" rx="7" fill="#e2f3ee" stroke="#a1c8bd"/>
-<text x="308" y="91" class="label">Reusable Light construction description</text>
-<text x="308" y="117">color: Vector3 at 0 · intensity: Number at 16</text>
-<path d="M 420 134 V 153 H 248 V 172" class="arrow"/>
-<path d="M 620 134 V 153 H 792 V 172" class="arrow"/>
-<rect x="28" y="180" width="464" height="89" rx="7" class="box"/>
-<text x="46" y="209" class="label">PointLight metadata</text>
-<text x="46" y="235">light → child range: color, intensity</text>
-<text x="46" y="257" class="small">Compiled once; shared by every PointLight row</text>
-<rect x="548" y="180" width="464" height="89" rx="7" class="box"/>
-<text x="566" y="209" class="label">SpotLight metadata</text>
-<text x="566" y="235">light → child range: color, intensity</text>
-<text x="566" y="257" class="small">Compiled once; shared by every SpotLight row</text>
-<text x="28" y="306" class="label">PointLight row</text>
-<rect x="28" y="320" width="300" height="48" fill="#e2f3ee" stroke="#a1c8bd"/>
-<rect x="328" y="320" width="164" height="48" fill="#e5ecfa" stroke="#c3d0dd"/>
-<text x="48" y="350">light: color + intensity</text><text x="384" y="350">range</text>
-<text x="548" y="306" class="label">SpotLight row</text>
-<rect x="548" y="320" width="256" height="48" fill="#e2f3ee" stroke="#a1c8bd"/>
-<rect x="804" y="320" width="208" height="48" fill="#e5ecfa" stroke="#c3d0dd"/>
-<text x="568" y="350">light: color + intensity</text><text x="824" y="350">range + cone angles</text>
-<text x="28" y="409">Query binding: color offset = offset(light) + offset(color)</text>
-<text x="28" y="439">Row access: Vector3 pointer at row bytes + bound color offset</text>
-<text x="28" y="472" class="small">Light has no separate row ID. Instances share metadata and defaults; each has mutable row bytes.</text>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}
+.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}
+.small{font-size:15px;fill:#52657a}.mono{font-family:Menlo,Consolas,monospace;font-size:15px}
+.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
+<rect width="1080" height="654" rx="12" fill="#f5f8fc"/>
+<text x="28" y="40" class="title">Example: PointLight and SpotLight both contain Light</text>
+<rect x="270" y="72" width="540" height="117" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="290" y="101" class="label">Light · 24 bytes, alignment 8</text>
+<text x="290" y="133" class="mono">color: Vector3 @ 0   (12 bytes)</text>
+<text x="290" y="165" class="mono">intensity: Number @ 16   (8 bytes)</text>
+<path d="M 398 189 V 211 H 267 V 230" class="arrow"/>
+<path d="M 682 189 V 211 H 813 V 230" class="arrow"/>
+<rect x="28" y="238" width="492" height="166" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="48" y="269" class="label">PointLight metadata · stride 32</text>
+<text x="48" y="301" class="mono">light: Light @ 0</text>
+<text x="48" y="329" class="mono">range: Number @ 24</text>
+<text x="48" y="378" class="small">light → color and intensity child metadata</text>
+<rect x="560" y="238" width="492" height="166" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="580" y="269" class="label">SpotLight metadata · stride 48</text>
+<text x="580" y="301" class="mono">light: Light @ 0; range: Number @ 24</text>
+<text x="580" y="329" class="mono">inner_cone_angle: Number @ 32</text>
+<text x="580" y="357" class="mono">outer_cone_angle: Number @ 40</text>
+<text x="580" y="385" class="small">light → color and intensity child metadata</text>
+<text x="28" y="442" class="label">PointLight row · template defaults</text>
+<text x="560" y="442" class="label">SpotLight row · template defaults</text>
+<text x="28" y="470" class="small">0</text>
+<rect x="28" y="482" width="180" height="66" rx="0" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="118.0" y="507" class="small" text-anchor="middle">color</text>
+<text x="118.0" y="536" class="mono" text-anchor="middle">1,1,1</text>
+<text x="208" y="470" class="small">12</text>
+<rect x="208" y="482" width="60" height="66" rx="0" fill="#e8edf2" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="238.0" y="507" class="small" text-anchor="middle">pad</text>
+<text x="268" y="470" class="small">16</text>
+<rect x="268" y="482" width="120" height="66" rx="0" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="328.0" y="507" class="small" text-anchor="middle">intensity</text>
+<text x="328.0" y="536" class="mono" text-anchor="middle">1.0</text>
+<text x="388" y="470" class="small">24</text>
+<rect x="388" y="482" width="120" height="66" rx="0" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="448.0" y="507" class="small" text-anchor="middle">range</text>
+<text x="448.0" y="536" class="mono" text-anchor="middle">10.0</text>
+<text x="508" y="470" class="small" text-anchor="end">32</text>
+<path d="M 28 559 V 568 H 388 V 559" fill="none" stroke="#a7b8ca" stroke-width="1.5"/>
+<text x="208" y="591" class="small" text-anchor="middle">inline Light · 24 bytes</text>
+<text x="560" y="470" class="small">0</text>
+<rect x="560" y="482" width="120" height="66" rx="0" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="620.0" y="507" class="small" text-anchor="middle">color</text>
+<text x="620.0" y="536" class="mono" text-anchor="middle">1,1,1</text>
+<text x="680" y="470" class="small">12</text>
+<rect x="680" y="482" width="40" height="66" rx="0" fill="#e8edf2" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="700.0" y="507" class="small" text-anchor="middle">pad</text>
+<text x="720" y="470" class="small">16</text>
+<rect x="720" y="482" width="80" height="66" rx="0" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="760.0" y="507" class="small" text-anchor="middle">intensity</text>
+<text x="760.0" y="536" class="mono" text-anchor="middle">1.0</text>
+<text x="800" y="470" class="small">24</text>
+<rect x="800" y="482" width="80" height="66" rx="0" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="840.0" y="507" class="small" text-anchor="middle">range</text>
+<text x="840.0" y="536" class="mono" text-anchor="middle">10.0</text>
+<text x="880" y="470" class="small">32</text>
+<rect x="880" y="482" width="80" height="66" rx="0" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="920.0" y="507" class="small" text-anchor="middle">inner</text>
+<text x="920.0" y="536" class="mono" text-anchor="middle">0.0</text>
+<text x="960" y="470" class="small">40</text>
+<rect x="960" y="482" width="80" height="66" rx="0" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="1000.0" y="507" class="small" text-anchor="middle">outer</text>
+<text x="1000.0" y="536" class="mono" text-anchor="middle">45.0</text>
+<text x="1040" y="470" class="small" text-anchor="end">48</text>
+<path d="M 560 559 V 568 H 800 V 559" fill="none" stroke="#a7b8ca" stroke-width="1.5"/>
+<text x="680" y="591" class="small" text-anchor="middle">inline Light · 24 bytes</text>
+<text x="28" y="630" class="small">Rows contain values only. The producer reuses the Light description; each table stores its own metadata.</text>
 </svg>

@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="776" viewBox="0 0 1080 776" role="img" aria-labelledby="title desc">
+<!-- Copyright 2026 The Defold Foundation
+Licensed under the Defold License version 1.0 (the "License"); you may not use
+this file except in compliance with the License.
+
+You may obtain a copy of the License, together with FAQs at
+https://www.defold.com/license
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License. -->
+<title id="title">Queries: describe once, bind once, iterate many rows</title>
+<desc id="desc">Create a query for the light tag and light.color Vector3. Matching tables cache their own resolved offset under a stable field handle. On each update reserve query access, select a matching-row range, iterate batches with DataIterator and rows with DataRowIterator, then read color through DataFieldGetVector3. Release access after all jobs finish.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}
+.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}
+.small{font-size:15px;fill:#52657a}.mono{font-family:Menlo,Consolas,monospace;font-size:15px}
+.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
+<rect width="1080" height="776" rx="12" fill="#f5f8fc"/>
+<text x="28" y="40" class="title">Queries: describe once, bind once, iterate many rows</text>
+<rect x="28" y="72" width="468" height="150" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="48" y="102" class="label">1. Describe the query</text>
+<text x="48" y="134" class="mono">Tag: light</text>
+<text x="48" y="162" class="mono">Field: light.color · Vector3 · read</text>
+<text x="48" y="196" class="mono">DataCreateQuery → HDataQuery</text>
+<path d="M 496 145 H 576" class="arrow"/>
+<rect x="584" y="72" width="468" height="150" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="604" y="102" class="label">2. Cache each matching table’s binding</text>
+<text x="604" y="134" class="mono">PointLight → light offset + color offset</text>
+<text x="604" y="162" class="mono">SpotLight  → light offset + color offset</text>
+<text x="604" y="196" class="mono">DataQueryFindField → color_field</text>
+<text x="28" y="257" class="small">The field handle stays the same; each table supplies its own offset. Tables may be added or removed.</text>
+<path d="M 818 222 V 280 H 540 V 304" class="arrow"/>
+<rect x="28" y="312" width="1024" height="80" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="48" y="342" class="label">3. Begin each update: DataQueryTryBegin(query)</text>
+<text x="48" y="374" class="small">OK → reserve access and count rows with DataQueryGetRowCount; BUSY → retry later.</text>
+<path d="M 540 392 V 418" class="arrow"/>
+<rect x="28" y="426" width="1024" height="248" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="48" y="457" class="label">4. One cursor per caller-selected range</text>
+<text x="48" y="486" class="mono">DataIterator it = DataQueryIterRange(query, first, count)</text>
+<rect x="48" y="502" width="336" height="140" rx="7" fill="#e8edf2" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="68" y="531" class="mono">while DataIterNext(&amp;it) == OK:</text>
+<text x="68" y="565" class="label">Current batch: one table</text>
+<text x="68" y="597" class="small">A PointLight or SpotLight batch</text>
+<text x="68" y="623" class="small">Range boundaries may split batches.</text>
+<path d="M 384 571 H 420" class="arrow"/>
+<rect x="428" y="502" width="604" height="140" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="448" y="531" class="mono">DataRowIterator rows = DataIterRows(&amp;it)</text>
+<text x="448" y="561" class="mono">while DataRowIterNext(&amp;rows) == OK:</text>
+<text x="466" y="591" class="mono">color = DataFieldGetVector3(&amp;rows, color_field)</text>
+<text x="466" y="623" class="small">Use the current value; then advance to the next row.</text>
+<path d="M 540 674 V 698" class="arrow"/>
+<rect x="28" y="706" width="1024" height="44" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="48" y="734" class="label">5. Join all jobs and finish using pointers → DataQueryEnd(query)</text>
+</svg>

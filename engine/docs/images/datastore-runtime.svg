@@ -1,28 +1,58 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="500" viewBox="0 0 1080 500" role="img" aria-labelledby="title desc">
-<title id="title">shared resource defaults and mutable instance rows</title>
-<desc id="desc">The resource system loads an immutable blob once. Creating a game object copies its component row bytes into mutable instance tables. Numeric and math writes modify these rows in place. Reset copies defaults for the selected component or game object back from the resource. Strings and nested containers reference the resource until replaced with registration-owned payloads. Mutable instances are implemented in the data library; engine resource integration remains pending.</desc>
-<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker></defs>
-<style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}.small{font-size:15px;fill:#52657a}.mono{font-family:Menlo,Consolas,monospace;font-size:16px}.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
-<rect width="1080" height="500" rx="12" fill="#f5f8fc"/>
-<text x="28" y="40" class="title">resource defaults + mutable instance rows</text>
-<text x="28" y="71" class="small">Resource loading borrows file bytes; game-object creation copies mutable row bytes once.</text>
-<rect x="28" y="110" width="430" height="190" rx="8" fill="#e2f3ee" stroke="#a1c8bd"/>
-<text x="48" y="143" class="label">Resource blob · loaded once</text>
-<text x="48" y="180" class="mono">color=(1,1,1)</text>
-<text x="48" y="207" class="mono">intensity=1  range=10</text>
-<text x="48" y="244" class="small">Shared metadata and immutable defaults</text>
-<text x="48" y="276" class="small">Resource stays alive while instances use it</text>
-<rect x="598" y="110" width="454" height="190" rx="8" fill="#e5ecfa" stroke="#a8bcd7"/>
-<text x="618" y="143" class="label">Component · mutable row</text>
-<text x="618" y="180" class="mono">color=(1,0.5,0)</text>
-<text x="618" y="207" class="mono">intensity=1  range=10</text>
-<text x="618" y="244" class="small">Get/set access these bytes directly</text>
-<text x="618" y="276" class="small">No override row or changed-property bitset</text>
-<path d="M 464 197 H 590" class="arrow"/>
-<text x="486" y="179" class="small">copy rows</text>
-<text x="470" y="224" class="small">create or reset</text>
-<rect x="28" y="339" width="1024" height="93" rx="8" fill="#fff1da" stroke="#d5b675"/>
-<text x="48" y="372" class="label">Strings and nested containers</text>
-<text x="48" y="405">Reference shared resource bytes until replaced; replacement payloads belong to the registration.</text>
-<text x="28" y="473" class="small">Reset targets a component row or one game object’s registered rows.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="664" viewBox="0 0 1080 664" role="img" aria-labelledby="title desc">
+<!-- Copyright 2026 The Defold Foundation
+Licensed under the Defold License version 1.0 (the "License"); you may not use
+this file except in compliance with the License.
+
+You may obtain a copy of the License, together with FAQs at
+https://www.defold.com/license
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License. -->
+<title id="title">New game objects append rows to the existing tables</title>
+<desc id="desc">First load an immutable PointLight and SpotLight blob once without copying it. Register game object A to create one mutable row in each runtime table. Register B from the same blob to append another row to both tables. One registration tracks both component rows. Numeric writes stay in those rows and reset copies the resource defaults back.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}
+.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}
+.small{font-size:15px;fill:#52657a}.mono{font-family:Menlo,Consolas,monospace;font-size:15px}
+.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
+<rect width="1080" height="664" rx="12" fill="#f5f8fc"/>
+<text x="28" y="40" class="title">New game objects append rows to the existing tables</text>
+<rect x="28" y="72" width="1024" height="79" rx="7" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="48" y="101" class="label">1. Load once: DataLoadBlob(buffer, size, &amp;blob)</text>
+<text x="48" y="132" class="small">The caller keeps the immutable buffer alive. Loading adds no runtime rows.</text>
+<path d="M 252 151 V 190" class="arrow"/>
+<path d="M 818 151 V 190" class="arrow"/>
+<text x="444" y="179" class="small">same loaded blob</text>
+<rect x="28" y="198" width="448" height="298" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="48" y="228" class="label">2. Register game object A</text>
+<text x="48" y="257" class="mono">DataAddBlob(store, blob, A, &amp;a)</text>
+<text x="48" y="285" class="small">Copy A’s two component rows once.</text>
+<text x="48" y="324" class="label">PointLight table</text>
+<rect x="48" y="339" width="408" height="42" rx="4" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="68" y="367" class="mono">A: light + range</text>
+<text x="48" y="413" class="label">SpotLight table</text>
+<rect x="48" y="428" width="408" height="42" rx="4" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="68" y="456" class="mono">A: light + range + cone angles</text>
+<path d="M 476 346 H 576" class="arrow"/>
+<text x="498" y="327" class="small">append</text>
+<rect x="584" y="198" width="468" height="298" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="604" y="228" class="label">3. Register game object B</text>
+<text x="604" y="257" class="mono">DataAddBlob(store, blob, B, &amp;b)</text>
+<text x="604" y="285" class="small">Reuse the tables; copy only B’s rows.</text>
+<text x="604" y="324" class="label">PointLight table</text>
+<rect x="604" y="339" width="202" height="42" rx="4" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<rect x="806" y="339" width="226" height="42" rx="4" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="705" y="367" class="mono" text-anchor="middle">A’s row</text>
+<text x="919" y="367" class="mono" text-anchor="middle">B’s new row</text>
+<text x="604" y="413" class="label">SpotLight table</text>
+<rect x="604" y="428" width="202" height="42" rx="4" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<rect x="806" y="428" width="226" height="42" rx="4" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="705" y="456" class="mono" text-anchor="middle">A’s row</text>
+<text x="919" y="456" class="mono" text-anchor="middle">B’s new row</text>
+<rect x="28" y="528" width="1024" height="88" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="48" y="558" class="label">Update in place · reset from the blob · remove by registration</text>
+<text x="48" y="588">Each component has a DataId; each game object’s registration groups its rows for reset/removal.</text>
+<text x="28" y="646" class="small">New rows get a new owner and stable IDs. Shared capacity grows only when needed.</text>
 </svg>
