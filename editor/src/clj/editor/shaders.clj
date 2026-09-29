@@ -178,6 +178,14 @@
     "shaders/scene-shape.vp"
     "shaders/uniform-color.fp"))
 
+(def selection-color-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj
+                "color" :id-color}}
+    "shaders/uniform-color.vp"
+    "shaders/uniform-color.fp"))
+
 (def selection-attribute-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
