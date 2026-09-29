@@ -12,18 +12,18 @@
 
 #include "benchmark_data_common.h"
 
-// Read both properties without a spatial filter; tag optionally restricts the scan to enemies.
+// Read both fields without a spatial filter; tag optionally restricts the scan to enemies.
 Query CreateHealthPositionQuery(Backend* store, const Fixture* input, uint64_t tag)
 {
     Query out = {};
     out.m_Tag = tag;
     if (!store->m_Kind)
     {
-        DataQueryProperty fields[] = {
-            { g_Properties[HEALTH], DATA_VALUE_TYPE_NUMBER },
-            { g_Properties[POSITION], DATA_VALUE_TYPE_VECTOR3 }
+        DataQueryField fields[] = {
+            { .m_Field = g_Fields[HEALTH], .m_Type = DATA_VALUE_TYPE_NUMBER },
+            { .m_Field = g_Fields[POSITION], .m_Type = DATA_VALUE_TYPE_VECTOR3 }
         };
-        DataQueryDesc desc = { 0, 0, tag ? &tag : 0, tag ? 1u : 0u, fields, 2 };
+        DataQueryDesc desc = { .m_AllTags = tag ? &tag : 0, .m_AllTagCount = tag ? 1u : 0u, .m_Fields = fields, .m_FieldCount = 2 };
         Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create health position query");
         out.m_HealthField = DataQueryFindField(out.m_Data, &fields[0]);
         out.m_PositionField = DataQueryFindField(out.m_Data, &fields[1]);
@@ -35,14 +35,14 @@ Query CreateHealthPositionQuery(Backend* store, const Fixture* input, uint64_t t
             const TypeInput* t = &input->m_Types[ti];
             if (store->m_Kind == 1 && (!HasTag(t, tag) || FindField(t, HEALTH) == UINT32_MAX || FindField(t, POSITION) == UINT32_MAX))
                 continue;
-            ecs_query_desc_t desc = {};
-            desc.cache_kind = EcsQueryCacheAuto;
-            desc.terms[0].id = store->m_Kind == 1 ? store->m_Types[ti] : store->m_Properties[HEALTH];
-            desc.terms[0].inout = EcsIn;
+            ecs_query_desc_t desc = {
+                .terms = { { .id = store->m_Kind == 1 ? store->m_Types[ti] : store->m_Fields[HEALTH], .inout = EcsIn } },
+                .cache_kind = EcsQueryCacheAuto,
+            };
             uint32_t terms = 1;
             if (store->m_Kind == 2)
             {
-                desc.terms[terms].id = store->m_Properties[POSITION];
+                desc.terms[terms].id = store->m_Fields[POSITION];
                 desc.terms[terms++].inout = EcsIn;
             }
             if (tag)
@@ -134,8 +134,8 @@ static Stats ExpectedHealthPosition(const Fixture* input, const Query* query, bo
         uint32_t count = t->m_Count + (extra ? t->m_Extra : 0);
         for (uint32_t r = 0; r < count; ++r)
         {
-            const DataValue* values = &t->m_Values[(size_t)r * t->m_FieldCount];
-            stats.m_Sum += values[f].m_Value.m_Number + SumVector(values[position].m_Value.m_Vector3);
+            const DataValueData* values = &t->m_Values[(size_t)r * t->m_FieldCount];
+            stats.m_Sum += values[f].m_Number + SumVector(values[position].m_Vector3);
             ++stats.m_Rows;
         }
     }

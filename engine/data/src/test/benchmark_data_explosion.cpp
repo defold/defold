@@ -19,11 +19,11 @@ Query CreateExplosionQuery(Backend* store, const Fixture* input)
     Query out = {};
     if (!store->m_Kind)
     {
-        DataQueryProperty fields[] = {
-            { g_Properties[HEALTH], DATA_VALUE_TYPE_NUMBER },
-            { g_Properties[POSITION], DATA_VALUE_TYPE_VECTOR3 }
+        DataQueryField fields[] = {
+            { .m_Field = g_Fields[HEALTH], .m_Type = DATA_VALUE_TYPE_NUMBER },
+            { .m_Field = g_Fields[POSITION], .m_Type = DATA_VALUE_TYPE_VECTOR3 }
         };
-        DataQueryDesc desc = { 0, 0, 0, 0, fields, 2 };
+        DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 2 };
         Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create explosion query");
         out.m_HealthField = DataQueryFindField(out.m_Data, &fields[0]);
         out.m_PositionField = DataQueryFindField(out.m_Data, &fields[1]);
@@ -35,13 +35,13 @@ Query CreateExplosionQuery(Backend* store, const Fixture* input)
             const TypeInput* t = &input->m_Types[ti];
             if (store->m_Kind == 1 && (FindField(t, HEALTH) == UINT32_MAX || FindField(t, POSITION) == UINT32_MAX))
                 continue;
-            ecs_query_desc_t desc = {};
-            desc.cache_kind = EcsQueryCacheAuto;
-            desc.terms[0].id = store->m_Kind == 1 ? store->m_Types[ti] : store->m_Properties[HEALTH];
-            desc.terms[0].inout = EcsInOut;
+            ecs_query_desc_t desc = {
+                .terms = { { .id = store->m_Kind == 1 ? store->m_Types[ti] : store->m_Fields[HEALTH], .inout = EcsInOut } },
+                .cache_kind = EcsQueryCacheAuto,
+            };
             if (store->m_Kind == 2)
             {
-                desc.terms[1].id = store->m_Properties[POSITION];
+                desc.terms[1].id = store->m_Fields[POSITION];
                 desc.terms[1].inout = EcsIn;
             }
             out.m_Types[out.m_Count] = ti;
@@ -140,10 +140,10 @@ static Stats ExpectedExplosion(const Fixture* input, const Query* query)
         uint32_t count = t->m_Count;
         for (uint32_t r = 0; r < count; ++r)
         {
-            const DataValue* values = &t->m_Values[(size_t)r * t->m_FieldCount];
-            bool             hit = Hit(values[position].m_Value.m_Vector3, 50);
+            const DataValueData* values = &t->m_Values[(size_t)r * t->m_FieldCount];
+            bool                 hit = Hit(values[position].m_Vector3, 50);
             stats.m_Hits += hit;
-            stats.m_Sum += Damaged(values[f].m_Value.m_Number, hit ? 1 : 0) + SumVector(values[position].m_Value.m_Vector3);
+            stats.m_Sum += Damaged(values[f].m_Number, hit ? 1 : 0) + SumVector(values[position].m_Vector3);
             ++stats.m_Rows;
         }
     }
@@ -156,3 +156,29 @@ void MeasureExplosion(Backend* store, const Fixture* input, Query* query, uint32
     QueryBenchmark benchmark = store->m_Kind ? Explosion_Flecs : Explosion_Defold;
     MeasureQuery(store, input, query, sample, "explosion_r50_first", benchmark, expected, 1);
 }
+
+#ifdef DATA_BENCHMARK_ENTT
+#include "benchmark_data_entt.h"
+
+// Match the same position + health fields across Player, Enemy and Breakable.
+CoreEnttExplosion CreateExplosionQuery_EnTT(CoreEnttStore* store)
+{
+    return store->m_Registry.view<const CoreEnttPosition, CoreEnttHealth>();
+}
+
+Stats Explosion_EnTT(CoreEnttExplosion* query)
+{
+    Stats stats = {};
+    query->each([&stats](const CoreEnttPosition& position, CoreEnttHealth& health) {
+        if (Hit(position.m_Value.m_Values, 50))
+        {
+            health.m_Value = Damaged(health.m_Value, 1);
+            ++stats.m_Hits;
+        }
+        stats.m_Sum += health.m_Value + SumVector(position.m_Value.m_Values);
+        ++stats.m_Rows;
+    });
+    return stats;
+}
+
+#endif

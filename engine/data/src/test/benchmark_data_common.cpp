@@ -102,10 +102,10 @@ void RecordMemory(const Backend* store, const Fixture* input, uint32_t sample, c
 #endif
 }
 
-uint32_t FindField(const TypeInput* type, Property property)
+uint32_t FindField(const TypeInput* type, FieldId field)
 {
     for (uint32_t i = 0; i < type->m_FieldCount; ++i)
-        if (type->m_Fields[i].m_Property == property)
+        if (type->m_Fields[i].m_Field == field)
             return i;
     return UINT32_MAX;
 }
@@ -158,7 +158,7 @@ void ResetValues(Backend* store, const Fixture* input)
                 else
                 {
                     for (uint32_t f = 0; f < t->m_FieldCount; ++f)
-                        memcpy(FlecsProperty(store, t, ti, r, t->m_Fields[f].m_Property), t->m_Columns[f] + (size_t)r * t->m_Fields[f].m_NativeSize, t->m_Fields[f].m_NativeSize);
+                        memcpy(FlecsField(store, t, ti, r, t->m_Fields[f].m_Field), t->m_Columns[f] + (size_t)r * t->m_Fields[f].m_NativeSize, t->m_Fields[f].m_NativeSize);
                 }
             }
         }
@@ -175,15 +175,15 @@ void ValidateHealth(Backend* store, const Fixture* input, int radius, uint32_t w
             continue;
         for (uint32_t r = 0; r < t->m_Count; ++r)
         {
-            const DataValue* values = &t->m_Values[(size_t)r * t->m_FieldCount];
-            double           actual;
+            const DataValueData* values = &t->m_Values[(size_t)r * t->m_FieldCount];
+            double               actual;
             if (!store->m_Kind)
             {
-                Check(DataGetPropertyNumber(store->m_Data, store->m_Ids[t->m_Offset + r], g_Properties[HEALTH], &actual) == DATA_RESULT_OK, "validate health read");
+                Check(DataGetFieldNumber(store->m_Data, store->m_Ids[t->m_Offset + r], g_Fields[HEALTH], &actual) == DATA_RESULT_OK, "validate health read");
             }
             else
-                actual = *(double*)FlecsProperty(store, t, ti, r, HEALTH);
-            Check(actual == Damaged(values[hp].m_Value.m_Number, Hit(values[pos].m_Value.m_Vector3, radius) ? writes : 0), "per-instance damage");
+                actual = *(double*)FlecsField(store, t, ti, r, HEALTH);
+            Check(actual == Damaged(values[hp].m_Number, Hit(values[pos].m_Vector3, radius) ? writes : 0), "per-instance damage");
         }
     }
 }
@@ -214,8 +214,7 @@ ecs_entity_t Tag(ecs_world_t* world, uint64_t hash)
     // Hashes are names in this adapter, never forced into Flecs' entity-ID space.
     char name[32];
     snprintf(name, sizeof(name), "tag_%016llx", (unsigned long long)hash);
-    ecs_entity_desc_t desc = {};
-    desc.name = name;
+    ecs_entity_desc_t desc = { .name = name };
     return ecs_entity_init(world, &desc);
 }
 

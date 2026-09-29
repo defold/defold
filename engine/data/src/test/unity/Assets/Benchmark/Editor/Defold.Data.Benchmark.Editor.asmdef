@@ -1,0 +1,11 @@
+{
+  "name": "Defold.Data.Benchmark.Editor",
+  "references": [
+    "Defold.Data.Benchmark",
+    "Unity.Burst",
+    "Unity.Burst.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}

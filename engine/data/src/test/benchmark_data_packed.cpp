@@ -95,7 +95,7 @@ void RunPacked(const Fixture* input, uint32_t kind, uint32_t sample)
         uint32_t changed = input->m_Count / 100 * percent;
         uint32_t health_changes = 0;
         for (uint32_t i = 0; i < changed; ++i)
-            health_changes += ScalarProperty(input->m_Order[i].m_Type) == HEALTH;
+            health_changes += ScalarField(input->m_Order[i].m_Type) == HEALTH;
         char name[64];
         snprintf(name, sizeof(name), "packed_%upct_health_query", percent);
         MeasureHealthPosition(&store, input, &health, sample, name, false, health_changes * 2);

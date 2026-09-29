@@ -19,8 +19,8 @@ Query CreateLightColorQuery(Backend* store, const Fixture* input, uint64_t tag)
     out.m_Tag = tag;
     if (!store->m_Kind)
     {
-        DataQueryProperty color = { g_Properties[LIGHT], DATA_VALUE_TYPE_VECTOR3, &g_Properties[COLOR], 1 };
-        DataQueryDesc     desc = { 0, 0, tag ? &tag : 0, tag ? 1u : 0u, &color, 1 };
+        DataQueryField color = { .m_Field = g_Fields[LIGHT], .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Path = &g_Fields[COLOR], .m_PathCount = 1 };
+        DataQueryDesc  desc = { .m_AllTags = tag ? &tag : 0, .m_AllTagCount = tag ? 1u : 0u, .m_Fields = &color, .m_FieldCount = 1 };
         Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create light color query");
         out.m_ColorField = DataQueryFindField(out.m_Data, &color);
     }
@@ -31,10 +31,10 @@ Query CreateLightColorQuery(Backend* store, const Fixture* input, uint64_t tag)
             const TypeInput* t = &input->m_Types[ti];
             if (store->m_Kind == 1 && (!HasTag(t, tag) || FindField(t, LIGHT) == UINT32_MAX))
                 continue;
-            ecs_query_desc_t desc = {};
-            desc.cache_kind = EcsQueryCacheAuto;
-            desc.terms[0].id = store->m_Kind == 1 ? store->m_Types[ti] : store->m_Properties[LIGHT];
-            desc.terms[0].inout = EcsIn;
+            ecs_query_desc_t desc = {
+                .terms = { { .id = store->m_Kind == 1 ? store->m_Types[ti] : store->m_Fields[LIGHT], .inout = EcsIn } },
+                .cache_kind = EcsQueryCacheAuto,
+            };
             if (tag)
             {
                 desc.terms[1].id = Tag(store->m_World, tag);
@@ -118,7 +118,7 @@ static Stats ExpectedLightColor(const Fixture* input, const Query* query, bool e
         uint32_t count = t->m_Count + (extra ? t->m_Extra : 0);
         for (uint32_t r = 0; r < count; ++r)
         {
-            stats.m_Sum += SumVector(t->m_LightValues[r * 2].m_Value.m_Vector3);
+            stats.m_Sum += SumVector(t->m_LightValues[r * 2].m_Vector3);
             ++stats.m_Rows;
         }
     }

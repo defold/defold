@@ -29,26 +29,32 @@ static void Check(bool condition, const char* message)
 static FILE* CreateFile(uint32_t tables, uint32_t rows, uint32_t* out_size)
 {
     SetBenchmarkMemoryDomain(BENCHMARK_MEMORY_FIXTURE);
-    HDataStore       source = DataCreateStore();
-    DataPropertyDesc properties[] = { { 10, DATA_VALUE_TYPE_NUMBER, 0 }, { 20, DATA_VALUE_TYPE_VECTOR3, 8 } };
-    DataValue        values[2] = {};
-    values[0].m_Type = DATA_VALUE_TYPE_NUMBER;
-    values[1].m_Type = DATA_VALUE_TYPE_VECTOR3;
-    values[1].m_Value.m_Vector3[1] = 2;
-    values[1].m_Value.m_Vector3[2] = 3;
-    uint32_t     capacity = (rows + tables - 1) / tables;
-    DataRowDesc* input = new DataRowDesc[capacity];
-    DataId*      ids = new DataId[capacity];
+    HDataStore    source = DataCreateStore();
+    DataFieldDesc fields[] = {
+        { .m_Field = 10, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 0 },
+        { .m_Field = 20, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 8 }
+    };
+    const DataValueType types[] = { DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_VECTOR3 };
+    DataValueData       values[] = { { .m_Number = 0 }, { .m_Vector3 = { 0, 2, 3 } } };
+    uint32_t            capacity = (rows + tables - 1) / tables;
+    DataRowDesc*        input = new DataRowDesc[capacity];
+    DataId*             ids = new DataId[capacity];
     for (uint32_t t = 0; t < tables; ++t)
     {
-        DataTableDesc desc = { t + 1, 0, 0, properties, 2, 24 }; // Tail padding for the double's eight-byte alignment.
+        DataTableDesc desc = {
+            .m_Type = t + 1,
+            .m_Fields = fields,
+            .m_FieldCount = 2,
+            .m_RowStride = 24
+        }; // Tail padding for the double's eight-byte alignment.
         Check(DataRegisterTable(source, &desc) == DATA_RESULT_OK, "register source table");
         uint32_t count = rows / tables + (t < rows % tables);
-        values[0].m_Value.m_Number = 100 + t;
-        values[1].m_Value.m_Vector3[0] = (float)t;
+        values[0].m_Number = 100 + t;
+        values[1].m_Vector3[0] = (float)t;
         for (uint32_t r = 0; r < count; ++r)
         {
             input[r].m_Owner = r + 1;
+            input[r].m_Types = types;
             input[r].m_Values = values;
             input[r].m_ValueCount = 2;
             input[r].m_ComponentId = r + 1;
@@ -89,8 +95,8 @@ static DataId Validate(HDataStore store, uint32_t expected_tables, uint32_t expe
             DataId      id = DataRowIterGetId(&row);
             double      health;
             DataVector3 position;
-            Check(DataGetPropertyNumber(store, id, 10, &health) == DATA_RESULT_OK && health == 99 + type, "loaded health");
-            Check(DataGetPropertyVector3(store, id, 20, &position) == DATA_RESULT_OK, "loaded position");
+            Check(DataGetFieldNumber(store, id, 10, &health) == DATA_RESULT_OK && health == 99 + type, "loaded health");
+            Check(DataGetFieldVector3(store, id, 20, &position) == DATA_RESULT_OK, "loaded position");
             Check(position.m_Values[0] == type - 1 && position.m_Values[1] == 2 && position.m_Values[2] == 3, "position components");
             Check(DataRowIterGetOwnerId(&row) == 4242, "runtime owner");
             Check(DataGetComponentId(store, id) == r + 1, "component identity");
@@ -147,12 +153,12 @@ int main(int argc, char** argv)
                     printf("%u,%u,%u,%s,%u,%llu,%llu,%llu,%llu,%llu,%llu,%llu\n", table_counts[c], row_counts[c], sample, reuse ? "reused" : "fresh", size, (unsigned long long)memory.m_Before.m_Bytes, (unsigned long long)memory.m_After.m_Bytes, (unsigned long long)memory.m_After.m_PeakBytes, (unsigned long long)allocations, (unsigned long long)reallocations, (unsigned long long)(memory.m_After.m_Frees - memory.m_Before.m_Frees), (unsigned long long)memory.m_After.m_Blocks);
                 double health;
                 if (stale)
-                    Check(DataGetPropertyNumber(store, stale, 10, &health) == DATA_RESULT_NOT_FOUND, "stale IDs after reloading");
+                    Check(DataGetFieldNumber(store, stale, 10, &health) == DATA_RESULT_NOT_FOUND, "stale IDs after reloading");
                 stale = Validate(store, table_counts[c], row_counts[c]);
                 Check(GetInstanceTable(instance, 0)->m_Blob == buffer, "caller buffer is borrowed");
                 DataDestroyBlob(blob);
                 DataRemoveBlob(instance);
-                Check(DataGetPropertyNumber(store, stale, 10, &health) == DATA_RESULT_NOT_FOUND, "unloaded ID");
+                Check(DataGetFieldNumber(store, stale, 10, &health) == DATA_RESULT_NOT_FOUND, "unloaded ID");
                 delete[] buffer;
             }
             DataDestroyStore(store);

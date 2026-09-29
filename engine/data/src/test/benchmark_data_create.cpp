@@ -26,7 +26,7 @@ static uint32_t FlecsColumns(Backend* store, const TypeInput* t, uint32_t ti, ui
         data[count++] = 0;
         for (uint32_t f = 0; f < t->m_FieldCount; ++f)
         {
-            ids[count] = store->m_Properties[t->m_Fields[f].m_Property];
+            ids[count] = store->m_Fields[t->m_Fields[f].m_Field];
             data[count++] = t->m_Columns[f] + (size_t)start * t->m_Fields[f].m_NativeSize;
         }
     }
@@ -45,7 +45,31 @@ static uint32_t FlecsColumns(Backend* store, const TypeInput* t, uint32_t ti, ui
 int CreateBulk_Defold(Backend* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count)
 {
     const TypeInput* t = &input->m_Types[ti];
-    return DataAddRows(store->m_Data, t->m_Type, t->m_Rows + start, count, store->m_Ids + t->m_Offset + start);
+    DataRowOverride  fields[MAX_FIELDS];
+    uint32_t         field_count = 0;
+    uint64_t         color = g_Fields[COLOR];
+    for (uint32_t f = 0; f < t->m_FieldCount; ++f)
+    {
+        const Field& field = t->m_Fields[f];
+        if (field.m_Field != POSITION && field.m_Field != HEALTH && field.m_Field != LIGHT)
+            continue;
+        DataRowOverride value = {
+            .m_Field = { .m_Field = g_Fields[field.m_Field], .m_Type = field.m_Kind },
+            .m_Values = t->m_Columns[f] + (size_t)start * field.m_NativeSize,
+            .m_Stride = field.m_NativeSize
+        };
+        if (field.m_Field == LIGHT)
+        {
+            value.m_Field.m_Type = DATA_VALUE_TYPE_VECTOR3;
+            value.m_Field.m_Path = &color;
+            value.m_Field.m_PathCount = 1;
+            value.m_Values = (const uint8_t*)value.m_Values + offsetof(Light, color);
+        }
+        fields[field_count++] = value;
+    }
+    // Template construction, field binding and every per-instance patch remain
+    // inside the timed creation/spawn operation. Native columns also feed Flecs.
+    return DataAddRowsFromTemplate(store->m_Data, t->m_Type, t->m_Rows + start, fields, field_count, t->m_Rows + start, count, store->m_Ids + t->m_Offset + start);
 }
 
 int CreateIndividual_Defold(Backend* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count)
@@ -56,7 +80,7 @@ int CreateIndividual_Defold(Backend* store, const Fixture* input, uint32_t ti, u
     for (uint32_t r = 0; r < count; ++r)
     {
         const DataRowDesc* row = &t->m_Rows[start + r];
-        error |= DataAddRow(store->m_Data, t->m_Type, row->m_Owner, row->m_Values, row->m_ValueCount, &output[r], row->m_ComponentId);
+        error |= DataAddRow(store->m_Data, t->m_Type, row->m_Owner, row->m_Types, row->m_Values, row->m_ValueCount, &output[r], row->m_ComponentId);
     }
     return error;
 }
@@ -68,10 +92,8 @@ int CreateBulk_Flecs(Backend* store, const Fixture* input, uint32_t ti, uint32_t
     ecs_id_t         ids[16] = {};
     void*            data[16] = {};
     uint32_t         fields = FlecsColumns(store, t, ti, start, ids, data);
-    ecs_bulk_desc_t  desc = {};
-    desc.count = count;
+    ecs_bulk_desc_t  desc = { .count = (int32_t)count, .data = data };
     memcpy(desc.ids, ids, fields * sizeof(ecs_id_t));
-    desc.data = data;
     const ecs_entity_t* added = ecs_bulk_init(store->m_World, &desc);
     if (!added)
         return 1;
@@ -82,6 +104,26 @@ int CreateBulk_Flecs(Backend* store, const Fixture* input, uint32_t ti, uint32_t
 int CreateBulk(Backend* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count)
 {
     return store->m_Kind ? CreateBulk_Flecs(store, input, ti, start, count) : CreateBulk_Defold(store, input, ti, start, count);
+}
+
+// Every pass starts with empty registered tables, matching Create population.
+// Filter sampled stacks to CreateBulk/DataAddRows: setup and teardown also repeat.
+void ProfileCreatePopulation(const Fixture* input, uint32_t kind, uint32_t samples, uint32_t passes)
+{
+    fprintf(stderr, "Profile ready: %s, Create population, %u passes per sample\n", BACKENDS[kind], passes);
+    for (uint32_t sample = 0; sample <= samples; ++sample)
+    {
+        for (uint32_t pass = 0; pass < passes; ++pass)
+        {
+            Backend  store = CreateBackend(input, kind, 0, "setup");
+            Stats    stats = {};
+            uint64_t start = BeginOperation();
+            for (uint32_t t = 0; t < TYPE_COUNT; ++t)
+                stats.m_Error |= CreateBulk(&store, input, t, 0, input->m_Types[t].m_Count);
+            Record(&store, input, sample, "create_population", start, EndOperation(), input->m_Count, stats);
+            DestroyBackend(&store, input, 0, "destroy");
+        }
+    }
 }
 
 int CreateIndividual_Flecs(Backend* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count)
@@ -116,3 +158,93 @@ int CreateIndividual(Backend* store, const Fixture* input, uint32_t ti, uint32_t
 {
     return store->m_Kind ? CreateIndividual_Flecs(store, input, ti, start, count) : CreateIndividual_Defold(store, input, ti, start, count);
 }
+
+#ifdef DATA_BENCHMARK_ENTT
+#include "benchmark_data_entt.h"
+#include <ranges>
+
+// Transform prepared native columns lazily into EnTT component values. These
+// standard input iterators feed registry.insert without an intermediate buffer.
+template <typename Component, typename Value>
+static void InsertEnttColumn(CoreEnttRegistry* registry, CoreEnttEntity* first, uint32_t count, const Value* source)
+{
+    auto values = std::ranges::subrange(source, source + count) | std::views::transform([](const Value& value) { return Component { .m_Value = value }; });
+    registry->insert<Component>(first, first + count, values.begin());
+}
+
+void Setup_EnTT(CoreEnttStore* store, const Fixture* input)
+{
+    CoreEnttRegistry& registry = store->m_Registry;
+    registry.storage<CoreEnttPosition>();
+    registry.storage<CoreEnttVelocity>();
+    registry.storage<CoreEnttHealth>();
+    registry.storage<CoreEnttLight>();
+    registry.storage<CoreEnttRange>();
+    registry.storage<CoreEnttInnerAngle>();
+    registry.storage<CoreEnttOuterAngle>();
+    registry.storage<CoreEnttAmount>();
+    registry.storage<CoreEnttOwner>();
+    registry.storage<CoreEnttIdentity>();
+    for (uint32_t t = 0; t < TYPE_COUNT; ++t)
+    {
+        const TypeInput* type = &input->m_Types[t];
+        registry.storage<CoreEnttTag>((entt::id_type)type->m_Type);
+        for (uint32_t tag = 0; tag < type->m_TagCount; ++tag)
+            registry.storage<CoreEnttTag>((entt::id_type)type->m_Tags[tag]);
+    }
+}
+
+void CreateBulk_EnTT(CoreEnttStore* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count)
+{
+    const TypeInput*  type = &input->m_Types[ti];
+    CoreEnttRegistry& registry = store->m_Registry;
+    CoreEnttEntity*   first = store->m_Ids + type->m_Offset + start;
+    registry.create(first, first + count);
+    for (uint32_t f = 0; f < type->m_FieldCount; ++f)
+    {
+        const void* source = type->m_Columns[f] + (size_t)start * type->m_Fields[f].m_NativeSize;
+        switch (type->m_Fields[f].m_Field)
+        {
+            case POSITION:
+                InsertEnttColumn<CoreEnttPosition>(&registry, first, count, (const Vector3*)source);
+                break;
+            case VELOCITY:
+                InsertEnttColumn<CoreEnttVelocity>(&registry, first, count, (const Vector3*)source);
+                break;
+            case HEALTH:
+                InsertEnttColumn<CoreEnttHealth>(&registry, first, count, (const double*)source);
+                break;
+            case LIGHT:
+                InsertEnttColumn<CoreEnttLight>(&registry, first, count, (const Light*)source);
+                break;
+            case RANGE:
+                InsertEnttColumn<CoreEnttRange>(&registry, first, count, (const double*)source);
+                break;
+            case INNER_ANGLE:
+                InsertEnttColumn<CoreEnttInnerAngle>(&registry, first, count, (const double*)source);
+                break;
+            case OUTER_ANGLE:
+                InsertEnttColumn<CoreEnttOuterAngle>(&registry, first, count, (const double*)source);
+                break;
+            case AMOUNT:
+                InsertEnttColumn<CoreEnttAmount>(&registry, first, count, (const double*)source);
+                break;
+            default:
+                Check(false, "EnTT input field");
+        }
+    }
+    InsertEnttColumn<CoreEnttOwner>(&registry, first, count, type->m_Owners + start);
+    InsertEnttColumn<CoreEnttIdentity>(&registry, first, count, type->m_ComponentIds + start);
+    registry.storage<CoreEnttTag>((entt::id_type)type->m_Type).insert(first, first + count);
+    for (uint32_t tag = 0; tag < type->m_TagCount; ++tag)
+        registry.storage<CoreEnttTag>((entt::id_type)type->m_Tags[tag]).insert(first, first + count);
+}
+
+Stats CreatePopulation_EnTT(CoreEnttStore* store, const Fixture* input)
+{
+    for (uint32_t t = 0; t < TYPE_COUNT; ++t)
+        CreateBulk_EnTT(store, input, t, 0, input->m_Types[t].m_Count);
+    return Stats();
+}
+
+#endif

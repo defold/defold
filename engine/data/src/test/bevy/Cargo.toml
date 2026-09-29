@@ -8,10 +8,22 @@ license-file = "../../../../../LICENSE.txt"
 [dependencies]
 bevy_ecs = { version = "=0.19.1", default-features = false, features = ["std"] }
 
+bevy_tasks = { version = "=0.19.1", default-features = false, optional = true, features = ["multi_threaded"] }
+bevy_utils = { version = "=0.19.1", default-features = false, optional = true, features = ["std", "parallel"] }
+
+[[bin]]
+name = "benchmark-data-bevy-threaded"
+path = "src/threaded/main.rs"
+required-features = ["threaded"]
+
 [features]
+threaded = ["bevy_ecs/multi_threaded", "bevy_ecs/async_executor", "dep:bevy_tasks", "dep:bevy_utils"]
 memory = []
 
 [profile.release]
 opt-level = 2
 lto = false
 codegen-units = 1
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(data_tsan)'] }

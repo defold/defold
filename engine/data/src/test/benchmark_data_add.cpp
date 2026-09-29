@@ -41,3 +41,45 @@ Stats AddInstances_Flecs(Backend* store, const Fixture* input)
     }
     return stats;
 }
+
+#ifdef DATA_BENCHMARK_ENTT
+#include "benchmark_data_entt.h"
+
+Stats SpawnWave_EnTT(CoreEnttStore* store, const Fixture* input)
+{
+    for (uint32_t t = 0; t < TYPE_COUNT; ++t)
+    {
+        const TypeInput* type = &input->m_Types[t];
+        for (uint32_t r = 0; r < type->m_Extra; r += 100)
+            CreateBulk_EnTT(store, input, t, type->m_Count + r, type->m_Extra - r < 100 ? type->m_Extra - r : 100);
+    }
+    return Stats();
+}
+
+#endif
+
+// Repeat the core wave with a fresh population and three live queries each time.
+// Only insertion is timed; filter sampled stacks to AddInstances/DataAddRows.
+void ProfileSpawnWave(const Fixture* input, uint32_t kind, uint32_t samples, uint32_t passes)
+{
+    fprintf(stderr, "Profile ready: %s, Spawn wave, %u passes per sample\n", BACKENDS[kind], passes);
+    for (uint32_t sample = 0; sample <= samples; ++sample)
+    {
+        for (uint32_t pass = 0; pass < passes; ++pass)
+        {
+            Backend store = CreateBackend(input, kind, 0, "setup");
+            for (uint32_t t = 0; t < TYPE_COUNT; ++t)
+                Check(CreateBulk(&store, input, t, 0, input->m_Types[t].m_Count) == 0, "profile population");
+            Query    movement = CreateMovementQuery(&store);
+            Query    explosion = CreateExplosionQuery(&store, input);
+            Query    lights = CreateNearbyLightsQuery(&store);
+            uint64_t start = BeginOperation();
+            Stats    stats = kind ? AddInstances_Flecs(&store, input) : AddInstances_Defold(&store, input);
+            Record(&store, input, sample, "spawn_wave", start, EndOperation(), input->m_Total - input->m_Count, stats);
+            DestroyQuery(&movement);
+            DestroyQuery(&explosion);
+            DestroyQuery(&lights);
+            DestroyBackend(&store, input, 0, "destroy");
+        }
+    }
+}

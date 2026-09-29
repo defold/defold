@@ -61,3 +61,18 @@ Stats ReplaceInstances_Flecs(Backend* store, const Fixture* input)
     }
     return stats;
 }
+
+#ifdef DATA_BENCHMARK_ENTT
+#include "benchmark_data_entt.h"
+
+Stats DespawnWave_EnTT(CoreEnttStore* store, const Fixture* input)
+{
+    for (uint32_t i = 0; i < input->m_Count / 100; ++i)
+    {
+        RowKey key = input->m_Order[i];
+        store->m_Registry.destroy(store->m_Ids[input->m_Types[key.m_Type].m_Offset + key.m_Row]);
+    }
+    return Stats();
+}
+
+#endif

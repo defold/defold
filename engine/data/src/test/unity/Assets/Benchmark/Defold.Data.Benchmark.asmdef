@@ -1,0 +1,10 @@
+{
+  "name": "Defold.Data.Benchmark",
+  "references": [
+    "Unity.Entities",
+    "Unity.Collections",
+    "Unity.Mathematics",
+    "Unity.Burst"
+  ],
+  "allowUnsafeCode": true
+}

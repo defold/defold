@@ -11,21 +11,25 @@
 // specific language governing permissions and limitations under the License.
 
 #include "benchmark_data_common.h"
+#ifdef DATA_BENCHMARK_ENTT
+#include "benchmark_data_entt.h"
+#endif
 
-static const uint32_t   SEED = 0x12345678;
-static const char*      TYPE_NAMES[] = { "SpotLight", "PointLight", "Player", "Enemy", "Pickup", "Breakable" };
-static const uint32_t   TYPE_PERCENT[] = { 10, 15, 1, 24, 25, 25 };
-const char*             BACKENDS[] = { "data", "flecs_rows", "flecs_columns" };
+static const uint32_t      SEED = 0x12345678;
+static const char*         TYPE_NAMES[] = { "SpotLight", "PointLight", "Player", "Enemy", "Pickup", "Breakable" };
+static const uint32_t      TYPE_PERCENT[] = { 10, 15, 1, 24, 25, 25 };
+const char*                BACKENDS[] = { "data", "flecs_rows", "flecs_columns", "entt" };
 
-static const char*      PROPERTY_NAMES[] = { "position", "health", "velocity", "light", "range", "inner_cone_angle", "outer_cone_angle", "amount", "color", "intensity" };
-uint64_t                g_Properties[PROPERTY_COUNT];
-static uint64_t         g_LightNames[2];
-uint64_t                g_LightTag;
-static uint64_t         g_EnemyTag;
-static DataPropertyDesc g_LightProperties[2];
-static DataStructDesc   g_LightLayout = { g_LightProperties, 2, sizeof(Light) };
+static const char*         FIELD_NAMES[] = { "position", "health", "velocity", "light", "range", "inner_cone_angle", "outer_cone_angle", "amount", "color", "intensity" };
+uint64_t                   g_Fields[FIELD_COUNT];
+static uint64_t            g_LightNames[2];
+static const DataValueType g_LightTypes[] = { DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_NUMBER };
+uint64_t                   g_LightTag;
+static uint64_t            g_EnemyTag;
+static DataFieldDesc       g_LightFields[2];
+static DataStructDesc      g_LightLayout = { .m_Fields = g_LightFields, .m_FieldCount = 2, .m_Size = sizeof(Light) };
 
-static uint32_t         Random(uint32_t* state)
+static uint32_t            Random(uint32_t* state)
 {
     *state = *state * 1664525u + 1013904223u;
     return *state;
@@ -33,31 +37,29 @@ static uint32_t         Random(uint32_t* state)
 
 static DataValue Number(double value)
 {
-    DataValue out = {};
-    out.m_Type = DATA_VALUE_TYPE_NUMBER;
-    out.m_Value.m_Number = value;
+    DataValue out = { .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Value = { .m_Number = value } };
     return out;
 }
 
 static DataValue Vector(Vector3 value)
 {
-    DataValue out = {};
-    out.m_Type = DATA_VALUE_TYPE_VECTOR3;
+    DataValue out = { .m_Type = DATA_VALUE_TYPE_VECTOR3 };
     memcpy(out.m_Value.m_Vector3, &value, sizeof(value));
     return out;
 }
 
-static void AddField(TypeInput* type, Property property, DataValueType kind, uint32_t offset, uint32_t size)
+static void AddField(TypeInput* type, FieldId field_id, DataValueType kind, uint32_t offset, uint32_t size)
 {
     uint32_t i = type->m_FieldCount++;
-    Field    field = { property, kind, offset, size };
+    Field    field = { .m_Field = field_id, .m_Kind = kind, .m_NativeOffset = offset, .m_NativeSize = size };
     type->m_Fields[i] = field;
-    DataPropertyDesc meta = { g_Properties[property], kind, offset, property == LIGHT ? &g_LightLayout : 0 };
+    DataFieldDesc meta = { .m_Field = g_Fields[field_id], .m_Type = kind, .m_Offset = offset, .m_Struct = field_id == LIGHT ? &g_LightLayout : 0 };
     type->m_Metadata[i] = meta;
+    type->m_ValueTypes[i] = kind;
     type->m_Stride = type->m_NativeStride;
 }
 
-#define FIELD(TYPE, MEMBER, PROPERTY, KIND) AddField(t, PROPERTY, KIND, offsetof(TYPE, MEMBER), sizeof(((TYPE*)0)->MEMBER))
+#define FIELD(TYPE, MEMBER, FIELD_ID, KIND) AddField(t, FIELD_ID, KIND, offsetof(TYPE, MEMBER), sizeof(((TYPE*)0)->MEMBER))
 
 static void InitLayout(TypeInput* t, uint32_t type)
 {
@@ -126,8 +128,8 @@ static void InitFixture(Fixture* input, uint32_t count)
         t->m_Offset = input->m_Total;
         uint32_t total = t->m_Count + t->m_Extra;
         input->m_Total += total;
-        t->m_Values = new DataValue[(size_t)total * t->m_FieldCount];
-        t->m_LightValues = ti < 2 ? new DataValue[(size_t)total * 2] : 0;
+        t->m_Values = new DataValueData[(size_t)total * t->m_FieldCount];
+        t->m_LightValues = ti < 2 ? new DataValueData[(size_t)total * 2] : 0;
         t->m_Rows = new DataRowDesc[total];
         t->m_Native = new uint8_t[(size_t)total * t->m_NativeStride];
         memset(t->m_Native, 0, (size_t)total * t->m_NativeStride);
@@ -140,46 +142,46 @@ static void InitFixture(Fixture* input, uint32_t count)
             if (input->m_GroupSize)
                 random = SEED + ti * 65537 + r % input->m_GroupSize;
             // Use high bits: the low bits of an LCG have short periods.
-            Vector3 position = { (float)((int)(Random(&random) >> 25) - 64), (float)((int)(Random(&random) >> 25) - 64), (float)((int)(Random(&random) >> 25) - 64) };
-            Vector3 color = { (Random(&random) >> 24) / 256.0f, (Random(&random) >> 24) / 256.0f, (Random(&random) >> 24) / 256.0f };
-            Vector3 velocity = { 1, 0, -1 };
+            Vector3 position = { .m_Values = { (float)((int)(Random(&random) >> 25) - 64), (float)((int)(Random(&random) >> 25) - 64), (float)((int)(Random(&random) >> 25) - 64) } };
+            Vector3 color = { .m_Values = { (Random(&random) >> 24) / 256.0f, (Random(&random) >> 24) / 256.0f, (Random(&random) >> 24) / 256.0f } };
+            Vector3 velocity = { .m_Values = { 1, 0, -1 } };
             double  health = 100 + (Random(&random) >> 16) % 101;
-            Light   light = { color, 1.0 };
+            Light   light = { .color = color, .intensity = 1.0 };
             for (uint32_t f = 0; f < t->m_FieldCount; ++f)
             {
                 Field*    field = &t->m_Fields[f];
                 DataValue value = Number(10);
-                if (field->m_Property == POSITION)
+                if (field->m_Field == POSITION)
                     value = Vector(position);
-                else if (field->m_Property == VELOCITY)
+                else if (field->m_Field == VELOCITY)
                     value = Vector(velocity);
-                else if (field->m_Property == HEALTH)
+                else if (field->m_Field == HEALTH)
                     value = Number(health);
-                else if (field->m_Property == INNER_ANGLE)
+                else if (field->m_Field == INNER_ANGLE)
                     value = Number(0);
-                else if (field->m_Property == OUTER_ANGLE)
+                else if (field->m_Field == OUTER_ANGLE)
                     value = Number(45);
-                else if (field->m_Property == LIGHT)
+                else if (field->m_Field == LIGHT)
                 {
-                    t->m_LightValues[r * 2] = Vector(color);
-                    t->m_LightValues[r * 2 + 1] = Number(light.intensity);
+                    t->m_LightValues[r * 2] = Vector(color).m_Value;
+                    t->m_LightValues[r * 2 + 1] = Number(light.intensity).m_Value;
                     value.m_Type = DATA_VALUE_TYPE_STRUCT;
-                    DataStruct object = { g_LightNames, &t->m_LightValues[r * 2], 2, 0, 0 };
+                    DataStruct object = { .m_Names = g_LightNames, .m_Types = g_LightTypes, .m_Values = &t->m_LightValues[r * 2], .m_Count = 2 };
                     value.m_Value.m_Struct = object;
                 }
-                t->m_Values[(size_t)r * t->m_FieldCount + f] = value;
+                t->m_Values[(size_t)r * t->m_FieldCount + f] = value.m_Value;
                 void*       native = t->m_Native + (size_t)r * t->m_NativeStride + field->m_NativeOffset;
-                const void* source = field->m_Property == LIGHT ? (const void*)&light : (const void*)&value.m_Value;
+                const void* source = field->m_Field == LIGHT ? (const void*)&light : (const void*)&value.m_Value;
                 memcpy(native, source, field->m_NativeSize);
                 memcpy(t->m_Columns[f] + (size_t)r * field->m_NativeSize, native, field->m_NativeSize);
             }
             t->m_Owners[r] = t->m_Offset + (input->m_GroupSize ? r / input->m_GroupSize * input->m_GroupSize : r) + 1;
             t->m_ComponentIds[r] = input->m_GroupSize ? (ti + 1) * 100 + r % input->m_GroupSize : t->m_Type;
-            DataRowDesc row = { t->m_Owners[r], &t->m_Values[(size_t)r * t->m_FieldCount], t->m_FieldCount, t->m_ComponentIds[r] };
+            DataRowDesc row = { .m_Owner = t->m_Owners[r], .m_Types = t->m_ValueTypes, .m_Values = &t->m_Values[(size_t)r * t->m_FieldCount], .m_ValueCount = t->m_FieldCount, .m_ComponentId = t->m_ComponentIds[r] };
             t->m_Rows[r] = row;
             if (r < t->m_Count)
             {
-                RowKey key = { ti, r };
+                RowKey key = { .m_Type = ti, .m_Row = r };
                 input->m_Order[order++] = key;
             }
         }
@@ -215,16 +217,13 @@ static void DeleteFixture(Fixture* input)
 
 static ecs_entity_t RegisterComponent(ecs_world_t* world, uint32_t size, uint32_t alignment)
 {
-    ecs_component_desc_t desc = {};
-    desc.type.size = size;
-    desc.type.alignment = alignment;
+    ecs_component_desc_t desc = { .type = { .size = (ecs_size_t)size, .alignment = (ecs_size_t)alignment } };
     return ecs_component_init(world, &desc);
 }
 
 Backend CreateBackend(const Fixture* input, uint32_t kind, uint32_t sample, const char* phase)
 {
-    Backend out = {};
-    out.m_Kind = kind;
+    Backend out = { .m_Kind = kind };
     SetBenchmarkMemoryDomain(BENCHMARK_MEMORY_FIXTURE);
     out.m_Ids = new uint64_t[input->m_Total];
     BeginBenchmarkMemoryBackend();
@@ -244,7 +243,14 @@ Backend CreateBackend(const Fixture* input, uint32_t kind, uint32_t sample, cons
         {
             if (input->m_GroupSize)
                 continue;
-            DataTableDesc desc = { t->m_Type, t->m_Tags, t->m_TagCount, t->m_Metadata, t->m_FieldCount, t->m_Stride };
+            DataTableDesc desc = {
+                .m_Type = t->m_Type,
+                .m_Tags = t->m_Tags,
+                .m_TagCount = t->m_TagCount,
+                .m_Fields = t->m_Metadata,
+                .m_FieldCount = t->m_FieldCount,
+                .m_RowStride = t->m_Stride
+            };
             Check(DataRegisterTable(out.m_Data, &desc) == DATA_RESULT_OK, "register Data layout");
         }
         else
@@ -253,13 +259,13 @@ Backend CreateBackend(const Fixture* input, uint32_t kind, uint32_t sample, cons
             for (uint32_t f = 0; f < t->m_FieldCount; ++f)
             {
                 const Field* field = &t->m_Fields[f];
-                if (kind == 2 && !out.m_Properties[field->m_Property])
-                    out.m_Properties[field->m_Property] = RegisterComponent(out.m_World, field->m_NativeSize, field->m_Kind == DATA_VALUE_TYPE_VECTOR3 ? 4 : 8);
+                if (kind == 2 && !out.m_Fields[field->m_Field])
+                    out.m_Fields[field->m_Field] = RegisterComponent(out.m_World, field->m_NativeSize, field->m_Kind == DATA_VALUE_TYPE_VECTOR3 ? 4 : 8);
             }
             for (uint32_t tag = 0; tag < t->m_TagCount; ++tag)
                 out.m_Tags[i][tag] = Tag(out.m_World, t->m_Tags[tag]);
             for (uint32_t f = 0; f < t->m_FieldCount; ++f)
-                out.m_Offsets[i][t->m_Fields[f].m_Property] = t->m_Fields[f].m_NativeOffset;
+                out.m_Offsets[i][t->m_Fields[f].m_Field] = t->m_Fields[f].m_NativeOffset;
         }
     }
     EndBenchmarkMemoryOperation();
@@ -328,7 +334,7 @@ static void Run(const Fixture* input, uint32_t kind, uint32_t sample)
         RowKey      key = input->m_Order[i];
         uint64_t    id = store.m_Ids[input->m_Types[key.m_Type].m_Offset + key.m_Row];
         DataVector3 value;
-        Check(kind ? !ecs_is_alive(store.m_World, id) : DataGetPropertyVector3(store.m_Data, id, g_Properties[POSITION], &value) == DATA_RESULT_NOT_FOUND, "removed IDs");
+        Check(kind ? !ecs_is_alive(store.m_World, id) : DataGetFieldVector3(store.m_Data, id, g_Fields[POSITION], &value) == DATA_RESULT_NOT_FOUND, "removed IDs");
     }
     start = BeginOperation();
     stats = kind ? ReplaceInstances_Flecs(&store, input) : ReplaceInstances_Defold(&store, input);
@@ -351,7 +357,14 @@ static void BuildPackedResources(Fixture* input)
     {
         const TypeInput* t = &input->m_Types[ti];
         HDataStore       source = DataCreateStore();
-        DataTableDesc    desc = { t->m_Type, t->m_Tags, t->m_TagCount, t->m_Metadata, t->m_FieldCount, t->m_Stride };
+        DataTableDesc    desc = {
+               .m_Type = t->m_Type,
+               .m_Tags = t->m_Tags,
+               .m_TagCount = t->m_TagCount,
+               .m_Fields = t->m_Metadata,
+               .m_FieldCount = t->m_FieldCount,
+               .m_RowStride = t->m_Stride
+        };
         Check(DataRegisterTable(source, &desc) == DATA_RESULT_OK, "packed source layout");
         DataId ids[16];
         Check(DataAddRows(source, t->m_Type, t->m_Rows, input->m_GroupSize, ids) == DATA_RESULT_OK, "packed source rows");
@@ -421,44 +434,57 @@ int main(int argc, char** argv)
 #endif
     if (argc > 7 || argc == 6)
     {
-        fprintf(stderr, "Usage: benchmark_data_mixed [rows=1000000, multiple of 1000] [samples=7] [all|data|flecs_rows|flecs_columns] [packed_rows=0|1|4|16] [spot_color|explosion passes]\n");
+        fprintf(stderr, "Usage: benchmark_data_mixed [rows=1000000, multiple of 1000] [samples=7] [all|data|flecs_rows|flecs_columns] [packed_rows=0|1|4|16] [spot_color|explosion|create_population|spawn_wave|movement|position_lookup passes]\n");
         return 1;
     }
     uint32_t count = argc > 1 ? ParseCount(argv[1], 10000000) : 1000000;
     uint32_t samples = argc > 2 ? ParseCount(argv[2], 31) : 7;
     Check(count >= 1000 && count % 1000 == 0, "row count must be a multiple of 1000");
+    bool entt = false;
+#ifdef DATA_BENCHMARK_ENTT
+    entt = argc > 3 && !strcmp(argv[3], "entt");
+#endif
     uint32_t selected = 3;
-    if (argc > 3 && strcmp(argv[3], "all"))
+    if (!entt && argc > 3 && strcmp(argv[3], "all"))
     {
         for (uint32_t i = 0; i < 3; ++i)
             if (!strcmp(argv[3], BACKENDS[i]))
                 selected = i;
         Check(selected < 3, "unknown backend");
     }
-    for (uint32_t p = 0; p < PROPERTY_COUNT; ++p)
-        g_Properties[p] = dmHashString64(PROPERTY_NAMES[p]);
-    g_LightNames[0] = g_Properties[COLOR];
-    g_LightNames[1] = g_Properties[INTENSITY];
-    DataPropertyDesc color = { g_Properties[COLOR], DATA_VALUE_TYPE_VECTOR3, offsetof(Light, color), 0 };
-    DataPropertyDesc intensity = { g_Properties[INTENSITY], DATA_VALUE_TYPE_NUMBER, offsetof(Light, intensity), 0 };
-    g_LightProperties[0] = color;
-    g_LightProperties[1] = intensity;
+    for (uint32_t p = 0; p < FIELD_COUNT; ++p)
+        g_Fields[p] = dmHashString64(FIELD_NAMES[p]);
+    g_LightNames[0] = g_Fields[COLOR];
+    g_LightNames[1] = g_Fields[INTENSITY];
+    DataFieldDesc color = { .m_Field = g_Fields[COLOR], .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = offsetof(Light, color) };
+    DataFieldDesc intensity = { .m_Field = g_Fields[INTENSITY], .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = offsetof(Light, intensity) };
+    g_LightFields[0] = color;
+    g_LightFields[1] = intensity;
     g_LightTag = dmHashString64("light");
     g_EnemyTag = dmHashString64("enemy");
     Fixture input = {};
-    input.m_GroupSize = argc > 4 && strcmp(argv[4], "0") ? ParseCount(argv[4], 16) : 0;
+    bool    core = argc > 4 && !strcmp(argv[4], "core");
+    Check(!entt || core, "EnTT uses the core suite");
+    Check(!core || entt || selected == 0 || selected == 2, "core suite uses data, flecs_columns or entt");
+    input.m_GroupSize = !core && argc > 4 && strcmp(argv[4], "0") ? ParseCount(argv[4], 16) : 0;
     Check(!input.m_GroupSize || input.m_GroupSize == 1 || input.m_GroupSize == 4 || input.m_GroupSize == 16, "packed group size must be 1, 4 or 16");
     uint32_t profile_passes = argc == 7 ? ParseCount(argv[6], 1000000) : 0;
     if (profile_passes)
-        Check((!strcmp(argv[5], "spot_color") || !strcmp(argv[5], "explosion")) && !input.m_GroupSize && selected < 3, "profiling requires spot_color or explosion, one backend and decoded tables");
+    {
+        Check((!strcmp(argv[5], "spot_color") || !strcmp(argv[5], "explosion") || !strcmp(argv[5], "create_population") || !strcmp(argv[5], "spawn_wave") || !strcmp(argv[5], "movement") || !strcmp(argv[5], "position_lookup")) && !input.m_GroupSize && selected < 3, "profiling requires a supported case, one backend and decoded tables");
+        Check((strcmp(argv[5], "movement") && strcmp(argv[5], "position_lookup")) || selected == 0 || selected == 2, "movement/lookup profiling uses data or flecs_columns");
+    }
     SetBenchmarkMemoryDomain(BENCHMARK_MEMORY_FIXTURE);
     InitFixture(&input, count);
     SetBenchmarkMemoryDomain(BENCHMARK_MEMORY_RESOURCE);
     if (input.m_GroupSize)
         BuildPackedResources(&input);
     SetBenchmarkMemoryDomain(BENCHMARK_MEMORY_NONE);
+    if (core)
+        printf("# suite=core; seven standalone cases; one pass; three live queries; no alternate layouts\n");
     printf("# packed_rows=%u; packed mode repeats prototype values and groups owners; sources built/validated outside timing\n", input.m_GroupSize);
-    printf("# Flecs %s; seed=%u; samples=%u; one warmup; read_passes=%u; damage=25; explosion_radius=50\n", FLECS_VERSION, SEED, samples, profile_passes ? profile_passes : READ_PASSES);
+    printf("# Flecs %s; seed=%u; samples=%u; one warmup; read_passes=%u; damage=25; explosion_radius=50\n", FLECS_VERSION, SEED, samples, profile_passes ? profile_passes : core ? 1 :
+                                                                                                                                                                                   READ_PASSES);
     printf("# Data: inline Light + dense rows per resource table + pooled registrations + shared defaults/reset; Flecs: inline Light, mutable components; no serialization or disk I/O\n");
     printf("# Type percentages: SpotLight=10,PointLight=15,Player=1,Enemy=24,Pickup=25,Breakable=25; dense owners are per row; packed owners are per group\n");
 #ifdef DATA_BENCHMARK_MEMORY
@@ -470,11 +496,27 @@ int main(int argc, char** argv)
 #endif
     if (profile_passes)
     {
-        if (!strcmp(argv[5], "explosion"))
+        if (!strcmp(argv[5], "create_population"))
+            ProfileCreatePopulation(&input, selected, samples, profile_passes);
+        else if (!strcmp(argv[5], "spawn_wave"))
+            ProfileSpawnWave(&input, selected, samples, profile_passes);
+        else if (!strcmp(argv[5], "movement"))
+            ProfileMovement(&input, selected, samples, profile_passes);
+        else if (!strcmp(argv[5], "position_lookup"))
+            ProfilePositionLookup(&input, selected, samples, profile_passes);
+        else if (!strcmp(argv[5], "explosion"))
             ProfileExplosion(&input, selected, samples, profile_passes);
         else
             ProfileSpotColor(&input, selected, samples, profile_passes);
     }
+#ifdef DATA_BENCHMARK_ENTT
+    else if (entt)
+        for (uint32_t sample = 0; sample <= samples; ++sample)
+        {
+            fprintf(stderr, "sample %u/%u: entt, %u rows\n", sample, samples, count);
+            RunCoreEnTT(&input, sample);
+        }
+#endif
     else
         for (uint32_t sample = 0; sample <= samples; ++sample)
         {
@@ -482,7 +524,9 @@ int main(int argc, char** argv)
             {
                 uint32_t kind = selected == 3 ? (sample + run) % 3 : selected;
                 fprintf(stderr, "sample %u/%u: %s, %u rows\n", sample, samples, BACKENDS[kind], count);
-                if (input.m_GroupSize)
+                if (core)
+                    RunCore(&input, kind, sample);
+                else if (input.m_GroupSize)
                     RunPacked(&input, kind, sample);
                 else
                     Run(&input, kind, sample);

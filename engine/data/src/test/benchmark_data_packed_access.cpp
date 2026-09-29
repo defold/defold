@@ -12,9 +12,9 @@
 
 #include "benchmark_data_common.h"
 
-Property ScalarProperty(uint32_t type)
+FieldId ScalarField(uint32_t type)
 {
-    static const Property fields[] = { RANGE, RANGE, HEALTH, HEALTH, AMOUNT, HEALTH };
+    static const FieldId fields[] = { RANGE, RANGE, HEALTH, HEALTH, AMOUNT, HEALTH };
     return fields[type];
 }
 
@@ -25,10 +25,10 @@ static Stats PackedRead_Defold(Backend* store, const Fixture* input, uint32_t co
     {
         RowKey           key = input->m_Order[i];
         const TypeInput* t = &input->m_Types[key.m_Type];
-        Property         property = ScalarProperty(key.m_Type);
+        FieldId          field = ScalarField(key.m_Type);
         uint64_t         id = store->m_Ids[t->m_Offset + key.m_Row];
         double           value = 0;
-        stats.m_Error |= DataGetPropertyNumber(store->m_Data, id, g_Properties[property], &value);
+        stats.m_Error |= DataGetFieldNumber(store->m_Data, id, g_Fields[field], &value);
         stats.m_Sum += value;
     }
     return stats;
@@ -41,8 +41,8 @@ static Stats PackedRead_Flecs(Backend* store, const Fixture* input, uint32_t cou
     {
         RowKey           key = input->m_Order[i];
         const TypeInput* t = &input->m_Types[key.m_Type];
-        Property         property = ScalarProperty(key.m_Type);
-        double*          value = (double*)FlecsProperty(store, t, key.m_Type, key.m_Row, property);
+        FieldId          field = ScalarField(key.m_Type);
+        double*          value = (double*)FlecsField(store, t, key.m_Type, key.m_Row, field);
         if (!value)
         {
             stats.m_Error |= 1;
@@ -60,12 +60,12 @@ static Stats PackedUpdate_Defold(Backend* store, const Fixture* input, uint32_t 
     {
         RowKey           key = input->m_Order[i];
         const TypeInput* t = &input->m_Types[key.m_Type];
-        Property         property = ScalarProperty(key.m_Type);
+        FieldId          field = ScalarField(key.m_Type);
         uint64_t         id = store->m_Ids[t->m_Offset + key.m_Row];
         double           value = 0;
-        stats.m_Error |= DataGetPropertyNumber(store->m_Data, id, g_Properties[property], &value);
+        stats.m_Error |= DataGetFieldNumber(store->m_Data, id, g_Fields[field], &value);
         value += 1;
-        stats.m_Error |= DataSetPropertyNumber(store->m_Data, id, g_Properties[property], value);
+        stats.m_Error |= DataSetFieldNumber(store->m_Data, id, g_Fields[field], value);
         stats.m_Sum += value;
     }
     return stats;
@@ -78,15 +78,15 @@ static Stats PackedUpdate_Flecs(Backend* store, const Fixture* input, uint32_t c
     {
         RowKey           key = input->m_Order[i];
         const TypeInput* t = &input->m_Types[key.m_Type];
-        Property         property = ScalarProperty(key.m_Type);
-        double*          value = (double*)FlecsProperty(store, t, key.m_Type, key.m_Row, property);
+        FieldId          field = ScalarField(key.m_Type);
+        double*          value = (double*)FlecsField(store, t, key.m_Type, key.m_Row, field);
         if (!value)
         {
             stats.m_Error |= 1;
             continue;
         }
         *value += 1;
-        ecs_modified_id(store->m_World, store->m_Ids[t->m_Offset + key.m_Row], store->m_Kind == 1 ? store->m_Types[key.m_Type] : store->m_Properties[property]);
+        ecs_modified_id(store->m_World, store->m_Ids[t->m_Offset + key.m_Row], store->m_Kind == 1 ? store->m_Types[key.m_Type] : store->m_Fields[field]);
         stats.m_Sum += *value;
     }
     return stats;
@@ -102,8 +102,8 @@ void MeasurePackedAccess(Backend* store, const Fixture* input, uint32_t sample, 
     {
         RowKey           key = input->m_Order[i];
         const TypeInput* t = &input->m_Types[key.m_Type];
-        uint32_t         f = FindField(t, ScalarProperty(key.m_Type));
-        expected += t->m_Values[(size_t)key.m_Row * t->m_FieldCount + f].m_Value.m_Number + (i < changed ? (write ? write : 2) : 0);
+        uint32_t         f = FindField(t, ScalarField(key.m_Type));
+        expected += t->m_Values[(size_t)key.m_Row * t->m_FieldCount + f].m_Number + (i < changed ? (write ? write : 2) : 0);
     }
     uint64_t start = BeginOperation();
     if (write)

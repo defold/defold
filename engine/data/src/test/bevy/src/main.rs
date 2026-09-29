@@ -11,6 +11,7 @@
 // specific language governing permissions and limitations under the License.
 
 mod backend;
+mod core;
 mod fixture;
 mod memory;
 
@@ -484,14 +485,20 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     assert!(
         args.len() <= 5,
-        "Usage: benchmark-data-bevy [rows] [samples] [all|bevy_rows|bevy_columns] [0|1|4|16]"
+        "Usage: benchmark-data-bevy [rows] [samples] [all|bevy_rows|bevy_columns] [0|1|4|16|core]"
     );
     let count: usize = args
         .get(1)
         .map_or(1_000_000, |s| s.parse().expect("row count"));
     let samples: u32 = args.get(2).map_or(7, |s| s.parse().expect("sample count"));
     let backend = args.get(3).map_or("all", String::as_str);
-    let group: usize = args.get(4).map_or(0, |s| s.parse().expect("group size"));
+    let core = args.get(4).is_some_and(|s| s == "core");
+    assert!(!core || backend == "bevy_columns");
+    let group: usize = if core {
+        0
+    } else {
+        args.get(4).map_or(0, |s| s.parse().expect("group size"))
+    };
     assert!((1_000..=10_000_000).contains(&count) && count % 1000 == 0);
     assert!((1..=31).contains(&samples));
     assert!(matches!(group, 0 | 1 | 4 | 16));
@@ -499,11 +506,17 @@ fn main() {
     memory::domain(memory::FIXTURE);
     let input = Fixture::new(count, group);
     memory::domain(memory::NONE);
+    if core {
+        println!(
+            "# suite=core; seven standalone cases; one pass; three live queries; no alternate layouts"
+        );
+    }
+    let read_passes = if core { 1 } else { READ_PASSES };
     println!(
         "# packed_rows={group}; repeated prototype values; Bevy always owns mutable component values"
     );
     println!(
-        "# Bevy ECS 0.19.1; seed={SEED}; samples={samples}; one warmup; read_passes={READ_PASSES}; damage=25; radii=17/36/63"
+        "# Bevy ECS 0.19.1; seed={SEED}; samples={samples}; one warmup; read_passes={read_passes}; damage=25; explosion_radius=50"
     );
     println!(
         "# single-threaded World/QueryState; default table storage; normal change tracking; no rendering, schedule, serialization, reset/unload timing or disk I/O"
@@ -536,7 +549,9 @@ fn main() {
                 kind,
                 sample,
             };
-            if input.group == 0 {
+            if core {
+                run.core();
+            } else if input.group == 0 {
                 run.dense();
             } else {
                 run.packed();
