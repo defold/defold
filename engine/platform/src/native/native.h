@@ -175,61 +175,19 @@ extern "C" {
 #define NATIVE_WINDOW               0x00010001
 #define NATIVE_FULLSCREEN           0x00010002
 
-/* dmNativeGetWindowParam tokens */
-#define NATIVE_OPENED               0x00020001
-#define NATIVE_ACTIVE               0x00020002
-#define NATIVE_ICONIFIED            0x00020003
-#define NATIVE_ACCELERATED          0x00020004
-#define NATIVE_RED_BITS             0x00020005
-#define NATIVE_GREEN_BITS           0x00020006
-#define NATIVE_BLUE_BITS            0x00020007
-#define NATIVE_ALPHA_BITS           0x00020008
-#define NATIVE_DEPTH_BITS           0x00020009
-#define NATIVE_STENCIL_BITS         0x0002000A
-
-/* The following constants are used for both dmNativeGetWindowParam
- * and dmNativeOpenWindowHint
- */
-#define NATIVE_REFRESH_RATE         0x0002000B
-#define NATIVE_ACCUM_RED_BITS       0x0002000C
-#define NATIVE_ACCUM_GREEN_BITS     0x0002000D
-#define NATIVE_ACCUM_BLUE_BITS      0x0002000E
-#define NATIVE_ACCUM_ALPHA_BITS     0x0002000F
-#define NATIVE_AUX_BUFFERS          0x00020010
-#define NATIVE_STEREO               0x00020011
-#define NATIVE_WINDOW_NO_RESIZE     0x00020012
-#define NATIVE_FSAA_SAMPLES         0x00020013
-#define NATIVE_OPENGL_PROFILE       0x00020018
-#define NATIVE_WINDOW_HIGH_DPI      0x00020019
-#define NATIVE_CLIENT_API           0x0002001A
-
-/* NATIVE_OPENGL_PROFILE tokens */
+/* OpenGL profiles */
 #define NATIVE_OPENGL_CORE_PROFILE  0x00050001
 #define NATIVE_OPENGL_COMPAT_PROFILE 0x00050002
 
-/* dmNativeEnable/dmNativeDisable tokens */
-#define NATIVE_MOUSE_CURSOR         0x00030001
-#define NATIVE_STICKY_KEYS          0x00030002
-#define NATIVE_STICKY_MOUSE_BUTTONS 0x00030003
-#define NATIVE_SYSTEM_KEYS          0x00030004
-#define NATIVE_KEY_REPEAT           0x00030005
-#define NATIVE_AUTO_POLL_EVENTS     0x00030006
-
-/* NATIVE_CLIENT_API modes */
+/* Client APIs */
 #define NATIVE_NO_API                        0
 #define NATIVE_OPENGL_API           0x00030001
-
-/* dmNativeWaitThread wait modes */
 
 /* dmNativeGetJoystickParam tokens */
 #define NATIVE_PRESENT              0x00050001
 #define NATIVE_AXES                 0x00050002
 #define NATIVE_BUTTONS              0x00050003
 #define NATIVE_HATS                 0x00050004
-
-/* dmNativeReadImage/dmNativeLoadTexture2D flags */
-
-/* Time spans longer than this (seconds) are considered to be infinity */
 
 /*************************************************************************
  * Typedefs
@@ -256,7 +214,7 @@ typedef void (* Nativetouchfun)(int,int,int,int);
  * Prototypes
  *************************************************************************/
 
-/* Native initialization, termination and version querying */
+/* Native initialization and termination */
 int  dmNativeInit( void );
 void dmNativeTerminate( void );
 
@@ -276,8 +234,6 @@ int  dmNativeGetWindowParam( WindowState param );
 void dmNativeSetWindowSizeCallback( Nativewindowsizefun cbfun );
 void dmNativeSetWindowCloseCallback( Nativewindowclosefun cbfun );
 int  dmNativeGetWindowRefreshRate( void );
-
-/* Video mode functions */
 
 /* Input handling */
 void dmNativePollEvents( void );
@@ -305,16 +261,8 @@ int dmNativeGetJoystickHats( int joy, unsigned char *hats, int numhats );
 int dmNativeGetJoystickDeviceId( int joy, char** device_id );
 int dmNativeGetJoystickDeviceGuid( int joy, char** device_guid );
 
-/* Time */
-
 /* Extension support */
 void* dmNativeGetProcAddress( const char *procname );
-
-/* Threading support */
-
-/* Enable/disable functions */
-
-/* Image/texture I/O support */
 
 // Defold extensions
 void dmNativeRegisterUIApplicationDelegate(void* delegate);
@@ -355,7 +303,7 @@ int   dmNativeQueryAuxContext();
 void* dmNativeAcquireAuxContext();
 void  dmNativeUnacquireAuxContext(void* context);
 
-// Trying to mimic somewhat the features of dmNative 3.0
+// Window and device callbacks
 typedef void (* Nativewindowfocusfun)(int);
 typedef void (* Nativewindowiconifyfun)(int);
 void dmNativeSetWindowFocusCallback( Nativewindowfocusfun cbfun );
@@ -367,4 +315,4 @@ int  dmNativeSetDeviceChangedCallback( Nativedevicechangedfun cbfun );
 }
 #endif
 
-#endif /* _dmNative_h_ */
+#endif /* DM_PLATFORM_NATIVE_H */

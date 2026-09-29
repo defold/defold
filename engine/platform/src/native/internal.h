@@ -166,9 +166,6 @@ void dmNativeOSSetViewType(int view_type);
 void dmNativeOSSetWindowBackgroundColor(unsigned int color);
 float dmNativeOSGetDisplayScaleFactor();
 
-// Window management (window.c)
-
-
 // Input handling (window.c)
 void dmNativeClearInput( void );
 void dmNativeInputDeactivation( void );
@@ -181,11 +178,9 @@ void dmNativeResetKeyboard( void );
 
 // OpenGL extensions (glext.c)
 void dmNativeParseGLVersion( int *major, int *minor, int *rev );
-int dmNativeStringInExtensionString( const char *string, const GLubyte *extensions );
 void dmNativeRefreshContextParams( void );
 
 // Joystick
-int dmNativeInitJoysticks( void );
 void dmNativeTerminateJoysticks( void );
 
 #endif // _internal_h_

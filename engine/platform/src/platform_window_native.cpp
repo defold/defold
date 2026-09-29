@@ -536,9 +536,8 @@ namespace dmPlatform
 
     void PollEvents(HWindow window)
     {
-        // NOTE: NATIVE_AUTO_POLL_EVENTS might be enabled but an application shouldn't have rely on
-        // running dmNativeSwapBuffers for event queue polling
-        // Accessing OpenGL isn't permitted on iOS when the application is transitioning to resumed mode either
+        // Poll events independently of buffer swaps. Accessing OpenGL isn't permitted
+        // on iOS when the application is transitioning to resumed mode.
         dmNativePollEvents();
     }
 

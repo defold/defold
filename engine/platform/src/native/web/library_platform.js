@@ -201,7 +201,7 @@ var LibraryDefoldPlatform = {
     },
 
     onWindowClose: function(event) {
-        DefoldPlatform.params[1] = false; // NATIVE_OPENED
+        DefoldPlatform.params[1] = false; // WINDOW_STATE_OPENED
     },
 
     onKeyPress: function(event) {
@@ -763,33 +763,34 @@ var LibraryDefoldPlatform = {
     }
 
     //TODO: Init with correct values
+    // Indexed by WindowState from dmsdk/platform/window.h.
     DefoldPlatform.params = new Array();
-    DefoldPlatform.cursorVisible = true; // NATIVE_MOUSE_CURSOR
-    DefoldPlatform.stickyKeys = false; // NATIVE_STICKY_KEYS
-    DefoldPlatform.stickyMouseButtons = true; // NATIVE_STICKY_MOUSE_BUTTONS
-    DefoldPlatform.systemKeys = false; // NATIVE_SYSTEM_KEYS
-    DefoldPlatform.keyRepeat = false; // NATIVE_KEY_REPEAT
-    DefoldPlatform.autoPollEvents = true; // NATIVE_AUTO_POLL_EVENTS
-    DefoldPlatform.params[1] = true; // NATIVE_OPENED
-    DefoldPlatform.params[2] = true; // NATIVE_ACTIVE
-    DefoldPlatform.params[3] = false; // NATIVE_ICONIFIED
-    DefoldPlatform.params[4] = true; // NATIVE_ACCELERATED
-    DefoldPlatform.params[5] = 0; // NATIVE_RED_BITS
-    DefoldPlatform.params[6] = 0; // NATIVE_GREEN_BITS
-    DefoldPlatform.params[7] = 0; // NATIVE_BLUE_BITS
-    DefoldPlatform.params[8] = 0; // NATIVE_ALPHA_BITS
-    DefoldPlatform.params[9] = 0; // NATIVE_DEPTH_BITS
-    DefoldPlatform.params[10] = 0; // NATIVE_STENCIL_BITS
-    DefoldPlatform.params[11] = 0; // NATIVE_REFRESH_RATE
-    DefoldPlatform.params[12] = 0; // NATIVE_ACCUM_RED_BITS
-    DefoldPlatform.params[13] = 0; // NATIVE_ACCUM_GREEN_BITS
-    DefoldPlatform.params[14] = 0; // NATIVE_ACCUM_BLUE_BITS
-    DefoldPlatform.params[15] = 0; // NATIVE_ACCUM_ALPHA_BITS
-    DefoldPlatform.params[16] = 0; // NATIVE_AUX_BUFFERS
-    DefoldPlatform.params[17] = 0; // NATIVE_STEREO
-    DefoldPlatform.params[18] = 0; // NATIVE_WINDOW_NO_RESIZE
-    DefoldPlatform.params[19] = 0; // NATIVE_FSAA_SAMPLES
-    DefoldPlatform.params[21] = 0; // NATIVE_WINDOW_HIGH_DPI
+    DefoldPlatform.cursorVisible = true;
+    DefoldPlatform.stickyKeys = false;
+    DefoldPlatform.stickyMouseButtons = true;
+    DefoldPlatform.systemKeys = false;
+    DefoldPlatform.keyRepeat = false;
+    DefoldPlatform.autoPollEvents = true;
+    DefoldPlatform.params[1] = true; // WINDOW_STATE_OPENED
+    DefoldPlatform.params[2] = true; // WINDOW_STATE_ACTIVE
+    DefoldPlatform.params[3] = false; // WINDOW_STATE_ICONIFIED
+    DefoldPlatform.params[4] = true; // WINDOW_STATE_ACCELERATED
+    DefoldPlatform.params[5] = 0; // WINDOW_STATE_RED_BITS
+    DefoldPlatform.params[6] = 0; // WINDOW_STATE_GREEN_BITS
+    DefoldPlatform.params[7] = 0; // WINDOW_STATE_BLUE_BITS
+    DefoldPlatform.params[8] = 0; // WINDOW_STATE_ALPHA_BITS
+    DefoldPlatform.params[9] = 0; // WINDOW_STATE_DEPTH_BITS
+    DefoldPlatform.params[10] = 0; // WINDOW_STATE_STENCIL_BITS
+    DefoldPlatform.params[11] = 0; // WINDOW_STATE_REFRESH_RATE
+    DefoldPlatform.params[12] = 0; // WINDOW_STATE_ACCUM_RED_BITS
+    DefoldPlatform.params[13] = 0; // WINDOW_STATE_ACCUM_GREEN_BITS
+    DefoldPlatform.params[14] = 0; // WINDOW_STATE_ACCUM_BLUE_BITS
+    DefoldPlatform.params[15] = 0; // WINDOW_STATE_ACCUM_ALPHA_BITS
+    DefoldPlatform.params[16] = 0; // WINDOW_STATE_AUX_BUFFERS
+    DefoldPlatform.params[17] = 0; // WINDOW_STATE_STEREO
+    DefoldPlatform.params[18] = 0; // WINDOW_STATE_WINDOW_NO_RESIZE
+    DefoldPlatform.params[19] = 0; // WINDOW_STATE_FSAA_SAMPLES
+    DefoldPlatform.params[21] = 0; // WINDOW_STATE_HIGH_DPI
 
     DefoldPlatform.dpi = 1;
 
@@ -858,31 +859,31 @@ var LibraryDefoldPlatform = {
     if (width > 0 && height == 0) {
       height = 3 * width / 4;
     }
-    DefoldPlatform.params[5] = 8; // NATIVE_RED_BITS
-    DefoldPlatform.params[6] = 8; // NATIVE_GREEN_BITS
-    DefoldPlatform.params[7] = 8; // NATIVE_BLUE_BITS
-    DefoldPlatform.params[8] = alphabits; // NATIVE_ALPHA_BITS
-    DefoldPlatform.params[9] = 32; // NATIVE_DEPTH_BITS
-    DefoldPlatform.params[10] = 8; // NATIVE_STENCIL_BITS
+    DefoldPlatform.params[5] = 8; // WINDOW_STATE_RED_BITS
+    DefoldPlatform.params[6] = 8; // WINDOW_STATE_GREEN_BITS
+    DefoldPlatform.params[7] = 8; // WINDOW_STATE_BLUE_BITS
+    DefoldPlatform.params[8] = alphabits; // WINDOW_STATE_ALPHA_BITS
+    DefoldPlatform.params[9] = 32; // WINDOW_STATE_DEPTH_BITS
+    DefoldPlatform.params[10] = 8; // WINDOW_STATE_STENCIL_BITS
 
     if (!fullscreen) {
       DefoldPlatform.initWindowWidth = width;
       DefoldPlatform.initWindowHeight = height;
-      DefoldPlatform.stickyMouseButtons = true; // NATIVE_STICKY_MOUSE_BUTTONS
+      DefoldPlatform.stickyMouseButtons = true;
     } else {
       DefoldPlatform.requestFullScreen();
-      DefoldPlatform.stickyMouseButtons = false; // NATIVE_STICKY_MOUSE_BUTTONS
+      DefoldPlatform.stickyMouseButtons = false;
     }
 
-    DefoldPlatform.params[19] = samples;
-    DefoldPlatform.params[21] = highDPI;
+    DefoldPlatform.params[19] = samples; // WINDOW_STATE_FSAA_SAMPLES
+    DefoldPlatform.params[21] = highDPI; // WINDOW_STATE_HIGH_DPI
     DefoldPlatform.dpi = highDPI ? (window.devicePixelRatio || 1) : 1;
     if(useWebGL) {
         var contextAttributes = {
-            antialias: (DefoldPlatform.params[19] > 1), // NATIVE_FSAA_SAMPLES
-            depth: (DefoldPlatform.params[9] > 0), // NATIVE_DEPTH_BITS
-            stencil: (DefoldPlatform.params[10] > 0), // NATIVE_STENCIL_BITS
-            alpha: (DefoldPlatform.params[8] > 0), // NATIVE_ALPHA_BITS
+            antialias: (DefoldPlatform.params[19] > 1), // WINDOW_STATE_FSAA_SAMPLES
+            depth: (DefoldPlatform.params[9] > 0), // WINDOW_STATE_DEPTH_BITS
+            stencil: (DefoldPlatform.params[10] > 0), // WINDOW_STATE_STENCIL_BITS
+            alpha: (DefoldPlatform.params[8] > 0), // WINDOW_STATE_ALPHA_BITS
             majorVersion: webglVersion
         };
 
