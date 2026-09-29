@@ -31,6 +31,14 @@ add_dependencies(test_platform platform_null)
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+    defold_add_executable(test_native_web "${CMAKE_CURRENT_LIST_DIR}/test_native_web.cpp")
+    defold_target_link_libraries(test_native_web "${TARGET_PLATFORM}"
+        dlib
+        profile_null
+        testmain
+        platform)
+    defold_register_test_target(test_native_web ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
     _defold_find_wasm_runner(_platform_js_test_runner)
     if(_platform_js_test_runner)
         add_custom_target(run_test_library_platform_js

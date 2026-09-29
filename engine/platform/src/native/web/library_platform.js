@@ -1168,10 +1168,10 @@ var LibraryDefoldPlatform = {
     setValue(guid + 32, 0, 'i8');
   },
 
-  /* Time */
-  dmNativeGetProcAddress__deps: ['dmNativeGetProcAddress'],
+  /* OpenGL extensions */
+  dmNativeGetProcAddress__deps: ['emscripten_GetProcAddress'],
   dmNativeGetProcAddress: function(procname) {
-    return _getProcAddress(procname);
+    return _emscripten_GetProcAddress(procname);
   },
 
   dmNativeShowKeyboard: function(show_keyboard) {
