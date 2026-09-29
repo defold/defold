@@ -23,7 +23,7 @@ static int32_t Regenerate_Defold(HJobContext, HJob, void*, void* data)
         DataRowIterator rows = DataIterRows(&it);
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
-            double* health = DataFieldGetNumberMut(&rows, update->m_HealthField);
+            double* health = DataRowIterGetNumberMut(&rows, update->m_HealthField);
             *health = *health < 99.75 ? *health + 0.25 : 100.0;
             range->m_Stats.m_Sum += *health;
             ++range->m_Stats.m_Rows;

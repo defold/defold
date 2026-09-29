@@ -28,7 +28,7 @@ static Stats PackedRead_Defold(Backend* store, const Fixture* input, uint32_t co
         FieldId          field = ScalarField(key.m_Type);
         uint64_t         id = store->m_Ids[t->m_Offset + key.m_Row];
         double           value = 0;
-        stats.m_Error |= DataGetFieldNumber(store->m_Data, id, g_Fields[field], &value);
+        stats.m_Error |= DataFieldGetNumber(store->m_Data, id, g_Fields[field], &value);
         stats.m_Sum += value;
     }
     return stats;
@@ -63,7 +63,7 @@ static Stats PackedUpdate_Defold(Backend* store, const Fixture* input, uint32_t 
         FieldId          field = ScalarField(key.m_Type);
         uint64_t         id = store->m_Ids[t->m_Offset + key.m_Row];
         double           value = 0;
-        stats.m_Error |= DataGetFieldNumber(store->m_Data, id, g_Fields[field], &value);
+        stats.m_Error |= DataFieldGetNumber(store->m_Data, id, g_Fields[field], &value);
         value += 1;
         stats.m_Error |= DataSetFieldNumber(store->m_Data, id, g_Fields[field], value);
         stats.m_Sum += value;

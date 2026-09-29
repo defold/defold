@@ -20,28 +20,28 @@ extern "C"
 {
 #endif
 
-    DataResult DataGetFieldNumber(HDataStore store, DataId id, uint64_t field, double* out_value);
-    void       DataGetFieldNumberBatch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, double* out_values, DataResult* out_results);
+    DataResult DataFieldGetNumber(HDataStore store, DataId id, uint64_t field, double* out_value);
+    DataResult DataFieldGetNumberBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, double* out_values);
     DataResult DataSetFieldNumber(HDataStore store, DataId id, uint64_t field, double value);
 
-    DataResult DataGetFieldBoolean(HDataStore store, DataId id, uint64_t field, uint8_t* out_value);
-    void       DataGetFieldBooleanBatch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, uint8_t* out_values, DataResult* out_results);
+    DataResult DataFieldGetBoolean(HDataStore store, DataId id, uint64_t field, uint8_t* out_value);
+    DataResult DataFieldGetBooleanBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, uint8_t* out_values);
     DataResult DataSetFieldBoolean(HDataStore store, DataId id, uint64_t field, uint8_t value);
 
-    DataResult DataGetFieldString(HDataStore store, DataId id, uint64_t field, const char** out_value);
-    void       DataGetFieldStringBatch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, const char** out_values, DataResult* out_results);
+    DataResult DataFieldGetString(HDataStore store, DataId id, uint64_t field, const char** out_value);
+    DataResult DataFieldGetStringBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, const char** out_values);
     DataResult DataSetFieldString(HDataStore store, DataId id, uint64_t field, const char* value);
 
-    DataResult DataGetFieldVector3(HDataStore store, DataId id, uint64_t field, DataVector3* out_value);
-    void       DataGetFieldVector3Batch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, DataVector3* out_values, DataResult* out_results);
+    DataResult DataFieldGetVector3(HDataStore store, DataId id, uint64_t field, DataVector3* out_value);
+    DataResult DataFieldGetVector3Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataVector3* out_values);
     DataResult DataSetFieldVector3(HDataStore store, DataId id, uint64_t field, const DataVector3* value);
 
-    DataResult DataGetFieldVector4(HDataStore store, DataId id, uint64_t field, DataVector4* out_value);
-    void       DataGetFieldVector4Batch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, DataVector4* out_values, DataResult* out_results);
+    DataResult DataFieldGetVector4(HDataStore store, DataId id, uint64_t field, DataVector4* out_value);
+    DataResult DataFieldGetVector4Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataVector4* out_values);
     DataResult DataSetFieldVector4(HDataStore store, DataId id, uint64_t field, const DataVector4* value);
 
-    DataResult DataGetFieldMatrix4(HDataStore store, DataId id, uint64_t field, DataMatrix4* out_value);
-    void       DataGetFieldMatrix4Batch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, DataMatrix4* out_values, DataResult* out_results);
+    DataResult DataFieldGetMatrix4(HDataStore store, DataId id, uint64_t field, DataMatrix4* out_value);
+    DataResult DataFieldGetMatrix4Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataMatrix4* out_values);
     DataResult DataSetFieldMatrix4(HDataStore store, DataId id, uint64_t field, const DataMatrix4* value);
 
 #ifdef __cplusplus
@@ -64,22 +64,23 @@ extern "C"
 
 /*# Read Number fields by row ID
  *
- * Reads IDs in input order without allocation. Writes one status per ID; failed
- * values remain unchanged. Synchronize as for DataGetFieldNumber. Input/output
- * arrays must not overlap and contain count entries. Zero count accesses nothing.
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataFieldGetNumber. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
  *
- * @name DataGetFieldNumberBatch
+ * @name DataFieldGetNumberBatch
  * @param store [type:HDataStore] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
  * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
- * @param count [type:uint32_t] Number of IDs, values and statuses.
- * @param out_values [type:double*] Receives each value whose status is OK.
- * @param out_results [type:DataResult*] Per-ID OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_values [type:double*] Receives the values on success.
+ * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Number field
  *
- * @name DataGetFieldNumber
+ * @name DataFieldGetNumber
  * @param store [type:HDataStore] Store handle.
  * @param id [type:DataId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -99,22 +100,23 @@ extern "C"
 
 /*# Read Boolean fields by row ID
  *
- * Reads IDs in input order without allocation. Writes one status per ID; failed
- * values remain unchanged. Synchronize as for DataGetFieldBoolean. Input/output
- * arrays must not overlap and contain count entries. Zero count accesses nothing.
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataFieldGetBoolean. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
  *
- * @name DataGetFieldBooleanBatch
+ * @name DataFieldGetBooleanBatch
  * @param store [type:HDataStore] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
  * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
- * @param count [type:uint32_t] Number of IDs, values and statuses.
- * @param out_values [type:uint8_t*] Receives each value whose status is OK.
- * @param out_results [type:DataResult*] Per-ID OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_values [type:uint8_t*] Receives the values on success.
+ * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Boolean field
  *
- * @name DataGetFieldBoolean
+ * @name DataFieldGetBoolean
  * @param store [type:HDataStore] Store handle.
  * @param id [type:DataId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -134,23 +136,24 @@ extern "C"
 
 /*# Read String fields by row ID
  *
- * Reads IDs in input order without allocation. Writes one status per ID; failed
- * values remain unchanged. Synchronize as for DataGetFieldString. Input/output
- * arrays must not overlap and contain count entries. Zero count accesses nothing.
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataFieldGetString. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
  * Returned strings are borrowed; finish using them before a store write or reset.
  *
- * @name DataGetFieldStringBatch
+ * @name DataFieldGetStringBatch
  * @param store [type:HDataStore] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
  * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
- * @param count [type:uint32_t] Number of IDs, values and statuses.
- * @param out_values [type:const char**] Receives each value whose status is OK.
- * @param out_results [type:DataResult*] Per-ID OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_values [type:const char**] Receives the values on success.
+ * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a String field
  *
- * @name DataGetFieldString
+ * @name DataFieldGetString
  * @param store [type:HDataStore] Store handle.
  * @param id [type:DataId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -172,22 +175,23 @@ extern "C"
 
 /*# Read Vector3 fields by row ID
  *
- * Reads IDs in input order without allocation. Writes one status per ID; failed
- * values remain unchanged. Synchronize as for DataGetFieldVector3. Input/output
- * arrays must not overlap and contain count entries. Zero count accesses nothing.
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataFieldGetVector3. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
  *
- * @name DataGetFieldVector3Batch
+ * @name DataFieldGetVector3Batch
  * @param store [type:HDataStore] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
  * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
- * @param count [type:uint32_t] Number of IDs, values and statuses.
- * @param out_values [type:DataVector3*] Receives each value whose status is OK.
- * @param out_results [type:DataResult*] Per-ID OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_values [type:DataVector3*] Receives the values on success.
+ * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Vector3 field
  *
- * @name DataGetFieldVector3
+ * @name DataFieldGetVector3
  * @param store [type:HDataStore] Store handle.
  * @param id [type:DataId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -207,22 +211,23 @@ extern "C"
 
 /*# Read Vector4 fields by row ID
  *
- * Reads IDs in input order without allocation. Writes one status per ID; failed
- * values remain unchanged. Synchronize as for DataGetFieldVector4. Input/output
- * arrays must not overlap and contain count entries. Zero count accesses nothing.
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataFieldGetVector4. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
  *
- * @name DataGetFieldVector4Batch
+ * @name DataFieldGetVector4Batch
  * @param store [type:HDataStore] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
  * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
- * @param count [type:uint32_t] Number of IDs, values and statuses.
- * @param out_values [type:DataVector4*] Receives each value whose status is OK.
- * @param out_results [type:DataResult*] Per-ID OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_values [type:DataVector4*] Receives the values on success.
+ * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Vector4 field
  *
- * @name DataGetFieldVector4
+ * @name DataFieldGetVector4
  * @param store [type:HDataStore] Store handle.
  * @param id [type:DataId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -242,22 +247,23 @@ extern "C"
 
 /*# Read Matrix4 fields by row ID
  *
- * Reads IDs in input order without allocation. Writes one status per ID; failed
- * values remain unchanged. Synchronize as for DataGetFieldMatrix4. Input/output
- * arrays must not overlap and contain count entries. Zero count accesses nothing.
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataFieldGetMatrix4. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
  *
- * @name DataGetFieldMatrix4Batch
+ * @name DataFieldGetMatrix4Batch
  * @param store [type:HDataStore] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
  * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
- * @param count [type:uint32_t] Number of IDs, values and statuses.
- * @param out_values [type:DataMatrix4*] Receives each value whose status is OK.
- * @param out_results [type:DataResult*] Per-ID OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_values [type:DataMatrix4*] Receives the values on success.
+ * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Matrix4 field
  *
- * @name DataGetFieldMatrix4
+ * @name DataFieldGetMatrix4
  * @param store [type:HDataStore] Store handle.
  * @param id [type:DataId] Row ID.
  * @param field [type:uint64_t] Field name hash.

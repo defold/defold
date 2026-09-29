@@ -78,7 +78,7 @@ void RunCore(const Fixture* input, uint32_t kind, uint32_t sample)
             DataVector3 actual;
             uint64_t    id = store.m_Ids[type->m_Offset + r];
             if (!kind)
-                Check(DataGetFieldVector3(store.m_Data, id, g_Fields[POSITION], &actual) == DATA_RESULT_OK, "spawn position");
+                Check(DataFieldGetVector3(store.m_Data, id, g_Fields[POSITION], &actual) == DATA_RESULT_OK, "spawn position");
             else
                 memcpy(&actual, ecs_get_id(store.m_World, id, store.m_Fields[POSITION]), sizeof(actual));
             const DataValueData* expected = &type->m_Values[(size_t)r * type->m_FieldCount + FindField(type, POSITION)];
@@ -96,7 +96,7 @@ void RunCore(const Fixture* input, uint32_t kind, uint32_t sample)
         RowKey      key = input->m_Order[i];
         uint64_t    id = store.m_Ids[input->m_Types[key.m_Type].m_Offset + key.m_Row];
         DataVector3 value;
-        Check(kind ? !ecs_is_alive(store.m_World, id) : DataGetFieldVector3(store.m_Data, id, g_Fields[POSITION], &value) == DATA_RESULT_NOT_FOUND, "despawned ID is stale");
+        Check(kind ? !ecs_is_alive(store.m_World, id) : DataFieldGetVector3(store.m_Data, id, g_Fields[POSITION], &value) == DATA_RESULT_NOT_FOUND, "despawned ID is stale");
     }
     ValidateQueryRows(&store, input, &movement, (1u << 2) | (1u << 3), input->m_Count / 100);
     ValidateQueryRows(&store, input, &explosion, (1u << 2) | (1u << 3) | (1u << 5), input->m_Count / 100);

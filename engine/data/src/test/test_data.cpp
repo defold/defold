@@ -241,15 +241,15 @@ TEST(Data, StringOwnershipAndSelfAssignment)
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, 1, 2.5, text, &id));
     text[0] = 'X';
     DataValue out;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 20, &out));
     ASSERT_STREQ("copied", out.m_Value.m_String);
     ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, id, 20, &out));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 20, &out));
     ASSERT_STREQ("copied", out.m_Value.m_String);
     DataValue replacement = String(text);
     ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, id, 20, &replacement));
     text[1] = 'Y';
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 20, &out));
     ASSERT_STREQ("Xopied", out.m_Value.m_String);
     replacement = String(0);
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, id, 20, &replacement));
@@ -264,7 +264,7 @@ TEST(Data, GrowthSwapRemovalAndStaleIds)
     for (uint32_t i = 0; i < 257; ++i)
         ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, i, i, "value", &ids[i]));
     DataValue out;
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, 0, 10, &out));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGet(store, 0, 10, &out));
     for (uint32_t i = 0; i < 257; i += 2)
     {
         ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[i]));
@@ -272,9 +272,9 @@ TEST(Data, GrowthSwapRemovalAndStaleIds)
     }
     for (uint32_t i = 1; i < 257; i += 2)
     {
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[i], 10, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[i], 10, &out));
         ASSERT_EQ((double)i, out.m_Value.m_Number);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[i], 20, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[i], 20, &out));
         ASSERT_STREQ("value", out.m_Value.m_String);
     }
     for (uint32_t i = 0; i < 257; i += 2)
@@ -282,14 +282,14 @@ TEST(Data, GrowthSwapRemovalAndStaleIds)
         DataId replacement;
         ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, i, -1, "new", &replacement));
         ASSERT_NE(ids[i], replacement);
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, ids[i], 10, &out));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGet(store, ids[i], 10, &out));
     }
     ASSERT_EQ(DATA_RESULT_OK, DataUnregisterTable(store, 1));
     ASSERT_EQ(DATA_RESULT_OK, Register(store, 1));
     DataId replacement;
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, 0, 42, "reregistered", &replacement));
     for (uint32_t i = 0; i < 257; ++i)
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, ids[i], 10, &out));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGet(store, ids[i], 10, &out));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
 }
 
@@ -329,7 +329,7 @@ TEST(Data, LiveQueriesTagsOwnersAndCopiedDescriptors)
             DataOwnerId owner = DataIterGetOwnerId(&it, row);
             ASSERT_TRUE(owner == 7 || owner == 8);
             DataValue out;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, DataIterGetId(&it, row), 10, &out));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, DataIterGetId(&it, row), 10, &out));
             ++total;
         }
     }
@@ -628,21 +628,21 @@ TEST(Data, SharedMetadataAndDenseRows)
     ASSERT_EQ((uintptr_t)0, (uintptr_t)table->m_Owned->m_BaseValues);
     ASSERT_EQ((uintptr_t)0, (uintptr_t)table->m_Payloads);
     DataValue out;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1], 10, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[1], 10, &out));
     ASSERT_EQ(2.0f, out.m_Value.m_Vector3[1]);
     DataValue changed = Vector3(0.25f, 0.5f, 0.75f);
     ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[1], 10, &changed));
     ASSERT_EQ(96u, table->m_Values.Size());
     ASSERT_EQ(0, memcmp(table->m_Values.Begin(), table->m_Owned->m_BaseRows.Begin(), 32));
     ASSERT_NE(0, memcmp(table->m_Values.Begin() + 32, table->m_Owned->m_BaseRows.Begin() + 32, 32));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[1], 20, &out));
     ASSERT_EQ(4.0, out.m_Value.m_Number); // Updating color preserves the other mutable fields.
     changed = Number(3);
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, ids[1], 10, &changed));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1], 10, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[1], 10, &out));
     ASSERT_EQ(0.5f, out.m_Value.m_Vector3[1]);
     ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, ids[1], 10));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1], 10, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[1], 10, &out));
     ASSERT_EQ(2.0f, out.m_Value.m_Vector3[1]);
     ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
     ASSERT_EQ((uintptr_t)0, (uintptr_t)table->m_Payloads);
@@ -699,9 +699,9 @@ TEST(Data, MetadataAndBulkValidation)
     values[0].m_Number = 99;
     types[0] = DATA_VALUE_TYPE_STRING; // Insertion no longer depends on either input array.
     DataValue out = Number(123);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0], 1, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[0], 1, &out));
     ASSERT_EQ(4.0, out.m_Value.m_Number);
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, ids[0], 999, &out));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGet(store, ids[0], 999, &out));
     ASSERT_EQ(4.0, out.m_Value.m_Number);
     ASSERT_EQ(DATA_RESULT_OK, DataAddRows(store, 1, 0, 0, 0));
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRows(store, 1, 0, 1, ids));
@@ -747,8 +747,8 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
     ASSERT_NE(old_ids[0], ids[0]);
     ASSERT_EQ(4u, store->m_Slots.Size());
     double number;
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, old_ids[0], 10, &number));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, old_ids[1], 10, &number));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetNumber(store, old_ids[0], 10, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, old_ids[1], 10, &number));
     ASSERT_EQ(101.0, number);
     for (uint32_t r = 0; r < 3; ++r)
     {
@@ -760,7 +760,7 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
         for (uint32_t f = 0; f < 5; ++f)
         {
             DataValue value;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], fields[f].m_Field, &value));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[r], fields[f].m_Field, &value));
             ASSERT_EQ(0, memcmp(&values[r][f], &value.m_Value, DataTypeSize(types[f])));
         }
         const uint8_t* bytes = GetFieldBytes(slot->m_Table, &slot->m_Table->m_Rows[slot->m_Row], 0);
@@ -813,7 +813,7 @@ TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
     for (uint32_t i = 0; i < 2; ++i)
     {
         DataValue object, color, enabled;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[i], 1, &object));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[i], 1, &object));
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 10, &color));
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 20, &enabled));
         ASSERT_EQ(i ? 6.0f : 3.0f, color.m_Value.m_Vector3[2]);
@@ -825,7 +825,7 @@ TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
     for (uint32_t i = 0; i < 2; ++i)
     {
         DataValue view;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[i], 1, &view));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[i], 1, &view));
         values[i] = view.m_Value;
     }
     DataId copied[2];
@@ -833,7 +833,7 @@ TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
     for (uint32_t i = 0; i < 2; ++i)
     {
         DataValue object, color, enabled;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(copy, copied[i], 1, &object));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(copy, copied[i], 1, &object));
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 10, &color));
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 20, &enabled));
         ASSERT_EQ(i ? 6.0f : 3.0f, color.m_Value.m_Vector3[2]);
@@ -872,21 +872,21 @@ TEST(Data, CApiMathAndNestedViews)
     HDataBlobInstance instance;
     ASSERT_EQ(DATA_RESULT_OK, Load(loaded, bytes, size, &instance, 123));
     DataMatrix4 loaded_matrix;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldMatrix4(loaded, FirstId(loaded), 45, &loaded_matrix));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetMatrix4(loaded, FirstId(loaded), 45, &loaded_matrix));
     ASSERT_EQ(44.0f, loaded_matrix.m_Values[3 * 4 + 2]);
     DataValue out;
     for (uint32_t i = 1; i <= 3; ++i)
     {
         DataValue original;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, meta[i].m_Field, &original));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(loaded, FirstId(loaded), meta[i].m_Field, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, meta[i].m_Field, &original));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(loaded, FirstId(loaded), meta[i].m_Field, &out));
         ASSERT_EQ(original.m_Type, out.m_Type);
         ASSERT_EQ(0, memcmp(&original.m_Value, &out.m_Value, DataTypeSize(original.m_Type)));
     }
     ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
     for (uint32_t i = 1; i <= 3; ++i)
     {
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, meta[i].m_Field, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, meta[i].m_Field, &out));
         ASSERT_EQ(values[i].m_Type, out.m_Type);
         ASSERT_EQ(0, memcmp(&values[i].m_Value, &out.m_Value, DataTypeSize(out.m_Type)));
     }
@@ -932,16 +932,16 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
                 if (overridden)
                     ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, row, meta[i].m_Field, &values[i]));
                 DataValue value;
-                ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, row, meta[i].m_Field, &value));
+                ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, row, meta[i].m_Field, &value));
                 ASSERT_EQ(meta[i].m_Type, value.m_Type);
                 ASSERT_EQ(0, memcmp(bits, &value.m_Value, DataTypeSize(value.m_Type)));
             }
             DataVector3 vector3;
             DataVector4 vector4;
             DataMatrix4 matrix;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector3(store, row, 10, &vector3));
-            ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector4(store, row, 20, &vector4));
-            ASSERT_EQ(DATA_RESULT_OK, DataGetFieldMatrix4(store, row, 30, &matrix));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector3(store, row, 10, &vector3));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector4(store, row, 20, &vector4));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGetMatrix4(store, row, 30, &matrix));
             ASSERT_EQ(0, memcmp(bits, vector3.m_Values, sizeof(vector3.m_Values)));
             ASSERT_EQ(0, memcmp(bits, vector4.m_Values, sizeof(vector4.m_Values)));
             ASSERT_EQ(0, memcmp(bits, matrix.m_Values, sizeof(matrix.m_Values)));
@@ -960,9 +960,9 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
             ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
             DataRowIterator rows = DataIterRows(&it);
             ASSERT_EQ(DATA_RESULT_OK, DataRowIterNext(&rows));
-            ASSERT_EQ(0, memcmp(bits, DataFieldGetMatrix4(&rows, matrix_field), sizeof(DataMatrix4)));
-            ASSERT_EQ(0, memcmp(bits, DataFieldGetVector3(&rows, vector3_field), sizeof(DataVector3)));
-            ASSERT_EQ(0, memcmp(bits, DataFieldGetVector4(&rows, vector4_field), sizeof(DataVector4)));
+            ASSERT_EQ(0, memcmp(bits, DataRowIterGetMatrix4(&rows, matrix_field), sizeof(DataMatrix4)));
+            ASSERT_EQ(0, memcmp(bits, DataRowIterGetVector3(&rows, vector3_field), sizeof(DataVector3)));
+            ASSERT_EQ(0, memcmp(bits, DataRowIterGetVector4(&rows, vector4_field), sizeof(DataVector4)));
             DataStoreUnlock(store);
             DataDestroyQuery(query);
         }
@@ -1091,11 +1091,11 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[0][0]));
     ASSERT_EQ(DATA_RESULT_OK, DataIterGetFieldByHash(&it, 0, 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0][1], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[0][1], 20, &out));
     ASSERT_STREQ("override", out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0][2], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[0][2], 20, &out));
     ASSERT_STREQ("override", out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[1][0], 20, &out));
     ASSERT_STREQ("override", out.m_Value.m_String);
     ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[0][0], 20, &change));
     DataStoreUnlock(store);
@@ -1105,25 +1105,25 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     it = DataQueryIter(query);
     DataResetBlob(first);
     ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, ids[0][1], 20, &out));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGet(store, ids[0][1], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[0][0], 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0][2], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[0][2], 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[1][0], 20, &out));
     ASSERT_STREQ("override", out.m_Value.m_String);
     DataStoreUnlock(store);
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(first));
     for (uint32_t i = 0; i < 3; ++i)
     {
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(store, ids[0][i], 20, &out));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1][i], 20, &out));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGet(store, ids[0][i], 20, &out));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[1][i], 20, &out));
     }
     ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, ids[1][0], 20, &out));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[1][0], 20, &out));
     ASSERT_NE(string, (uintptr_t)out.m_Value.m_String);
     ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, ids[1][0], 20));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[1][0], 20, &out));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[1][0], 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(second));
     DataStoreLock(store);
@@ -1165,7 +1165,7 @@ TEST(Data, NestedViewsAllKindsAndReset)
     ASSERT_EQ(DATA_RESULT_OK, Load(store, bytes, size, &instance));
     id = FirstId(store);
     DataValue object, list, child, shared;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &object));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 1, &object));
     ASSERT_EQ((uintptr_t)(bytes), (uintptr_t)object.m_Value.m_Struct.m_Buffer);
     ASSERT_EQ((uintptr_t)0, (uintptr_t)object.m_Value.m_Struct.m_Values);
     ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 10, &list));
@@ -1193,15 +1193,15 @@ TEST(Data, NestedViewsAllKindsAndReset)
     ASSERT_EQ((uintptr_t)(bytes), (uintptr_t)GetInstanceTable(instance, 0)->m_Blob); // Values remain borrowed.
     ASSERT_EQ((uintptr_t)0, (uintptr_t)instance->m_Payloads);
     ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, id, 1, &object)); // Copy only when explicitly setting.
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &child));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 1, &child));
     ASSERT_TRUE(child.m_Value.m_Struct.m_Buffer != object.m_Value.m_Struct.m_Buffer);
     ASSERT_EQ((uintptr_t)0, (uintptr_t)child.m_Value.m_Struct.m_Values);
     ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, id, 1, &child)); // Owned view self-assignment.
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &child));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 1, &child));
     ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&child.m_Value.m_Struct, 20, &shared));
     ASSERT_STREQ("shared", shared.m_Value.m_String);
     ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, id, 1));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &child));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 1, &child));
     ASSERT_EQ(object.m_Value.m_Struct.m_Offset, child.m_Value.m_Struct.m_Offset);
     DataResetBlob(instance);
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(store, roundtrip, size, &size));
@@ -1237,7 +1237,7 @@ TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
     ASSERT_EQ(memory.m_BaseUsed, memory.m_BaseCapacity);
 
     DataValue borrowed;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[0], 1, &borrowed));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[0], 1, &borrowed));
     ASSERT_TRUE(borrowed.m_Value.m_Struct.m_Buffer != 0);
     ASSERT_EQ((uintptr_t)0, (uintptr_t)borrowed.m_Value.m_Struct.m_Values);
     for (uint32_t i = 0; i < 128; ++i)
@@ -1250,7 +1250,7 @@ TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
     for (uint32_t i = 0; i < 128; ++i)
     {
         DataValue object, child;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[i], 1, &object));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[i], 1, &object));
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 10, &child));
         ASSERT_EQ(3.0f, child.m_Value.m_Vector3[2]);
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 20, &child));
@@ -1397,12 +1397,12 @@ TEST(Data, EmptyNullAndBorrowedResourceReuse)
     DataValue value = Null();
     DataId    id;
     ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 1, 0, &value, 1, &id));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(source, id, 1, &value));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(source, id, 1, &value));
     ASSERT_EQ(DATA_RESULT_OK, DataSetField(source, id, 1, &value));
     DataTableDesc empty = { 2, 0, 0, 0, 0, 0 };
     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &empty));
     ASSERT_EQ(DATA_RESULT_OK, AddTestRow(source, 2, 0, 0, 0, &id));
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetField(source, id, 1, &value));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGet(source, id, 1, &value));
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(source, bytes, sizeof(bytes), &size));
     ASSERT_EQ(DATA_RESULT_OK, DataLoadBlob(bytes, size, &blob));
     ASSERT_EQ(2u, blob->m_TableCount);
@@ -1414,7 +1414,7 @@ TEST(Data, EmptyNullAndBorrowedResourceReuse)
     ASSERT_EQ(DATA_RESULT_OK, DataAddBlob(another, blob, 2, &second));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
     ASSERT_EQ(2u, blob->m_RefCount);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(another, FirstId(another), 1, &value));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(another, FirstId(another), 1, &value));
     ASSERT_EQ(DATA_VALUE_TYPE_NULL, value.m_Type);
     DataDestroyBlob(blob);
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(another));
@@ -1429,7 +1429,7 @@ TEST(Data, ResetAddedValuesAllocationBlocksAndDefaults)
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, 1, 17, "original", &first));
     DataValue value = String("new baseline");
     ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, first, 20, &value));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, first, 20, &value));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, first, 20, &value));
     ASSERT_EQ(DATA_RESULT_OK, Add(store, 1, 2, 23, value.m_Value.m_String, &second));
     char large[8193];
     memset(large, 'L', sizeof(large) - 1);
@@ -1438,7 +1438,7 @@ TEST(Data, ResetAddedValuesAllocationBlocksAndDefaults)
     {
         value = String(large);
         ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, first, 20, &value));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, first, 20, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, first, 20, &value));
         ASSERT_STREQ(large, value.m_Value.m_String);
         ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, first, 20, &value));
         for (uint32_t i = 0; i < 300; ++i)
@@ -1447,9 +1447,9 @@ TEST(Data, ResetAddedValuesAllocationBlocksAndDefaults)
             ASSERT_EQ(DATA_RESULT_OK, DataSetField(store, first, 20, &value));
         }
         ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, first, 20, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, first, 20, &value));
         ASSERT_STREQ("original", value.m_Value.m_String);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, second, 20, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, second, 20, &value));
         ASSERT_STREQ("new baseline", value.m_Value.m_String);
     }
     ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataResetField(store, 0, 20));
@@ -1499,23 +1499,23 @@ TEST(Data, TypedLookupHashCollisionsAndWideIndexes)
         DataId      id = ids[mode];
         double      number;
         DataVector3 vector;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, 1, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, id, 1, &number));
         ASSERT_EQ(0.0, number);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector3(store, id, 17, &vector));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector3(store, id, 17, &vector));
         ASSERT_EQ(3.0f, vector.m_Values[2]);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, fields[255].m_Field, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, id, fields[255].m_Field, &number));
         ASSERT_EQ(255.0, number);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, 2, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, id, 2, &number));
         ASSERT_EQ(256.0, number);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, 0, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, id, 0, &number));
         ASSERT_EQ(257.0, number);
         number = 123;
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataGetFieldNumber(store, id, 17, &number));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, id, 1 + 16 * count, &number));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, id, 3, &number));
+        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataFieldGetNumber(store, id, 17, &number));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetNumber(store, id, 1 + 16 * count, &number));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetNumber(store, id, 3, &number));
         ASSERT_EQ(123.0, number);
         ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, id));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, id, 2, &number));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetNumber(store, id, 2, &number));
         ASSERT_EQ(123.0, number);
         ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
     }
@@ -1557,7 +1557,7 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
         ASSERT_EQ(7.0f, vector.m_Values[0]);
         ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
         DataId id = DataIterGetId(&it, 0);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector3(store, id, 10, &vector));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector3(store, id, 10, &vector));
         ASSERT_EQ(1.0f, vector.m_Values[0]);
         ASSERT_EQ(3.0f, vector.m_Values[2]);
         const char* string;
@@ -1567,10 +1567,10 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
             ASSERT_TRUE(string >= (const char*)bytes && string < (const char*)bytes + size);
 
         double number = 123;
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataGetFieldNumber(store, id, 10, &number));
+        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataFieldGetNumber(store, id, 10, &number));
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestFieldNumber(&it, 0, 1, &number));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, 0, 10, &number));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, id, 99, &number));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetNumber(store, 0, 10, &number));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetNumber(store, id, 99, &number));
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestFieldNumber(&it, 1, 1, &number));
         ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, GetTestFieldNumber(&it, 0, 3, &number));
         ASSERT_EQ(123.0, number);
@@ -1594,12 +1594,12 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
         ASSERT_EQ(8.0f, vector.m_Values[1]);
         ASSERT_EQ(DATA_RESULT_OK, SetTestFieldBoolean(&it, 0, 0, 0));
         uint8_t boolean = 1;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldBoolean(store, id, 30, &boolean));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetBoolean(store, id, 30, &boolean));
         ASSERT_EQ(0, boolean);
         char replacement[] = "changed";
         ASSERT_EQ(DATA_RESULT_OK, DataSetFieldString(store, id, 20, replacement));
         replacement[0] = 'X';
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, id, 20, &string));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetString(store, id, 20, &string));
         ASSERT_STREQ("changed", string);
         ASSERT_EQ(DATA_RESULT_OK, SetTestFieldString(&it, 0, 2, string));
         ASSERT_EQ(DATA_RESULT_OK, GetTestFieldString(&it, 0, 2, &string));
@@ -1613,13 +1613,13 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
             ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
         ASSERT_EQ(DATA_RESULT_OK, GetTestFieldBoolean(&it, 0, 0, &boolean));
         ASSERT_EQ(1, boolean);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, id, 20, &string));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetString(store, id, 20, &string));
         ASSERT_STREQ("packed", string);
         GetDataMemoryStats(store, &memory);
         ASSERT_EQ((uint64_t)0, memory.m_PayloadBlocks);
         DataStoreUnlock(store);
         ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, id));
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldVector3(store, id, 10, &vector));
+        ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetVector3(store, id, 10, &vector));
         ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataSetFieldVector3(store, id, 10, &vector));
         ASSERT_EQ(2.0f, vector.m_Values[1]);
         DataDestroyQuery(query);
@@ -1842,7 +1842,7 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
             ASSERT_EQ(DATA_RESULT_OK, DataResetTable(store, 1));
         ASSERT_EQ(0, TestInlineDataFromC(store));
         DataValue view, light_view;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 2, &view));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 2, &view));
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&view.m_Value.m_Struct, 40, &light_view));
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&light_view.m_Value.m_Struct, 10, &child));
         ASSERT_EQ(3.0f, child.m_Value.m_Vector3[2]);
@@ -1984,7 +1984,7 @@ TEST(Data, InlinePathsBindDifferentTablesAndTrackRegistration)
         ASSERT_EQ(DATA_RESULT_OK, GetTestFieldVector3(&it, 0, 0, &color));
         ASSERT_EQ(8.0f, color.m_Values[0]);
         DataValue object, intensity;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, DataIterGetId(&it, 0), 1, &object));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, DataIterGetId(&it, 0), 1, &object));
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 20, &intensity));
         ASSERT_EQ(4.0, intensity.m_Value.m_Number);
         ++visited;
@@ -2050,7 +2050,7 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
         ASSERT_EQ((uint64_t)(r + 11), DataGetComponentId(store, ids[r]));
         for (uint32_t p = 0; p < 10; ++p)
         {
-            ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[r], p, &number));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, ids[r], p, &number));
             ASSERT_EQ((double)(r ? 100 * (r + 1) + p : p), number);
         }
     }
@@ -2064,7 +2064,7 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     {
         ASSERT_EQ(DATA_RESULT_OK, DataSetFieldNumber(store, ids[0], 9, 500));
         ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[0]));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[0], 9, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, ids[0], 9, &number));
         ASSERT_EQ(9.0, number);
     }
     GetDataMemoryStats(store, &after);
@@ -2075,9 +2075,9 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[0]));
     ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataResetRow(store, ids[0]));
     ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[2])); // Swap removal moved this row.
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[2], 9, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, ids[2], 9, &number));
     ASSERT_EQ(9.0, number);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[1], 9, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, ids[1], 9, &number));
     ASSERT_EQ(209.0, number);
     DataDestroyQuery(query);
 
@@ -2286,15 +2286,15 @@ TEST(Data, FieldCursorUsesBatchRelativeRowsAfterRemoval)
                 ASSERT_EQ(DATA_RESULT_OK, DataFieldIterGetNumber(&field, &number));
                 ASSERT_EQ(id == ids[3] ? 13.0 : 15.0, number);
                 if (requested)
-                    ASSERT_EQ(number, *DataFieldGetNumber(&rows, handle));
+                    ASSERT_EQ(number, *DataRowIterGetNumber(&rows, handle));
                 ASSERT_EQ(DATA_RESULT_OK, DataFieldIterSetNumber(&field, 99));
-                ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, 10, &number));
+                ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, id, 10, &number));
                 ASSERT_EQ(99.0, number);
                 ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, id));
                 ASSERT_EQ(DATA_RESULT_OK, DataFieldIterGetNumber(&field, &number));
                 ASSERT_EQ(id == ids[3] ? 13.0 : 15.0, number);
                 if (requested)
-                    ASSERT_EQ(number, *DataFieldGetNumber(&rows, handle));
+                    ASSERT_EQ(number, *DataRowIterGetNumber(&rows, handle));
                 ++visited;
             }
         }
@@ -2347,7 +2347,7 @@ TEST(Data, DeferredRemovalUsesStableIds)
         ASSERT_EQ(33u, removals.Size());
         // Queued IDs are still readable before the caller applies its buffer.
         double value;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, removals[0], 10, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, removals[0], 10, &value));
         DataStoreUnlock(store);
         for (uint32_t r = 0; r < removals.Size(); ++r)
             ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, removals[r]));
@@ -2370,7 +2370,7 @@ TEST(Data, DeferredRemovalUsesStableIds)
         for (uint32_t r = 0; r < 64; ++r)
         {
             if (r % 2 == 0 || r == 63)
-                ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, ids[r], 10, &value));
+                ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetNumber(store, ids[r], 10, &value));
             else
                 ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[r]));
         }
@@ -2517,7 +2517,7 @@ TEST(Data, NativeFieldPointersAndReset)
         DataId id = FirstId(store);
         ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, id));
         double number;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, id, 1, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, id, 1, &number));
         ASSERT_EQ(17.0, number);
         if (packed)
             DataResetBlob(instance);
@@ -2573,10 +2573,10 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
             DataRowIterator rows = DataIterRows(&it);
             ASSERT_EQ(DATA_RESULT_OK, DataRowIterNext(&rows));
             ASSERT_EQ(id, DataRowIterGetId(&rows));
-            ASSERT_EQ(10.0 + pass, *DataFieldGetNumber(&rows, number_field));
-            ASSERT_EQ(3.0f, DataFieldGetVector3(&rows, vector_field)->m_Values[2]);
-            *DataFieldGetNumberMut(&rows, number_field) = 99;
-            ASSERT_EQ(99.0, *DataFieldGetNumber(&rows, number_field));
+            ASSERT_EQ(10.0 + pass, *DataRowIterGetNumber(&rows, number_field));
+            ASSERT_EQ(3.0f, DataRowIterGetVector3(&rows, vector_field)->m_Values[2]);
+            *DataRowIterGetNumberMut(&rows, number_field) = 99;
+            ASSERT_EQ(99.0, *DataRowIterGetNumber(&rows, number_field));
             ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, id));
             ASSERT_EQ(DATA_RESULT_END, DataRowIterNext(&rows));
             ASSERT_EQ(DATA_RESULT_END, DataIterNext(&it));
@@ -2641,35 +2641,35 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
             DataRowIterator rows = DataIterRows(&it);
             ASSERT_EQ(DATA_RESULT_OK, DataRowIterNext(&rows));
             DataId             id = DataRowIterGetId(&rows);
-            const DataVector3* original = DataFieldGetVector3(&rows, field);
+            const DataVector3* original = DataRowIterGetVector3(&rows, field);
             ASSERT_EQ(1.0f, original->m_Values[0]);
-            ASSERT_EQ(9.0f, DataFieldGetVector3(&rows, other)->m_Values[0]);
+            ASSERT_EQ(9.0f, DataRowIterGetVector3(&rows, other)->m_Values[0]);
             if (packed)
             {
                 uint32_t         table_index = (uint32_t)DataIterGetType(&it) - 1;
                 const DataTable* table = GetInstanceTable(instance, table_index);
                 ASSERT_EQ((uintptr_t)(table->m_Values.Begin() + table_index * 8), (uintptr_t)original);
             }
-            DataFieldGetVector3Mut(&rows, field)->m_Values[0] = 42;
-            ASSERT_EQ(42.0f, DataFieldGetVector3(&rows, field)->m_Values[0]);
-            ASSERT_EQ(9.0f, DataFieldGetVector3(&rows, other)->m_Values[0]);
+            DataRowIterGetVector3Mut(&rows, field)->m_Values[0] = 42;
+            ASSERT_EQ(42.0f, DataRowIterGetVector3(&rows, field)->m_Values[0]);
+            ASSERT_EQ(9.0f, DataRowIterGetVector3(&rows, other)->m_Values[0]);
             DataValue root, child;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &root));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 1, &root));
             ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&root.m_Value.m_Struct, 20, &child));
             ASSERT_EQ(7.0, child.m_Value.m_Number);
             ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&root.m_Value.m_Struct, 30, &child));
             ASSERT_STREQ("shared", child.m_Value.m_String);
             DataMemoryStats before, after;
             GetDataMemoryStats(store, &before);
-            DataFieldGetVector3Mut(&rows, field)->m_Values[1] = 43;
+            DataRowIterGetVector3Mut(&rows, field)->m_Values[1] = 43;
             GetDataMemoryStats(store, &after);
             ASSERT_EQ(before.m_PayloadUsed, after.m_PayloadUsed);
             ASSERT_EQ(before.m_PayloadBlocks, after.m_PayloadBlocks);
             ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, id, 1));
-            ASSERT_EQ(2.0f, DataFieldGetVector3(&rows, field)->m_Values[1]);
-            DataFieldGetVector3Mut(&rows, field)->m_Values[2] = 44;
+            ASSERT_EQ(2.0f, DataRowIterGetVector3(&rows, field)->m_Values[1]);
+            DataRowIterGetVector3Mut(&rows, field)->m_Values[2] = 44;
             ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, id));
-            ASSERT_EQ(3.0f, DataFieldGetVector3(&rows, field)->m_Values[2]);
+            ASSERT_EQ(3.0f, DataRowIterGetVector3(&rows, field)->m_Values[2]);
             ++batches;
         }
         ASSERT_EQ(2u, batches);
@@ -2735,12 +2735,12 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
             uint32_t owner = (uint32_t)DataRowIterGetOwnerId(&rows) - 1;
             uint32_t component = (uint32_t)DataGetComponentId(store, id);
             ids[owner][component] = id;
-            ASSERT_EQ(10.0 + component, *DataFieldGetNumber(&rows, number_field));
-            ASSERT_EQ((uintptr_t)DataFieldGetNumber(&rows, number_field), (uintptr_t)DataFieldGetNumberMut(&rows, number_field));
+            ASSERT_EQ(10.0 + component, *DataRowIterGetNumber(&rows, number_field));
+            ASSERT_EQ((uintptr_t)DataRowIterGetNumber(&rows, number_field), (uintptr_t)DataRowIterGetNumberMut(&rows, number_field));
             if (!owner)
-                *DataFieldGetNumberMut(&rows, number_field) += 100;
+                *DataRowIterGetNumberMut(&rows, number_field) += 100;
             DataValue current, child, element;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &current));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 1, &current));
             ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&current.m_Value.m_Struct, 20, &child));
             ASSERT_STREQ("shared", child.m_Value.m_String);
             ASSERT_TRUE((uintptr_t)child.m_Value.m_String >= (uintptr_t)bytes && (uintptr_t)child.m_Value.m_String < (uintptr_t)(bytes + size));
@@ -2748,7 +2748,7 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
             while (DataFieldIterNext(&field) == DATA_RESULT_OK)
                 if (!owner && DataFieldIterGetNameHash(&field) == 20)
                     ASSERT_EQ(DATA_RESULT_OK, DataFieldIterSetString(&field, "replacement"));
-            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, id, 1, &current));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, id, 1, &current));
             ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&current.m_Value.m_Struct, 30, &child));
             ASSERT_EQ(DATA_RESULT_OK, DataGetListValue(&child.m_Value.m_List, 0, &element));
             ASSERT_STREQ("nested", element.m_Value.m_String);
@@ -2765,7 +2765,7 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
         for (uint32_t component = owner ? 0 : 1; component < 3; ++component)
         {
             DataValue current, child;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[owner][component], 1, &current));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[owner][component], 1, &current));
             ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&current.m_Value.m_Struct, 10, &child));
             ASSERT_EQ(10.0 + component, child.m_Value.m_Number);
             ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&current.m_Value.m_Struct, 20, &child));
@@ -2828,32 +2828,32 @@ TEST(Data, PooledRegistrationResetAndRemovalAfterSlotReuse)
     ASSERT_TRUE(second->m_Payloads != 0);
     double      number;
     const char* string;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[0][1], 10, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, ids[0][1], 10, &number));
     ASSERT_EQ(20.0, number);
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, ids[0][1], 20, &string));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetString(store, ids[0][1], 20, &string));
     ASSERT_STREQ("shared", string);
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(first));
-    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataGetFieldNumber(store, ids[0][1], 10, &number));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, reused, 10, &number));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetNumber(store, ids[0][1], 10, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, reused, 10, &number));
     ASSERT_EQ(500.0, number);
     for (uint32_t r = 0; r < 2; ++r)
     {
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[1][r], 10, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, ids[1][r], 10, &number));
         ASSERT_EQ(101.0, number);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, ids[1][r], 20, &string));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetString(store, ids[1][r], 20, &string));
         ASSERT_STREQ("second", string);
     }
     DataResetBlob(second);
     for (uint32_t r = 0; r < 2; ++r)
     {
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[1][r], 10, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, ids[1][r], 10, &number));
         ASSERT_EQ(10.0 + r * 10, number);
         ASSERT_EQ((uint64_t)(11 + r), DataGetComponentId(store, ids[1][r]));
     }
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(second));
     ASSERT_EQ((uintptr_t)0, (uintptr_t)store->m_Pools);
     ASSERT_EQ(1u, store->m_Tables.Size());
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, reused, 20, &string));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetString(store, reused, 20, &string));
     ASSERT_STREQ("independent", string);
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(source));
@@ -2951,7 +2951,7 @@ TEST(Data, CompactMetadataPreservesWideByteOffsets)
     ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
     DataRowIterator rows = DataIterRows(&it);
     ASSERT_EQ(DATA_RESULT_OK, DataRowIterNext(&rows));
-    const DataVector3* actual = DataFieldGetVector3(&rows, handle);
+    const DataVector3* actual = DataRowIterGetVector3(&rows, handle);
     ASSERT_EQ(0, memcmp(value.m_Vector3, actual, sizeof(DataVector3)));
     ASSERT_EQ(65548u, it.m_RowStride);
     DataStoreUnlock(loaded);
@@ -3055,38 +3055,38 @@ TEST(Data, TemplateRowsPreserveNativeOverridesAndSharedDefaults)
     ASSERT_EQ(0u, store->m_Tables[0]->m_Owned->m_BaseCount);
     ASSERT_EQ(DATA_RESULT_OK, DataAddRowsFromTemplate(store, 1, &prototype, overrides, 6, rows, 3, ids));
     const char* original;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, ids[0], 7, &original));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetString(store, ids[0], 7, &original));
     text[0] = 'X'; // Borrowed inputs may change or die after insertion.
     for (uint32_t r = 0; r < 3; ++r)
     {
         DataValue actual;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 1, &actual));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[r], 1, &actual));
         ASSERT_EQ(input[r].m_Number, actual.m_Value.m_Number);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 2, &actual));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[r], 2, &actual));
         ASSERT_EQ(0, memcmp(input[0].m_Vector3, actual.m_Value.m_Vector3, 12));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 3, &actual));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[r], 3, &actual));
         ASSERT_EQ(0, memcmp(input[r].m_Vector4, actual.m_Value.m_Vector4, 16));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 4, &actual));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[r], 4, &actual));
         ASSERT_EQ(0, memcmp(input[r].m_Matrix4, actual.m_Value.m_Matrix4, 64));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 5, &actual));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[r], 5, &actual));
         ASSERT_EQ(input[r].m_Boolean, actual.m_Value.m_Boolean);
         DataValue object;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 6, &object));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[r], 6, &object));
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 60, &actual));
         ASSERT_EQ(0, memcmp(input[r].m_Vector3, actual.m_Value.m_Vector3, 12));
         ASSERT_EQ(DATA_RESULT_OK, DataGetStructField(&object.m_Value.m_Struct, 61, &actual));
         ASSERT_EQ(17.0, actual.m_Value.m_Number);
         const char* shared;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, ids[r], 7, &shared));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetString(store, ids[r], 7, &shared));
         ASSERT_EQ(original, shared);
         ASSERT_STREQ("shared default", shared);
         ASSERT_EQ((uint64_t)(200 + r), DataGetComponentId(store, ids[r]));
         ASSERT_EQ(DATA_RESULT_OK, DataSetFieldNumber(store, ids[r], 1, -1));
         ASSERT_EQ(DATA_RESULT_OK, DataSetFieldString(store, ids[r], 7, "replacement"));
         ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[r]));
-        ASSERT_EQ(DATA_RESULT_OK, DataGetField(store, ids[r], 1, &actual));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGet(store, ids[r], 1, &actual));
         ASSERT_EQ(input[r].m_Number, actual.m_Value.m_Number);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldString(store, ids[r], 7, &shared));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetString(store, ids[r], 7, &shared));
         ASSERT_EQ(original, shared);
     }
     // Append after growth and slot reuse without disturbing earlier baselines.
@@ -3096,12 +3096,12 @@ TEST(Data, TemplateRowsPreserveNativeOverridesAndSharedDefaults)
     for (uint32_t r = 0; r < 3; ++r)
     {
         double value;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, appended[r], 1, &value));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, appended[r], 1, &value));
         ASSERT_EQ(10.0, value);
     }
     ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[2]));
     double number;
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, ids[2], 1, &number));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, ids[2], 1, &number));
     ASSERT_EQ(input[2].m_Number, number);
     DataRowOverride repeated[17];
     for (uint32_t i = 0; i < 17; ++i)
@@ -3109,7 +3109,7 @@ TEST(Data, TemplateRowsPreserveNativeOverridesAndSharedDefaults)
     ASSERT_EQ(DATA_RESULT_OK, DataAddRowsFromTemplate(store, 1, &prototype, repeated, 17, rows, 3, appended));
     for (uint32_t r = 0; r < 3; ++r)
     {
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(store, appended[r], 1, &number));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(store, appended[r], 1, &number));
         ASSERT_EQ(input[r].m_Number, number);
     }
     DataRowOverride reference = {
@@ -3193,26 +3193,46 @@ TEST(Data, BatchVector3MatchesScalarGetter)
     ASSERT_EQ(DATA_RESULT_OK, DataLoadBlob(bytes, size, &blob));
     ASSERT_EQ(DATA_RESULT_OK, DataAddBlob(store, blob, 88, &instance));
     valid[4] = MakeId(store, GetInstanceSlots(instance)[0]);
-    DataId            ids[83];
-    DataVector3       actual[83];
-    DataResult        results[83];
-    const DataVector3 untouched = { .m_Values = { -99, -99, -99 } };
+    DataId      ids[83];
+    DataVector3 actual[83];
+    DataId      successful[] = { valid[0], valid[3], valid[4] };
     for (uint32_t i = 0; i < 83; ++i)
-    {
-        ids[i] = i % 8 < 5 ? valid[i % 8] : i % 8 == 5 ? stale :
-        i % 8 == 6                                     ? UINT64_MAX :
-                                                         0;
-        actual[i] = untouched;
-    }
+        ids[i] = successful[i % 3];
     DataStoreLock(store);
-    DataGetFieldVector3Batch(store, ids, 42, 83, actual, results);
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector3Batch(store, 83, ids, 42, actual));
     for (uint32_t i = 0; i < 83; ++i)
     {
-        DataVector3 expected = untouched;
-        ASSERT_EQ(DataGetFieldVector3(store, ids[i], 42, &expected), results[i]);
+        DataVector3 expected;
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector3(store, ids[i], 42, &expected));
         ASSERT_EQ(0, memcmp(&actual[i], &expected, sizeof(expected)));
     }
-    DataGetFieldVector3Batch(store, 0, 42, 0, 0, 0);
+
+    // Failures before/after an internal batch boundary return the scalar error.
+    // Output on error is deliberately not inspected: partial writes are allowed.
+    DataId   bad[] = { valid[1], valid[2], stale, UINT64_MAX, 0 };
+    uint32_t positions[] = { 0, 1, 63, 64, 82 };
+    for (uint32_t b = 0; b < sizeof(bad) / sizeof(bad[0]); ++b)
+    {
+        DataVector3 ignored;
+        DataResult  expected = DataFieldGetVector3(store, bad[b], 42, &ignored);
+        ASSERT_NE(DATA_RESULT_OK, expected);
+        for (uint32_t p = 0; p < sizeof(positions) / sizeof(positions[0]); ++p)
+        {
+            uint32_t index = positions[p];
+            DataId   saved = ids[index];
+            ids[index] = bad[b];
+            ASSERT_EQ(expected, DataFieldGetVector3Batch(store, 83, ids, 42, actual));
+            ids[index] = saved;
+        }
+    }
+    // The first error follows input order even when later errors differ.
+    ids[3] = valid[2];
+    ids[80] = valid[1];
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetVector3Batch(store, 83, ids, 42, actual));
+    ids[3] = valid[1];
+    ids[80] = valid[2];
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataFieldGetVector3Batch(store, 83, ids, 42, actual));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector3Batch(0, 0, 0, 42, 0));
     DataStoreUnlock(store);
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(instance));
     DataDestroyBlob(blob);
@@ -3266,15 +3286,15 @@ TEST(Data, NativeRowsValidateBeforeWritingAcrossBlocks)
     {
         uint8_t     enabled;
         DataVector3 position;
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldBoolean(store, ids[i], 1, &enabled));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetBoolean(store, ids[i], 1, &enabled));
         ASSERT_EQ(input[i].m_Enabled, enabled);
-        ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector3(store, ids[i], 2, &position));
+        ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector3(store, ids[i], 2, &position));
         ASSERT_EQ(0, memcmp(&input[i].m_Position, &position, sizeof(position)));
     }
     DataVector3 changed = { .m_Values = { -1, -2, -3 } };
     ASSERT_EQ(DATA_RESULT_OK, DataSetFieldVector3(store, ids[count - 1], 2, &changed));
     ASSERT_EQ(DATA_RESULT_OK, DataResetRow(store, ids[count - 1]));
-    ASSERT_EQ(DATA_RESULT_OK, DataGetFieldVector3(store, ids[count - 1], 2, &changed));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector3(store, ids[count - 1], 2, &changed));
     ASSERT_EQ((float)(count - 1), changed.m_Values[0]);
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
 }
@@ -3301,25 +3321,15 @@ TEST(Data, BatchStringsAcrossOwnedAndPackedRows)
     for (uint32_t i = 0; i < 131; i += 2)
         ids[i] = MakeId(store, GetInstanceSlots(instance)[i]);
     const char* strings[131];
-    DataResult  results[131];
-    DataGetFieldStringBatch(store, ids, 20, 131, strings, results);
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetStringBatch(store, 131, ids, 20, strings));
     for (uint32_t i = 0; i < 131; ++i)
     {
         snprintf(text, sizeof(text), "value-%u", i);
-        ASSERT_EQ(DATA_RESULT_OK, results[i]);
         ASSERT_STREQ(text, strings[i]);
     }
-    // Wrong kinds and missing names leave every borrowed output untouched.
-    const char* previous = strings[130];
-    DataGetFieldStringBatch(store, ids, 10, 131, strings, results);
-    ASSERT_EQ(previous, strings[130]);
-    for (uint32_t i = 0; i < 131; ++i)
-        ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, results[i]);
-    DataGetFieldStringBatch(store, ids, 999, 131, strings, results);
-    ASSERT_EQ(previous, strings[130]);
-    for (uint32_t i = 0; i < 131; ++i)
-        ASSERT_EQ(DATA_RESULT_NOT_FOUND, results[i]);
-    DataGetFieldStringBatch(store, 0, 20, 0, 0, 0);
+    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataFieldGetStringBatch(store, 131, ids, 10, strings));
+    ASSERT_EQ(DATA_RESULT_NOT_FOUND, DataFieldGetStringBatch(store, 131, ids, 999, strings));
+    ASSERT_EQ(DATA_RESULT_OK, DataFieldGetStringBatch(0, 0, 0, 20, 0));
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveBlob(instance));
     DataDestroyBlob(blob);
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));

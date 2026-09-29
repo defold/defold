@@ -178,12 +178,12 @@ static void ValidateRows(ThreadedFixture* fixture)
             ThreadedCheck(expected->m_Live, "removed owner absent");
             ThreadedCheck(!expected->m_Id || expected->m_Id == id, "stable identity");
             expected->m_Id = id;
-            const DataVector3* position = DataFieldGetVector3(&rows, fixture->m_PositionField);
+            const DataVector3* position = DataRowIterGetVector3(&rows, fixture->m_PositionField);
             ThreadedCheck(!memcmp(position, &expected->m_Position, sizeof(*position)), "position matches sequential reference");
             if (ThreadedHasHealth(expected->m_Type))
             {
                 double health;
-                ThreadedCheck(DataGetFieldNumber(fixture->m_Store, id, THREAD_HEALTH, &health) == DATA_RESULT_OK && health == expected->m_Health, "health matches sequential reference");
+                ThreadedCheck(DataFieldGetNumber(fixture->m_Store, id, THREAD_HEALTH, &health) == DATA_RESULT_OK && health == expected->m_Health, "health matches sequential reference");
             }
             ++visited;
         }

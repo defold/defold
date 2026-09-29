@@ -415,7 +415,7 @@ static int32_t WriteRange(HJobContext, HJob, void*, void* data)
         DataRowIterator rows = DataIterRows(&it);
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
-            *DataFieldGetNumberMut(&rows, work->m_Field) += 1;
+            *DataRowIterGetNumberMut(&rows, work->m_Field) += 1;
             ++work->m_Visited;
         }
     }
@@ -465,7 +465,7 @@ TEST(DataThreaded, JobRangesWithOneTwoFourEightWorkers)
         for (uint32_t i = 0; i < 12; ++i)
         {
             double value;
-            ASSERT_EQ(DATA_RESULT_OK, DataGetFieldNumber(fixture.m_Store, fixture.m_Ids[i], HEALTH, &value));
+            ASSERT_EQ(DATA_RESULT_OK, DataFieldGetNumber(fixture.m_Store, fixture.m_Ids[i], HEALTH, &value));
             ASSERT_EQ(70.0, value);
         }
         ASSERT_EQ(DATA_RESULT_OK, DataDestroyQuery(query));
@@ -495,13 +495,14 @@ static void ReadBatches(void* context)
     {
         double      health[73];
         DataVector3 positions[73];
-        DataResult  results[73];
-        DataGetFieldNumberBatch(reader->m_Fixture->m_Store, ids, HEALTH, 73, health, results);
+        if (DataFieldGetNumberBatch(reader->m_Fixture->m_Store, 73, ids, HEALTH, health) != DATA_RESULT_OK ||
+            DataFieldGetVector3Batch(reader->m_Fixture->m_Store, 73, ids, POSITION, positions) != DATA_RESULT_OK)
+        {
+            ++reader->m_Errors;
+            return;
+        }
         for (uint32_t i = 0; i < 73; ++i)
-            reader->m_Errors += results[i] != DATA_RESULT_OK || health[i] != 50;
-        DataGetFieldVector3Batch(reader->m_Fixture->m_Store, ids, POSITION, 73, positions, results);
-        for (uint32_t i = 0; i < 73; ++i)
-            reader->m_Errors += results[i] != DATA_RESULT_OK || positions[i].m_Values[0] != 0 || positions[i].m_Values[1] != 0 || positions[i].m_Values[2] != 0;
+            reader->m_Errors += health[i] != 50 || positions[i].m_Values[0] != 0 || positions[i].m_Values[1] != 0 || positions[i].m_Values[2] != 0;
     }
 }
 

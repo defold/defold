@@ -100,7 +100,7 @@ static void RunData(const Input* input, double* timings)
         for (uint32_t row = 0; row < count; ++row)
         {
             double value;
-            Check(DataGetFieldNumber(store, ids[input->m_Order[row]], X, &value) == DATA_RESULT_OK);
+            Check(DataFieldGetNumber(store, ids[input->m_Order[row]], X, &value) == DATA_RESULT_OK);
             sum += value;
         }
     }

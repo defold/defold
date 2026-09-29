@@ -21,7 +21,7 @@ Stats ShuffledPosition_Defold(Backend* store, const Fixture* input)
         const TypeInput* t = &input->m_Types[key.m_Type];
         DataVector3      value = {};
         uint64_t         id = store->m_Ids[t->m_Offset + key.m_Row];
-        stats.m_Error |= DataGetFieldVector3(store->m_Data, id, g_Fields[POSITION], &value);
+        stats.m_Error |= DataFieldGetVector3(store->m_Data, id, g_Fields[POSITION], &value);
         value.m_Values[0] += 1;
         stats.m_Error |= DataSetFieldVector3(store->m_Data, id, g_Fields[POSITION], &value);
         stats.m_Sum += SumVector(value.m_Values);
@@ -72,7 +72,7 @@ void MeasureShuffledPosition(Backend* store, const Fixture* input, uint32_t samp
         {
             DataVector3 actual;
             if (!store->m_Kind)
-                Check(DataGetFieldVector3(store->m_Data, store->m_Ids[t->m_Offset + r], g_Fields[POSITION], &actual) == DATA_RESULT_OK, "validate shuffled position read");
+                Check(DataFieldGetVector3(store->m_Data, store->m_Ids[t->m_Offset + r], g_Fields[POSITION], &actual) == DATA_RESULT_OK, "validate shuffled position read");
             else
                 memcpy(actual.m_Values, FlecsField(store, t, ti, r, POSITION), sizeof(actual.m_Values));
             const float* base = t->m_Values[(size_t)r * t->m_FieldCount + position].m_Vector3;
@@ -91,20 +91,20 @@ static Stats PositionLookup_Defold(Backend* store, const Fixture* input)
         uint32_t    count = input->m_Count - first < 256 ? input->m_Count - first : 256;
         DataId      ids[256];
         DataVector3 positions[256];
-        DataResult  results[256];
         for (uint32_t i = 0; i < count; ++i)
         {
             RowKey key = input->m_Order[first + i];
             ids[i] = store->m_Ids[input->m_Types[key.m_Type].m_Offset + key.m_Row];
         }
-        DataGetFieldVector3Batch(store->m_Data, ids, g_Fields[POSITION], count, positions, results);
+        DataResult result = DataFieldGetVector3Batch(store->m_Data, count, ids, g_Fields[POSITION], positions);
+        stats.m_Error |= result;
+        if (result != DATA_RESULT_OK)
+            return stats;
         for (uint32_t i = 0; i < count; ++i)
         {
-            stats.m_Error |= results[i];
-            if (results[i] == DATA_RESULT_OK)
-                stats.m_Sum += SumVector(positions[i].m_Values);
-            ++stats.m_Rows;
+            stats.m_Sum += SumVector(positions[i].m_Values);
         }
+        stats.m_Rows += count;
     }
     return stats;
 }

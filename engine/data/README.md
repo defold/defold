@@ -135,12 +135,14 @@ field access resolves the metadata array once and scans name hashes, reading onl
 the matching kind and byte offset. It does not allocate or maintain a mutable
 lookup cache. There is no direct column view.
 
-`DataGetFieldNumberBatch`, `DataGetFieldBooleanBatch`, `DataGetFieldStringBatch`
+`DataFieldGetNumberBatch`, `DataFieldGetBooleanBatch`, `DataFieldGetStringBatch`
 and the Vector3/Vector4/Matrix4 variants read one named field for an ID array.
-They return one status per ID, preserve input order and leave failed values
-unchanged. No allocations or locks occur inside these reads; callers synchronize
-as for scalar getters. String outputs borrow store/blob storage. The library
-stages addresses and chooses its batch size internally.
+The count follows the store argument. They return one `DataResult`, preserving
+input order and stopping at the first error. Outputs may be partially written on
+failure; consume them only after `DATA_RESULT_OK`. A zero count returns OK without
+accessing the inputs. No allocations or locks occur inside these reads; callers
+synchronize as for scalar getters. String outputs borrow store/blob storage. The
+library stages addresses and chooses its batch size internally.
 
 Borrowed strings and container views must be copied before a store write, reset or iterator step if longer
 retention is needed. Destroy queries before the store and stop using iterators
@@ -156,7 +158,7 @@ instantiation still have costs to measure.
 ## C usage
 
 Typed get/set functions avoid constructing a tagged `DataValue` for scalar and math
-fields. `DataGetFieldVector3` writes a `DataVector3` through its output pointer;
+fields. `DataFieldGetVector3` writes a `DataVector3` through its output pointer;
 `DataSetFieldVector3` copies from a `const DataVector3*`. Vector3/Vector4/Matrix4
 contain `m_Values[3]`, `[4]` and `[16]`; matrix elements use column-major order.
 The other suffixes are `Number` (`double`), `Boolean` (`uint8_t`, zero or one),
@@ -272,19 +274,19 @@ DataResult SetOwnerNumber(HDataStore store, DataOwnerId owner, uint64_t field_ha
 
 This updates rows owned by the supplied owner that declare the requested Number
 field. An error stops the update; earlier writes remain applied. Read a Number
-with `DataGetFieldNumber` by row ID or `DataFieldIterGetNumber` during iteration.
+with `DataFieldGetNumber` by row ID or `DataFieldIterGetNumber` during iteration.
 
 For loops that know their fields, call `DataQueryFindField(query, &field)`
 once per field after query creation. It identifies the requested full path and
 kind, independent of field order. The handle survives empty results, table changes
 and repeated traversals; each table caches its own offset under that handle.
-Use it for any row of that query with `DataFieldGetNumber`, `DataFieldGetVector3` and the Boolean,
+Use it for any row of that query with `DataRowIterGetNumber`, `DataRowIterGetVector3` and the Boolean,
 Vector4 and Matrix4 variants. These return borrowed const pointers without copying,
 allocation or repeated name/type/lifetime checks. Use the corresponding kind.
 An absent/unsupported field returns `UINT32_MAX` at binding; it must not be passed
 to a getter. Strings/containers retain copying and ownership-aware accessors.
 
-`DataFieldGetNumberMut` and the corresponding fixed-type functions prepare a
+`DataRowIterGetNumberMut` and the corresponding fixed-type functions prepare a
 writable view of the existing row, without allocation or copying. Writes preserve
 defaults and nested siblings; strings/containers retain ownership-aware setters.
 Borrowed pointers must be finished before row/batch advance, unlock, or another
@@ -591,7 +593,7 @@ single-pass measurements.
 The fixture uses 100k SpotLight, 150k PointLight, 10k Player, 240k Enemy, 250k
 Pickup and 250k Breakable instances at the default size. It keeps 250k light rows
 and 500k health/position rows. Defold declares an inline Light layout and binds
-`light.color` once per table; the loop reads it with public `DataFieldGetVector3`.
+`light.color` once per table; the loop reads it with public `DataRowIterGetVector3`.
 Flecs uses inline Light structs, either in concrete components or as a separate
 component. Traversal uses `ecs_query_iter`, `ecs_query_next`, and
 `ecs_field_w_size`, followed by ordinary C member access. Bevy uses
@@ -608,7 +610,7 @@ reads its position, increments X by one, and writes it back. Both start from res
 defaults and include first writes; every resulting health/position is validated.
 Each case describes the workload, independently of how a backend accesses its
 values. Query/read/write workloads use only the public SDK functions, including
-`DataFieldGetVector3` for the bound light.color field. Fixture construction and the
+`DataRowIterGetVector3` for the bound light.color field. Fixture construction and the
 separately named engine lifecycle/I/O cases use internal creation/loading APIs.
 Access-method comparisons belong in internal profiling and experiments.
 Writes use one pass; read cases use five warm passes. Reset, validation and
@@ -942,7 +944,7 @@ int32_t RegenerateJob(HJobContext jobs, HJob job, void* context, void* data)
         DataRowIterator rows = DataIterRows(&it);
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
-            double* health = DataFieldGetNumberMut(&rows, update->m_HealthField);
+            double* health = DataRowIterGetNumberMut(&rows, update->m_HealthField);
             *health = Min(100.0, *health + 0.25);
         }
     }

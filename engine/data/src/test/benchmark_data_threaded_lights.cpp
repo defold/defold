@@ -30,11 +30,11 @@ static int32_t NearbyLights_Defold(HJobContext, HJob, void*, void* data)
         DataRowIterator rows = DataIterRows(&it);
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
-            const DataVector3* position = DataFieldGetVector3(&rows, update->m_PositionField);
+            const DataVector3* position = DataRowIterGetVector3(&rows, update->m_PositionField);
             if (ThreadedInRadius(position))
             {
-                const DataVector3* color = DataFieldGetVector3(&rows, update->m_ColorField);
-                double             intensity = *DataFieldGetNumber(&rows, update->m_IntensityField);
+                const DataVector3* color = DataRowIterGetVector3(&rows, update->m_ColorField);
+                double             intensity = *DataRowIterGetNumber(&rows, update->m_IntensityField);
                 range->m_Stats.m_Sum += Contribution(position, color, intensity);
                 ++range->m_Stats.m_Hits;
             }

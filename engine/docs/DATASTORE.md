@@ -120,11 +120,13 @@ bounded blocks. `DataRowDesc` still supplies owner/component IDs. All values are
 validated before publication; the final overridden values become reset defaults.
 Strings and containers come from the default and share its copied payloads.
 
-For scattered reads, public `DataGetField*Batch` functions accept an ID array and
+For scattered reads, public `DataFieldGet*Batch` functions accept an ID array and
 one field hash. They stage addresses before copying values, with no allocation.
-Results follow input order; each ID has its own status and failed output values
-stay unchanged. The caller provides stable storage and synchronization, just as
-for scalar getters. The library chooses its internal batch size.
+The count follows the store argument, and output values follow input order. One
+`DataResult` reports success or the first error. Outputs may be partially written
+on failure; consume them only after `DATA_RESULT_OK`. The caller provides stable
+storage and synchronization, just as for scalar getters. The library chooses its
+internal batch size.
 
 The resource system owns the immutable blob allocation. `DataLoadBlob` validates
 and borrows it without copying or changing the bytes; loading alone adds no rows
@@ -202,7 +204,7 @@ access and iterate batches and rows using a stable field handle.](images/datasto
 4. **Iterate:** `DataQueryGetRowCount` counts reserved matching rows.
    `DataQueryIterRange(query, first, count)` creates a cursor over a selected range;
    `DataIterNext` selects a batch, and `DataIterRows` / `DataRowIterNext` traverse
-   its rows. `DataFieldGetVector3(&rows, color_field)` returns the current color.
+   its rows. `DataRowIterGetVector3(&rows, color_field)` returns the current color.
 5. **Release:** after all iterators and borrowed pointers finish, call
    `DataQueryEnd`. Reuse the query on the next update; destroy it when no longer needed.
 
@@ -211,14 +213,14 @@ fields have no ordering guarantee. Each query match stores a compact array of
 uint32 byte offsets alongside its bindings. Typed pointer getters calculate
 `batch base + row × stride + field offset` inline, without copying, allocation,
 hash lookup or repeated kind checks.
-Writable getters such as `DataFieldGetNumberMut` require a field declared with
+Writable getters such as `DataRowIterGetNumberMut` require a field declared with
 `DATA_ACCESS_READ_WRITE`; read-only access is the default. Number, Boolean,
 Vector3, Vector4 and Matrix4 have typed pointer accessors.
 
 `DataFieldIterator` remains available for field enumeration and copying accessors.
 It visits the requested fields, or all top-level fields if none were requested.
 Dynamic container paths cannot bind because their layout may differ per row.
-ID-based access uses typed functions such as `DataGetFieldVector3` and
+ID-based access uses typed functions such as `DataFieldGetVector3` and
 `DataSetFieldVector3`; generic `DataValue` is internal.
 
 Cursors allocate nothing and borrow their parent's current batch/row. Do not copy

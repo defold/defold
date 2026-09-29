@@ -613,7 +613,7 @@ DataResult ReadField(DataTable* table, uint32_t row, uint64_t field, DataValue* 
     return DATA_RESULT_OK;
 }
 
-DataResult DataGetField(HDataStore store, DataId id, uint64_t field, DataValue* out_value)
+DataResult DataFieldGet(HDataStore store, DataId id, uint64_t field, DataValue* out_value)
 {
     DataSlot* slot = FindSlot(store, id);
     return slot ? ReadField(slot->m_Table, slot->m_Row, field, out_value) : DATA_RESULT_NOT_FOUND;
@@ -796,7 +796,7 @@ static inline void PrefetchField(const void* address)
 }
 
 template <DataValueType TYPE, typename T>
-static void GetTypedFields(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, T* values, DataResult* results)
+static DataResult GetTypedFields(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, T* values)
 {
     const uint32_t batch_size = 64;
     for (uint32_t first = 0; first < count;)
@@ -814,26 +814,27 @@ static void GetTypedFields(HDataStore store, const DataId* ids, uint64_t field, 
 
         for (uint32_t i = 0; i < size; ++i)
         {
-            results[first + i] = ResolveTypedField<TYPE>(store, ids[first + i], field, &tables[i], &bytes[i]);
-            if (results[first + i] == DATA_RESULT_OK)
-                PrefetchField(bytes[i]);
+            DataResult result = ResolveTypedField<TYPE>(store, ids[first + i], field, &tables[i], &bytes[i]);
+            if (result != DATA_RESULT_OK)
+                return result;
+            PrefetchField(bytes[i]);
         }
 
         for (uint32_t i = 0; i < size; ++i)
-            if (results[first + i] == DATA_RESULT_OK)
-                CopyTypedValue<TYPE>(tables[i], bytes[i], &values[first + i]);
+            CopyTypedValue<TYPE>(tables[i], bytes[i], &values[first + i]);
         first += size;
     }
+    return DATA_RESULT_OK;
 }
 
-DataResult DataGetFieldNumber(HDataStore store, DataId id, uint64_t field, double* out_value)
+DataResult DataFieldGetNumber(HDataStore store, DataId id, uint64_t field, double* out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_NUMBER>(store, id, field, out_value);
 }
 
-void DataGetFieldNumberBatch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, double* out_values, DataResult* out_results)
+DataResult DataFieldGetNumberBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, double* out_values)
 {
-    GetTypedFields<DATA_VALUE_TYPE_NUMBER>(store, ids, field, count, out_values, out_results);
+    return GetTypedFields<DATA_VALUE_TYPE_NUMBER>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldNumber(HDataStore store, DataId id, uint64_t field, double value)
@@ -845,14 +846,14 @@ DataResult DataSetFieldNumber(HDataStore store, DataId id, uint64_t field, doubl
     return DataSetField(store, id, field, &input);
 }
 
-DataResult DataGetFieldBoolean(HDataStore store, DataId id, uint64_t field, uint8_t* out_value)
+DataResult DataFieldGetBoolean(HDataStore store, DataId id, uint64_t field, uint8_t* out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_BOOLEAN>(store, id, field, out_value);
 }
 
-void DataGetFieldBooleanBatch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, uint8_t* out_values, DataResult* out_results)
+DataResult DataFieldGetBooleanBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, uint8_t* out_values)
 {
-    GetTypedFields<DATA_VALUE_TYPE_BOOLEAN>(store, ids, field, count, out_values, out_results);
+    return GetTypedFields<DATA_VALUE_TYPE_BOOLEAN>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldBoolean(HDataStore store, DataId id, uint64_t field, uint8_t value)
@@ -864,14 +865,14 @@ DataResult DataSetFieldBoolean(HDataStore store, DataId id, uint64_t field, uint
     return DataSetField(store, id, field, &input);
 }
 
-DataResult DataGetFieldString(HDataStore store, DataId id, uint64_t field, const char** out_value)
+DataResult DataFieldGetString(HDataStore store, DataId id, uint64_t field, const char** out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_STRING>(store, id, field, out_value);
 }
 
-void DataGetFieldStringBatch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, const char** out_values, DataResult* out_results)
+DataResult DataFieldGetStringBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, const char** out_values)
 {
-    GetTypedFields<DATA_VALUE_TYPE_STRING>(store, ids, field, count, out_values, out_results);
+    return GetTypedFields<DATA_VALUE_TYPE_STRING>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldString(HDataStore store, DataId id, uint64_t field, const char* value)
@@ -883,14 +884,14 @@ DataResult DataSetFieldString(HDataStore store, DataId id, uint64_t field, const
     return DataSetField(store, id, field, &input);
 }
 
-DataResult DataGetFieldVector3(HDataStore store, DataId id, uint64_t field, DataVector3* out_value)
+DataResult DataFieldGetVector3(HDataStore store, DataId id, uint64_t field, DataVector3* out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_VECTOR3>(store, id, field, out_value->m_Values);
 }
 
-void DataGetFieldVector3Batch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, DataVector3* out_values, DataResult* out_results)
+DataResult DataFieldGetVector3Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataVector3* out_values)
 {
-    GetTypedFields<DATA_VALUE_TYPE_VECTOR3>(store, ids, field, count, out_values, out_results);
+    return GetTypedFields<DATA_VALUE_TYPE_VECTOR3>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldVector3(HDataStore store, DataId id, uint64_t field, const DataVector3* value)
@@ -900,14 +901,14 @@ DataResult DataSetFieldVector3(HDataStore store, DataId id, uint64_t field, cons
     return DataSetField(store, id, field, &input);
 }
 
-DataResult DataGetFieldVector4(HDataStore store, DataId id, uint64_t field, DataVector4* out_value)
+DataResult DataFieldGetVector4(HDataStore store, DataId id, uint64_t field, DataVector4* out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_VECTOR4>(store, id, field, out_value->m_Values);
 }
 
-void DataGetFieldVector4Batch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, DataVector4* out_values, DataResult* out_results)
+DataResult DataFieldGetVector4Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataVector4* out_values)
 {
-    GetTypedFields<DATA_VALUE_TYPE_VECTOR4>(store, ids, field, count, out_values, out_results);
+    return GetTypedFields<DATA_VALUE_TYPE_VECTOR4>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldVector4(HDataStore store, DataId id, uint64_t field, const DataVector4* value)
@@ -917,14 +918,14 @@ DataResult DataSetFieldVector4(HDataStore store, DataId id, uint64_t field, cons
     return DataSetField(store, id, field, &input);
 }
 
-DataResult DataGetFieldMatrix4(HDataStore store, DataId id, uint64_t field, DataMatrix4* out_value)
+DataResult DataFieldGetMatrix4(HDataStore store, DataId id, uint64_t field, DataMatrix4* out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_MATRIX4>(store, id, field, out_value->m_Values);
 }
 
-void DataGetFieldMatrix4Batch(HDataStore store, const DataId* ids, uint64_t field, uint32_t count, DataMatrix4* out_values, DataResult* out_results)
+DataResult DataFieldGetMatrix4Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataMatrix4* out_values)
 {
-    GetTypedFields<DATA_VALUE_TYPE_MATRIX4>(store, ids, field, count, out_values, out_results);
+    return GetTypedFields<DATA_VALUE_TYPE_MATRIX4>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldMatrix4(HDataStore store, DataId id, uint64_t field, const DataMatrix4* value)

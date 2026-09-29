@@ -22,8 +22,8 @@ static int32_t Movement_Defold(HJobContext, HJob, void*, void* data)
         DataRowIterator rows = DataIterRows(&it);
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
-            DataVector3*       position = DataFieldGetVector3Mut(&rows, update->m_PositionField);
-            const DataVector3* velocity = DataFieldGetVector3(&rows, update->m_VelocityField);
+            DataVector3*       position = DataRowIterGetVector3Mut(&rows, update->m_PositionField);
+            const DataVector3* velocity = DataRowIterGetVector3(&rows, update->m_VelocityField);
             for (uint32_t axis = 0; axis < 3; ++axis)
                 position->m_Values[axis] += velocity->m_Values[axis] * 0.015625f;
             range->m_Stats.m_Sum += position->m_Values[0];

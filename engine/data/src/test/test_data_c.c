@@ -42,30 +42,44 @@ int TestDataEmptyFieldFromC(const DataFieldIterator* field)
     return ok ? 0 : 1;
 }
 
-// Scalar and batch getters have identical value and failure semantics in C.
+// Exercise every batch type through C, including aggregate errors and callbacks.
 static int TestDataBatchFromC(HDataStore store, DataId id)
 {
-    DataId      ids[] = { id, 0, id };
-    DataResult  results[3];
-    double      numbers[] = { 0, 123, 0 };
-    uint8_t     booleans[] = { 0, 7, 0 };
-    const char* strings[] = { 0, "unchanged", 0 };
-    DataVector3 vectors3[3] = { { .m_Values = { 0 } }, { .m_Values = { 123, 123, 123 } }, { .m_Values = { 0 } } };
-    DataVector4 vectors4[3] = { { .m_Values = { 0 } }, { .m_Values = { 123, 123, 123, 123 } }, { .m_Values = { 0 } } };
-    DataMatrix4 matrices[3] = { { .m_Values = { 0 } }, { .m_Values = { 123 } }, { .m_Values = { 0 } } };
-    DataGetFieldNumberBatch(store, ids, 42, 3, numbers, results);
-    int ok = results[0] == DATA_RESULT_OK && results[1] == DATA_RESULT_NOT_FOUND && results[2] == DATA_RESULT_OK && numbers[0] == 29 && numbers[1] == 123 && numbers[2] == 29;
-    DataGetFieldBooleanBatch(store, ids, 47, 3, booleans, results);
-    ok = ok && results[0] == DATA_RESULT_OK && results[1] == DATA_RESULT_NOT_FOUND && results[2] == DATA_RESULT_OK && booleans[0] == 0 && booleans[1] == 7 && booleans[2] == 0;
-    DataGetFieldStringBatch(store, ids, 48, 3, strings, results);
-    ok = ok && results[0] == DATA_RESULT_OK && results[1] == DATA_RESULT_NOT_FOUND && results[2] == DATA_RESULT_OK && strings[0][0] == 'o' && strings[1][0] == 'u' && strings[2] == strings[0];
-    DataGetFieldVector3Batch(store, ids, 43, 3, vectors3, results);
-    ok = ok && results[0] == DATA_RESULT_OK && results[1] == DATA_RESULT_NOT_FOUND && results[2] == DATA_RESULT_OK && vectors3[0].m_Values[2] == 0.25f && vectors3[1].m_Values[2] == 123 && vectors3[2].m_Values[2] == 0.25f;
-    DataGetFieldVector4Batch(store, ids, 44, 3, vectors4, results);
-    ok = ok && results[0] == DATA_RESULT_OK && results[1] == DATA_RESULT_NOT_FOUND && results[2] == DATA_RESULT_OK && vectors4[0].m_Values[3] == 0.75f && vectors4[1].m_Values[3] == 123 && vectors4[2].m_Values[3] == 0.75f;
-    DataGetFieldMatrix4Batch(store, ids, 45, 3, matrices, results);
-    ok = ok && results[0] == DATA_RESULT_OK && results[1] == DATA_RESULT_NOT_FOUND && results[2] == DATA_RESULT_OK && matrices[0].m_Values[14] == 44 && matrices[1].m_Values[0] == 123 && matrices[2].m_Values[14] == 44;
-    return ok;
+    DataId      ids[] = { id, id, id };
+    double      numbers[3];
+    uint8_t     booleans[3];
+    const char* strings[3];
+    DataVector3 vectors3[3];
+    DataVector4 vectors4[3];
+    DataMatrix4 matrices[3];
+    DataResult (*read_numbers)(HDataStore, uint32_t, const DataId*, uint64_t, double*) = DataFieldGetNumberBatch;
+    if (read_numbers(store, 3, ids, 42, numbers) != DATA_RESULT_OK ||
+        DataFieldGetBooleanBatch(store, 3, ids, 47, booleans) != DATA_RESULT_OK ||
+        DataFieldGetStringBatch(store, 3, ids, 48, strings) != DATA_RESULT_OK ||
+        DataFieldGetVector3Batch(store, 3, ids, 43, vectors3) != DATA_RESULT_OK ||
+        DataFieldGetVector4Batch(store, 3, ids, 44, vectors4) != DATA_RESULT_OK ||
+        DataFieldGetMatrix4Batch(store, 3, ids, 45, matrices) != DATA_RESULT_OK)
+        return 0;
+    for (uint32_t i = 0; i < 3; ++i)
+        if (numbers[i] != 29 || booleans[i] != 0 || strings[i][0] != 'o' || strings[i] != strings[0] ||
+            vectors3[i].m_Values[2] != 0.25f || vectors4[i].m_Values[3] != 0.75f || matrices[i].m_Values[14] != 44)
+            return 0;
+
+    ids[1] = 0;
+    if (read_numbers(store, 3, ids, 42, numbers) != DATA_RESULT_NOT_FOUND ||
+        DataFieldGetBooleanBatch(store, 3, ids, 47, booleans) != DATA_RESULT_NOT_FOUND ||
+        DataFieldGetStringBatch(store, 3, ids, 48, strings) != DATA_RESULT_NOT_FOUND ||
+        DataFieldGetVector3Batch(store, 3, ids, 43, vectors3) != DATA_RESULT_NOT_FOUND ||
+        DataFieldGetVector4Batch(store, 3, ids, 44, vectors4) != DATA_RESULT_NOT_FOUND ||
+        DataFieldGetMatrix4Batch(store, 3, ids, 45, matrices) != DATA_RESULT_NOT_FOUND)
+        return 0;
+
+    return read_numbers(0, 0, 0, 42, 0) == DATA_RESULT_OK &&
+    DataFieldGetBooleanBatch(0, 0, 0, 47, 0) == DATA_RESULT_OK &&
+    DataFieldGetStringBatch(0, 0, 0, 48, 0) == DATA_RESULT_OK &&
+    DataFieldGetVector3Batch(0, 0, 0, 43, 0) == DATA_RESULT_OK &&
+    DataFieldGetVector4Batch(0, 0, 0, 44, 0) == DATA_RESULT_OK &&
+    DataFieldGetMatrix4Batch(0, 0, 0, 45, 0) == DATA_RESULT_OK;
 }
 
 int TestDataFromC(HDataStore store)
@@ -89,7 +103,7 @@ int TestDataFromC(HDataStore store)
     DataFieldIterGetNameHash(&field) == 42 && DataFieldIterGetType(&field) == DATA_VALUE_TYPE_NUMBER &&
     DataFieldIterGetNumber(&field, &number) == DATA_RESULT_OK && number == 17.0;
     ok = ok && DataSetFieldNumber(store, id, 42, 23.0) == DATA_RESULT_OK &&
-    DataGetFieldNumber(store, id, 42, &number) == DATA_RESULT_OK && number == 23.0 &&
+    DataFieldGetNumber(store, id, 42, &number) == DATA_RESULT_OK && number == 23.0 &&
     DataFieldIterSetNumber(&field, 29.0) == DATA_RESULT_OK &&
     DataFieldIterGetNumber(&field, &number) == DATA_RESULT_OK && number == 29.0;
 
@@ -98,7 +112,7 @@ int TestDataFromC(HDataStore store)
     DataVector3 vector3 = { { 1.0f, 0.5f, 0.25f } };
     DataVector3 out3;
     ok = ok && DataSetFieldVector3(store, id, 43, &vector3) == DATA_RESULT_OK &&
-    DataGetFieldVector3(store, id, 43, &out3) == DATA_RESULT_OK && out3.m_Values[1] == 0.5f &&
+    DataFieldGetVector3(store, id, 43, &out3) == DATA_RESULT_OK && out3.m_Values[1] == 0.5f &&
     DataFieldIterSetVector3(&field, &vector3) == DATA_RESULT_OK &&
     DataFieldIterGetVector3(&field, &out3) == DATA_RESULT_OK && out3.m_Values[2] == 0.25f;
 
@@ -107,7 +121,7 @@ int TestDataFromC(HDataStore store)
     DataVector4 vector4 = { { 1.0f, 0.5f, 0.25f, 0.75f } };
     DataVector4 out4;
     ok = ok && DataSetFieldVector4(store, id, 44, &vector4) == DATA_RESULT_OK &&
-    DataGetFieldVector4(store, id, 44, &out4) == DATA_RESULT_OK && out4.m_Values[3] == 0.75f &&
+    DataFieldGetVector4(store, id, 44, &out4) == DATA_RESULT_OK && out4.m_Values[3] == 0.75f &&
     DataFieldIterSetVector4(&field, &vector4) == DATA_RESULT_OK &&
     DataFieldIterGetVector4(&field, &out4) == DATA_RESULT_OK && out4.m_Values[0] == 1.0f;
 
@@ -119,7 +133,7 @@ int TestDataFromC(HDataStore store)
         matrix.m_Values[i] = (float)i;
     matrix.m_Values[3 * 4 + 2] = 44.0f;
     ok = ok && DataSetFieldMatrix4(store, id, 45, &matrix) == DATA_RESULT_OK &&
-    DataGetFieldMatrix4(store, id, 45, &out_matrix) == DATA_RESULT_OK && out_matrix.m_Values[14] == 44.0f &&
+    DataFieldGetMatrix4(store, id, 45, &out_matrix) == DATA_RESULT_OK && out_matrix.m_Values[14] == 44.0f &&
     DataFieldIterSetMatrix4(&field, &matrix) == DATA_RESULT_OK &&
     DataFieldIterGetMatrix4(&field, &out_matrix) == DATA_RESULT_OK && out_matrix.m_Values[0] == 0.0f;
 
@@ -127,7 +141,7 @@ int TestDataFromC(HDataStore store)
 
     uint8_t boolean = 0;
     ok = ok && DataSetFieldBoolean(store, id, 47, 1) == DATA_RESULT_OK &&
-    DataGetFieldBoolean(store, id, 47, &boolean) == DATA_RESULT_OK && boolean == 1 &&
+    DataFieldGetBoolean(store, id, 47, &boolean) == DATA_RESULT_OK && boolean == 1 &&
     DataFieldIterSetBoolean(&field, 0) == DATA_RESULT_OK &&
     DataFieldIterGetBoolean(&field, &boolean) == DATA_RESULT_OK && boolean == 0;
 
@@ -135,7 +149,7 @@ int TestDataFromC(HDataStore store)
 
     const char* string;
     ok = ok && DataSetFieldString(store, id, 48, "copied") == DATA_RESULT_OK &&
-    DataGetFieldString(store, id, 48, &string) == DATA_RESULT_OK && string[0] == 'c' &&
+    DataFieldGetString(store, id, 48, &string) == DATA_RESULT_OK && string[0] == 'c' &&
     DataFieldIterSetString(&field, "override") == DATA_RESULT_OK &&
     DataFieldIterGetString(&field, &string) == DATA_RESULT_OK && string[0] == 'o';
 
@@ -200,27 +214,27 @@ int TestDataPointersFromC(HDataStore store, int write)
     uint32_t     count = 0;
     while (ok && DataIterNext(&it) == DATA_RESULT_OK)
     {
-        const DataVector3* (*read_vector)(const DataRowIterator*, uint32_t) = DataFieldGetVector3;
+        const DataVector3* (*read_vector)(const DataRowIterator*, uint32_t) = DataRowIterGetVector3;
         DataRowIterator rows = DataIterRows(&it);
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
-            ok = ok && *DataFieldGetNumber(&rows, fields[2]) == 17.0 &&
-            *DataFieldGetBoolean(&rows, fields[4]) == 0 &&
+            ok = ok && *DataRowIterGetNumber(&rows, fields[2]) == 17.0 &&
+            *DataRowIterGetBoolean(&rows, fields[4]) == 0 &&
             read_vector(&rows, fields[1])->m_Values[2] == 3.0f &&
-            DataFieldGetVector4(&rows, fields[3])->m_Values[3] == 4.0f &&
-            DataFieldGetMatrix4(&rows, fields[0])->m_Values[15] == 15.0f;
+            DataRowIterGetVector4(&rows, fields[3])->m_Values[3] == 4.0f &&
+            DataRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 15.0f;
             if (write)
             {
-                *DataFieldGetNumberMut(&rows, fields[2]) = 29.0;
-                *DataFieldGetBooleanMut(&rows, fields[4]) = 1;
-                DataFieldGetVector3Mut(&rows, fields[1])->m_Values[2] = 30.0f;
-                DataFieldGetVector4Mut(&rows, fields[3])->m_Values[3] = 40.0f;
-                DataFieldGetMatrix4Mut(&rows, fields[0])->m_Values[15] = 150.0f;
-                ok = ok && *DataFieldGetNumber(&rows, fields[2]) == 29.0 &&
-                *DataFieldGetBoolean(&rows, fields[4]) == 1 &&
+                *DataRowIterGetNumberMut(&rows, fields[2]) = 29.0;
+                *DataRowIterGetBooleanMut(&rows, fields[4]) = 1;
+                DataRowIterGetVector3Mut(&rows, fields[1])->m_Values[2] = 30.0f;
+                DataRowIterGetVector4Mut(&rows, fields[3])->m_Values[3] = 40.0f;
+                DataRowIterGetMatrix4Mut(&rows, fields[0])->m_Values[15] = 150.0f;
+                ok = ok && *DataRowIterGetNumber(&rows, fields[2]) == 29.0 &&
+                *DataRowIterGetBoolean(&rows, fields[4]) == 1 &&
                 read_vector(&rows, fields[1])->m_Values[2] == 30.0f &&
-                DataFieldGetVector4(&rows, fields[3])->m_Values[3] == 40.0f &&
-                DataFieldGetMatrix4(&rows, fields[0])->m_Values[15] == 150.0f;
+                DataRowIterGetVector4(&rows, fields[3])->m_Values[3] == 40.0f &&
+                DataRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 150.0f;
             }
             ++count;
         }

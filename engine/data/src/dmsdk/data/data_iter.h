@@ -72,20 +72,20 @@ extern "C"
     DataOwnerId                   DataRowIterGetOwnerId(const DataRowIterator* iterator);
 
     // Field pointers
-    static inline const double*      DataFieldGetNumber(const DataRowIterator* iterator, uint32_t field);
-    static inline double*            DataFieldGetNumberMut(const DataRowIterator* iterator, uint32_t field);
+    static inline const double*      DataRowIterGetNumber(const DataRowIterator* iterator, uint32_t field);
+    static inline double*            DataRowIterGetNumberMut(const DataRowIterator* iterator, uint32_t field);
 
-    static inline const uint8_t*     DataFieldGetBoolean(const DataRowIterator* iterator, uint32_t field);
-    static inline uint8_t*           DataFieldGetBooleanMut(const DataRowIterator* iterator, uint32_t field);
+    static inline const uint8_t*     DataRowIterGetBoolean(const DataRowIterator* iterator, uint32_t field);
+    static inline uint8_t*           DataRowIterGetBooleanMut(const DataRowIterator* iterator, uint32_t field);
 
-    static inline const DataVector3* DataFieldGetVector3(const DataRowIterator* iterator, uint32_t field);
-    static inline DataVector3*       DataFieldGetVector3Mut(const DataRowIterator* iterator, uint32_t field);
+    static inline const DataVector3* DataRowIterGetVector3(const DataRowIterator* iterator, uint32_t field);
+    static inline DataVector3*       DataRowIterGetVector3Mut(const DataRowIterator* iterator, uint32_t field);
 
-    static inline const DataVector4* DataFieldGetVector4(const DataRowIterator* iterator, uint32_t field);
-    static inline DataVector4*       DataFieldGetVector4Mut(const DataRowIterator* iterator, uint32_t field);
+    static inline const DataVector4* DataRowIterGetVector4(const DataRowIterator* iterator, uint32_t field);
+    static inline DataVector4*       DataRowIterGetVector4Mut(const DataRowIterator* iterator, uint32_t field);
 
-    static inline const DataMatrix4* DataFieldGetMatrix4(const DataRowIterator* iterator, uint32_t field);
-    static inline DataMatrix4*       DataFieldGetMatrix4Mut(const DataRowIterator* iterator, uint32_t field);
+    static inline const DataMatrix4* DataRowIterGetMatrix4(const DataRowIterator* iterator, uint32_t field);
+    static inline DataMatrix4*       DataRowIterGetMatrix4Mut(const DataRowIterator* iterator, uint32_t field);
 
     // Field iteration
     static inline DataFieldIterator DataRowIterFields(const DataRowIterator* iterator);
@@ -117,19 +117,19 @@ extern "C"
     // private
     // Address calculation for the public pointer wrappers. Validated field handles and current
     // row indices are caller obligations; no repeated checks occur here.
-    static inline const void* DataGetFieldPointerInternal(const DataIterator* batch, uint32_t row, uint32_t field);
-    static inline void*       DataGetFieldPointerMutInternal(const DataIterator* batch, uint32_t row, uint32_t field);
+    static inline const void* DataFieldGetPointerInternal(const DataIterator* batch, uint32_t row, uint32_t field);
+    static inline void*       DataFieldGetPointerMutInternal(const DataIterator* batch, uint32_t row, uint32_t field);
 
     // private
     // Linkage for the inline typed getters below, not standalone SDK entry points.
     // Arguments borrow the locked batch and use its row/requested-field indices.
     // UINT32_MAX denotes no current field; outputs remain unchanged on errors.
-    DataResult                    DataGetFieldNumberInternal(const DataIterator* batch, uint32_t row, uint32_t field, double* out_value);
-    DataResult                    DataGetFieldBooleanInternal(const DataIterator* batch, uint32_t row, uint32_t field, uint8_t* out_value);
-    DataResult                    DataGetFieldStringInternal(const DataIterator* batch, uint32_t row, uint32_t field, const char** out_value);
-    DataResult                    DataGetFieldVector3Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector3* out_value);
-    DataResult                    DataGetFieldVector4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector4* out_value);
-    DataResult                    DataGetFieldMatrix4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataMatrix4* out_value);
+    DataResult                    DataFieldGetNumberInternal(const DataIterator* batch, uint32_t row, uint32_t field, double* out_value);
+    DataResult                    DataFieldGetBooleanInternal(const DataIterator* batch, uint32_t row, uint32_t field, uint8_t* out_value);
+    DataResult                    DataFieldGetStringInternal(const DataIterator* batch, uint32_t row, uint32_t field, const char** out_value);
+    DataResult                    DataFieldGetVector3Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector3* out_value);
+    DataResult                    DataFieldGetVector4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector4* out_value);
+    DataResult                    DataFieldGetMatrix4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataMatrix4* out_value);
 
     static inline DataRowIterator DataIterRows(const DataIterator* iterator)
     {
@@ -148,64 +148,64 @@ extern "C"
         return DATA_RESULT_OK;
     }
 
-    static inline const void* DataGetFieldPointerInternal(const DataIterator* batch, uint32_t row, uint32_t field)
+    static inline const void* DataFieldGetPointerInternal(const DataIterator* batch, uint32_t row, uint32_t field)
     {
         return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
     }
 
-    static inline void* DataGetFieldPointerMutInternal(const DataIterator* batch, uint32_t row, uint32_t field)
+    static inline void* DataFieldGetPointerMutInternal(const DataIterator* batch, uint32_t row, uint32_t field)
     {
         return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
     }
 
-    static inline const double* DataFieldGetNumber(const DataRowIterator* iterator, uint32_t field)
+    static inline const double* DataRowIterGetNumber(const DataRowIterator* iterator, uint32_t field)
     {
-        return (const double*)DataGetFieldPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const double*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline double* DataFieldGetNumberMut(const DataRowIterator* iterator, uint32_t field)
+    static inline double* DataRowIterGetNumberMut(const DataRowIterator* iterator, uint32_t field)
     {
-        return (double*)DataGetFieldPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (double*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const uint8_t* DataFieldGetBoolean(const DataRowIterator* iterator, uint32_t field)
+    static inline const uint8_t* DataRowIterGetBoolean(const DataRowIterator* iterator, uint32_t field)
     {
-        return (const uint8_t*)DataGetFieldPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const uint8_t*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline uint8_t* DataFieldGetBooleanMut(const DataRowIterator* iterator, uint32_t field)
+    static inline uint8_t* DataRowIterGetBooleanMut(const DataRowIterator* iterator, uint32_t field)
     {
-        return (uint8_t*)DataGetFieldPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (uint8_t*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const DataVector3* DataFieldGetVector3(const DataRowIterator* iterator, uint32_t field)
+    static inline const DataVector3* DataRowIterGetVector3(const DataRowIterator* iterator, uint32_t field)
     {
-        return (const DataVector3*)DataGetFieldPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const DataVector3*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline DataVector3* DataFieldGetVector3Mut(const DataRowIterator* iterator, uint32_t field)
+    static inline DataVector3* DataRowIterGetVector3Mut(const DataRowIterator* iterator, uint32_t field)
     {
-        return (DataVector3*)DataGetFieldPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (DataVector3*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const DataVector4* DataFieldGetVector4(const DataRowIterator* iterator, uint32_t field)
+    static inline const DataVector4* DataRowIterGetVector4(const DataRowIterator* iterator, uint32_t field)
     {
-        return (const DataVector4*)DataGetFieldPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const DataVector4*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline DataVector4* DataFieldGetVector4Mut(const DataRowIterator* iterator, uint32_t field)
+    static inline DataVector4* DataRowIterGetVector4Mut(const DataRowIterator* iterator, uint32_t field)
     {
-        return (DataVector4*)DataGetFieldPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (DataVector4*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const DataMatrix4* DataFieldGetMatrix4(const DataRowIterator* iterator, uint32_t field)
+    static inline const DataMatrix4* DataRowIterGetMatrix4(const DataRowIterator* iterator, uint32_t field)
     {
-        return (const DataMatrix4*)DataGetFieldPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const DataMatrix4*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline DataMatrix4* DataFieldGetMatrix4Mut(const DataRowIterator* iterator, uint32_t field)
+    static inline DataMatrix4* DataRowIterGetMatrix4Mut(const DataRowIterator* iterator, uint32_t field)
     {
-        return (DataMatrix4*)DataGetFieldPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (DataMatrix4*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
     static inline DataFieldIterator DataRowIterFields(const DataRowIterator* iterator)
@@ -232,32 +232,32 @@ extern "C"
 
     static inline DataResult DataFieldIterGetNumber(const DataFieldIterator* iterator, double* out_value)
     {
-        return DataGetFieldNumberInternal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
+        return DataFieldGetNumberInternal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
     }
 
     static inline DataResult DataFieldIterGetBoolean(const DataFieldIterator* iterator, uint8_t* out_value)
     {
-        return DataGetFieldBooleanInternal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
+        return DataFieldGetBooleanInternal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
     }
 
     static inline DataResult DataFieldIterGetString(const DataFieldIterator* iterator, const char** out_value)
     {
-        return DataGetFieldStringInternal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
+        return DataFieldGetStringInternal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
     }
 
     static inline DataResult DataFieldIterGetVector3(const DataFieldIterator* iterator, DataVector3* out_value)
     {
-        return DataGetFieldVector3Internal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
+        return DataFieldGetVector3Internal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
     }
 
     static inline DataResult DataFieldIterGetVector4(const DataFieldIterator* iterator, DataVector4* out_value)
     {
-        return DataGetFieldVector4Internal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
+        return DataFieldGetVector4Internal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
     }
 
     static inline DataResult DataFieldIterGetMatrix4(const DataFieldIterator* iterator, DataMatrix4* out_value)
     {
-        return DataGetFieldMatrix4Internal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
+        return DataFieldGetMatrix4Internal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
     }
 
 #ifdef __cplusplus
@@ -382,7 +382,7 @@ extern "C"
  *
  * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
  *
- * @name DataFieldGetNumber
+ * @name DataRowIterGetNumber
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Number handle from DataQueryFindField.
  * @return value [type:const double*] Borrowed read-only value.
@@ -392,7 +392,7 @@ extern "C"
  *
  * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
  *
- * @name DataFieldGetNumberMut
+ * @name DataRowIterGetNumberMut
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Number handle from DataQueryFindField.
  * @return value [type:double*] Borrowed writable value.
@@ -402,7 +402,7 @@ extern "C"
  *
  * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
  *
- * @name DataFieldGetBoolean
+ * @name DataRowIterGetBoolean
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Boolean handle from DataQueryFindField.
  * @return value [type:const uint8_t*] Borrowed read-only value.
@@ -412,7 +412,7 @@ extern "C"
  *
  * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField]. Write only zero or one.
  *
- * @name DataFieldGetBooleanMut
+ * @name DataRowIterGetBooleanMut
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Boolean handle from DataQueryFindField.
  * @return value [type:uint8_t*] Borrowed writable value.
@@ -422,7 +422,7 @@ extern "C"
  *
  * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
  *
- * @name DataFieldGetVector3
+ * @name DataRowIterGetVector3
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Vector3 handle from DataQueryFindField.
  * @return value [type:const DataVector3*] Borrowed read-only value.
@@ -432,7 +432,7 @@ extern "C"
  *
  * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
  *
- * @name DataFieldGetVector3Mut
+ * @name DataRowIterGetVector3Mut
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Vector3 handle from DataQueryFindField.
  * @return value [type:DataVector3*] Borrowed writable value.
@@ -442,7 +442,7 @@ extern "C"
  *
  * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
  *
- * @name DataFieldGetVector4
+ * @name DataRowIterGetVector4
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Vector4 handle from DataQueryFindField.
  * @return value [type:const DataVector4*] Borrowed read-only value.
@@ -452,7 +452,7 @@ extern "C"
  *
  * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
  *
- * @name DataFieldGetVector4Mut
+ * @name DataRowIterGetVector4Mut
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Vector4 handle from DataQueryFindField.
  * @return value [type:DataVector4*] Borrowed writable value.
@@ -462,7 +462,7 @@ extern "C"
  *
  * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
  *
- * @name DataFieldGetMatrix4
+ * @name DataRowIterGetMatrix4
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Matrix4 handle from DataQueryFindField.
  * @return value [type:const DataMatrix4*] Borrowed read-only value.
@@ -472,7 +472,7 @@ extern "C"
  *
  * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
  *
- * @name DataFieldGetMatrix4Mut
+ * @name DataRowIterGetMatrix4Mut
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Matrix4 handle from DataQueryFindField.
  * @return value [type:DataMatrix4*] Borrowed writable value.

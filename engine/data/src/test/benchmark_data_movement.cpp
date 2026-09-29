@@ -50,8 +50,8 @@ static Stats Movement_Defold(Backend* store, const Fixture*, Query* query)
         DataRowIterator rows = DataIterRows(&it);
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
-            DataVector3*       position = DataFieldGetVector3Mut(&rows, query->m_PositionField);
-            const DataVector3* velocity = DataFieldGetVector3(&rows, query->m_VelocityField);
+            DataVector3*       position = DataRowIterGetVector3Mut(&rows, query->m_PositionField);
+            const DataVector3* velocity = DataRowIterGetVector3(&rows, query->m_VelocityField);
             for (uint32_t axis = 0; axis < 3; ++axis)
                 position->m_Values[axis] += velocity->m_Values[axis] * 0.015625f;
             stats.m_Sum += SumVector(position->m_Values);
@@ -107,7 +107,7 @@ void MeasureMovement(Backend* store, const Fixture* input, Query* query, uint32_
             DataVector3 actual;
             uint64_t    id = store->m_Ids[type->m_Offset + r];
             if (!store->m_Kind)
-                Check(DataGetFieldVector3(store->m_Data, id, g_Fields[POSITION], &actual) == DATA_RESULT_OK, "movement position");
+                Check(DataFieldGetVector3(store->m_Data, id, g_Fields[POSITION], &actual) == DATA_RESULT_OK, "movement position");
             else
                 memcpy(&actual, ecs_get_id(store->m_World, id, store->m_Fields[POSITION]), sizeof(actual));
             const Vector3& position = ((const Vector3*)type->m_Columns[FindField(type, POSITION)])[r];
@@ -153,7 +153,7 @@ void ProfileMovement(const Fixture* input, uint32_t kind, uint32_t samples, uint
             {
                 DataVector3 actual;
                 if (!kind)
-                    Check(DataGetFieldVector3(store.m_Data, store.m_Ids[type->m_Offset + r], g_Fields[POSITION], &actual) == DATA_RESULT_OK, "profile movement position");
+                    Check(DataFieldGetVector3(store.m_Data, store.m_Ids[type->m_Offset + r], g_Fields[POSITION], &actual) == DATA_RESULT_OK, "profile movement position");
                 else
                     memcpy(&actual, FlecsField(&store, type, t, r, POSITION), sizeof(actual));
                 for (uint32_t axis = 0; axis < 3; ++axis)

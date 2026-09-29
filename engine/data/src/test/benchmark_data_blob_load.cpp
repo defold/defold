@@ -95,8 +95,8 @@ static DataId Validate(HDataStore store, uint32_t expected_tables, uint32_t expe
             DataId      id = DataRowIterGetId(&row);
             double      health;
             DataVector3 position;
-            Check(DataGetFieldNumber(store, id, 10, &health) == DATA_RESULT_OK && health == 99 + type, "loaded health");
-            Check(DataGetFieldVector3(store, id, 20, &position) == DATA_RESULT_OK, "loaded position");
+            Check(DataFieldGetNumber(store, id, 10, &health) == DATA_RESULT_OK && health == 99 + type, "loaded health");
+            Check(DataFieldGetVector3(store, id, 20, &position) == DATA_RESULT_OK, "loaded position");
             Check(position.m_Values[0] == type - 1 && position.m_Values[1] == 2 && position.m_Values[2] == 3, "position components");
             Check(DataRowIterGetOwnerId(&row) == 4242, "runtime owner");
             Check(DataGetComponentId(store, id) == r + 1, "component identity");
@@ -153,12 +153,12 @@ int main(int argc, char** argv)
                     printf("%u,%u,%u,%s,%u,%llu,%llu,%llu,%llu,%llu,%llu,%llu\n", table_counts[c], row_counts[c], sample, reuse ? "reused" : "fresh", size, (unsigned long long)memory.m_Before.m_Bytes, (unsigned long long)memory.m_After.m_Bytes, (unsigned long long)memory.m_After.m_PeakBytes, (unsigned long long)allocations, (unsigned long long)reallocations, (unsigned long long)(memory.m_After.m_Frees - memory.m_Before.m_Frees), (unsigned long long)memory.m_After.m_Blocks);
                 double health;
                 if (stale)
-                    Check(DataGetFieldNumber(store, stale, 10, &health) == DATA_RESULT_NOT_FOUND, "stale IDs after reloading");
+                    Check(DataFieldGetNumber(store, stale, 10, &health) == DATA_RESULT_NOT_FOUND, "stale IDs after reloading");
                 stale = Validate(store, table_counts[c], row_counts[c]);
                 Check(GetInstanceTable(instance, 0)->m_Blob == buffer, "caller buffer is borrowed");
                 DataDestroyBlob(blob);
                 DataRemoveBlob(instance);
-                Check(DataGetFieldNumber(store, stale, 10, &health) == DATA_RESULT_NOT_FOUND, "unloaded ID");
+                Check(DataFieldGetNumber(store, stale, 10, &health) == DATA_RESULT_NOT_FOUND, "unloaded ID");
                 delete[] buffer;
             }
             DataDestroyStore(store);

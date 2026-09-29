@@ -695,14 +695,14 @@ extern "C"
      * Borrowed strings and containers remain valid until the next store write or iterator step;
      * callers must copy them for longer retention.
      *
-     * @name DataGetField
+     * @name DataFieldGet
      * @param store [type:HDataStore] Store handle.
      * @param id [type:DataId] Row ID.
      * @param field [type:uint64_t] Field name hash.
      * @param out_value [type:DataValue*] Receives the value on success; unchanged on error. Strings and containers are borrowed.
      * @return result [type:DataResult] OK on success, or NOT_FOUND if the row or field does not exist.
      */
-    DataResult DataGetField(HDataStore store, DataId id, uint64_t field, DataValue* out_value);
+    DataResult DataFieldGet(HDataStore store, DataId id, uint64_t field, DataValue* out_value);
 
     /** Replace a field value
      *
@@ -730,7 +730,7 @@ extern "C"
 
     /** Read a field from the current batch
      *
-     * Borrowed strings and containers have the same lifetime as those returned by [ref:DataGetField].
+     * Borrowed strings and containers have the same lifetime as those returned by [ref:DataFieldGet].
      *
      * @name DataIterGetFieldByHash
      * @param iterator [type:const DataIterator*] Iterator whose query and store are still alive.

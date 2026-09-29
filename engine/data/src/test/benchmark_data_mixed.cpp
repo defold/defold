@@ -334,7 +334,7 @@ static void Run(const Fixture* input, uint32_t kind, uint32_t sample)
         RowKey      key = input->m_Order[i];
         uint64_t    id = store.m_Ids[input->m_Types[key.m_Type].m_Offset + key.m_Row];
         DataVector3 value;
-        Check(kind ? !ecs_is_alive(store.m_World, id) : DataGetFieldVector3(store.m_Data, id, g_Fields[POSITION], &value) == DATA_RESULT_NOT_FOUND, "removed IDs");
+        Check(kind ? !ecs_is_alive(store.m_World, id) : DataFieldGetVector3(store.m_Data, id, g_Fields[POSITION], &value) == DATA_RESULT_NOT_FOUND, "removed IDs");
     }
     start = BeginOperation();
     stats = kind ? ReplaceInstances_Flecs(&store, input) : ReplaceInstances_Defold(&store, input);

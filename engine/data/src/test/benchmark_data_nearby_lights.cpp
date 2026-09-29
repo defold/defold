@@ -59,11 +59,11 @@ static Stats NearbyLights_Defold(Backend* store, Query* query)
         DataRowIterator rows = DataIterRows(&it);
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
-            const DataVector3* position = DataFieldGetVector3(&rows, query->m_PositionField);
+            const DataVector3* position = DataRowIterGetVector3(&rows, query->m_PositionField);
             if (Hit(position->m_Values, 50))
             {
-                const DataVector3* color = DataFieldGetVector3(&rows, query->m_ColorField);
-                stats.m_Sum += Contribution(position->m_Values, color->m_Values, *DataFieldGetNumber(&rows, query->m_IntensityField));
+                const DataVector3* color = DataRowIterGetVector3(&rows, query->m_ColorField);
+                stats.m_Sum += Contribution(position->m_Values, color->m_Values, *DataRowIterGetNumber(&rows, query->m_IntensityField));
                 ++stats.m_Hits;
             }
             ++stats.m_Rows;

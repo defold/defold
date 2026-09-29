@@ -66,7 +66,7 @@ Stats LightColor_Defold(Backend* store, const Fixture* input, Query* query)
         DataResult      row_result;
         while ((row_result = DataRowIterNext(&rows)) == DATA_RESULT_OK)
         {
-            const DataVector3* color = DataFieldGetVector3(&rows, color_field);
+            const DataVector3* color = DataRowIterGetVector3(&rows, color_field);
             stats.m_Sum += SumVector(color->m_Values);
             ++stats.m_Rows;
         }

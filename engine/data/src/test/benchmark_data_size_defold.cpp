@@ -61,9 +61,9 @@ int main(int argc, char** argv)
         DataRowIterator rows = DataIterRows(&it);
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
-            const DataVector3* position = DataFieldGetVector3(&rows, position_field);
+            const DataVector3* position = DataRowIterGetVector3(&rows, position_field);
             if (position->m_Values[0] < 50)
-                *DataFieldGetNumberMut(&rows, health_field) -= 25;
+                *DataRowIterGetNumberMut(&rows, health_field) -= 25;
         }
     }
     DataQueryEnd(query);
@@ -71,7 +71,7 @@ int main(int argc, char** argv)
     for (uint32_t row = 0; row < count; ++row)
     {
         double health;
-        Check(DataGetFieldNumber(store, ids[row], 2, &health));
+        Check(DataFieldGetNumber(store, ids[row], 2, &health));
         sum += health;
         Check(DataRemoveRow(store, ids[row]));
     }

@@ -77,8 +77,8 @@ Stats HealthPosition_Defold(Backend* store, const Fixture* input, Query* query)
         DataResult      row_result;
         while ((row_result = DataRowIterNext(&rows)) == DATA_RESULT_OK)
         {
-            const DataVector3* position = DataFieldGetVector3(&rows, position_field);
-            double             health = *DataFieldGetNumber(&rows, health_field);
+            const DataVector3* position = DataRowIterGetVector3(&rows, position_field);
+            double             health = *DataRowIterGetNumber(&rows, health_field);
             stats.m_Sum += health + SumVector(position->m_Values);
             ++stats.m_Rows;
         }

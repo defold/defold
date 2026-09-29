@@ -253,7 +253,7 @@ static DataResult SetField(const DataFieldIterator* iterator, const DataValue* v
     return SetRowField((DataTable*)batch->m_Table, row, binding.m_Meta, value);
 }
 
-DataResult DataGetFieldNumberInternal(const DataIterator* batch, uint32_t row, uint32_t field, double* out_value)
+DataResult DataFieldGetNumberInternal(const DataIterator* batch, uint32_t row, uint32_t field, double* out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_NUMBER>(batch, row, field, out_value);
 }
@@ -267,7 +267,7 @@ DataResult DataFieldIterSetNumber(const DataFieldIterator* iterator, double valu
     return SetField(iterator, &input);
 }
 
-DataResult DataGetFieldBooleanInternal(const DataIterator* batch, uint32_t row, uint32_t field, uint8_t* out_value)
+DataResult DataFieldGetBooleanInternal(const DataIterator* batch, uint32_t row, uint32_t field, uint8_t* out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_BOOLEAN>(batch, row, field, out_value);
 }
@@ -281,7 +281,7 @@ DataResult DataFieldIterSetBoolean(const DataFieldIterator* iterator, uint8_t va
     return SetField(iterator, &input);
 }
 
-DataResult DataGetFieldStringInternal(const DataIterator* batch, uint32_t row, uint32_t field, const char** out_value)
+DataResult DataFieldGetStringInternal(const DataIterator* batch, uint32_t row, uint32_t field, const char** out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_STRING>(batch, row, field, out_value);
 }
@@ -295,7 +295,7 @@ DataResult DataFieldIterSetString(const DataFieldIterator* iterator, const char*
     return SetField(iterator, &input);
 }
 
-DataResult DataGetFieldVector3Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector3* out_value)
+DataResult DataFieldGetVector3Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector3* out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_VECTOR3>(batch, row, field, out_value->m_Values);
 }
@@ -307,7 +307,7 @@ DataResult DataFieldIterSetVector3(const DataFieldIterator* iterator, const Data
     return SetField(iterator, &input);
 }
 
-DataResult DataGetFieldVector4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector4* out_value)
+DataResult DataFieldGetVector4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector4* out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_VECTOR4>(batch, row, field, out_value->m_Values);
 }
@@ -319,7 +319,7 @@ DataResult DataFieldIterSetVector4(const DataFieldIterator* iterator, const Data
     return SetField(iterator, &input);
 }
 
-DataResult DataGetFieldMatrix4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataMatrix4* out_value)
+DataResult DataFieldGetMatrix4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataMatrix4* out_value)
 {
     return GetTypedField<DATA_VALUE_TYPE_MATRIX4>(batch, row, field, out_value->m_Values);
 }

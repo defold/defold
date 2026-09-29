@@ -23,8 +23,8 @@ static int32_t Explosion_Defold(HJobContext, HJob, void*, void* data)
         DataRowIterator rows = DataIterRows(&it);
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
-            const DataVector3* position = DataFieldGetVector3(&rows, update->m_PositionField);
-            double*            health = DataFieldGetNumberMut(&rows, update->m_HealthField);
+            const DataVector3* position = DataRowIterGetVector3(&rows, update->m_PositionField);
+            double*            health = DataRowIterGetNumberMut(&rows, update->m_HealthField);
             if (ThreadedInRadius(position))
             {
                 *health = *health > 25.0 ? *health - 25.0 : 0.0;

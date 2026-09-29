@@ -179,7 +179,7 @@ void ValidateHealth(Backend* store, const Fixture* input, int radius, uint32_t w
             double               actual;
             if (!store->m_Kind)
             {
-                Check(DataGetFieldNumber(store->m_Data, store->m_Ids[t->m_Offset + r], g_Fields[HEALTH], &actual) == DATA_RESULT_OK, "validate health read");
+                Check(DataFieldGetNumber(store->m_Data, store->m_Ids[t->m_Offset + r], g_Fields[HEALTH], &actual) == DATA_RESULT_OK, "validate health read");
             }
             else
                 actual = *(double*)FlecsField(store, t, ti, r, HEALTH);
