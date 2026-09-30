@@ -130,9 +130,9 @@
     (.array glb)))
 
 (defn- scene-mesh-user-data-by-material-index [scene]
-  (coll/into-> (:children scene) {}
-    (drop 1)
-    (mapcat :children)
+  (coll/into-> [scene] {}
+    (coll/tree-xf :children :children)
+    (filter #(contains? (get-in % [:renderable :user-data]) :material-index))
     (map (fn [mesh-scene]
            (let [user-data (get-in mesh-scene [:renderable :user-data])
                  material-index (:material-index user-data)]
@@ -278,6 +278,8 @@
                                  (get-in (scene-mesh-user-data-by-material-index (g/node-value source-node-id :scene))
                                          [index :shader]))))))))))))))))
 
+;; Verifies glTF/GLB metadata and picking, including the flat source scene used
+;; by Model components.
 (deftest gltf-metadata-is-shown-in-outline-and-properties
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
         models-directory (io/file project-path "models")]
@@ -314,7 +316,7 @@
 
                 (let [mesh-node-id (get-in meshes-group [:children 0 :node-id])
                       preview-scene (g/node-value source-node-id :scene)
-                      mesh-model-scene (nth (:children preview-scene) 1)
+                      mesh-model-scene (get-in preview-scene [:children 1 :children 0])
 
                       scene-render-data
                       (scene/produce-scene-render-data
@@ -344,7 +346,9 @@
                   (is (coll/every? #(= mesh-node-id (:node-id %))
                                    (:children mesh-model-scene)))
                   (is (= 2 (count mesh-picking-renderables)))
-                  (is (some? mesh-outline-renderable)))
+                  (is (some? mesh-outline-renderable))
+                  (is (= mesh-node-id
+                         (get-in (g/node-value source-node-id :source-scene) [:children 1 :node-id]))))
 
                 (doseq [[material-index material-outline]
                         (into [] (map-indexed vector) material-outlines)]

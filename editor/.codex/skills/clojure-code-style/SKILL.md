@@ -44,6 +44,10 @@ Prefer `if-let`/`when-let` over `if-some`/`when-some`. Latter can be used only w
 
 Use `clj-kondo` to find and fix lint issues in your changes.
 
+## Formatting
+
+Format every touched file with `lein cljfmt fix ...`
+
 ## Editor recovery
 
 If your change causes the running editor to disable handlers or timers after an exception, fix or revert the cause first. Then re-enable disabled functionality from the REPL:

@@ -714,31 +714,32 @@
      :renderable selected-model-aabb-outline-renderable
      :children mesh-scenes}))
 
-(defn- make-scene [scene-node-id renderable-mesh-set mesh-scene-infos]
+(g/defnk produce-scene-data [_node-id renderable-mesh-set mesh-scene-infos]
   (let [{:keys [aabb renderable-models renderable-raw-models]} renderable-mesh-set
-        mesh-scene-info-by-index (coll/pair-map-by :mesh-index mesh-scene-infos)
+        mesh-scene-info-by-index (coll/pair-map-by :mesh-index mesh-scene-infos)]
+    {:aabb aabb
+     :model-scenes (mapv #(make-model-scene _node-id % mesh-scene-info-by-index)
+                         renderable-models)
+     :raw-model-scenes (mapv #(make-model-scene _node-id % mesh-scene-info-by-index)
+                             renderable-raw-models)}))
 
-        child-scenes
-        (into [{:node-id scene-node-id
-                :aabb aabb
-                :renderable model-aabb-outline-renderable}]
-              (map #(make-model-scene scene-node-id % mesh-scene-info-by-index))
-              renderable-models)]
-
-    {:node-id scene-node-id
-     :aabb aabb
-     :raw-model-scenes (mapv #(make-model-scene scene-node-id % mesh-scene-info-by-index)
-                             renderable-raw-models)
-     :renderable {:tags #{:model}
-                  :batch-key nil ; Batching is disabled in the editor for simplicity.
-                  :passes [pass/opaque-selection]} ; A selection pass to ensure it can be selected and manipulated.
-     :children child-scenes}))
+(defn- make-scene [scene-node-id aabb child-scenes raw-model-scenes]
+  {:node-id scene-node-id
+   :aabb aabb
+   :raw-model-scenes raw-model-scenes
+   :renderable {:tags #{:model}
+                :batch-key nil ; Batching is disabled in the editor for simplicity.
+                :passes [pass/opaque-selection]} ; A selection pass to ensure it can be selected and manipulated.
+   :children (into [{:node-id scene-node-id
+                     :aabb aabb
+                     :renderable model-aabb-outline-renderable}]
+                   child-scenes)})
 
 (g/defnk produce-source-scene
   "Builds the scene used by model resources before glTF preview materials are
   applied."
-  [_node-id mesh-scene-infos renderable-mesh-set]
-  (make-scene _node-id renderable-mesh-set mesh-scene-infos))
+  [_node-id scene-data]
+  (make-scene _node-id (:aabb scene-data) (:model-scenes scene-data) (:raw-model-scenes scene-data)))
 
 (defn- finalize-claim-scene [scene _old-node-id new-node-id]
   (update scene :children coll/mapv->
@@ -797,9 +798,11 @@
     model-scene))
 
 (g/defnk produce-scene
-  "Applies glTF preview materials to both instantiated and raw model scenes."
-  [_node-id source-scene material-scene-infos]
-  (let [material-index->material-scene-info
+  "Applies glTF preview materials and groups instantiated meshes to match the outline."
+  [_node-id scene-data material-scene-infos mesh-group-outline]
+  (let [{:keys [aabb model-scenes raw-model-scenes]} scene-data
+
+        material-index->material-scene-info
         (coll/into-> material-scene-infos {}
           (filter some?)
           (coll/pair-map-by :material-index))
@@ -807,10 +810,17 @@
         apply-preview-materials
         (fn [model-scenes]
           (mapv #(apply-preview-materials-to-model-scene % _node-id material-index->material-scene-info)
-                model-scenes))]
-    (-> source-scene
-        (update :children apply-preview-materials)
-        (update :raw-model-scenes apply-preview-materials))))
+                model-scenes))
+
+        model-scenes (apply-preview-materials model-scenes)
+
+        child-scenes
+        (if-not mesh-group-outline
+          model-scenes
+          [(assoc (select-keys mesh-group-outline [:node-id :node-outline-key])
+             :aabb aabb
+             :children model-scenes)])]
+    (make-scene _node-id aabb child-scenes (apply-preview-materials raw-model-scenes))))
 
 (defn- augment-mesh-scene [mesh-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
   (let [material-name (get-in mesh-scene [:renderable :user-data :material-name])
@@ -1120,6 +1130,8 @@
     (g/make-nodes [group-node [GltfMetadataGroupNode :kind kind]]
       (g/connect group-node :_node-id model-scene-node :nodes)
       (g/connect group-node :node-outline model-scene-node :child-outlines)
+      (when (= :meshes kind)
+        (g/connect group-node :node-outline model-scene-node :mesh-group-outline))
       (coll/into-> (add-gltf-outline-labels descriptors) []
         (map (fn [descriptor]
                (let [properties (select-keys descriptor property-keys)]
@@ -1264,6 +1276,7 @@
 
   (input external-buffer-sha256s g/Str :array)
   (input material-scene-infos g/Any :array)
+  (input mesh-group-outline outline/OutlineData)
   (input mesh-scene-infos g/Any :array)
   (input project-settings g/Any)
 
@@ -1289,6 +1302,7 @@
   (output skeleton g/Any produce-skeleton)
   (output skeleton-build-target g/Any :cached produce-skeleton-build-target)
   (output renderable-mesh-set g/Any :cached produce-renderable-mesh-set)
+  (output scene-data g/Any :cached produce-scene-data)
   (output source-scene g/Any :cached produce-source-scene)
   (output scene g/Any :cached produce-scene))
 
