@@ -165,10 +165,9 @@ namespace dmGameSystem
                 continue;
             }
 
-            dmTransform::Transform world_transform = dmGameObject::GetWorldTransform(light->m_Instance);
-            dmVMath::Point3 position = dmVMath::Point3(world_transform.GetTranslation());
-            dmVMath::Quat rotation = world_transform.GetRotation();
-            dmVMath::Vector3 world_scale = world_transform.GetScale();
+            dmVMath::Point3 position = dmGameObject::GetWorldPosition(light->m_Instance);
+            dmVMath::Quat rotation = dmGameObject::GetWorldRotation(light->m_Instance);
+            dmVMath::Vector3 world_scale = dmGameObject::GetWorldScale(light->m_Instance);
             float scale_x = dmMath::Abs(world_scale.getX());
             float scale_y = dmMath::Abs(world_scale.getY());
             float scale_z = dmMath::Abs(world_scale.getZ());
