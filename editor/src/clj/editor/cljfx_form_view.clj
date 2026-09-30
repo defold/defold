@@ -1354,7 +1354,10 @@
                             ;; choice boxes also open their list.
                             (let [combo (if (instance? ComboBoxBase node) node (.lookup node ".combo-box-base"))
                                   target (or combo (.lookup node ".text-field") node)]
-                              (fxui/focus-when-on-scene! target)
+                              ;; cljfx ignores event handlers during a render, so focusing here
+                              ;; would skip the handler that opens choice boxes. fx/run-later and
+                              ;; ui/run-later keep the render's bindings, so use plain runLater.
+                              (ui/do-run-later #(fxui/focus-when-on-scene! target))
                               (when combo
                                 (fx/run-later (.show ^ComboBoxBase combo)))
                               (fx/run-later
@@ -1641,16 +1644,18 @@
                    (comp
                      (map-indexed
                        (fn [row item-field]
-                         (let [{:keys [label-view reset-button input-view]} (selected-item-field-views field selected-index item-field)]
+                         (let [{:keys [label-view reset-button input-view]} (selected-item-field-views field selected-index item-field)
+                               field-focus-request (when (= (:path item-field) (:path focus-request))
+                                                     focus-request)]
                            (cond-> [(assoc label-view :grid-pane/row row)
                                     {:fx/type focus-request-input-view
                                      :row row
-                                     :focus-request (when (= (:path item-field) (:path focus-request))
-                                                      focus-request)
+                                     :focus-request field-focus-request
                                      :state-path (conj state-path :key)
                                      :desc (cond-> input-view
                                              (= :choicebox (:type item-field))
-                                             (assoc :pref-width 240))}]
+                                             (assoc :pref-width 240
+                                                    :show-on-focus field-focus-request))}]
                              reset-button (conj (assoc reset-button :grid-pane/row row))))))
                      cat)
                    item-fields)}))]
