@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/gameobject/res_collection.h>
 #include <dlib/hashtable.h>
 #include <dlib/jobsystem.h>
 #include <dlib/message.h>
@@ -118,7 +119,7 @@ namespace dmEngine
         bool                                        m_Alive;
 
         dmGameObject::HRegister                     m_Register;
-        dmGameObject::HCollection                   m_MainCollection;
+        dmGameObject::CollectionResource*           m_MainCollectionResource;
         dmArray<dmGameObject::InputAction>          m_InputBuffer;
         dmHashTable64<void*>                        m_ResourceTypeContexts;
 
@@ -131,11 +132,7 @@ namespace dmEngine
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
-        /// If the shared context is set, the three environment specific contexts below will point to the same context
-        dmScript::HContext                          m_SharedScriptContext;
-        dmScript::HContext                          m_GOScriptContext;
-        dmScript::HContext                          m_RenderScriptContext;
-        dmScript::HContext                          m_GuiScriptContext;
+        dmScript::HContext                          m_ScriptContext;
         dmResource::HFactory                        m_Factory;
         dmGui::HContext                             m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;

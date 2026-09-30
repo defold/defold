@@ -14,7 +14,7 @@
 
 #include <string.h>
 
-#include "mdns.h"
+#include "mdns_private.h"
 
 #include "array.h"
 #include "dstrings.h"
@@ -2089,7 +2089,7 @@ namespace dmMDNS
         }
     }
 
-    static void HandleBrowserResponses(Browser* browser)
+    static void HandleBrowserResponses(Browser* browser, uint64_t now)
     {
         bool incoming_data = false;
         do
@@ -2162,7 +2162,6 @@ namespace dmMDNS
             if (offset >= size)
                 continue;
 
-            const uint64_t now = GetNow();
             const uint32_t records = (uint32_t) ancount + (uint32_t) nscount + (uint32_t) arcount;
             for (uint32_t i = 0; i < records; ++i)
             {
@@ -2173,9 +2172,8 @@ namespace dmMDNS
         } while (incoming_data);
     }
 
-    static void ExpireBrowserEntries(Browser* browser)
+    static void ExpireBrowserEntries(Browser* browser, uint64_t now)
     {
-        const uint64_t now = GetNow();
         bool hosts_changed = false;
 
         for (uint32_t i = 0; i < browser->m_Hosts.Size();)
@@ -2505,12 +2503,11 @@ namespace dmMDNS
         return RESULT_OK;
     }
 
-    void UpdateBrowser(HBrowser browser)
+    bool UpdateBrowser(HBrowser browser, uint64_t now)
     {
         if (browser == 0)
-            return;
+            return false;
 
-        const uint64_t now = GetNow();
         if (now >= browser->m_NextInterfaceRefresh)
         {
             const bool interface_changed = RefreshBrowserInterfaceAddresses(browser);
@@ -2530,12 +2527,14 @@ namespace dmMDNS
         if (next_query_due == 0 || (refresh_deadline != 0 && refresh_deadline < next_query_due))
             next_query_due = refresh_deadline;
 
+        bool query_produced = false;
         if (next_query_due == 0 || now >= next_query_due)
         {
             uint32_t query_size = BuildQueryMessage(browser, now, browser->m_Buffer, sizeof(browser->m_Buffer));
             if (query_size > 0)
             {
                 SendPacketOnInterfaces(browser->m_Socket, browser->m_Buffer, query_size, browser->m_InterfaceAddresses);
+                query_produced = true;
             }
             const uint64_t retry_at = now + browser->m_QueryInterval;
             browser->m_NextQuery = retry_at;
@@ -2549,8 +2548,14 @@ namespace dmMDNS
             }
         }
 
-        HandleBrowserResponses(browser);
-        ExpireBrowserEntries(browser);
+        HandleBrowserResponses(browser, now);
+        ExpireBrowserEntries(browser, now);
+        return query_produced;
+    }
+
+    void UpdateBrowser(HBrowser browser)
+    {
+        UpdateBrowser(browser, GetNow());
     }
 
     Result DeleteBrowser(HBrowser browser)

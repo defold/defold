@@ -38,7 +38,7 @@ public class LuaScannerTest {
         InputStream input = getClass().getResourceAsStream(file);
         ByteArrayOutputStream output = new ByteArrayOutputStream(1024);
         IOUtils.copy(input, output);
-        return new String(output.toByteArray());
+        return output.toString();
     }
 
     private void assertValidRequire(String test, String expected) {

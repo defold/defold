@@ -77,7 +77,6 @@
   (when (instance? Element node)
     (.attr ^Element node name)))
 
-
 (defn- query-params->map
   [params]
   (when (not (string/blank? params))
@@ -224,9 +223,9 @@
   (let [newline (number? (or (peek content) 0))
         ^String left-normalized-text
         (cond-> text
-                paragraph StringUtil/normaliseWhitespace    ;; \s+ => \s
-                (and newline paragraph) string/triml
-                (and newline (not paragraph)) (string/replace #"^(\s)+\n" ""))
+          paragraph StringUtil/normaliseWhitespace    ;; \s+ => \s
+          (and newline paragraph) string/triml
+          (and newline (not paragraph)) (string/replace #"^(\s)+\n" ""))
         ;; on the right, we don't add the trailing whitespace, but instead we save it
         ;; to insert later
         normalized-text (string/trimr left-normalized-text)
@@ -241,12 +240,12 @@
           (add-view (text-view normalized-text ctx))
           (assoc :whitespace-prefix (when trailing-whitespace (assoc ctx :text trailing-whitespace))))
       (cond-> acc
-              trailing-whitespace
-              (assoc :whitespace-prefix (if paragraph
-                                          (or whitespace-prefix (assoc ctx :text trailing-whitespace))
-                                          (if whitespace-prefix
-                                            (assoc ctx :text (str (:text whitespace-prefix) trailing-whitespace))
-                                            (assoc ctx :text trailing-whitespace))))))))
+        trailing-whitespace
+        (assoc :whitespace-prefix (if paragraph
+                                    (or whitespace-prefix (assoc ctx :text trailing-whitespace))
+                                    (if whitespace-prefix
+                                      (assoc ctx :text (str (:text whitespace-prefix) trailing-whitespace))
+                                      (assoc ctx :text trailing-whitespace))))))))
 
 (defn- add-separator
   "Add separator after text-flow-children vector; if there is already a
@@ -412,7 +411,7 @@
     (when (and size (> (long (:width size)) (long max-image-decode-width)))
       (double max-image-decode-width))))
 
-(defn- construct-image [src base-resource]
+(defn- construct-image [^String src base-resource]
   (when-not (coll/empty? src)
     (when-let [^URI uri (try (URI. src) (catch URISyntaxException _))]
       (if (or (.getAuthority uri) (.getScheme uri))
@@ -420,11 +419,11 @@
         (when-let [base-resource base-resource]
           (let [resource (workspace/resolve-resource base-resource (.getPath uri))]
             (when (resource/exists? resource)
-              (let [width (decode-width resource)]
-                (with-open [is (io/input-stream resource)]
-                  (if width
-                    (Image. is (double width) 0.0 #_preserve-ratio true #_smooth true)
-                    (Image. is)))))))))))
+              (let [width (decode-width resource)
+                    input-stream (io/input-stream resource)]
+                (if width
+                  (Image. input-stream (double width) 0.0 #_preserve-ratio true #_smooth true #_background-loading true)
+                  (Image. input-stream #_background-loading true))))))))))
 
 (def ^:private prop-image-width-cap
   (fx/make-binding-prop
@@ -440,7 +439,7 @@
               :key :image}]}
   [{:keys [image]}]
   (if image
-    ;; Remote images may load in the background, so natural width is 0 until ready.
+    ;; Images load in the background, so natural width is 0 until ready.
     ;; Bind the cap to the live width so a fill-width parent shrinks a too-wide
     ;; image but never upscales a smaller one.
     {:fx/type fx.h-box/lifecycle
@@ -521,13 +520,13 @@
               (-> ctx
                   (style tag)
                   (cond-> (pos? (count href))
-                          (assoc :on-mouse-clicked (fn/partial #'open-link! (:base-url ctx) (:base-resource ctx) (:project ctx) href))))))
+                    (assoc :on-mouse-clicked (fn/partial #'open-link! (:base-url ctx) (:base-resource ctx) (:project ctx) href))))))
       "kbd" (add-view acc (kbd-view node ctx))
       "img" (with-separators acc 3 1 add-view (image-view node ctx))
       "span" (let [class (attr node "class")]
                (case class
                  ("icon-alert" "icon-attention" "icon-android" "icon-html5"
-                   "icon-ios" "icon-linux" "icon-macos" "icon-osx" "icon-windows")
+                               "icon-ios" "icon-linux" "icon-macos" "icon-osx" "icon-windows")
                  (-> acc
                      (add-view (icon-view (subs class (count "icon-"))))
                      (layout-children node ctx))

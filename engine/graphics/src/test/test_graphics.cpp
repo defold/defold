@@ -18,6 +18,7 @@
 
 #include <dlib/log.h>
 #include <dlib/time.h>
+#include <ddf/ddf.h>
 #include <platform/window.hpp>
 #include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
 
@@ -28,10 +29,84 @@
 #include "test_graphics_util.h"
 
 #include "null/graphics_null_private.h"
+#include "dx12/graphics_dx12_storage_buffer.h"
 
 #define APP_TITLE "GraphicsTest"
 #define WIDTH 8u
 #define HEIGHT 4u
+
+TEST(StorageBuffer, LegacyDescriptorFields)
+{
+    // Legacy wire tags: block_size=11 and sampler_texture_index=12. Keep
+    // literal bytes so regenerating current protobuf code cannot hide a break.
+    const uint8_t block[] = {0x0a, 1, 'b', 0x10, 1, 0x1a, 0, 0x58, 0x80, 1};
+    const uint8_t sampler[] = {0x0a, 1, 's', 0x10, 2, 0x1a, 0, 0x60, 7};
+    dmGraphics::ShaderDesc::ResourceBinding* resource = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(block, sizeof(block), &resource));
+    ASSERT_EQ(128u, resource->m_Bindinginfo.m_BlockSize);
+    ASSERT_EQ(0u, resource->m_ResourceAccessFlags);
+    dmGraphics::ShaderDesc::ShaderReflection reflection = {};
+    reflection.m_StorageBuffers.m_Data = resource;
+    reflection.m_StorageBuffers.m_Count = 1;
+    dmGraphics::Program program = {};
+    dmGraphics::CreateShaderMeta(&reflection, &program);
+    ASSERT_TRUE(program.m_WritesStorageBuffers); // Missing metadata is conservative.
+    dmGraphics::DestroyShaderMeta(program.m_ShaderMeta);
+    dmDDF::FreeMessage(resource);
+    resource = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(sampler, sizeof(sampler), &resource));
+    ASSERT_EQ(7u, resource->m_Bindinginfo.m_SamplerTextureIndex);
+    ASSERT_EQ(0u, resource->m_ResourceAccessFlags);
+    dmDDF::FreeMessage(resource);
+}
+
+TEST(StorageBuffer, FlatBindingsAcrossSetsAndStages)
+{
+    dmArray<dmGraphics::ShaderResourceBinding> resources;
+    resources.SetCapacity(5);
+    resources.SetSize(5);
+    memset(resources.Begin(), 0, sizeof(resources[0]) * resources.Size());
+    resources[0].m_Set = 2; resources[0].m_Binding = 7;
+    resources[1].m_Set = 1; resources[1].m_Binding = 0;
+    resources[2].m_Set = 0; resources[2].m_Binding = 0;
+    resources[3].m_Set = 2; resources[3].m_Binding = 7; // Shared between stages.
+    resources[4].m_Set = 0; resources[4].m_Binding = 9;
+    const uint32_t expected[] = {3, 2, 0, 3, 1};
+    for (uint32_t i = 0; i < resources.Size(); ++i)
+        ASSERT_EQ(expected[i], dmGraphics::GetStorageBufferBindingIndex(resources, i));
+}
+
+TEST(StorageBuffer, DX12MixedAccessAliases)
+{
+    using namespace dmGraphics;
+    int buffer_a, buffer_b;
+    uint32_t first = 99, second = 99;
+    ASSERT_FALSE(FindDX12StorageBufferAliasConflict(0, 0, first, second));
+    const uint8_t flags[] = {SHADER_RESOURCE_ACCESS_NONE, SHADER_RESOURCE_ACCESS_READ,
+                            SHADER_RESOURCE_ACCESS_WRITE, SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE};
+    for (uint32_t a = 0; a < DM_ARRAY_SIZE(flags); ++a)
+    {
+        for (uint32_t b = 0; b < DM_ARRAY_SIZE(flags); ++b)
+        {
+            DX12StorageBufferAccess accesses[] = {
+                {&buffer_a, flags[a], 0, 3}, {&buffer_b, flags[b], 1, 3}, {&buffer_a, flags[b], 2, 7}
+            };
+            // Distinct buffers are valid for every combination of access flags.
+            ASSERT_FALSE(FindDX12StorageBufferAliasConflict(accesses, 2, first, second));
+            // Read/read and UAV/UAV aliases are legal; SRV/UAV aliases are not.
+            // Both binding orders and absent access metadata are included.
+            const bool conflict = (flags[a] == SHADER_RESOURCE_ACCESS_READ) != (flags[b] == SHADER_RESOURCE_ACCESS_READ);
+            ASSERT_EQ(conflict, FindDX12StorageBufferAliasConflict(accesses, 3, first, second));
+            if (conflict)
+            {
+                ASSERT_EQ(0u, first);
+                ASSERT_EQ(2u, second);
+            }
+            accesses[2].m_Resource = 0;
+            ASSERT_FALSE(FindDX12StorageBufferAliasConflict(accesses, 3, first, second));
+        }
+    }
+}
 
 #define ASSERT_VECF(exp, act, num_values) \
     for (int i = 0; i < num_values; ++i) \
@@ -604,6 +679,50 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
     }
 
     dmGraphics::DeleteProgram(m_Context, program);
+}
+
+TEST_F(dmGraphicsTest, TestStorageBuffers)
+{
+    ASSERT_TRUE(dmGraphics::IsContextFeatureSupported(m_Context, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER));
+
+    dmGraphics::GraphicsContextLimits limits = {};
+    dmGraphics::GetGraphicsContextLimits(m_Context, limits);
+    ASSERT_GT(limits.m_MaxStorageBufferRange, 0u);
+    ASSERT_GT(limits.m_MaxStorageBuffersPerStage, 0u);
+    ASSERT_EQ((dmGraphics::HStorageBuffer) 0, dmGraphics::NewStorageBuffer(
+        m_Context, 3, 0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW));
+
+    uint32_t initial_data[] = { 1, 2, 3, 4 };
+    dmGraphics::HStorageBuffer storage_buffer = dmGraphics::NewStorageBuffer(
+        m_Context, sizeof(initial_data), initial_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    ASSERT_NE((dmGraphics::HStorageBuffer) 0, storage_buffer);
+    ASSERT_EQ(sizeof(initial_data), dmGraphics::GetStorageBufferSize(m_Context, storage_buffer));
+
+    dmGraphics::NullStorageBuffer* null_buffer = (dmGraphics::NullStorageBuffer*) storage_buffer;
+    ASSERT_EQ(0, memcmp(initial_data, null_buffer->m_Buffer, sizeof(initial_data)));
+
+    uint32_t replacement = 42;
+    dmGraphics::SetStorageBufferSubData(m_Context, storage_buffer, sizeof(uint32_t), sizeof(replacement), &replacement);
+    ASSERT_EQ(replacement, ((uint32_t*) null_buffer->m_Buffer)[1]);
+
+    const uint32_t unchanged = ((uint32_t*) null_buffer->m_Buffer)[3];
+    dmGraphics::SetStorageBufferSubData(m_Context, storage_buffer, sizeof(initial_data), sizeof(replacement), &replacement);
+    ASSERT_EQ(unchanged, ((uint32_t*) null_buffer->m_Buffer)[3]);
+
+    dmGraphics::SetStorageBufferData(m_Context, storage_buffer, 3, initial_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    ASSERT_EQ(sizeof(initial_data), dmGraphics::GetStorageBufferSize(m_Context, storage_buffer));
+
+    uint32_t resized_data[] = { 5, 6, 7, 8, 9, 10 };
+    dmGraphics::SetStorageBufferData(m_Context, storage_buffer, sizeof(resized_data), resized_data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_EQ(sizeof(resized_data), dmGraphics::GetStorageBufferSize(m_Context, storage_buffer));
+    ASSERT_EQ(0, memcmp(resized_data, null_buffer->m_Buffer, sizeof(resized_data)));
+
+    dmGraphics::EnableStorageBuffer(m_Context, storage_buffer, 1, 2);
+    ASSERT_EQ(null_buffer, m_NullContext->m_StorageBuffers[1][2]);
+    dmGraphics::DisableStorageBuffer(m_Context, storage_buffer);
+    ASSERT_EQ((dmGraphics::NullStorageBuffer*) 0, m_NullContext->m_StorageBuffers[1][2]);
+
+    dmGraphics::DeleteStorageBuffer(m_Context, storage_buffer);
 }
 
 TEST_F(dmGraphicsTest, TestUniformBufferLayoutCompatibility)
@@ -2021,7 +2140,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
     ASSERT_EQ(4u, dmGraphics::GetRenderTargetSampleCount(m_Context, target));
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
     uint32_t width = WIDTH;
@@ -2054,7 +2173,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     ASSERT_EQ(0, memcmp(data, m_NullContext->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 
     // Test multiple color attachments
@@ -2066,7 +2185,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
             dmGraphics::BUFFER_TYPE_COLOR2_BIT;
 
     target = dmGraphics::NewRenderTarget(m_Context, flags, params);
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 1, 1, 1, 1, 1.0f, 1);
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR1_BIT, 2, 2, 2, 2, 1.0f, 1);
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR2_BIT, 3, 3, 3, 3, 1.0f, 1);
@@ -2096,8 +2215,60 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     delete [] data_color1;
     delete [] data_color2;
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
+}
+
+TEST_F(dmGraphicsTest, TestCubeMapRenderTarget)
+{
+    dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, WIDTH);
+    params.m_TextureType = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+    params.m_SampleCount = 4;
+    params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+    ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP, dmGraphics::GetRenderTargetTextureType(m_Context, target));
+    ASSERT_EQ(1u, dmGraphics::GetRenderTargetSampleCount(m_Context, target));
+
+    for (uint32_t face = 0; face < dmGraphics::CUBEMAP_FACE_COUNT; ++face)
+    {
+        dmGraphics::RenderTargetBindingParams binding_params = {};
+        binding_params.m_CubeMapFace = (dmGraphics::CubeMapFace) face;
+        dmGraphics::SetRenderTarget(m_Context, target, binding_params);
+        dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, face + 1, face + 1, face + 1, face + 1, 1.0f, 0);
+    }
+
+    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    uint8_t* texture_data = 0;
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, dmGraphics::GetTextureHandle(texture, (void**) &texture_data));
+    const uint32_t face_data_size = m_NullContext->m_CurrentFrameBuffer->m_ColorBufferSize[0];
+    for (uint32_t face = 0; face < dmGraphics::CUBEMAP_FACE_COUNT; ++face)
+    {
+        for (uint32_t byte = 0; byte < face_data_size; ++byte)
+        {
+            ASSERT_EQ(face + 1, texture_data[face * face_data_size + byte]);
+        }
+    }
+
+    const uint32_t non_power_of_two_size = 13;
+    dmGraphics::SetRenderTargetSize(m_Context, target, non_power_of_two_size, non_power_of_two_size);
+    uint32_t target_width, target_height;
+    dmGraphics::GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    ASSERT_EQ(non_power_of_two_size, target_width);
+    ASSERT_EQ(non_power_of_two_size, target_height);
+
+    dmGraphics::SetRenderTargetSize(m_Context, target, non_power_of_two_size, non_power_of_two_size + 1);
+    dmGraphics::GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    ASSERT_EQ(non_power_of_two_size, target_width);
+    ASSERT_EQ(non_power_of_two_size, target_height);
+
+    dmGraphics::SetRenderTarget(m_Context, 0, dmGraphics::RenderTargetBindingParams());
+    dmGraphics::DeleteRenderTarget(m_Context, target);
+
+    params.m_ColorBufferParams[0].m_Height = WIDTH + 1;
+    ASSERT_EQ((dmGraphics::HRenderTarget) 0,
+        dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params));
 }
 
 TEST_F(dmGraphicsTest, TestGetRTAttachment)
@@ -2110,7 +2281,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
     dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_DEPTH);
@@ -2136,7 +2307,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     ASSERT_EQ(0, memcmp(data, texture_data, data_size));
     delete [] data;
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
@@ -2150,7 +2321,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
 
     float depth_value = 0.5f;
     uint32_t stencil_value = 127;
@@ -2184,7 +2355,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
         }
     }
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 

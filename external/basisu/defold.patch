@@ -1,0 +1,545 @@
+--- a/transcoder/basisu_astc_helpers.h
++++ b/transcoder/basisu_astc_helpers.h
+@@ -6,7 +6,6 @@
+ #include <stdlib.h>
+ #include <stdint.h>
+ #include <math.h>
+-#include <fenv.h>
+ 
+ namespace astc_helpers
+ {
+--- a/transcoder/basisu_transcoder.cpp
++++ b/transcoder/basisu_transcoder.cpp
+@@ -20,7 +20,9 @@
+ 
+ #define BASISU_ASTC_HELPERS_IMPLEMENTATION
+ #include "basisu_astc_helpers.h"
++#if BASISD_SUPPORT_XUASTC
+ #include "basisu_xbc7_decoder.h"
++#endif
+ 
+ #include <limits.h>
+ 
+@@ -178,7 +180,7 @@
+ 	#include "../zstd/zstd.h"
+ #endif
+ 
+-#if BASISD_SUPPORT_UASTC_HDR
++#if BASISD_SUPPORT_UASTC_HDR || BASISD_SUPPORT_XUASTC
+ using namespace basist::astc_6x6_hdr;
+ #endif
+ 
+@@ -249,6 +251,7 @@
+ #endif
+ 	}
+ 	
++#if BASISD_SUPPORT_XUASTC
+ 	// Used by arith encoder/decoder
+ 	namespace arith_fastbits_f32
+ 	{
+@@ -256,6 +259,7 @@
+ 		float g_lut_edge[TABLE_SIZE + 1]; // samples at m = 1 + i/TABLE_SIZE (for linear)
+ 
+ 	} // namespace arith_fastbits_f32
++#endif
+ 
+ 	inline uint16_t byteswap_uint16(uint16_t v)
+ 	{
+@@ -2085,10 +2089,16 @@
+ 	void uastc_init();
+ #endif
+ 
+-#if BASISD_SUPPORT_UASTC_HDR	
++#if BASISD_SUPPORT_UASTC_HDR || BASISD_SUPPORT_XUASTC
+ 	namespace astc_6x6_hdr
+ 	{
+ 		static void init_quantize_tables();
++	}
++#endif
++
++#if BASISD_SUPPORT_UASTC_HDR
++	namespace astc_6x6_hdr
++	{
+ 		static void fast_encode_bc6h_init();
+ 	}
+ #endif
+@@ -2123,11 +2133,13 @@
+ 		uastc_init();
+ #endif
+ 
+-#if BASISD_SUPPORT_UASTC_HDR
++#if BASISD_SUPPORT_UASTC_HDR || BASISD_SUPPORT_XUASTC
+ 		// TODO: Examine this, optimize for startup time/mem utilization.
+ 		// XUASTC LDR decompressors need the rank tables
+ 		astc_helpers::init_tables();
+-
++#endif
++
++#if BASISD_SUPPORT_UASTC_HDR
+ 		astc_hdr_core_init();
+ #endif
+ 
+@@ -2239,9 +2251,12 @@
+ 		transcoder_init_pvrtc2();
+ #endif
+ 
++#if BASISD_SUPPORT_UASTC_HDR || BASISD_SUPPORT_XUASTC
++		astc_6x6_hdr::init_quantize_tables();
++#endif
++
+ #if BASISD_SUPPORT_UASTC_HDR
+ 		bc6h_enc_init();
+-		astc_6x6_hdr::init_quantize_tables();
+ 		fast_encode_bc6h_init();
+ #endif
+ 		
+@@ -21247,6 +21262,200 @@
+ 
+ 	//-------------------------------
+ 
++#if BASISD_SUPPORT_UASTC_HDR || BASISD_SUPPORT_XUASTC
++	namespace astc_6x6_hdr
++	{
++		const reuse_xy_delta g_reuse_xy_deltas[NUM_REUSE_XY_DELTAS] =
++		{
++			{ -1, 0 }, { -2, 0 }, { -3, 0 }, { -4, 0 },
++			{ 3, -1 }, { 2, -1 }, { 1, -1 }, { 0, -1 }, { -1, -1 }, { -2, -1 }, { -3, -1 }, { -4, -1 },
++			{ 3, -2 }, { 2, -2 }, { 1, -2 }, { 0, -2 }, { -1, -2 }, { -2, -2 }, { -3, -2 }, { -4, -2 },
++			{ 3, -3 }, { 2, -3 }, { 1, -3 }, { 0, -3 }, { -1, -3 }, { -2, -3 }, { -3, -3 }, { -4, -3 },
++			{ 3, -4 }, { 2, -4 }, { 1, -4 }, { 0, -4 }
++		};
++
++		// Valid for weight ISE ranges 6-192 or 8-192 levels. Preserves upper 2 or 3 bits post-quantization.
++		uint8_t g_quantize_tables_preserve2[21 - 1][256]; // astc_helpers::TOTAL_ISE_RANGES=21, valid for >= BISE_6_LEVELS
++		uint8_t g_quantize_tables_preserve3[21 - 1][256]; // valid for >= BISE_8_LEVELS
++
++		static void init_quantize_tables()
++		{
++			// 9/15/2025 changed lower range for LDR
++			// for (uint32_t ise_range = astc_helpers::BISE_192_LEVELS; ise_range >= astc_helpers::BISE_12_LEVELS; ise_range--)
++			for (uint32_t ise_range = astc_helpers::BISE_192_LEVELS; ise_range >= astc_helpers::BISE_6_LEVELS; ise_range--)
++			{
++				const uint32_t num_levels = astc_helpers::get_ise_levels(ise_range);
++				const auto& ise_to_val_tab = astc_helpers::g_dequant_tables.get_endpoint_tab(ise_range).m_ISE_to_val;
++
++				for (uint32_t desired_val = 0; desired_val < 256; desired_val++)
++				{
++					{
++						uint32_t best_err = UINT32_MAX;
++						int best_ise_val = -1;
++
++						for (uint32_t ise_val = 0; ise_val < num_levels; ise_val++)
++						{
++							const uint32_t quant_val = ise_to_val_tab[ise_val];
++
++							if ((quant_val & 0b11000000) != (desired_val & 0b11000000))
++								continue;
++
++							uint32_t err = basisu::squarei((int)quant_val - (int)desired_val);
++							if (err < best_err)
++							{
++								best_err = err;
++								best_ise_val = ise_val;
++							}
++
++						} // ise_val
++
++						assert(best_ise_val != -1);
++
++						g_quantize_tables_preserve2[ise_range][desired_val] = (uint8_t)best_ise_val;
++					}
++
++					if (ise_range >= astc_helpers::BISE_8_LEVELS)
++					{
++						uint32_t best_err = UINT32_MAX;
++						int best_ise_val = -1;
++
++						for (uint32_t ise_val = 0; ise_val < num_levels; ise_val++)
++						{
++							const uint32_t quant_val = ise_to_val_tab[ise_val];
++
++							if ((quant_val & 0b11100000) != (desired_val & 0b11100000))
++								continue;
++
++							uint32_t err = basisu::squarei((int)quant_val - (int)desired_val);
++							if (err < best_err)
++							{
++								best_err = err;
++								best_ise_val = ise_val;
++							}
++
++						} // ise_val
++
++						assert(best_ise_val != -1);
++
++						g_quantize_tables_preserve3[ise_range][desired_val] = (uint8_t)best_ise_val;
++					}
++
++				} // desired_val
++
++#if 0
++				for (uint32_t i = 0; i < 256; i++)
++				{
++					if (g_quantize_tables_preserve2[ise_range][i] != astc_helpers::g_dequant_tables.get_endpoint_tab(ise_range).m_val_to_ise[i])
++					{
++						fmt_printf("P2, Range: {}, {} vs. {}\n", ise_range, g_quantize_tables_preserve2[ise_range][i], astc_helpers::g_dequant_tables.get_endpoint_tab(ise_range).m_val_to_ise[i]);
++					}
++
++					if (g_quantize_tables_preserve3[ise_range][i] != astc_helpers::g_dequant_tables.get_endpoint_tab(ise_range).m_val_to_ise[i])
++					{
++						fmt_printf("P3, Range: {}, {} vs. {}\n", ise_range, g_quantize_tables_preserve3[ise_range][i], astc_helpers::g_dequant_tables.get_endpoint_tab(ise_range).m_val_to_ise[i]);
++					}
++				}
++#endif
++
++			} // ise_range
++		}
++
++		bool decode_values(basist::bitwise_decoder& decoder, uint32_t total_values, uint32_t ise_range, uint8_t* pValues)
++		{
++			assert(ise_range <= astc_helpers::BISE_256_LEVELS);
++
++			const uint32_t ep_bits = astc_helpers::g_ise_range_table[ise_range][0];
++			const uint32_t ep_trits = astc_helpers::g_ise_range_table[ise_range][1];
++			const uint32_t ep_quints = astc_helpers::g_ise_range_table[ise_range][2];
++
++			uint32_t total_tqs = 0;
++			uint32_t bundle_size = 0, mul = 0;
++			if (ep_trits)
++			{
++				total_tqs = (total_values + 4) / 5;
++				bundle_size = 5;
++				mul = 3;
++			}
++			else if (ep_quints)
++			{
++				total_tqs = (total_values + 2) / 3;
++				bundle_size = 3;
++				mul = 5;
++			}
++
++			const uint32_t MAX_TQ_VALUES = 32;
++			assert(total_tqs <= MAX_TQ_VALUES);
++			uint32_t tq_values[MAX_TQ_VALUES];
++
++			for (uint32_t i = 0; i < total_tqs; i++)
++			{
++				uint32_t num_bits = ep_trits ? 8 : 7;
++
++				if (i == (total_tqs - 1))
++				{
++					uint32_t num_remaining = total_values - (total_tqs - 1) * bundle_size;
++					if (ep_trits)
++					{
++						switch (num_remaining)
++						{
++						case 1: num_bits = 2; break;
++						case 2: num_bits = 4; break;
++						case 3: num_bits = 5; break;
++						case 4: num_bits = 7; break;
++						default: break;
++						}
++					}
++					else if (ep_quints)
++					{
++						switch (num_remaining)
++						{
++						case 1: num_bits = 3; break;
++						case 2: num_bits = 5; break;
++						default: break;
++						}
++					}
++				}
++
++				tq_values[i] = (uint32_t)decoder.get_bits(num_bits);
++			} // i
++
++			uint32_t accum = 0;
++			uint32_t accum_remaining = 0;
++			uint32_t next_tq_index = 0;
++
++			for (uint32_t i = 0; i < total_values; i++)
++			{
++				uint32_t value = (uint32_t)decoder.get_bits(ep_bits);
++
++				if (total_tqs)
++				{
++					if (!accum_remaining)
++					{
++						assert(next_tq_index < total_tqs);
++						accum = tq_values[next_tq_index++];
++						accum_remaining = bundle_size;
++					}
++
++					uint32_t v = accum % mul;
++					accum /= mul;
++					accum_remaining--;
++
++					value |= (v << ep_bits);
++				}
++
++				pValues[i] = (uint8_t)value;
++			}
++
++			return true;
++		}
++
++		static BASISU_FORCE_INLINE int fast_roundf_int(float x)
++		{
++			return (x >= 0.0f) ? (int)(x + 0.5f) : (int)(x - 0.5f);
++		}
++	}
++#endif
++
+ #if BASISD_SUPPORT_UASTC_HDR
+ 	// This float->half conversion matches how "F32TO16" works on Intel GPU's.
+ 	basist::half_float float_to_half(float val)
+@@ -22910,14 +23119,6 @@
+ 			{ false, 7, 3, 4, 5, astc_helpers::BISE_40_LEVELS, astc_helpers::BISE_3_LEVELS,   astc_helpers::BISE_40_LEVELS,  astc_helpers::BISE_3_LEVELS, 0, 0 },
+ 		};
+ 						
+-		const reuse_xy_delta g_reuse_xy_deltas[NUM_REUSE_XY_DELTAS] =
+-		{
+-			{ -1, 0 }, { -2, 0 }, { -3, 0 }, { -4, 0 },
+-			{ 3, -1 }, { 2, -1 }, { 1, -1 }, { 0, -1 }, { -1, -1 }, { -2, -1 }, { -3, -1 }, { -4, -1 },
+-			{ 3, -2 }, { 2, -2 }, { 1, -2 }, { 0, -2 }, { -1, -2 }, { -2, -2 }, { -3, -2 }, { -4, -2 },
+-			{ 3, -3 }, { 2, -3 }, { 1, -3 }, { 0, -3 }, { -1, -3 }, { -2, -3 }, { -3, -3 }, { -4, -3 },
+-			{ 3, -4 }, { 2, -4 }, { 1, -4 }, { 0, -4 }
+-		};
+ 
+ 		//--------------------------------------------------------------------------------------------------------------------------
+ 
+@@ -22956,9 +23157,6 @@
+ 			dst |= (bit << dst_bit);
+ 		}
+ 				
+-		// Valid for weight ISE ranges 6-192 or 8-192 levels. Preserves upper 2 or 3 bits post-quantization.
+-		uint8_t g_quantize_tables_preserve2[21 - 1][256]; // astc_helpers::TOTAL_ISE_RANGES=21, valid for >= BISE_6_LEVELS
+-		uint8_t g_quantize_tables_preserve3[21 - 1][256]; // valid for >= BISE_8_LEVELS
+ 
+ 		const uint32_t g_part2_unique_index_to_seed[NUM_UNIQUE_PARTITIONS2] =
+ 		{
+@@ -23004,87 +23202,6 @@
+ 			1007, 1010, 1011, 1012, 1015, 1020, 1023
+ 		};
+ 
+-		static void init_quantize_tables()
+-		{
+-			// 9/15/2025 changed lower range for LDR
+-			// for (uint32_t ise_range = astc_helpers::BISE_192_LEVELS; ise_range >= astc_helpers::BISE_12_LEVELS; ise_range--)
+-			for (uint32_t ise_range = astc_helpers::BISE_192_LEVELS; ise_range >= astc_helpers::BISE_6_LEVELS; ise_range--)
+-			{
+-				const uint32_t num_levels = astc_helpers::get_ise_levels(ise_range);
+-				const auto& ise_to_val_tab = astc_helpers::g_dequant_tables.get_endpoint_tab(ise_range).m_ISE_to_val;
+-
+-				for (uint32_t desired_val = 0; desired_val < 256; desired_val++)
+-				{
+-					{
+-						uint32_t best_err = UINT32_MAX;
+-						int best_ise_val = -1;
+-
+-						for (uint32_t ise_val = 0; ise_val < num_levels; ise_val++)
+-						{
+-							const uint32_t quant_val = ise_to_val_tab[ise_val];
+-
+-							if ((quant_val & 0b11000000) != (desired_val & 0b11000000))
+-								continue;
+-
+-							uint32_t err = basisu::squarei((int)quant_val - (int)desired_val);
+-							if (err < best_err)
+-							{
+-								best_err = err;
+-								best_ise_val = ise_val;
+-							}
+-
+-						} // ise_val
+-
+-						assert(best_ise_val != -1);
+-
+-						g_quantize_tables_preserve2[ise_range][desired_val] = (uint8_t)best_ise_val;
+-					}
+-
+-					if (ise_range >= astc_helpers::BISE_8_LEVELS)
+-					{
+-						uint32_t best_err = UINT32_MAX;
+-						int best_ise_val = -1;
+-
+-						for (uint32_t ise_val = 0; ise_val < num_levels; ise_val++)
+-						{
+-							const uint32_t quant_val = ise_to_val_tab[ise_val];
+-
+-							if ((quant_val & 0b11100000) != (desired_val & 0b11100000))
+-								continue;
+-
+-							uint32_t err = basisu::squarei((int)quant_val - (int)desired_val);
+-							if (err < best_err)
+-							{
+-								best_err = err;
+-								best_ise_val = ise_val;
+-							}
+-
+-						} // ise_val
+-
+-						assert(best_ise_val != -1);
+-
+-						g_quantize_tables_preserve3[ise_range][desired_val] = (uint8_t)best_ise_val;
+-					}
+-
+-				} // desired_val
+-
+-#if 0
+-				for (uint32_t i = 0; i < 256; i++)
+-				{
+-					if (g_quantize_tables_preserve2[ise_range][i] != astc_helpers::g_dequant_tables.get_endpoint_tab(ise_range).m_val_to_ise[i])
+-					{
+-						fmt_printf("P2, Range: {}, {} vs. {}\n", ise_range, g_quantize_tables_preserve2[ise_range][i], astc_helpers::g_dequant_tables.get_endpoint_tab(ise_range).m_val_to_ise[i]);
+-					}
+-
+-					if (g_quantize_tables_preserve3[ise_range][i] != astc_helpers::g_dequant_tables.get_endpoint_tab(ise_range).m_val_to_ise[i])
+-					{
+-						fmt_printf("P3, Range: {}, {} vs. {}\n", ise_range, g_quantize_tables_preserve3[ise_range][i], astc_helpers::g_dequant_tables.get_endpoint_tab(ise_range).m_val_to_ise[i]);
+-					}
+-				}
+-#endif
+-
+-			} // ise_range
+-		}
+ 
+ 		void requantize_ise_endpoints(uint32_t cem, uint32_t src_ise_endpoint_range, const uint8_t* pSrc_endpoints, uint32_t dst_ise_endpoint_range, uint8_t* pDst_endpoints)
+ 		{
+@@ -23284,94 +23401,6 @@
+ 			return cur_row_index;
+ 		}
+ 
+-		bool decode_values(basist::bitwise_decoder& decoder, uint32_t total_values, uint32_t ise_range, uint8_t* pValues)
+-		{
+-			assert(ise_range <= astc_helpers::BISE_256_LEVELS);
+-
+-			const uint32_t ep_bits = astc_helpers::g_ise_range_table[ise_range][0];
+-			const uint32_t ep_trits = astc_helpers::g_ise_range_table[ise_range][1];
+-			const uint32_t ep_quints = astc_helpers::g_ise_range_table[ise_range][2];
+-
+-			uint32_t total_tqs = 0;
+-			uint32_t bundle_size = 0, mul = 0;
+-			if (ep_trits)
+-			{
+-				total_tqs = (total_values + 4) / 5;
+-				bundle_size = 5;
+-				mul = 3;
+-			}
+-			else if (ep_quints)
+-			{
+-				total_tqs = (total_values + 2) / 3;
+-				bundle_size = 3;
+-				mul = 5;
+-			}
+-
+-			const uint32_t MAX_TQ_VALUES = 32;
+-			assert(total_tqs <= MAX_TQ_VALUES);
+-			uint32_t tq_values[MAX_TQ_VALUES];
+-
+-			for (uint32_t i = 0; i < total_tqs; i++)
+-			{
+-				uint32_t num_bits = ep_trits ? 8 : 7;
+-
+-				if (i == (total_tqs - 1))
+-				{
+-					uint32_t num_remaining = total_values - (total_tqs - 1) * bundle_size;
+-					if (ep_trits)
+-					{
+-						switch (num_remaining)
+-						{
+-						case 1: num_bits = 2; break;
+-						case 2: num_bits = 4; break;
+-						case 3: num_bits = 5; break;
+-						case 4: num_bits = 7; break;
+-						default: break;
+-						}
+-					}
+-					else if (ep_quints)
+-					{
+-						switch (num_remaining)
+-						{
+-						case 1: num_bits = 3; break;
+-						case 2: num_bits = 5; break;
+-						default: break;
+-						}
+-					}
+-				}
+-
+-				tq_values[i] = (uint32_t)decoder.get_bits(num_bits);
+-			} // i
+-
+-			uint32_t accum = 0;
+-			uint32_t accum_remaining = 0;
+-			uint32_t next_tq_index = 0;
+-
+-			for (uint32_t i = 0; i < total_values; i++)
+-			{
+-				uint32_t value = (uint32_t)decoder.get_bits(ep_bits);
+-
+-				if (total_tqs)
+-				{
+-					if (!accum_remaining)
+-					{
+-						assert(next_tq_index < total_tqs);
+-						accum = tq_values[next_tq_index++];
+-						accum_remaining = bundle_size;
+-					}
+-
+-					uint32_t v = accum % mul;
+-					accum /= mul;
+-					accum_remaining--;
+-
+-					value |= (v << ep_bits);
+-				}
+-
+-				pValues[i] = (uint8_t)value;
+-			}
+-
+-			return true;
+-		}
+ 
+ 		static inline uint32_t get_num_endpoint_vals(uint32_t cem)
+ 		{
+@@ -23974,11 +24003,7 @@
+ #endif
+ 		}
+ 
+-		static BASISU_FORCE_INLINE int fast_roundf_int(float x)
+-		{
+-			return (x >= 0.0f) ? (int)(x + 0.5f) : (int)(x - 0.5f);
+-		}
+-												
++
+ 		static void fast_encode_bc6h_2subsets_pattern(
+ 			uint32_t best_pat_index, uint32_t best_pat_bits,
+ 			const basist::half_float* pPixels, const vec3F* pFloat_pixels, const float* pPixel_scales,
+@@ -42948,8 +42973,6 @@
+ 		xuastc_fixup_pvrtc1_4_modulation_rgb(temp_image, pvrtc1_endpoints.get_ptr(), pDst_blocks, dst_num_blocks_x, dst_num_blocks_y, from_alpha);
+ }
+ 
+-#endif // BASISD_SUPPORT_XUASTC
+-
+ static inline bool blocks_same_solid_colors(const astc_helpers::log_astc_block& a, const astc_helpers::log_astc_block& b, uint32_t tol)
+ {
+ 	if ((!a.m_solid_color_flag_ldr) || (!b.m_solid_color_flag_ldr))
+@@ -43069,6 +43092,8 @@
+ 		memcpy(pDst_weights, dequantized_weights, block_width * block_height);
+ 	}
+ }
++
++#endif // BASISD_SUPPORT_XUASTC
+ 
+ bool basisu_lowlevel_xuastc_ldr_transcoder::transcode_slice(
+ 	basis_tex_format src_format, bool use_astc_srgb_decode_profile,
+@@ -45956,7 +45981,9 @@
+ } // namespace basist
+ 
+ // XUBC7/XBC7 decoder source code
++#if BASISD_SUPPORT_XUASTC
+ #include "basisu_xbc7_decoder.inl"
++#endif
+ 
+ // Plain BC1/3/4/5 block unpackers (basist::bcu) and the DDS reader/transcoder (basist::dds_transcoder).
+ #include "basisu_dds_transcoder.inl"

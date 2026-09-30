@@ -4,7 +4,7 @@
 
 The Defold editor runs on the Java Virtual Machine. We bundle our own JVM with the editor and use a simple launcher executable to boot the JVM with a particular set of command-line arguments. The entry point is in `editor/src/java/com/defold/editor/Main.java`, which starts up a JavaFx `Application` subclass. A splash screen is displayed while a custom `ClassLoader` loads all the classes required to show the Welcome dialog. While it is shown, the custom `ClassLoader` keeps loading the classes required by the editor on all available background threads while the user ponders which project to open. Once that happens we await loading of all the remaining classes, then proceed to loading the project from disk.
 
-We load the entire set of editable project data into memory, but non-editable resources such as images can be loaded on demand. From this, we create the project graph, which represents the complete state of all editable resources in the project.
+We load the entire set of editable project data into memory, but non-editable resources such as images can be loaded on demand. From this, we populate the editor graph with nodes that represent the complete state of all editable resources in the project.
 
 ## Graphs, nodes and connections
 
@@ -22,19 +22,19 @@ The graph is modified by executing transactions using the `g/transact` function.
 
 The editor has a global undo stack, which means that it keeps an ordered list of undo steps that we append to every time an undoable transaction with significant changes is performed. A `g/transact` call is undoable by default, but you can supply `{:undoable false}` as `opts` to make non-undoable changes. You can also include non-undoable changes in an undoable transaction by wrapping a (possibly nested) sequence of `transaction-steps` in `g/non-undoable`. Subsequent undoable transactions will be coalesced into the previous undo step if they specify the same `g/operation-sequence` value.
 
-## Multiple graphs
+## One graph
 
-There might be several graphs in play at any one time. Typically, all the project data (i.e. "model" data) resides in one graph, whereas any number of views (as in user-interface elements) can have their own graphs whose node inputs are connected to the project graph. Closing a view discards the view graph but leaves the project graph intact.
+The editor maintains a single graph containing project data, workspace state, and view nodes. Connections can freely link these areas. Closing a view deletes its view nodes while leaving the project and workspace nodes intact.
 
 ## The workspace
 
-Alongside the project graph, there is also the workspace graph. The workspace is associated with the project directory on disk, and keeps track of files in the project. It does not host any of the editable state derived from those files - that is all in the project graph - rather, it keeps track of changes to the file system and is responsible for notifying the project graph of external modifications to the project files, etc. It also acts as a registry of the various `resource-types` (effectively based on file extensions) and the recipes for loading each type of resource into the project graph.
+The workspace is represented by nodes in the graph alongside the project model. It is associated with the project directory on disk and keeps track of files in the project. It does not host editable state derived from those files; that belongs to project resource nodes. Instead, it keeps track of file-system changes and is responsible for notifying the project model about external modifications to project files. It also acts as a registry of the various `resource-types` (effectively based on file extensions) and the recipes for loading each type of resource into the graph.
 
 ## Resource sync
 
-Whenever an operation may have modified the files in the project folder, we trigger what is known as a `resource-sync`. During a `resource-sync`, the workspace figures out what has happened and updates the project graph to reflect the updated state. Files may have been added or deleted, moved to new locations, or changed their contents entirely. In response to this we might re-create parts of the project graph related to the modified resources from scratch.
+Whenever an operation may have modified the files in the project folder, we trigger what is known as a `resource-sync`. During a `resource-sync`, the workspace figures out what has happened and updates the project model in the graph to reflect the new state. Files may have been added or deleted, moved to new locations, or changed their contents entirely. In response to this we might re-create parts of the graph related to the modified resources from scratch.
 
-Every file in the project has a corresponding `ResourceNode` in the project graph. We create new `ResourceNodes` in the project graph for all new or modified `Resources`, based on the `:node-type` associated with the `resource-type` registered for the file extension. We then use the `:read-fn` associated with the `resource-type` to read the contents of the `Resource` into its `save-value` representation.
+Every file in the project has a corresponding `ResourceNode` in the graph. We create new `ResourceNodes` for all new or modified `Resources`, based on the `:node-type` associated with the `resource-type` registered for the file extension. We then use the `:read-fn` associated with the `resource-type` to read the contents of the `Resource` into its `save-value` representation.
 
 It is possible to register fully custom `resource-types`, but for most cases you would use one of the helper functions to register either a Protobuf-based, `ini`-style settings-based, or code-style text-based `resource-type`.
 
@@ -48,7 +48,7 @@ Specifically for Protobuf-based `resource-types`, you can specify whether or not
 
 If your Protobuf-based `resource-type` reads defaults, the `save-value` output of its associated `:node-type` must include defaults, and conversely exclude defaults if it does not. To help with this, you should use `protobuf/make-map-with-defaults` or `protobuf/make-map-without-defaults` respectively in your `save-value` output. You must also ensure your `:load-fn` produces a fully-formed graph node in the absence of `optional` field values, typically by declaring `(default (protobuf/default PbClass :pb-field))` for any node `properties` backed by `optional` Protobuf fields. The node property default must match the Protobuf backing field default, because the property will not be written to disk when it is set to the default value, so your `:load-fn` will never see it.
 
-Back to the loading procedure, we have a newly created node in the project graph for each `Resource` in the project, but nothing has been loaded into the graph yet, and no connections have been established. Before we can start loading data into the graph, we must establish a load order. Certain `Resources` may reference data inside other `Resources`, and we want the referenced `Resources` to be loaded before the referencing `Resources`.
+Back to the loading procedure, we have a newly created node in the graph for each `Resource` in the project, but nothing has been loaded into those nodes yet, and no connections have been established. Before we can start loading data into the graph, we must establish a load order. Certain `Resources` may reference data inside other `Resources`, and we want the referenced `Resources` to be loaded before the referencing `Resources`.
 
 This load order is established by the `:dependencies-fn` associated with the `resource-type`. For Protobuf-based resources, the default `:dependencies-fn` finds references to other `Resources` by doing a recursive search for fields tagged `[(resource) = true]`, but some `Resources` that embed internal `Resources` as strings have specific implementations of the `:dependencies-fn`. The `:dependencies-fn` takes the `save-value` representation returned by the `:read-fn` and returns a vector of distinct `proj-path` strings that are referenced by the `Resource`. The editor collects this information from all the `Resources` we're about to load to produce a sorted list where all the referenced `Resources` precede their referencing `Resources`.
 
@@ -56,7 +56,7 @@ Once the correct load order has been determined, we load the data into the graph
 
 In addition to the `transaction-steps` returned by the `:load-fn`, the editor will add a `transaction-step` to connect the populated node to the `save-data` input on the `Project` node if it represents a file in the project and provides a `:write-fn`.
 
-It is important to understand that the `:load-fn` does not perform these changes to the project graph directly. Rather, it returns a sequence of `transaction-steps` that will be applied alongside the changes from other `Resources` that are loaded at the same time. The editor will also include `transaction-steps` from other file system changes such as deleted or renamed files.
+It is important to understand that the `:load-fn` does not perform these changes to the graph directly. Rather, it returns a sequence of `transaction-steps` that will be applied alongside the changes from other `Resources` that are loaded at the same time. The editor will also include `transaction-steps` from other file system changes such as deleted or renamed files.
 
 When a project `Resource` has been externally modified, the loading process is performed on a new replacement `ResourceNode` that is separate from the existing `ResourceNode` that used to represent the `Resource`. We then update any existing connections to the old `ResourceNode` to instead refer to its replacement. Finally, we delete the old `ResourceNode` and any nodes connected to a `:cascade-delete`-marked input, recursively.
 
@@ -66,7 +66,7 @@ Deleted `Resources` are handled in a different fashion. Here the old `ResourceNo
 
 At present, the `node-ids` of the recreated substructure will not match up to the `node-ids` from the old, deleted `ResourceNodes`. Objects might have been removed or added in a different order to the modified file, so it is difficult to retain the structure. Because of this, we must clear undo whenever we perform these changes during a `resource-sync`.
 
-Once the editor has collected all the `transaction-steps` that describe the changes to the project graph, they are executed in an isolated transaction. To the outside world, it appears as if all the loaded nodes were suddenly populated and connected to the project graph in one go.
+Once the editor has collected all the `transaction-steps` that describe the changes to the project model, they are executed in an isolated transaction. To the outside world, it appears as if all the loaded nodes were suddenly populated and connected to the graph in one go.
 
 ## View types
 

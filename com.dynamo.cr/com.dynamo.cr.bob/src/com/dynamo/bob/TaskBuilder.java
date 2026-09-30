@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.HashSet;
 
 import java.io.IOException;
-import java.lang.Throwable;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Callable;
@@ -64,7 +63,6 @@ public class TaskBuilder {
     // private List<Task> tasks;
     private Set<Task> tasks;
 
-    private Project project;
     private State state;
     private ResourceCache resourceCache;
 
@@ -79,7 +77,6 @@ public class TaskBuilder {
 
     public TaskBuilder(List<Task> tasks, Project project) {
         this.tasks = new HashSet<Task>(tasks);
-        this.project = project;
         this.state = project.getState();
         this.resourceCache = project.getResourceCache();
 

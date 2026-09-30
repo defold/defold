@@ -23,27 +23,70 @@
             [editor.tile-source :as tile-source]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support]))
+            [support.test-support :as test-support]
+            [util.coll :as coll]))
+
+(defn- vertex-buffer->vertices
+  [vertex-buffer]
+  (mapv #(get vertex-buffer %) (range (count vertex-buffer))))
+
+(defn- quad-triangles?
+  [vertices]
+  (and (= 6 (count vertices))
+       (= (nth vertices 2) (nth vertices 3))
+       (= (nth vertices 0) (nth vertices 5))))
+
+(defn- quad-lines?
+  [vertices]
+  (and (= 8 (count vertices))
+       (= (nth vertices 0) (nth vertices 7))
+       (= (nth vertices 1) (nth vertices 2))
+       (= (nth vertices 3) (nth vertices 4))
+       (= (nth vertices 5) (nth vertices 6))))
+
+(deftest tile-source-quad-producers-use-core-topologies
+  (let [tile-source-attributes {:width 2
+                                :height 3
+                                :tiles-per-column 1
+                                :tiles-per-row 1}]
+    (testing "tiles"
+      (let [vertices (-> (tile-source/gen-tiles-vbuf tile-source-attributes [nil] [1.0 1.0])
+                         (vertex-buffer->vertices))]
+        (is (quad-triangles? vertices))
+        (is (= [[3.0 3.0 0.0 0.0 1.0]
+                [3.0 6.0 0.0 0.0 0.0]
+                [5.0 6.0 0.0 1.0 0.0]
+                [5.0 6.0 0.0 1.0 0.0]
+                [5.0 3.0 0.0 1.0 1.0]
+                [3.0 3.0 0.0 0.0 1.0]]
+               vertices))))
+
+    (testing "collision overlays"
+      (let [vertices (-> (tile-source/gen-tile-outlines-vbuf tile-source-attributes [nil] [1.0 1.0])
+                         (vertex-buffer->vertices))]
+        (is (quad-lines? vertices))
+        (is (= (repeat 8 (vec (repeat 4 (float 0.15))))
+               (map #(subvec % 3) vertices)))))))
 
 (deftest tile-source-validation
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/tilesource/valid.tilesource")]
       (testing "image dim error"
         (test-util/with-prop [node-id :collision (workspace/resolve-workspace-resource workspace "/graphics/paddle.png")]
-         (is (some? (test-util/prop-error node-id :image)))
-         (is (= (test-util/prop-error node-id :image)
-                (test-util/prop-error node-id :collision)))))
+          (is (some? (test-util/prop-error node-id :image)))
+          (is (= (test-util/prop-error node-id :image)
+                 (test-util/prop-error node-id :collision)))))
       (testing "tile dim error"
-               (test-util/with-prop [node-id :tile-width 5000]
-                 (is (some? (test-util/prop-error node-id :image)))
-                 (is (= (test-util/prop-error node-id :image)
-                        (test-util/prop-error node-id :collision)
-                        (test-util/prop-error node-id :tile-width)
-                        (test-util/prop-error node-id :tile-margin)))))
+        (test-util/with-prop [node-id :tile-width 5000]
+          (is (some? (test-util/prop-error node-id :image)))
+          (is (= (test-util/prop-error node-id :image)
+                 (test-util/prop-error node-id :collision)
+                 (test-util/prop-error node-id :tile-width)
+                 (test-util/prop-error node-id :tile-margin)))))
       (testing "save and build data errors"
-               (test-util/with-prop [node-id :tile-width -1]
-                 (is (g/error? (g/node-value node-id :build-targets)))
-                 (is (not (g/error? (g/node-value node-id :save-data)))))))))
+        (test-util/with-prop [node-id :tile-width -1]
+          (is (g/error? (g/node-value node-id :build-targets)))
+          (is (not (g/error? (g/node-value node-id :save-data)))))))))
 
 (defn- add-collision-group! [app-view node-id]
   (tile-source/add-collision-group-node! node-id (fn [node-ids] (app-view/select app-view node-ids)))
@@ -58,32 +101,34 @@
     (let [node-id (test-util/open-tab! project app-view "/tilesource/valid.tilesource")]
       (app-view/select! app-view [node-id])
       (testing "collision-group-id"
-               (let [group (add-collision-group! app-view node-id)]
-                 (test-util/with-prop [group :id ""]
-                   (is (g/error? (test-util/prop-error group :id))))))
+        (let [group (add-collision-group! app-view node-id)]
+          (test-util/with-prop [group :id ""]
+            (is (g/error? (test-util/prop-error group :id))))))
       (testing "collision-group-max"
-               (let [groups (mapv (fn [_] (add-collision-group! app-view node-id)) (range 17))]
-                 (is (every? #(test-util/prop-error % :id) groups))
-                 (g/transact
-                   (for [group groups]
-                     (g/delete-node group))))))))
+        (let [groups (mapv (fn [_] (add-collision-group! app-view node-id)) (range 17))
+              project-error (g/flatten-errors (g/node-value project :build-errors))]
+          (is (g/error-warning? project-error))
+          (is (coll/every? nil? (mapv #(test-util/prop-error % :id) groups)))
+          (g/transact
+            (g/delete-nodes groups))
+          (is (nil? (g/flatten-errors (g/node-value project :build-errors)))))))))
 
 (deftest animation-validation
   (test-util/with-loaded-project
     (let [node-id (test-util/open-tab! project app-view "/tilesource/valid.tilesource")]
       (app-view/select! app-view [node-id])
       (testing "animation-id"
-               (let [anim (add-animation! app-view node-id)]
-                 (test-util/with-prop [anim :id ""]
-                   (is (some? (test-util/prop-error anim :id))))))
+        (let [anim (add-animation! app-view node-id)]
+          (test-util/with-prop [anim :id ""]
+            (is (some? (test-util/prop-error anim :id))))))
       (testing "animation-tile-ranges"
-               (let [anim (add-animation! app-view node-id)]
-                 (test-util/with-prop [anim :start-tile 2000]
-                   (is (some? (test-util/prop-error anim :start-tile)))
-                   (is (g/error? (g/node-value node-id :build-targets)))
-                   (is (not (g/error? (g/node-value node-id :save-data)))))
-                 (test-util/with-prop [anim :end-tile 2000]
-                   (is (some? (test-util/prop-error anim :end-tile)))))))))
+        (let [anim (add-animation! app-view node-id)]
+          (test-util/with-prop [anim :start-tile 2000]
+            (is (some? (test-util/prop-error anim :start-tile)))
+            (is (g/error? (g/node-value node-id :build-targets)))
+            (is (not (g/error? (g/node-value node-id :save-data)))))
+          (test-util/with-prop [anim :end-tile 2000]
+            (is (some? (test-util/prop-error anim :end-tile)))))))))
 
 (deftest missing-tilesource-image
   (test-util/with-loaded-project
@@ -95,7 +140,7 @@
 
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/image_project")
           project (test-util/setup-project! workspace)
           tile-source (project/get-resource-node project "/main/main.tilesource")
           image-file (io/as-file (g/node-value tile-source :image))

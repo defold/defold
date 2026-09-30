@@ -127,7 +127,7 @@ set(DDF_PROTO_PY)
 set(DDF_PROTO_PY_INIT "${DDF_PROTO_PY_DIR}/__init__.py")
 
 set(DDF_PROTOBUF_INTEROP_TESTS OFF)
-if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|win32|x86_64-win32)$")
+if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
   set(DDF_PROTOBUF_INTEROP_TESTS ON)
 endif()
 
@@ -289,7 +289,6 @@ add_custom_target(ddf_sdk_headers
   DEPENDS ddf_public_sdk_headers ddf_generated_sdk_headers ddf_dmsdk_sdk_headers)
 
 install(FILES "${DDF_PROTO_DIR}/ddf.h" ${DDF_PROTO_HEADERS} DESTINATION include/ddf)
-install(FILES "${DDF_SRC_DIR}/waf_ddf.py" DESTINATION lib/python)
 install(FILES
   "${DDF_SRC_DIR}/ddfc.py"
   "${DDF_SRC_DIR}/ddfc_java"

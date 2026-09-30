@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,8 +33,8 @@ static CGSize GetDrawableSize(MetalView* view)
 
     if (view_bounds.size.width <= 0.0f || view_bounds.size.height <= 0.0f)
     {
-        view_bounds = [[UIScreen mainScreen] bounds];
-        scale_factor = [[UIScreen mainScreen] scale];
+        view_bounds = g_ApplicationWindow.bounds;
+        scale_factor = g_ApplicationWindow.screen.scale;
     }
 
     return CGSizeMake(view_bounds.size.width * scale_factor, view_bounds.size.height * scale_factor);
@@ -73,7 +73,7 @@ static void UpdateWindowSize(MetalView* view, BOOL notify)
 
 + (BaseView*)createView:(CGRect)bounds recreate:(BOOL)recreate
 {
-    CGFloat scaleFactor = [[UIScreen mainScreen] scale];
+    CGFloat scaleFactor = g_ApplicationWindow.screen.scale;
     g_MetalView = [[[MetalView alloc] initWithFrame: bounds] autorelease];
     g_MetalView.contentScaleFactor = scaleFactor;
     g_MetalView.layer.contentsScale = scaleFactor;
@@ -138,6 +138,7 @@ int  _glfwPlatformOpenWindowVulkan( int width, int height,
 
     _glfwWin.view = g_MetalView;
     _glfwWin.window = g_ApplicationWindow;
+    _glfwWin.iconified = !_glfwPlatformIsSceneActive();
 
     // opengl
     _glfwWin.context = nil;

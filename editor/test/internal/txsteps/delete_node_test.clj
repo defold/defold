@@ -25,16 +25,15 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- setup-ownership-hierarchy! [graph-id owner-node-type owned-node-type]
+(defn- setup-ownership-hierarchy! [owner-node-type owned-node-type]
   (let [[owner-node-id
          regular-owned-node-id
          array-owned-node-id]
         (g/tx-nodes-added
           (g/transact
-            (g/make-nodes graph-id
-              [owner-node-id owner-node-type
-               regular-owned-node-id owned-node-type
-               array-owned-node-id owned-node-type]
+            (g/make-nodes [owner-node-id owner-node-type
+                           regular-owned-node-id owned-node-type
+                           array-owned-node-id owned-node-type]
               (g/connect regular-owned-node-id :_node-id owner-node-id :regular-cascade-delete-input)
               (g/connect array-owned-node-id :_node-id owner-node-id :array-cascade-delete-input))))]
 
@@ -42,11 +41,11 @@
      :regular-owned-node-id regular-owned-node-id
      :array-owned-node-id array-owned-node-id}))
 
-(defn- setup-override-hierarchy! [graph-id owner-node-type owned-node-type]
+(defn- setup-override-hierarchy! [owner-node-type owned-node-type]
   (let [{:keys [owner-node-id
                 regular-owned-node-id
                 array-owned-node-id]}
-        (setup-ownership-hierarchy! graph-id owner-node-type owned-node-type)
+        (setup-ownership-hierarchy! owner-node-type owned-node-type)
 
         [first-order-override-owner-node-id
          first-order-override-regular-owned-node-id
@@ -144,7 +143,7 @@
 
 (deftest deletes-nodes-from-graph-test
   (test-support/with-clean-system
-    (let [node-ids (sort (vals (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)))]
+    (let [node-ids (sort (vals (setup-override-hierarchy! OwnerTestNode OwnedTestNode)))]
 
       (testing "Before transact."
         (doseq [node-id node-ids]
@@ -164,7 +163,7 @@
 
 (deftest returns-tx-result-with-nodes-deleted-test
   (test-support/with-clean-system
-    (let [node-ids (sort (vals (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)))
+    (let [node-ids (sort (vals (setup-override-hierarchy! OwnerTestNode OwnedTestNode)))
           basis-before (g/now)]
       (testing "Returns tx-result with nodes-deleted map."
         (is (= (into {}
@@ -177,7 +176,7 @@
 
 (deftest deletes-multiple-nodes-with-single-change-test
   (test-support/with-clean-system
-    (let [node-ids (sort (vals (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)))
+    (let [node-ids (sort (vals (setup-override-hierarchy! OwnerTestNode OwnedTestNode)))
           tx-result (g/transact (g/delete-nodes node-ids))]
       (is (= 1 (count (:undoable-changes tx-result))))
       (is (= (set node-ids) (set (keys (:nodes-deleted tx-result)))))
@@ -197,7 +196,7 @@
 
 (deftest evicts-cache-entries-associated-with-deleted-nodes-test
   (test-support/with-clean-system
-    (let [key->node-id (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)
+    (let [key->node-id (setup-override-hierarchy! OwnerTestNode OwnedTestNode)
           node-id->key (set/map-invert key->node-id)
 
           cached-endpoints
@@ -251,7 +250,7 @@
                   array-owned-node-id
                   first-order-override-owner-node-id
                   second-order-override-owner-node-id]}
-          (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)
+          (setup-override-hierarchy! OwnerTestNode OwnedTestNode)
 
           node-id->key (set/map-invert key->node-id)
 
@@ -311,9 +310,8 @@
            owner-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world
-                [_owned-node-id helpers/OverrideTestNode
-                 owner-node-id helpers/OverrideTestNode]
+              (g/make-nodes [_owned-node-id helpers/OverrideTestNode
+                             owner-node-id helpers/OverrideTestNode]
                 (g/connect _owned-node-id :property-output owner-node-id :regular-cascade-delete-input))))
 
           [first-order-override-owner-node-id
@@ -335,7 +333,7 @@
 
 (deftest undo-redo-node-deletion-test
   (test-support/with-clean-system
-    (let [{:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)
+    (let [{:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! OwnerTestNode OwnedTestNode)
           node-ids (sort (vals key->node-id))
           node-id->key (set/map-invert key->node-id)
 
@@ -371,7 +369,7 @@
 (deftest undo-redo-node-user-data-deletion-test
   ;; TODO(decouple-undo-from-graph-cleanup): Revise user-data semantics?
   ;;   In accordance with the previous rules, the user-data associated with a
-  ;;   node is removed from the system when the node is deleted from its graph.
+  ;;   node is removed from the system when the node is deleted from the graph.
   ;;   However, the deletion may be undoable. But since user-data is outside of
   ;;   the undo system according to the previous rules, undoing the deletion
   ;;   will not restore the user-data associated with the deleted node.
@@ -381,7 +379,7 @@
   ;;   remove graph user-data as a concept and just store the information in
   ;;   regular properties without any loss of functionality.
   (test-support/with-clean-system
-    (let [{:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)
+    (let [{:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! OwnerTestNode OwnedTestNode)
           node-id->key (coll/into-> key->node-id (sorted-map) (map coll/flip))
 
           current-user-data
@@ -428,12 +426,11 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [target-node-id helpers/ConnectionTargetNode
-                 first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
-                 second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
-                 deleted-source-node-id [helpers/ConnectionSourceNode :property :duplicated-value]
-                 _later-source-node-id [helpers/ConnectionSourceNode :property :later-value]]
+              (g/make-nodes [target-node-id helpers/ConnectionTargetNode
+                             first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                             second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                             deleted-source-node-id [helpers/ConnectionSourceNode :property :duplicated-value]
+                             _later-source-node-id [helpers/ConnectionSourceNode :property :later-value]]
                 (g/connect first-source-node-id :property-output target-node-id :array-input)
                 (g/connect deleted-source-node-id :property-output target-node-id :array-input)
                 (g/connect second-source-node-id :property-output target-node-id :array-input)
@@ -442,24 +439,20 @@
           ensure-arcs!
           (fn ensure-arcs! [expected-arcs]
             (let [basis (g/now)]
-              (doseq [source-node-id (coll/into-> expected-arcs [] (map first) (distinct))]
+              (doseq [source-node-id (coll/into-> expected-arcs [] (map gt/source-id) (distinct))]
                 (is (= (coll/into-> expected-arcs []
-                         (keep (fn [[expected-source-node-id _source-label expected-target-node-id expected-target-label]]
-                                 (when (= source-node-id expected-source-node-id)
-                                   [expected-target-node-id expected-target-label]))))
-                       (g/targets basis source-node-id :property-output))))
+                         (filter #(= source-node-id (gt/source-id %))))
+                       (g/outputs basis source-node-id :property-output))))
 
-              (is (= (coll/into-> expected-arcs []
-                       (map (fn [[expected-source-node-id expected-source-label _target-node-id _target-label]]
-                              [expected-source-node-id expected-source-label])))
-                     (g/sources basis target-node-id :array-input)))))]
+              (is (= expected-arcs
+                     (g/inputs basis target-node-id :array-input)))))]
 
       (testing "Before deleting source."
         (ensure-arcs!
-          [[first-source-node-id :property-output target-node-id :array-input]
-           [deleted-source-node-id :property-output target-node-id :array-input]
-           [second-source-node-id :property-output target-node-id :array-input]
-           [deleted-source-node-id :property-output target-node-id :array-input]]))
+          [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc deleted-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc deleted-source-node-id :property-output target-node-id :array-input)]))
 
       (testing "After deleting source."
         (g/transact
@@ -467,8 +460,8 @@
           (g/delete-node deleted-source-node-id))
 
         (ensure-arcs!
-          [[first-source-node-id :property-output target-node-id :array-input]
-           [second-source-node-id :property-output target-node-id :array-input]]))
+          [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)]))
 
       (testing "After connecting later source."
         (g/transact
@@ -476,19 +469,19 @@
           (g/connect later-source-node-id :property-output target-node-id :array-input))
 
         (ensure-arcs!
-          [[first-source-node-id :property-output target-node-id :array-input]
-           [second-source-node-id :property-output target-node-id :array-input]
-           [later-source-node-id :property-output target-node-id :array-input]]))
+          [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc later-source-node-id :property-output target-node-id :array-input)]))
 
       (testing "After undoing source deletion."
         (g/undo! ::delete-source)
 
         (ensure-arcs!
-          [[first-source-node-id :property-output target-node-id :array-input]
-           [deleted-source-node-id :property-output target-node-id :array-input]
-           [second-source-node-id :property-output target-node-id :array-input]
-           [deleted-source-node-id :property-output target-node-id :array-input]
-           [later-source-node-id :property-output target-node-id :array-input]])))))
+          [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc deleted-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc deleted-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc later-source-node-id :property-output target-node-id :array-input)])))))
 
 (deftest undo-node-deletion-preserves-empty-arc-table-next-pkid-test
   (testing "Source arcs."
@@ -499,10 +492,9 @@
             (g/tx-nodes-added
               (g/transact
                 {:undoable false}
-                (g/make-nodes world
-                  [source-node-id [helpers/ConnectionSourceNode :property :source-value]
-                   first-target-node-id helpers/ConnectionTargetNode
-                   _second-target-node-id helpers/ConnectionTargetNode]
+                (g/make-nodes [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                               first-target-node-id helpers/ConnectionTargetNode
+                               _second-target-node-id helpers/ConnectionTargetNode]
                   (g/connect source-node-id :property-output first-target-node-id :regular-input))))]
 
         (g/transact
@@ -521,9 +513,9 @@
 
         (g/undo! ::disconnect-first-target)
 
-        (is (= [[first-target-node-id :regular-input]
-                [second-target-node-id :regular-input]]
-               (g/targets (g/now) source-node-id :property-output))))))
+        (is (= [(gt/->Arc source-node-id :property-output first-target-node-id :regular-input)
+                (gt/->Arc source-node-id :property-output second-target-node-id :regular-input)]
+               (g/outputs (g/now) source-node-id :property-output))))))
 
   (testing "Target arcs."
     (test-support/with-clean-system
@@ -533,10 +525,9 @@
             (g/tx-nodes-added
               (g/transact
                 {:undoable false}
-                (g/make-nodes world
-                  [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
-                   _second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
-                   target-node-id helpers/ConnectionTargetNode]
+                (g/make-nodes [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                               _second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                               target-node-id helpers/ConnectionTargetNode]
                   (g/connect first-source-node-id :property-output target-node-id :array-input))))]
 
         (g/transact
@@ -555,17 +546,17 @@
 
         (g/undo! ::disconnect-first-source)
 
-        (is (= [[first-source-node-id :property-output]
-                [second-source-node-id :property-output]]
-               (g/sources (g/now) target-node-id :array-input)))))))
+        (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
+                (gt/->Arc second-source-node-id :property-output target-node-id :array-input)]
+               (g/inputs (g/now) target-node-id :array-input)))))))
 
 (deftest undo-node-deletion-invalidates-restored-source-successors-test
   (test-support/with-clean-system
     (let [[source-node-id target-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world [source-node-id helpers/ConnectionSourceNode
-                                   target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [source-node-id helpers/ConnectionSourceNode
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :regular-input))))
 
           successor-endpoint (g/endpoint target-node-id :regular-output)]
@@ -589,7 +580,7 @@
     (let [[original-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-node world helpers/OverrideTestNode)))
+              (g/make-node helpers/OverrideTestNode)))
 
           [override-node-id]
           (g/tx-nodes-added
@@ -617,7 +608,7 @@
     (let [[original-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-node world helpers/OverrideTestNode)))
+              (g/make-node helpers/OverrideTestNode)))
 
           [deleted-override-node-id]
           (g/tx-nodes-added
@@ -658,7 +649,7 @@
     (let [[original-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-node world helpers/OverrideTestNode)))
+              (g/make-node helpers/OverrideTestNode)))
 
           [first-override-node-id]
           (g/tx-nodes-added
@@ -696,9 +687,8 @@
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes world
-                [source-node-id [helpers/ConnectionSourceNode :property :source-value]
-                 target-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                             target-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :regular-input))))
 
           ensure-connected!
@@ -706,16 +696,15 @@
             (let [basis (g/now)]
               (is (g/node-by-id basis source-node-id))
               (is (g/node-by-id basis target-node-id))
-              (is (= [[target-node-id :regular-input]]
-                     (g/targets basis source-node-id :property-output)))))
+              (is (= [(gt/->Arc source-node-id :property-output target-node-id :regular-input)]
+                     (g/outputs basis source-node-id :property-output)))))
 
           ensure-only-target-node-exists!
           (fn ensure-only-target-node-exists! []
             (let [basis (g/now)]
               (is (= nil (g/node-by-id basis source-node-id)))
               (is (g/node-by-id basis target-node-id))
-              (is (= []
-                     (g/sources basis target-node-id :regular-input)))))
+              (is (coll/empty? (g/inputs basis target-node-id :regular-input)))))
 
           ensure-no-nodes-exist!
           (fn ensure-no-nodes-exist! []
@@ -728,8 +717,7 @@
             (let [basis (g/now)]
               (is (g/node-by-id basis source-node-id))
               (is (= nil (g/node-by-id basis target-node-id)))
-              (is (= []
-                     (g/targets basis source-node-id :property-output)))))]
+              (is (coll/empty? (g/outputs basis source-node-id :property-output)))))]
 
       (testing "Before deleting source node."
         (ensure-connected!))

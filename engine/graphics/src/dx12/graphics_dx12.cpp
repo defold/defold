@@ -42,6 +42,7 @@
 #include "../graphics_adapter.h"
 
 #include "graphics_dx12_private.h"
+#include "graphics_dx12_storage_buffer.h"
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
@@ -541,6 +542,9 @@ namespace dmGraphics
             limits.m_MaxComputeWorkgroupSizeZ       = D3D12_CS_THREAD_GROUP_MAX_Z;
             limits.m_MaxComputeWorkgroupInvocations = D3D12_CS_THREAD_GROUP_MAX_THREADS_PER_GROUP;
             limits.m_MaxComputeSharedMemorySize     = D3D12_CS_TGSM_REGISTER_COUNT * sizeof(uint32_t); // 32 KiB
+            // Eight writable UAV slots are guaranteed at the minimum D3D12 feature level.
+            // Read-only storage buffers use SRVs, but the public limit must cover both access modes.
+            limits.m_MaxStorageBuffersPerStage      = 8;
 
             // CBV bind range is always 64 KiB (hardware-fixed).
             limits.m_MaxUniformBufferRange = (uint64_t) D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16; // 64 KiB
@@ -898,6 +902,58 @@ namespace dmGraphics
         }
     }
 
+    void DX12ScratchBuffer::AllocateStorageBuffer(DX12Context* context, DX12PipelineType pipeline_type, DX12StorageBuffer* buffer, bool read_only, uint32_t buffer_index)
+    {
+        BlockSizedPool& descriptor_pool = m_MemoryPools[0];
+        assert(descriptor_pool.m_DescriptorCursor < DESCRIPTORS_PER_POOL);
+
+        const uint32_t descriptor_size = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        const uint32_t descriptor_index = descriptor_pool.m_DescriptorCursor++;
+        CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_handle(
+            descriptor_pool.m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+            descriptor_index,
+            descriptor_size);
+
+        if (read_only)
+        {
+            D3D12_SHADER_RESOURCE_VIEW_DESC view_desc = {};
+            view_desc.Format                          = DXGI_FORMAT_R32_TYPELESS;
+            view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_BUFFER;
+            view_desc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            view_desc.Buffer.FirstElement             = 0;
+            view_desc.Buffer.NumElements              = buffer->m_BaseStorageBuffer.m_Size / sizeof(uint32_t);
+            view_desc.Buffer.StructureByteStride      = 0;
+            view_desc.Buffer.Flags                    = D3D12_BUFFER_SRV_FLAG_RAW;
+            context->m_Device->CreateShaderResourceView(buffer->m_DeviceBuffer.m_Resource, &view_desc, cpu_handle);
+        }
+        else
+        {
+            D3D12_UNORDERED_ACCESS_VIEW_DESC view_desc = {};
+            view_desc.Format                           = DXGI_FORMAT_R32_TYPELESS;
+            view_desc.ViewDimension                    = D3D12_UAV_DIMENSION_BUFFER;
+            view_desc.Buffer.FirstElement              = 0;
+            view_desc.Buffer.NumElements               = buffer->m_BaseStorageBuffer.m_Size / sizeof(uint32_t);
+            view_desc.Buffer.StructureByteStride       = 0;
+            view_desc.Buffer.CounterOffsetInBytes      = 0;
+            view_desc.Buffer.Flags                     = D3D12_BUFFER_UAV_FLAG_RAW;
+            context->m_Device->CreateUnorderedAccessView(buffer->m_DeviceBuffer.m_Resource, 0, &view_desc, cpu_handle);
+        }
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE gpu_handle(
+            descriptor_pool.m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(),
+            descriptor_index,
+            descriptor_size);
+
+        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+        {
+            context->m_CommandList->SetGraphicsRootDescriptorTable(buffer_index, gpu_handle);
+        }
+        else
+        {
+            context->m_CommandList->SetComputeRootDescriptorTable(buffer_index, gpu_handle);
+        }
+    }
+
     void DX12ScratchBuffer::Reset(DX12Context* context)
     {
         for (int i = 0; i < m_MemoryPools.Size(); ++i)
@@ -1076,7 +1132,11 @@ namespace dmGraphics
             {
                 DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COMMON));
-                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
+                const uint32_t subresource_count = current_rt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                for (uint32_t i = 0; i < subresource_count; ++i)
+                {
+                    texture_depth_stencil->m_ResourceStates[i] = D3D12_RESOURCE_STATE_COMMON;
+                }
             }
         }
 
@@ -1139,7 +1199,13 @@ namespace dmGraphics
         else
         {
             rtv_heap = rt->m_ColorAttachmentDescriptorHeap;
-            rtv_handle = rt->m_ColorAttachmentDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+            if (rtv_heap)
+            {
+                rtv_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+                    rtv_heap->GetCPUDescriptorHandleForHeapStart(),
+                    brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? brt->m_CubeMapFace * brt->m_ColorAttachmentCount : 0,
+                    context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
+            }
 
             for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
             {
@@ -1149,9 +1215,13 @@ namespace dmGraphics
 
                     if (attachment->m_ResourceStates[0] != D3D12_RESOURCE_STATE_RENDER_TARGET)
                     {
-                        // Transition the first mipmap into a render target
+                        // Render-target attachments have one mipmap. Cubemap attachments transition all six array slices.
                         context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(attachment->m_Resource, attachment->m_ResourceStates[0], D3D12_RESOURCE_STATE_RENDER_TARGET));
-                        attachment->m_ResourceStates[0] = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                        const uint32_t subresource_count = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                        for (uint32_t subresource = 0; subresource < subresource_count; ++subresource)
+                        {
+                            attachment->m_ResourceStates[subresource] = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                        }
                     }
                     num_attachments++;
                 }
@@ -1184,7 +1254,10 @@ namespace dmGraphics
         }
         else if (rt->m_DepthStencilDescriptorHeap)
         {
-            dsv_handle     = CD3DX12_CPU_DESCRIPTOR_HANDLE(rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+            dsv_handle     = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+                rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+                brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? brt->m_CubeMapFace : 0,
+                context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV));
             dsv_handle_ptr = &dsv_handle;
 
             DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureDepthStencil);
@@ -1192,15 +1265,21 @@ namespace dmGraphics
             if (texture_depth_stencil && texture_depth_stencil->m_Resource && texture_depth_stencil->m_ResourceStates[0] != D3D12_RESOURCE_STATE_DEPTH_WRITE)
             {
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, texture_depth_stencil->m_ResourceStates[0], D3D12_RESOURCE_STATE_DEPTH_WRITE));
-                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                const uint32_t subresource_count = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                for (uint32_t subresource = 0; subresource < subresource_count; ++subresource)
+                {
+                    texture_depth_stencil->m_ResourceStates[subresource] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                }
             }
         }
 
-        context->m_RtvHandle = rtv_handle;
-        context->m_DsvHandle = dsv_handle;
+        if (num_attachments)
+            context->m_RtvHandle = rtv_handle;
+        if (dsv_handle_ptr)
+            context->m_DsvHandle = dsv_handle;
 
         // Bind render target(s) and optional depth-stencil
-        context->m_CommandList->OMSetRenderTargets(1, &context->m_RtvHandle, FALSE, dsv_handle_ptr);
+        context->m_CommandList->OMSetRenderTargets(num_attachments, num_attachments ? &context->m_RtvHandle : NULL, TRUE, dsv_handle_ptr);
 
         brt->m_IsBound = 1;
         context->m_CurrentRenderTarget = render_target;
@@ -1676,7 +1755,7 @@ namespace dmGraphics
         }
     }
 
-    static void CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size)
+    static void CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size, D3D12_RESOURCE_FLAGS resource_flags = D3D12_RESOURCE_FLAG_NONE)
     {
         assert(device_buffer->m_Resource == 0x0);
 
@@ -1687,7 +1766,7 @@ namespace dmGraphics
         HRESULT hr = context->m_Device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), // a default heap
             D3D12_HEAP_FLAG_NONE,                              // no flags
-            &CD3DX12_RESOURCE_DESC::Buffer(size),              // resource description for a buffer
+            &CD3DX12_RESOURCE_DESC::Buffer(size, resource_flags), // resource description for a buffer
             D3D12_RESOURCE_STATE_COPY_DEST,                    // we will start this heap in the copy destination state since we will copy data from the upload heap to this heap
             NULL,                                              // optimized clear value must be null for this type of resource. used for render targets and depth/stencil buffers
             DM_IID_PPV_ARGS(&device_buffer->m_Resource));
@@ -1699,7 +1778,7 @@ namespace dmGraphics
         device_buffer->m_Capacity      = size;
     }
 
-    static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, uint32_t buffer_size, const void* data, D3D12_RESOURCE_STATES state_before_copy)
+    static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, uint32_t buffer_size, const void* data, D3D12_RESOURCE_STATES state_before_copy, D3D12_RESOURCE_STATES state_after_copy)
     {
         if (data_size == 0)
         {
@@ -1784,7 +1863,10 @@ namespace dmGraphics
             cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, state_before_copy, D3D12_RESOURCE_STATE_COPY_DEST));
         }
         cmd_list->CopyBufferRegion(device_buffer->m_Resource, offset, upload_heap, upload_offset, data_size);
-        cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, DM_DX12_RESOURCE_STATE_BUFFER_READ));
+        if (state_after_copy != D3D12_RESOURCE_STATE_COPY_DEST)
+        {
+            cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, state_after_copy));
+        }
 
         if (context->m_FrameBegun)
         {
@@ -1832,7 +1914,7 @@ namespace dmGraphics
             state_before_copy = D3D12_RESOURCE_STATE_COPY_DEST;
         }
 
-        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, device_buffer->m_Capacity, data, state_before_copy);
+        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, device_buffer->m_Capacity, data, state_before_copy, DM_DX12_RESOURCE_STATE_BUFFER_READ);
         device_buffer->m_DataSize = data_size;
         device_buffer->m_Base.m_Size = data_size;
     }
@@ -1844,7 +1926,7 @@ namespace dmGraphics
             return;
         }
 
-        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_Base.m_Size, data, DM_DX12_RESOURCE_STATE_BUFFER_READ);
+        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_Base.m_Size, data, DM_DX12_RESOURCE_STATE_BUFFER_READ, DM_DX12_RESOURCE_STATE_BUFFER_READ);
     }
 
     static void CreateConstantBuffer(DX12Context* context, DX12DeviceBuffer* buffer, uint32_t size)
@@ -1931,6 +2013,101 @@ namespace dmGraphics
         DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &ubo->m_DeviceBuffer);
 
         delete ubo;
+    }
+
+    static void DX12UploadStorageBuffer(DX12Context* context, DX12StorageBuffer* buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        DeviceBufferUploadRangeHelper(context,
+            &buffer->m_DeviceBuffer,
+            offset,
+            size,
+            buffer->m_DeviceBuffer.m_Capacity,
+            data,
+            buffer->m_ResourceState,
+            D3D12_RESOURCE_STATE_COMMON);
+        buffer->m_ResourceState = D3D12_RESOURCE_STATE_COMMON;
+    }
+
+    static HStorageBuffer DX12NewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12StorageBuffer* buffer = new DX12StorageBuffer();
+        memset(buffer, 0, sizeof(DX12StorageBuffer));
+
+        buffer->m_BaseStorageBuffer.m_Size  = size;
+        buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+        CreateDeviceBuffer(context, &buffer->m_DeviceBuffer, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+        buffer->m_DeviceBuffer.m_Base.m_Size = size;
+        buffer->m_DeviceBuffer.m_DataSize    = size;
+        buffer->m_ResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+        DX12UploadStorageBuffer(context, buffer, 0, size, data);
+
+        return (HStorageBuffer) buffer;
+    }
+
+    static void DX12DisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12StorageBuffer* buffer = (DX12StorageBuffer*) storage_buffer;
+
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentStorageBuffers[set][binding] == buffer)
+                {
+                    context->m_CurrentStorageBuffers[set][binding] = 0;
+                }
+            }
+        }
+    }
+
+    static void DX12DeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12StorageBuffer* buffer = (DX12StorageBuffer*) storage_buffer;
+
+        DX12DisableStorageBuffer(_context, storage_buffer);
+        DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &buffer->m_DeviceBuffer);
+        delete buffer;
+    }
+
+    static void DX12SetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12StorageBuffer* buffer = (DX12StorageBuffer*) storage_buffer;
+
+        if (buffer->m_DeviceBuffer.m_Resource == 0 || buffer->m_DeviceBuffer.m_Capacity < size)
+        {
+            DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &buffer->m_DeviceBuffer);
+            CreateDeviceBuffer(context, &buffer->m_DeviceBuffer, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+            buffer->m_ResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+        }
+
+        buffer->m_BaseStorageBuffer.m_Size  = size;
+        buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+        buffer->m_DeviceBuffer.m_Base.m_Size = size;
+        buffer->m_DeviceBuffer.m_DataSize    = size;
+        DX12UploadStorageBuffer(context, buffer, 0, size, data);
+    }
+
+    static void DX12SetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        DX12StorageBuffer* buffer = (DX12StorageBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_BaseStorageBuffer.m_Size);
+        DX12UploadStorageBuffer((DX12Context*) _context, buffer, offset, size, data);
+    }
+
+    static uint32_t DX12GetStorageBufferSize(HContext, HStorageBuffer storage_buffer)
+    {
+        return ((DX12StorageBuffer*) storage_buffer)->m_BaseStorageBuffer.m_Size;
+    }
+
+    static void DX12EnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        DX12Context* context = (DX12Context*) _context;
+        context->m_CurrentStorageBuffers[set][binding] = (DX12StorageBuffer*) storage_buffer;
     }
 
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2828,6 +3005,43 @@ namespace dmGraphics
         context->m_CommandList->RSSetScissorRects(1, &scissor);
     }
 
+    static bool ValidateStorageBufferAliases(DX12Context* context)
+    {
+        DX12ShaderProgram* program = context->m_CurrentProgram;
+        assert(program);
+        DX12StorageBufferAccess accesses[MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT];
+        uint32_t count = 0;
+        bool visited[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        for (uint32_t i = 0; i < program->m_RootSignatureResources.Size(); ++i)
+        {
+            const DX12ResourceBinding& binding = program->m_RootSignatureResources[i];
+            const ProgramResourceBinding& resource = program->m_BaseProgram.m_ResourceBindings[binding.m_Set][binding.m_Binding];
+            if (resource.m_Res->m_BindingFamily != BINDING_FAMILY_STORAGE_BUFFER || visited[binding.m_Set][binding.m_Binding])
+                continue;
+            // Shared vertex/fragment bindings can have more than one root entry.
+            visited[binding.m_Set][binding.m_Binding] = true;
+            DX12StorageBuffer* buffer = context->m_CurrentStorageBuffers[binding.m_Set][binding.m_Binding];
+            if (!buffer || !buffer->m_DeviceBuffer.m_Resource)
+                continue;
+            assert(count < DM_ARRAY_SIZE(accesses));
+            accesses[count].m_Resource = buffer->m_DeviceBuffer.m_Resource;
+            accesses[count].m_AccessFlags = resource.m_Res->m_AccessFlags;
+            accesses[count].m_Set = binding.m_Set;
+            accesses[count].m_Binding = binding.m_Binding;
+            ++count;
+        }
+
+        uint32_t first, second;
+        if (FindDX12StorageBufferAliasConflict(accesses, count, first, second))
+        {
+            dmLogError("Skipping DX12 draw/dispatch: storage buffer at set %u, binding %u and set %u, binding %u "
+                       "is bound as both readonly (SRV) and writable (UAV). Use separate buffers or writable declarations for both bindings.",
+                       accesses[first].m_Set, accesses[first].m_Binding, accesses[second].m_Set, accesses[second].m_Binding);
+            return false;
+        }
+        return true;
+    }
+
     static void CommitUniforms(DX12Context* context, DX12FrameResource& frame_resources, DX12PipelineType pipeline_type)
     {
         DX12ShaderProgram* program = context->m_CurrentProgram;
@@ -2856,20 +3070,48 @@ namespace dmGraphics
                     {
                         frame_resources.m_ScratchBuffer.AllocateTexture2D(context, pipeline_type, texture, i);
 
-                        // Transition all mipmaps into pixel read state
-                        for (int i = 0; i < texture->m_Base.m_MipMapCount; ++i)
+                        // Render-target cubemaps have one mipmap and six array slices. Other textures track one state per mipmap.
+                        const bool cubemap_render_target = texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP &&
+                            (texture->m_ResourceDesc.Flags & (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
+                        const uint32_t subresource_count = cubemap_render_target ? CUBEMAP_FACE_COUNT : texture->m_Base.m_MipMapCount;
+                        for (uint32_t subresource = 0; subresource < subresource_count; ++subresource)
                         {
-                            if (texture->m_ResourceStates[i] != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                            if (texture->m_ResourceStates[subresource] != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
                             {
-                                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[i], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, (UINT) i));
-                                texture->m_ResourceStates[i] = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+                                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[subresource], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, subresource));
+                                texture->m_ResourceStates[subresource] = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
                             }
                         }
                     }
                 } break;
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    assert(0);
+                    DX12StorageBuffer* buffer = context->m_CurrentStorageBuffers[dx12_res.m_Set][dx12_res.m_Binding];
+                    if (!buffer || !buffer->m_DeviceBuffer.m_Resource)
+                    {
+                        dmLogWarning("No storage buffer is bound at set %u, binding %u.", dx12_res.m_Set, dx12_res.m_Binding);
+                        break;
+                    }
+
+                    const bool read_only = pgm_res.m_Res->m_AccessFlags == SHADER_RESOURCE_ACCESS_READ;
+                    const D3D12_RESOURCE_STATES target_state = read_only
+                        ? (D3D12_RESOURCE_STATES) (D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                        : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+                    if (buffer->m_ResourceState != target_state)
+                    {
+                        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+                            buffer->m_DeviceBuffer.m_Resource,
+                            buffer->m_ResourceState,
+                            target_state));
+                        buffer->m_ResourceState = target_state;
+                    }
+                    else if (!read_only)
+                    {
+                        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::UAV(buffer->m_DeviceBuffer.m_Resource));
+                    }
+
+                    frame_resources.m_ScratchBuffer.AllocateStorageBuffer(context, pipeline_type, buffer, read_only, i);
                 } break;
                 case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
@@ -2989,6 +3231,8 @@ namespace dmGraphics
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
 
         DX12Context* context = (DX12Context*) _context;
+        if (!ValidateStorageBufferAliases(context))
+            return;
         DrawSetup(context, prim_type);
 
         DX12IndexBuffer* ix_buffer   = (DX12IndexBuffer*) index_buffer;
@@ -3008,6 +3252,8 @@ namespace dmGraphics
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
 
         DX12Context* context = (DX12Context*) _context;
+        if (!ValidateStorageBufferAliases(context))
+            return;
         DrawSetup(context, prim_type);
 
         context->m_CommandList->DrawInstanced(count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
@@ -3018,7 +3264,9 @@ namespace dmGraphics
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
 
-         DX12Context* context = (DX12Context*) _context;
+        DX12Context* context = (DX12Context*) _context;
+        if (!ValidateStorageBufferAliases(context))
+            return;
 
         // From graphics_vulkan.cpp
         if (IsRenderTargetbound(context, context->m_CurrentRenderTarget))
@@ -3179,7 +3427,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         DX12ShaderProgram* program = new DX12ShaderProgram();
         program->m_NumWorkGroupsResourceIndex = 0xff; // 0xff == unused
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
 
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
@@ -3419,6 +3667,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
         brt->m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, 1, "DX12");
+        brt->m_TextureType = params.m_TextureType;
 
         const BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
@@ -3460,7 +3709,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                 texture_desc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
                 texture_desc.Width               = color_buffer_params.m_Width;
                 texture_desc.Height              = color_buffer_params.m_Height;
-                texture_desc.DepthOrArraySize    = 1;
+                texture_desc.DepthOrArraySize    = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
                 texture_desc.MipLevels           = 1;
                 texture_desc.Format              = dxgi_format;
                 texture_desc.SampleDesc.Count    = 1; // No MSAA
@@ -3481,8 +3730,12 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                 );
                 CHECK_HR_ERROR(hr);
 
-                // Initial state (no mipmaps)
-                new_texture_color->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
+                new_texture_color->m_ResourceDesc = texture_desc;
+                const uint32_t subresource_count = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                for (uint32_t subresource = 0; subresource < subresource_count; ++subresource)
+                {
+                    new_texture_color->m_ResourceStates[subresource] = D3D12_RESOURCE_STATE_COMMON;
+                }
                 new_texture_color->m_Base.m_Format      = color_buffer_params.m_Format;
                 SetTextureResourceSize(&new_texture_color->m_Base, sizeof(DX12Texture));
 
@@ -3501,7 +3754,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         {
             // this heap is a render target view heap
             D3D12_DESCRIPTOR_HEAP_DESC rt_view_heap_desc = {};
-            rt_view_heap_desc.NumDescriptors             = color_attachment_count;
+            const uint32_t face_count = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+            rt_view_heap_desc.NumDescriptors             = color_attachment_count * face_count;
             rt_view_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
             rt_view_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
@@ -3511,10 +3765,22 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = rt->m_ColorAttachmentDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
             UINT rtv_descriptor_size               = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-            for (int i = 0; i < color_attachment_count; ++i)
+            for (uint32_t face = 0; face < face_count; ++face)
             {
-                context->m_Device->CreateRenderTargetView(color_attachments[i]->m_Resource, NULL, rtv_handle);
-                rtv_handle.ptr += rtv_descriptor_size; // Move to the next descriptor
+                for (int i = 0; i < color_attachment_count; ++i)
+                {
+                    D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
+                    rtv_desc.Format                        = color_attachments[i]->m_Resource->GetDesc().Format;
+                    rtv_desc.ViewDimension                 = face_count == 1 ? D3D12_RTV_DIMENSION_TEXTURE2D : D3D12_RTV_DIMENSION_TEXTURE2DARRAY;
+                    if (face_count > 1)
+                    {
+                        rtv_desc.Texture2DArray.MipSlice        = 0;
+                        rtv_desc.Texture2DArray.FirstArraySlice = face;
+                        rtv_desc.Texture2DArray.ArraySize       = 1;
+                    }
+                    context->m_Device->CreateRenderTargetView(color_attachments[i]->m_Resource, &rtv_desc, rtv_handle);
+                    rtv_handle.ptr += rtv_descriptor_size;
+                }
             }
         }
 
@@ -3542,7 +3808,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             ds_desc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
             ds_desc.Width               = stencil_depth_create_params.m_Width;
             ds_desc.Height              = stencil_depth_create_params.m_Height;
-            ds_desc.DepthOrArraySize    = 1;
+            ds_desc.DepthOrArraySize    = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
             ds_desc.MipLevels           = 1;
             ds_desc.Format              = ds_format;
             ds_desc.SampleDesc.Count    = 1;
@@ -3564,13 +3830,19 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                 DM_IID_PPV_ARGS(&texture_depth_stencil_ptr->m_Resource)
             );
             CHECK_HR_ERROR(hr);
-            texture_depth_stencil_ptr->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+            texture_depth_stencil_ptr->m_ResourceDesc = ds_desc;
+            const uint32_t subresource_count = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+            for (uint32_t subresource = 0; subresource < subresource_count; ++subresource)
+            {
+                texture_depth_stencil_ptr->m_ResourceStates[subresource] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+            }
             texture_depth_stencil_ptr->m_Base.m_Format      = rt->m_Base.m_DepthStencilTextureParams.m_Format;
             SetTextureResourceSize(&texture_depth_stencil_ptr->m_Base, sizeof(DX12Texture));
 
             // Create DSV descriptor heap
             D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc = {};
-            dsv_heap_desc.NumDescriptors             = 1;
+            const uint32_t face_count = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+            dsv_heap_desc.NumDescriptors             = face_count;
             dsv_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
             dsv_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
@@ -3579,10 +3851,21 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
             D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
             dsv_desc.Format              = ds_format;
-            dsv_desc.ViewDimension       = D3D12_DSV_DIMENSION_TEXTURE2D;
+            dsv_desc.ViewDimension       = face_count == 1 ? D3D12_DSV_DIMENSION_TEXTURE2D : D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
             dsv_desc.Flags               = D3D12_DSV_FLAG_NONE;
-
-            context->m_Device->CreateDepthStencilView(texture_depth_stencil_ptr->m_Resource, &dsv_desc, rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+            D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+            const UINT dsv_descriptor_size = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+            for (uint32_t face = 0; face < face_count; ++face)
+            {
+                if (face_count > 1)
+                {
+                    dsv_desc.Texture2DArray.MipSlice        = 0;
+                    dsv_desc.Texture2DArray.FirstArraySlice = face;
+                    dsv_desc.Texture2DArray.ArraySize       = 1;
+                }
+                context->m_Device->CreateDepthStencilView(texture_depth_stencil_ptr->m_Resource, &dsv_desc, dsv_handle);
+                dsv_handle.ptr += dsv_descriptor_size;
+            }
 
             brt->m_TextureDepthStencil = texture_depth_stencil;
             rt->m_DsvFormat            = ds_format;
@@ -3628,12 +3911,23 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         delete rt;
     }
 
-    static void DX12SetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void DX12SetRenderTarget(HContext _context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
-        (void) transient_buffer_types;
         DX12Context* context = (DX12Context*) _context;
+        HRenderTarget new_rt = render_target != 0x0 ? render_target : context->m_MainRenderTarget;
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, new_rt);
+        if (!rt)
+        {
+            new_rt = context->m_MainRenderTarget;
+            rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, new_rt);
+        }
+        if (context->m_CurrentRenderTarget == new_rt && rt->m_Base.m_IsBound && rt->m_Base.m_CubeMapFace == params.m_CubeMapFace)
+            return;
+        if (rt->m_Base.m_CubeMapFace != params.m_CubeMapFace)
+            EndRenderPass(context);
+        rt->m_Base.m_CubeMapFace = params.m_CubeMapFace;
         context->m_ViewportChanged = 1;
-        BeginRenderPass(context, render_target != 0x0 ? render_target : context->m_MainRenderTarget);
+        BeginRenderPass(context, new_rt);
     }
 
     static void DX12SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)

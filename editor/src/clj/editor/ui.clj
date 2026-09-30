@@ -66,11 +66,11 @@
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections FXCollections ListChangeListener ObservableList]
            [javafx.css Styleable]
-           [javafx.event ActionEvent Event EventDispatcher EventHandler EventTarget]
+           [javafx.event ActionEvent Event EventDispatchChain EventDispatcher EventHandler EventTarget]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Point2D]
            [javafx.scene Cursor Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control CustomMenuItem Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control CustomMenuItem Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel SeparatorMenuItem Tab TabPane TabPane$TabDragPolicy TableView TextArea TextField TextInputControl Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane GridPane HBox Pane Priority]
@@ -308,8 +308,8 @@
 (defn collect-controls [^Parent root keys]
   (let [controls (zipmap (map keyword keys) (map #(lookup-by-id root %) keys))
         missing (->> controls
-                  (filter (fn [[k v]] (when (nil? v) k)))
-                  (map first))]
+                     (filter (fn [[k v]] (when (nil? v) k)))
+                     (map first))]
     (when (seq missing)
       (throw (Exception. (format "controls %s are missing" (string/join ", " (map (comp str name) missing))))))
     controls))
@@ -738,7 +738,7 @@
     root))
 
 (defn- empty-svg []
-    {:tag :svg, :attrs nil, :content [{ :tag :path, :attrs {:d "M0,0"}, :content nil}]})
+  {:tag :svg, :attrs nil, :content [{:tag :path, :attrs {:d "M0,0"}, :content nil}]})
 
 (defn- load-svg-xml [path]
   (try
@@ -1375,6 +1375,92 @@
   ([^Node node name env selection-provider dynamics adapters]
    (user-data! node ::context (handler/->context name env selection-provider dynamics adapters))))
 
+(defn- select-adjacent-tab! [^TabPane tab-pane ^long delta]
+  (let [selection-model (.getSelectionModel tab-pane)
+        tabs (.getTabs tab-pane)
+        tab-count (long (.size tabs))]
+    (loop [attempts 0
+           tab-index (long (.getSelectedIndex selection-model))]
+      (when (< attempts tab-count)
+        (let [tab-index (long (mod (+ tab-index delta) tab-count))]
+          (if (.isDisable ^Tab (.get tabs tab-index))
+            (recur (inc attempts) tab-index)
+            (do
+              (.select selection-model tab-index)
+              (.requestFocus tab-pane))))))))
+
+(defn- focused-tab-pane
+  ^TabPane [^Stage main-stage]
+  (when-let [focused-node (some-> main-stage .getScene focus-owner)]
+    (closest-node-of-type TabPane focused-node)))
+
+(handler/defhandler :window.tab.select-next :global
+  (active? [^Stage main-stage] (some? (focused-tab-pane main-stage)))
+  (enabled? [^Stage main-stage]
+    (< 1 (.size (.getTabs (focused-tab-pane main-stage)))))
+  (run [^Stage main-stage]
+    (select-adjacent-tab! (focused-tab-pane main-stage) 1)))
+
+(handler/defhandler :window.tab.select-previous :global
+  (active? [^Stage main-stage] (some? (focused-tab-pane main-stage)))
+  (enabled? [^Stage main-stage]
+    (< 1 (.size (.getTabs (focused-tab-pane main-stage)))))
+  (run [^Stage main-stage]
+    (select-adjacent-tab! (focused-tab-pane main-stage) -1)))
+
+(defn- move-selected-tab! [^TabPane tab-pane ^long delta]
+  (let [tabs (.getTabs tab-pane)
+        from-index (.getSelectedIndex (.getSelectionModel tab-pane))
+        to-index (+ from-index delta)
+        ^Tab/1 reordered-tabs (.toArray tabs ^Tab/1 (make-array Tab (.size tabs)))
+        from-tab (aget reordered-tabs from-index)]
+    (aset reordered-tabs from-index (aget reordered-tabs to-index))
+    (aset reordered-tabs to-index from-tab)
+    (.setAll tabs reordered-tabs)))
+
+(defn- tab-pane-reorderable? [^TabPane tab-pane]
+  (= TabPane$TabDragPolicy/REORDER (.getTabDragPolicy tab-pane)))
+
+(handler/defhandler :window.tab.move-left :global
+  (active? [^Stage main-stage] (some? (focused-tab-pane main-stage)))
+  (enabled? [^Stage main-stage]
+    (let [tab-pane (focused-tab-pane main-stage)]
+      (and (tab-pane-reorderable? tab-pane)
+           (pos? (.getSelectedIndex (.getSelectionModel tab-pane))))))
+  (run [^Stage main-stage]
+    (move-selected-tab! (focused-tab-pane main-stage) -1)))
+
+(handler/defhandler :window.tab.move-right :global
+  (active? [^Stage main-stage] (some? (focused-tab-pane main-stage)))
+  (enabled? [^Stage main-stage]
+    (let [tab-pane (focused-tab-pane main-stage)]
+      (and (tab-pane-reorderable? tab-pane)
+           (< (.getSelectedIndex (.getSelectionModel tab-pane))
+              (dec (.size (.getTabs tab-pane)))))))
+  (run [^Stage main-stage]
+    (move-selected-tab! (focused-tab-pane main-stage) 1)))
+
+(defn init-tab-pane! [^TabPane tab-pane]
+  (let [original-event-dispatcher (.getEventDispatcher tab-pane)]
+    (.setEventDispatcher
+      tab-pane
+      (reify EventDispatcher
+        (dispatchEvent [_ event tail]
+          ;; Disable shortcuts from TabPaneSkin's input map
+          (if (and (= KeyEvent/KEY_PRESSED (.getEventType event))
+                   (let [^KeyEvent event event
+                         key-code (.getCode event)]
+                     (and (.isControlDown event)
+                          (not (.isAltDown event))
+                          (not (.isMetaDown event))
+                          (or (= KeyCode/TAB key-code)
+                              (and (not (.isShiftDown event))
+                                   (or (= KeyCode/PAGE_UP key-code)
+                                       (= KeyCode/PAGE_DOWN key-code)))))))
+            (.dispatchEvent ^EventDispatchChain tail event)
+            (.dispatchEvent original-event-dispatcher event tail))))))
+  tab-pane)
+
 (defn context
   [^Node node]
   (cond
@@ -1465,10 +1551,10 @@
                                                     (localization label))
                                        :cell-fn (fn [{:keys [label icon]} localization]
                                                   (cond-> {:text (localization label)}
-                                                          icon
-                                                          (assoc :graphic {:fx/type image-icon
-                                                                           :path icon
-                                                                           :size 16.0})))}
+                                                    icon
+                                                    (assoc :graphic {:fx/type image-icon
+                                                                     :path icon
+                                                                     :size 16.0})))}
                                       command-contexts)
                                     first
                                     :user-data)]
@@ -1570,7 +1656,7 @@
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
       (.setOnShown menu
-        (event-handler _ (install-disabled-menu-item-focus-filters!)))
+                   (event-handler _ (install-disabled-menu-item-focus-filters!)))
       (when icon
         (.setGraphic menu (icons/get-image-view icon 16)))
       (when style-classes
@@ -1667,9 +1753,9 @@
   [^Scene scene localization items command-contexts evaluation-context]
   (let [columns (:columns (meta items))
         items-by-category (-> (util/group-into {} []
-                                #(or (:category %)
-                                     (localization/message "resource.category.other"))
-                                items)
+                                               #(or (:category %)
+                                                    (localization/message "resource.category.other"))
+                                               items)
                               (update-vals #(localization/natural-sort-by-label @localization %)))]
     (fx/instance
       (fx/create-component
@@ -1843,14 +1929,14 @@
    (register-context-menu control menu-location false))
   ([^Control control menu-location focus]
    (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
-     (event-handler event
-       (when focus (.requestFocus control))
-       (show-context-menu! menu-location event)))))
+                     (event-handler event
+                       (when focus (.requestFocus control))
+                       (show-context-menu! menu-location event)))))
 
 (defn register-button-menu
   [^MenuButton menu-button menu-location]
   (.setOnShown menu-button
-    (event-handler _ (install-disabled-menu-item-focus-filters!)))
+               (event-handler _ (install-disabled-menu-item-focus-filters!)))
   (.setOnShowing
     menu-button
     (event-handler event
@@ -1876,9 +1962,9 @@
 
 (defn register-tab-pane-context-menu [^TabPane tab-pane menu-location]
   (.addEventHandler tab-pane ContextMenuEvent/CONTEXT_MENU_REQUESTED
-    (event-handler event
-      (when (event-targets-tab? event)
-        (show-context-menu! menu-location event)))))
+                    (event-handler event
+                      (when (event-targets-tab? event)
+                        (show-context-menu! menu-location event)))))
 
 (defn disable-menu-alt-key-mnemonic!
   "On Windows, the bare Alt KEY_PRESSED event causes the input focus to move to the menu bar.
@@ -1892,9 +1978,9 @@
 
 (defn register-menubar [^Scene scene menubar menu-id]
   ;; TODO: See comment below about top-level items. Should be enforced here
- (let [root (.getRoot scene)]
-   (let [desc (make-desc menubar menu-id)]
-     (user-data! root ::menubar desc))))
+  (let [root (.getRoot scene)]
+    (let [desc (make-desc menubar menu-id)]
+      (user-data! root ::menubar desc))))
 
 (defn run-command
   ([^Node node command]
@@ -1932,27 +2018,27 @@
    (bind-double-click! node command {}))
   ([^Node node command user-data]
    (.addEventFilter node MouseEvent/MOUSE_CLICKED
-                    (event-handler e
-                      (when (double-click-event? e)
-                        (run-command node command user-data false (fn [] (.consume e))))))))
+     (event-handler e
+       (when (double-click-event? e)
+         (run-command node command user-data false (fn [] (.consume e))))))))
 
 (defn bind-key! [^Node node acc f]
   (let [combo (KeyCombination/keyCombination acc)]
     (.addEventFilter node KeyEvent/KEY_PRESSED
-                     (event-handler event
-                                    (when (.match combo event)
-                                      (f)
-                                      (.consume event))))))
+      (event-handler event
+        (when (.match combo event)
+          (f)
+          (.consume event))))))
 
 (defn bind-keys! [^Node node key-bindings]
   (.addEventFilter node KeyEvent/KEY_PRESSED
     (event-handler event
-                   (let [code (.getCode ^KeyEvent event)]
-                     (when-let [binding (get key-bindings code)]
-                       (let [[command user-data] (if (vector? binding)
-                                                   binding
-                                                   [binding {}])]
-                         (run-command node command user-data true (fn [] (.consume event)))))))))
+      (let [code (.getCode ^KeyEvent event)]
+        (when-let [binding (get key-bindings code)]
+          (let [[command user-data] (if (vector? binding)
+                                      binding
+                                      [binding {}])]
+            (run-command node command user-data true (fn [] (.consume event)))))))))
 
 (defn bind-key-commands!
   "A more flexible version of bind-keys! that supports modifier keys. Accelerators are specified as strings, which are
@@ -1973,15 +2059,15 @@
                                          [combo binding])))
                                 bindings-by-acc)]
     (.addEventFilter node KeyEvent/KEY_PRESSED
-                     (event-handler event
-                                    (when-some [binding (some (fn [[^KeyCombination combo binding]]
-                                                                (when (.match combo event)
-                                                                  binding))
-                                                              bindings-by-combo)]
-                                      (let [[command user-data] (if (vector? binding)
-                                                                  binding
-                                                                  [binding {}])]
-                                        (run-command node command user-data true #(.consume event))))))))
+      (event-handler event
+        (when-some [binding (some (fn [[^KeyCombination combo binding]]
+                                    (when (.match combo event)
+                                      binding))
+                                  bindings-by-combo)]
+          (let [[command user-data] (if (vector? binding)
+                                      binding
+                                      [binding {}])]
+            (run-command node command user-data true #(.consume event))))))))
 
 ;;--------------------------------------------------------------------
 ;; menus
@@ -2221,7 +2307,7 @@
                     :args args
                     :value value
                     :child (fx.lifecycle/create fx.lifecycle/dynamic (assoc desc key value) opts)}
-                   child-instance-meta)))
+          child-instance-meta)))
     (advance [_ component {:keys [fn args key desc]} opts]
       (if (and (= (:fn component) fn)
                (= (:args component) args))
@@ -2356,9 +2442,9 @@
                       :style-class (cond-> ["button-group"] state (conj "active"))
                       :disable (not enabled)
                       :children [(assoc toolbar-item
-                                        :fx/type toolbar-button
-                                        :localization-state localization-state
-                                        :enabled true)
+                                   :fx/type toolbar-button
+                                   :localization-state localization-state
+                                   :enabled true)
                                  {:fx/type fx.button/lifecycle
                                   :id (some-> id name)
                                   :style-class ["button" "more-button"]
@@ -2367,8 +2453,8 @@
 
                    :else
                    (assoc toolbar-item
-                          :fx/type toolbar-button
-                          :localization-state localization-state)))))
+                     :fx/type toolbar-button
+                     :localization-state localization-state)))))
 
         toolbar-visible (and toolbar-visible (pos? (count children)))]
     {:fx/type ext-with-h-box-props
@@ -2388,11 +2474,11 @@
                     {:type :separator}
                     (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                       (assoc menu-item
-                             :type :item
-                             :label (or (handler/label handler-ctx evaluation-context) label)
-                             :enabled (handler/enabled? handler-ctx evaluation-context)
-                             :options (handler/options handler-ctx evaluation-context)
-                             :state (handler/state handler-ctx evaluation-context))))))
+                        :type :item
+                        :label (or (handler/label handler-ctx evaluation-context) label)
+                        :enabled (handler/enabled? handler-ctx evaluation-context)
+                        :options (handler/options handler-ctx evaluation-context)
+                        :state (handler/state handler-ctx evaluation-context))))))
               (fn toolbar-items-reducer
                 ([]
                  (transient []))
@@ -2449,8 +2535,8 @@
     (when-let [md (user-data root ::menubar)]
       (let [^MenuBar menu-bar (:control md)
             menu (cond-> (handler/realize-menu (:menu-id md))
-                         (os/is-mac-os?)
-                         (menu-data-without-icons))]
+                   (os/is-mac-os?)
+                   (menu-data-without-icons))]
         (cond
           (refresh-menubar? menu-bar menu visible-command-contexts keymap)
           (refresh-menubar! menu-bar menu visible-command-contexts keymap localization evaluation-context)
@@ -2588,7 +2674,8 @@
                     (long (* 1e9 (/ 1 (double fps))))
                     0)
          unfocused-interval (max interval unfocused-timer-interval)]
-     {:last last
+     {:start start
+      :last last
       :timer (proxy [AnimationTimer] []
                (handle [^long now]
                  (profiler/profile "timer" name
@@ -2655,9 +2742,9 @@
 
 (defn- chain-handler [new-handler-fn ^EventHandler existing-handler]
   (event-handler e
-                 (new-handler-fn e)
-                 (when existing-handler
-                   (.handle existing-handler e))))
+    (new-handler-fn e)
+    (when existing-handler
+      (.handle existing-handler e))))
 
 (defonce/protocol CloseRequestable
   (on-closing [this])
@@ -2668,10 +2755,10 @@
   (on-closing [this] (.getOnCloseRequest this))
   (on-closing! [this f]
     (.setOnCloseRequest this (chain-handler
-                              (fn [^Event e]
-                                (when-not (f e)
-                                  (.consume e)))
-                              (on-closing this)))))
+                               (fn [^Event e]
+                                 (when-not (f e)
+                                   (.consume e)))
+                               (on-closing this)))))
 
 (defonce/protocol Closeable
   (on-closed [this])
@@ -2728,28 +2815,28 @@
   (let [external-dragboard (volatile! nil)]
     (doto scene
       (.addEventFilter DragEvent/DRAG_ENTERED_TARGET
-                       (fn [^DragEvent event]
-                         (when (and (identical? scene (.getTarget event))
-                                    (nil? (.getGestureSource event)))
-                           (vreset! external-dragboard (.getDragboard event)))))
+        (fn [^DragEvent event]
+          (when (and (identical? scene (.getTarget event))
+                     (nil? (.getGestureSource event)))
+            (vreset! external-dragboard (.getDragboard event)))))
       (.addEventFilter DragEvent/DRAG_EXITED_TARGET
-                       (fn [^DragEvent event]
-                         (when (and (identical? scene (.getTarget event))
-                                    (nil? (.getGestureSource event))
-                                    (identical? @external-dragboard (.getDragboard event)))
-                           (vreset! external-dragboard nil))))
+        (fn [^DragEvent event]
+          (when (and (identical? scene (.getTarget event))
+                     (nil? (.getGestureSource event))
+                     (identical? @external-dragboard (.getDragboard event)))
+            (vreset! external-dragboard nil))))
       (.addEventFilter DragEvent/DRAG_DROPPED
-                       (fn [^DragEvent event]
-                         (when (and (nil? (.getGestureSource event))
-                                    (identical? @external-dragboard (.getDragboard event)))
-                           (vreset! external-dragboard nil))))
+        (fn [^DragEvent event]
+          (when (and (nil? (.getGestureSource event))
+                     (identical? @external-dragboard (.getDragboard event)))
+            (vreset! external-dragboard nil))))
       (.addEventFilter MouseEvent/MOUSE_PRESSED
-                       (fn [_]
-                         (vreset! external-dragboard nil)))
+        (fn [_]
+          (vreset! external-dragboard nil)))
       (.addEventFilter MouseEvent/MOUSE_DRAGGED
-                       (fn [^MouseEvent event]
-                         (when @external-dragboard
-                           (.setDragDetect event false)))))))
+        (fn [^MouseEvent event]
+          (when @external-dragboard
+            (.setDragDetect event false)))))))
 
 (defn register-tab-toolbar [^Tab tab toolbar-css-selector menu-id]
   (let [scene (-> tab .getTabPane .getScene)
@@ -2911,7 +2998,6 @@
                                                      (run-later (.selectAll t))))
                                                  (user-data! t ::selection-at-focus nil)))))
 
-
 (defmulti customize! (fn [control _ _] (class control)))
 
 (defmethod customize! TextField [^TextField t update-fn cancel-fn]
@@ -2951,15 +3037,26 @@
 
   The supplied function will only be invoked if the node is a part of the
   rendered tree (i.e. it and its parents are visible, the node is on a showing
-  window)
+  window). Becoming visible also queues a refresh without waiting for a timer tick.
+
+  Returns a function that stops the timer and removes its listeners.
 
   Args:
     node    target Node
     fps     timer fps
     name    timer name, a string
-    f       0-arg function"
+    f       function receiving elapsed time in seconds"
   [^Node node fps name f]
-  (let [timer (->timer fps name (fn [_ _ _] (f)))
+  (let [running (volatile! false)
+
+        timer
+        (->timer fps name
+                 (fn [_ elapsed-time _]
+                   ;; A callback may already be queued when the node
+                   ;; is hidden or the timer is disposed.
+                   (when @running
+                     (f elapsed-time))))
+
         tree-visible-property (NodeHelper/treeVisibleProperty node)
         tree-showing-property (-> node
                                   (.sceneProperty)
@@ -2970,10 +3067,23 @@
                            #(and (.getValue tree-showing-property)
                                  (.get tree-visible-property))
                            (into-array Observable [tree-showing-property tree-visible-property]))
-        ^ChangeListener on-running-changed (fn [_ _ tree-visible]
-                                             (if tree-visible
-                                               (do (f) (timer-start! timer))
-                                               (timer-stop! timer)))
+
+        ^ChangeListener on-running-changed
+        (fn [_ _ tree-visible]
+          (vreset! running tree-visible)
+          (if-not tree-visible
+            (timer-stop! timer)
+            (let [now (System/nanoTime)]
+              ;; Do not catch up on ticks missed
+              ;; while the node was hidden.
+              (reset! (:last timer) now)
+              ;; JavaFX may still be walking the
+              ;; children while visibility changes.
+              (run-later
+                (when @running
+                  (f (* (- now (long (:start timer))) 1e-9))))
+              (timer-start! timer))))
+
         key (Object.)
         node-properties (.getProperties node)]
     (when (.get running-property)
@@ -2984,6 +3094,7 @@
     ;; don't keep the dispose-fn referenced
     (.put node-properties key running-property)
     (fn dispose-node-timer! []
+      (vreset! running false)
       (.remove node-properties key)
       (.removeListener running-property on-running-changed)
       (timer-stop! timer))))

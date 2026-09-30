@@ -114,11 +114,11 @@
              :message (:message error)
              :severity (:severity error severity)}
 
-            file-path
-            (assoc :file-path file-path)
+      file-path
+      (assoc :file-path file-path)
 
-            (some? cursor-range)
-            (assoc :cursor-range cursor-range))))
+      (some? cursor-range)
+      (assoc :cursor-range cursor-range))))
 
 (defn- push-causes [queue error path]
   (let [new-path (conj path error)]
@@ -215,7 +215,7 @@
   (or (when error-node-id
         (g/with-auto-evaluation-context evaluation-context
           (let [basis (:basis evaluation-context)
-                error-node (g/node-by-id-at basis error-node-id)]
+                error-node (g/node-by-id basis error-node-id)]
             (when (and (some? error-node)
                        (g/node-instance*? outline/OutlineNode error-node))
               (some (fn [{:keys [node-id] :as node-outline}]
@@ -295,7 +295,7 @@
    :desc {:fx/type ui/ext-value :value tree-view}
    :props (cond-> {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
                                   :describe (fn/partial #'make-tree-cell localization-state)}}
-                  tree (assoc :root (make-tree-item tree)))})
+            tree (assoc :root (make-tree-item tree)))})
 
 (defn make-build-errors-view [^TreeView errors-tree localization open-resource-fn]
   (doto errors-tree

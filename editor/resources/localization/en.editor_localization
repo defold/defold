@@ -189,12 +189,6 @@ dialog.clean-build.title = Perform Clean Project Build?
 dialog.clean-build.header = Are you sure you want to perform a clean project build?
 dialog.clean-build.button.clean = Clean Build
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = Debugging Not Supported
-dialog.debugging-not-supported.header = This project cannot be used with the debugger
-dialog.debugging-not-supported.content = It is configured to disable shared script state.\n\nIf you do not specifically require different script states, consider changing the script.shared_state property in game.project.
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = Revise .defunload Patterns
@@ -571,7 +565,6 @@ dialog.bundle.label.platform = Platform
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
-dialog.bundle.option.platform.x86-win32 = 32-bit
 dialog.bundle.option.identity.none = None
 dialog.bundle.label.architectures = Architectures
 dialog.bundle.label.ios-simulator = Simulator
@@ -852,6 +845,7 @@ menu.edit = Edit
 menu.debug = Debug
 menu.view = View
 menu.help = Help
+menu.dock.new-window = New Window
 
 # Commands
 
@@ -2171,11 +2165,6 @@ form.help.project.particle_fx.max_count = Maximum number of ParticleFX component
 form.label.project.particle_fx.max_emitter_count = Max Emitter Count
 form.help.project.particle_fx.max_emitter_count = Maximum total number of emitters across all concurrent ParticleFX instances in each loaded collection. A single effect can contain multiple emitters. If the limit is exceeded, the collection's entire ParticleFX render pass is skipped and a warning is logged.
 
-form.label.project.script = Script
-form.help.project.script = Script system settings
-form.label.project.script.shared_state = Shared State
-form.help.project.script.shared_state = Controls whether game object scripts, GUI scripts, and the render script use one Lua state. Globals and loaded-module caches are shared when enabled and isolated when disabled. A shared state uses less memory and is required by the Editor debugger.
-
 form.label.project.sound = Sound
 form.help.project.sound = Sound related settings
 form.label.project.sound.gain = Gain
@@ -2473,6 +2462,8 @@ form.label.render.render-resources.name = Name
 form.label.render.render-resources.resource = Resource
 
 form.label.render-target = Render Target
+form.label.render-target.type = Texture Type
+form.help.render-target.type = Selects the texture type used by every render-target attachment. Cubemaps are rendered one face at a time and must be sampled using a `samplerCube`.
 form.label.render-target.color-attachments = Color Attachments
 form.help.render-target.color-attachments = Defines the color textures that receive rendered output. Each row creates one attachment with its own size and pixel format. Use matching dimensions for all attachments for portability across graphics backends. Up to `4` are supported.
 form.label.render-target.color-attachments.width = Width
@@ -2635,6 +2626,8 @@ form.label.liveupdate.liveupdate.supported-versions = Supported Engine Versions
 form.help.liveupdate.liveupdate.supported-versions = Additional engine version strings that may mount this Live Update manifest. Enter them as a comma-separated list. The build engine version is always included. Mounting fails with `ENGINE_VERSION_MISMATCH` when the running engine matches none of them.
 
 form.label.material = Material
+form.label.material.programs = Programs
+form.label.material.render-settings = Render Settings
 form.label.material.name = Name
 form.help.material.name = Internal name embedded in this Material resource. A Render resource assigns its own identifier when it includes the material; that separate identifier is used by APIs such as `render.enable_material()`.
 form.label.material.vertex-program = Vertex Program
@@ -2643,6 +2636,7 @@ form.label.material.fragment-program = Fragment Program
 form.help.material.fragment-program = The `.fp` shader that runs for each rasterized fragment. It typically samples textures and combines varying values and constants to produce the output color.
 form.label.material.attributes = Vertex Attributes
 form.help.material.attributes = Vertex inputs expected by the vertex program. **Semantic Type** identifies engine or component data, **Coordinate Space** controls supported semantic transformations, and **Value** supplies constant data when no matching component stream overrides it. **Step Function** selects per-vertex or per-instance delivery.
+form.label.material.attributes.name = Name
 form.label.material.attributes.semantic-type = Semantic Type
 form.label.material.attributes.step-function = Step Function
 form.label.material.attributes.coordinate-space = Coordinate Space
@@ -2675,6 +2669,8 @@ form.label.material.vertex-space = Vertex Space
 form.help.material.vertex-space = Controls whether vertices reach the vertex program in **World** or **Local** object space. **World** is mandatory for Sprite, Tile Map, ParticleFX, Label, and GUI components. **Local** requires the shader to apply the world transform and supports GPU-skinned or instanced models.
 form.label.material.max-page-count = Max Atlas Pages
 form.help.material.max-page-count = Maximum paged-atlas pages supported by this material's fallback samplers on graphics APIs without texture arrays. It must cover every assigned paged atlas. This is not a general texture-array layer limit and does not page an atlas by itself; use `0` for ordinary textures.
+form.table-2panel.select-row = Select a row to edit it.
+form.table-2panel.add-row = Add a row to edit it.
 
 form.label.compute = Compute
 form.label.compute.compute-program = Program
@@ -2731,7 +2727,10 @@ error.property-must-be-greater-than-zero = "{property}" must be greater than zer
 error.property-must-be-at-least = "{property}" must be at least {min}.
 error.property-must-be-at-most = "{property}" must be at most {max}.
 error.render-target.color-attachments-cannot-exceed = "{property}" cannot have more than {max} color attachments.
+error.render-target.texture-type-must-be-supported = Texture type must be 2D or Cubemap.
 error.render-target.sample-count-must-be-supported = Sample count must be one of 1, 2, 4, 8, or 16.
+error.render-target.cubemap-sample-count-must-be-one = Cubemap render targets only support a sample count of 1.
+error.render-target.cubemap-attachments-must-be-square-and-equal = Cubemap render-target attachments must be square and have identical dimensions.
 error.render-target.color-attachment-width-must-be-greater-than-zero = Color attachment {index} must have a width greater than zero.
 error.render-target.color-attachment-height-must-be-greater-than-zero = Color attachment {index} must have a height greater than zero.
 error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is = Incorrect depth/stencil attachment: width is greater than zero, but height is zero.

@@ -85,7 +85,7 @@ namespace dmTexc
         comp_params.m_multithreading = num_threads > 1;
 
         comp_params.m_read_source_images = false;
-        comp_params.m_write_output_basis_files = false;
+        comp_params.m_write_output_basis_or_ktx2_files = false;
         comp_params.m_status_output = debug;
         comp_params.m_debug = debug;
 
@@ -115,7 +115,7 @@ namespace dmTexc
                 case basisu::basis_compressor::cECFailedValidating: dmLogError("Compressor failed 2darray/cubemap/video validation checks!\n"); break;
                 case basisu::basis_compressor::cECFailedEncodeUASTC: dmLogError("Compressor UASTC encode failed!\n"); break;
                 case basisu::basis_compressor::cECFailedFrontEnd: dmLogError("Compressor frontend stage failed!\n"); break;
-                case basisu::basis_compressor::cECFailedFontendExtract: dmLogError("Compressor frontend data extraction failed!\n"); break;
+                case basisu::basis_compressor::cECFailedFrontendExtract: dmLogError("Compressor frontend data extraction failed!\n"); break;
                 case basisu::basis_compressor::cECFailedBackend: dmLogError("Compressor backend stage failed!\n"); break;
                 case basisu::basis_compressor::cECFailedCreateBasisFile: dmLogError("Compressor failed creating Basis file data!\n"); break;
                 case basisu::basis_compressor::cECFailedWritingOutput: dmLogError("Compressor failed writing to output Basis file!\n"); break;
@@ -206,13 +206,13 @@ namespace dmTexc
         basisu::basis_compressor_params comp_params;
 
         comp_params.m_mip_gen = 0;
-        comp_params.m_pack_uastc_flags = input->m_pack_uastc_flags;
-        comp_params.m_uastc = 1;
-        comp_params.m_rdo_uastc = input->m_rdo_uastc;
-        if (comp_params.m_rdo_uastc)
+        comp_params.m_pack_uastc_ldr_4x4_flags = input->m_pack_uastc_flags;
+        comp_params.set_format_mode(basist::basis_tex_format::cUASTC_LDR_4x4);
+        comp_params.m_rdo_uastc_ldr_4x4 = input->m_rdo_uastc;
+        if (comp_params.m_rdo_uastc_ldr_4x4)
         {
-            comp_params.m_rdo_uastc_quality_scalar = input->m_rdo_uastc_quality_scalar;
-            comp_params.m_rdo_uastc_dict_size = input->m_rdo_uastc_dict_size;
+            comp_params.m_rdo_uastc_ldr_4x4_quality_scalar = input->m_rdo_uastc_quality_scalar;
+            comp_params.m_rdo_uastc_ldr_4x4_dict_size = input->m_rdo_uastc_dict_size;
         }
 
         comp_params.m_source_images.push_back(impl.m_BasisImage);

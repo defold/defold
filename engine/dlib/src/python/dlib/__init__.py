@@ -1,17 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import ctypes, os, sys, platform
 
 # NOTE: The output here is parsed later on, so don't print invalid code!
@@ -240,13 +226,17 @@ def dmLZ4CompressBuffer(buf, buf_len, max_out_len):
         raise Exception('dlib.LZ4CompressBuffer failed! Error code: ' % res)
     return ctypes.string_at(outbuf.raw, outlen.value)
 
+class LZ4Error(Exception):
+    pass
+
 def dmLZ4DecompressBuffer(buf, max_out_len):
     _require_dlib('dmLZ4DecompressBuffer')
+    buf = _to_bytes(buf)
     outbuf = ctypes.create_string_buffer(max_out_len)
     outlen = ctypes.c_int()
     res = dlib.LZ4DecompressBuffer(buf, len(buf), outbuf, max_out_len, ctypes.byref(outlen))
     if res != 0:
-        raise Exception('dlib.LZ4DecompressBuffer failed! Error code: ' % res)
+        raise LZ4Error('dlib.LZ4DecompressBuffer failed! Error code: %s' % res)
     return ctypes.string_at(outbuf.raw, outlen.value)
 
 def dmEncryptXTeaCTR(buf, key):

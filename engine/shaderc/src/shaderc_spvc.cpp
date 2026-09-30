@@ -206,11 +206,71 @@ namespace dmShaderc
         return type_index;
     }
 
-    static void SetReflectionResourceForType(ShaderStage stage, ShaderReflection& reflection, spvc_compiler compiler, spvc_resources resources, spvc_resource_type type, dmArray<ShaderResource>& resources_out)
+    static uint8_t GetStorageBufferAccessFlags(spvc_compiler compiler, const spvc_reflected_resource& reflected_resource, spvc_type type)
+    {
+        bool can_read = !spvc_compiler_has_decoration(compiler, reflected_resource.id, SpvDecorationNonReadable) &&
+                        !spvc_compiler_has_decoration(compiler, reflected_resource.base_type_id, SpvDecorationNonReadable);
+        bool can_write = !spvc_compiler_has_decoration(compiler, reflected_resource.id, SpvDecorationNonWritable) &&
+                         !spvc_compiler_has_decoration(compiler, reflected_resource.base_type_id, SpvDecorationNonWritable);
+
+        const unsigned member_count = spvc_type_get_num_member_types(type);
+        if (member_count > 0)
+        {
+            bool has_readable_member = false;
+            bool has_writable_member = false;
+            for (unsigned member_index = 0; member_index < member_count; ++member_index)
+            {
+                has_readable_member |= !spvc_compiler_has_member_decoration(compiler, reflected_resource.base_type_id, member_index, SpvDecorationNonReadable);
+                has_writable_member |= !spvc_compiler_has_member_decoration(compiler, reflected_resource.base_type_id, member_index, SpvDecorationNonWritable);
+            }
+            can_read &= has_readable_member;
+            can_write &= has_writable_member;
+        }
+
+        uint8_t access_flags = SHADER_RESOURCE_ACCESS_NONE;
+        if (can_read)
+            access_flags |= SHADER_RESOURCE_ACCESS_READ;
+        if (can_write)
+            access_flags |= SHADER_RESOURCE_ACCESS_WRITE;
+        return access_flags;
+    }
+
+    static uint8_t GetShaderResourceAccessFlags(spvc_compiler compiler, spvc_resource_type resource_type, const spvc_reflected_resource& reflected_resource, spvc_type type)
+    {
+        switch (resource_type)
+        {
+        case SPVC_RESOURCE_TYPE_STAGE_INPUT:
+        case SPVC_RESOURCE_TYPE_UNIFORM_BUFFER:
+        case SPVC_RESOURCE_TYPE_SAMPLED_IMAGE:
+        case SPVC_RESOURCE_TYPE_SEPARATE_IMAGE:
+        case SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS:
+            return SHADER_RESOURCE_ACCESS_READ;
+        case SPVC_RESOURCE_TYPE_STAGE_OUTPUT:
+            return SHADER_RESOURCE_ACCESS_WRITE;
+        case SPVC_RESOURCE_TYPE_STORAGE_BUFFER:
+            return GetStorageBufferAccessFlags(compiler, reflected_resource, type);
+        case SPVC_RESOURCE_TYPE_STORAGE_IMAGE:
+            switch (spvc_type_get_image_access_qualifier(type))
+            {
+            case SpvAccessQualifierReadOnly:
+                return SHADER_RESOURCE_ACCESS_READ;
+            case SpvAccessQualifierWriteOnly:
+                return SHADER_RESOURCE_ACCESS_WRITE;
+            case SpvAccessQualifierReadWrite:
+            case SpvAccessQualifierMax:
+            default:
+                return SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+            }
+        default:
+            return SHADER_RESOURCE_ACCESS_NONE;
+        }
+    }
+
+    static void SetReflectionResourceForType(ShaderStage stage, ShaderReflection& reflection, spvc_compiler compiler, spvc_resources resources, spvc_resource_type resource_type, dmArray<ShaderResource>& resources_out)
     {
         const spvc_reflected_resource *list = NULL;
         size_t count = 0;
-        spvc_resources_get_resource_list_for_type(resources, type, &list, &count);
+        spvc_resources_get_resource_list_for_type(resources, resource_type, &list, &count);
 
         if (count == 0)
             return;
@@ -240,6 +300,7 @@ namespace dmShaderc
             resource.m_Binding          = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationBinding);
             resource.m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
             resource.m_StageFlags       = (int) stage;
+            resource.m_AccessFlags      = GetShaderResourceAccessFlags(compiler, resource_type, list[i], type);
 
             resource.m_Type.m_ArraySize = 1;
             unsigned num_array_dimensions = spvc_type_get_num_array_dimensions(type);
@@ -485,6 +546,30 @@ namespace dmShaderc
         }
     }
 
+    static void SetCombinedSamplerNamesGLSL(HShaderContext context, ShaderCompilerSPVC* compiler)
+    {
+        dmArray<CombinedSampler> combined_samplers;
+        GetCombinedSamplerMapSPIRV(context, compiler, combined_samplers);
+
+        dmArray<char> combined_name;
+        const char* prefix = "SPIRV_Cross_Combined";
+        for (uint32_t i = 0; i < combined_samplers.Size(); ++i)
+        {
+            const CombinedSampler& sampler = combined_samplers[i];
+            const char* image_name         = sampler.m_ImageName;
+            const char* sampler_name       = sampler.m_SamplerName;
+            if (!image_name || !image_name[0] || !sampler_name || !sampler_name[0])
+                continue;
+
+            const size_t combined_name_size = strlen(prefix) + strlen(image_name) + strlen(sampler_name) + 1;
+            if (combined_name.Capacity() < combined_name_size)
+                combined_name.SetCapacity(combined_name_size);
+            combined_name.SetSize(combined_name_size);
+            dmSnPrintf(combined_name.Begin(), combined_name_size, "%s%s%s", prefix, image_name, sampler_name);
+            spvc_compiler_set_name(compiler->m_SPVCCompiler, sampler.m_CombinedId, combined_name.Begin());
+        }
+    }
+
     #define MAX_BINDINGS 128
     bool GetFirstFreeBindingIndex(HShaderContext context, uint32_t* binding)
     {
@@ -656,11 +741,19 @@ namespace dmShaderc
         spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
         spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
 
+        // SPIRV-Cross may leave synthetic combined samplers with an ID-based
+        // name (for example, `_194`) after texture/sampler splitting. Give the
+        // generated resource its canonical SPIRV-Cross name so Bob can map it
+        // back to the reflected texture name in GLSL variants.
+        if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
+            SetCombinedSamplerNamesGLSL(context, compiler);
+
         if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
         {
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_GLSL_VERSION, options.m_Version);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ENABLE_420PACK_EXTENSION, !options.m_No420PackExtension);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ES, options.m_GlslEs);
+            spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_EMIT_UNIFORM_BUFFER_AS_PLAIN_UNIFORMS, options.m_GlslEmitUboAsPlainUniforms);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_FLOAT_PRECISION_HIGHP, options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_HIGHP);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_INT_PRECISION_HIGHP, options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_HIGHP);
         }

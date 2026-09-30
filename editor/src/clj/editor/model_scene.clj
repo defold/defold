@@ -212,23 +212,23 @@
             (let [attribute-buffers
                   (cond-> {:semantic-type-position [positions]}
 
-                          (pos? normal-count)
-                          (assoc :semantic-type-normal [normals])
+                    (pos? normal-count)
+                    (assoc :semantic-type-normal [normals])
 
-                          (pos? tangent-count)
-                          (assoc :semantic-type-tangent [tangents])
+                    (pos? tangent-count)
+                    (assoc :semantic-type-tangent [tangents])
 
-                          (pos? color-count)
-                          (assoc :semantic-type-color [colors])
+                    (pos? color-count)
+                    (assoc :semantic-type-color [colors])
 
-                          (or (pos? texcoord0-count)
-                              (pos? texcoord1-count))
-                          (assoc :semantic-type-texcoord (cond-> [(when (pos? texcoord0-count) texcoord0s)]
-                                                                 (pos? texcoord1-count) (conj texcoord1s))))]
+                    (or (pos? texcoord0-count)
+                        (pos? texcoord1-count))
+                    (assoc :semantic-type-texcoord (cond-> [(when (pos? texcoord0-count) texcoord0s)]
+                                                     (pos? texcoord1-count) (conj texcoord1s))))]
               (cond-> {:attribute-buffers attribute-buffers}
 
-                      (not (neg? max-index))
-                      (assoc :index-buffer indices)))))))))
+                (not (neg? max-index))
+                (assoc :index-buffer indices)))))))))
 
 (defn- render-mesh-opaque [^GL2 gl render-args renderables]
   (let [renderable (first renderables)
@@ -593,10 +593,10 @@
   (let [{:keys [aabb material-data material-name renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
-        attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space nil)
+        attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space)
         coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
         attribute-bindings (model-util/make-attribute-bindings scene-node-id attribute-reflection-infos semantic-type->attribute-buffers {})
-        selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space nil)
+        selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space)
         selection-attribute-bindings (model-util/make-attribute-bindings scene-node-id selection-attribute-reflection-infos semantic-type->attribute-buffers {})
 
         user-data
@@ -668,7 +668,7 @@
     (if (nil? material-scene-info)
       claimed-scene
       (let [{:keys [gpu-textures material-attribute-infos shader vertex-attribute-bytes vertex-space]} material-scene-info
-            shader-attribute-reflection-infos (shader/attribute-reflection-infos shader nil)
+            shader-attribute-reflection-infos (shader/attribute-reflection-infos shader)
             default-coordinate-space (case vertex-space
                                        :vertex-space-local :coordinate-space-local
                                        :vertex-space-world :coordinate-space-world)]
@@ -739,10 +739,10 @@
                                    (and scene-aabb (seq augmented-model-scenes))
                                    (assoc-in [0 :aabb] scene-aabb))]
       (cond-> (assoc scene
-        :node-id new-node-id
-        :node-outline-key new-node-outline-key
-        :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
-        :children augmented-model-scenes)
+                :node-id new-node-id
+                :node-outline-key new-node-outline-key
+                :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
+                :children augmented-model-scenes)
         scene-aabb (assoc :aabb scene-aabb)))))
 
 (defn make-material-name->material-scene-info
@@ -783,10 +783,10 @@
                                             [:sha256 :external-buffer-sha256s]))
           new-value)))
 
-(defn load-model-scene-node [project self resource external-buffer-uris]
-  (let [basis (g/now)
-        external-buffer-resources (mapv #(workspace/resolve-resource basis resource %)
-                                        external-buffer-uris)]
+(defn- load-model-scene [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id external-buffer-uris :source-value}]
+  (let [external-buffer-resources
+        (mapv #(resolve-resource-fn owner-resource %)
+              external-buffer-uris)]
     (into (g/connect project :settings self :project-settings)
           (g/set-property self :external-buffer-resources external-buffer-resources))))
 
@@ -815,13 +815,16 @@
   (output renderable-mesh-set g/Any :cached produce-renderable-mesh-set)
   (output scene g/Any :cached produce-scene))
 
+(defn- read-model-scene [_read-opts _owner-resource readable]
+  (model-loader/read-external-buffer-uris readable))
+
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
     :ext model-file-types
     :label (localization/message "resource.type.model-scene")
     :node-type ModelSceneNode
-    :load-fn load-model-scene-node
-    :read-fn model-loader/read-external-buffer-uris
+    :load-fn load-model-scene
+    :read-fn read-model-scene
     :icon mesh-icon
     :icon-class :design
     :view-types [:scene :text]))

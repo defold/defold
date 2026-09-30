@@ -14,16 +14,18 @@
 
 package com.dynamo.bob.test;
 
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -66,6 +68,15 @@ public class JBobTest {
 
     @BuilderParams(name = "InCopyBuilderMulti", inExts = ".in2", outExt = ".out")
     public static class InCopyBuilderMulti extends InCopyBuilder {}
+
+    @BuilderParams(name = "ConstructorException", inExts = ".in_constructor_error", outExt = ".out")
+    public static class ConstructorExceptionBuilder extends CopyBuilder {
+        static final CompileExceptionError ERROR = new CompileExceptionError("Failed to construct builder");
+
+        public ConstructorExceptionBuilder() throws CompileExceptionError {
+            throw ERROR;
+        }
+    }
 
     @BuilderParams(name = "CBuilder", inExts = ".c", outExt = ".o")
     public static class CBuilder extends CopyBuilder {
@@ -215,8 +226,8 @@ public class JBobTest {
             @Override
             public java.util.Enumeration<URL> getResources(String name) throws IOException {
                 return Collections.enumeration(Arrays.asList(
-                        new URL("jar:" + validJarPath.toUri().toURL() + "!/" + name),
-                        new URL("jar:" + missingJarPath.toUri().toURL() + "!/" + name)));
+                        URI.create("jar:" + validJarPath.toUri() + "!/" + name).toURL(),
+                        URI.create("jar:" + missingJarPath.toUri() + "!/" + name).toURL()));
             }
         };
 
@@ -244,7 +255,7 @@ public class JBobTest {
     @Test
     public void testCopy() throws Exception {
         fileSystem.addFile("test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.in"));
+        project.setInputs(List.of("test.in"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         IResource testOut = fileSystem.get(ResourceUtil.minifyPath("test.out")).output();
@@ -263,7 +274,7 @@ public class JBobTest {
     @Test
     public void testAbsPath() throws Exception {
         fileSystem.addFile("/root/test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("/root/test.in"));
+        project.setInputs(List.of("/root/test.in"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         IResource testOut = fileSystem.get(ResourceUtil.minifyPath("/root/test.out")).output();
@@ -349,7 +360,7 @@ public class JBobTest {
     @Test
     public void testChangeInput() throws Exception {
         fileSystem.addFile("test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.in"));
+        project.setInputs(List.of("test.in"));
         List<TaskResult> result;
 
         // build
@@ -373,7 +384,7 @@ public class JBobTest {
     @Test
     public void testRemoveOutput() throws Exception {
         fileSystem.addFile("test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.in"));
+        project.setInputs(List.of("test.in"));
         List<TaskResult> result;
 
         // build
@@ -391,7 +402,7 @@ public class JBobTest {
     @Test
     public void testRemoveGeneratedOutput() throws Exception {
         fileSystem.addFile("test.dynamic", "1\n2\n".getBytes());
-        project.setInputs(Arrays.asList("test.dynamic"));
+        project.setInputs(List.of("test.dynamic"));
 
         // build
         List<TaskResult> result = build();
@@ -416,7 +427,7 @@ public class JBobTest {
     @Test
     public void testCompileError() throws Exception {
         fileSystem.addFile("test.in_err", "test data_err".getBytes());
-        project.setInputs(Arrays.asList("test.in_err"));
+        project.setInputs(List.of("test.in_err"));
         List<TaskResult> result;
 
         // build
@@ -433,15 +444,26 @@ public class JBobTest {
     @Test(expected=CompileExceptionError.class)
     public void testCreateError() throws Exception {
         fileSystem.addFile("test.in_ce", "test".getBytes());
-        project.setInputs(Arrays.asList("test.in_ce"));
+        project.setInputs(List.of("test.in_ce"));
         // build
         build();
     }
 
     @Test
+    public void testConstructorCompileError() throws Exception {
+        fileSystem.addFile("test.in_constructor_error", "test".getBytes());
+        try {
+            project.createTask(project.getResource("test.in_constructor_error"), ConstructorExceptionBuilder.class);
+            fail("Expected the builder constructor to fail");
+        } catch (CompileExceptionError e) {
+            assertSame(ConstructorExceptionBuilder.ERROR, e);
+        }
+    }
+
+    @Test
     public void testMissingOutput() throws Exception {
         fileSystem.addFile("test.nooutput", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.nooutput"));
+        project.setInputs(List.of("test.nooutput"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         assertFalse(result.get(0).isOk());
@@ -455,20 +477,20 @@ public class JBobTest {
     @Test
     public void testDynamic() throws Exception {
         fileSystem.addFile("test.dynamic", "1\n2\n".getBytes());
-        project.setInputs(Arrays.asList("test.dynamic"));
+        project.setInputs(List.of("test.dynamic"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(3));
         assertThat(getResourceString(ResourceUtil.minifyPath("test_0.numberc")), is("10"));
         assertThat(getResourceString(ResourceUtil.minifyPath("test_1.numberc")), is("20"));
-        assertThat(result.get(1).getTask().getProductOf(), is((Task) result.get(0).getTask()));
-        assertThat(result.get(2).getTask().getProductOf(), is((Task) result.get(0).getTask()));
+        assertThat(result.get(1).getTask().getProductOf(), is(result.get(0).getTask()));
+        assertThat(result.get(2).getTask().getProductOf(), is(result.get(0).getTask()));
     }
 
 
     @Test
     public void testChangeOptions() throws Exception {
         fileSystem.addFile("test.c", "f();".getBytes());
-        project.setInputs(Arrays.asList("test.c"));
+        project.setInputs(List.of("test.c"));
         List<TaskResult> result;
 
         // build
@@ -491,7 +513,7 @@ public class JBobTest {
     @Test
     public void testCompileErrorOutputCreated() throws Exception {
         fileSystem.addFile("test.foeao", "test".getBytes());
-        project.setInputs(Arrays.asList("test.foeao"));
+        project.setInputs(List.of("test.foeao"));
         List<TaskResult> result;
 
         // build

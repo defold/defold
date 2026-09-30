@@ -264,7 +264,7 @@
                   (try
                     (render-save-progress! (progress/make-indeterminate (localization/message "progress.reading-timestamps")))
                     (project/reload-plugins! project written-resources)
-                    (lsp/touch-resources! (lsp/get-node-lsp project) written-resources)
+                    (lsp/touch-resources! (lsp/get-lsp) written-resources)
                     (cond
                       reload-required
                       (complete! (blocking-reload! render-reload-progress! workspace [] changes-view))

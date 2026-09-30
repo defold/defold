@@ -508,7 +508,7 @@ namespace dmGameSystem
         const SpriteTexture* texture = 0;
         if (overrides && index < overrides->m_Textures.Size())
             texture = &overrides->m_Textures[index];
-        if (!texture || !texture->m_TextureSet)
+        if ((!texture || !texture->m_TextureSet) && index < component->m_Resource->m_NumTextures)
             texture = &component->m_Resource->m_Textures[index];
         return texture ? texture->m_TextureSet : 0;
     }
@@ -578,6 +578,9 @@ namespace dmGameSystem
     static void UpdateCurrentAnimationFrame(SpriteComponent* component)
     {
         TextureSetResource* texture_set = GetFirstTextureSet(component);
+        if (!texture_set)
+            return;
+
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
         const dmGameSystemDDF::Playback playback = (dmGameSystemDDF::Playback)component->m_AnimationPlayback;
 
@@ -646,7 +649,14 @@ namespace dmGameSystem
     static bool PlayAnimation(SpriteComponent* component, dmhash_t animation, float offset, float playback_rate)
     {
         TextureSetResource* texture_set = GetFirstTextureSet(component);
-        uint32_t* anim_id = texture_set ? texture_set->m_AnimationIds.Get(animation) : 0;
+        if (!texture_set)
+        {
+            ClearCurrentAnimation(component);
+            dmLogError("Unable to play animation '%s' since the sprite has no texture.", dmHashReverseSafe64(animation));
+            return false;
+        }
+
+        uint32_t* anim_id = texture_set->m_AnimationIds.Get(animation);
         if (anim_id)
         {
             component->m_AnimationID = (uint16_t)(*anim_id);
@@ -712,7 +722,10 @@ namespace dmGameSystem
             uint8_t generation = GetTextureResourceGeneration(component, idx);
             dmHashUpdateBuffer32(&state, &generation, sizeof(generation));
         }
-        dmHashUpdateBuffer32(&state, resource->m_Textures->m_TextureSet, sizeof(resource->m_Textures->m_TextureSet));
+        if (resource->m_NumTextures > 0)
+        {
+            dmHashUpdateBuffer32(&state, resource->m_Textures->m_TextureSet, sizeof(resource->m_Textures->m_TextureSet));
+        }
         dmHashUpdateBuffer32(&state, resource->m_Material, sizeof(MaterialResource*));
 
         HashResourceOverrides(&state, component->m_Overrides);

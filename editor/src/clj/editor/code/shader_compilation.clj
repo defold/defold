@@ -48,8 +48,7 @@
 
 (defn- make-shader-module-desc
   ^ShaderCompilePipeline$ShaderModuleDesc [^String resource-proj-path ^String shader-source]
-  {:pre [(string? resource-proj-path)
-         (pos? (count resource-proj-path))
+  {:pre [(resource/proj-path? resource-proj-path)
          (string? shader-source)
          (pos? (count shader-source))]}
   (let [pb-shader-type (graphics.types/filename-pb-shader-type resource-proj-path)

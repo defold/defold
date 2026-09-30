@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,15 +15,17 @@
 #import <UIKit/UIKit.h>
 #import "AppDelegateProxy.h"
 
+@class ViewController;
+
 @interface AppDelegate : NSObject <UIApplicationDelegate>
 {
 @private
-    UIWindow* window;
+    ViewController* viewController;
 }
 
 - (void)reinit:(UIApplication*)application;
 - (void)appUpdate;
 
-@property (nonatomic, retain) IBOutlet UIWindow* window;
+@property (nonatomic, retain) ViewController* viewController;
 
 @end

@@ -22,7 +22,7 @@
 
 (deftest expand-test
   (test-support/with-clean-system
-    (let [node-id (g/make-node! world helpers/PropertyTestNode)]
+    (let [node-id (g/make-node! helpers/PropertyTestNode)]
 
       (testing "Transact."
         (g/transact
@@ -50,7 +50,7 @@
 
 (deftest expand-within-expanded-tx-steps-test
   (test-support/with-clean-system
-    (let [node-id (g/make-node! world helpers/PropertyTestNode)]
+    (let [node-id (g/make-node! helpers/PropertyTestNode)]
 
       (testing "Transact."
         (g/transact

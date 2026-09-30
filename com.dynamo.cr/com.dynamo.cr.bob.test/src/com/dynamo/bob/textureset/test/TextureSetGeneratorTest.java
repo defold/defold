@@ -17,7 +17,6 @@ package com.dynamo.bob.textureset.test;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -135,8 +134,8 @@ public class TextureSetGeneratorTest {
         atlasImages.add(newAtlasImage(0.5f, 0.5f, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF));
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
-        animations.add(newAnim("anim1", Arrays.asList("1")));
-        animations.add(newAnim("anim2", Arrays.asList("2")));
+        animations.add(newAnim("anim1", List.of("1")));
+        animations.add(newAnim("anim2", List.of("2")));
         animations.add(newAnim("anim3", Arrays.asList("1", "2")));
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
@@ -146,8 +145,8 @@ public class TextureSetGeneratorTest {
         BufferedImage image1 = result.images.get(1);
         assertThat(image0.getWidth(), is(16));
         assertThat(image0.getHeight(), is(16));
-        assertTrue(image0.getHeight() == image1.getHeight());
-        assertTrue(image0.getWidth() == image1.getWidth());
+        assertEquals(image0.getHeight(), image1.getHeight());
+        assertEquals(image0.getWidth(), image1.getWidth());
 
         TextureSet textureSet = result.builder.setTexture("").build();
 

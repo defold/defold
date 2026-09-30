@@ -62,11 +62,10 @@
                                (assoc pb-msg :node-id _node-id))))
 
 (defn- add-profile [node-id name qualifiers]
-  (g/make-nodes (g/node-id->graph-id node-id)
-    [profile [ProfileNode
-              :name name
-              :qualifiers (mapv #(update % :device-models text-util/join-comma-separated-string)
-                                qualifiers)]]
+  (g/make-nodes [profile [ProfileNode
+                          :name name
+                          :qualifiers (mapv #(update % :device-models text-util/join-comma-separated-string)
+                                            qualifiers)]]
     (for [[from to] [[:_node-id :nodes]
                      [:pb-msg :profile-msgs]
                      [:form-values :profile-form-values]
@@ -152,7 +151,7 @@
   (output profile-data g/Any (gu/passthrough profile-data))
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-display-profiles [_project self _resource display-profiles]
+(defn load-display-profiles [_load-opts {self :node-id display-profiles :source-value}]
   {:pre [(map? display-profiles)]} ; Render$DisplayProfiles in map format.
   ;; Inject any missing defaults into the stripped pb-map for form-view editing.
   (let [with-defaults (protobuf/inject-defaults Render$DisplayProfiles display-profiles)

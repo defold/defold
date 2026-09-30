@@ -120,6 +120,7 @@ namespace dmGraphics
 
         limits.m_MaxSamplersPerStage             = 16;
         limits.m_MaxTexturesPerStage             = 32;
+        limits.m_MaxStorageBuffersPerStage       = MAX_BINDINGS_PER_SET_COUNT;
         limits.m_MaxVertexAttributes             = 16;
         limits.m_MaxVertexBuffers                = 16;
 
@@ -201,6 +202,7 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
@@ -454,6 +456,86 @@ namespace dmGraphics
         NullDisableUniformBuffer(_context, uniform_buffer);
         delete[] ubo->m_Buffer;
         delete ubo;
+    }
+
+    static HStorageBuffer NullNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        NullStorageBuffer* buffer = new NullStorageBuffer();
+        buffer->m_Base.m_Size = size;
+        buffer->m_Base.m_Usage = buffer_usage;
+        buffer->m_Buffer = new uint8_t[size];
+
+        if (data)
+        {
+            memcpy(buffer->m_Buffer, data, size);
+        }
+        else
+        {
+            memset(buffer->m_Buffer, 0, size);
+        }
+        return (HStorageBuffer) buffer;
+    }
+
+    static void NullDisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        NullContext* context = (NullContext*) _context;
+        NullStorageBuffer* buffer = (NullStorageBuffer*) storage_buffer;
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_StorageBuffers[set][binding] == buffer)
+                {
+                    context->m_StorageBuffers[set][binding] = 0;
+                }
+            }
+        }
+    }
+
+    static void NullDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        NullStorageBuffer* buffer = (NullStorageBuffer*) storage_buffer;
+        NullDisableStorageBuffer(_context, storage_buffer);
+        delete[] buffer->m_Buffer;
+        delete buffer;
+    }
+
+    static void NullSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        NullStorageBuffer* buffer = (NullStorageBuffer*) storage_buffer;
+        if (size != buffer->m_Base.m_Size)
+        {
+            delete[] buffer->m_Buffer;
+            buffer->m_Buffer = new uint8_t[size];
+            buffer->m_Base.m_Size = size;
+        }
+        buffer->m_Base.m_Usage = buffer_usage;
+        if (data)
+        {
+            memcpy(buffer->m_Buffer, data, size);
+        }
+        else
+        {
+            memset(buffer->m_Buffer, 0, size);
+        }
+    }
+
+    static void NullSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        NullStorageBuffer* buffer = (NullStorageBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_Base.m_Size);
+        memcpy(buffer->m_Buffer + offset, data, size);
+    }
+
+    static uint32_t NullGetStorageBufferSize(HContext _context, HStorageBuffer storage_buffer)
+    {
+        return ((NullStorageBuffer*) storage_buffer)->m_Base.m_Size;
+    }
+
+    static void NullEnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        ((NullContext*) _context)->m_StorageBuffers[set][binding] = (NullStorageBuffer*) storage_buffer;
     }
 
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -941,7 +1023,7 @@ namespace dmGraphics
             p->m_FP = NewShaderModuleFromDDF(_context, ddf_fp);
         }
 
-        CreateShaderMeta(&ddf->m_Reflection, &p->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &p->m_BaseProgram);
         CreateProgramResourceBindings(p, p->m_VP, p->m_FP, p->m_Compute);
 
         return (HProgram) p;
@@ -1035,13 +1117,16 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_VERTEX:
                 return language == ShaderDesc::LANGUAGE_GLSL_SM330 ||
                        language == ShaderDesc::LANGUAGE_GLES_SM300 ||
+                       language == ShaderDesc::LANGUAGE_MSL_22 ||
                        language == ShaderDesc::LANGUAGE_SPIRV;
             case ShaderDesc::SHADER_TYPE_FRAGMENT:
                 return language == ShaderDesc::LANGUAGE_GLSL_SM330 ||
                        language == ShaderDesc::LANGUAGE_GLES_SM300 ||
+                       language == ShaderDesc::LANGUAGE_MSL_22 ||
                        language == ShaderDesc::LANGUAGE_SPIRV;
             case ShaderDesc::SHADER_TYPE_COMPUTE:
                 return language == ShaderDesc::LANGUAGE_GLSL_SM430 ||
+                       language == ShaderDesc::LANGUAGE_MSL_22 ||
                        language == ShaderDesc::LANGUAGE_SPIRV;
         }
     #endif
@@ -1190,11 +1275,34 @@ namespace dmGraphics
         return sizeof(uint32_t) * params.m_Width * params.m_Height * bytes_per_pixel;
     }
 
+    static void UpdateNullCubeMapFrameBuffers(NullRenderTarget* rt)
+    {
+        if (rt->m_Base.m_TextureType != TEXTURE_TYPE_CUBE_MAP)
+            return;
+
+        for (uint32_t face = 0; face < CUBEMAP_FACE_COUNT; ++face)
+        {
+            FrameBuffer& frame_buffer = rt->m_CubeMapFrameBuffers[face];
+            frame_buffer = rt->m_FrameBuffer;
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                if (frame_buffer.m_ColorBuffer[i])
+                    frame_buffer.m_ColorBuffer[i] = (uint8_t*) frame_buffer.m_ColorBuffer[i] + face * frame_buffer.m_ColorBufferSize[i];
+            }
+            if (frame_buffer.m_DepthTextureBuffer)
+                frame_buffer.m_DepthTextureBuffer = (uint8_t*) frame_buffer.m_DepthTextureBuffer + face * frame_buffer.m_DepthTextureBufferSize;
+            if (frame_buffer.m_StencilTextureBuffer)
+                frame_buffer.m_StencilTextureBuffer = (uint8_t*) frame_buffer.m_StencilTextureBuffer + face * frame_buffer.m_StencilTextureBufferSize;
+        }
+    }
+
     static HRenderTarget NullNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         NullContext* context = (NullContext*) _context;
         NullRenderTarget* rt = new NullRenderTarget();
-        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, 255, "Null");
+        uint32_t supported_sample_counts = params.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? 1 : 255;
+        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, supported_sample_counts, "Null");
+        rt->m_Base.m_TextureType = params.m_TextureType;
 
         BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
@@ -1232,7 +1340,9 @@ namespace dmGraphics
                 {
                     attachment_tex                 = GetAssetFromContainer<NullTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[i]);
                 }
-                SetTexture(_context, rt->m_Base.m_TextureColor[i], rt->m_Base.m_ColorTextureParams[i]);
+                TextureParams upload_params = rt->m_Base.m_ColorTextureParams[i];
+                upload_params.m_DataSize *= params.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                SetTexture(_context, rt->m_Base.m_TextureColor[i], upload_params);
                 *(color_buffer_sizes[i]) = buffer_size;
                 *(color_buffers[i])      = attachment_tex->m_Data;
                 ++color_attachment_count;
@@ -1253,7 +1363,9 @@ namespace dmGraphics
                 {
                     attachment_tex            = GetAssetFromContainer<NullTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepth);
                 }
-                SetTexture(_context, rt->m_Base.m_TextureDepth, rt->m_Base.m_DepthBufferParams);
+                TextureParams upload_params = rt->m_Base.m_DepthBufferParams;
+                upload_params.m_DataSize *= params.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                SetTexture(_context, rt->m_Base.m_TextureDepth, upload_params);
 
                 rt->m_FrameBuffer.m_DepthTextureBufferSize = buffer_size;
                 rt->m_FrameBuffer.m_DepthTextureBuffer     = attachment_tex->m_Data;
@@ -1276,7 +1388,9 @@ namespace dmGraphics
                 {
                     attachment_tex              = GetAssetFromContainer<NullTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureStencil);
                 }
-                SetTexture(_context, rt->m_Base.m_TextureStencil, rt->m_Base.m_StencilBufferParams);
+                TextureParams upload_params = rt->m_Base.m_StencilBufferParams;
+                upload_params.m_DataSize *= params.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                SetTexture(_context, rt->m_Base.m_TextureStencil, upload_params);
 
                 rt->m_FrameBuffer.m_StencilTextureBufferSize = buffer_size;
                 rt->m_FrameBuffer.m_StencilTextureBuffer     = attachment_tex->m_Data;
@@ -1287,6 +1401,7 @@ namespace dmGraphics
             }
         }
 
+        UpdateNullCubeMapFrameBuffers(rt);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -1317,9 +1432,8 @@ namespace dmGraphics
         g_NullContext->m_BaseContext.m_AssetHandleContainer.Release(render_target);
     }
 
-    static void NullSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void NullSetRenderTarget(HContext _context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
-        (void) transient_buffer_types;
         assert(_context);
         NullContext* context = (NullContext*) _context;
 
@@ -1329,8 +1443,12 @@ namespace dmGraphics
             assert(GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
             rt = GetAssetFromContainer<NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+            if (rt)
+                rt->m_Base.m_CubeMapFace = params.m_CubeMapFace;
         }
-        context->m_CurrentFrameBuffer = rt ? &rt->m_FrameBuffer : &context->m_MainFrameBuffer;
+        context->m_CurrentFrameBuffer = rt ?
+            (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? &rt->m_CubeMapFrameBuffers[params.m_CubeMapFace] : &rt->m_FrameBuffer) :
+            &context->m_MainFrameBuffer;
     }
 
     static void NullSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
@@ -1364,7 +1482,9 @@ namespace dmGraphics
                 if (rt->m_Base.m_TextureColor[i])
                 {
                     rt->m_Base.m_ColorTextureParams[i].m_DataSize = buffer_size;
-                    SetTexture((HContext)g_NullContext, rt->m_Base.m_TextureColor[i], rt->m_Base.m_ColorTextureParams[i]);
+                    TextureParams upload_params = rt->m_Base.m_ColorTextureParams[i];
+                    upload_params.m_DataSize *= rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                    SetTexture((HContext)g_NullContext, rt->m_Base.m_TextureColor[i], upload_params);
                     NullTexture* tex = GetAssetFromContainer<NullTexture>(g_NullContext->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[i]);
                     *(color_buffers[i]) = tex->m_Data;
                 }
@@ -1377,7 +1497,9 @@ namespace dmGraphics
             rt->m_Base.m_DepthBufferParams.m_Width            = width;
             rt->m_Base.m_DepthBufferParams.m_Height           = height;
             rt->m_Base.m_DepthBufferParams.m_DataSize         = buffer_size;
-            SetTexture((HContext)g_NullContext, rt->m_Base.m_TextureDepth, rt->m_Base.m_DepthBufferParams);
+            TextureParams upload_params = rt->m_Base.m_DepthBufferParams;
+            upload_params.m_DataSize *= rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+            SetTexture((HContext)g_NullContext, rt->m_Base.m_TextureDepth, upload_params);
             NullTexture* tex = GetAssetFromContainer<NullTexture>(g_NullContext->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepth);
             rt->m_FrameBuffer.m_DepthTextureBuffer = tex->m_Data;
         }
@@ -1397,7 +1519,9 @@ namespace dmGraphics
             rt->m_Base.m_StencilBufferParams.m_Width            = width;
             rt->m_Base.m_StencilBufferParams.m_Height           = height;
             rt->m_Base.m_StencilBufferParams.m_DataSize         = buffer_size;
-            SetTexture((HContext)g_NullContext, rt->m_Base.m_TextureStencil, rt->m_Base.m_StencilBufferParams);
+            TextureParams upload_params = rt->m_Base.m_StencilBufferParams;
+            upload_params.m_DataSize *= rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+            SetTexture((HContext)g_NullContext, rt->m_Base.m_TextureStencil, upload_params);
             NullTexture* tex = GetAssetFromContainer<NullTexture>(g_NullContext->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureStencil);
             rt->m_FrameBuffer.m_StencilTextureBuffer = tex->m_Data;
         }
@@ -1410,6 +1534,7 @@ namespace dmGraphics
             delete [] (char*) rt->m_FrameBuffer.m_StencilBuffer;
             rt->m_FrameBuffer.m_StencilBuffer = new char[buffer_size];
         }
+        UpdateNullCubeMapFrameBuffers(rt);
     }
 
     static uint32_t NullGetMaxTextureSize(HContext context)

@@ -256,7 +256,7 @@
     (assert (list-definition-editable? list-definition parent-node-id evaluation-context))
     (let [tx-attach-fn (-> list-definition :add (clojure.core/get child-node-type))]
       (assert tx-attach-fn)
-      (let [child-node-id (first (g/take-node-ids (g/node-id->graph-id parent-node-id) 1))]
+      (let [child-node-id (first (g/take-node-ids 1))]
         (concat
           (g/add-node (g/construct child-node-type :_node-id child-node-id))
           (init-fn parent-node-id child-node-id)
@@ -356,7 +356,7 @@
   [child-node-type]
   (fn get-nodes-by-type [node evaluation-context]
     (let [basis (:basis evaluation-context)]
-      (coll/into-> (g/explicit-arcs-by-target basis node :nodes) []
+      (coll/into-> (g/explicit-inputs basis node :nodes) []
         (map gt/source-id)
         (filter #(= child-node-type (g/node-type* basis %)))))))
 
@@ -369,4 +369,4 @@
   (let [basis (:basis evaluation-context)]
     (if (g/override? basis node)
       (g/node-value node :nodes evaluation-context)
-      (mapv gt/source-id (g/explicit-arcs-by-target basis node :nodes)))))
+      (mapv gt/source-id (g/explicit-inputs basis node :nodes)))))

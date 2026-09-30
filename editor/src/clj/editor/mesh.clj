@@ -38,6 +38,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [editor.texture-util :as texture-util]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -60,26 +61,7 @@
 (def ^:private position-stream-message (properties/label-message :mesh :position-stream))
 (def ^:private vertices-message (properties/label-message :mesh :vertices))
 
-(shader/defshader model-id-vertex-shader
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (uniform mat4 world_view_proj)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* world_view_proj position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader model-id-fragment-shader
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (uniform vec4 id)
-  (defn void main []
-    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
-
-(def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id "world_view_proj" :world-view-proj}))
+(def id-shader shaders/selection-uniform-local-space)
 
 (g/defnk produce-save-value [primitive-type position-stream normal-stream material vertices textures]
   (protobuf/make-map-without-defaults MeshProto$MeshDesc
@@ -108,7 +90,7 @@
 
 (defn- res-fields->resources [pb-msg deps-by-source fields]
   (->> (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) fields)
-    (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
+       (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
 
 (defn- prop-stream-id-error-message [stream-id stream-ids vertex-space prop-message]
   (when (seq stream-ids)
@@ -144,7 +126,7 @@
             dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
             dep-resources (into (res-fields->resources pb-msg deps-by-source [:material :vertices])
-                            (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
+                                (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
@@ -236,7 +218,7 @@
                                                           (:view render-args)
                                                           (:projection render-args)
                                                           (:texture render-args)))
-        render-args (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))]
+        render-args (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform renderable))]
     (gl/with-gl-bindings gl render-args [id-shader]
       (doseq [[name texture] textures]
         (gl/bind gl texture render-args)
@@ -422,7 +404,7 @@
                                             [:shader :shader]
                                             [:vertex-space :vertex-space])))
             (dynamic error (g/fnk [_node-id material]
-                                  (prop-resource-error :fatal _node-id :material material material-message)))
+                             (prop-resource-error :fatal _node-id :material material material-message)))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "material"})))
 
@@ -442,7 +424,7 @@
   (property textures resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough texture-resources))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context) self)
+                   (let [project (project/get-project (:basis evaluation-context))
                          connections [[:resource :texture-resources]
                                       [:build-targets :dep-build-targets]
                                       [:gpu-texture-generator :gpu-texture-generators]]]
@@ -493,29 +475,28 @@
   (output scene g/Any :cached produce-scene)
   (output aabb AABB :cached produce-aabb)
   (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties textures samplers]
-                                                  (let [resource-type (get-in _declared-properties [:properties :material :type])
-                                                        prop-entry {:node-id _node-id
-                                                                    :type resource-type
-                                                                    :edit-type {:type resource/Resource
-                                                                                :ext (conj image/exts "cubemap" "render_target")}}
-                                                        keys (map :name samplers)
-                                                        p (->> keys
-                                                               (map-indexed (fn [i s]
-                                                                              [(keyword (format "texture%d" i))
-                                                                               (-> prop-entry
-                                                                                   (assoc :value (get textures i)
-                                                                                          :label s)
-                                                                                   (assoc-in [:edit-type :set-fn]
-                                                                                             (fn [_evaluation-context self _old-value new-value]
-                                                                                               (g/update-property self :textures vset i new-value))))])))]
-                                                    (-> _declared-properties
-                                                        (update :properties into p)
-                                                        (update :display-order into (map first p)))))))
+                                             (let [resource-type (get-in _declared-properties [:properties :material :type])
+                                                   prop-entry {:node-id _node-id
+                                                               :type resource-type
+                                                               :edit-type {:type resource/Resource
+                                                                           :ext (conj image/exts "cubemap" "render_target")}}
+                                                   keys (map :name samplers)
+                                                   p (->> keys
+                                                          (map-indexed (fn [i s]
+                                                                         [(keyword (format "texture%d" i))
+                                                                          (-> prop-entry
+                                                                              (assoc :value (get textures i)
+                                                                                     :label s)
+                                                                              (assoc-in [:edit-type :set-fn]
+                                                                                        (fn [_evaluation-context self _old-value new-value]
+                                                                                          (g/update-property self :textures vset i new-value))))])))]
+                                               (-> _declared-properties
+                                                   (update :properties into p)
+                                                   (update :display-order into (map first p)))))))
 
-(defn- load-mesh [_project self resource pb]
+(defn- load-mesh [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id pb :source-value}]
   {:pre [(map? pb)]} ; MeshProto$MeshDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         resolve-resources #(mapv resolve-resource %)]
     (gu/set-properties-from-pb-map self MeshProto$MeshDesc pb
       primitive-type :primitive-type

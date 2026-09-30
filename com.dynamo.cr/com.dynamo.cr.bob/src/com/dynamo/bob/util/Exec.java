@@ -15,15 +15,11 @@
 package com.dynamo.bob.util;
 import com.dynamo.bob.Platform;
 
-import java.nio.file.Files;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -95,7 +91,7 @@ public class Exec {
         processBuilder.redirectErrorStream(true);
 
         Platform platform = Platform.getHostPlatform();
-        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+        if (platform == Platform.X86_64Win32) {
             // On Windows `exe` files often require vcruntime140_1.dll and vcruntime140.dll
             // these files are available in jdk/bin folder
             // see https://github.com/defold/defold/issues/8277#issuecomment-1836823183

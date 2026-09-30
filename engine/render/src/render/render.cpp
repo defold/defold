@@ -412,7 +412,7 @@ namespace dmRender
         {
             memset(render_context->m_LightBufferSubmitted.Begin(), 0, render_context->m_LightBufferSubmitted.Size());
         }
-        render_context->m_LightBufferDirtyInfo = 1;
+        InvalidateLightBuffer(render_context);
     }
 
     Result AddToRender(HRenderContext context, RenderObject* ro)

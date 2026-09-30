@@ -257,6 +257,16 @@ namespace dmScript
      * @member graphics.TEXTURE_TYPE_IMAGE_3D [type:graphics.TEXTURE_TYPE|nil] May be nil if the graphics driver doesn't support it
      */
 
+    /*# Cubemap faces
+     * @enum
+     * @name graphics.CUBEMAP_FACE
+     * @member graphics.CUBEMAP_FACE_NEGATIVE_X
+     * @member graphics.CUBEMAP_FACE_NEGATIVE_Y
+     * @member graphics.CUBEMAP_FACE_NEGATIVE_Z
+     * @member graphics.CUBEMAP_FACE_POSITIVE_X
+     * @member graphics.CUBEMAP_FACE_POSITIVE_Y
+     * @member graphics.CUBEMAP_FACE_POSITIVE_Z
+     */
     /*# Texture usage flags
      * @enum
      * @name graphics.TEXTURE_USAGE_FLAG
@@ -430,6 +440,7 @@ namespace dmScript
             // Per-stage binding limits
             PUSH_LIMIT(m_MaxSamplersPerStage,             "max_samplers_per_stage");
             PUSH_LIMIT(m_MaxTexturesPerStage,             "max_textures_per_stage");
+            PUSH_LIMIT(m_MaxStorageBuffersPerStage,       "max_storage_buffers_per_stage");
             PUSH_LIMIT(m_MaxVertexAttributes,             "max_vertex_attributes");
             PUSH_LIMIT(m_MaxVertexBuffers,                "max_vertex_buffers");
 
@@ -591,6 +602,13 @@ namespace dmScript
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_2D);
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
 
+        // CubemapFace
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_POSITIVE_X);
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_NEGATIVE_X);
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_POSITIVE_Y);
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_NEGATIVE_Y);
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_POSITIVE_Z);
+        SET_GRAPHICS_ENUM(CUBEMAP_FACE_NEGATIVE_Z);
         if (graphics_context && dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
         {
             SET_GRAPHICS_ENUM(TEXTURE_TYPE_3D);

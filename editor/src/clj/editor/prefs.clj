@@ -163,7 +163,7 @@
             :scope :project
             :properties
             {:lint-code {:type :boolean
-                         :default true}
+                         :default false}
              :texture-compression {:type :boolean}
              :open-html5-build {:type :boolean
                                 :default true}}}
@@ -349,15 +349,15 @@
                 (coll/every? #(valid? item-schema %) value)))
     :object (and (map? value)
                  (coll/every? (fn [[k s]]
-                           (let [v (value k ::not-found)]
-                             (or (identical? v ::not-found)
-                                 (valid? s v))))
-                         (:properties schema)))
+                                (let [v (value k ::not-found)]
+                                  (or (identical? v ::not-found)
+                                      (valid? s v))))
+                              (:properties schema)))
     :object-of (and (map? value)
                     (let [{:keys [key val]} schema]
                       (coll/every? (fn [[k v]]
-                                (and (valid? key k) (valid? val v)))
-                              value)))
+                                     (and (valid? key k) (valid? val v)))
+                                   value)))
     :enum (coll/any? #(= value %) (:values schema))
     :tuple (and (vector? value)
                 (let [items (:items schema)

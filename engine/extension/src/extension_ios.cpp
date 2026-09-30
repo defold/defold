@@ -15,18 +15,47 @@
 #include "extension.hpp"
 #include <glfw/glfw.h>
 
+void ExtensionRegisteriOSUIApplicationDelegate(void* delegate)
+{
+    glfwRegisterUIApplicationDelegate(delegate);
+}
+
+void ExtensionUnregisteriOSUIApplicationDelegate(void* delegate)
+{
+    glfwUnregisterUIApplicationDelegate(delegate);
+}
+
+void ExtensionRegisteriOSUISceneDelegate(void* delegate)
+{
+    glfwRegisterUISceneDelegate(delegate);
+}
+
+void ExtensionUnregisteriOSUISceneDelegate(void* delegate)
+{
+    glfwUnregisterUISceneDelegate(delegate);
+}
+
 namespace dmExtension
 {
 
     void RegisteriOSUIApplicationDelegate(void* delegate)
     {
-        glfwRegisterUIApplicationDelegate(delegate);
+        ExtensionRegisteriOSUIApplicationDelegate(delegate);
     }
 
     void UnregisteriOSUIApplicationDelegate(void* delegate)
     {
-        glfwUnregisterUIApplicationDelegate(delegate);
+        ExtensionUnregisteriOSUIApplicationDelegate(delegate);
+    }
+
+    void RegisteriOSUISceneDelegate(void* delegate)
+    {
+        ExtensionRegisteriOSUISceneDelegate(delegate);
+    }
+
+    void UnregisteriOSUISceneDelegate(void* delegate)
+    {
+        ExtensionUnregisteriOSUISceneDelegate(delegate);
     }
 
 }
-

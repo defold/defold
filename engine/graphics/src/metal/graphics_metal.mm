@@ -725,11 +725,12 @@ namespace dmGraphics
             SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_ETC2);
         }
 
-        // ASTC support
-        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))
+        // 2D ASTC is supported from Apple2, including the iOS simulator.
+        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple2))
         {
             context->m_ASTCSupport = 1;
-            context->m_ASTCArrayTextureSupport = 1;
+            // This feature also gates 3D textures, which require Apple3.
+            context->m_ASTCArrayTextureSupport = context->m_Device->supportsFamily(MTL::GPUFamilyApple3);
             SetContextASTCTextureFormatsSupported(&context->m_BaseContext);
         }
 
@@ -912,7 +913,6 @@ namespace dmGraphics
         }
     }
 
-#if defined(DM_PLATFORM_IOS)
     static void ResizeMainFramebufferResources(MetalContext* context, uint32_t width, uint32_t height)
     {
         if (context->m_MainDepthStencilTexture &&
@@ -949,7 +949,6 @@ namespace dmGraphics
 
         SetMainRenderTargetSize(context, width, height);
     }
-#endif
 
     static inline bool MetalFormatHasDepth(MTL::PixelFormat fmt)
     {
@@ -1403,6 +1402,10 @@ namespace dmGraphics
         context->m_PipelineState     = GetDefaultPipelineState();
         context->m_RenderTargetBound = 0;
         context->m_MainRTBegunThisFrame = 0;
+        context->m_MainMSAAColorNeedsResolve = 0;
+        context->m_CombinedMSAAStoreAndResolveSupport =
+            context->m_Device->supportsFamily(MTL::GPUFamilyApple3) ||
+            context->m_Device->supportsFamily(MTL::GPUFamilyMac2);
         ResetRenderEncoderStateCache(context);
         context->m_ViewportChanged   = true;
         context->m_CullFaceChanged   = true;
@@ -1431,11 +1434,10 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
-        // Storage buffers are deliberately not advertised: there is no user-facing
-        // SSBO support path for Metal yet.
         if (context->m_ASTCArrayTextureSupport)
         {
             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
@@ -1461,6 +1463,7 @@ namespace dmGraphics
         limits.m_MaxColorAttachments            = MAX_BUFFER_COLOR_ATTACHMENTS;
         limits.m_MaxSamplersPerStage            = DM_MAX_TEXTURE_UNITS;
         limits.m_MaxTexturesPerStage            = DM_MAX_TEXTURE_UNITS;
+        limits.m_MaxStorageBuffersPerStage      = 31;
         limits.m_MaxVertexAttributes            = 31;
         limits.m_MaxVertexBuffers               = MAX_VERTEX_BUFFERS;
         limits.m_MaxComputeWorkgroupSizeX       = (uint32_t) max_threads_per_threadgroup.width;
@@ -1469,7 +1472,7 @@ namespace dmGraphics
         limits.m_MaxComputeWorkgroupInvocations = (uint32_t) max_threads_per_threadgroup.width;
         limits.m_MaxComputeSharedMemorySize     = (uint32_t) context->m_Device->maxThreadgroupMemoryLength();
         limits.m_MaxUniformBufferRange          = 64 * 1024;
-        limits.m_MaxStorageBufferRange          = 0;
+        limits.m_MaxStorageBufferRange          = context->m_Device->maxBufferLength();
 
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
@@ -1563,6 +1566,8 @@ namespace dmGraphics
         context->m_Layer               = [CAMetalLayer layer];
         context->m_Layer.device        = (__bridge id<MTLDevice>) context->m_Device;
         context->m_Layer.pixelFormat   = MTLPixelFormatBGRA8Unorm;
+        // ReadPixels copies drawable contents with a blit encoder.
+        context->m_Layer.framebufferOnly = NO;
         context->m_Layer.drawableSize  = CGSizeMake(window_width, window_height);
 #if !defined(DM_PLATFORM_IOS)
         context->m_Layer.displaySyncEnabled = context->m_SwapInterval != 0;
@@ -1661,6 +1666,74 @@ namespace dmGraphics
         ResetRenderEncoderStateCache(context);
     }
 
+    static void SuspendRenderPass(MetalContext* context)
+    {
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
+        if (!frame.m_RenderCommandEncoder) return;
+        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        // Store policies are hints at logical pass boundaries. An internal
+        // synchronization/upload split must preserve non-memoryless attachments.
+        if (rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            for (uint32_t i = 0; i < rt->m_ColorAttachmentCount; ++i)
+            {
+                MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
+                if (texture && texture->m_Texture->storageMode() != MTL::StorageModeMemoryless)
+                    frame.m_RenderCommandEncoder->setColorStoreAction(rt->m_Base.m_SampleCount > 1 ?
+                        MTL::StoreActionStoreAndMultisampleResolve : MTL::StoreActionStore, i);
+            }
+        }
+        rt->m_ResumePass = 1;
+        EndRenderPass(context);
+    }
+
+    static bool ResolveMainMSAAColor(MetalContext* context)
+    {
+        if (!context->m_MainMSAAColorNeedsResolve)
+        {
+            return false;
+        }
+
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
+        assert(!frame.m_RenderCommandEncoder);
+        if (!frame.m_CommandBuffer || !frame.m_MSAAColorTexture || !frame.m_Drawable)
+        {
+            return false;
+        }
+
+        // GPUs without combined MSAA store-and-resolve support need two passes.
+        // The rendering passes store the multisample texture, and this final
+        // pass loads and resolves it into the drawable.
+        MTL::RenderPassDescriptor* rp_desc = MTL::RenderPassDescriptor::alloc()->init();
+        MTL::RenderPassColorAttachmentDescriptor* color_attachment = rp_desc->colorAttachments()->object(0);
+        color_attachment->setTexture(frame.m_MSAAColorTexture);
+        color_attachment->setResolveTexture(frame.m_Drawable->texture());
+        color_attachment->setLoadAction(MTL::LoadActionLoad);
+        color_attachment->setStoreAction(MTL::StoreActionMultisampleResolve);
+
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+        MTL::RenderCommandEncoder* encoder = frame.m_CommandBuffer->renderCommandEncoder(rp_desc);
+        if (encoder)
+        {
+            encoder->retain();
+        }
+        pool->release();
+        rp_desc->release();
+
+        if (!encoder)
+        {
+            return false;
+        }
+
+        encoder->endEncoding();
+        encoder->release();
+        context->m_MainMSAAColorNeedsResolve = 0;
+        // MultisampleResolve may discard the multisample texture. A later pass
+        // must not try to load its previous contents.
+        context->m_MainRTBegunThisFrame = 0;
+        return true;
+    }
+
     static void BeginRenderPass(MetalContext* context, HRenderTarget render_target)
     {
         if (context->m_CurrentRenderTarget == render_target && context->m_RenderTargetBound)
@@ -1717,7 +1790,7 @@ namespace dmGraphics
             {
                 load_action = MTL::LoadActionDontCare;
             }
-            else if (is_main_rt && context->m_MainRTBegunThisFrame)
+            else if (rt->m_ResumePass || (is_main_rt && context->m_MainRTBegunThisFrame))
             {
                 load_action = MTL::LoadActionLoad;
             }
@@ -1731,8 +1804,20 @@ namespace dmGraphics
             if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
             {
                 colorAttachment->setTexture(frame.m_MSAAColorTexture);
-                colorAttachment->setResolveTexture(tex->m_Texture);
-                colorAttachment->setStoreAction(MTL::StoreActionMultisampleResolve);
+                if (context->m_CombinedMSAAStoreAndResolveSupport)
+                {
+                    colorAttachment->setResolveTexture(tex->m_Texture);
+                    // The main render target can be resumed after rendering to an
+                    // offscreen target. Preserve its multisample attachment so the
+                    // resumed pass can load the pixels written by the previous pass.
+                    colorAttachment->setStoreAction(MTL::StoreActionStoreAndMultisampleResolve);
+                }
+                else
+                {
+                    // Resolve in a separate pass once rendering to the main target
+                    // is finished.
+                    colorAttachment->setStoreAction(MTL::StoreActionStore);
+                }
             }
             else if (rt->m_Base.m_SampleCount > 1)
             {
@@ -1745,6 +1830,8 @@ namespace dmGraphics
             else
             {
                 colorAttachment->setTexture(tex->m_Texture);
+                if (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+                    colorAttachment->setSlice(rt->m_Base.m_CubeMapFace);
                 colorAttachment->setStoreAction(is_memoryless || rt->m_ColorBufferStoreOps[i] == ATTACHMENT_OP_DONT_CARE ? MTL::StoreActionDontCare : MTL::StoreActionStore);
             }
         }
@@ -1780,12 +1867,12 @@ namespace dmGraphics
                     if (depthAttachment)
                     {
                         depthAttachment->setTexture(frame.m_MSAADepthTexture);
-                        depthAttachment->setStoreAction(MTL::StoreActionDontCare);
+                        depthAttachment->setStoreAction(MTL::StoreActionStore);
                     }
                     if (stencilAttachment)
                     {
                         stencilAttachment->setTexture(frame.m_MSAADepthTexture);
-                        stencilAttachment->setStoreAction(MTL::StoreActionDontCare);
+                        stencilAttachment->setStoreAction(MTL::StoreActionStore);
                     }
                 }
                 else
@@ -1793,11 +1880,15 @@ namespace dmGraphics
                     if (depthAttachment)
                     {
                         depthAttachment->setTexture(tex->m_Texture);
+                        if (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+                            depthAttachment->setSlice(rt->m_Base.m_CubeMapFace);
                         depthAttachment->setStoreAction(is_memoryless ? MTL::StoreActionDontCare : MTL::StoreActionStore);
                     }
                     if (stencilAttachment)
                     {
                         stencilAttachment->setTexture(tex->m_Texture);
+                        if (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+                            stencilAttachment->setSlice(rt->m_Base.m_CubeMapFace);
                         stencilAttachment->setStoreAction(is_memoryless ? MTL::StoreActionDontCare : MTL::StoreActionStore);
                     }
                 }
@@ -1821,13 +1912,15 @@ namespace dmGraphics
         MTL::Viewport viewport = {0.0, 0.0, (double)width, (double)height, 0.0, 1.0};
         encoder->setViewport(viewport);
 
-        rt->m_Scissor = {0, 0, width, height};
+        if (!rt->m_ResumePass)
+            rt->m_Scissor = {0, 0, width, height};
         encoder->setScissorRect(rt->m_Scissor);
 
         // Track the active encoder
         frame.m_RenderCommandEncoder = encoder;
         context->m_CurrentRenderTarget = render_target;
         context->m_RenderTargetBound = 1;
+        ++context->m_RenderPassSerial;
         ResetRenderEncoderStateCache(context);
         context->m_ViewportChanged = 1;
         context->m_ScissorChanged = 1;
@@ -1836,11 +1929,16 @@ namespace dmGraphics
         if (is_main_rt)
         {
             context->m_MainRTBegunThisFrame = 1;
+            if (context->m_MSAASampleCount > 1 && !context->m_CombinedMSAAStoreAndResolveSupport)
+            {
+                context->m_MainMSAAColorNeedsResolve = 1;
+            }
         }
         rt->m_HasPendingClearColor = 0;
         rt->m_HasPendingClearDepth = 0;
         rt->m_HasPendingClearStencil = 0;
         rt->m_IsBound = 1;
+        rt->m_ResumePass = 0;
 
         rpDesc->release();
     }
@@ -1889,6 +1987,11 @@ namespace dmGraphics
                 [native_view.layer addSublayer:context->m_Layer];
             }
         }
+#else
+        uint32_t requested_drawable_width = 0;
+        uint32_t requested_drawable_height = 0;
+        GetDrawableSize(context, &requested_drawable_width, &requested_drawable_height);
+        context->m_Layer.drawableSize = CGSizeMake(requested_drawable_width, requested_drawable_height);
 #endif
 
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
@@ -1910,30 +2013,23 @@ namespace dmGraphics
         frame.m_ArgumentBufferPool.Rewind();
         context->m_RenderTargetBound = 0;
         context->m_MainRTBegunThisFrame = 0;
+        context->m_MainMSAAColorNeedsResolve = 0;
         ResetRenderEncoderStateCache(context);
 
         // Setup the initial render pass state
         frame.m_RenderCommandEncoder = 0;
 
         MetalRenderTarget* rt   = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+        rt->m_ResumePass = 0; // Do not resume the previous drawable's pass.
         MetalTexture* color_tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[0]);
         MetalTexture* ds_tex    = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
 
         const uint32_t drawable_width = frame.m_Drawable->texture()->width();
         const uint32_t drawable_height = frame.m_Drawable->texture()->height();
-#if defined(DM_PLATFORM_IOS)
         ResizeMainFramebufferResources(context, drawable_width, drawable_height);
-#endif
 
         color_tex->m_Texture    = frame.m_Drawable->texture();
         ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
-
-        rt->m_ColorTextureParams[0].m_Width  = drawable_width;
-        rt->m_ColorTextureParams[0].m_Height = drawable_height;
-        rt->m_Base.m_ColorTextureParams[0].m_Width  = rt->m_ColorTextureParams[0].m_Width;
-        rt->m_Base.m_ColorTextureParams[0].m_Height = rt->m_ColorTextureParams[0].m_Height;
-        rt->m_Width = drawable_width;
-        rt->m_Height = drawable_height;
     }
 
     static void MetalCommandBufferCompleted(MetalContext* context, uint32_t frame_index)
@@ -1969,6 +2065,7 @@ namespace dmGraphics
 
         // End the current render pass
         EndRenderPass(context);
+        ResolveMainMSAAColor(context);
 
         const uint32_t frame_index = context->m_CurrentFrameInFlight;
         MetalFrameResource& frame = context->m_FrameResources[frame_index];
@@ -2262,6 +2359,98 @@ namespace dmGraphics
         }
 
         delete ubo;
+    }
+
+    static HStorageBuffer MetalNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        MetalContext* context = (MetalContext*) _context;
+        MetalStorageBuffer* buffer = new MetalStorageBuffer();
+        memset(buffer, 0, sizeof(MetalStorageBuffer));
+
+        buffer->m_Base.m_Size = size;
+        buffer->m_Base.m_Usage = buffer_usage;
+        buffer->m_DeviceBuffer.m_StorageMode = MTL::StorageModeShared;
+        DeviceBufferUploadHelper(context, data, size, 0, &buffer->m_DeviceBuffer);
+
+        return (HStorageBuffer) buffer;
+    }
+
+    static void MetalDisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        MetalContext* context = (MetalContext*) _context;
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentStorageBuffers[set][binding].m_Buffer == storage_buffer)
+                {
+                    context->m_CurrentStorageBuffers[set][binding] = MetalStorageBufferBinding();
+                }
+            }
+        }
+    }
+
+    static void MetalDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        MetalContext* context = (MetalContext*) _context;
+        MetalStorageBuffer* buffer = (MetalStorageBuffer*) storage_buffer;
+        MetalDisableStorageBuffer(_context, storage_buffer);
+
+        if (!buffer->m_DeviceBuffer.m_Destroyed)
+        {
+            DestroyResourceDeferred(context, &buffer->m_DeviceBuffer);
+        }
+        delete buffer;
+    }
+
+    static void MetalSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        MetalContext* context = (MetalContext*) _context;
+        MetalStorageBuffer* buffer = (MetalStorageBuffer*) storage_buffer;
+        // Even a same-size replacement must leave recorded/in-flight reads of
+        // the old allocation intact. Retire it with the frame's GPU resources.
+        DestroyResourceDeferred(context, &buffer->m_DeviceBuffer);
+        DeviceBufferUploadHelper(context, data, size, 0, &buffer->m_DeviceBuffer);
+        buffer->m_Base.m_Size = size;
+        buffer->m_Base.m_Usage = buffer_usage;
+    }
+
+    static void MetalSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        MetalContext* context = (MetalContext*) _context;
+        MetalStorageBuffer* buffer = (MetalStorageBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_Base.m_Size);
+        // Keep the copy in GPU command order; a CPU memcpy races older reads
+        // and cannot preserve untouched bytes written by a pending dispatch.
+        SuspendRenderPass(context);
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+        MTL::Buffer* staging = context->m_Device->newBuffer(data, size, MTL::ResourceStorageModeShared);
+        MTL::CommandBuffer* command_buffer = context->m_FrameBegun
+            ? GetCurrentFrameResource(context).m_CommandBuffer : context->m_CommandQueue->commandBuffer();
+        MTL::BlitCommandEncoder* encoder = command_buffer->blitCommandEncoder();
+        encoder->copyFromBuffer(staging, 0, buffer->m_DeviceBuffer.m_Buffer, offset, size);
+        encoder->endEncoding();
+        if (!context->m_FrameBegun)
+        {
+            command_buffer->commit();
+            command_buffer->waitUntilCompleted();
+        }
+        // Command buffers retain directly referenced blit resources.
+        staging->release();
+        pool->release();
+    }
+
+    static uint32_t MetalGetStorageBufferSize(HContext _context, HStorageBuffer storage_buffer)
+    {
+        return ((MetalStorageBuffer*) storage_buffer)->m_Base.m_Size;
+    }
+
+    static void MetalEnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        MetalContext* context = (MetalContext*) _context;
+        context->m_CurrentStorageBuffers[set][binding].m_Buffer = storage_buffer;
+        context->m_CurrentStorageBuffers[set][binding].m_BufferOffset = 0;
     }
 
     static void MetalSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -3089,107 +3278,152 @@ namespace dmGraphics
         else
             renc = (MTL::RenderCommandEncoder*) encoder_raw;
 
-        for (int i = 0; i < program->m_BaseProgram.m_MaxSet; ++i)
+        const uint32_t first_stage = is_compute ? ShaderDesc::SHADER_TYPE_COMPUTE : ShaderDesc::SHADER_TYPE_VERTEX;
+        const uint32_t last_stage = is_compute ? ShaderDesc::SHADER_TYPE_COMPUTE : ShaderDesc::SHADER_TYPE_FRAGMENT;
+        for (uint32_t stage = first_stage; stage <= last_stage; ++stage)
         {
-            if (program->m_ArgumentEncoders[i])
+            for (int i = 0; i < program->m_BaseProgram.m_MaxSet; ++i)
             {
-                program->m_ArgumentBufferBindings[i] = argument_buffer_pool->Bind(context, program->m_ArgumentEncoders[i]);
+                if (program->m_ArgumentEncoders[stage][i])
+                {
+                    program->m_ArgumentBufferBindings[stage][i] = argument_buffer_pool->Bind(context, program->m_ArgumentEncoders[stage][i]);
+                }
             }
-        }
 
-        ProgramResourceBindingIterator it(&program->m_BaseProgram);
-        const ProgramResourceBinding* next;
-        while ((next = it.Next()))
-        {
-            ShaderResourceBinding* res        = next->m_Res;
-            MTL::ArgumentEncoder* arg_encoder = program->m_ArgumentEncoders[res->m_Set];
-
-            uint32_t msl_index = program->m_ResourceToMslIndex[res->m_Set][res->m_Binding];
-
-            switch (res->m_BindingFamily)
+            ProgramResourceBindingIterator it(&program->m_BaseProgram);
+            const ProgramResourceBinding* next;
+            while ((next = it.Next()))
             {
-                case BINDING_FAMILY_UNIFORM_BUFFER:
-                {
-                    MetalUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[res->m_Set][res->m_Binding];
+                ShaderResourceBinding* res        = next->m_Res;
+                MTL::ArgumentEncoder* arg_encoder = program->m_ArgumentEncoders[stage][res->m_Set];
 
-                    if (bound_ubo)
+                uint32_t msl_index = program->m_ResourceToMslIndex[stage][res->m_Set][res->m_Binding];
+
+                if (!arg_encoder || msl_index == UINT32_MAX)
+                    continue;
+
+                switch (res->m_BindingFamily)
+                {
+                    case BINDING_FAMILY_UNIFORM_BUFFER:
                     {
-                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout != *pgm_layout)
+                        MetalUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[res->m_Set][res->m_Binding];
+
+                        if (bound_ubo)
                         {
-                            dmLogWarning("Uniform buffer with hash %u has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%u)",
-                                bound_ubo->m_BaseUniformBuffer.m_Layout,
-                                res->m_Name,
-                                *pgm_layout);
-                            MetalDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
-                            bound_ubo = 0;
+                            UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
+                            if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout,
+                                                                 bound_ubo->m_BaseUniformBuffer.m_Size,
+                                                                 *pgm_layout,
+                                                                 res->m_BindingInfo.m_BlockSize))
+                            {
+                                dmLogWarning("Uniform buffer with hash %u has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%u)",
+                                    bound_ubo->m_BaseUniformBuffer.m_Layout,
+                                    res->m_Name,
+                                    *pgm_layout);
+                                MetalDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
+                                bound_ubo = 0;
+                            }
                         }
-                    }
 
-                    if (bound_ubo)
-                    {
-                        arg_encoder->setBuffer(bound_ubo->m_DeviceBuffer.m_Buffer, 0, (NSUInteger) msl_index);
+                        if (bound_ubo)
+                        {
+                            arg_encoder->setBuffer(bound_ubo->m_DeviceBuffer.m_Buffer, 0, (NSUInteger) msl_index);
 
-                        if (is_compute)
-                            UseResourceCached(context, cenc, bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+                            if (is_compute)
+                                UseResourceCached(context, cenc, bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+                            else
+                                UseResourceCached(context, renc, bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+                        }
                         else
-                            UseResourceCached(context, renc, bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
-                    }
-                    else
+                        {
+                            const uint32_t uniform_size = DM_ALIGN(res->m_BindingInfo.m_BlockSize, alignment);
+                            uint32_t offset = DM_ALIGN(scratch_buffer->m_MappedDataCursor, alignment);
+
+                            memcpy(reinterpret_cast<uint8_t*>(scratch_buffer->m_DeviceBuffer.m_Buffer->contents()) + offset,
+                                   &program->m_UniformData[next->m_UniformBufferOffset],
+                                   res->m_BindingInfo.m_BlockSize);
+
+                            arg_encoder->setBuffer(scratch_buffer->m_DeviceBuffer.m_Buffer, (NSUInteger) offset, (NSUInteger) msl_index);
+                            scratch_buffer->m_MappedDataCursor = offset + uniform_size;
+                        }
+                    } break;
+
+                    case BINDING_FAMILY_TEXTURE:
                     {
-                        const uint32_t uniform_size = DM_ALIGN(res->m_BindingInfo.m_BlockSize, alignment);
-                        uint32_t offset = DM_ALIGN(scratch_buffer->m_MappedDataCursor, alignment);
+                        MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_TextureUnits[next->m_TextureUnit]);
 
-                        memcpy(reinterpret_cast<uint8_t*>(scratch_buffer->m_DeviceBuffer.m_Buffer->contents()) + offset,
-                               &program->m_UniformData[next->m_UniformBufferOffset],
-                               res->m_BindingInfo.m_BlockSize);
+                        if (texture == 0x0)
+                        {
+                            texture = GetDefaultTexture(context, res->m_Type.m_ShaderType);
+                        }
 
-                        arg_encoder->setBuffer(scratch_buffer->m_DeviceBuffer.m_Buffer, (NSUInteger) offset, (NSUInteger) msl_index);
-                        scratch_buffer->m_MappedDataCursor = offset + uniform_size;
-                    }
-                } break;
-
-                case BINDING_FAMILY_TEXTURE:
-                {
-                    MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_TextureUnits[next->m_TextureUnit]);
-
-                    if (texture == 0x0)
-                    {
-                        texture = GetDefaultTexture(context, res->m_Type.m_ShaderType);
-                    }
-
-                    if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
-                    {
-                        MetalTextureSampler* sampler = &context->m_TextureSamplers[texture->m_TextureSamplerIndex];
-                        arg_encoder->setSamplerState(sampler->m_Sampler, msl_index);
-                    }
-                    else
-                    {
-                        arg_encoder->setTexture(texture->m_Texture, msl_index);
-
-                        // Handle combined sampler types
-                        if (RequiresSampler(res->m_Type.m_ShaderType))
+                        if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                         {
                             MetalTextureSampler* sampler = &context->m_TextureSamplers[texture->m_TextureSamplerIndex];
-                            arg_encoder->setSamplerState(sampler->m_Sampler, msl_index + 1);
+                            arg_encoder->setSamplerState(sampler->m_Sampler, msl_index);
                         }
-                    }
+                        else
+                        {
+                            arg_encoder->setTexture(texture->m_Texture, msl_index);
 
-                    if (is_compute)
-                        UseResourceCached(context, cenc, texture->m_Texture, texture->m_Usage);
-                    else
-                        UseResourceCached(context, renc, texture->m_Texture, texture->m_Usage);
-                } break;
+                            // Handle combined sampler types
+                            if (RequiresSampler(res->m_Type.m_ShaderType))
+                            {
+                                MetalTextureSampler* sampler = &context->m_TextureSamplers[texture->m_TextureSamplerIndex];
+                                arg_encoder->setSamplerState(sampler->m_Sampler, msl_index + 1);
+                            }
+                        }
 
-                case BINDING_FAMILY_STORAGE_BUFFER:
-                    // Metal storage buffers are not exposed through the public graphics API yet.
-                    break;
-                case BINDING_FAMILY_GENERIC:
-                    break;
+                        if (is_compute)
+                            UseResourceCached(context, cenc, texture->m_Texture, texture->m_Usage);
+                        else
+                            UseResourceCached(context, renc, texture->m_Texture, texture->m_Usage);
+                    } break;
 
-                default:
-                    break;
+                    case BINDING_FAMILY_STORAGE_BUFFER:
+                    {
+                        MetalStorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
+                        MetalStorageBuffer* buffer = (MetalStorageBuffer*) binding.m_Buffer;
+                        assert(buffer);
+                        arg_encoder->setBuffer(buffer->m_DeviceBuffer.m_Buffer, binding.m_BufferOffset, (NSUInteger) msl_index);
+                        uint8_t access_flags = res->m_AccessFlags;
+
+                        if (access_flags == SHADER_RESOURCE_ACCESS_NONE)
+                        {
+                            access_flags = SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+                        }
+
+                        MTL::ResourceUsage usage = (MTL::ResourceUsage) 0;
+                        if (access_flags & SHADER_RESOURCE_ACCESS_READ)
+                        {
+                            usage = (MTL::ResourceUsage)(usage | MTL::ResourceUsageRead);
+                        }
+                        if (access_flags & SHADER_RESOURCE_ACCESS_WRITE)
+                        {
+                            usage = (MTL::ResourceUsage)(usage | MTL::ResourceUsageWrite);
+                        }
+
+                        if (is_compute)
+                            UseResourceCached(context, cenc, buffer->m_DeviceBuffer.m_Buffer, usage);
+                        else
+                        {
+                            MTL::RenderStages stages = 0;
+                            if (res->m_StageFlags & SHADER_STAGE_FLAG_VERTEX) stages |= MTL::RenderStageVertex;
+                            if (res->m_StageFlags & SHADER_STAGE_FLAG_FRAGMENT) stages |= MTL::RenderStageFragment;
+                            if (!stages) stages = MTL::RenderStageVertex | MTL::RenderStageFragment;
+                            // Declare each draw's actual access and stages; the
+                            // residency-only overload/cache cannot protect hazards.
+                            renc->useResource(buffer->m_DeviceBuffer.m_Buffer, usage, stages);
+                        }
+                    } break;
+                    case BINDING_FAMILY_GENERIC:
+                        break;
+
+                    default:
+                        break;
+                }
             }
+
         }
 
         // Uniform data placed in the scratch buffer is referenced indirectly through
@@ -3199,46 +3433,40 @@ namespace dmGraphics
         else
             UseResourceCached(context, renc, scratch_buffer->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
 
-        for (uint32_t set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
+        for (uint32_t stage = first_stage; stage <= last_stage; ++stage)
         {
-            if (context->m_CurrentProgram->m_ArgumentEncoders[set])
+            for (uint32_t set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
             {
-                MetalArgumentBinding& arg_binding = context->m_CurrentProgram->m_ArgumentBufferBindings[set];
-
+                if (!program->m_ArgumentEncoders[stage][set])
+                    continue;
+                MetalArgumentBinding& arg_binding = program->m_ArgumentBufferBindings[stage][set];
                 if (is_compute)
                 {
-                    // Compute encoder uses only one stage
                     UseResourceCached(context, cenc, arg_binding.m_Buffer, MTL::ResourceUsageRead);
                     cenc->setBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
                 }
-                else
+                else if (stage == ShaderDesc::SHADER_TYPE_VERTEX)
                 {
-                    // SPIRV-Cross can emit argument-buffer parameters for either render
-                    // stage, so bind each descriptor set to both stages. Vertex attributes
-                    // use slots above the descriptor set/binding namespace and must not
-                    // overlap these set indices.
                     UseResourceCached(context, renc, arg_binding.m_Buffer, MTL::ResourceUsageRead);
-
                     if (context->m_CurrentVertexArgumentBuffer[set] != arg_binding.m_Buffer)
                     {
                         renc->setVertexBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
                         context->m_CurrentVertexArgumentBuffer[set] = arg_binding.m_Buffer;
                     }
                     else if (context->m_CurrentVertexArgumentBufferOffset[set] != arg_binding.m_Offset)
-                    {
                         renc->setVertexBufferOffset(arg_binding.m_Offset, set);
-                    }
                     context->m_CurrentVertexArgumentBufferOffset[set] = arg_binding.m_Offset;
-
+                }
+                else
+                {
+                    UseResourceCached(context, renc, arg_binding.m_Buffer, MTL::ResourceUsageRead);
                     if (context->m_CurrentFragmentArgumentBuffer[set] != arg_binding.m_Buffer)
                     {
                         renc->setFragmentBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
                         context->m_CurrentFragmentArgumentBuffer[set] = arg_binding.m_Buffer;
                     }
                     else if (context->m_CurrentFragmentArgumentBufferOffset[set] != arg_binding.m_Offset)
-                    {
                         renc->setFragmentBufferOffset(arg_binding.m_Offset, set);
-                    }
                     context->m_CurrentFragmentArgumentBufferOffset[set] = arg_binding.m_Offset;
                 }
             }
@@ -3262,8 +3490,32 @@ namespace dmGraphics
 
     static void DrawSetup(MetalContext* context)
     {
+        const dmArray<ShaderResourceBinding>& resources = context->m_CurrentProgram->m_BaseProgram.m_ShaderMeta.m_StorageBuffers;
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            const ShaderResourceBinding& resource = resources[i];
+            MetalStorageBuffer* buffer = (MetalStorageBuffer*) context->m_CurrentStorageBuffers[resource.m_Set][resource.m_Binding].m_Buffer;
+            const uint8_t access = resource.m_AccessFlags ? resource.m_AccessFlags : SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+            if (buffer && context->m_RenderTargetBound && buffer->m_LastRenderPass == context->m_RenderPassSerial &&
+                ((access | buffer->m_RenderPassAccess) & SHADER_RESOURCE_ACCESS_WRITE))
+            {
+                // Apple GPUs cannot use render memory barriers with fragment
+                // stages in the source. A new encoder handles all stage pairs.
+                SuspendRenderPass(context);
+                break;
+            }
+        }
         MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         BeginRenderPass(context, context->m_CurrentRenderTarget);
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            const ShaderResourceBinding& resource = resources[i];
+            MetalStorageBuffer* buffer = (MetalStorageBuffer*) context->m_CurrentStorageBuffers[resource.m_Set][resource.m_Binding].m_Buffer;
+            if (!buffer) continue;
+            if (buffer->m_LastRenderPass != context->m_RenderPassSerial) buffer->m_RenderPassAccess = 0;
+            buffer->m_LastRenderPass = context->m_RenderPassSerial;
+            buffer->m_RenderPassAccess |= resource.m_AccessFlags ? resource.m_AccessFlags : SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+        }
 
         MetalFrameResource& frame = GetCurrentFrameResource(context);
         MTL::RenderCommandEncoder* encoder = frame.m_RenderCommandEncoder;
@@ -3298,7 +3550,8 @@ namespace dmGraphics
             }
         }
 
-        frame.m_ConstantScratchBuffer.EnsureSize(context, context->m_CurrentProgram->m_UniformDataSizeAligned);
+        // Shared uniform blocks are encoded independently for both render stages.
+        frame.m_ConstantScratchBuffer.EnsureSize(context, 2 * context->m_CurrentProgram->m_UniformDataSizeAligned);
 
         PipelineState pipeline_state_draw = context->m_PipelineState;
 
@@ -3506,7 +3759,7 @@ namespace dmGraphics
         // Perhaps it would work if we could run it in a separate command buffer or a dedicated compute queue?
         if (IsRenderTargetbound(context, context->m_CurrentRenderTarget))
         {
-            EndRenderPass(context);
+            SuspendRenderPass(context);
         }
 
         MetalFrameResource& frame = GetCurrentFrameResource(context);
@@ -3588,14 +3841,17 @@ namespace dmGraphics
         program->m_FragmentModule = 0;
         program->m_ComputeModule = 0;
 
-        for (uint32_t i = 0; i < MAX_SET_COUNT; ++i)
+        for (uint32_t stage = 0; stage < 3; ++stage)
         {
-            if (program->m_ArgumentEncoders[i])
+            for (uint32_t i = 0; i < MAX_SET_COUNT; ++i)
             {
-                program->m_ArgumentEncoders[i]->release();
-                program->m_ArgumentEncoders[i] = 0;
+                if (program->m_ArgumentEncoders[stage][i])
+                {
+                    program->m_ArgumentEncoders[stage][i]->release();
+                    program->m_ArgumentEncoders[stage][i] = 0;
+                }
+                program->m_ArgumentBufferBindings[stage][i] = {};
             }
-            program->m_ArgumentBufferBindings[i] = {};
         }
 
         delete[] program->m_UniformData;
@@ -3605,7 +3861,7 @@ namespace dmGraphics
         program->m_UniformBufferCount = 0;
         program->m_StorageBufferCount = 0;
         program->m_TextureSamplerCount = 0;
-        memset(program->m_ResourceToMslIndex, 0, sizeof(program->m_ResourceToMslIndex));
+        memset(program->m_ResourceToMslIndex, 0xff, sizeof(program->m_ResourceToMslIndex));
         memset(program->m_WorkGroupSize, 0, sizeof(program->m_WorkGroupSize));
     }
 
@@ -3614,6 +3870,7 @@ namespace dmGraphics
         ProgramResourceBindingsInfo binding_info = {};
         FillProgramResourceBindings(&program->m_BaseProgram, bindings, UNIFORM_BUFFER_ALIGNMENT, STORAGE_BUFFER_ALIGNMENT, binding_info);
 
+        memset(program->m_ResourceToMslIndex, 0xff, sizeof(program->m_ResourceToMslIndex));
         for (int i = 0; i < num_shaders; ++i)
         {
             ShaderDesc::Shader* ddf = ddf_shaders[i];
@@ -3621,7 +3878,7 @@ namespace dmGraphics
             for (int j = 0; j < ddf->m_MslResourceMapping.m_Count; ++j)
             {
                 ShaderDesc::MSLResourceMapping* entry = &ddf->m_MslResourceMapping[j];
-                program->m_ResourceToMslIndex[entry->m_Set][entry->m_Binding] = entry->m_MslIndex;
+                program->m_ResourceToMslIndex[ddf->m_ShaderType][entry->m_Set][entry->m_Binding] = entry->m_MslIndex;
             }
         }
 
@@ -3666,36 +3923,21 @@ namespace dmGraphics
 
     static void CreateArgumentBuffers(MetalContext* context, MetalProgram* program)
     {
-        uint8_t set_stage_flags[MAX_SET_COUNT] = {0};
-
-        for (int i = 0; i < program->m_BaseProgram.m_MaxSet; ++i)
+        MetalShaderModule* modules[] = {program->m_VertexModule, program->m_FragmentModule, program->m_ComputeModule};
+        for (uint32_t stage = 0; stage < 3; ++stage)
         {
-            for (int j = 0; j < program->m_BaseProgram.m_MaxBinding; ++j)
-            {
-                ProgramResourceBinding* res = &program->m_BaseProgram.m_ResourceBindings[i][j];
-
-                if (res->m_Res)
-                {
-                    set_stage_flags[i] |= res->m_Res->m_StageFlags;
-                }
-            }
-
-            if (set_stage_flags[i] == 0)
-            {
+            if (!modules[stage])
                 continue;
-            }
-
-            if (set_stage_flags[i] & SHADER_STAGE_FLAG_VERTEX)
+            for (uint32_t set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
             {
-                program->m_ArgumentEncoders[i] = program->m_VertexModule->m_Function->newArgumentEncoder(i);
-            }
-            else if (set_stage_flags[i] & SHADER_STAGE_FLAG_FRAGMENT)
-            {
-                program->m_ArgumentEncoders[i] = program->m_FragmentModule->m_Function->newArgumentEncoder(i);
-            }
-            else if (set_stage_flags[i] & SHADER_STAGE_FLAG_COMPUTE)
-            {
-                program->m_ArgumentEncoders[i] = program->m_ComputeModule->m_Function->newArgumentEncoder(i);
+                for (uint32_t binding = 0; binding < program->m_BaseProgram.m_MaxBinding; ++binding)
+                {
+                    if (program->m_ResourceToMslIndex[stage][set][binding] != UINT32_MAX)
+                    {
+                        program->m_ArgumentEncoders[stage][set] = modules[stage]->m_Function->newArgumentEncoder(set);
+                        break;
+                    }
+                }
             }
         }
     }
@@ -3711,7 +3953,7 @@ namespace dmGraphics
             return false;
         }
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
 
         MetalShaderModule* shaders[] = { 0x0, 0x0 };
         ShaderDesc::Shader* ddf_shaders[] = { 0x0, 0x0 };
@@ -3962,6 +4204,10 @@ namespace dmGraphics
         {
             context->m_ScissorChanged = true;
         }
+        else if (state == STATE_CULL_FACE)
+        {
+            context->m_CullFaceChanged = true;
+        }
         else if (state == STATE_POLYGON_OFFSET_FILL)
         {
             context->m_PolygonOffsetChanged = true;
@@ -3976,6 +4222,10 @@ namespace dmGraphics
         if (state == STATE_SCISSOR_TEST)
         {
             context->m_ScissorChanged = true;
+        }
+        else if (state == STATE_CULL_FACE)
+        {
+            context->m_CullFaceChanged = true;
         }
         else if (state == STATE_POLYGON_OFFSET_FILL)
         {
@@ -4155,7 +4405,11 @@ namespace dmGraphics
 
     static inline bool MetalSupportsMemorylessRenderTargets(MetalContext* context)
     {
-        return context->m_Device->supportsFamily(MTL::GPUFamilyApple1);
+        // The graphics API has no explicit pass lifetime. SSBO dependencies and
+        // uploads can split a logical render-target activation at any draw, and
+        // memoryless attachments cannot survive that split. Use backed storage
+        // until pass lifetimes can be declared before allocating attachments.
+        return false;
     }
 
     static inline MTL::StorageMode GetMetalRenderTargetStorageMode(MetalContext* context, uint8_t hints)
@@ -4170,10 +4424,10 @@ namespace dmGraphics
         return MTL::StorageModePrivate;
     }
 
-    static MTL::Texture* NewMetalRenderTargetTexture(MetalContext* context, const TextureParams& params, MTL::PixelFormat format, uint8_t usage_hints, uint32_t sample_count)
+    static MTL::Texture* NewMetalRenderTargetTexture(MetalContext* context, const TextureParams& params, MTL::PixelFormat format, uint8_t usage_hints, uint32_t sample_count, TextureType texture_type)
     {
         MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
-        desc->setTextureType(sample_count > 1 ? MTL::TextureType2DMultisample : MTL::TextureType2D);
+        desc->setTextureType(sample_count > 1 ? MTL::TextureType2DMultisample : (texture_type == TEXTURE_TYPE_CUBE_MAP ? MTL::TextureTypeCube : MTL::TextureType2D));
         desc->setPixelFormat(format);
         desc->setWidth(params.m_Width);
         desc->setHeight(params.m_Height);
@@ -4205,8 +4459,8 @@ namespace dmGraphics
         texture->m_Base.m_Format      = params.m_Format;
         texture->m_Base.m_Depth       = 1;
         texture->m_Base.m_MipMapCount = 1;
-        texture->m_Base.m_PageCount   = 1;
-        texture->m_LayerCount         = 1;
+        texture->m_Base.m_PageCount   = texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+        texture->m_LayerCount         = texture->m_Base.m_PageCount;
         SetTextureResourceSize(&texture->m_Base, sizeof(MetalTexture));
     }
 
@@ -4341,7 +4595,9 @@ namespace dmGraphics
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = rt->m_DepthStencilTextureParams;
-        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, MetalGetSupportedSampleCounts(context->m_Device), "Metal");
+        uint32_t supported_sample_counts = params.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? 1 : MetalGetSupportedSampleCounts(context->m_Device);
+        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, supported_sample_counts, "Metal");
+        rt->m_Base.m_TextureType = params.m_TextureType;
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS && rt->m_Width == 0 && rt->m_Height == 0; ++i)
         {
             if (buffer_type_flags & GetBufferTypeFromIndex(i))
@@ -4412,7 +4668,7 @@ namespace dmGraphics
             }
             else if ((color_creation_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_MEMORYLESS) && !MetalSupportsMemorylessRenderTargets(context))
             {
-                dmLogWarning("Metal memoryless render targets are not supported by this device; using private storage instead.");
+                dmLogWarning("Metal memoryless render targets cannot survive internal pass splits; using private storage instead.");
             }
 
             HTexture new_texture_color_handle = NewTexture(_context, color_creation_params);
@@ -4429,7 +4685,7 @@ namespace dmGraphics
                 // attachment itself can remain transient/memoryless.
                 color_usage_hints &= ~(TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT | TEXTURE_USAGE_FLAG_STORAGE);
             }
-            MTL::Texture* native_color_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), color_usage_hints, rt->m_Base.m_SampleCount);
+            MTL::Texture* native_color_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), color_usage_hints, rt->m_Base.m_SampleCount, rt->m_Base.m_TextureType);
             if (!native_color_texture)
             {
                 return FailMetalRenderTargetCreation(_context, rt, color_buffer_params.m_Width, color_buffer_params.m_Height);
@@ -4445,7 +4701,7 @@ namespace dmGraphics
                 assert(resolve_texture);
                 rt->m_Base.m_TextureColorResolve[color_index] = resolve_handle;
 
-                MTL::Texture* native_resolve_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), resolve_creation_params.m_UsageHintBits, 1);
+                MTL::Texture* native_resolve_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), resolve_creation_params.m_UsageHintBits, 1, rt->m_Base.m_TextureType);
                 if (!native_resolve_texture)
                 {
                     return FailMetalRenderTargetCreation(_context, rt, color_buffer_params.m_Width, color_buffer_params.m_Height);
@@ -4489,7 +4745,7 @@ namespace dmGraphics
             }
             else if ((ds_create_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_MEMORYLESS) && !MetalSupportsMemorylessRenderTargets(context))
             {
-                dmLogWarning("Metal memoryless render targets are not supported by this device; using private storage instead.");
+                dmLogWarning("Metal memoryless render targets cannot survive internal pass splits; using private storage instead.");
             }
 
             rt->m_TextureDepthStencil        = NewTexture(_context, ds_create_params);
@@ -4498,7 +4754,7 @@ namespace dmGraphics
             assert(depth_texture_ptr);
 
             rt->m_DepthStencilFormat = (has_depth && !has_stencil) ? MTL::PixelFormatDepth32Float : MTL::PixelFormatDepth32Float_Stencil8;
-            MTL::Texture* native_depth_stencil_texture = NewMetalRenderTargetTexture(context, ds_params, rt->m_DepthStencilFormat, ds_create_params.m_UsageHintBits, rt->m_Base.m_SampleCount);
+            MTL::Texture* native_depth_stencil_texture = NewMetalRenderTargetTexture(context, ds_params, rt->m_DepthStencilFormat, ds_create_params.m_UsageHintBits, rt->m_Base.m_SampleCount, rt->m_Base.m_TextureType);
             if (!native_depth_stencil_texture)
             {
                 return FailMetalRenderTargetCreation(_context, rt, ds_params.m_Width, ds_params.m_Height);
@@ -4522,13 +4778,18 @@ namespace dmGraphics
         delete rt;
     }
 
-    static void MetalSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void MetalSetRenderTarget(HContext _context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
-        (void) transient_buffer_types;
         MetalContext* context = (MetalContext*) _context;
         HRenderTarget new_rt = render_target != 0x0 ? render_target : context->m_MainRenderTarget;
+        MetalRenderTarget* target = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, new_rt);
+        if (!target)
+        {
+            new_rt = context->m_MainRenderTarget;
+            target = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, new_rt);
+        }
 
-        if (context->m_CurrentRenderTarget == new_rt)
+        if (context->m_CurrentRenderTarget == new_rt && target->m_Base.m_CubeMapFace == params.m_CubeMapFace)
         {
             return;
         }
@@ -4540,6 +4801,8 @@ namespace dmGraphics
             EndRenderPass(context);
         }
 
+        target->m_Base.m_CubeMapFace = params.m_CubeMapFace;
+        target->m_ResumePass = 0;
         context->m_CurrentRenderTarget = new_rt;
         context->m_ViewportChanged = 1;
         context->m_ScissorChanged = 1;
@@ -4585,14 +4848,14 @@ namespace dmGraphics
                 {
                     usage_hints &= ~(TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT | TEXTURE_USAGE_FLAG_STORAGE);
                 }
-                color_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], usage_hints, rt->m_Base.m_SampleCount);
+                color_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], usage_hints, rt->m_Base.m_SampleCount, rt->m_Base.m_TextureType);
                 allocation_failed = color_textures[i] == 0;
             }
             if (!allocation_failed && rt->m_Base.m_TextureColorResolve[i])
             {
                 MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColorResolve[i]);
                 assert(texture);
-                color_resolve_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], texture->m_Base.m_UsageHintFlags, 1);
+                color_resolve_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], texture->m_Base.m_UsageHintFlags, 1, rt->m_Base.m_TextureType);
                 allocation_failed = color_resolve_textures[i] == 0;
             }
         }
@@ -4604,7 +4867,7 @@ namespace dmGraphics
         {
             MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
             assert(texture);
-            depth_stencil_texture = NewMetalRenderTargetTexture(context, resized_depth_stencil_params, rt->m_DepthStencilFormat, texture->m_Base.m_UsageHintFlags, rt->m_Base.m_SampleCount);
+            depth_stencil_texture = NewMetalRenderTargetTexture(context, resized_depth_stencil_params, rt->m_DepthStencilFormat, texture->m_Base.m_UsageHintFlags, rt->m_Base.m_SampleCount, rt->m_Base.m_TextureType);
             allocation_failed = depth_stencil_texture == 0;
         }
 
@@ -4941,6 +5204,53 @@ namespace dmGraphics
         const uint32_t copyWidth  = params.m_Width ? params.m_Width : mipWidth;
         const uint32_t copyHeight = params.m_Height ? params.m_Height : mipHeight;
         const uint32_t copyDepth  = is_3d_texture ? (params.m_Depth ? params.m_Depth : mipDepth) : 1;
+
+        if (format_src == TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 || format_src == TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 ||
+            format_src == TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 || format_src == TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1)
+        {
+            // replaceRegion accepts native swizzled PVRTC with zero pitches. Upload to a
+            // shared texture, then copy to the private destination without reordering blocks.
+            MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
+            desc->setTextureType(layerCount > 1 ? MTL::TextureType2DArray : MTL::TextureType2D);
+            desc->setPixelFormat(texture->m_Texture->pixelFormat());
+            desc->setWidth(copyWidth);
+            desc->setHeight(copyHeight);
+            desc->setArrayLength(layerCount);
+            desc->setStorageMode(MTL::StorageModeShared);
+            desc->setUsage(MTL::TextureUsageShaderRead);
+            MTL::Texture* upload_texture = device->newTexture(desc);
+            desc->release();
+            if (!upload_texture)
+            {
+                dmLogError("MetalCopyToTexture: failed to create PVRTC upload texture");
+                return;
+            }
+
+            const uint32_t slice_size = GetTextureFormatDataSize(format_src, copyWidth, copyHeight);
+            const MTL::Origin source_origin = {0, 0, 0};
+            const MTL::Origin destination_origin = {params.m_X, params.m_Y, params.m_Z};
+            const MTL::Size size = {copyWidth, copyHeight, 1};
+            const MTL::Region region = MTL::Region::Make2D(0, 0, copyWidth, copyHeight);
+            for (uint32_t slice = 0; slice < layerCount; ++slice)
+            {
+                upload_texture->replaceRegion(region, 0, slice, pixels + (uint64_t)slice * slice_size, 0, 0);
+            }
+
+            NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+            MTL::CommandBuffer* command = context->m_CommandQueue->commandBuffer();
+            MTL::BlitCommandEncoder* blit = command->blitCommandEncoder();
+            for (uint32_t slice = 0; slice < layerCount; ++slice)
+            {
+                blit->copyFromTexture(upload_texture, slice, 0, source_origin, size,
+                    texture->m_Texture, baseSlice + slice, target_mip, destination_origin);
+            }
+            blit->endEncoding();
+            command->commit();
+            command->waitUntilCompleted();
+            upload_texture->release();
+            pool->release();
+            return;
+        }
 
         const bool is_block_compressed = MetalIsBlockCompressed(format_src);
         uint64_t unpaddedRowSize = 0;
@@ -5423,7 +5733,7 @@ namespace dmGraphics
         const bool was_rendering = context->m_RenderTargetBound != 0;
         if (was_rendering)
         {
-            EndRenderPass(context);
+            SuspendRenderPass(context);
         }
 
         MTL::Texture* source_texture = 0;
@@ -5448,6 +5758,8 @@ namespace dmGraphics
             source_height = rt->m_Height;
             source_is_backbuffer = rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID;
         }
+
+        const bool consumed_main_msaa = source_is_backbuffer && ResolveMainMSAAColor(context);
 
         const uint32_t src_row_size = AlignTo(dst_row_size, 256);
         const uint32_t readback_size = src_row_size * height;
@@ -5528,7 +5840,7 @@ namespace dmGraphics
         readback_buffer->release();
         source_texture->release();
 
-        if (was_rendering && frame.m_CommandBuffer)
+        if (was_rendering && frame.m_CommandBuffer && !consumed_main_msaa)
         {
             BeginRenderPass(context, render_target);
         }

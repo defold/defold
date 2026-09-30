@@ -1,0 +1,14 @@
+#version 140
+
+in highp vec4 position;
+
+uniform vertex_uniforms {
+    highp mat4 mtx_world_view_proj;
+    highp vec4 point_scale;
+    highp vec4 point_offset_by_w;
+};
+
+void main() {
+    vec3 point = position.xyz * point_scale.xyz + position.w * point_offset_by_w.xyz;
+    gl_Position = mtx_world_view_proj * vec4(point, 1.0);
+}

@@ -117,7 +117,7 @@ public class Fontc {
     }
 
     public static long FontDescToHash(FontDesc desc) {
-        String result = "" + desc.getFont() + desc.getSize() + desc.getAntialias() + desc.getOutlineWidth() +
+        String result = desc.getFont() + desc.getSize() + desc.getAntialias() + desc.getOutlineWidth() +
             desc.getShadowBlur() + desc.getCharacters() + desc.getOutputFormat() + desc.getAllChars() +
             desc.getCacheWidth() + desc.getCacheHeight() + desc.getRenderMode();
         return MurmurHash.hash64(result);

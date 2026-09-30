@@ -241,7 +241,7 @@
 
 (deftest suspendable-functions-can-refresh-contexts
   (test-support/with-clean-system
-    (let [node-id (g/make-node! world TestNode :value 1)
+    (let [node-id (g/make-node! TestNode :value 1)
           rt (rt/make :env {"get_value" (rt/lua-fn [{:keys [evaluation-context]}]
                                           (rt/->lua (g/node-value node-id :value evaluation-context)))
                             "set_value" (rt/suspendable-lua-fn [{:keys [rt]} n]
@@ -2695,7 +2695,7 @@ localization.message('progress.loading-resource', {resource = message}) => Loadi
       (run!
         (fn [[proj-path view-node-type view-node-args label]]
           (let [resource-node (test-util/resource-node project proj-path)
-                view-node (first (g/take-node-ids world 1))]
+                view-node (first (g/take-node-ids 1))]
             (g/transact
               {:undoable false}
               (concat

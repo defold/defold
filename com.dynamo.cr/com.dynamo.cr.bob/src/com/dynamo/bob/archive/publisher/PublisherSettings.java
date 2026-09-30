@@ -34,7 +34,7 @@ public class PublisherSettings {
 
     public enum PublishMode {
         Amazon, Zip, Folder
-    };
+    }
 
     private Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
 

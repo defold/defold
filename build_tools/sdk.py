@@ -1,20 +1,4 @@
 #!/usr/bin/env python
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
-
-
 """
 The idea is to be able to use locally installed tools if wanted, or rely on prebuilt packages
 The order of priority is:
@@ -43,25 +27,27 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 # If you update editor JDK version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
-VERSION_EDITOR_JDK="25+36"
+VERSION_EDITOR_JDK="25.0.4.1+1"
 
 ## **********************************************************************************************
 # Darwin
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="26.5" # we also use this to match version on Github Actions
+VERSION_XCODE="27.1" # Also used to name the packaged toolchain
 VERSION_XCODE_CLANG="21.0.0"
-VERSION_MACOSX="26.5"
-VERSION_IPHONEOS="26.5"
-VERSION_IPHONESIMULATOR="26.5"
+VERSION_MACOSX="27.0"
+VERSION_IPHONEOS="27.1"
+VERSION_IPHONESIMULATOR="27.1"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
-VERSION_IPHONEOS_MIN="11.0"
-VERSION_MACOSX_MIN="10.15"
+VERSION_IPHONEOS_MIN="15.0"
+# Xcode 27.1 Deployment Targets changed https://developer.apple.com/xcode/system-requirements
+VERSION_MACOSX_MIN="12.0"
 
+# Xcode 27.1 ships Swift 6.4 but retains the swift-6.2 runtime library directory.
 SWIFT_VERSION="6.2"
 
 VERSION_LINUX_CLANG="20.1.8"
@@ -119,8 +105,6 @@ defold_info['arm64-macos']['pattern'] = PACKAGES_MACOS_SDK
 
 defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK
 defold_info['x86_64-win32']['pattern'] = "Win32/%s" % PACKAGES_WIN32_TOOLCHAIN
-defold_info['win32']['version'] = defold_info['x86_64-win32']['version']
-defold_info['win32']['pattern'] = defold_info['x86_64-win32']['pattern']
 
 defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK
 defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK
@@ -810,8 +794,6 @@ def get_windows_bin_dirs(vs_root, sdk_bin_root, arch, extra_bin_dirs=None):
 
 def get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform, llvm_bin_dir=None):
     arch = 'x64'
-    if platform == 'win32':
-        arch = 'x86'
 
     sdk_includes_root = os.path.join(sdk_root, 'Include', sdk_version)
     sdk_libs_root = os.path.join(sdk_root, 'Lib', sdk_version)
@@ -851,8 +833,6 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
     windowskitsdir = os.path.join(sdkdir, 'Win32', 'WindowsKits')
 
     arch = 'x64'
-    if platform == 'win32':
-        arch = 'x86'
 
     # Since the programs(Windows!) can update, we do this dynamically to find the correct version
     ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
@@ -973,7 +953,7 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
         folders.append(_get_defold_path(sdkfolder, platform))
 
-    elif platform in ('x86_64-win32', 'win32'):
+    elif platform == 'x86_64-win32':
         folders.append(os.path.join(sdkfolder, 'Win32','WindowsKits','10'))
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
 
@@ -1017,7 +997,7 @@ def check_local_sdk(platform, verbose=False):
         if not xcode_version:
             raise SDKException(f"Failed to find XCode version")
 
-    elif platform in ('win32', 'x86_64-win32'):
+    elif platform == 'x86_64-win32':
         info, error = _detect_windows_local_sdk(platform, verbose)
         if info is None:
             raise SDKException(error)
@@ -1055,7 +1035,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         # We download the package for the host platform, and rely on its ability cross compile
         info[platform]['path'] = _get_defold_path(sdkfolder, host_platform)
 
-    elif platform in ('win32', 'x86_64-win32'):
+    elif platform == 'x86_64-win32':
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
@@ -1101,7 +1081,7 @@ def _get_local_sdk_info(platform, verbose=False):
         info['clang-version'] = info[platform]['version']
         info[platform]['path'] = get_local_compiler_path()
 
-    elif platform in ('win32', 'x86_64-win32'):
+    elif platform == 'x86_64-win32':
         windowsinfo = get_windows_local_sdk_info(platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
@@ -1167,7 +1147,6 @@ def get_host_platform():
     machine = platform.machine().lower()
     if machine == 'amd64':
         machine = 'x86_64'
-    is64bit = machine.endswith('64')
 
     if sys.platform == 'linux':
         if machine == 'aarch64':
@@ -1176,6 +1155,8 @@ def get_host_platform():
     elif sys.platform == 'win32':
         if machine == 'arm64':
             machine = 'x86_64' # we don't support arm64 windows targets yet
+        if machine != 'x86_64' or sys.maxsize <= 2**32:
+            raise Exception("32-bit Windows hosts are not supported")
         return '%s-win32' % machine
     elif sys.platform == 'darwin':
         return '%s-macos' % machine

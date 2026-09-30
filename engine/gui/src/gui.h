@@ -86,10 +86,9 @@ namespace dmGui
                         m_Playback              == other.m_Playback;
             }
 
-            uint32_t m_Start : 13;
-            uint32_t m_End : 13;
-            uint32_t m_Playback : 4;
-            uint32_t : 2;
+            uint32_t m_Start;
+            uint32_t m_End;
+            uint8_t  m_Playback;
             uint16_t m_OriginalTextureWidth;
             uint16_t m_OriginalTextureHeight;
             uint8_t  m_FPS;

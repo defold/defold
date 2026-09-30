@@ -7,14 +7,6 @@ platforms:
       libs: [librender_font_default.lib, libmbedtls.lib, libmbedtls_noasan.lib, libbox2d_defold, libopus.lib, vpx, vulkan-1, libcustom.lib]
       engineLibs: [render_font_default, render_font_default.lib, mbedtls, mbedtls.lib, mbedtls_noasan, mbedtls_noasan.lib]
       symbols: [librender_font_default, libmbedtls]
-  x86-win32:
-    context:
-      excludeLibs: [libscript_box2d_defold, libgamesys_model, libgamesys_rig]
-      excludeSymbols: []
-      symbols: []
-      libs: [libscript_box2d.lib, libgamesys_model_null.lib, libgamesys_rig_null.lib]
-      engineLibs: [librender_font_default.lib, libmbedtls.lib, libmbedtls_noasan.lib, libgameobject.lib, libfont_render, libdmbedtls.lib, dmbedtls_noasan.lib]
-      linkFlags: []
   x86_64-win32:
     context:
       excludeLibs: [libscript_box2d_defold, libgamesys_model, libgamesys_rig]

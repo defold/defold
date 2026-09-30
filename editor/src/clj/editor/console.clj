@@ -321,7 +321,7 @@
     :add (let [new-state (swap! state #(-> %
                                            (assoc :text "")
                                            (cond-> (not (string/blank? (:text %)))
-                                                   (update :filters conj [(:text %) true]))))]
+                                             (update :filters conj [(:text %) true]))))]
            (save-filters! prefs (:filters new-state)))
     :select (let [new-state (swap! state assoc-in [:filters (:index e) 1] (:fx/event e))]
               (save-filters! prefs (:filters new-state)))))
@@ -398,9 +398,9 @@
 
 (handler/defhandler :edit.find :console-view
   (run [term-field view-node]
-       (when-some [selected-text (view/non-empty-single-selection-text view-node)]
-         (set-find-term! selected-text))
-       (focus-term-field! term-field)))
+    (when-some [selected-text (view/non-empty-single-selection-text view-node)]
+      (set-find-term! selected-text))
+    (focus-term-field! term-field)))
 
 (handler/defhandler :code.find-next :console-view
   (run [view-node] (find-next! view-node)))
@@ -668,8 +668,8 @@
               :lines lines'
               :regions regions')
 
-            (empty? clean-lines)
-            (assoc :invalidated-row 0))))
+      (empty? clean-lines)
+      (assoc :invalidated-row 0))))
 
 (defn- append-entries [props entries resource-map resource-suffix-map-delay on-region-click!]
   (assert (map? props))
@@ -701,10 +701,10 @@
         (when-let [tx-data (view/set-properties
                              view-node nil
                              (cond-> (assoc props :document-width document-width)
-                                     was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
-                                     clear (assoc :cursor-ranges [data/document-start-cursor-range])
-                                     clear (assoc :invalidated-row 0)
-                                     clear (data/frame-cursor prev-layout)))]
+                               was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
+                               clear (assoc :cursor-ranges [data/document-start-cursor-range])
+                               clear (assoc :invalidated-row 0)
+                               clear (data/frame-cursor prev-layout)))]
           (g/transact {:undoable false} tx-data)))))
   (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))
 
@@ -754,7 +754,7 @@
 
 (def ^:private resource->menu-item (comp ui/string->menu-item resource/proj-path))
 
-(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs localization]
+(defn make-console! [workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs localization]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
 
@@ -762,17 +762,17 @@
         (g/tx-nodes-added
           (g/transact
             {:undoable false}
-            [(g/make-node graph ConsoleNode)
-             (g/make-node graph ConsoleView
-                          :canvas canvas
-                          :canvas-width (.getWidth canvas)
-                          :canvas-height (.getHeight canvas)
-                          :color-scheme console-color-scheme
-                          :grammar console-grammar
-                          :gutter-view (ConsoleGutterView.)
-                          :highlighted-find-term (.getValue find-term-property)
-                          :line-height-factor 1.2
-                          :resize-reference :bottom)]))
+            [(g/make-node ConsoleNode)
+             (g/make-node ConsoleView
+               :canvas canvas
+               :canvas-width (.getWidth canvas)
+               :canvas-height (.getHeight canvas)
+               :color-scheme console-color-scheme
+               :grammar console-grammar
+               :gutter-view (ConsoleGutterView.)
+               :highlighted-find-term (.getValue find-term-property)
+               :line-height-factor 1.2
+               :resize-reference :bottom)]))
 
         view-node (setup-view! console-node view-node)
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node prefs localization)

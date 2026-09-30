@@ -23,7 +23,7 @@ import javafx.scene.control.TreeItem;
 /// As documented in JavaFX javadocs, it's possible to build TreeItems on-demand
 /// in a memory-efficient way by overriding isLeaf and getChildren
 ///
-/// See [TreeItem](https://openjfx.io/javadoc/25/javafx.controls/javafx/scene/control/TreeItem.html)
+/// See [TreeItem](https://openjfx.io/javadoc/27/javafx.controls/javafx/scene/control/TreeItem.html)
 /// documentation.
 public class LazyTreeItem extends TreeItem<Object> {
 

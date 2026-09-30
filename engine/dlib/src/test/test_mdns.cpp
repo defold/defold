@@ -21,6 +21,7 @@
 #include <vector>
 
 #include <dlib/mdns.h>
+#include <dlib/mdns_private.h>
 #include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/network_constants.h>
@@ -243,14 +244,34 @@ namespace
         dmSocket::Socket m_Socket;
     };
 
-    static void Pump(dmMDNS::HMDNS mdns, dmMDNS::HBrowser browser, uint32_t iterations, uint32_t sleep_us)
+    struct BrowserClock
+    {
+        BrowserClock() : m_Now(1000000ULL) {}
+
+        void Advance(uint32_t milliseconds)
+        {
+            m_Now += (uint64_t) milliseconds * 1000ULL;
+        }
+
+        uint64_t m_Now;
+    };
+
+    static void UpdateBrowser(dmMDNS::HBrowser browser, const BrowserClock* clock)
+    {
+        if (clock)
+            dmMDNS::UpdateBrowser(browser, clock->m_Now);
+        else
+            dmMDNS::UpdateBrowser(browser);
+    }
+
+    static void Pump(dmMDNS::HMDNS mdns, dmMDNS::HBrowser browser, uint32_t iterations, uint32_t sleep_us, const BrowserClock* clock = 0)
     {
         for (uint32_t i = 0; i < iterations; ++i)
         {
             if (mdns)
                 dmMDNS::Update(mdns);
             if (browser)
-                dmMDNS::UpdateBrowser(browser);
+                UpdateBrowser(browser, clock);
             dmTime::Sleep(sleep_us);
         }
     }
@@ -269,7 +290,7 @@ namespace
         return event_log.HasInstance(event_type, instance_name);
     }
 
-    static bool WaitForEventCount(EventLog& event_log, dmMDNS::EventType event_type, const char* instance_name, uint32_t count, dmMDNS::HMDNS mdns, dmMDNS::HBrowser browser, uint32_t timeout_ms)
+    static bool WaitForEventCount(EventLog& event_log, dmMDNS::EventType event_type, const char* instance_name, uint32_t count, dmMDNS::HMDNS mdns, dmMDNS::HBrowser browser, uint32_t timeout_ms, const BrowserClock* clock = 0)
     {
         const uint64_t deadline = dmTime::GetMonotonicTime() + (uint64_t) timeout_ms * 1000ULL;
         while (dmTime::GetMonotonicTime() < deadline)
@@ -278,7 +299,7 @@ namespace
             {
                 return true;
             }
-            Pump(mdns, browser, 1, 5 * 1000);
+            Pump(mdns, browser, 1, 5 * 1000, clock);
         }
         return event_log.CountInstance(event_type, instance_name) >= count;
     }
@@ -1026,13 +1047,13 @@ namespace
         return false;
     }
 
-    static bool WaitForMatchingQuestion(dmMDNS::HBrowser browser, dmSocket::Socket socket, const char* qname, uint16_t qtype, RawDnsPacket* packet, uint32_t timeout_ms)
+    static bool WaitForMatchingQuestion(dmMDNS::HBrowser browser, dmSocket::Socket socket, const char* qname, uint16_t qtype, RawDnsPacket* packet, uint32_t timeout_ms, const BrowserClock* clock = 0)
     {
         const uint64_t deadline = dmTime::GetMonotonicTime() + (uint64_t) timeout_ms * 1000ULL;
         while (dmTime::GetMonotonicTime() < deadline)
         {
             if (browser)
-                dmMDNS::UpdateBrowser(browser);
+                UpdateBrowser(browser, clock);
             if (TryReceiveMatchingQuestion(socket, qname, qtype, packet))
                 return true;
             dmTime::Sleep(5 * 1000);
@@ -1780,9 +1801,11 @@ TEST(MDNS, BrowserBuildsExpectedQuery)
 }
 
 // Verifies follow-up browse queries carry known PTR answers so responders can suppress duplicates.
+// Advances the browser clock to the next query instead of waiting for the retry interval.
 TEST(MDNS, BrowserBuildsKnownAnswerQueryAfterDiscovery)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
+    BrowserClock clock;
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -1814,7 +1837,7 @@ TEST(MDNS, BrowserBuildsKnownAnswerQueryAfterDiscovery)
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::NewBrowser(&browser_params, &cleanup.m_Browser));
 
     RawDnsPacket initial_query;
-    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &initial_query, 2000));
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &initial_query, 2000, &clock));
     DrainSocket(capture.m_Socket, 100);
 
     dmMDNS::TxtEntry txt_entries[] =
@@ -1836,25 +1859,27 @@ TEST(MDNS, BrowserBuildsKnownAnswerQueryAfterDiscovery)
     std::vector<uint8_t> response;
     BuildResponsePacket(records, DM_ARRAY_SIZE(records), false, &response);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &response[0], (uint32_t) response.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 1, 0, cleanup.m_Browser, 2000));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 1, 0, cleanup.m_Browser, 2000, &clock));
     DrainSocket(capture.m_Socket, 100);
 
+    clock.Advance(1000);
     RawDnsPacket packet;
-    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4500));
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4500, &clock));
     ASSERT_TRUE(!packet.m_IsResponse);
     ASSERT_EQ(1U, packet.m_Questions.size());
     ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_PTR));
     const RawDnsRecord* ptr_record = FindRecord(packet, DNS_TYPE_PTR, service_type_local);
     ASSERT_NE((const RawDnsRecord*) 0, ptr_record);
     ASSERT_EQ(std::string(full_service_name), ptr_record->m_PtrName);
-    ASSERT_TRUE(ptr_record->m_Ttl > 0);
+    ASSERT_EQ(9U, ptr_record->m_Ttl);
 }
 
 // Verifies periodic interface polling does not collapse browse backoff when the
-// available interface set is unchanged.
+// available interface set is unchanged, using a clock that advances across timer boundaries.
 TEST(MDNS, BrowserKeepsBackoffAcrossStableInterfaceRefresh)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
+    BrowserClock clock;
 
     ScopedMdnsTestResources cleanup;
     MulticastCapture capture;
@@ -1877,29 +1902,42 @@ TEST(MDNS, BrowserKeepsBackoffAcrossStableInterfaceRefresh)
     DrainSocket(capture.m_Socket, 100);
 
     RawDnsPacket packet;
-    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000, &clock));
     DrainMatchingQuestionsUntilQuiet(capture.m_Socket, service_type_local, DNS_TYPE_PTR, 250, 1000);
-    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
+    clock.Advance(999);
+    ASSERT_FALSE(dmMDNS::UpdateBrowser(cleanup.m_Browser, clock.m_Now));
+    clock.Advance(1);
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000, &clock));
     DrainMatchingQuestionsUntilQuiet(capture.m_Socket, service_type_local, DNS_TYPE_PTR, 250, 1000);
-    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4000));
+    clock.Advance(2999);
+    ASSERT_FALSE(dmMDNS::UpdateBrowser(cleanup.m_Browser, clock.m_Now));
+    clock.Advance(1);
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4000, &clock));
     DrainMatchingQuestionsUntilQuiet(capture.m_Socket, service_type_local, DNS_TYPE_PTR, 250, 1000);
 
-    const bool received_query = WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2500);
-    if (received_query)
+    // Cross the five-second interface refresh without sleeping through backoff.
+    bool query_produced = false;
+    for (uint32_t elapsed = 0; elapsed < 2500; elapsed += 100)
+    {
+        clock.Advance(100);
+        query_produced |= dmMDNS::UpdateBrowser(cleanup.m_Browser, clock.m_Now);
+    }
+    if (query_produced)
     {
         std::vector<dmSocket::Address> current_addresses;
         CollectTestInterfaceAddresses(&current_addresses);
         if (!HaveSameTestAddressSet(initial_addresses, current_addresses))
             SKIP();
     }
-    ASSERT_FALSE(received_query);
+    ASSERT_FALSE(query_produced);
 }
 
 // Verifies half-TTL refresh retries stay on the browse backoff cadence when a
-// refresh query receives no answer.
+// refresh query receives no answer, without waiting for protocol time to pass.
 TEST(MDNS, BrowserRefreshRetryDoesNotSpam)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
+    BrowserClock clock;
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -1931,7 +1969,7 @@ TEST(MDNS, BrowserRefreshRetryDoesNotSpam)
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::NewBrowser(&browser_params, &cleanup.m_Browser));
 
     RawDnsPacket packet;
-    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000, &clock));
     DrainSocket(capture.m_Socket, 100);
 
     dmMDNS::TxtEntry txt_entries[] =
@@ -1953,18 +1991,28 @@ TEST(MDNS, BrowserRefreshRetryDoesNotSpam)
     std::vector<uint8_t> response;
     BuildResponsePacket(records, DM_ARRAY_SIZE(records), false, &response);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &response[0], (uint32_t) response.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 1, 0, cleanup.m_Browser, 2000));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 1, 0, cleanup.m_Browser, 2000, &clock));
     DrainSocket(capture.m_Socket, 100);
 
-    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
+    clock.Advance(1000);
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000, &clock));
     DrainSocket(capture.m_Socket, 100);
-    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4000));
+    clock.Advance(3000);
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4000, &clock));
     DrainSocket(capture.m_Socket, 100);
 
+    clock.Advance(1999);
+    ASSERT_FALSE(dmMDNS::UpdateBrowser(cleanup.m_Browser, clock.m_Now));
+    clock.Advance(1);
     RawDnsPacket refresh_query;
-    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &refresh_query, 7000));
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &refresh_query, 7000, &clock));
     DrainSocket(capture.m_Socket, 100);
-    ASSERT_FALSE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2500));
+    // Repeated updates must not re-send the now-overdue half-TTL refresh.
+    for (uint32_t elapsed = 0; elapsed < 2500; elapsed += 100)
+    {
+        clock.Advance(100);
+        ASSERT_FALSE(dmMDNS::UpdateBrowser(cleanup.m_Browser, clock.m_Now));
+    }
 }
 
 // Verifies service probes claim the unique SRV/TXT/A records in the authority
@@ -2496,9 +2544,11 @@ TEST(MDNS, BrowserParsesCompressedResponses)
 
 // Verifies the browser assembles service state across packets and handles malformed, zero-TTL, and expiry paths.
 // This exercises the native browser state machine instead of only single-packet happy paths.
+// Uses the browser clock to check address expiry immediately before and at its TTL boundary.
 TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
+    BrowserClock clock;
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -2530,7 +2580,7 @@ TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
     std::vector<uint8_t> query;
     BuildQueryPacket(service_type_local, DNS_TYPE_PTR, &query);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &query[0], (uint32_t) query.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    Pump(0, cleanup.m_Browser, 5, 10 * 1000);
+    Pump(0, cleanup.m_Browser, 5, 10 * 1000, &clock);
     ASSERT_TRUE(event_log.m_Events.empty());
 
     const uint8_t address[] = {127, 0, 0, 56};
@@ -2560,23 +2610,23 @@ TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
     std::vector<uint8_t> packet;
     BuildResponsePacket(ptr_record, 1, false, &packet);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &packet[0], (uint32_t) packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_ADDED, instance_name, 1, 0, cleanup.m_Browser, 2000));
-    Pump(0, cleanup.m_Browser, 3, 10 * 1000);
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_ADDED, instance_name, 1, 0, cleanup.m_Browser, 2000, &clock));
+    Pump(0, cleanup.m_Browser, 3, 10 * 1000, &clock);
     ASSERT_EQ(0U, event_log.CountInstance(dmMDNS::EVENT_RESOLVED, instance_name));
 
     BuildResponsePacket(srv_record, 1, false, &packet);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &packet[0], (uint32_t) packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    Pump(0, cleanup.m_Browser, 3, 10 * 1000);
+    Pump(0, cleanup.m_Browser, 3, 10 * 1000, &clock);
     ASSERT_EQ(0U, event_log.CountInstance(dmMDNS::EVENT_RESOLVED, instance_name));
 
     BuildResponsePacket(txt_record, 1, false, &packet);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &packet[0], (uint32_t) packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    Pump(0, cleanup.m_Browser, 3, 10 * 1000);
+    Pump(0, cleanup.m_Browser, 3, 10 * 1000, &clock);
     ASSERT_EQ(0U, event_log.CountInstance(dmMDNS::EVENT_RESOLVED, instance_name));
 
     BuildResponsePacket(a_record, 1, false, &packet);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &packet[0], (uint32_t) packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 1, 0, cleanup.m_Browser, 2000));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 1, 0, cleanup.m_Browser, 2000, &clock));
 
     const EventSnapshot* resolved = event_log.FindInstance(dmMDNS::EVENT_RESOLVED, instance_name);
     ASSERT_NE((const EventSnapshot*) 0, resolved);
@@ -2605,7 +2655,7 @@ TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
     pointer_loop_packet.push_back(0x0C);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &pointer_loop_packet[0], (uint32_t) pointer_loop_packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
 
-    Pump(0, cleanup.m_Browser, 10, 10 * 1000);
+    Pump(0, cleanup.m_Browser, 10, 10 * 1000, &clock);
     ASSERT_EQ(1U, event_log.CountInstance(dmMDNS::EVENT_RESOLVED, instance_name));
     ASSERT_EQ(0U, event_log.CountInstance(dmMDNS::EVENT_REMOVED, instance_name));
 
@@ -2615,11 +2665,11 @@ TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
     };
     BuildResponsePacket(srv_remove_record, 1, false, &packet);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &packet[0], (uint32_t) packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, instance_name, 1, 0, cleanup.m_Browser, 2000));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, instance_name, 1, 0, cleanup.m_Browser, 2000, &clock));
 
     BuildResponsePacket(srv_record, 1, false, &packet);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &packet[0], (uint32_t) packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 2, 0, cleanup.m_Browser, 2000));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 2, 0, cleanup.m_Browser, 2000, &clock));
 
     RawDnsResponseRecord txt_remove_record[] =
     {
@@ -2627,11 +2677,11 @@ TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
     };
     BuildResponsePacket(txt_remove_record, 1, false, &packet);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &packet[0], (uint32_t) packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, instance_name, 2, 0, cleanup.m_Browser, 2000));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, instance_name, 2, 0, cleanup.m_Browser, 2000, &clock));
 
     BuildResponsePacket(txt_record, 1, false, &packet);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &packet[0], (uint32_t) packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 3, 0, cleanup.m_Browser, 2000));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 3, 0, cleanup.m_Browser, 2000, &clock));
 
     RawDnsResponseRecord short_lived_a_record[] =
     {
@@ -2639,16 +2689,21 @@ TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
     };
     BuildResponsePacket(short_lived_a_record, 1, false, &packet);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &packet[0], (uint32_t) packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    Pump(0, cleanup.m_Browser, 10, 10 * 1000);
+    Pump(0, cleanup.m_Browser, 10, 10 * 1000, &clock);
     ASSERT_EQ(2U, event_log.CountInstance(dmMDNS::EVENT_REMOVED, instance_name));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, instance_name, 3, 0, cleanup.m_Browser, 2500));
+    clock.Advance(999);
+    dmMDNS::UpdateBrowser(cleanup.m_Browser, clock.m_Now);
+    ASSERT_EQ(2U, event_log.CountInstance(dmMDNS::EVENT_REMOVED, instance_name));
+    clock.Advance(1);
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, instance_name, 3, 0, cleanup.m_Browser, 2500, &clock));
 }
 
 // Verifies PTR, SRV, and TXT records each expire by time and remove the service when required.
-// This covers timed-expiry behavior separately from explicit zero-TTL deannounce handling.
+// Advances an explicit clock to check just before and exactly at the TTL boundary.
 TEST(MDNS, BrowserExpiresPtrSrvTxtRecords)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
+    BrowserClock clock;
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -2670,7 +2725,7 @@ TEST(MDNS, BrowserExpiresPtrSrvTxtRecords)
     std::vector<uint8_t> query;
     BuildQueryPacket(service_type_local, DNS_TYPE_PTR, &query);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &query[0], (uint32_t) query.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    Pump(0, cleanup.m_Browser, 5, 10 * 1000);
+    Pump(0, cleanup.m_Browser, 5, 10 * 1000, &clock);
 
     char ptr_instance[128];
     char srv_instance[128];
@@ -2729,14 +2784,19 @@ TEST(MDNS, BrowserExpiresPtrSrvTxtRecords)
     std::vector<uint8_t> packet;
     BuildResponsePacket(records, DM_ARRAY_SIZE(records), false, &packet);
     ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &packet[0], (uint32_t) packet.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, ptr_instance, 1, 0, cleanup.m_Browser, 2000));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, srv_instance, 1, 0, cleanup.m_Browser, 2000));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, txt_instance, 1, 0, cleanup.m_Browser, 2000));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, ptr_instance, 1, 0, cleanup.m_Browser, 2000, &clock));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, srv_instance, 1, 0, cleanup.m_Browser, 2000, &clock));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, txt_instance, 1, 0, cleanup.m_Browser, 2000, &clock));
 
-    dmTime::Sleep(1100 * 1000);
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, ptr_instance, 1, 0, cleanup.m_Browser, 2000));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, srv_instance, 1, 0, cleanup.m_Browser, 2000));
-    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, txt_instance, 1, 0, cleanup.m_Browser, 2000));
+    clock.Advance(999);
+    dmMDNS::UpdateBrowser(cleanup.m_Browser, clock.m_Now);
+    ASSERT_EQ(0U, event_log.CountInstance(dmMDNS::EVENT_REMOVED, ptr_instance));
+    ASSERT_EQ(0U, event_log.CountInstance(dmMDNS::EVENT_REMOVED, srv_instance));
+    ASSERT_EQ(0U, event_log.CountInstance(dmMDNS::EVENT_REMOVED, txt_instance));
+    clock.Advance(1);
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, ptr_instance, 1, 0, cleanup.m_Browser, 2000, &clock));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, srv_instance, 1, 0, cleanup.m_Browser, 2000, &clock));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_REMOVED, txt_instance, 1, 0, cleanup.m_Browser, 2000, &clock));
 }
 
 // Verifies duplicate and conflicting records across multiple services do not corrupt browser state.

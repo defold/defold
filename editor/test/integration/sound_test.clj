@@ -51,7 +51,7 @@
           (is (g/error? (test-util/prop-error node-id :sound)))))
       (is (nil? (test-util/prop-error node-id :gain)))
       (test-util/with-prop [node-id :gain -0.5]
-          (is (g/error? (test-util/prop-error node-id :gain))))))
+        (is (g/error? (test-util/prop-error node-id :gain))))))
   (test-util/with-loaded-project "test/resources/sound_validation_project"
     (let [valid-id (test-util/resource-node project "/main/valid.sound")
           invalid-id (test-util/resource-node project "/main/invalid.sound")]

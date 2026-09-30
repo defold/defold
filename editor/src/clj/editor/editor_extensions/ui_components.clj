@@ -24,7 +24,6 @@
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.tab :as fx.tab]
-            [cljfx.fx.tab-pane :as fx.tab-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -162,15 +161,15 @@
    :content content})
 
 (defn- tabs-view [{:keys [tabs]}]
-  (cond-> {:fx/type fx.tab-pane/lifecycle
+  (cond-> {:fx/type fxui/tab-pane
            :style-class ["tab-pane" "ext-tab-pane"]}
-          tabs (assoc :tabs
-                      (into []
-                            (keep-indexed
-                              (fn [i desc]
-                                (when desc
-                                  (assoc desc :fx/key i))))
-                            tabs))))
+    tabs (assoc :tabs
+           (into []
+                 (keep-indexed
+                   (fn [i desc]
+                     (when desc
+                       (assoc desc :fx/key i))))
+                 tabs))))
 
 (ui/defc tab-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
@@ -180,11 +179,11 @@
            :text (localization-state text)
            :closable false
            :disable (not enabled)}
-          content (assoc :content content)
-          icon (assoc :graphic {:fx/type fx.stack-pane/lifecycle
-                                :style-class ["ext-tab-icon"]
-                                :alignment :center
-                                :children [icon]})))
+    content (assoc :content content)
+    icon (assoc :graphic {:fx/type fx.stack-pane/lifecycle
+                          :style-class ["ext-tab-icon"]
+                          :alignment :center
+                          :children [icon]})))
 
 (defn- apply-constraints [props props-key lifecycle grow-key constraints]
   (assoc props props-key (mapv (fn [maybe-constraint]
@@ -201,21 +200,22 @@
     {:fx/type fxui/grid
      :spacing spacing}
     children (assoc :children
-                    (into []
-                          (coll/mapcat-indexed
-                            (fn [row row-children]
-                              (eduction
-                                (keep-indexed
-                                  (fn [column child]
-                                    (when child
-                                      (let [{:keys [row_span column_span]
-                                             :or {row_span 1 column_span 1}} (:props (meta child))]
-                                        (assoc child :grid-pane/row row
-                                                     :grid-pane/column column
-                                                     :grid-pane/row-span row_span
-                                                     :grid-pane/column-span column_span)))))
-                                row-children)))
-                          children))
+               (into []
+                     (coll/mapcat-indexed
+                       (fn [row row-children]
+                         (eduction
+                           (keep-indexed
+                             (fn [column child]
+                               (when child
+                                 (let [{:keys [row_span column_span]
+                                        :or {row_span 1 column_span 1}} (:props (meta child))]
+                                   (assoc child
+                                     :grid-pane/row row
+                                     :grid-pane/column column
+                                     :grid-pane/row-span row_span
+                                     :grid-pane/column-span column_span)))))
+                           row-children)))
+                     children))
     rows (apply-constraints :row-constraints fx.row-constraints/lifecycle :vgrow rows)
     columns (apply-constraints :column-constraints fx.column-constraints/lifecycle :hgrow columns)
     padding (assoc :padding padding)
@@ -243,11 +243,11 @@
                                    (-> desc
                                        (assoc :fx/key i)
                                        (cond-> (:grow (:props (meta desc)))
-                                               (assoc grow-key :always))))))
+                                         (assoc grow-key :always))))))
                              children)
              :spacing spacing}
-            padding (assoc :padding padding)
-            alignment (assoc :alignment alignment))))
+      padding (assoc :padding padding)
+      alignment (assoc :alignment alignment))))
 
 (def ^:private horizontal-view (make-list-view-fn fxui/horizontal :h-box/hgrow))
 
@@ -268,10 +268,10 @@
     :or {alignment :top-left
          color :text}}]
   (cond-> {:fx/type fxui/label :alignment alignment}
-          text (assoc :text (localization-state text))
-          color (assoc :color color)
-          text_alignment (assoc :text-alignment text_alignment)
-          tooltip (assoc :tooltip (localization-state tooltip))))
+    text (assoc :text (localization-state text))
+    color (assoc :color color)
+    text_alignment (assoc :text-alignment text_alignment)
+    tooltip (assoc :tooltip (localization-state tooltip))))
 
 (ui/defc paragraph-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
@@ -283,8 +283,8 @@
            :wrap-text word_wrap
            :alignment alignment
            :color color}
-          text (assoc :text (localization-state text))
-          text_alignment (assoc :text-alignment text_alignment)))
+    text (assoc :text (localization-state text))
+    text_alignment (assoc :text-alignment text_alignment)))
 
 (def ^:private heading-style->label-style-class
   (fn/make-case-fn (coll/pair-map-by identity #(str "ext-heading-style-" (name %)) (:heading-style ui-docs/enums))))
@@ -304,7 +304,7 @@
       (apply-alignment alignment)
       (apply-label-color color)
       (cond-> text (assoc :text (localization-state text))
-              text_alignment (assoc :text-alignment text_alignment))))
+        text_alignment (assoc :text-alignment text_alignment))))
 
 (defn- wrap-in-alignment-container
   "Wrapper for components that don't specify alignment
@@ -316,8 +316,8 @@
    (cond-> {:fx/type fx.v-box/lifecycle
             :fill-width fill-horizontal
             :children [desc]}
-           maybe-alignment
-           (apply-alignment maybe-alignment))))
+     maybe-alignment
+     (apply-alignment maybe-alignment))))
 
 (defn- icon-view [{:keys [icon alignment]}]
   (let [fit-size (case icon
@@ -338,12 +338,11 @@
                    :fit-height fit-size}]}
       alignment)))
 
-(defn- construct-image [s workspace]
+(defn- construct-image [^String s workspace]
   (if (string/starts-with? s "/")
     (when-let [resource (workspace/find-resource (:basis (lifecycle-evaluation-context)) workspace s)]
       (when (resource/exists? resource)
-        (with-open [is (io/input-stream resource)]
-          (Image. is))))
+        (Image. (io/input-stream resource) #_background-loading true)))
     (when-let [^URI uri (try (URI. s) (catch URISyntaxException _))]
       (when (.getScheme uri)
         (Image. s #_background-loading true)))))
@@ -461,13 +460,13 @@
 (defn- set-tooltip-and-issue [props tooltip issue localization-state]
   (let [message (:message issue)]
     (cond-> props
-            (or message tooltip)
-            (fxui/apply-tooltip
-              {:severity (:severity issue :info)
-               :message (localization-state
-                          (if (and message tooltip)
-                            (localization/join "\n\n" [message tooltip])
-                            (or message tooltip)))}))))
+      (or message tooltip)
+      (fxui/apply-tooltip
+        {:severity (:severity issue :info)
+         :message (localization-state
+                    (if (and message tooltip)
+                      (localization/join "\n\n" [message tooltip])
+                      (or message tooltip)))}))))
 
 (ui/defc check-box-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
@@ -716,9 +715,10 @@
               (LuaValue/valueOf (.tojstring arg)))))))))
 
 (defn- string-field-view [props]
-  (assoc props :fx/type value-field-view
-               :to_string lua-to-string-fn
-               :to_value lua-to-string-fn))
+  (assoc props
+    :fx/type value-field-view
+    :to_string lua-to-string-fn
+    :to_value lua-to-string-fn))
 
 (def ^:private lua-to-integer-fn
   (DefoldLuaFn.
@@ -726,9 +726,10 @@
       (rt/->lua (field-expression/to-long (.tojstring arg))))))
 
 (defn- integer-field-view [props]
-  (assoc props :fx/type value-field-view
-               :to_string lua-to-string-fn
-               :to_value lua-to-integer-fn))
+  (assoc props
+    :fx/type value-field-view
+    :to_string lua-to-string-fn
+    :to_value lua-to-integer-fn))
 
 (def ^:private lua-to-number-fn
   (DefoldLuaFn.
@@ -736,9 +737,10 @@
       (rt/->lua (field-expression/to-double (.tojstring arg))))))
 
 (defn- number-field-view [props]
-  (assoc props :fx/type value-field-view
-               :to_string lua-to-string-fn
-               :to_value lua-to-number-fn))
+  (assoc props
+    :fx/type value-field-view
+    :to_string lua-to-string-fn
+    :to_value lua-to-number-fn))
 
 ;; endregion
 
@@ -787,11 +789,11 @@
              :on-close-request {:result cancel-result}
              :header header
              :footer footer}
-            (not modal) (assoc :modality :none)
-            content (assoc :content content)
-            width (assoc :width width)
-            height (assoc :height height)
-            resizable (assoc :resizable resizable))))
+      (not modal) (assoc :modality :none)
+      content (assoc :content content)
+      width (assoc :width width)
+      height (assoc :height height)
+      resizable (assoc :resizable resizable))))
 
 ;; endregion
 
@@ -1049,7 +1051,7 @@
   (-> component-state
       (assoc :desc desc :child child)
       (cond-> (= render-counter (:render-counter component-state))
-              (assoc :render-counter 0))))
+        (assoc :render-counter 0))))
 
 ;; used in `swap!`
 (defn- complete-component-advance [component-state lua-props desc child opts render-counter]
@@ -1181,8 +1183,8 @@
           component-atom
           (fn [current-state]
             (cond-> (apply update-in current-state [:hooks hook-index :state] f args)
-                    request-render
-                    (update :render-counter inc))))]
+              request-render
+              (update :render-counter inc))))]
     (-> new-state :hooks (get hook-index) :state)))
 
 (defn- vectors-with-eq-lua-values? [rt as bs]
@@ -1239,8 +1241,9 @@
                    (let [new-type+dependencies (lua-args->type+dependencies rt lua-args)]
                      (if (eq-type+dependencies? rt dependencies new-type+dependencies)
                        hook-state
-                       (assoc hook-state :dependencies new-type+dependencies
-                                         :current (type+dependencies->lua-value rt new-type+dependencies evaluation-context)))))
+                       (assoc hook-state
+                         :dependencies new-type+dependencies
+                         :current (type+dependencies->lua-value rt new-type+dependencies evaluation-context)))))
         :return (fn return-use-hook-values [hook-state]
                   (rt/->varargs (:current hook-state) (:setter hook-state)))))))
 
