@@ -582,6 +582,12 @@ NSString *const FAKE_STRING = @"Abcd";
     // explicitly invalidate the link; a modal presentation must keep it running.
 }
 
+- (void)safeAreaInsetsDidChange
+{
+    [super safeAreaInsetsDidChange];
+    self.safeAreaChanged = YES;
+}
+
 - (void)dealloc
 {
     [self invalidateDisplayLink];
@@ -686,6 +692,17 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
 void _glfwPlatformPollEvents( void )
 {
     BaseView* view = (BaseView*) _glfwWin.view;
+    if (view.safeAreaChanged && _glfwWin.windowSizeCallback)
+    {
+        int width = [view getWindowWidth];
+        int height = [view getWindowHeight];
+        if (width > 0 && height > 0)
+        {
+            // Insets can change after layout, including rotations that preserve the window size.
+            view.safeAreaChanged = NO;
+            _glfwWin.windowSizeCallback(width, height);
+        }
+    }
     if (view.keyboardActive > 0) {
         view.textkeyActive--;
         if (view.textkeyActive == 0) {
