@@ -4227,11 +4227,11 @@ namespace dmGameObject
         }
     }
 
-    PropertyResult GetPropertyAsHash(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmhash_t* out_value)
+    PropertyResult GetPropertyAsHash(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmhash_t* out_value)
     {
         PropertyOptions options;
         PropertyDesc out_prop;
-        PropertyResult result = GetProperty(collection, instance, component_id, property_id, options, out_prop);
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
         if (result == PROPERTY_RESULT_OK)
         {
             if (PROPERTY_TYPE_HASH == out_prop.m_Variant.m_Type)
@@ -4246,11 +4246,11 @@ namespace dmGameObject
         return result;
     }
 
-    PropertyResult GetPropertyAsFloat(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, float* out_value)
+    PropertyResult GetPropertyAsFloat(HGameObject instance, dmhash_t component_id, dmhash_t property_id, float* out_value)
     {
         PropertyOptions options;
         PropertyDesc out_prop;
-        PropertyResult result = GetProperty(collection, instance, component_id, property_id, options, out_prop);
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
         if (result == PROPERTY_RESULT_OK)
         {
             if (PROPERTY_TYPE_NUMBER == out_prop.m_Variant.m_Type)
@@ -4265,11 +4265,11 @@ namespace dmGameObject
         return result;
     }
 
-    PropertyResult GetPropertyAsVector3(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3* out_value)
+    PropertyResult GetPropertyAsVector3(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3* out_value)
     {
         PropertyOptions options;
         PropertyDesc out_prop;
-        PropertyResult result = GetProperty(collection, instance, component_id, property_id, options, out_prop);
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
         if (result == PROPERTY_RESULT_OK)
         {
             if (PROPERTY_TYPE_VECTOR3 == out_prop.m_Variant.m_Type)
@@ -4286,11 +4286,11 @@ namespace dmGameObject
         return result;
     }
 
-    PropertyResult GetPropertyAsVector4(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4* out_value)
+    PropertyResult GetPropertyAsVector4(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4* out_value)
     {
         PropertyOptions options;
         PropertyDesc out_prop;
-        PropertyResult result = GetProperty(collection, instance, component_id, property_id, options, out_prop);
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
         if (result == PROPERTY_RESULT_OK)
         {
             if (PROPERTY_TYPE_VECTOR4 == out_prop.m_Variant.m_Type)
@@ -4308,11 +4308,11 @@ namespace dmGameObject
         return result;
     }
 
-    PropertyResult GetPropertyAsQuat(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat* out_value)
+    PropertyResult GetPropertyAsQuat(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat* out_value)
     {
         PropertyOptions options;
         PropertyDesc out_prop;
-        PropertyResult result = GetProperty(collection, instance, component_id, property_id, options, out_prop);
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
         if (result == PROPERTY_RESULT_OK)
         {
             if (PROPERTY_TYPE_QUAT == out_prop.m_Variant.m_Type)
@@ -4330,11 +4330,11 @@ namespace dmGameObject
         return result;
     }
 
-    PropertyResult GetPropertyAsBool(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, bool* out_value)
+    PropertyResult GetPropertyAsBool(HGameObject instance, dmhash_t component_id, dmhash_t property_id, bool* out_value)
     {
         PropertyOptions options;
         PropertyDesc out_prop;
-        PropertyResult result = GetProperty(collection, instance, component_id, property_id, options, out_prop);
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
         if (result == PROPERTY_RESULT_OK)
         {
             if (PROPERTY_TYPE_BOOLEAN == out_prop.m_Variant.m_Type)
@@ -4349,11 +4349,11 @@ namespace dmGameObject
         return result;
     }
 
-    PropertyResult GetPropertyAsURL(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value)
+    PropertyResult GetPropertyAsURL(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value)
     {
         PropertyOptions options;
         PropertyDesc out_prop;
-        PropertyResult result = GetProperty(collection, instance, component_id, property_id, options, out_prop);
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
         if (result == PROPERTY_RESULT_OK)
         {
             if (PROPERTY_TYPE_URL == out_prop.m_Variant.m_Type)
@@ -4372,11 +4372,11 @@ namespace dmGameObject
         return result;
     }
 
-    PropertyResult GetPropertyAsText(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, const char** out_value)
+    PropertyResult GetPropertyAsText(HGameObject instance, dmhash_t component_id, dmhash_t property_id, const char** out_value)
     {
         PropertyOptions options;
         PropertyDesc out_prop;
-        PropertyResult result = GetProperty(collection, instance, component_id, property_id, options, out_prop);
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
         if (result == PROPERTY_RESULT_OK)
         {
             if (PROPERTY_TYPE_TEXT == out_prop.m_Variant.m_Type)
@@ -4391,11 +4391,11 @@ namespace dmGameObject
         return result;
     }
 
-    PropertyResult GetPropertyAsMatrix4(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value)
+    PropertyResult GetPropertyAsMatrix4(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value)
     {
         PropertyOptions options;
         PropertyDesc out_prop;
-        PropertyResult result = GetProperty(collection, instance, component_id, property_id, options, out_prop);
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
         if (result == PROPERTY_RESULT_OK)
         {
             if (PROPERTY_TYPE_MATRIX4 == out_prop.m_Variant.m_Type)
@@ -4719,75 +4719,75 @@ namespace dmGameObject
         return PROPERTY_RESULT_OK;
     }
 
-    PropertyResult SetPropertyFromHash(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmhash_t value)
+    PropertyResult SetPropertyFromHash(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmhash_t value)
     {
         PropertyOptions options;
         PropertyVar prop_value(value);
-        PropertyResult r = SetProperty(collection, instance, component_id, property_id, options, prop_value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
 
-    PropertyResult SetPropertyFromFloat(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, float value)
+    PropertyResult SetPropertyFromFloat(HGameObject instance, dmhash_t component_id, dmhash_t property_id, float value)
     {
         PropertyOptions options;
         PropertyVar prop_value(value);
-        PropertyResult r = SetProperty(collection, instance, component_id, property_id, options, prop_value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
 
-    PropertyResult SetPropertyFromVector3(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3 value)
+    PropertyResult SetPropertyFromVector3(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3 value)
     {
         PropertyOptions options;
         PropertyVar prop_value(value);
-        PropertyResult r = SetProperty(collection, instance, component_id, property_id, options, prop_value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
 
-    PropertyResult SetPropertyFromVector4(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4 value)
+    PropertyResult SetPropertyFromVector4(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4 value)
     {
         PropertyOptions options;
         PropertyVar prop_value(value);
-        PropertyResult r = SetProperty(collection, instance, component_id, property_id, options, prop_value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
 
-    PropertyResult SetPropertyFromQuat(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat value)
+    PropertyResult SetPropertyFromQuat(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat value)
     {
         PropertyOptions options;
         PropertyVar prop_value(value);
-        PropertyResult r = SetProperty(collection, instance, component_id, property_id, options, prop_value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
 
-    PropertyResult SetPropertyFromBool(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, bool value)
+    PropertyResult SetPropertyFromBool(HGameObject instance, dmhash_t component_id, dmhash_t property_id, bool value)
     {
         PropertyOptions options;
         PropertyVar prop_value(value);
-        PropertyResult r = SetProperty(collection, instance, component_id, property_id, options, prop_value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
 
-    PropertyResult SetPropertyFromURL(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL value)
+    PropertyResult SetPropertyFromURL(HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL value)
     {
         PropertyOptions options;
         PropertyVar prop_value(value);
-        PropertyResult r = SetProperty(collection, instance, component_id, property_id, options, prop_value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
 
-    PropertyResult SetPropertyFromText(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, const char* value)
+    PropertyResult SetPropertyFromText(HGameObject instance, dmhash_t component_id, dmhash_t property_id, const char* value)
     {
         PropertyOptions options;
         PropertyVar prop_value(value);
-        PropertyResult r = SetProperty(collection, instance, component_id, property_id, options, prop_value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
 
-    PropertyResult SetPropertyFromMatrix4(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, const dmVMath::Matrix4& value)
+    PropertyResult SetPropertyFromMatrix4(HGameObject instance, dmhash_t component_id, dmhash_t property_id, const dmVMath::Matrix4& value)
     {
         PropertyOptions options;
         PropertyVar prop_value(value);
-        PropertyResult r = SetProperty(collection, instance, component_id, property_id, options, prop_value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
 
@@ -4804,46 +4804,6 @@ namespace dmGameObject
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
         return instance ? SetProperty(collection, instance, component_id, property_id, options, value) : PROPERTY_RESULT_INVALID_INSTANCE;
     }
-
-#define DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(NAME, VALUE_TYPE) \
-    PropertyResult NAME(HGameObject hinstance, dmhash_t component_id, dmhash_t property_id, VALUE_TYPE out_value) \
-    { \
-        Collection* collection = 0; \
-        Instance* instance = GetInstanceFromHandle(hinstance, &collection); \
-        return instance ? NAME(collection, instance, component_id, property_id, out_value) : PROPERTY_RESULT_INVALID_INSTANCE; \
-    }
-
-    DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(GetPropertyAsHash, dmhash_t*)
-    DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(GetPropertyAsFloat, float*)
-    DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(GetPropertyAsVector3, dmVMath::Vector3*)
-    DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(GetPropertyAsVector4, dmVMath::Vector4*)
-    DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(GetPropertyAsQuat, dmVMath::Quat*)
-    DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(GetPropertyAsBool, bool*)
-    DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(GetPropertyAsURL, dmMessage::URL*)
-    DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(GetPropertyAsText, const char**)
-    DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(GetPropertyAsMatrix4, dmVMath::Matrix4*)
-
-#undef DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER
-
-#define DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(NAME, VALUE_TYPE) \
-    PropertyResult NAME(HGameObject hinstance, dmhash_t component_id, dmhash_t property_id, VALUE_TYPE value) \
-    { \
-        Collection* collection = 0; \
-        Instance* instance = GetInstanceFromHandle(hinstance, &collection); \
-        return instance ? NAME(collection, instance, component_id, property_id, value) : PROPERTY_RESULT_INVALID_INSTANCE; \
-    }
-
-    DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(SetPropertyFromHash, dmhash_t)
-    DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(SetPropertyFromFloat, float)
-    DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(SetPropertyFromVector3, dmVMath::Vector3)
-    DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(SetPropertyFromVector4, dmVMath::Vector4)
-    DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(SetPropertyFromQuat, dmVMath::Quat)
-    DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(SetPropertyFromBool, bool)
-    DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(SetPropertyFromURL, dmMessage::URL)
-    DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(SetPropertyFromText, const char*)
-    DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(SetPropertyFromMatrix4, const dmVMath::Matrix4&)
-
-#undef DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER
 
     // Recreate the instance at the given index with a new prototype.
     // Specifically:
