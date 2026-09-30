@@ -301,6 +301,12 @@ void _glfwAndroidPlatformOnTermWindow(void)
 
 void _glfwAndroidPlatformOnInitWindow(void)
 {
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        g_PendingResize = 1;
+        return;
+    }
+
     reset_egl_failure_retries(&_glfwWinAndroid);
     // We don't get here the first time around, but from the second and onwards
     // The first time, the create_gl_surface() is called from the _glfwPlatformOpenWindow function
@@ -326,6 +332,33 @@ void _glfwAndroidPlatformOnResize(void)
 
 void _glfwAndroidPlatformAfterFlushEvents(void)
 {
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        // Vulkan also uses this backend when OpenGL is included in the engine.
+        // There is no EGL swap to consume its pending resize or inset changes.
+        int pending_insets = __sync_lock_test_and_set(&g_PendingResizeBecauseOfInsets, 0);
+        if (g_PendingResize || pending_insets)
+        {
+            ANativeWindow* window = glfwAcquireAndroidWindow();
+            if (!window)
+            {
+                if (pending_insets)
+                    _glfwAndroidPlatformSetPendingResizeBecauseOfInsets();
+                return;
+            }
+
+            int width = ANativeWindow_getWidth(window);
+            int height = ANativeWindow_getHeight(window);
+            glfwReleaseAndroidWindow(window);
+            _glfwWin.width = width;
+            _glfwWin.height = height;
+            g_PendingResize = 0;
+            if (_glfwWin.windowSizeCallback)
+                _glfwWin.windowSizeCallback(width, height);
+        }
+        return;
+    }
+
     // Still, there seem to be room for the surface to not be ready when the rendering restarts (Issue 5358)
     if (_glfwWin.clientAPI != GLFW_NO_API && _glfwWinAndroid.should_recreate_surface && _glfwWinAndroid.surface == EGL_NO_SURFACE)
     {

@@ -41,6 +41,31 @@ if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
     defold_register_test_target(test_platform_safe_area ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 endif()
 
+if(TARGET_PLATFORM MATCHES "-android$")
+    foreach(backend IN ITEMS gl no_api)
+        set(test_target "test_platform_android_insets_${backend}")
+        defold_add_executable(${test_target}
+            "${CMAKE_CURRENT_LIST_DIR}/test_platform_android_insets.cpp")
+        target_include_directories(${test_target} PRIVATE
+            "${DEFOLD_HOME}/external/glfw/lib"
+            "${DEFOLD_HOME}/external/glfw/lib/android")
+        defold_target_link_libraries(${test_target} "${TARGET_PLATFORM}" dlib profile_null testmain)
+        if(backend STREQUAL "gl")
+            target_link_libraries(${test_target} PRIVATE dmglfw EGL GLESv1_CM GLESv2)
+        else()
+            target_compile_definitions(${test_target} PRIVATE DMGLFW_NO_GL)
+            target_link_libraries(${test_target} PRIVATE dmglfw_vulkan)
+        endif()
+        target_link_options(${test_target} PRIVATE
+            "-Wl,--wrap=glfwAcquireAndroidWindow"
+            "-Wl,--wrap=glfwReleaseAndroidWindow"
+            "-Wl,--wrap=ANativeWindow_getWidth"
+            "-Wl,--wrap=ANativeWindow_getHeight")
+        defold_target_link_socket(${test_target} "${TARGET_PLATFORM}" PRIVATE)
+        defold_register_test_target(${test_target} ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+    endforeach()
+endif()
+
 # ******************************************************************
 # test_platform_app (windowed test application)
 
