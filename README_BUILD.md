@@ -139,7 +139,7 @@ With host platform, we mean any of the `x86_64-win32`, `x86_64-macos`, `arm64-ma
 The `install_ext` command first installs the prepackaged dependencies from `./packages`,
 including Box2D and Protocol Buffers (a.k.a. protobuf). After installing the packages
 and support files, it checks the SDK and builds and installs source
-dependencies with CMake. These include Bullet, Basis Universal, LZ4, and GLFW on iOS.
+dependencies with CMake. These include Bullet, Basis Universal, LZ4, and GLFW on iOS and Android.
 Cross-builds build source dependencies for both the host and target platform.
 
 When `install_ext` finishes, the dependencies are installed in `${DYNAMO_HOME}/ext`.

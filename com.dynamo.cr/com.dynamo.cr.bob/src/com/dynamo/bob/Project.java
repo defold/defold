@@ -1540,7 +1540,7 @@ public class Project implements AutoCloseable {
 
     private static LinkedHashSet<String> getDefaultShaderAdapters(Platform platform) {
         LinkedHashSet<String> adapters = new LinkedHashSet<>();
-        if (platform.isMacOS()) {
+        if (platform.isMacOS() || platform == Platform.Arm64IosSim) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_METAL);
         } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
@@ -1639,6 +1639,9 @@ public class Project implements AutoCloseable {
 
     public static String getShaderAdaptersOption(Platform platform, List<Map<String, Object>> platformsSettings) {
         LinkedHashSet<String> adapters = getDefaultShaderAdapters(platform);
+        if (platform == Platform.Arm64IosSim) {
+            return String.join(",", adapters);
+        }
         LinkedHashSet<String> adaptersToAdd = new LinkedHashSet<>();
         LinkedHashSet<String> adaptersToRemove = new LinkedHashSet<>();
         for (Map<String, Object> platformSettings : platformsSettings) {

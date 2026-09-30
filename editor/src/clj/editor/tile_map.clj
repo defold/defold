@@ -525,15 +525,15 @@
 (defn attach-layer-node
   [parent layer-node]
   (concat
-   (g/connect layer-node :_node-id                     parent :nodes)
-   (g/connect layer-node :id                           parent :layer-ids)
-   (g/connect layer-node :node-outline                 parent :child-outlines)
-   (g/connect layer-node :scene                        parent :child-scenes)
-   (g/connect layer-node :pb-msg                       parent :layer-msgs)
-   (g/connect parent     :texture-set-data             layer-node :texture-set-data)
-   (g/connect parent     :material-shader              layer-node :shader)
-   (g/connect parent     :gpu-texture                  layer-node :gpu-texture)
-   (g/connect parent     :blend-mode                   layer-node :blend-mode)))
+    (g/connect layer-node :_node-id                     parent :nodes)
+    (g/connect layer-node :id                           parent :layer-ids)
+    (g/connect layer-node :node-outline                 parent :child-outlines)
+    (g/connect layer-node :scene                        parent :child-scenes)
+    (g/connect layer-node :pb-msg                       parent :layer-msgs)
+    (g/connect parent     :texture-set-data             layer-node :texture-set-data)
+    (g/connect parent     :material-shader              layer-node :shader)
+    (g/connect parent     :gpu-texture                  layer-node :gpu-texture)
+    (g/connect parent     :blend-mode                   layer-node :blend-mode)))
 
 (defn make-layer-node
   [parent tile-layer]
@@ -556,8 +556,8 @@
 (defn- sanitize-tile-map [_read-opts _owner-resource {:keys [material] :as tile-grid}]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
   (cond-> tile-grid
-          (nil? material)
-          (assoc :material default-material-proj-path)))
+    (nil? material)
+    (assoc :material default-material-proj-path)))
 
 (defn- load-tile-map
   [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id tile-grid :source-value}]
@@ -679,7 +679,7 @@
                                             [:shader :material-shader]
                                             [:samplers :material-samplers])))
             (dynamic error (g/fnk [_node-id material]
-                                  (prop-resource-error :fatal _node-id :material material material-message)))
+                             (prop-resource-error :fatal _node-id :material material material-message)))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"})))
 
   (property blend-mode g/Any (default (protobuf/default Tile$TileGrid :blend-mode))
@@ -1121,16 +1121,16 @@
   [active-layer-renderable op op-select-start op-select-end current-tile tile-dimensions brush viewport texture-set-data gpu-texture cursor-mode]
   (when active-layer-renderable
     {pass/opaque (cond
-                        current-tile
-                        [{:world-transform (:world-transform active-layer-renderable)
-                          :render-fn render-editor
-                          :user-data {:cell current-tile
-                                      :brush (if (contains? select-modes cursor-mode)
-                                               empty-brush
-                                               brush)
-                                      :tile-dimensions tile-dimensions
-                                      :texture-set-data texture-set-data
-                                      :gpu-texture gpu-texture}}])
+                   current-tile
+                   [{:world-transform (:world-transform active-layer-renderable)
+                     :render-fn render-editor
+                     :user-data {:cell current-tile
+                                 :brush (if (contains? select-modes cursor-mode)
+                                          empty-brush
+                                          brush)
+                                 :tile-dimensions tile-dimensions
+                                 :texture-set-data texture-set-data
+                                 :gpu-texture gpu-texture}}])
      pass/outline (cond
                     (= :select op) [{:world-transform (:world-transform active-layer-renderable)
                                      :render-fn render-editor-select
@@ -1427,11 +1427,11 @@
 (defmethod scene/attach-tool-controller ::TileMapController
   [_ tool-id view-id resource-id]
   (concat
-   (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
-   (g/connect resource-id :texture-set-data tool-id :texture-set-data)
-   (g/connect resource-id :material-shader tool-id :material-shader)
-   (g/connect resource-id :gpu-texture tool-id :gpu-texture)
-   (g/connect resource-id :tile-dimensions tool-id :tile-dimensions)))
+    (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
+    (g/connect resource-id :texture-set-data tool-id :texture-set-data)
+    (g/connect resource-id :material-shader tool-id :material-shader)
+    (g/connect resource-id :gpu-texture tool-id :gpu-texture)
+    (g/connect resource-id :tile-dimensions tool-id :tile-dimensions)))
 
 ;; handlers/menu
 
@@ -1488,8 +1488,8 @@
 
 (handler/defhandler :scene.select-erase-tool :workbench
   (active? [app-view evaluation-context]
-           (and (active-tile-map app-view evaluation-context)
-                (active-scene-view app-view evaluation-context)))
+    (and (active-tile-map app-view evaluation-context)
+         (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
     (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)
@@ -1503,13 +1503,13 @@
 
 (handler/defhandler :scene.toggle-tile-palette :workbench
   (active? [app-view evaluation-context]
-           (and (active-tile-map app-view evaluation-context)
-                (active-scene-view app-view evaluation-context)))
+    (and (active-tile-map app-view evaluation-context)
+         (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-            (and (selection->layer selection evaluation-context)
-                 (let [active-tile (active-tile-map app-view evaluation-context)]
-                   (and (g/node-value active-tile :tile-source-resource evaluation-context)
-                        (not (g/error-value? (g/node-value active-tile :gpu-texture evaluation-context)))))))
+    (and (selection->layer selection evaluation-context)
+         (let [active-tile (active-tile-map app-view evaluation-context)]
+           (and (g/node-value active-tile :tile-source-resource evaluation-context)
+                (not (g/error-value? (g/node-value active-tile :gpu-texture evaluation-context)))))))
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn- transform-brush! [app-view transform-brush-fn]
@@ -1521,8 +1521,8 @@
 
 (handler/defhandler :scene.flip-brush-horizontally :workbench
   (active? [app-view evaluation-context]
-           (and (active-tile-map app-view evaluation-context)
-                (active-scene-view app-view evaluation-context)))
+    (and (active-tile-map app-view evaluation-context)
+         (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
     (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)
@@ -1531,18 +1531,18 @@
 
 (handler/defhandler :scene.flip-brush-vertically :workbench
   (active? [app-view evaluation-context]
-           (and (active-tile-map app-view evaluation-context)
-                (active-scene-view app-view evaluation-context)))
+    (and (active-tile-map app-view evaluation-context)
+         (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-            (and (selection->layer selection evaluation-context)
-                 (-> (active-tile-map app-view evaluation-context)
-                     (g/node-value :tile-source-resource evaluation-context))))
+    (and (selection->layer selection evaluation-context)
+         (-> (active-tile-map app-view evaluation-context)
+             (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-vertically)))
 
 (handler/defhandler :scene.rotate-brush-90-degrees :workbench
   (active? [app-view evaluation-context]
-           (and (active-tile-map app-view evaluation-context)
-                (active-scene-view app-view evaluation-context)))
+    (and (active-tile-map app-view evaluation-context)
+         (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
     (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)

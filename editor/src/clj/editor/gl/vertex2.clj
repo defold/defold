@@ -192,7 +192,6 @@
        ~(when gen-put?
           `(def ~put-name ~(make-put-fn attributes))))))
 
-
 ;; GL stuff
 
 (defn- assign-attributes! [^GL3 gl attributes attribute-locations]

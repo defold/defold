@@ -41,7 +41,7 @@
   (set_buffer_BANG_ [x]))
 
 (deftype PixelWriteCallback
-    [^:unsynchronized-mutable ^ByteBuffer from-buf]
+         [^:unsynchronized-mutable ^ByteBuffer from-buf]
   IPixelWriteCallback
   (set-buffer! [_ x]
     (set! from-buf x))
@@ -90,10 +90,10 @@
 
 (defn- lazy-init! [{:keys [^int pbo] :as async-copy-state} ^GL3 gl]
   (cond-> async-copy-state
-          (zero? pbo)
-          (assoc :pbo (let [pbos (int-array 1)]
-                        (.glGenBuffers gl 1 pbos 0)
-                        (first pbos)))))
+    (zero? pbo)
+    (assoc :pbo (let [pbos (int-array 1)]
+                  (.glGenBuffers gl 1 pbos 0)
+                  (first pbos)))))
 
 (defn- bind-pbo! [async-copy-state ^GL3 gl]
   (.glBindBuffer gl GL3/GL_PIXEL_PACK_BUFFER (:pbo async-copy-state))
@@ -146,9 +146,9 @@
           writable-image ^WritableImage (:image image)
           {:keys [^int width ^int height]} pbo-size]
       (cond-> async-copy-state
-              (or (not= (.getWidth writable-image) width)
-                  (not= (.getHeight writable-image) height))
-              (assoc-in [:images current-image] (make-direct-buffer-backed-writable-image width height))))))
+        (or (not= (.getWidth writable-image) width)
+            (not= (.getHeight writable-image) height))
+        (assoc-in [:images current-image] (make-direct-buffer-backed-writable-image width height))))))
 
 (defn- copy-pbo-to-image! [async-copy-state ^GL3 gl]
   (profiler/profile "pbo->image" -1

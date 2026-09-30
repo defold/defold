@@ -207,9 +207,9 @@
   (or (font/style-error _node-id font-map style)
       (when-let [errors (->> [[font :font font-message]
                               [material :material material-message]]
-                          (keep (fn [[v prop-kw name]]
-                                  (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? v name)))
-                          not-empty)]
+                             (keep (fn [[v prop-kw name]]
+                                     (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? v name)))
+                             not-empty)]
         (g/error-aggregate errors))
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
@@ -310,32 +310,32 @@
 
   (output save-value g/Any :cached produce-save-value)
   (output markup-error g/Any :cached (g/fnk [_node-id ^:try font-map text]
-                                            (when-not (g/error-value? font-map)
-                                              (font/markup-error _node-id :text font-map text))))
+                                       (when-not (g/error-value? font-map)
+                                         (font/markup-error _node-id :text font-map text))))
   (output text-layout g/Any :cached (g/fnk [size font-map text line-break leading tracking style]
-                                           (font/layout-text (some-> font-map (assoc :style style)) text line-break (first size) tracking leading)))
+                                      (font/layout-text (some-> font-map (assoc :style style)) text line-break (first size) tracking leading)))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow pivot size]
-                                        (let [text-size [(:width text-layout) (:height text-layout) 0]
-                                              text-data {:text-layout text-layout
-                                                         :font-data font-data
-                                                         :color color
-                                                         :outline outline
-                                                         :shadow shadow
-                                                         :align (pivot->h-align pivot)}]
-                                          (cond
-                                            (nil? font-data)
-                                            text-data
+                                   (let [text-size [(:width text-layout) (:height text-layout) 0]
+                                         text-data {:text-layout text-layout
+                                                    :font-data font-data
+                                                    :color color
+                                                    :outline outline
+                                                    :shadow shadow
+                                                    :align (pivot->h-align pivot)}]
+                                     (cond
+                                       (nil? font-data)
+                                       text-data
 
-                                            (get-in font-data [:font-map :native-renderer-spec])
-                                            (assoc text-data
-                                                   :box-height (second size)
-                                                   :offset (pivot-offset pivot size)
-                                                   :vertical-align (pivot->v-align pivot))
+                                       (get-in font-data [:font-map :native-renderer-spec])
+                                       (assoc text-data
+                                         :box-height (second size)
+                                         :offset (pivot-offset pivot size)
+                                         :vertical-align (pivot->v-align pivot))
 
-                                            :else
-                                            (assoc text-data :offset (let [[x y] (pivot-offset pivot text-size)
-                                                                           h (second text-size)]
-                                                                       [x (+ y (- h (:max-ascent text-layout)))]))))))
+                                       :else
+                                       (assoc text-data :offset (let [[x y] (pivot-offset pivot text-size)
+                                                                      h (second text-size)]
+                                                                  [x (+ y (- h (:max-ascent text-layout)))]))))))
   (output aabb g/Any :cached (g/fnk [pivot size]
                                (let [offset-fn (partial mapv + (pivot-offset pivot size))
                                      [min-x min-y _] (offset-fn [0 0 0])

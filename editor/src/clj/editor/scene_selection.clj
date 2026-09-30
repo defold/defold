@@ -84,8 +84,8 @@
         selection (g/node-value controller :picking-selection)
         contextual? (g/node-value controller :contextual?)
         mode-filter-fn (case mode
-                        :single (fn [selection] (if-let [sel (first selection)] [sel] []))
-                        :multi identity)
+                         :single (fn [selection] (if-let [sel (first selection)] [sel] []))
+                         :multi identity)
         toggle-filter-fn (cond
                            toggle?
                            (fn [selection]
@@ -100,7 +100,7 @@
                                (if (some #(= (first selection) %) prev-selection)
                                  prev-selection
                                  selection)))
-                           
+
                            :else
                            identity)
         sel-filter-fn (comp toggle-filter-fn mode-filter-fn)

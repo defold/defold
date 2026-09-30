@@ -216,7 +216,7 @@
 
 (defn gen-circle [^double segs]
   [[GL/GL_LINES (reduce concat (partition 2 1 (map #(let [angle (* 2.0 Math/PI (/ (double %) segs))]
-                                                     [(Math/cos angle) (Math/sin angle) 0.0]) (range (inc segs)))))]])
+                                                      [(Math/cos angle) (Math/sin angle) 0.0]) (range (inc segs)))))]])
 
 (defn- gen-arrow [sub-divs]
   (concat
@@ -321,12 +321,12 @@
   (if (#{:rot-x :rot-y :rot-z :rot-xy :rot-xz :rot-yz :rot-screen} manip)
     true
     (if tool-active?
-       (or (= manip active-manip)
-           (and (#{:move-x :move-y :move-z} manip)
-                (or (= active-manip :move-screen) (contains? (manip->sub-manips active-manip) manip)))
-           (and (#{:scale-x :scale-y :scale-z} manip)
-                (#{:scale-xy :scale-xz :scale-yz :scale-uniform} active-manip)))
-       true)))
+      (or (= manip active-manip)
+          (and (#{:move-x :move-y :move-z} manip)
+               (or (= active-manip :move-screen) (contains? (manip->sub-manips active-manip) manip)))
+          (and (#{:scale-x :scale-y :scale-z} manip)
+               (#{:scale-xy :scale-xz :scale-yz :scale-uniform} active-manip)))
+      true)))
 
 (let [move (gen-arrow 10)
       move-plane (vtx-add [65.0 65.0 0.0] (vtx-scale [7.0 7.0 1.0] (gen-square true true)))
@@ -508,13 +508,13 @@
       (let [{:manip/keys [node-id tx-data prop-kw->override-value]} manipulation]
         (cond-> combined-manipulations
 
-                (coll/not-empty tx-data)
-                (update :tx-data coll/into-vector tx-data)
+          (coll/not-empty tx-data)
+          (update :tx-data coll/into-vector tx-data)
 
-                (coll/not-empty prop-kw->override-value)
-                (update :node-id->prop-kw->override-value
-                        update (s/assert ::node-id node-id)
-                        coll/merge prop-kw->override-value))))))
+          (coll/not-empty prop-kw->override-value)
+          (update :node-id->prop-kw->override-value
+                  update (s/assert ::node-id node-id)
+                  coll/merge prop-kw->override-value))))))
 
 (defn- make-drag-manipulations-fn [manip-opts active-manip manip-origin original-values initial-evaluation-context]
   (let [make-local-manipulation-fn

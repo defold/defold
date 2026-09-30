@@ -86,13 +86,13 @@
                                           (mapv (fn [modifier]
                                                   (let [[mp mr] (xform modifier)]
                                                     (assoc modifier
-                                                           :position (math/vecmath->clj (math/inv-transform ep er mp))
-                                                           :rotation (math/vecmath->clj (math/inv-transform er mr)))))
+                                                      :position (math/vecmath->clj (math/inv-transform ep er mp))
+                                                      :rotation (math/vecmath->clj (math/inv-transform er mr)))))
                                                 global-modifiers))))
                            (:emitters pb))]
     (-> pb
-      (assoc :emitters new-emitters)
-      (dissoc :modifiers))))
+        (assoc :emitters new-emitters)
+        (dissoc :modifiers))))
 
 (defn- select-attribute-values [pb-data key]
   (protobuf/sanitize-repeated
@@ -109,18 +109,18 @@
   (geom/chain steps (comp (partial geom/rotate [0 0 a]) (partial geom/scale [s s 1])) ps))
 
 (def arrow (let [head-ps (->> geom/origin-geom
-                           (geom/transl [0 0.1 0])
-                           (geom/circling 3)
-                           (geom/scale [0.7 1 1])
-                           (geom/transl [0 0.05 0]))]
+                              (geom/transl [0 0.1 0])
+                              (geom/circling 3)
+                              (geom/scale [0.7 1 1])
+                              (geom/transl [0 0.05 0]))]
              (concat
                (geom/transl [0 0.85 0] (interleave head-ps (drop 1 (cycle head-ps))))
                [[0 0 0] [0 0.85 0]])))
 
 (def dash-circle (->> geom/origin-geom
-                   (geom/chain 1 (partial geom/transl [0.05 0 0]))
-                   (geom/transl [0 1 0])
-                   (geom/circling 32)))
+                      (geom/chain 1 (partial geom/transl [0.05 0 0]))
+                      (geom/transl [0 1 0])
+                      (geom/circling 32)))
 
 ; Line shader
 
@@ -204,8 +204,8 @@
               (map (fn [[property-key curve]]
                      (curve->pb-property Particle$Modifier$Property property-key curve)))
               (cond-> {:modifier-key-magnitude magnitude}
-                      (modifier-type-has-max-distance? type)
-                      (assoc :modifier-key-max-distance max-distance)))]
+                (modifier-type-has-max-distance? type)
+                (assoc :modifier-key-max-distance max-distance)))]
 
     (protobuf/make-map-without-defaults Particle$Modifier
       :position position
@@ -267,32 +267,32 @@
                       (interleave top bottom)))
 
 (def vortex-geom-data (let [ps (->> geom/origin-geom
-                                 (geom/transl [0 1 0])
-                                 (spiraling 30 20 1.15)
-                                 (geom/scale [0.7 0.7 1]))]
+                                    (geom/transl [0 1 0])
+                                    (spiraling 30 20 1.15)
+                                    (geom/scale [0.7 0.7 1]))]
                         (geom/circling 4 (drop-last 2 (interleave ps (drop 1 (cycle ps)))))))
 
 (def vortex-neg-geom-data (geom/scale [-1 1 1] vortex-geom-data))
 
 (def acceleration-geom-data (let [right (->> arrow
-                                         (geom/chain 1 (partial geom/transl [0.5 -0.25 0]))
-                                         (geom/transl [0.5 -0.25 0]))
+                                             (geom/chain 1 (partial geom/transl [0.5 -0.25 0]))
+                                             (geom/transl [0.5 -0.25 0]))
                                   left (->> right
-                                         (geom/scale [-1 1 1]))]
+                                            (geom/scale [-1 1 1]))]
                               (geom/scale [50 50 1] (concat left arrow right))))
 
 (def acceleration-neg-geom-data (geom/scale [1 -1 1] acceleration-geom-data))
 
 (def radial-geom-data (->> arrow
-                            (geom/transl [0 0.3 0])
-                            (geom/circling 8)
-                            (geom/scale [40 40 1])))
+                           (geom/transl [0 0.3 0])
+                           (geom/circling 8)
+                           (geom/scale [40 40 1])))
 
 (def radial-neg-geom-data (->> arrow
-                            (geom/scale [1 -1 1])
-                            (geom/transl [0 1.4 0])
-                            (geom/circling 8)
-                            (geom/scale [40 40 1])))
+                               (geom/scale [1 -1 1])
+                               (geom/transl [0 1.4 0])
+                               (geom/circling 8)
+                               (geom/scale [40 40 1])))
 
 (def ^:private mod-types
   {:modifier-type-acceleration {:label "Acceleration"
@@ -386,27 +386,27 @@
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output pb-msg g/Any produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id type node-outline-key]
-      (let [mod-type (mod-types type)]
-        {:node-id _node-id
-         :node-outline-key node-outline-key
-         :label (:message mod-type)
-         :icon modifier-icon})))
+          (g/fnk [_node-id type node-outline-key]
+            (let [mod-type (mod-types type)]
+              {:node-id _node-id
+               :node-outline-key node-outline-key
+               :label (:message mod-type)
+               :icon modifier-icon})))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
 
 (def circle-geom-data (let [ps (->> geom/origin-geom
-                                 (geom/transl [0 0.5 0])
-                                 (geom/circling 64))]
+                                    (geom/transl [0 0.5 0])
+                                    (geom/circling 64))]
                         (interleave ps (drop 1 (cycle ps)))))
 
 (def cone-geom-data (let [ps [[-0.5 1.0 0.0] [0.0 0.0 0.0] [0.5 1.0 0.0]]]
                       (interleave ps (drop 1 (cycle ps)))))
 
 (def box-geom-data (let [ps (->> geom/origin-geom
-                              (geom/transl [0.5 0.5 0.0])
-                              (geom/circling 4))]
+                                 (geom/transl [0.5 0.5 0.0])
+                                 (geom/circling 4))]
                      (interleave ps (drop 1 (cycle ps)))))
 
 (def emitter-types {:emitter-type-circle {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.circle")
@@ -872,7 +872,7 @@
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]}))
             (dynamic error (g/fnk [_node-id tile-source]
-                                  (prop-resource-error :fatal _node-id :tile-source tile-source image-message))))
+                             (prop-resource-error :fatal _node-id :tile-source tile-source image-message))))
 
   (property animation g/Str ; Required protobuf field.
             (dynamic label (properties/label-dynamic :particlefx :animation))
@@ -882,8 +882,8 @@
                                (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation animation-message)
                                    (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids animation-message)))))
             (dynamic edit-type (g/fnk [anim-ids]
-                                      (let [vals (seq anim-ids)]
-                                        (properties/->choicebox vals)))))
+                                 (let [vals (seq anim-ids)]
+                                   (properties/->choicebox vals)))))
 
   (property material resource/Resource ; Required protobuf field.
             (dynamic label (properties/label-dynamic :particlefx :material))
@@ -1031,9 +1031,9 @@
         resource-fields (mapcat (fn [field]
                                   (if (vector? field)
                                     (mapv
-                                     (fn [i]
-                                       (into [(first field) i] (rest field)))
-                                     (range (count (get rt-pb-data (first field)))))
+                                      (fn [i]
+                                        (into [(first field) i] (rest field)))
+                                      (range (count (get rt-pb-data (first field)))))
                                     [field]))
                                 resource-fields)
         dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-data label) (get rt-pb-data label)))]) resource-fields)]

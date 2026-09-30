@@ -179,8 +179,8 @@
   (let [prop-kw (keyword property)
         prop-message-str (str "property.cubemap." property)]
     `(g/fnk [~'_node-id ~property ~'cubemap-image-sizes]
-            (or (validation/prop-error :fatal ~'_node-id ~prop-kw validation/prop-resource-missing? ~property (localization/message ~prop-message-str))
-                (cubemap-image-sizes-error ~'_node-id ~'cubemap-image-sizes)))))
+       (or (validation/prop-error :fatal ~'_node-id ~prop-kw validation/prop-resource-missing? ~property (localization/message ~prop-message-str))
+           (cubemap-image-sizes-error ~'_node-id ~'cubemap-image-sizes)))))
 
 (g/defnode CubemapNode
   (inherits resource-node/ResourceNode)

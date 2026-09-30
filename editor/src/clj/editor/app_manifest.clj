@@ -45,7 +45,7 @@
 
 (def vulkan-ios #{:arm64-ios})
 
-(def metal-ios #{:arm64-ios :arm64_sim-ios})
+(def metal-ios #{:arm64-ios})
 
 (def all-platforms
   #{;; ios
@@ -212,17 +212,17 @@
            ~value-sym (if (not (~pred ~value-sym))
                         ~fix
                         ~value-sym)]
-      ~(reduce
-         (fn [form [k pred fix]]
-           `(let [~map-sym ~value-sym
-                  ~value-sym (get ~map-sym ~k ::not-found)
-                  ~value-sym (if (or (identical? ~value-sym ::not-found)
-                                     (not (~pred ~value-sym)))
-                               ~fix
-                               ~value-sym)]
-              (assoc ~map-sym ~k ~form)))
-         `(~f-expr ~value-sym)
-         (reverse forms)))))
+       ~(reduce
+          (fn [form [k pred fix]]
+            `(let [~map-sym ~value-sym
+                   ~value-sym (get ~map-sym ~k ::not-found)
+                   ~value-sym (if (or (identical? ~value-sym ::not-found)
+                                      (not (~pred ~value-sym)))
+                                ~fix
+                                ~value-sym)]
+               (assoc ~map-sym ~k ~form)))
+          `(~f-expr ~value-sym)
+          (reverse forms)))))
 
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
@@ -269,7 +269,6 @@
                  :context map? {}
                  key boolean? false
                  (constantly (if enabled value (not value)))))))
-
 
 ;; endregion
 
@@ -322,7 +321,7 @@
                                                        (mapcat second)
                                                        (map #(get-toggle-value manifest %)))
                                                      choices)))]
-         (if all-toggles-unify-to-nil nil none))))))
+          (if all-toggles-unify-to-nil nil none))))))
 
 (defn set-setting-value [manifest setting value]
   (case (:setting setting)
@@ -342,8 +341,8 @@
                                              (mapcat second))
                                            choices))]
               (as-> manifest $
-                    (reduce #(set-toggle-value %1 %2 false) $ disabled-toggles)
-                    (reduce #(set-toggle-value %1 %2 true) $ enabled-toggles)))))
+                (reduce #(set-toggle-value %1 %2 false) $ disabled-toggles)
+                (reduce #(set-toggle-value %1 %2 true) $ enabled-toggles)))))
 
 (defn setting-property-setter [setting]
   (fn [_evaluation-context self old new]
@@ -552,7 +551,6 @@
     :rig   (concat (libs-toggles all-platforms ["gamesys_model_null"])   (exclude-libs-toggles all-platforms ["gamesys_model"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
     :model))
 
-
 (def generic-vulkan
   (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
@@ -734,8 +732,8 @@
   (make-choice-setting
     :web-gpu (concat
                webgpu-toggles
-              (exclude-libs-toggles web ["graphics"])
-              (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
+               (exclude-libs-toggles web ["graphics"])
+               (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
     :both webgpu-toggles
     :web-gl))
 
@@ -806,6 +804,21 @@
           manifest
           (conj macos :osx)))
 
+(defn- migrate-simulator-graphics [manifest]
+  ;; Simulator graphics are fixed to Metal, independently of device settings.
+  (let [path [:platforms :arm64_sim-ios :context]
+        context (get-in manifest path)
+        obsolete #{"graphics" "graphics_metal" "graphics_vulkan" "platform_vulkan" "MoltenVK"
+                   "GraphicsAdapterOpenGL" "GraphicsAdapterMetal" "GraphicsAdapterVulkan"}]
+    (if-not (map? context)
+      manifest
+      (assoc-in manifest path
+                (reduce (fn [context key]
+                          (if-not (vector? (get context key))
+                            context
+                            (update context key #(into [] (remove obsolete) %))))
+                        context [:libs :engineLibs :excludeLibs :symbols :excludeSymbols])))))
+
 ;; Older 2D-only manifests exclude Bullet archives but predate its separate
 ;; script library and registration symbol.
 (defn- migrate-bullet3d-context [context]
@@ -853,6 +866,7 @@
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
                                       migrate-macos-vulkan-platform
+                                      migrate-simulator-graphics
                                       migrate-bullet3d-exclusions)]
             (when-not (= manifest migrated-manifest)
               ;; Prevent the project loader from caching the original lines as save-data.

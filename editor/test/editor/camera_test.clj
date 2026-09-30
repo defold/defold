@@ -45,7 +45,7 @@
                                                         :fov-y 640.0})
           viewport (t/->Region 0 960 0 640)
           aabb (t/->AABB (Point3d. 0.0 0.0 0.0)
-                          (Point3d. 1224.0 640.0 0.0))
+                         (Point3d. 1224.0 640.0 0.0))
           camera (c/camera-orthographic-frame-aabb camera viewport aabb)
           min-proj (c/camera-project camera viewport (.. aabb min))
           max-proj (c/camera-project camera viewport (.. aabb max))]

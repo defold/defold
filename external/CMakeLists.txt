@@ -11,7 +11,7 @@ add_subdirectory(bullet3d)
 add_subdirectory(basisu)
 add_subdirectory(lz4)
 
-# Always build GLFW from source for iOS; these targets have no prebuilt package.
-if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
+# Always build GLFW from source for iOS and Android; these targets have no prebuilt package.
+if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios|armv7-android|arm64-android|x86_64-android)$")
   add_subdirectory(glfw)
 endif()

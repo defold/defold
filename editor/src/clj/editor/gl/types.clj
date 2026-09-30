@@ -52,7 +52,7 @@
   ;; Enum values for compute shaders exist in Protobuf but are not supported by
   ;; the OpenGL profile we use in the editor. Uncomment if we update.
   (case value
-    (:shader-type-vertex :shader-type-fragment #_ :shader-type-compute) true
+    (:shader-type-vertex :shader-type-fragment #_:shader-type-compute) true
     (do (assert (graphics.types/shader-type? value))
         false)))
 
@@ -63,7 +63,7 @@
   (case shader-type
     :shader-type-vertex GL3/GL_VERTEX_SHADER
     :shader-type-fragment GL3/GL_FRAGMENT_SHADER
-    #_#_ :shader-type-compute GL3/GL_COMPUTE_SHADER))
+    #_#_:shader-type-compute GL3/GL_COMPUTE_SHADER))
 
 (defn gl-attribute-type-vector-type+data-type [^long gl-attribute-type]
   {:post [(graphics.types/vector-type? (key %))
