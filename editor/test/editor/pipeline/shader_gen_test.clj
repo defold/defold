@@ -32,7 +32,7 @@
       (finally (.delete file)))))
 
 (deftest representative-preview-shaders-test
-  "Built-in and project shaders compile to SM330 without compatibility syntax."
+  ;; Built-in and project shaders compile to SM330 without compatibility syntax.
   (doseq [path ["shaders/basic-color.vp"
                 "shaders/basic-color.fp"
                 "shaders/basic-texture-paged.vp"
@@ -48,7 +48,7 @@
         (validate-source! path (:transpiled-shader-source core-info))))))
 
 (deftest sm330-explicit-matrix-attributes-test
-  "SM330 preserves explicit attribute locations and reflects matrix attributes."
+  ;; SM330 preserves explicit attribute locations and reflects matrix attributes.
   (let [info (shader-gen/transpile-shader-source
                "matrix.vp"
                "#version 330
@@ -64,9 +64,9 @@
     (is (= [:vector-type-vec4 :vector-type-mat4] (mapv :vector-type (:attribute-reflection-infos combined))))))
 
 (deftest sm330-binding-metadata-test
-  "SM330 reflection provides attribute locations, paged-sampler mappings, and
-  generated uniform namespaces needed by editor bindings. The final fragment
-  source remains valid after the paged-sampler fallback rewrite."
+  ;; SM330 reflection provides attribute locations, paged-sampler mappings, and
+  ;; generated uniform namespaces needed by editor bindings. The final fragment
+  ;; source remains valid after the paged-sampler fallback rewrite.
   (let [vertex (shader-gen/transpile-shader-source
                  "binding.vp"
                  "#version 140

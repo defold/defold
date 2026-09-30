@@ -98,7 +98,12 @@
       (let [fragment-source (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source)]
         (is (string/starts-with? fragment-source "#version 330"))
         (is (re-find #"\bout vec4 \w+;" fragment-source))
-        (is (not (re-find #"\bgl_FragColor\b" fragment-source)))))))
+        (is (not (re-find #"\bgl_FragColor\b" fragment-source))))
+      (test-util/test-uses-assigned-material
+        workspace project node-id
+        :material
+        [:renderable :user-data :material-shader]
+        [:renderable :user-data :gpu-texture]))))
 
 (deftest native-label-text-box-alignment-test
   (test-util/with-loaded-project
@@ -207,14 +212,6 @@
           (is (= {pass/outline {label/render-lines 1}
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key))))))))
-
-(deftest label-material-test
-  (test-util/with-loaded-project
-    (let [node-id (project/get-resource-node project "/label/test.label")]
-      (test-util/test-uses-assigned-material workspace project node-id
-                                             :material
-                                             [:renderable :user-data :material-shader]
-                                             [:renderable :user-data :gpu-texture]))))
 
 (deftest label-migration-test
   (test-util/with-loaded-project "test/resources/label_migration_project"

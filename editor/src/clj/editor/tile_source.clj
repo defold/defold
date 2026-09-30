@@ -247,9 +247,9 @@
        (not-empty)))
 
 (defn render-animation
-  [^GL3 gl render-args renderables n]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [{:keys [camera viewport pass]} render-args
-        [sx sy sz] (camera/scale-factor camera viewport)]
+        [sx sy _sz] (camera/scale-factor camera viewport)]
     (condp = pass
       pass/outline
       (doseq [renderable renderables]
@@ -860,7 +860,7 @@
       (+ x (* (- rows y 1) cols)))))
 
 (defn- render-tool
-  [^GL3 gl render-args renderables n]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [{:keys [user-data]} (first renderables)
         {:keys [node-id tile-source-attributes active-tile collision-group-node->group selected-collision-group-node]} user-data
         {:keys [width height]} tile-source-attributes

@@ -26,7 +26,7 @@
             [editor.types :as types]
             [editor.ui.settings-popup :as settings-popup]
             [util.array :as array])
-  (:import com.jogamp.opengl.GL3
+  (:import [com.jogamp.opengl GL3]
            [editor.types AABB Camera]
            [java.util List]
            [javafx.scene Parent]

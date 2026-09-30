@@ -525,7 +525,7 @@
                                  (render-camera-inset-border! gl camera-inset-viewport)
                                  (.glActiveTexture gl GL/GL_TEXTURE0)
                                  (.glBindTexture gl GL/GL_TEXTURE_2D 0)
-                                 (.glUseProgram ^GL3 gl 0)
+                                 (.glUseProgram gl 0)
                                  (let [[w h] (vp-dims camera-inset-viewport)
                                        buffered-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
                                    (scene-cache/prune-context! gl)
@@ -2013,13 +2013,14 @@
                            (when-some [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                              (doto drawable
                                (.setSurfaceSize width height))
-                             (let [async-copy-state-atom (g/node-value view-id :async-copy-state)]
-                               (when (or (not= (int width) (int (:width @async-copy-state-atom)))
-                                         (not= (int height) (int (:height @async-copy-state-atom))))
+                             (let [async-copy-state-atom (g/node-value view-id :async-copy-state)
+                                   async-copy-state @async-copy-state-atom]
+                               (when (or (not= (int width) (int (:width async-copy-state)))
+                                         (not= (int height) (int (:height async-copy-state))))
                                  ;; Resize invalidates the framebuffer even if
                                  ;; the renderables themselves did not change.
                                  (ui/user-data! image-view ::last-renderables nil))
-                               (reset! async-copy-state-atom (scene-async/request-resize! @async-copy-state-atom width height))))
+                               (reset! async-copy-state-atom (scene-async/request-resize async-copy-state width height))))
                            (let [drawable (gl/offscreen-drawable width height)
                                  picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)
                                  camera-inset-drawable (when (supports-camera-inset-drawable? view-id)

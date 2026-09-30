@@ -74,7 +74,7 @@
    :buffer-update-callback (->PixelWriteCallback nil)
    :current-image 0})
 
-(defn request-resize! [async-copy-state width height]
+(defn request-resize [async-copy-state width height]
   (assoc async-copy-state :width width :height height))
 
 (defn dispose! [{:keys [pbo]} ^GL3 gl]

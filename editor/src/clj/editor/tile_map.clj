@@ -345,7 +345,7 @@
 (def tile-map-id-shader shaders/selection-uniform-local-space)
 
 (defn render-layer
-  [^GL3 gl render-args renderables n]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/transparent
@@ -737,7 +737,7 @@
 ;; brush
 
 (defn render-brush-outline
-  [^GL3 gl render-args renderables count]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         [x y] (:cell user-data)
@@ -799,7 +799,7 @@
         (vtx/flip! vbuf)))))
 
 (defn render-brush
-  [^GL3 gl render-args renderables n]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         {:keys [texture-set-data gpu-texture brush]} user-data
@@ -1050,7 +1050,7 @@
        [0.0 bottom]])))
 
 (defn render-palette
-  [^GL3 gl render-args renderables count]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [user-data (:user-data (first renderables))
         {:keys [viewport tile-source-attributes texture-set-data gpu-texture palette-transform start-tile end-tile]} user-data
         [start-tile end-tile] (if (and start-tile end-tile (<= start-tile end-tile))
@@ -1068,7 +1068,7 @@
       (render-palette-active gl render-args tile-source-attributes start-tile end-tile))))
 
 (defn render-editor-select-outline
-  [^GL3 gl render-args renderables count]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         [sx sy] (:start user-data)
@@ -1089,21 +1089,21 @@
            [x0 y1]])))))
 
 (defn render-editor-select
-  [^GL3 gl render-args renderables n]
+  [^GL3 gl render-args renderables renderable-count]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/outline
-      (render-editor-select-outline gl render-args renderables n))))
+      (render-editor-select-outline gl render-args renderables renderable-count))))
 
 (defn render-editor
-  [^GL3 gl render-args renderables n]
+  [^GL3 gl render-args renderables renderable-count]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/opaque
-      (render-brush gl render-args renderables n)
+      (render-brush gl render-args renderables renderable-count)
 
       pass/outline
-      (render-brush-outline gl render-args renderables n))))
+      (render-brush-outline gl render-args renderables renderable-count))))
 
 (g/defnk produce-palette-renderables
   [viewport tile-source-attributes texture-set-data gpu-texture palette-transform start-palette-tile palette-tile]

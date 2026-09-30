@@ -110,10 +110,11 @@
   (let [info (context-info context)]
     (when-let [error (support-error info)]
       (throw (ex-info error info)))
-    ;; Core profiles require a nonzero VAO for vertex attribute setup and drawing;
-    ;; VAO 0 is not a default object as it was in compatibility profiles. Bind a
-    ;; default VAO in make-current so the existing vertex bindings can use it.
-    ;; VAOs are not shared between contexts and are deleted with their context.
+    ;; Core profiles require a nonzero VAO for vertex attribute setup and
+    ;; drawing; VAO 0 is not a default object as it was in compatibility
+    ;; profiles. Bind a default VAO in make-current so the existing vertex
+    ;; bindings can use it. VAOs are not shared between contexts and are deleted
+    ;; with their context.
     (let [gl (.getGL3 (.getGL context))
           names (int-array 1)]
       (.glGenVertexArrays gl 1 names 0)
@@ -199,26 +200,24 @@
     (.glDeleteBuffers gl nbufs names 0)))
 
 (defmacro gl-polygon-mode [gl face mode] `(.glPolygonMode ~(with-meta gl {:tag `GL3}) ~face ~mode))
-
-(defmacro gl-get-attrib-location [gl shader name]                        `(.glGetAttribLocation ~(with-meta gl {:tag `GL3}) ~shader ~name))
-(defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~(with-meta gl {:tag `GL3}) ~type ~name))
-(defmacro gl-buffer-data [gl type size data usage]                       `(.glBufferData ~(with-meta gl {:tag `GL3}) ~type ~size ~data ~usage))
+(defmacro gl-get-attrib-location [gl shader name] `(.glGetAttribLocation ~(with-meta gl {:tag `GL3}) ~shader ~name))
+(defmacro gl-bind-buffer [gl type name] `(.glBindBuffer ~(with-meta gl {:tag `GL3}) ~type ~name))
+(defmacro gl-buffer-data [gl type size data usage] `(.glBufferData ~(with-meta gl {:tag `GL3}) ~type ~size ~data ~usage))
 (defmacro gl-vertex-attrib-pointer [gl idx size type norm stride offset] `(.glVertexAttribPointer ~(with-meta gl {:tag `GL3}) ~idx ~size ~type ~norm ~stride ~offset))
-(defmacro gl-vertex-attrib-divisor [gl idx divisor]                      `(.glVertexAttribDivisor ~(with-meta gl {:tag `GL3}) ~idx ~divisor))
-(defmacro gl-enable-vertex-attrib-array [gl idx]                         `(.glEnableVertexAttribArray ~(with-meta gl {:tag `GL3}) ~idx))
-(defmacro gl-disable-vertex-attrib-array [gl idx]                        `(.glDisableVertexAttribArray ~(with-meta gl {:tag `GL3}) ~idx))
-(defmacro gl-use-program [gl idx]                                        `(.glUseProgram ~(with-meta gl {:tag `GL3}) ~idx))
-(defmacro gl-enable [gl cap]                                             `(.glEnable ~(with-meta gl {:tag `GL3}) ~cap))
-(defmacro gl-disable [gl cap]                                            `(.glDisable ~(with-meta gl {:tag `GL3}) ~cap))
-(defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~(with-meta gl {:tag `GL3}) ~mode))
-(defmacro gl-blend-func [gl sfactor dfactor]                             `(.glBlendFunc ~(with-meta gl {:tag `GL3}) ~sfactor ~dfactor))
-(defmacro gl-front-face [gl mode]                                        `(.glFrontFace ~(with-meta gl {:tag `GL3}) ~mode))
+(defmacro gl-vertex-attrib-divisor [gl idx divisor] `(.glVertexAttribDivisor ~(with-meta gl {:tag `GL3}) ~idx ~divisor))
+(defmacro gl-enable-vertex-attrib-array [gl idx] `(.glEnableVertexAttribArray ~(with-meta gl {:tag `GL3}) ~idx))
+(defmacro gl-disable-vertex-attrib-array [gl idx] `(.glDisableVertexAttribArray ~(with-meta gl {:tag `GL3}) ~idx))
+(defmacro gl-use-program [gl idx] `(.glUseProgram ~(with-meta gl {:tag `GL3}) ~idx))
+(defmacro gl-enable [gl cap] `(.glEnable ~(with-meta gl {:tag `GL3}) ~cap))
+(defmacro gl-disable [gl cap] `(.glDisable ~(with-meta gl {:tag `GL3}) ~cap))
+(defmacro gl-cull-face [gl mode] `(.glCullFace ~(with-meta gl {:tag `GL3}) ~mode))
+(defmacro gl-blend-func [gl sfactor dfactor] `(.glBlendFunc ~(with-meta gl {:tag `GL3}) ~sfactor ~dfactor))
+(defmacro gl-front-face [gl mode] `(.glFrontFace ~(with-meta gl {:tag `GL3}) ~mode))
 
 (defmacro ^:private gl-get-integer [gl param]
   `(int
      (let [out# (int-array 1)]
        (.glGetIntegerv ~(with-meta gl {:tag `GL3}) (int ~param) out# 0)
-
        (aget out# 0))))
 
 (defn gl-max-texture-units
@@ -536,8 +535,8 @@
          ~@body))))
 
 (defmacro color
-  ([r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
-  ([r g b a]      `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0) a])))
+  ([r g b] `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
+  ([r g b a] `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0) a])))
 
 (defmacro gl-draw-arrays [gl prim-type start count]
   `(.glDrawArrays ~(with-meta gl {:tag `GL}) ~prim-type ~start ~count))
@@ -547,32 +546,32 @@
 
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
 
-(def red                    GL3/GL_RED)
-(def green                  GL3/GL_GREEN)
-(def blue                   GL3/GL_BLUE)
-(def alpha                  GL3/GL_ALPHA)
-(def zero                   GL3/GL_ZERO)
-(def one                    GL3/GL_ONE)
-(def lequal                 GL3/GL_LEQUAL)
-(def gequal                 GL3/GL_GEQUAL)
-(def less                   GL3/GL_LESS)
-(def greater                GL3/GL_GREATER)
-(def equal                  GL3/GL_EQUAL)
-(def notequal               GL3/GL_NOTEQUAL)
-(def always                 GL3/GL_ALWAYS)
-(def never                  GL3/GL_NEVER)
-(def clamp-to-edge          GL3/GL_CLAMP_TO_EDGE)
-(def clamp-to-border        GL3/GL_CLAMP_TO_BORDER)
-(def mirrored-repeat        GL3/GL_MIRRORED_REPEAT)
-(def repeat                 GL3/GL_REPEAT)
+(def red GL3/GL_RED)
+(def green GL3/GL_GREEN)
+(def blue GL3/GL_BLUE)
+(def alpha GL3/GL_ALPHA)
+(def zero GL3/GL_ZERO)
+(def one GL3/GL_ONE)
+(def lequal GL3/GL_LEQUAL)
+(def gequal GL3/GL_GEQUAL)
+(def less GL3/GL_LESS)
+(def greater GL3/GL_GREATER)
+(def equal GL3/GL_EQUAL)
+(def notequal GL3/GL_NOTEQUAL)
+(def always GL3/GL_ALWAYS)
+(def never GL3/GL_NEVER)
+(def clamp-to-edge GL3/GL_CLAMP_TO_EDGE)
+(def clamp-to-border GL3/GL_CLAMP_TO_BORDER)
+(def mirrored-repeat GL3/GL_MIRRORED_REPEAT)
+(def repeat GL3/GL_REPEAT)
 (def compare-ref-to-texture GL3/GL_COMPARE_REF_TO_TEXTURE)
-(def none                   GL3/GL_NONE)
-(def nearest                GL3/GL_NEAREST)
-(def linear                 GL3/GL_LINEAR)
+(def none GL3/GL_NONE)
+(def nearest GL3/GL_NEAREST)
+(def linear GL3/GL_LINEAR)
 (def nearest-mipmap-nearest GL3/GL_NEAREST_MIPMAP_NEAREST)
-(def linear-mipmap-nearest  GL3/GL_LINEAR_MIPMAP_NEAREST)
-(def nearest-mipmap-linear  GL3/GL_NEAREST_MIPMAP_LINEAR)
-(def linear-mipmap-linear   GL3/GL_LINEAR_MIPMAP_LINEAR)
+(def linear-mipmap-nearest GL3/GL_LINEAR_MIPMAP_NEAREST)
+(def nearest-mipmap-linear GL3/GL_NEAREST_MIPMAP_LINEAR)
+(def linear-mipmap-linear GL3/GL_LINEAR_MIPMAP_LINEAR)
 
 (defn set-blend-mode [^GL gl blend-mode]
   ;; Assumes pre-multiplied source/destination

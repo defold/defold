@@ -127,7 +127,7 @@
   (color-uv-vtx-put! vb x0 y0 1 1 r g b a)
   (color-uv-vtx-put! vb x1 y1 1 1 r g b a))
 
-(defn render-rulers [^GL3 gl render-args renderables rcount]
+(defn render-rulers [^GL3 gl render-args renderables _renderable-count]
   (doseq [renderable renderables
           :let [user-data (:user-data renderable)
                 {:keys [vb tri-count line-count]} user-data]]
