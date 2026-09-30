@@ -70,7 +70,7 @@
            [java.io File]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control Cell ComboBox ComboBoxBase ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
+           [javafx.scene.control Cell ComboBox ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout GridPane]
            [javafx.scene.paint Color]
@@ -1350,16 +1350,12 @@
                       (fx.mutator/setter
                         (fn [^Node node [token map-event-handler state-path]]
                           (when token
-                            ;; Composite inputs focus their first control, and
-                            ;; choice boxes also open their list.
-                            (let [combo (if (instance? ComboBoxBase node) node (.lookup node ".combo-box-base"))
-                                  target (or combo (.lookup node ".text-field") node)]
+                            ;; Composite inputs focus their first control.
+                            (let [target (or (.lookup node ".text-field") node)]
                               ;; cljfx ignores event handlers during a render, so focusing here
                               ;; would skip the handler that opens choice boxes. fx/run-later and
                               ;; ui/run-later keep the render's bindings, so use plain runLater.
                               (ui/do-run-later #(fxui/focus-when-on-scene! target))
-                              (when combo
-                                (fx/run-later (.show ^ComboBoxBase combo)))
                               (fx/run-later
                                 (map-event-handler {:event-type :2panel-focus-applied
                                                     :state-path state-path
