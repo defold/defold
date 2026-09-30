@@ -352,7 +352,8 @@
       ret)))
 
 (g/defnk produce-gpu-textures
-  "Builds sampler texture lifecycles, supplying fallback textures for missing or failed bindings."
+  "Builds sampler texture lifecycles, supplying fallback textures for missing or
+  failed bindings."
   [_node-id samplers texture-binding-infos]
   (let [sampler-name->gpu-texture-generator
         (coll/into-> texture-binding-infos {}
@@ -367,7 +368,8 @@
               (when-let [gpu-texture-generator (sampler-name->gpu-texture-generator name)]
                 [unit-index sampler gpu-texture-generator]))))
 
-        ;; This generates CPU-side texture request data. GL upload happens later when the texture lifecycle is bound.
+        ;; This generates CPU-side texture request data. GL upload happens later
+        ;; when the texture lifecycle is bound.
         explicit-textures
         (->> explicit-texture-work
              (coll/pmapv

@@ -1664,21 +1664,24 @@
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
   (input proj-path+meta-info-pairs g/Any :array :substitute gu/array-subst-remove-errors)
 
-  (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
-                                                             (let [selected-node-id-set (set all-selected-node-ids)]
-                                                               (coll/map-vals
-                                                                 #(filterv selected-node-id-set %)
-                                                                 all-selections))))
-  (output selected-node-properties-by-resource-node g/Any :cached (g/fnk [all-selected-node-properties all-selections]
-                                                                    (let [props (coll/pair-map-by :node-id all-selected-node-properties)]
-                                                                      (coll/map-vals
-                                                                        #(into [] (keep props) %)
-                                                                        all-selections))))
-  (output sub-selections-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
-                                                          (let [selected-node-id-set (set all-selected-node-ids)]
-                                                            (coll/map-vals
-                                                              #(filterv (comp selected-node-id-set first) %)
-                                                              all-sub-selections))))
+  (output selected-node-ids-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-ids all-selections]
+            (let [selected-node-id-set (set all-selected-node-ids)]
+              (coll/map-vals
+                #(filterv selected-node-id-set %)
+                all-selections))))
+  (output selected-node-properties-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-properties all-selections]
+            (let [props (coll/pair-map-by :node-id all-selected-node-properties)]
+              (coll/map-vals
+                #(into [] (keep props) %)
+                all-selections))))
+  (output sub-selections-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-ids all-sub-selections]
+            (let [selected-node-id-set (set all-selected-node-ids)]
+              (coll/map-vals
+                #(filterv (comp selected-node-id-set first) %)
+                all-sub-selections))))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv :save-value save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
