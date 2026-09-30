@@ -337,10 +337,10 @@ PACKAGES_LINUX_ARM64=[
     "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10"]
 
+# All Android targets build GLFW from source in build_ext.
 PACKAGES_ANDROID=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -353,7 +353,6 @@ PACKAGES_ANDROID=[
 PACKAGES_ANDROID_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -366,7 +365,6 @@ PACKAGES_ANDROID_64=[
 PACKAGES_ANDROID_X86_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
