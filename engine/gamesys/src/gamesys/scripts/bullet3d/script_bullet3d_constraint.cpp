@@ -312,13 +312,13 @@ namespace dmGameSystem
             return;
         }
 
-        dmGameObject::HInstance instance = CompCollisionObjectGetInstance(body->getUserPointer());
+        dmGameObject::HGameObject instance = CompCollisionObjectGetInstance(body->getUserPointer());
         if (!instance)
         {
             lua_pushnil(L);
             return;
         }
-        PushBullet3DCollisionObject(L, body, dmGameObject::GetCollection(instance), dmGameObject::GetIdentifier(instance));
+        PushBullet3DCollisionObject(L, body, instance);
     }
 
     static bool CheckBoolean(lua_State* L, int index, const char* name)
@@ -439,7 +439,7 @@ namespace dmGameSystem
         {
             return 0;
         }
-        dmGameObject::HInstance instance = CompCollisionObjectGetInstance(body->getUserPointer());
+        dmGameObject::HGameObject instance = CompCollisionObjectGetInstance(body->getUserPointer());
         if (!instance)
         {
             return 0;

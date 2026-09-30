@@ -78,6 +78,43 @@ if(TARGET_PLATFORM STREQUAL "wasm-web")
         VERBATIM)
 endif()
 
+if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
+    defold_add_executable(test_platform_safe_area
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_safe_area.mm")
+    defold_target_link_libraries(test_platform_safe_area "${TARGET_PLATFORM}"
+        dlib profile_null testmain platform)
+    defold_target_link_app(test_platform_safe_area "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_opengl(test_platform_safe_area "${TARGET_PLATFORM}" PRIVATE)
+    target_link_libraries(test_platform_safe_area PRIVATE "-framework QuartzCore")
+    defold_target_link_socket(test_platform_safe_area "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_safe_area ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+endif()
+
+if(TARGET_PLATFORM MATCHES "-android$")
+    foreach(backend IN ITEMS gl no_api)
+        set(test_target "test_platform_android_insets_${backend}")
+        defold_add_executable(${test_target}
+            "${CMAKE_CURRENT_LIST_DIR}/test_platform_android_insets.cpp")
+        target_include_directories(${test_target} PRIVATE
+            "${CMAKE_CURRENT_LIST_DIR}/../native"
+            "${CMAKE_CURRENT_LIST_DIR}/../native/android")
+        defold_target_link_libraries(${test_target} "${TARGET_PLATFORM}" dlib profile_null testmain)
+        if(backend STREQUAL "gl")
+            target_link_libraries(${test_target} PRIVATE platform)
+        else()
+            target_compile_definitions(${test_target} PRIVATE DM_PLATFORM_NO_OPENGL)
+            target_link_libraries(${test_target} PRIVATE platform_vulkan)
+        endif()
+        target_link_options(${test_target} PRIVATE
+            "-Wl,--wrap=dmNativeAcquireAndroidWindow"
+            "-Wl,--wrap=dmNativeReleaseAndroidWindow"
+            "-Wl,--wrap=ANativeWindow_getWidth"
+            "-Wl,--wrap=ANativeWindow_getHeight")
+        defold_target_link_socket(${test_target} "${TARGET_PLATFORM}" PRIVATE)
+        defold_register_test_target(${test_target} ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+    endforeach()
+endif()
+
 # ******************************************************************
 # test_platform_app (windowed test application)
 

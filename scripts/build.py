@@ -336,6 +336,7 @@ PACKAGES_LINUX_ARM64=[
     "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10"]
 
+# Android window backends build with the engine's platform library.
 PACKAGES_ANDROID=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",

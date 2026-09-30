@@ -582,6 +582,12 @@ NSString *const FAKE_STRING = @"Abcd";
     // explicitly invalidate the link; a modal presentation must keep it running.
 }
 
+- (void)safeAreaInsetsDidChange
+{
+    [super safeAreaInsetsDidChange];
+    self.safeAreaChanged = YES;
+}
+
 - (void)dealloc
 {
     [self invalidateDisplayLink];
@@ -686,6 +692,17 @@ void dmNativeShowKeyboard( int show, int type, int auto_close )
 void dmNativeOSPollEvents( void )
 {
     BaseView* view = (BaseView*) dmNativeWin.view;
+    if (view.safeAreaChanged && dmNativeWin.windowSizeCallback)
+    {
+        int width = [view getWindowWidth];
+        int height = [view getWindowHeight];
+        if (width > 0 && height > 0)
+        {
+            // Insets can change after layout, including rotations that preserve the window size.
+            view.safeAreaChanged = NO;
+            dmNativeWin.windowSizeCallback(width, height);
+        }
+    }
     if (view.keyboardActive > 0) {
         view.textkeyActive--;
         if (view.textkeyActive == 0) {

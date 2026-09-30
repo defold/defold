@@ -1,3 +1,17 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 //========================================================================
 // GLFW - An OpenGL framework
 // Platform:    Android EGL window backend
@@ -218,16 +232,20 @@ void dmNativeAndroidPlatformSwapBuffers(void)
      report the old EGL size at the time of the event, so we defer the query
      until a swap occurs.
      */
-    if (g_PendingResize || g_PendingResizeBecauseOfInsets)
+    int pending_insets = __sync_lock_test_and_set(&g_PendingResizeBecauseOfInsets, 0);
+    if (g_PendingResize || pending_insets)
     {
         GlfwAndroidEglResult result = update_width_height_info(&dmNativeWin, &dmNativeWinAndroid, 1);
         if (result != NATIVE_ANDROID_EGL_RESULT_READY)
         {
+            if (pending_insets)
+            {
+                dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
+            }
             HandleGLSurfaceFailure(result);
             return;
         }
         g_PendingResize = 0;
-        g_PendingResizeBecauseOfInsets = 0;
     }
 }
 
@@ -266,7 +284,7 @@ int32_t dmNativeAndroidPlatformVerifySurface(void)
 
 void dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets(void)
 {
-    g_PendingResizeBecauseOfInsets = 1;
+    __sync_lock_test_and_set(&g_PendingResizeBecauseOfInsets, 1);
 }
 
 void dmNativeAndroidPlatformOnTermWindow(void)
@@ -285,6 +303,12 @@ void dmNativeAndroidPlatformOnTermWindow(void)
 
 void dmNativeAndroidPlatformOnInitWindow(void)
 {
+    if (dmNativeWin.clientAPI == NATIVE_NO_API)
+    {
+        g_PendingResize = 1;
+        return;
+    }
+
     reset_egl_failure_retries(&dmNativeWinAndroid);
     // We don't get here the first time around, but from the second and onwards
     // The first time, the create_gl_surface() is called from the dmNativeOSOpenWindow function
@@ -310,6 +334,33 @@ void dmNativeAndroidPlatformOnResize(void)
 
 void dmNativeAndroidPlatformAfterFlushEvents(void)
 {
+    if (dmNativeWin.clientAPI == NATIVE_NO_API)
+    {
+        // Vulkan also uses this backend when OpenGL is included in the engine.
+        // There is no EGL swap to consume its pending resize or inset changes.
+        int pending_insets = __sync_lock_test_and_set(&g_PendingResizeBecauseOfInsets, 0);
+        if (g_PendingResize || pending_insets)
+        {
+            ANativeWindow* window = dmNativeAcquireAndroidWindow();
+            if (!window)
+            {
+                if (pending_insets)
+                    dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
+                return;
+            }
+
+            int width = ANativeWindow_getWidth(window);
+            int height = ANativeWindow_getHeight(window);
+            dmNativeReleaseAndroidWindow(window);
+            dmNativeWin.width = width;
+            dmNativeWin.height = height;
+            g_PendingResize = 0;
+            if (dmNativeWin.windowSizeCallback)
+                dmNativeWin.windowSizeCallback(width, height);
+        }
+        return;
+    }
+
     // Still, there seem to be room for the surface to not be ready when the rendering restarts (Issue 5358)
     if (dmNativeWin.clientAPI != NATIVE_NO_API && dmNativeWinAndroid.should_recreate_surface && dmNativeWinAndroid.surface == EGL_NO_SURFACE)
     {

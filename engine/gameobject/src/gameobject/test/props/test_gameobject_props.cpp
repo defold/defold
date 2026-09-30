@@ -20,6 +20,7 @@
 #include <dlib/message.h>
 #include <dlib/path.h>
 #include <dlib/testutil.h>
+#include <dmsdk/gameobject/res_collection.h>
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
@@ -128,6 +129,14 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
+    dmResource::Result GetCollectionResource(const char* path, dmGameObject::CollectionResource** resource, dmGameObject::HCollection* collection)
+    {
+        *resource = 0;
+        dmResource::Result result = dmResource::Get(m_Factory, path, (void**)resource);
+        *collection = dmGameObject::ResCollectionGetCollection(*resource);
+        return result;
+    }
+
 public:
 
     dmGameObject::HRegister m_Register;
@@ -141,8 +150,10 @@ public:
 
 static void SetProperties(dmGameObject::HInstance instance)
 {
-    dmGameObject::Prototype::Component* components = instance->m_Prototype->m_Components;
-    uint32_t count = instance->m_Prototype->m_ComponentCount;
+    dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(dmGameObject::GetCollection(instance));
+    dmGameObject::Instance* instance_ptr = dmGameObject::GetInstanceFromHandle(collection_ptr, instance);
+    dmGameObject::Prototype::Component* components = instance_ptr->m_Prototype->m_Components;
+    uint32_t count = instance_ptr->m_Prototype->m_ComponentCount;
     uint32_t component_instance_data_index = 0;
     dmGameObject::ComponentSetPropertiesParams params;
     params.m_Instance = instance;
@@ -153,7 +164,7 @@ static void SetProperties(dmGameObject::HInstance instance)
         dmGameObject::ComponentType* type = components[i].m_Type;
         if (type->m_SetPropertiesFunction != 0x0)
         {
-            uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
+            uintptr_t* component_instance_data = &instance_ptr->m_ComponentInstanceUserData[component_instance_data_index];
             params.m_UserData = component_instance_data;
             type->m_SetPropertiesFunction(params);
         }
@@ -176,7 +187,7 @@ static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject:
 TEST_F(PropsTest, PropsDefault)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_default.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     SetProperties(go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
@@ -189,7 +200,7 @@ TEST_F(PropsTest, PropsDefault)
 TEST_F(PropsTest, PropsGO)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_go.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     SetProperties(go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
@@ -199,33 +210,36 @@ TEST_F(PropsTest, PropsGO)
 
 TEST_F(PropsTest, PropsCollection)
 {
+    dmGameObject::CollectionResource* resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_coll.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_coll.collectionc", &resource, &collection);
     ASSERT_EQ(dmResource::RESULT_OK, res);
     bool result = dmGameObject::Init(collection);
     ASSERT_TRUE(result);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_coll.scriptc", 0x0));
-    dmResource::Release(m_Factory, collection);
+    dmResource::Release(m_Factory, resource);
 }
 
 TEST_F(PropsTest, PropsSubCollection)
 {
+    dmGameObject::CollectionResource* resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_sub.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_sub.collectionc", &resource, &collection);
     ASSERT_EQ(dmResource::RESULT_OK, res);
     bool result = dmGameObject::Init(collection);
     ASSERT_TRUE(result);
-    dmResource::Release(m_Factory, collection);
+    dmResource::Release(m_Factory, resource);
 }
 
 TEST_F(PropsTest, PropsMultiScript)
 {
+    dmGameObject::CollectionResource* resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_multi_script.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_multi_script.collectionc", &resource, &collection);
     ASSERT_EQ(dmResource::RESULT_OK, res);
     bool result = dmGameObject::Init(collection);
     ASSERT_TRUE(result);
-    dmResource::Release(m_Factory, collection);
+    dmResource::Release(m_Factory, resource);
 }
 
 TEST_F(PropsTest, PropsSpawn)
@@ -266,7 +280,7 @@ TEST_F(PropsTest, PropsSpawn)
     ASSERT_NE((dmGameObject::HPropertyContainer)0, properties);
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_spawn.goc", dmHashString64("test_id"), properties, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
-    ASSERT_NE((void*)0u, instance);
+    ASSERT_NE(0, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
 }
@@ -275,7 +289,7 @@ TEST_F(PropsTest, PropsSpawnNoProperties)
 {
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_go.goc", dmHashString64("test_id"), 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
-    ASSERT_NE((void*)0u, instance);
+    ASSERT_NE(0, instance);
 }
 
 TEST_F(PropsTest, PropsFromLuaRejectsEmbeddedNullText)
@@ -301,18 +315,19 @@ TEST_F(PropsTest, PropsFromLuaRejectsEmbeddedNullText)
 
 TEST_F(PropsTest, PropsRelativeURL)
 {
+    dmGameObject::CollectionResource* resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_rel_url.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_rel_url.collectionc", &resource, &collection);
     ASSERT_EQ(dmResource::RESULT_OK, res);
     bool result = dmGameObject::Init(collection);
     ASSERT_TRUE(result);
-    dmResource::Release(m_Factory, collection);
+    dmResource::Release(m_Factory, resource);
 }
 
 TEST_F(PropsTest, PropsNopDefInInit)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_nop_def_in_init.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
     dmGameObject::Delete(m_Collection, go, false);
@@ -320,8 +335,9 @@ TEST_F(PropsTest, PropsNopDefInInit)
 
 TEST_F(PropsTest, PropsFailNoUserData)
 {
+    dmGameObject::CollectionResource* resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_no_user_data.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_fail_no_user_data.collectionc", &resource, &collection);
     ASSERT_NE(dmResource::RESULT_OK, res);
 }
 
@@ -728,14 +744,15 @@ TEST_F(PropsTest, PropsGetSetAs)
 
 TEST_F(PropsTest, PropsGetSetScript)
 {
+    dmGameObject::CollectionResource* resource;
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_get_set.collectionc", (void**)&collection);
+    dmResource::Result res = GetCollectionResource("/props_get_set.collectionc", &resource, &collection);
     ASSERT_EQ(dmResource::RESULT_OK, res);
     ASSERT_TRUE(dmGameObject::Init(collection));
     dmGameObject::UpdateContext context;
     context.m_DT = 1 / 60.0f;
     ASSERT_TRUE(dmGameObject::Update(collection, &context));
-    dmResource::Release(m_Factory, collection);
+    dmResource::Release(m_Factory, resource);
 }
 
 #define ASSERT_SPAWN_FAILS(path)\

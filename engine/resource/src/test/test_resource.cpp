@@ -1040,6 +1040,58 @@ dmResource::Result AdResourceDestroy(const dmResource::ResourceDestroyParams* pa
     return dmResource::RESULT_OK;
 }
 
+// Verifies that creation stores distinct resource versions, guarding against
+// assigning the version after copying the descriptor into the resource map.
+TEST_F(ResourceTest, CreatedResourcesHaveDistinctVersions)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "adc", 0, 0, AdResourceCreate, 0, AdResourceDestroy, 0));
+
+    char data[] = "test";
+    void* first_resource = 0;
+    void* second_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, "/version_first.adc", data, sizeof(data), &first_resource));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, "/version_second.adc", data, sizeof(data), &second_resource));
+
+    uint16_t first_version = dmResource::GetVersion(factory, first_resource);
+    uint16_t second_version = dmResource::GetVersion(factory, second_resource);
+    dmResource::Release(factory, first_resource);
+    dmResource::Release(factory, second_resource);
+
+    ASSERT_NE(dmResource::RESOURCE_VERSION_INVALID, first_version);
+    ASSERT_NE(dmResource::RESOURCE_VERSION_INVALID, second_version);
+    ASSERT_NE(first_version, second_version);
+}
+
+static dmResource::Result VersionResourceCreate(const dmResource::ResourceCreateParams* params)
+{
+    ResourceDescriptorSetResource(params->m_Resource, params->m_Context);
+    return dmResource::RESULT_OK;
+}
+
+// Verifies that reusing a resource's path and address changes its version,
+// preventing stale handles from matching a later resource's identity.
+TEST_F(ResourceTest, RecreatedResourceAtSameAddressHasNewVersion)
+{
+    int resource_storage = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "version", &resource_storage, 0, VersionResourceCreate, 0, DummyDestroy, 0));
+
+    const char* path = "/recreated.version";
+    char data[] = "test";
+    void* first_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, path, data, sizeof(data), &first_resource));
+    uint16_t first_version = dmResource::GetVersion(factory, first_resource);
+    dmResource::Release(factory, first_resource);
+
+    void* recreated_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, path, data, sizeof(data), &recreated_resource));
+    uint16_t recreated_version = dmResource::GetVersion(factory, recreated_resource);
+    dmResource::Release(factory, recreated_resource);
+
+    ASSERT_EQ(first_resource, recreated_resource);
+    ASSERT_NE(dmResource::RESOURCE_VERSION_INVALID, recreated_version);
+    ASSERT_NE(first_version, recreated_version);
+}
+
 TEST(dmResource, Builtins)
 {
     dmResource::NewFactoryParams params;

@@ -1,3 +1,17 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 //========================================================================
 // GLFW - An OpenGL framework
 // Platform:    Android no-API window backend
@@ -11,7 +25,7 @@
 
 static int g_PendingResizeBecauseOfInsets = 0;
 
-static void UpdateNoApiWindowSize(void)
+static int UpdateNoApiWindowSize(int force)
 {
     ANativeWindow* window = dmNativeAcquireAndroidWindow();
     if (window)
@@ -19,13 +33,16 @@ static void UpdateNoApiWindowSize(void)
         int w = ANativeWindow_getWidth(window);
         int h = ANativeWindow_getHeight(window);
         dmNativeReleaseAndroidWindow(window);
-        if ((dmNativeWin.width != w || dmNativeWin.height != h) && dmNativeWin.windowSizeCallback)
+        int changed = dmNativeWin.width != w || dmNativeWin.height != h;
+        dmNativeWin.width = w;
+        dmNativeWin.height = h;
+        if ((force || changed) && dmNativeWin.windowSizeCallback)
         {
             dmNativeWin.windowSizeCallback(w, h);
         }
-        dmNativeWin.width = w;
-        dmNativeWin.height = h;
+        return 1;
     }
+    return 0;
 }
 
 int dmNativeAndroidPlatformGetWindowRefreshRate(void)
@@ -63,7 +80,8 @@ int32_t dmNativeAndroidPlatformVerifySurface(void)
 
 void dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets(void)
 {
-    g_PendingResizeBecauseOfInsets = 1;
+    // The inset listener runs on the Android UI thread.
+    __sync_lock_test_and_set(&g_PendingResizeBecauseOfInsets, 1);
 }
 
 void dmNativeAndroidPlatformOnTermWindow(void)
@@ -72,7 +90,7 @@ void dmNativeAndroidPlatformOnTermWindow(void)
 
 void dmNativeAndroidPlatformOnInitWindow(void)
 {
-    UpdateNoApiWindowSize();
+    UpdateNoApiWindowSize(1);
 }
 
 void dmNativeAndroidPlatformOnGainedFocus(void)
@@ -81,16 +99,18 @@ void dmNativeAndroidPlatformOnGainedFocus(void)
 
 void dmNativeAndroidPlatformOnResize(void)
 {
-    UpdateNoApiWindowSize();
-    g_PendingResizeBecauseOfInsets = 0;
+    dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
 }
 
 void dmNativeAndroidPlatformAfterFlushEvents(void)
 {
-    if (g_PendingResizeBecauseOfInsets)
+    if (__sync_lock_test_and_set(&g_PendingResizeBecauseOfInsets, 0))
     {
-        UpdateNoApiWindowSize();
-        g_PendingResizeBecauseOfInsets = 0;
+        // Refresh insets even when a rotation leaves the window dimensions unchanged.
+        if (!UpdateNoApiWindowSize(1))
+        {
+            dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
+        }
     }
 }
 
