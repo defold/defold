@@ -28,6 +28,19 @@ add_dependencies(test_platform platform_null)
 # Register into global build_tests and run_tests with working directory set to engine/input
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
+if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
+    defold_add_executable(test_platform_safe_area
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_safe_area.mm")
+    defold_target_link_libraries(test_platform_safe_area "${TARGET_PLATFORM}"
+        dlib profile_null testmain platform)
+    defold_target_link_app(test_platform_safe_area "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_opengl(test_platform_safe_area "${TARGET_PLATFORM}" PRIVATE)
+    target_link_libraries(test_platform_safe_area PRIVATE "-framework QuartzCore")
+    defold_target_link_glfw(test_platform_safe_area "${TARGET_PLATFORM}" PRIVATE)
+    defold_target_link_socket(test_platform_safe_area "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_safe_area ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+endif()
+
 # ******************************************************************
 # test_platform_app (windowed test application)
 

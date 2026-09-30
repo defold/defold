@@ -45,6 +45,7 @@
 @interface BaseView ()
 
 @property (nonatomic) BOOL keyboardActive;
+@property (nonatomic) BOOL safeAreaChanged;
 // TODO: Cooldown "timer" *hack* for backspace and enter release
 #define TEXT_KEY_COOLDOWN (10)
 @property (nonatomic) int textkeyActive;

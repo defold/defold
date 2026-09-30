@@ -5730,6 +5730,46 @@ TEST_F(dmGuiTest, SafeAreaAnchoring)
     }
 }
 
+// Verifies cached node positions and scene overrides follow inset changes at the same window size; guards against stale offsets after a 180-degree rotation.
+TEST_F(dmGuiTest, SafeAreaChangeWithoutResize)
+{
+    dmGui::SetPhysicalResolution(m_Context, 2034, 1398);
+    dmGui::SetDefaultResolution(m_Context, 1920, 1080);
+    dmGui::SetSceneResolution(m_Scene, 1920, 1080);
+    const dmGui::XAnchor anchors[] = {dmGui::XANCHOR_LEFT, dmGui::XANCHOR_NONE, dmGui::XANCHOR_RIGHT};
+    const float positions[] = {120.0f, 960.0f, 1800.0f};
+    const int32_t left_insets[] = {0, 252, 0};
+    dmGui::HNode nodes[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        nodes[i] = dmGui::NewNode(m_Scene, Point3(positions[i], 690, 0), Vector3(220, 220, 0), dmGui::NODE_TYPE_BOX, 0);
+        dmGui::SetNodeXAnchor(m_Scene, nodes[i], anchors[i]);
+    }
+
+    for (uint32_t override_mode = 0; override_mode < 2; ++override_mode)
+    {
+        if (override_mode)
+        {
+            dmGui::SetSceneSafeAreaMode(m_Scene, dmGui::SAFE_AREA_LONG);
+        }
+        dmGui::SafeAreaMode context_mode = override_mode ? dmGui::SAFE_AREA_NONE : dmGui::SAFE_AREA_LONG;
+        for (uint32_t i = 0; i < sizeof(left_insets) / sizeof(left_insets[0]); ++i)
+        {
+            int32_t left = left_insets[i];
+            dmGui::UpdateSafeAreaAdjust(m_Context, context_mode, 2034, 1398, left, 0, 252 - left, 0);
+            // Rendering consumes the resolution-change flag, so the next inset update must invalidate cached transforms.
+            dmGui::RenderScene(m_Scene, m_RenderParams, this);
+            for (uint32_t n = 0; n < 3; ++n)
+            {
+                float expected_x = left + positions[n] * 1782.0f / 1920.0f;
+                Vector4 actual = _GET_NODE_SCENE_POSITION(m_Scene, nodes[n]);
+                ASSERT_NEAR(expected_x, actual.getX(), 0.001f);
+                ASSERT_TRUE(dmGui::PickNode(m_Scene, nodes[n], expected_x * 1920.0f / 2034.0f, actual.getY() * 1080.0f / 1398.0f));
+            }
+        }
+    }
+}
+
 // Verifies anchored roots and children round-trip screen positions with asymmetric insets; guards against #13331 inverse-offset regressions.
 TEST_F(dmGuiTest, SetGetScreenPositionSafeAreaAnchoring)
 {
