@@ -54,6 +54,7 @@ namespace dmGameObject
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
     const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY = "collection.max_input_stack_entries";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
+    const dmhash_t GAME_OBJECT_EXT = dmHashString64("goc");
 #define ID_SEPARATOR_CHAR "/"
     const char* ID_SEPARATOR = ID_SEPARATOR_CHAR;
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 10;
@@ -814,7 +815,16 @@ namespace dmGameObject
             return 0;
         }
 
-        Collection* collection = AllocCollection(factory, regist, max_instances);
+        uint32_t instances_in_collection = GetMaxComponentInstances(GAME_OBJECT_EXT, (dmGameObjectDDF::CollectionDesc*)collection_desc);
+        if (instances_in_collection == 0)
+        {
+            instances_in_collection = max_instances;
+        }
+        else
+        {
+            instances_in_collection = dmMath::Min(max_instances, instances_in_collection);
+        }
+        Collection* collection = AllocCollection(factory, regist, instances_in_collection);
         if (!collection)
         {
             return 0;

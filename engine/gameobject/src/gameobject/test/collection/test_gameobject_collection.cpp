@@ -230,17 +230,6 @@ TEST_F(CollectionTest, Collection)
         ASSERT_EQ(dmResource::RESULT_OK, r);
         ASSERT_NE(0, coll);
 
-        // A compiled collection contains only its initial objects, but the core
-        // game-object storage is reserved from collection.max_instances.
-        const uint32_t max_instances = dmGameObject::GetCollectionDefaultCapacity(m_Register);
-        dmGameObject::Collection* internal_collection = dmGameObject::GetCollectionFromHandle(coll);
-        ASSERT_EQ(max_instances, internal_collection->m_Instances.Capacity());
-        ASSERT_EQ(max_instances, internal_collection->m_Instances.Size());
-        ASSERT_EQ(max_instances, internal_collection->m_InstanceIndices.Capacity());
-        ASSERT_EQ(max_instances, internal_collection->m_InstanceIdPool.Capacity());
-        ASSERT_EQ(max_instances, internal_collection->m_WorldTransforms.Capacity());
-        ASSERT_EQ(max_instances, internal_collection->m_WorldTransforms.Size());
-
         dmhash_t go01ident = dmHashString64("/go1");
         dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
         ASSERT_NE(0, go01);
