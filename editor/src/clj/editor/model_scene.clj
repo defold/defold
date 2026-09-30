@@ -1353,6 +1353,15 @@
         (attachment/nodes-getter group-node evaluation-context)
         []))))
 
+(def ^:private model-resource-type-base-args
+  {:dependencies-fn model-scene-dependencies
+   :icon mesh-icon
+   :icon-class :design
+   :label (localization/message "resource.type.model-scene")
+   :load-fn load-model-scene-node
+   :node-type ModelSceneNode
+   :read-fn read-model-scene})
+
 (defn register-resource-types [workspace]
   (concat
     (attachment/register
@@ -1365,15 +1374,13 @@
       workspace ModelSceneNode :textures
       :get (gltf-metadata-nodes-getter :textures))
     (workspace/register-resource-type workspace
-      :ext model-file-types
-      :label (localization/message "resource.type.model-scene")
-      :node-type ModelSceneNode
-      :load-fn load-model-scene-node
-      :read-fn read-model-scene
-      :dependencies-fn model-scene-dependencies
-      :icon mesh-icon
-      :icon-class :design
-      :view-types [:scene :text])
+      (assoc model-resource-type-base-args
+        :ext "gltf"
+        :view-types [:scene :text]))
+    (workspace/register-resource-type workspace
+      (assoc model-resource-type-base-args
+        :ext "glb"
+        :view-types [:scene]))
     (workspace/register-resource-type workspace
       :ext "gltf-mesh"
       :export-name-fn #(str (FilenameUtils/getName (resource/proj-path %)) ".model")
