@@ -283,11 +283,11 @@
                           :children [{:node-id :go
                                       :aabb geom/null-aabb
                                       :children [{:node-id :camera
-                                                   :aabb geom/null-aabb
-                                                   :renderable {:tags #{:camera}
-                                                                :user-data {:is-orthographic false}
-                                                                :select-batch-key :camera
-                                                                :passes [pass/outline pass/selection]}}]}]}
+                                                  :aabb geom/null-aabb
+                                                  :renderable {:tags #{:camera}
+                                                               :user-data {:is-orthographic false}
+                                                               :select-batch-key :camera
+                                                               :passes [pass/outline pass/selection]}}]}]}
             scene-render-data (scene/produce-scene-render-data {:scene deeper-scene
                                                                 :selection [:go]
                                                                 :hidden-renderable-tags #{}

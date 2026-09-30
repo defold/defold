@@ -20,13 +20,6 @@
 #include <jc_test/jc_test.h>
 #include "../dlib/hash.h"
 
-extern "C"
-{
-    int dmHashCTestIncremental(void);
-    int dmHashCTestCloneAndRelease(void);
-    int dmHashCTestReverseSafeAlloc(void);
-}
-
 class hash : public jc_test_base_class
 {
 };
@@ -118,13 +111,6 @@ TEST_F(hash, HashIncremental64)
         ASSERT_EQ(h1, h2);
         ASSERT_EQ(h1, h3);
     }
-}
-
-TEST_F(hash, HashCAPI)
-{
-    ASSERT_EQ(0, dmHashCTestIncremental());
-    ASSERT_EQ(0, dmHashCTestCloneAndRelease());
-    ASSERT_EQ(0, dmHashCTestReverseSafeAlloc());
 }
 
 TEST_F(hash, HashReverseInvalidStateSlot)

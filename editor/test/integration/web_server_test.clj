@@ -157,7 +157,7 @@
               :headers {"content-length" (str size)
                         "content-type" "text/plain"}
               :body size}
-           (count-bytes (get-written-response (http-server/response 200 res) :as :byte-array)))))
+             (count-bytes (get-written-response (http-server/response 200 res) :as :byte-array)))))
     ;; editor zip resource
     (let [res (workspace/find-resource workspace "/builtins/docs/licenses.md")
           size (count-resource-bytes res)]

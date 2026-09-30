@@ -92,7 +92,7 @@
 (defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type read-opts owner-resource]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (cond-> (sanitize-any-instance-desc embedded-instance-desc :component-properties)
-          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type read-opts owner-resource)))
+    (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type read-opts owner-resource)))
 
 (defn- sanitize-collection-instance-desc [collection-instance-desc]
   ;; GameObject$CollectionInstanceDesc in map format.
@@ -330,7 +330,7 @@
     (bt/with-content-hash
       (-> collection-build-target
           (assoc :game-object-instance-datas
-                 flattened-game-object-instance-datas)
+            flattened-game-object-instance-datas)
           (assoc-in [:user-data :game-object-instance-datas]
                     (mapv #(dissoc % :property-deps)
                           flattened-game-object-instance-datas))))))
@@ -402,7 +402,7 @@
                                          :children (mapv (partial str path-sep) (:children instance-desc))
                                          :component-properties (mapv (fn [component-property-desc go-props]
                                                                        (cond-> (dissoc component-property-desc :properties) ; Runtime uses :property-decls, not :properties
-                                                                               (seq go-props) (assoc :property-decls (properties/go-props->decls go-props false))))
+                                                                         (seq go-props) (assoc :property-decls (properties/go-props->decls go-props false))))
                                                                      (:component-properties instance-desc)
                                                                      component-go-props))))
                             go-instance-msgs
@@ -467,5 +467,5 @@
   (cond-> {:node-id node-id
            :aabb geom/null-aabb}
 
-          (pos? (count child-game-object-and-collection-instance-scenes))
-          (assoc :children child-game-object-and-collection-instance-scenes)))
+    (pos? (count child-game-object-and-collection-instance-scenes))
+    (assoc :children child-game-object-and-collection-instance-scenes)))

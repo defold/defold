@@ -1001,7 +1001,7 @@ end
             :returnvalues [tile-param]}
            {:name "tilemap.tiles.get_info"
             :type :function
-           :description "Get full information from a tile at a particular coordinate"
+            :description "Get full information from a tile at a particular coordinate"
             :parameters [tiles-param x-param y-param]
             :returnvalues [{:name "info"
                             :types ["tilemap.tiles.get_info.result" "nil"]

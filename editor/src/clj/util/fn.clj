@@ -59,13 +59,13 @@
 
 (definline ^:private with-memoize-info [memoized-fn original-fn cache arity]
   `(with-meta ~memoized-fn
-              {::memoize-original ~original-fn
-               ::memoize-arity ~arity
-               ::memoize-cache ~cache}))
+     {::memoize-original ~original-fn
+      ::memoize-arity ~arity
+      ::memoize-cache ~cache}))
 
 (defn- single-limited-assoc [map key value]
   (with-meta {key value}
-             (meta map)))
+    (meta map)))
 
 (defn- memoize-details [{:keys [limit] :as opts}]
   (cond
@@ -519,7 +519,7 @@
      (with-meta (fn [& args]
                   (swap! calls conj args)
                   (apply f args))
-                {::calls calls}))))
+       {::calls calls}))))
 
 (defn call-logger-calls
   "Given a function obtained from make-call-logger, returns a

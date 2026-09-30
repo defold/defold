@@ -152,9 +152,9 @@
                                (vec (distinct (concat display-order (:display-order source-properties))))))))
 
 (defn- resource-path-error [_node-id source-resource]
-    (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource path-message)
-        (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource path-message)
-        (validation/prop-error :fatal _node-id :script validation/prop-resource-not-component? source-resource path-message)))
+  (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource path-message)
+      (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource path-message)
+      (validation/prop-error :fatal _node-id :script validation/prop-resource-not-component? source-resource path-message)))
 
 (g/defnk produce-referenced-component-build-targets [_node-id source-resource ddf-message pose resource-property-build-targets source-build-targets]
   ;; Create a build-target for the referenced component. Also tag on
@@ -191,9 +191,9 @@
 
   (property id g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id id id-counts]
-                                  (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id id-message)
-                                      (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
-                                      (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id id-message))))
+                             (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id id-message)
+                                 (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
+                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id id-message))))
             (dynamic read-only? (g/fnk [_this]
                                   (some? (gt/original _this)))))
   (property url g/Str ; Just for presentation.
@@ -215,20 +215,20 @@
   (output transform-properties g/Any produce-component-transform-properties)
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id id source-outline source-properties source-resource]
-      (let [source-outline (or source-outline {:icon unknown-icon})
-            source-id (when-let [source-id (:node-id source-outline)]
-                        (and (not= source-id -1) source-id))
-            overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
-        (-> {:node-id _node-id
-             :node-outline-key id
-             :label id
-             :icon (or (not-empty (:icon source-outline)) unknown-icon)
-             :outline-overridden? overridden?
-             :children (:children source-outline)}
-          (cond->
-            (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true)
-            source-id (assoc :alt-outline source-outline))))))
+          (g/fnk [_node-id id source-outline source-properties source-resource]
+            (let [source-outline (or source-outline {:icon unknown-icon})
+                  source-id (when-let [source-id (:node-id source-outline)]
+                              (and (not= source-id -1) source-id))
+                  overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
+              (-> {:node-id _node-id
+                   :node-outline-key id
+                   :label id
+                   :icon (or (not-empty (:icon source-outline)) unknown-icon)
+                   :outline-overridden? overridden?
+                   :children (:children source-outline)}
+                  (cond->
+                    (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true)
+                    source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id id pose scene]
                                 (game-object-common/component-scene _node-id id pose scene)))
@@ -310,23 +310,23 @@
                                   (concat
                                     connect-tx-data
                                     (g/override comp-node {:traverse-fn g/always-override-traverse-fn}
-                                                (fn [evaluation-context id-mapping]
-                                                  (let [or-comp-node (get id-mapping comp-node)
-                                                        comp-props (if created-in-tx
-                                                                     {}
-                                                                     (:properties (g/node-value comp-node :_properties evaluation-context)))]
-                                                    (concat
-                                                      (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                        (for [[from to] [[:_node-id :source-id]
-                                                                         [:resource :source-resource]
-                                                                         [:node-outline :source-outline]
-                                                                         [:_properties :source-properties]
-                                                                         [:scene :scene]
-                                                                         [:build-targets :source-build-targets]
-                                                                         [:resource-property-build-targets :resource-property-build-targets]]
-                                                              :when (contains? outputs from)]
-                                                          (g/connect or-comp-node from self to)))
-                                                      (properties/apply-property-overrides workspace id-mapping comp-props (:overrides new-value)))))))]))
+                                      (fn [evaluation-context id-mapping]
+                                        (let [or-comp-node (get id-mapping comp-node)
+                                              comp-props (if created-in-tx
+                                                           {}
+                                                           (:properties (g/node-value comp-node :_properties evaluation-context)))]
+                                          (concat
+                                            (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                                              (for [[from to] [[:_node-id :source-id]
+                                                               [:resource :source-resource]
+                                                               [:node-outline :source-outline]
+                                                               [:_properties :source-properties]
+                                                               [:scene :scene]
+                                                               [:build-targets :source-build-targets]
+                                                               [:resource-property-build-targets :resource-property-build-targets]]
+                                                    :when (contains? outputs from)]
+                                                (g/connect or-comp-node from self to)))
+                                            (properties/apply-property-overrides workspace id-mapping comp-props (:overrides new-value)))))))]))
                              (let [old-resource (:resource old-value)
                                    new-resource (:resource new-value)
                                    connections [[:resource :source-resource]
@@ -351,13 +351,13 @@
   (output build-targets g/Any produce-referenced-component-build-targets)
   (output ddf-properties g/Any :cached
           (g/fnk [source-properties]
-                 (let [prop-order (into {} (map-indexed (fn [i k] [k i])) (:display-order source-properties))]
-                   (->> source-properties
-                        :properties
-                        (filter (fn [[_ p]] (contains? p :original-value)))
-                        (sort-by (comp prop-order first))
-                        (into [] (keep properties/property-entry->go-prop))
-                        (not-empty)))))
+            (let [prop-order (into {} (map-indexed (fn [i k] [k i])) (:display-order source-properties))]
+              (->> source-properties
+                   :properties
+                   (filter (fn [[_ p]] (contains? p :original-value)))
+                   (sort-by (comp prop-order first))
+                   (into [] (keep properties/property-entry->go-prop))
+                   (not-empty)))))
   (output ddf-message g/Any (g/fnk [id position rotation scale source-resource ddf-properties]
                               (gen-ref-ddf id position rotation scale source-resource ddf-properties))))
 
@@ -477,9 +477,9 @@
                              :properties properties})))
                   ref-ddf)))
   (output id-counts g/Any :cached (g/fnk [component-id-pairs]
-                                         (reduce (fn [res id]
-                                                   (update res id (fn [id] (inc (or id 0)))))
-                                                 {} (map first component-id-pairs)))))
+                                    (reduce (fn [res id]
+                                              (update res id (fn [id] (inc (or id 0)))))
+                                            {} (map first component-id-pairs)))))
 
 (defn- gen-component-id [go-node base]
   (id/gen base (e/map first (g/node-value go-node :component-ids))))
