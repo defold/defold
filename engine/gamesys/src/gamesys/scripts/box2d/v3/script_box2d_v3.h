@@ -61,7 +61,8 @@ namespace dmGameSystem
     }
 
     b2BodyId*   CheckBody(struct lua_State* L, int index);
-    void        PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id);
+    void        PushBody(struct lua_State* L, void* body, dmGameObject::HGameObject instance);
+    dmGameObject::HGameObject GetBodyInstance(b2BodyId body);
     b2WorldId*  CheckWorld(struct lua_State* L, int index);
     b2ShapeId*  CheckShapeId(struct lua_State* L, int index);
     b2ShapeId*  ToShapeId(struct lua_State* L, int index);
@@ -69,7 +70,7 @@ namespace dmGameSystem
     b2ShapeId   GetShapeByIndex(b2BodyId body, int shape_index);
     int         GetShapeIndex(b2BodyId body, b2ShapeId shape);
     bool        IsJointTracked(b2JointId joint_id);
-    void        PushJoint(struct lua_State* L, b2JointId joint_id, dmGameObject::HCollection collection);
+    void        PushJoint(struct lua_State* L, b2JointId joint_id);
     void        PushWorldId(struct lua_State* L, b2WorldId world_id);
     void        PushChain(struct lua_State* L, b2ChainId chain_id);
     void        PushShapeId(struct lua_State* L, b2ShapeId shape_id);

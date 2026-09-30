@@ -12,24 +12,31 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GUI_SCRIPT_H
-#define DM_GUI_SCRIPT_H
+#ifndef DMSDK_DEPRECATED_H
+#define DMSDK_DEPRECATED_H
 
-#include <script/script.h>
+/*# Deprecated API annotation
+ *
+ * Compiler-independent annotation for deprecated APIs.
+ *
+ * @document
+ * @name Deprecated
+ * @language C
+ */
 
-extern "C"
-{
-#include "lua/lua.h"
-#include "lua/lauxlib.h"
-}
-
-namespace dmGui
-{
-    lua_State* InitializeScript(dmScript::HContext script_context);
-    void FinalizeScript(lua_State* L, dmScript::HContext script_context);
-
-    // Stores opaque data in the GUI script-instance metatable. The data must outlive the script context.
-    void SetScriptInstanceMetaData(dmScript::HContext script_context, const char* name, void* data);
-}
-
+/*# deprecated API annotation
+ * Marks an API as deprecated and emits a compiler warning when it is used.
+ *
+ * @macro
+ * @name DM_DEPRECATED
+ * @param message [type:string] deprecation message
+ */
+#if defined(_MSC_VER)
+#define DM_DEPRECATED(message) __declspec(deprecated(message))
+#elif defined(__GNUC__) || defined(__clang__)
+#define DM_DEPRECATED(message) __attribute__((deprecated(message)))
+#else
+#define DM_DEPRECATED(message)
 #endif
+
+#endif // DMSDK_DEPRECATED_H
