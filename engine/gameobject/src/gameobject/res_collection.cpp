@@ -262,8 +262,8 @@ bail:
         size_t size = sizeof(Collection) + sizeof(CollectionResource);
         size += collection->m_InstanceIndices.Capacity()*sizeof(uint32_t);
         size += collection->m_WorldTransforms.Capacity()*sizeof(Matrix4);
-        size += collection->m_IDToInstance.Capacity()*(sizeof(HInstance)+sizeof(dmhash_t));
-        size += collection->m_InputFocusStack.Capacity()*sizeof(HInstance);
+        size += collection->m_IDToInstance.Capacity()*(sizeof(HGameObject)+sizeof(dmhash_t));
+        size += collection->m_InputFocusStack.Capacity()*sizeof(HGameObject);
         size += collection->m_Instances.Capacity()*sizeof(Instance*);
         return size;
     }

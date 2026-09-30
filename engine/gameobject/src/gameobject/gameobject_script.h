@@ -74,7 +74,7 @@ namespace dmGameObject
     struct ScriptInstance
     {
         HScript     m_Script;
-        HInstance   m_Instance;
+        HGameObject m_Instance;
         CompScriptWorld* m_World;
         HProperties m_Properties;
 
