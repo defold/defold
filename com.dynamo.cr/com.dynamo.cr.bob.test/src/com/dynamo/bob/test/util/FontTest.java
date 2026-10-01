@@ -589,6 +589,35 @@ public class FontTest {
     }
 
     @Test
+    public void testStandaloneCompilerWritesSdfSettings() throws Exception {
+        File root = temporaryFolder.newFolder("standalone-sdf");
+        try (InputStream input = getClass().getResourceAsStream("Tuffy.ttf")) {
+            java.nio.file.Files.copy(input, new File(root, "Tuffy.ttf").toPath());
+        }
+        FontDesc desc = FontDesc.newBuilder()
+            .setFont("/Tuffy.ttf").setMaterial("/font-df.material")
+            .setSize(24).setCharacters("H")
+            .setOutlineWidth(0.5f).setShadowBlur(3)
+            .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD).build();
+        java.nio.file.Files.writeString(new File(root, "font-df.material").toPath(), "");
+        File input = new File(root, "test.font");
+        File output = new File(root, "test.fontc");
+        java.nio.file.Files.writeString(input.toPath(), desc.toString());
+
+        Fontc.main(new String[] { input.getAbsolutePath(), output.getAbsolutePath(), root.getAbsolutePath(), "false" });
+
+        FontMap map = FontMap.parseFrom(java.nio.file.Files.readAllBytes(output.toPath()));
+        GlyphBank bank = GlyphBank.parseFrom(java.nio.file.Files.readAllBytes(new File(root, "test.glyph_bankc").toPath()));
+        assertTrue(map.hasSdfSpread());
+        assertTrue(map.hasSdfOutline());
+        assertTrue(map.hasSdfShadow());
+        assertEquals(6.5f, map.getSdfSpread(), EPSILON);
+        assertEquals(bank.getSdfSpread(), map.getSdfSpread(), EPSILON);
+        assertEquals(bank.getSdfOutline(), map.getSdfOutline(), EPSILON);
+        assertEquals(bank.getSdfShadow(), map.getSdfShadow(), EPSILON);
+    }
+
+    @Test
     public void testNativeDistanceFieldSingleChannelGlyphBank() throws Exception {
         FontDesc fontDesc = FontDesc.newBuilder()
             .setFont("Tuffy.ttf")

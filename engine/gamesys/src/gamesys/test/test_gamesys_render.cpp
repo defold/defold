@@ -1277,6 +1277,8 @@ TEST_F(MiscTests, MaterialModule)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+#if defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+// Verify the Lua compute module on targets that compile and register that API.
 TEST_F(MiscTests, ComputeModule)
 {
     dmGameSystem::ComputeResource* compute_program_res;
@@ -1293,6 +1295,8 @@ TEST_F(MiscTests, ComputeModule)
 
     dmResource::Release(m_Factory, compute_program_res);
 }
+#endif
+
 TEST_F(MaterialTest, TestUniformBuffersLayout)
 {
     dmGameSystem::MaterialResource* material_res;
@@ -2433,7 +2437,7 @@ TEST_F(ModelTest, MeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/material_local_vertexspace.materialc", (void**) &override_material_resource));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     uint32_t component_type;
     dmGameObject::HComponent component;
@@ -2505,7 +2509,7 @@ TEST_F(ModelTest, MeshAttributeRenderDataPurgeAcrossFrameTickWrap)
     // more than 30 unused ticks, even when the counter wraps from 254 to 0.
     // Ordinary subtraction would produce a negative age after wrap and delay cleanup.
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     uint32_t component_type;
     dmGameObject::HComponent component;

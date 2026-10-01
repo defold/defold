@@ -305,6 +305,12 @@ jobs:
       - name: "Verify emsdk"
         if: matrix.emsdk
         run: "emcc -v && export | grep EM"
+      - name: "Setup Node for WASM tests"
+        if: matrix.platform == 'wasm-web'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.0.1
+        with:
+          node-version: '22'
+          package-manager-cache: false
       - name: "Set up Android SDK"
         if: matrix.android
         uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7 # untagged pinned SHA
@@ -384,6 +390,29 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
         run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
+      # Run browser lifecycle tests separately while the regular engine tests are skipped.
+      - name: "Install browser test dependencies"
+        if: matrix.platform == 'wasm-web'
+        working-directory: engine/platform/src/test/browser
+        run: |
+          npm ci
+          npx playwright install --with-deps --no-shell chromium
+      - name: "Run native window browser tests"
+        if: matrix.platform == 'wasm-web'
+        timeout-minutes: 5
+        run: |
+          source ci/env.sh
+          cmake -S . -B engine/build/wasm-web -DBUILD_TESTS=ON
+          xvfb-run --auto-servernum cmake --build engine/build/wasm-web --target run_test_native_web_browser
+      - name: "Upload browser test results"
+        if: "!cancelled() && matrix.platform == 'wasm-web'"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-window-browser-wasm-web
+          path: |
+            engine/platform/src/test/browser/playwright-report
+            engine/platform/src/test/browser/test-results
+          retention-days: 7
       - name: "Upload build reports"
         if: always() && runner.os == 'Linux' && endsWith(matrix.platform, '-linux')
         uses: ./.github/actions/upload-build-reports

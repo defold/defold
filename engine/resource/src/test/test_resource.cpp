@@ -1245,6 +1245,17 @@ static void ResourceReloadedHttpCallback(const dmResource::ResourceReloadedParam
     }
 }
 
+static dmThread::Thread SendReload(ReloadedContext* context)
+{
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+    SendReloadThread(context);
+    return 0;
+#else
+    return dmThread::New(&SendReloadThread, 0x8000, context, "reload");
+#endif
+}
+
+// Verify queued reloads and missing-resource callbacks, including on single-thread web builds.
 TEST(RecreateTest, RecreateTestHttp)
 {
     dmResource::NewFactoryParams params;
@@ -1289,7 +1300,7 @@ TEST(RecreateTest, RecreateTestHttp)
     state.m_Reloaded = &send_reload_done;
     dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedHttpCallback, &state);
 
-    dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
+    dmThread::Thread send_thread = SendReload(0);
 
     uint64_t t_start = dmTime::GetMonotonicTime();
     do
@@ -1305,7 +1316,8 @@ TEST(RecreateTest, RecreateTestHttp)
         }
     } while (!dmAtomicGet32(&send_reload_done));
 
-    dmThread::Join(send_thread);
+    if (send_thread)
+        dmThread::Join(send_thread);
 
     ASSERT_EQ(456, *resource);
 
@@ -1314,7 +1326,7 @@ TEST(RecreateTest, RecreateTestHttp)
     dmSys::Unlink(host_name);
 
     send_reload_done = 0;
-    send_thread = dmThread::New(&SendReloadThread, 0x8000, (void*)&state, "reload");
+    send_thread = SendReload(&state);
 
     do
     {
@@ -1322,7 +1334,8 @@ TEST(RecreateTest, RecreateTestHttp)
         dmResource::UpdateFactory(factory);
     } while (!dmAtomicGet32(&send_reload_done));
 
-    dmThread::Join(send_thread);
+    if (send_thread)
+        dmThread::Join(send_thread);
 
     dmResource::Result rr = dmResource::ReloadResource(factory, resource_name, 0);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);

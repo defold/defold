@@ -575,20 +575,20 @@
 
 (def open-gl-android-toggles
   (concat
-    (libs-toggles android ["graphics_opengles" "dmglfw"])
-    (exclude-libs-toggles android ["dmglfw_vulkan"])
+    (libs-toggles android ["graphics_opengles" "platform"])
+    (exclude-libs-toggles android ["platform_vulkan"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"])))
 
 ;; Vulkan-only Android: graphics_vulkan + Vulkan adapter. libvulkan.so is loaded
 ;; dynamically at runtime, so none of the Android choices should link -lvulkan.
-;; Use dmglfw_vulkan to avoid linking the Android OpenGL ES/EGL system libs.
+;; Use platform_vulkan to avoid linking the Android OpenGL ES/EGL system libs.
 ;; Order: :both (GLES+Vulkan), then :open-gl (GLES-only), then :vulkan (Vulkan-only).
 ;; Final :both is :none — empty / unspecified Android context defaults to GLES+Vulkan.
 (def vulkan-android-toggles
   (concat
-    (libs-toggles android ["graphics_vulkan" "dmglfw_vulkan"])
-    (exclude-libs-toggles android ["graphics_opengles" "dmglfw"])
+    (libs-toggles android ["graphics_vulkan" "platform_vulkan"])
+    (exclude-libs-toggles android ["graphics_opengles" "platform"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :excludeDynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"])))
@@ -596,8 +596,8 @@
 (def graphics-setting-android
   (make-choice-setting
     :both (concat
-            (libs-toggles android ["graphics_opengles" "graphics_vulkan" "dmglfw"])
-            (exclude-libs-toggles android ["dmglfw_vulkan"])
+            (libs-toggles android ["graphics_opengles" "graphics_vulkan" "platform"])
+            (exclude-libs-toggles android ["platform_vulkan"])
             (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"])
             (generic-contains-toggles android :excludeDynamicLibs ["vulkan"])
             (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"]))
@@ -788,6 +788,18 @@
           manifest
           (conj windows :win32)))
 
+(defn- migrate-mobile-library-names [manifest]
+  (reduce (fn [manifest platform]
+            (reduce (fn [manifest key]
+                      (if-let [libs (get-in-guarded manifest :platforms map? platform map? :context map? key vector?)]
+                        (assoc-in manifest [:platforms platform :context key]
+                                  (mapv #(get AppManifestMigration/NATIVE_PLATFORM_LIBRARY_NAMES % %) libs))
+                        manifest))
+                    manifest
+                    [:excludeLibs :libs :engineLibs]))
+          manifest
+          (into #{:android :ios :web} cat [android ios web])))
+
 (defn- migrate-macos-vulkan-platform [manifest]
   ;; platform_vulkan replaces the new default platform library. Keep old
   ;; explicit Vulkan manifests recognizable and link only the selected variant.
@@ -865,6 +877,7 @@
         (when-not (g/error? manifest)
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
+                                      migrate-mobile-library-names
                                       migrate-macos-vulkan-platform
                                       migrate-simulator-graphics
                                       migrate-bullet3d-exclusions)]
