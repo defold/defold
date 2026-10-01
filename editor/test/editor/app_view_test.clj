@@ -18,6 +18,8 @@
             [editor.console :as console]
             [editor.targets :as targets]))
 
+;; Verify engine metadata updates the launched target even after startup output,
+;; guarding against missing a DAP port announced after the old output limit.
 (deftest launched-log-sink-port-discovery-test
   (let [target
         {:id "engine"

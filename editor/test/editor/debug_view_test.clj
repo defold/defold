@@ -214,6 +214,8 @@
               (is (= (str frame-id) (some-> item .getValue :display-value))))))
         (is (= [] @errors))))))
 
+;; Verify breakpoint updates run one at a time and then send the latest snapshot,
+;; guarding against older background requests overwriting newer breakpoints.
 (deftest breakpoint-updates-are-serialized-test
   (let [session ::session
         breakpoints (atom #{1})
@@ -284,8 +286,8 @@
           ^ListView call-stack (ui/run-now (ListView.))
           view
           (g/make-node! debug-view/DebugView
-                        :debug-session session
-                        :call-stack-view call-stack)
+            :debug-session session
+            :call-stack-view call-stack)
 
           entries (atom [])]
       (ui/run-now

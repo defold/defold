@@ -481,6 +481,8 @@
       (is (= :closed (dap/status session)))
       (is (= {} (:pending @(:state session)))))))
 
+;; Verify callbacks can make blocking DAP requests while preserving event order,
+;; guarding against deadlocks when a callback waits for the protocol reader.
 (deftest callbacks-can-make-blocking-requests-test
   (let [result (future/make)
         order (atom [])]
@@ -505,6 +507,8 @@
         (is (= {} (dap/request! session "trigger" {})))
         (is (= ["first" {:result "callback response"} "second"] (await! result)))))))
 
+;; Verify concurrent requests receive their own responses and unique ordered
+;; sequence numbers, guarding against races in request tracking and output.
 (deftest concurrent-requests-test
   (with-adapter
     {}
@@ -521,6 +525,8 @@
           (is (apply < sequences)))
         (is (= {} (:pending @(:state session))))))))
 
+;; Verify a request timeout closes the session and clears pending requests,
+;; guarding against leaked sockets and accepting requests after disconnection.
 (deftest request-timeout-closes-session-test
   (with-adapter
     {}
