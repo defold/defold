@@ -147,8 +147,20 @@ namespace dmGameObject
      *
      * Data supplied to the global `on_input` lifecycle function.
      *
+     * The source identifies the input device category independently of the action
+     * name. Mouse input includes clicks simulated from touch; separate touch
+     * actions report `hash("touch")`. Text and marked-text input report
+     * `hash("text")`, including input entered with a physical keyboard.
+     *
+     * If an action merges contributions from several devices, the last contributing
+     * device processed wins, in keyboard, text, mouse, then touch order. Idle device
+     * polling does not change the source. Gamepad actions remain separate per
+     * controller. The unnamed action reports `hash("accelerometer")` when it
+     * contains accelerometer data, including when it also contains mouse movement.
+     *
      * @struct
      * @name on_input.action
+     * @member source [type:hash] Input device category: `hash("keyboard")`, `hash("text")`, `hash("mouse")`, `hash("touch")`, `hash("gamepad")`, or `hash("accelerometer")`.
      * @member value? [type:number] Amount of input, usually 1 for buttons or between 0 and 1 for analogue input; absent for pointer movement and text input.
      * @member pressed? [type:boolean] Whether the input was pressed this frame; absent for pointer movement and text input.
      * @member released? [type:boolean] Whether the input was released this frame; absent for pointer movement and text input.

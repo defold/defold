@@ -515,6 +515,9 @@ namespace dmGameObject
 
             int action_table = lua_gettop(L);
 
+            dmScript::PushInputSource(L, params.m_InputAction->m_Source);
+            lua_setfield(L, action_table, "source");
+
             if (params.m_InputAction->m_IsGamepad)
             {
                 lua_pushnumber(L, params.m_InputAction->m_GamepadIndex);

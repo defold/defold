@@ -2238,6 +2238,9 @@ namespace dmGui
 
                     lua_newtable(L);
 
+                    dmScript::PushInputSource(L, ia->m_Source);
+                    lua_setfield(L, -2, "source");
+
                     if (ia->m_IsGamepad) {
                         lua_pushnumber(L, ia->m_GamepadIndex);
                         lua_setfield(L, -2, "gamepad");

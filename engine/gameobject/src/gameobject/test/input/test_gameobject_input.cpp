@@ -258,6 +258,35 @@ TEST_F(InputTest, TestComponentInput4)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 }
 
+// Verifies every source hash reaches script callbacks, including the zero-initialized keyboard default.
+TEST_F(InputTest, ScriptInputSources)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input_source.goc");
+    ASSERT_NE(0, go);
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const char* names[] = {"keyboard", "text", "mouse", "touch", "gamepad", "accelerometer"};
+    const dmHID::InputSource sources[] = {
+        dmHID::INPUT_SOURCE_KEYBOARD, dmHID::INPUT_SOURCE_TEXT, dmHID::INPUT_SOURCE_MOUSE,
+        dmHID::INPUT_SOURCE_TOUCH, dmHID::INPUT_SOURCE_GAMEPAD, dmHID::INPUT_SOURCE_ACCELEROMETER,
+    };
+    dmGameObject::InputAction action;
+    ASSERT_EQ(dmHID::INPUT_SOURCE_KEYBOARD, action.m_Source);
+    action.m_ActionId = dmHashString64("test_action");
+    for (uint32_t i = 0; i < sizeof(sources) / sizeof(sources[0]); ++i)
+    {
+        lua_pushnil(L);
+        lua_setglobal(L, "input_source_received");
+        action.m_Source = sources[i];
+        ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &action, 1));
+        ASSERT_FALSE(action.m_Consumed);
+        lua_getglobal(L, "input_source_received");
+        ASSERT_TRUE(dmScript::IsHash(L, -1));
+        ASSERT_EQ(dmHashString64(names[i]), dmScript::CheckHash(L, -1));
+        lua_pop(L, 1);
+    }
+}
+
 TEST_F(InputTest, TextComponentTextInput)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_text_input.goc");

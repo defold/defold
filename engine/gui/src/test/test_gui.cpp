@@ -1895,6 +1895,39 @@ TEST_F(dmGuiTest, ScriptInput)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+// Verifies every source hash reaches GUI callbacks without changing input consumption.
+TEST_F(dmGuiTest, ScriptInputSources)
+{
+    const char* script = "function on_input(self, action_id, action)\n"
+                         "    assert(action_id == hash('test_action'))\n"
+                         "    input_source_received = action.source\n"
+                         "    return true\n"
+                         "end\n";
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetScript(m_Script, LuaSourceFromStr(script)));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const char* names[] = {"keyboard", "text", "mouse", "touch", "gamepad", "accelerometer"};
+    const dmHID::InputSource sources[] = {
+        dmHID::INPUT_SOURCE_KEYBOARD, dmHID::INPUT_SOURCE_TEXT, dmHID::INPUT_SOURCE_MOUSE,
+        dmHID::INPUT_SOURCE_TOUCH, dmHID::INPUT_SOURCE_GAMEPAD, dmHID::INPUT_SOURCE_ACCELEROMETER,
+    };
+    dmGui::InputAction action;
+    ASSERT_EQ(dmHID::INPUT_SOURCE_KEYBOARD, action.m_Source);
+    action.m_ActionId = dmHashString64("test_action");
+    for (uint32_t i = 0; i < sizeof(sources) / sizeof(sources[0]); ++i)
+    {
+        lua_pushnil(L);
+        lua_setglobal(L, "input_source_received");
+        action.m_Source = sources[i];
+        bool consumed = false;
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::DispatchInput(m_Scene, &action, 1, &consumed));
+        ASSERT_TRUE(consumed);
+        lua_getglobal(L, "input_source_received");
+        ASSERT_TRUE(dmScript::IsHash(L, -1));
+        ASSERT_EQ(dmHashString64(names[i]), dmScript::CheckHash(L, -1));
+        lua_pop(L, 1);
+    }
+}
+
 TEST_F(dmGuiTest, ScriptInputConsume)
 {
     const char* s = "function update(self)\n"

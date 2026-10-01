@@ -14,6 +14,8 @@
 
 #include "script.h"
 
+#include <assert.h>
+
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -43,6 +45,21 @@ DM_PROPERTY_GROUP(rmtp_Script, "", 0);
 
 namespace dmScript
 {
+    void PushInputSource(lua_State* L, uint32_t source)
+    {
+        // The order matches dmHID::InputSource.
+        static const dmhash_t hashes[] = {
+            dmHashString64("keyboard"),
+            dmHashString64("text"),
+            dmHashString64("mouse"),
+            dmHashString64("touch"),
+            dmHashString64("gamepad"),
+            dmHashString64("accelerometer"),
+        };
+        assert(source < sizeof(hashes) / sizeof(hashes[0]));
+        PushHash(L, hashes[source]);
+    }
+
     /*# Built-ins API documentation
      *
      * Built-in scripting functions.

@@ -60,7 +60,8 @@ namespace dmInput
         uint16_t m_AccelerationSet : 1;
         uint16_t m_HasText : 1;
         uint16_t m_Dirty : 1; // it's dirty and should report its value
-        uint16_t : 4;
+        uint16_t m_Source : 3; // dmHID::InputSource
+        uint16_t : 1;
     };
 
     typedef struct Context* HContext;

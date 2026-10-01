@@ -126,6 +126,7 @@ namespace dmInput
         Action action;
         memset(&action, 0, sizeof(Action));
         action.m_IsGamepad = 1;
+        action.m_Source = dmHID::INPUT_SOURCE_GAMEPAD;
         action.m_GamepadUnknown = gamepad_binding->m_Unknown;
 
         gamepad_binding->m_Index = gamepad_index;
@@ -937,6 +938,7 @@ namespace dmInput
 
     void ClearAction(void*, const dmhash_t* id, Action* action)
     {
+        // Keep the source for generated releases, including the frame after a wheel pulse.
         action->m_PrevValue = action->m_Value;
         action->m_Value = 0.0f;
         action->m_PositionSet = 0;
@@ -994,6 +996,10 @@ namespace dmInput
                     Action* action = binding->m_Actions.Get(trigger.m_ActionId);
                     if (action != 0x0)
                     {
+                        if (v != 0.0f || dmHID::GetKey(prev_packet, KEY_MAP[trigger.m_Input]))
+                        {
+                            action->m_Source = dmHID::INPUT_SOURCE_KEYBOARD;
+                        }
                         if (dmMath::Abs(action->m_Value) < v)
                         {
                             action->m_Value = v;
@@ -1025,6 +1031,10 @@ namespace dmInput
                             }
                             action->m_Count = text_packet->m_Size;
                             action->m_HasText = action->m_Count > 0;
+                            if (action->m_HasText)
+                            {
+                                action->m_Source = dmHID::INPUT_SOURCE_TEXT;
+                            }
                         }
                     }
                 }
@@ -1047,6 +1057,10 @@ namespace dmInput
                             }
                             action->m_Count = marked_packet->m_Size;
                             action->m_HasText = marked_packet->m_HasText || action->m_Count > 0;
+                            if (action->m_HasText)
+                            {
+                                action->m_Source = dmHID::INPUT_SOURCE_TEXT;
+                            }
                         }
                     }
                 }
@@ -1064,6 +1078,7 @@ namespace dmInput
                 {
                     const MouseTrigger& trigger = triggers[i];
                     float v = 0.0f;
+                    bool released = false;
                     switch (trigger.m_Input)
                     {
                     case dmInputDDF::MOUSE_WHEEL_UP:
@@ -1074,6 +1089,7 @@ namespace dmInput
                         break;
                     default:
                         v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
+                        released = v == 0.0f && dmHID::GetMouseButton(prev_packet, MOUSE_BUTTON_MAP[trigger.m_Input]);
                         break;
                     }
 
@@ -1082,6 +1098,10 @@ namespace dmInput
 
                     if (action != 0x0)
                     {
+                        if (v != 0.0f || released)
+                        {
+                            action->m_Source = dmHID::INPUT_SOURCE_MOUSE;
+                        }
                         if (dmMath::Abs(action->m_Value) < v)
                         {
                             action->m_Value = v;
@@ -1104,6 +1124,10 @@ namespace dmInput
                     action->m_DX = packet->m_PositionX - prev_packet->m_PositionX;
                     action->m_DY = packet->m_PositionY - prev_packet->m_PositionY;
                     action->m_PositionSet = 1;
+                    if (action->m_DX != 0 || action->m_DY != 0)
+                    {
+                        action->m_Source = dmHID::INPUT_SOURCE_MOUSE;
+                    }
                 }
 
                 *prev_packet = *packet;
@@ -1288,6 +1312,10 @@ namespace dmInput
                         // was minimized, giving continuous strokes of input
 
                         int32_t tn = packet->m_TouchCount;
+                        if (tn > 0)
+                        {
+                            action->m_Source = dmHID::INPUT_SOURCE_TOUCH;
+                        }
                         // NOTE: We assume dmHID::MAX_TOUCH_COUNT for both source and destination here
                         assert(tn <= (int32_t) (sizeof(action->m_Touch) / sizeof(action->m_Touch[0])));
                         action->m_Value = 0;
@@ -1329,6 +1357,7 @@ namespace dmInput
                     action->m_AccY = packet->m_Y;
                     action->m_AccZ = packet->m_Z;
                     action->m_AccelerationSet = 1;
+                    action->m_Source = dmHID::INPUT_SOURCE_ACCELEROMETER;
                     *prev_packet = *packet;
                 }
             }
