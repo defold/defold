@@ -18,7 +18,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/thread.h>
-#include <glfw/glfw.h>
+#include <platform/platform_app.h>
 #include <dmsdk/dlib/android.h>
 #endif
 
@@ -77,7 +77,7 @@ static void EngineMainThread(void* ctx)
 
 static int WaitForWindow()
 {
-    while (glfwAndroidWindowOpened() == 0)
+    while (!dmPlatform::AndroidIsWindowOpened())
     {
         void* data = NULL;
         int ident = ALooper_pollOnce(300, NULL, NULL, &data);
@@ -94,7 +94,7 @@ static int WaitForWindow()
             return 0;
         }
 
-        glfwAndroidFlushEvents();
+        dmPlatform::AndroidFlushEvents();
         if (app->destroyRequested) {
             return 0;
         }
@@ -116,8 +116,7 @@ int engine_main(int argc, char *argv[])
     struct android_app* app = dmAndroid::GetAndroidApp();
     assert(app);
 
-    app->onAppCmd = glfwAndroidHandleCommand;
-    app->onInputEvent = glfwAndroidHandleInput;
+    dmPlatform::AndroidSetAppCallbacks(app);
 
     // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
     if (!WaitForWindow())
@@ -127,9 +126,9 @@ int engine_main(int argc, char *argv[])
         return 0;
     }
 
-    if (!glfwInit())
+    if (!dmPlatform::AndroidInit())
     {
-        dmLogWarning("Could not initialize GLFW.");
+        dmLogWarning("Could not initialize the Android platform.");
         return 0;
     }
 
@@ -140,7 +139,7 @@ int engine_main(int argc, char *argv[])
     dmThread::Thread t = dmThread::New(EngineMainThread, stacksize, &args, "engine_main");
     while (!args.m_Finished)
     {
-        glfwAndroidPollEvents();
+        dmPlatform::AndroidPollEvents();
         dmTime::Sleep(0);
         if (app->destroyRequested) {
             // App requested exit. It doesn't wait when thread work finished because app is in background already.
@@ -150,7 +149,7 @@ int engine_main(int argc, char *argv[])
     }
     dmThread::Join(t);
 
-    glfwTerminate();
+    dmPlatform::AndroidTerminate();
     return args.m_ExitCode;
 }
 

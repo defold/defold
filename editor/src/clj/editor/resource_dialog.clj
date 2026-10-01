@@ -143,8 +143,8 @@
                        :path icon
                        :size 16.0}
                       (fuzzy-choices/make-matched-text-flow-cljfx text matching-indices)]
-                     children
-                     (into children))})
+               children
+               (into children))})
 
 (defn make [workspace project options]
   (let [evaluation-context (g/make-evaluation-context)
@@ -173,8 +173,8 @@
                                                      :icon icon
                                                      :text text
                                                      :matching-indices matching-indices}}
-                                          tooltip
-                                          (assoc :tooltip tooltip))))
+                                    tooltip
+                                    (assoc :tooltip tooltip))))
                      :filter-fn (fn filter-fn [filter-value items]
                                   (let [[command arg] (let [parts (string/split filter-value #":")]
                                                         (if (< 1 (count parts))

@@ -55,8 +55,8 @@
                        save-value (g/node-value resource-node-id :save-value evaluation-context)]
                    (pair proj-path
                          (cond-> save-value
-                                 (not (g/error-value? save-value))
-                                 (simplify-save-value (resource/type-ext resource))))))))))))
+                           (not (g/error-value? save-value))
+                           (simplify-save-value (resource/type-ext resource))))))))))))
 
 (defn- pull-up-overrides-plan-alternatives
   [source-node-id source-prop-kws]

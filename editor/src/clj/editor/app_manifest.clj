@@ -212,17 +212,17 @@
            ~value-sym (if (not (~pred ~value-sym))
                         ~fix
                         ~value-sym)]
-      ~(reduce
-         (fn [form [k pred fix]]
-           `(let [~map-sym ~value-sym
-                  ~value-sym (get ~map-sym ~k ::not-found)
-                  ~value-sym (if (or (identical? ~value-sym ::not-found)
-                                     (not (~pred ~value-sym)))
-                               ~fix
-                               ~value-sym)]
-              (assoc ~map-sym ~k ~form)))
-         `(~f-expr ~value-sym)
-         (reverse forms)))))
+       ~(reduce
+          (fn [form [k pred fix]]
+            `(let [~map-sym ~value-sym
+                   ~value-sym (get ~map-sym ~k ::not-found)
+                   ~value-sym (if (or (identical? ~value-sym ::not-found)
+                                      (not (~pred ~value-sym)))
+                                ~fix
+                                ~value-sym)]
+               (assoc ~map-sym ~k ~form)))
+          `(~f-expr ~value-sym)
+          (reverse forms)))))
 
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
@@ -269,7 +269,6 @@
                  :context map? {}
                  key boolean? false
                  (constantly (if enabled value (not value)))))))
-
 
 ;; endregion
 
@@ -322,7 +321,7 @@
                                                        (mapcat second)
                                                        (map #(get-toggle-value manifest %)))
                                                      choices)))]
-         (if all-toggles-unify-to-nil nil none))))))
+          (if all-toggles-unify-to-nil nil none))))))
 
 (defn set-setting-value [manifest setting value]
   (case (:setting setting)
@@ -342,8 +341,8 @@
                                              (mapcat second))
                                            choices))]
               (as-> manifest $
-                    (reduce #(set-toggle-value %1 %2 false) $ disabled-toggles)
-                    (reduce #(set-toggle-value %1 %2 true) $ enabled-toggles)))))
+                (reduce #(set-toggle-value %1 %2 false) $ disabled-toggles)
+                (reduce #(set-toggle-value %1 %2 true) $ enabled-toggles)))))
 
 (defn setting-property-setter [setting]
   (fn [_evaluation-context self old new]
@@ -552,7 +551,6 @@
     :rig   (concat (libs-toggles all-platforms ["gamesys_model_null"])   (exclude-libs-toggles all-platforms ["gamesys_model"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
     :model))
 
-
 (def generic-vulkan
   (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
@@ -577,20 +575,20 @@
 
 (def open-gl-android-toggles
   (concat
-    (libs-toggles android ["graphics_opengles" "dmglfw"])
-    (exclude-libs-toggles android ["dmglfw_vulkan"])
+    (libs-toggles android ["graphics_opengles" "platform"])
+    (exclude-libs-toggles android ["platform_vulkan"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"])))
 
 ;; Vulkan-only Android: graphics_vulkan + Vulkan adapter. libvulkan.so is loaded
 ;; dynamically at runtime, so none of the Android choices should link -lvulkan.
-;; Use dmglfw_vulkan to avoid linking the Android OpenGL ES/EGL system libs.
+;; Use platform_vulkan to avoid linking the Android OpenGL ES/EGL system libs.
 ;; Order: :both (GLES+Vulkan), then :open-gl (GLES-only), then :vulkan (Vulkan-only).
 ;; Final :both is :none — empty / unspecified Android context defaults to GLES+Vulkan.
 (def vulkan-android-toggles
   (concat
-    (libs-toggles android ["graphics_vulkan" "dmglfw_vulkan"])
-    (exclude-libs-toggles android ["graphics_opengles" "dmglfw"])
+    (libs-toggles android ["graphics_vulkan" "platform_vulkan"])
+    (exclude-libs-toggles android ["graphics_opengles" "platform"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :excludeDynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"])))
@@ -598,8 +596,8 @@
 (def graphics-setting-android
   (make-choice-setting
     :both (concat
-            (libs-toggles android ["graphics_opengles" "graphics_vulkan" "dmglfw"])
-            (exclude-libs-toggles android ["dmglfw_vulkan"])
+            (libs-toggles android ["graphics_opengles" "graphics_vulkan" "platform"])
+            (exclude-libs-toggles android ["platform_vulkan"])
             (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"])
             (generic-contains-toggles android :excludeDynamicLibs ["vulkan"])
             (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"]))
@@ -734,8 +732,8 @@
   (make-choice-setting
     :web-gpu (concat
                webgpu-toggles
-              (exclude-libs-toggles web ["graphics"])
-              (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
+               (exclude-libs-toggles web ["graphics"])
+               (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
     :both webgpu-toggles
     :web-gl))
 
@@ -789,6 +787,18 @@
                     [:excludeLibs :libs :engineLibs]))
           manifest
           (conj windows :win32)))
+
+(defn- migrate-mobile-library-names [manifest]
+  (reduce (fn [manifest platform]
+            (reduce (fn [manifest key]
+                      (if-let [libs (get-in-guarded manifest :platforms map? platform map? :context map? key vector?)]
+                        (assoc-in manifest [:platforms platform :context key]
+                                  (mapv #(get AppManifestMigration/NATIVE_PLATFORM_LIBRARY_NAMES % %) libs))
+                        manifest))
+                    manifest
+                    [:excludeLibs :libs :engineLibs]))
+          manifest
+          (into #{:android :ios :web} cat [android ios web])))
 
 (defn- migrate-macos-vulkan-platform [manifest]
   ;; platform_vulkan replaces the new default platform library. Keep old
@@ -867,6 +877,7 @@
         (when-not (g/error? manifest)
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
+                                      migrate-mobile-library-names
                                       migrate-macos-vulkan-platform
                                       migrate-simulator-graphics
                                       migrate-bullet3d-exclusions)]

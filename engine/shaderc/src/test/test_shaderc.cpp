@@ -423,6 +423,11 @@ TEST(Shaderc, Types)
     AssertResourceMember(&data_types->m_Members[10], "type_uvec3", 224, dmShaderc::BASE_TYPE_UINT32, 3);
     AssertResourceMember(&data_types->m_Members[11], "type_uvec4", 240, dmShaderc::BASE_TYPE_UINT32, 4);
 
+    ASSERT_EQ(1, reflection->m_UniformBuffers.Size());
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_READ, reflection->m_UniformBuffers[0].m_AccessFlags);
+    ASSERT_EQ(1, reflection->m_Outputs.Size());
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_WRITE, reflection->m_Outputs[0].m_AccessFlags);
+
     ASSERT_EQ(12, reflection->m_Textures.Size());
     AssertTexture(reflection, "type_sampler2D", dmShaderc::BASE_TYPE_SAMPLED_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
     AssertTexture(reflection, "type_sampler3D", dmShaderc::BASE_TYPE_SAMPLED_IMAGE, dmShaderc::DIMENSION_TYPE_3D, false);
@@ -436,6 +441,11 @@ TEST(Shaderc, Types)
     AssertTexture(reflection, "type_uimage2D", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
     AssertTexture(reflection, "type_image2D", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
     AssertTexture(reflection, "type_sampler", dmShaderc::BASE_TYPE_SAMPLER, (dmShaderc::DimensionType) 0, false);
+
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_READ,
+              GetShaderResource(reflection->m_Textures, dmHashString64("type_sampler2D"))->m_AccessFlags);
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_READ | dmShaderc::SHADER_RESOURCE_ACCESS_WRITE,
+              GetShaderResource(reflection->m_Textures, dmHashString64("type_image2D"))->m_AccessFlags);
 
     dmShaderc::DeleteShaderContext(shader_ctx);
     free(data);
@@ -455,6 +465,8 @@ TEST(Shaderc, SSBO)
 #endif
 
     ASSERT_EQ(1, reflection->m_StorageBuffers.Size());
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_READ | dmShaderc::SHADER_RESOURCE_ACCESS_WRITE,
+              reflection->m_StorageBuffers[0].m_AccessFlags);
 
     const dmShaderc::ResourceTypeInfo* type_ssbo = GetType(reflection, dmHashString64("Test"));
     ASSERT_NE((void*) 0, type_ssbo);
@@ -479,6 +491,22 @@ TEST(Shaderc, SSBO)
     ASSERT_EQ(0, member->m_Type.m_UseTypeIndex);
     ASSERT_EQ(4, member->m_Type.m_VectorSize);
     ASSERT_EQ(dmShaderc::BASE_TYPE_FP32, member->m_Type.m_BaseType);
+
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
+TEST(Shaderc, SSBOReadOnlyReflection)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/ssbo_readonly.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
+
+    ASSERT_EQ(1, reflection->m_StorageBuffers.Size());
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_READ, reflection->m_StorageBuffers[0].m_AccessFlags);
 
     dmShaderc::DeleteShaderContext(shader_ctx);
     free(data);
@@ -611,6 +639,77 @@ TEST(Shaderc, TestHLSLSimple)
     dmShaderc::DeleteShaderContext(shader_ctx);
     free(data);
 }
+
+static bool BufferContains(const uint8_t* data, uint32_t data_size, const char* text)
+{
+    const uint32_t text_size = (uint32_t) strlen(text);
+    if (text_size > data_size)
+        return false;
+    for (uint32_t i = 0; i <= data_size - text_size; ++i)
+        if (memcmp(data + i, text, text_size) == 0)
+            return true;
+    return false;
+}
+
+static void TestHLSLStorageBufferType(const char* path, const char* expected_type, const char* expected_register)
+{
+    uint32_t data_size;
+    void* data = ReadFile(path, &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::ShaderCompilerSPVC* compiler = dmShaderc::NewShaderCompilerSPVC(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version    = 51;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::CompileSPVC(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_NE((void*) 0, result->m_Data.Begin());
+    ASSERT_TRUE(BufferContains(result->m_Data.Begin(), result->m_Data.Size(), expected_type));
+    ASSERT_TRUE(BufferContains(result->m_Data.Begin(), result->m_Data.Size(), expected_register));
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompilerSPVC(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
+TEST(Shaderc, TestHLSLStorageBuffersUseByteAddressResources)
+{
+    TestHLSLStorageBufferType("./build/src/test/data/ssbo.spv", "RWByteAddressBuffer", "register(u0, space0)");
+    TestHLSLStorageBufferType("./build/src/test/data/ssbo_readonly.spv", "ByteAddressBuffer", "register(t3, space2)");
+}
+
+#if defined(_WIN32)
+TEST(Shaderc, TestHLSLStorageBufferResourceMapping)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/ssbo_readonly.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version    = 51;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_STREQ("", result->m_LastError);
+    ASSERT_EQ(1, result->m_HLSLResourceMappings.Size());
+    ASSERT_EQ(2, result->m_HLSLResourceMappings[0].m_ShaderResourceSet);
+    ASSERT_EQ(3, result->m_HLSLResourceMappings[0].m_ShaderResourceBinding);
+    ASSERT_GT(result->m_HLSLRootSignature.Size(), 0u);
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+#endif
 
 TEST(Shaderc, TestMetal)
 {

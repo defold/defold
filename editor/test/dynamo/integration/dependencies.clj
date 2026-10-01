@@ -80,12 +80,12 @@
   (inherits OutlineNode)
 
   (property resource g/Keyword
-    (value (g/fnk [source-resource] source-resource))
-    (set (fn [_evaluation-context self old-value new-value]
-           (let [node (find-node self new-value)]
-             (concat
-               (g/connect node :resource self :source-resource)
-               (g/connect node :node-outline self :node-outline))))))
+            (value (g/fnk [source-resource] source-resource))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (let [node (find-node self new-value)]
+                     (concat
+                       (g/connect node :resource self :source-resource)
+                       (g/connect node :node-outline self :node-outline))))))
 
   (input source-resource g/Keyword)
   (input node-outline OutlineData)

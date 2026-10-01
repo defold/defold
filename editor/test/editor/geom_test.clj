@@ -31,15 +31,15 @@
 
 (defspec to-short-uv-works
   (prop/for-all [fuv gen-float]
-                (= (Geometry/toShortUV fuv) (geom/to-short-uv fuv))))
+    (= (Geometry/toShortUV fuv) (geom/to-short-uv fuv))))
 
 (deftest to-short-uv-problem-cases
   (testing "Avoid Clojure's off-by-one cases"
     (are [f-uv s-uv] (= s-uv (Geometry/toShortUV f-uv) (geom/to-short-uv f-uv))
-             0      0
-        1.3785  24804
-        6.3785  24799
-       -9.456  -29875
+      0      0
+      1.3785  24804
+      6.3785  24799
+      -9.456  -29875
       -21.0141   -903)))
 
 (def gen-point (gen/fmap (fn [[x y z]] (Point3d. x y z))
@@ -48,23 +48,23 @@
 (def gen-aabb (gen/fmap (fn [vs]
                           (let [[[x0 x1] [y0 y1] [z0 z1]] (map sort (partition 2 vs))]
                             (types/->AABB (Point3d. x0 y0 z0)
-                                    (Point3d. x1 y1 z1))))
+                                          (Point3d. x1 y1 z1))))
                         (gen/tuple gen/int gen/int gen/int
                                    gen/int gen/int gen/int)))
 
 (defspec aabb-union-reflexive
   (prop/for-all [aabb1 gen-aabb
                  aabb2 gen-aabb]
-                (= (geom/aabb-union aabb1 aabb2)
-                   (geom/aabb-union aabb2 aabb1))))
+    (= (geom/aabb-union aabb1 aabb2)
+       (geom/aabb-union aabb2 aabb1))))
 
 (defspec aabb-union-non-degenerate
   (prop/for-all [aabb1 gen-aabb
                  aabb2 gen-aabb]
-                (let [u (geom/aabb-union aabb1 aabb2)]
-                  (and (<= (.. u min x) (.. u max x))
-                       (<= (.. u min y) (.. u max y))
-                       (<= (.. u min z) (.. u max z))))))
+    (let [u (geom/aabb-union aabb1 aabb2)]
+      (and (<= (.. u min x) (.. u max x))
+           (<= (.. u min y) (.. u max y))
+           (<= (.. u min z) (.. u max z))))))
 
 (deftest aabb-union-null []
   (let [aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 10 10 10))]
@@ -76,8 +76,8 @@
 
 (defspec aabb-incorporates-points
   (prop/for-all [pointlist (gen/vector gen-point)]
-                (let [aabb (reduce geom/aabb-incorporate geom/null-aabb pointlist)]
-                  (every? #(geom/aabb-contains? aabb %) pointlist))))
+    (let [aabb (reduce geom/aabb-incorporate geom/null-aabb pointlist)]
+      (every? #(geom/aabb-contains? aabb %) pointlist))))
 
 (defmacro reduce-field
   [f field coll]
@@ -85,13 +85,13 @@
 
 (defspec aabb-incorporates-minimally
   (prop/for-all [pointlist (gen/such-that #(< 0 (count %)) (gen/vector gen-point))]
-                (let [aabb (reduce geom/aabb-incorporate geom/null-aabb pointlist)
-                      max-v (Point3d. (reduce-field max .x pointlist)
-                                       (reduce-field max .y pointlist)
-                                       (reduce-field max .z pointlist))
-                      min-v (Point3d. (reduce-field min .x pointlist)
-                                       (reduce-field min .y pointlist)
-                                       (reduce-field min .z pointlist))]
-                  (and
-                    (= max-v (.max aabb))
-                    (= min-v (.min aabb))))))
+    (let [aabb (reduce geom/aabb-incorporate geom/null-aabb pointlist)
+          max-v (Point3d. (reduce-field max .x pointlist)
+                          (reduce-field max .y pointlist)
+                          (reduce-field max .z pointlist))
+          min-v (Point3d. (reduce-field min .x pointlist)
+                          (reduce-field min .y pointlist)
+                          (reduce-field min .z pointlist))]
+      (and
+        (= max-v (.max aabb))
+        (= min-v (.min aabb))))))
