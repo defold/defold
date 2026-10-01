@@ -370,7 +370,7 @@ namespace dmRender
         uint16_t                    m_MultiBufferingRequired        : 1;
         uint16_t                    m_UseAdjustedNDC               : 1;
         uint16_t                    m_CurrentRenderCameraUseFrustum : 1;
-        uint16_t                    m_IsRenderPaused                : 1;
+        uint8_t                     m_IsRenderPaused; // Main-thread state, not a consumer bitfield.
     };
 
     struct BufferedRenderBuffer

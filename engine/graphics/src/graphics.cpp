@@ -35,10 +35,70 @@ DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &
 DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatches", &rmtp_Graphics);
 
 #include <dlib/log.h>
+#include <dlib/thread.h>
 #include <dlib/dstrings.h>
 
 namespace dmGraphics
 {
+    static RenderThreadAdapterPrepare g_RenderThreadPrepare = 0;
+    static RenderThreadAdapterDrain g_RenderThreadDrain = 0;
+    static RenderThreadAdapterMemory g_RenderThreadMemory = 0;
+    static RenderThreadAdapterTimings g_RenderThreadTimings = 0;
+    static void (*g_RenderMutationBarrier)(void*) = 0;
+    static void* g_RenderMutationContext = 0;
+    static dmThread::Thread g_RenderProducerThread;
+
+    void RegisterRenderThreadAdapter(RenderThreadAdapterPrepare prepare, RenderThreadAdapterDrain drain, RenderThreadAdapterMemory memory, RenderThreadAdapterTimings timings)
+    {
+        g_RenderThreadPrepare = prepare;
+        g_RenderThreadDrain = drain;
+        g_RenderThreadMemory = memory;
+        g_RenderThreadTimings = timings;
+    }
+
+    bool SetRenderFrameTimings(HContext context, RenderFrameTimings* timings)
+    {
+        if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_METAL || !g_RenderThreadTimings)
+            return false;
+        g_RenderThreadTimings(context, timings);
+        return true;
+    }
+
+    bool GetRenderDeviceAllocatedBytes(HContext context, uint64_t* bytes)
+    {
+        if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_METAL || !g_RenderThreadMemory)
+            return false;
+        *bytes = g_RenderThreadMemory(context);
+        return true;
+    }
+
+    bool PrepareRenderThreadSurface(HContext context, bool enabled)
+    {
+        if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_METAL || !g_RenderThreadPrepare)
+            return false;
+        g_RenderThreadPrepare(context, enabled);
+        return true;
+    }
+
+    void DrainRenderThreadGpu(HContext context)
+    {
+        assert(g_RenderThreadDrain);
+        g_RenderThreadDrain(context);
+    }
+
+    void SetRenderThreadMutationBarrier(void (*barrier)(void*), void* context)
+    {
+        g_RenderMutationBarrier = barrier;
+        g_RenderMutationContext = context;
+        g_RenderProducerThread = dmThread::GetCurrentThread();
+    }
+
+    static void RenderMutationBarrier()
+    {
+        if (g_RenderMutationBarrier && dmThread::GetCurrentThread() == g_RenderProducerThread)
+            g_RenderMutationBarrier(g_RenderMutationContext);
+    }
+
     uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts)
     {
         requested_sample_count = GetDefaultSampleCount(requested_sample_count);
@@ -649,6 +709,7 @@ namespace dmGraphics
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
+        RenderMutationBarrier();
         // Free dynamically allocated stream storage if present
         if (vertex_declaration && vertex_declaration->m_Streams)
         {
@@ -666,6 +727,7 @@ namespace dmGraphics
 
     bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
     {
+        RenderMutationBarrier();
         if (stream_index >= vertex_declaration->m_StreamCount) {
             return false;
         }
@@ -1928,6 +1990,7 @@ namespace dmGraphics
     }
     void SetSwapInterval(HContext context, uint32_t swap_interval)
     {
+        RenderMutationBarrier();
         dmPlatform::SetSwapInterval(g_functions.m_GetWindow(context), swap_interval);
         if (g_functions.m_SetSwapInterval)
         {
@@ -2137,6 +2200,7 @@ namespace dmGraphics
     ////////// ADAPTER SPECIFIC FUNCTIONS /////////////
     void CloseWindow(HContext context)
     {
+        RenderMutationBarrier();
         g_functions.m_CloseWindow(context);
     }
     uint32_t GetDisplayDpi(HContext context)
@@ -2155,10 +2219,12 @@ namespace dmGraphics
     }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
+        RenderMutationBarrier();
         g_functions.m_SetWindowSize(context, width, height);
     }
     void ResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
+        RenderMutationBarrier();
         g_functions.m_ResizeWindow(context, width, height);
     }
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
@@ -2181,18 +2247,22 @@ namespace dmGraphics
     }
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        RenderMutationBarrier();
         return g_functions.m_NewVertexBuffer(context, size, data, buffer_usage);
     }
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
+        RenderMutationBarrier();
         g_functions.m_DeleteVertexBuffer(buffer);
     }
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        RenderMutationBarrier();
         g_functions.m_SetVertexBufferData(buffer, size, data, buffer_usage);
     }
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        RenderMutationBarrier();
         g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
     }
     uint32_t GetVertexBufferSize(HVertexBuffer buffer)
@@ -2206,18 +2276,22 @@ namespace dmGraphics
     }
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        RenderMutationBarrier();
         return g_functions.m_NewIndexBuffer(context, size, data, buffer_usage);
     }
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
+        RenderMutationBarrier();
         g_functions.m_DeleteIndexBuffer(buffer);
     }
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        RenderMutationBarrier();
         g_functions.m_SetIndexBufferData(buffer, size, data, buffer_usage);
     }
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        RenderMutationBarrier();
         g_functions.m_SetIndexBufferSubData(buffer, offset, size, data);
     }
     uint32_t GetIndexBufferSize(HIndexBuffer buffer)
@@ -2235,10 +2309,12 @@ namespace dmGraphics
     }
     HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
+        RenderMutationBarrier();
         return g_functions.m_NewVertexDeclaration(context, stream_declaration);
     }
     HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
+        RenderMutationBarrier();
         return g_functions.m_NewVertexDeclarationStride(context, stream_declaration, stride);
     }
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
@@ -2271,10 +2347,12 @@ namespace dmGraphics
     }
     HProgram NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        RenderMutationBarrier();
         return g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
     }
     void DeleteProgram(HContext context, HProgram program)
     {
+        RenderMutationBarrier();
         DestroyProgram((Program*) program);
         g_functions.m_DeleteProgram(context, program);
     }
@@ -2296,6 +2374,7 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        RenderMutationBarrier();
         DestroyProgram((Program*) program);
         return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
     }
@@ -2309,14 +2388,17 @@ namespace dmGraphics
     }
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
+        RenderMutationBarrier();
         g_functions.m_SetConstantV4(context, data, count, base_location);
     }
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
+        RenderMutationBarrier();
         g_functions.m_SetConstantM4(context, data, count, base_location);
     }
     void SetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
+        RenderMutationBarrier();
         g_functions.m_SetSampler(context, location, unit);
     }
 
@@ -2343,6 +2425,7 @@ namespace dmGraphics
     }
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
+        RenderMutationBarrier();
         g_functions.m_SetViewport(context, x, y, width, height);
     }
     void EnableState(HContext context, State state)
@@ -2355,66 +2438,82 @@ namespace dmGraphics
     }
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
+        RenderMutationBarrier();
         g_functions.m_SetBlendFunc(context, source_factor, destinaton_factor);
     }
     void SetBlendFuncSeparate(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
     {
+        RenderMutationBarrier();
         g_functions.m_SetBlendFuncSeparate(context, src_factor_color, dst_factor_color, src_factor_alpha, dst_factor_alpha);
     }
     void SetBlendEquationSeparate(HContext context, BlendEquation equation_color, BlendEquation equation_alpha)
     {
+        RenderMutationBarrier();
         g_functions.m_SetBlendEquationSeparate(context, equation_color, equation_alpha);
     }
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
+        RenderMutationBarrier();
         g_functions.m_SetColorMask(context, red, green, blue, alpha);
     }
     void SetDepthMask(HContext context, bool enable_mask)
     {
+        RenderMutationBarrier();
         g_functions.m_SetDepthMask(context, enable_mask);
     }
     void SetDepthFunc(HContext context, CompareFunc func)
     {
+        RenderMutationBarrier();
         g_functions.m_SetDepthFunc(context, func);
     }
     void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
+        RenderMutationBarrier();
         g_functions.m_SetScissor(context, x, y, width, height);
     }
     void SetStencilMask(HContext context, uint32_t mask)
     {
+        RenderMutationBarrier();
         g_functions.m_SetStencilMask(context, mask);
     }
     void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
+        RenderMutationBarrier();
         g_functions.m_SetStencilFunc(context, func, ref, mask);
     }
     void SetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
     {
+        RenderMutationBarrier();
         g_functions.m_SetStencilFuncSeparate(context, face_type, func, ref, mask);
     }
     void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
+        RenderMutationBarrier();
         g_functions.m_SetStencilOp(context, sfail, dpfail, dppass);
     }
     void SetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
+        RenderMutationBarrier();
         g_functions.m_SetStencilOpSeparate(context, face_type, sfail, dpfail, dppass);
     }
     void SetCullFace(HContext context, FaceType face_type)
     {
+        RenderMutationBarrier();
         g_functions.m_SetCullFace(context, face_type);
     }
     void SetFaceWinding(HContext context, FaceWinding face_winding)
     {
+        RenderMutationBarrier();
         g_functions.m_SetFaceWinding(context, face_winding);
     }
     void SetPolygonOffset(HContext context, float factor, float units)
     {
+        RenderMutationBarrier();
         g_functions.m_SetPolygonOffset(context, factor, units);
     }
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
+        RenderMutationBarrier();
         if (params.m_TextureType != TEXTURE_TYPE_2D && params.m_TextureType != TEXTURE_TYPE_CUBE_MAP)
         {
             dmLogError("Render target texture type %s is not supported.", GetTextureTypeLiteral(params.m_TextureType));
@@ -2474,10 +2573,12 @@ namespace dmGraphics
     }
     void DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
+        RenderMutationBarrier();
         g_functions.m_DeleteRenderTarget(context, render_target);
     }
     void SetRenderTarget(HContext context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
+        RenderMutationBarrier();
         if (params.m_CubeMapFace < CUBEMAP_FACE_POSITIVE_X || params.m_CubeMapFace >= CUBEMAP_FACE_COUNT)
         {
             dmLogError("Invalid cubemap render-target face: %d.", params.m_CubeMapFace);
@@ -2493,6 +2594,7 @@ namespace dmGraphics
     }
     void SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
+        RenderMutationBarrier();
         if (GetRenderTargetTextureType(context, render_target) == TEXTURE_TYPE_CUBE_MAP && width != height)
         {
             dmLogError("Cubemap render target dimensions must be square.");
@@ -2508,27 +2610,40 @@ namespace dmGraphics
     }
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
+        RenderMutationBarrier();
         return g_functions.m_NewTexture(context, params);
     }
     void DeleteTexture(HContext context, HTexture t)
     {
+        RenderMutationBarrier();
         g_functions.m_DeleteTexture(context, t);
     }
     void SetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
+        RenderMutationBarrier();
         g_functions.m_SetTexture(context, texture, params);
     }
     void SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        g_functions.m_SetTextureAsync(context, texture, params, callback, user_data);
+        RenderMutationBarrier();
+        if (g_RenderMutationBarrier)
+        {
+            // No upload jobs may outlive the conservative ownership barrier.
+            g_functions.m_SetTexture(context, texture, params);
+            if (callback) callback(texture, user_data);
+        }
+        else
+            g_functions.m_SetTextureAsync(context, texture, params, callback, user_data);
     }
     void SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
+        RenderMutationBarrier();
         SetTextureParams(context, texture, minfilter, magfilter, uwrap, vwrap, uwrap, max_anisotropy);
     }
 
     void SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
+        RenderMutationBarrier();
         g_functions.m_SetTextureParams(context, texture, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
     }
     uint32_t GetTextureResourceSize(HContext context, HTexture texture)
@@ -2552,6 +2667,7 @@ namespace dmGraphics
     }
     void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
+        RenderMutationBarrier();
         g_functions.m_ReadPixels(context, x, y, width, height, buffer, buffer_size);
     }
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
@@ -2627,14 +2743,17 @@ namespace dmGraphics
     }
     HUniformBuffer NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size)
     {
+        RenderMutationBarrier();
         return g_functions.m_NewUniformBuffer(context, layout, size);
     }
     void DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer)
     {
+        RenderMutationBarrier();
         g_functions.m_DeleteUniformBuffer(context, uniform_buffer);
     }
     void SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        RenderMutationBarrier();
         g_functions.m_SetUniformBuffer(context, uniform_buffer, offset, size, data);
     }
     void EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t set, uint32_t binding)
@@ -2647,6 +2766,7 @@ namespace dmGraphics
     }
     HStorageBuffer NewStorageBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        RenderMutationBarrier();
         // Some backends expose storage buffers as 32-bit raw buffer elements, so
         // the buffer size must be a multiple of four bytes.
         if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_STORAGE_BUFFER) || size == 0 || (size & 3) != 0)
@@ -2661,10 +2781,12 @@ namespace dmGraphics
     }
     void DeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer)
     {
+        RenderMutationBarrier();
         g_functions.m_DeleteStorageBuffer(context, storage_buffer);
     }
     void SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        RenderMutationBarrier();
         if (size == 0 || (size & 3) != 0)
             return;
 
@@ -2675,6 +2797,7 @@ namespace dmGraphics
     }
     void SetStorageBufferSubData(HContext context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        RenderMutationBarrier();
         if (size == 0 || ((offset | size) & 3) != 0)
             return;
 

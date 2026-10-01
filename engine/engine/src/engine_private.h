@@ -27,6 +27,7 @@
 #include <resource/resource.h>
 
 #include <render/render.h>
+#include <render/render_thread.h>
 
 #include <hid/hid.h>
 #include <input/input.h>
@@ -107,6 +108,7 @@ namespace dmEngine
         uint32_t            m_Fps;
     };
 
+    struct SpriteThreadState;
     struct Engine
     {
         Engine(dmEngineService::HEngineService engine_service);
@@ -129,6 +131,11 @@ namespace dmEngine
         HJobContext                                 m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
+        SpriteThreadState*                         m_SpriteThread;
+        dmRender::FrameTrace*                       m_SpriteTrace;
+        uint64_t                                   m_SpritePaceBegin;
+        uint64_t                                   m_SpritePaceEnd;
+        uint64_t                                   m_SpritePaceDeadline;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
         dmScript::HContext                          m_ScriptContext;

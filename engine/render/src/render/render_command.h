@@ -55,7 +55,7 @@ namespace dmRender
 
     struct Command
     {
-        Command(CommandType type);
+        Command(CommandType type = COMMAND_TYPE_MAX);
         Command(CommandType type, uint64_t op0);
         Command(CommandType type, uint64_t op0, uint64_t op1);
         Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2);
@@ -65,7 +65,20 @@ namespace dmRender
         uint64_t    m_Operands[4];
     };
 
-    void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count);
+    // Fixed storage and copied operands for the deliberately narrow sprite PoC.
+    struct CapturedCommands
+    {
+        enum { MAX_COMMANDS = 128 };
+        Command m_Commands[MAX_COMMANDS];
+        dmVMath::Matrix4 m_Matrices[MAX_COMMANDS];
+        Predicate m_Predicates[MAX_COMMANDS];
+        FrustumOptions m_Frustums[MAX_COMMANDS];
+        uint32_t m_Count;
+        CapturedCommands() : m_Count(0) {}
+    };
+    bool CaptureCommands(Command* commands, uint32_t count, CapturedCommands* output);
+    void ReleaseCommandOperands(Command* commands, uint32_t count);
+    void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count, bool release_operands = true);
 }
 
 #endif /* RENDER_COMMANDS_H_ */

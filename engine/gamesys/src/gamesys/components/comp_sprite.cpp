@@ -24,6 +24,7 @@
 #include <dlib/log.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
+#include <dlib/time.h>
 #include <dlib/dstrings.h>
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
@@ -97,6 +98,8 @@ namespace dmGameSystem
         dmhash_t                        m_AnimationID;                      // The animation of the driving atlas
         uint32_t                        m_Frames[MAX_TEXTURE_COUNT];        // The resolved frame indices
         uint32_t                        m_LastAccessTick;
+        uint32_t                        m_CreatedTick;
+        uint32_t                        m_TextureGenerations[MAX_TEXTURE_COUNT];
         uint32_t                        m_CacheKey;
         uint32_t                        m_VertexCount;
         uint32_t                        m_IndicesCount;
@@ -180,13 +183,87 @@ namespace dmGameSystem
         float m_Radius;
     };
 
-    struct SpriteWorld
+    // One reusable slot for the inline experiment. Its lifetime ends at the next
+    // capture, after the previous render list has been consumed and cleared.
+    struct SpriteRenderData
     {
-        AnimationDataCache                  m_AnimationDataCache;
-        dmObjectPool<SpriteComponent>       m_Components;
-        DynamicAttributePool                m_DynamicVertexAttributePool;
+        Matrix4 m_World;
+        Vector4 m_Slice9;
+        float m_Size[2];
+        float m_Pivot[2];
+        uint32_t m_Binding;
+        uint32_t m_Geometry;
+        uint32_t m_Constants;
+        uint32_t m_Attributes;
+        uint32_t m_Flags;
+        uint32_t m_VertexCount;
+        uint32_t m_BatchKey;
+        uint32_t m_TagListKey;
+    };
+
+    DM_STATIC_ASSERT(sizeof(SpriteRenderData) == 128, "Sprite snapshot record size");
+    DM_STATIC_ASSERT(sizeof(SpriteCullingInfo) == 16, "Sprite snapshot bound size");
+
+    struct SpriteFrameBinding
+    {
+        SpriteResource* m_Source;
+        SpriteResource m_Resolved;
+        SpriteTexture m_Textures[MAX_TEXTURE_COUNT];
+        uint32_t m_Next;
+    };
+
+    struct SpriteFrameBlock
+    {
+        uint32_t m_Begin;
+        uint32_t m_Count;
+    };
+
+    struct SpriteFrameConstant
+    {
+        dmhash_t m_Name;
+        dmRenderDDF::MaterialDesc::ConstantType m_Type;
+        SpriteFrameBlock m_Values;
+    };
+
+    struct SpriteRenderFrame
+    {
+        SpriteRenderFrame() : m_CapacityBytes(sizeof(SpriteRenderFrame)), m_GrowthPeakBytes(sizeof(SpriteRenderFrame)), m_ResourceBytes(0), m_CapacityLimit(0), m_Overflow(false) {}
+        uint64_t m_CapacityBytes;
+        uint64_t m_GrowthPeakBytes;
+        uint64_t m_ResourceBytes;
+        uint32_t m_CapacityLimit;
+        bool m_Overflow;
+        dmArray<SpriteRenderData> m_Sprites;
+        dmArray<SpriteCullingInfo> m_Bounds; // Squared radius, matching TestFrustumSphereSq.
+        dmArray<SpriteFrameBinding> m_Bindings;
+        dmArray<AnimationData> m_Geometry;
+        dmArray<SpriteFrameBlock> m_Constants;
+        dmArray<uint32_t> m_ConstantNext;
+        dmArray<SpriteFrameConstant> m_ConstantDescriptors;
+        dmArray<Vector4> m_ConstantValues;
+        dmArray<SpriteFrameBlock> m_Attributes;
+        dmArray<DynamicAttributeInfo::Info> m_AttributeValues;
+        uint32_t m_VertexCount;
+        uint32_t m_IndexCount;
+        uint32_t m_VertexMemorySize;
+        // Capture-only indices. Consumers never look up a live component/cache key.
+        dmHashTable64<uint32_t> m_ResourceSizes; // Unique direct resource descriptors.
+        dmHashTable64<uint32_t> m_BindingMap;
+        dmHashTable32<uint32_t> m_GeometryMap;
+        dmHashTable64<uint32_t> m_ConstantMap;
+    };
+
+    struct SpriteWorld;
+    struct SpriteRendererState
+    {
+        SpriteWorld* m_LegacyWorld; // Null in snapshot mode.
+        SpriteRenderFrame* m_Frame;
+        uint64_t m_CaptureCount;
+        uint64_t m_CaptureTotalUs;
+        uint32_t m_IndexCapacityBytes;
+        dmArray<dmGraphics::VertexAttributeInfo> m_AttributeScratch;
+        dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
         dmArray<dmRender::RenderObject*>    m_RenderObjects;
-        dmArray<SpriteCullingInfo>          m_CullingInfo;
         // We currently assume the vertex format uses 2-tuple UVs
         dmArray<float>                      m_ScratchUVs[MAX_TEXTURE_COUNT];
         dmArray<Vector4>                    m_ScratchPositionWorld;
@@ -207,6 +284,22 @@ namespace dmGameSystem
         uint8_t                             m_ReallocBuffers : 1;
     };
 
+    struct SpriteWorld
+    {
+        AnimationDataCache m_AnimationDataCache;
+        dmObjectPool<SpriteComponent> m_Components;
+        DynamicAttributePool m_DynamicVertexAttributePool;
+        dmArray<SpriteCullingInfo> m_CullingInfo;
+        SpriteRendererState m_Renderer;
+        SpriteRenderFrame* m_ThreadFrames[2];
+        SpriteSnapshotStats m_ThreadStats;
+        bool m_Threaded;
+        uint32_t m_VertexCount;
+        uint32_t m_IndexCount;
+        uint32_t m_VertexMemorySize;
+        uint8_t m_ReallocBuffers;
+    };
+
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SIZE, size, false);
     DM_GAMESYS_PROP_VECTOR4(SPRITE_PROP_SLICE, slice, false);
@@ -225,13 +318,15 @@ namespace dmGameSystem
     static const uint8_t SPRITE_VERTEX_COUNT_LEGACY = 4;
     static const uint8_t SPRITE_INDEX_COUNT_LEGACY  = 6;
 
+    static void ReleaseSpriteFrame(SpriteRenderFrame* frame, dmResource::HFactory factory);
+
     static float GetCursor(SpriteComponent* component);
     static void SetCursor(SpriteComponent* component, float cursor);
     static float GetPlaybackRate(SpriteComponent* component);
     static void SetPlaybackRate(SpriteComponent* component, float playback_rate);
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
 
-    static void ReAllocateBuffers(SpriteWorld* sprite_world, dmRender::HRenderContext render_context)
+    static void ReAllocateBuffers(SpriteRendererState* sprite_world, dmRender::HRenderContext render_context)
     {
         if (sprite_world->m_VertexBuffer)
         {
@@ -245,6 +340,7 @@ namespace dmGameSystem
 
         uint32_t index_data_type_size   = sprite_world->m_VertexCount <= 65536 ? sizeof(uint16_t) : sizeof(uint32_t);
         size_t indices_memsize          = sprite_world->m_IndexCount * index_data_type_size;
+        sprite_world->m_IndexCapacityBytes = indices_memsize;
         sprite_world->m_Is16BitIndex    = index_data_type_size == sizeof(uint16_t) ? 1 : 0;
         sprite_world->m_IndexBufferData = (uint8_t*)realloc(sprite_world->m_IndexBufferData, indices_memsize);
 
@@ -269,21 +365,35 @@ namespace dmGameSystem
         sprite_world->m_AnimationDataCache.m_Cache.SetCapacity(MINIMUM_CACHE_CAPACITY);
         dmDoubleLinkedList::ListInit(&sprite_world->m_AnimationDataCache.m_LRU);
         memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
-        sprite_world->m_RenderObjectsInUse   = 0;
-        sprite_world->m_VertexBuffer         = 0;
-        sprite_world->m_VertexBufferData     = 0;
-        sprite_world->m_VertexBufferWritePtr = 0;
-        sprite_world->m_IndexBuffer          = 0;
-        sprite_world->m_VerticesWritten      = 0;
+        sprite_world->m_Renderer.m_RenderObjectsInUse   = 0;
+        sprite_world->m_Renderer.m_VertexBuffer         = 0;
+        sprite_world->m_Renderer.m_VertexBufferData     = 0;
+        sprite_world->m_Renderer.m_VertexBufferWritePtr = 0;
+        sprite_world->m_Renderer.m_IndexBuffer          = 0;
+        sprite_world->m_Renderer.m_VerticesWritten      = 0;
         sprite_world->m_VertexMemorySize     = 0;
         sprite_world->m_VertexCount          = 0;
         sprite_world->m_IndexCount           = 0;
-        sprite_world->m_DispatchCount        = 0;
-        sprite_world->m_IndexBufferData      = 0;
-        sprite_world->m_IndexBufferWritePtr  = 0;
-        sprite_world->m_Is16BitIndex         = 0;
+        sprite_world->m_Renderer.m_DispatchCount        = 0;
+        sprite_world->m_Renderer.m_IndexBufferData      = 0;
+        sprite_world->m_Renderer.m_IndexBufferWritePtr  = 0;
+        sprite_world->m_Renderer.m_Is16BitIndex         = 0;
         sprite_world->m_ReallocBuffers       = 1;
 
+        sprite_world->m_Renderer.m_LegacyWorld = sprite_world;
+        sprite_world->m_ThreadFrames[0] = 0;
+        sprite_world->m_ThreadFrames[1] = 0;
+        sprite_world->m_Threaded = sprite_context->m_SnapshotThreaded;
+        memset(&sprite_world->m_ThreadStats, 0, sizeof(sprite_world->m_ThreadStats));
+        sprite_world->m_ThreadStats.m_Threaded = sprite_world->m_Threaded;
+        sprite_world->m_Renderer.m_Frame = 0;
+        sprite_world->m_Renderer.m_CaptureCount = 0;
+        sprite_world->m_Renderer.m_CaptureTotalUs = 0;
+        sprite_world->m_Renderer.m_IndexCapacityBytes = 0;
+        sprite_world->m_Renderer.m_VertexMemorySize = 0;
+        sprite_world->m_Renderer.m_VertexCount = 0;
+        sprite_world->m_Renderer.m_IndexCount = 0;
+        sprite_world->m_Renderer.m_ReallocBuffers = 1;
         InitializeMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool, 8);
 
         *params.m_World = sprite_world;
@@ -298,16 +408,16 @@ namespace dmGameSystem
 
         DestroyMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool);
 
-        for (uint32_t i = 0; i < sprite_world->m_RenderObjects.Size(); ++i)
+        for (uint32_t i = 0; i < sprite_world->m_Renderer.m_RenderObjects.Size(); ++i)
         {
-            delete sprite_world->m_RenderObjects[i];
+            delete sprite_world->m_Renderer.m_RenderObjects[i];
         }
 
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
-        dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_VertexBuffer);
-        free(sprite_world->m_VertexBufferData);
-        dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_IndexBuffer);
-        free(sprite_world->m_IndexBufferData);
+        dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_Renderer.m_VertexBuffer);
+        free(sprite_world->m_Renderer.m_VertexBufferData);
+        dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_Renderer.m_IndexBuffer);
+        free(sprite_world->m_Renderer.m_IndexBufferData);
 
         dmHashTable32<AnimationData*>::Iterator iter = sprite_world->m_AnimationDataCache.m_Cache.GetIterator();
         while(iter.Next())
@@ -316,6 +426,20 @@ namespace dmGameSystem
             free(data);
         }
 
+        if (sprite_world->m_Threaded)
+        {
+            ReleaseSpriteThreadFrames(sprite_world, sprite_context);
+            delete sprite_world->m_ThreadFrames[0];
+            delete sprite_world->m_ThreadFrames[1];
+            sprite_world->m_Renderer.m_Frame = 0;
+        }
+        if (sprite_world->m_Renderer.m_Frame)
+        {
+            ReleaseSpriteFrame(sprite_world->m_Renderer.m_Frame, sprite_context->m_Factory);
+            delete sprite_world->m_Renderer.m_Frame;
+        }
+        for (uint32_t i = 0; i < sprite_world->m_Renderer.m_ConstantBuffers.Size(); ++i)
+            dmRender::DeleteNamedConstantBuffer(sprite_world->m_Renderer.m_ConstantBuffers[i]);
         dmResource::UnregisterResourceReloadedCallback(sprite_context->m_Factory, ResourceReloadedCallback, sprite_world);
         delete sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -555,7 +679,7 @@ namespace dmGameSystem
         return component->m_Resource->m_Textures[texture_unit].m_TextureSet->m_Texture;
     }
 
-    uint8_t GetTextureResourceGeneration(const SpriteComponent* component, uint32_t texture_unit)
+    uint32_t GetTextureResourceGeneration(const SpriteComponent* component, uint32_t texture_unit)
     {
         if(texture_unit >= component->m_Resource->m_NumTextures)
             return 0;
@@ -719,7 +843,7 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, resource->m_Textures, sizeof(SpriteTexture) * resource->m_NumTextures);
         for (size_t idx = 0; idx < resource->m_NumTextures; ++idx)
         {
-            uint8_t generation = GetTextureResourceGeneration(component, idx);
+            uint32_t generation = GetTextureResourceGeneration(component, idx);
             dmHashUpdateBuffer32(&state, &generation, sizeof(generation));
         }
         if (resource->m_NumTextures > 0)
@@ -929,11 +1053,11 @@ namespace dmGameSystem
         const Matrix4& world_matrix,
         uint32_t vertex_offset,
         uint32_t vertex_stride,
-        AnimationData* anim_data,
+        const AnimationData* anim_data,
         dmArray<float>* scratch_uvs,
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
-        float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
-        float* scratch_tt_ptrs[MAX_TEXTURE_COUNT],
+        const float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
+        const float* scratch_tt_ptrs[MAX_TEXTURE_COUNT],
         dmArray<dmVMath::Vector4>* scratch_positions_world,
         dmArray<dmVMath::Vector4>* scratch_positions_local,
         dmGraphics::VertexAttributeInfos* sprite_infos)
@@ -1015,8 +1139,8 @@ namespace dmGameSystem
             FillSlice9Uvs(us, vs, uv_rotated, uvs.Begin());
 
             scratch_uv_ptrs[i] = uvs.Begin();
-            scratch_pi_ptrs[i] = (float*) &anim_data->m_PageIndices[i];
-            scratch_tt_ptrs[i] = (float*) &anim_data->m_TextureTransformsPacked[i][0];
+            scratch_pi_ptrs[i] = &anim_data->m_PageIndices[i];
+            scratch_tt_ptrs[i] = &anim_data->m_TextureTransformsPacked[i][0];
             uv_channels_count++;
         }
 
@@ -1044,8 +1168,8 @@ namespace dmGameSystem
             FillSlice9Uvs(us, vs, false, uvs.Begin());
 
             scratch_uv_ptrs[0] = uvs.Begin();
-            scratch_pi_ptrs[0] = (float*) &anim_data->m_PageIndices[0];
-            scratch_tt_ptrs[0] = (float*) &anim_data->m_TextureTransformsPacked[0][0];
+            scratch_pi_ptrs[0] = &anim_data->m_PageIndices[0];
+            scratch_tt_ptrs[0] = &anim_data->m_TextureTransformsPacked[0][0];
             uv_channels_count  = 1;
         }
 
@@ -1178,6 +1302,7 @@ namespace dmGameSystem
         for (uint8_t i = 0; i < texture_num; ++i)
         {
             TextureSetResource* resource = GetTextureSetByIndex(component, i);
+            data->m_TextureGenerations[i] = resource->m_TexturesGeneration;
 
             const dmGameSystemDDF::TextureSet* texture_set_ddf = resource->m_TextureSet;
             const uint32_t* frame_indices = texture_set_ddf->m_FrameIndices.m_Data;
@@ -1277,11 +1402,11 @@ namespace dmGameSystem
 
     static void ResolveUVDataFromQuads(
         const SpriteComponent* component,
-        AnimationData* data,
+        const AnimationData* data,
         dmArray<float>* scratch_uvs,
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
-        float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
-        float* tex_transform_ptrs[MAX_TEXTURE_COUNT])
+        const float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
+        const float* tex_transform_ptrs[MAX_TEXTURE_COUNT])
     {
         static int tex_coord_order[] = {
             0,1,2,2,3,0,    // no flip
@@ -1342,7 +1467,7 @@ namespace dmGameSystem
 
             scratch_uv_ptrs[i] = uvs.Begin();
             scratch_pi_ptrs[i] = &data->m_PageIndices[i];
-            tex_transform_ptrs[i] = (float*) &data->m_TextureTransformsPacked[i][0];
+            tex_transform_ptrs[i] = &data->m_TextureTransformsPacked[i][0];
         }
 
         if (texture_num == 0)
@@ -1377,12 +1502,12 @@ namespace dmGameSystem
     // It of course has some caveats:
     //   * The geometry may not map 1:1, and for polygon packed atlases, it may result in texture bleeding
     static void ResolvePositionAndUVDataFromGeometry(const SpriteComponent *component,
-        AnimationData* anim_data,
+        const AnimationData* anim_data,
         dmArray<Vector4>& scratch_pos,
         dmArray<float>* scratch_uvs,
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
-        float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
-        float* scratch_tt_ptrs[MAX_TEXTURE_COUNT],
+        const float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
+        const float* scratch_tt_ptrs[MAX_TEXTURE_COUNT],
         float scale_x, float scale_y, int reverse)
     {
         uint32_t num_vertices = anim_data->m_Geometries[0]->m_Vertices.m_Count / 2;
@@ -1399,7 +1524,7 @@ namespace dmGameSystem
 
             scratch_uv_ptrs[i] = uvs.Begin();
             scratch_pi_ptrs[i] = &anim_data->m_PageIndices[i];
-            scratch_tt_ptrs[i] = (float*) &anim_data->m_TextureTransformsPacked[i][0];
+            scratch_tt_ptrs[i] = &anim_data->m_TextureTransformsPacked[i][0];
 
             TextureSetResource* texture_set_resource = GetTextureSetByIndex(component, i);
             dmGameSystemDDF::TextureSet* texture_set = texture_set_resource->m_TextureSet;
@@ -1465,6 +1590,22 @@ namespace dmGameSystem
         // 1. Search in hastable
         uint32_t hash = component->m_AnimationDataHash;
         AnimationData** found = sprite_world->m_AnimationDataCache.m_Cache.Get(hash);
+        if (found)
+        {
+            // Runtime resource.set also replaces atlas DDF in release builds,
+            // where reload callbacks are disabled. Never trust cached pointers
+            // solely because the component's animation hash stayed unchanged.
+            bool current = true;
+            for (uint32_t i = 0; current && i < component->m_NumTextures; ++i)
+                current = (*found)->m_TextureGenerations[i] == GetTextureResourceGeneration(component, i);
+            if (!current)
+            {
+                dmDoubleLinkedList::ListRemove(&sprite_world->m_AnimationDataCache.m_LRU, (dmDoubleLinkedList::ListNode*)*found);
+                free(*found);
+                sprite_world->m_AnimationDataCache.m_Cache.Erase(hash);
+                found = 0;
+            }
+        }
         if (found != 0x0)
         {
             // updates only once per frame
@@ -1485,6 +1626,7 @@ namespace dmGameSystem
         memset(anim_data, 0, sizeof(AnimationData));
         ResolveAnimationData(component, anim_data);
 
+        anim_data->m_CreatedTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
         anim_data->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
         anim_data->m_CacheKey = hash;
         if (sprite_world->m_AnimationDataCache.m_Cache.Full())
@@ -1496,7 +1638,338 @@ namespace dmGameSystem
         return anim_data;
     }
 
-    static void CreateVertexData(SpriteWorld* sprite_world, dmGraphics::VertexAttributeInfos* material_attribute_info,
+    static const uint32_t INVALID_FRAME_INDEX = 0xffffffff;
+
+    template <typename T> static void FramePush(dmArray<T>& array, const T& value)
+    {
+        if (array.Full())
+            array.SetCapacity(dmMath::Max(16U, array.Capacity() * 2));
+        array.Push(value);
+    }
+
+    static bool GrowSpriteFrame(SpriteRenderFrame* frame, uint64_t bytes, uint64_t old_bytes)
+    {
+        if (frame->m_Overflow)
+            return false;
+        if (frame->m_CapacityLimit && frame->m_CapacityBytes + bytes + old_bytes > frame->m_CapacityLimit)
+        {
+            frame->m_Overflow = true;
+            return false;
+        }
+        frame->m_GrowthPeakBytes = dmMath::Max(frame->m_GrowthPeakBytes, frame->m_CapacityBytes + bytes + old_bytes);
+        frame->m_CapacityBytes += bytes;
+        return true;
+    }
+
+    template <typename T> static bool FramePush(SpriteRenderFrame* frame, dmArray<T>& array, const T& value)
+    {
+        if (frame->m_Overflow)
+            return false;
+        if (array.Full())
+        {
+            uint32_t capacity = dmMath::Max(16U, array.Capacity() * 2);
+            if (!GrowSpriteFrame(frame, (uint64_t)(capacity - array.Capacity()) * sizeof(T), (uint64_t)array.Capacity() * sizeof(T)))
+                return false;
+            array.SetCapacity(capacity);
+        }
+        array.Push(value);
+        return true;
+    }
+
+    template <typename K> static void FramePut(SpriteRenderFrame* frame, dmHashTable<K, uint32_t>& map, K key, uint32_t value)
+    {
+        if (frame->m_Overflow)
+            return;
+        if (map.Full())
+        {
+            uint32_t old_capacity = map.Capacity();
+            uint32_t capacity = dmMath::Max(16U, old_capacity * 2);
+            uint64_t old_bytes = old_capacity ? old_capacity * sizeof(typename dmHashTable<K, uint32_t>::Entry) + dmMath::Max(1U, old_capacity * 2 / 3) * sizeof(uint32_t) : 0;
+            uint64_t new_bytes = capacity * sizeof(typename dmHashTable<K, uint32_t>::Entry) + dmMath::Max(1U, capacity * 2 / 3) * sizeof(uint32_t);
+            if (!GrowSpriteFrame(frame, new_bytes - old_bytes, old_bytes))
+                return;
+            map.SetCapacity(capacity);
+        }
+        map.Put(key, value);
+    }
+
+    static void ReleaseSpriteFrame(SpriteRenderFrame* frame, dmResource::HFactory factory)
+    {
+        for (uint32_t i = 0; i < frame->m_Bindings.Size(); ++i)
+        {
+            SpriteFrameBinding& binding = frame->m_Bindings[i];
+            for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
+                dmResource::Release(factory, binding.m_Textures[t].m_TextureSet);
+            dmResource::Release(factory, binding.m_Resolved.m_Material);
+            dmResource::Release(factory, binding.m_Source);
+        }
+        frame->m_Sprites.SetSize(0);
+        frame->m_Bounds.SetSize(0);
+        frame->m_Bindings.SetSize(0);
+        frame->m_Geometry.SetSize(0);
+        frame->m_Constants.SetSize(0);
+        frame->m_ConstantNext.SetSize(0);
+        frame->m_ConstantDescriptors.SetSize(0);
+        frame->m_ConstantValues.SetSize(0);
+        frame->m_Attributes.SetSize(0);
+        frame->m_AttributeValues.SetSize(0);
+        frame->m_ResourceBytes = 0;
+        frame->m_ResourceSizes.Clear();
+        frame->m_BindingMap.Clear();
+        frame->m_GeometryMap.Clear();
+        frame->m_ConstantMap.Clear();
+    }
+
+    static void CaptureResourceSize(SpriteRenderFrame* frame, dmResource::HFactory factory, void* resource)
+    {
+        uint64_t key = (uintptr_t)resource;
+        if (frame->m_ResourceSizes.Get(key))
+            return;
+        dmhash_t path;
+        HResourceDescriptor descriptor;
+        if (dmResource::GetPath(factory, resource, &path) == dmResource::RESULT_OK &&
+            ResourceGetDescriptorByHash(factory, path, &descriptor) == RESOURCE_RESULT_OK)
+        {
+            uint32_t bytes = ResourceDescriptorGetResourceSize(descriptor);
+            FramePut(frame, frame->m_ResourceSizes, key, bytes);
+            if (!frame->m_Overflow)
+                frame->m_ResourceBytes += bytes;
+        }
+    }
+
+    static uint32_t CaptureBinding(SpriteRenderFrame* frame, const SpriteComponent* component, dmResource::HFactory factory, uint32_t previous)
+    {
+        // Adjacent sprites commonly share all bindings. Avoid constructing and
+        // hashing a temporary descriptor, but check effective overrides too.
+        // The index is local to this capture; no resource generation is cached.
+        if (previous != INVALID_FRAME_INDEX)
+        {
+            const SpriteFrameBinding& candidate = frame->m_Bindings[previous];
+            bool equal = candidate.m_Source == component->m_Resource &&
+                         candidate.m_Resolved.m_Material == GetMaterialResource(component);
+            for (uint32_t t = 0; equal && t < component->m_Resource->m_NumTextures; ++t)
+                equal = candidate.m_Textures[t].m_TextureSet == GetTextureSetByIndex(component, t);
+            if (equal)
+                return previous;
+        }
+        SpriteFrameBinding binding = {};
+        binding.m_Source = component->m_Resource;
+        binding.m_Resolved = *component->m_Resource;
+        binding.m_Resolved.m_Material = GetMaterialResource(component);
+        binding.m_Resolved.m_Textures = 0; // Fixed up after the table stops growing.
+        uintptr_t key[MAX_TEXTURE_COUNT + 2] = {};
+        key[0] = (uintptr_t)binding.m_Source;
+        key[1] = (uintptr_t)binding.m_Resolved.m_Material;
+        for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
+        {
+            binding.m_Textures[t] = component->m_Resource->m_Textures[t];
+            binding.m_Textures[t].m_TextureSet = GetTextureSetByIndex(component, t);
+            key[t + 2] = (uintptr_t)binding.m_Textures[t].m_TextureSet;
+        }
+        uint64_t hash = dmHashBuffer64(key, sizeof(key[0]) * (binding.m_Resolved.m_NumTextures + 2));
+        uint32_t* head = frame->m_BindingMap.Get(hash);
+        binding.m_Next = head ? *head : INVALID_FRAME_INDEX;
+        for (uint32_t i = binding.m_Next; i != INVALID_FRAME_INDEX; i = frame->m_Bindings[i].m_Next)
+        {
+            const SpriteFrameBinding& candidate = frame->m_Bindings[i];
+            if (candidate.m_Source != binding.m_Source || candidate.m_Resolved.m_Material != binding.m_Resolved.m_Material)
+                continue;
+            bool equal = true;
+            for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
+                equal &= candidate.m_Textures[t].m_TextureSet == binding.m_Textures[t].m_TextureSet;
+            if (equal)
+                return i;
+        }
+        uint32_t index = frame->m_Bindings.Size();
+        if (!FramePush(frame, frame->m_Bindings, binding))
+            return INVALID_FRAME_INDEX;
+        FramePut(frame, frame->m_BindingMap, hash, index);
+        // Producer-owned references pin resource dependencies through consumption.
+        // Threaded mode additionally drains CPU and GPU work before in-place mutation.
+        CaptureResourceSize(frame, factory, binding.m_Source);
+        CaptureResourceSize(frame, factory, binding.m_Resolved.m_Material);
+        for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
+            CaptureResourceSize(frame, factory, binding.m_Textures[t].m_TextureSet);
+        dmResource::IncRef(factory, binding.m_Source);
+        dmResource::IncRef(factory, binding.m_Resolved.m_Material);
+        for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
+            dmResource::IncRef(factory, binding.m_Textures[t].m_TextureSet);
+        return index;
+    }
+
+    static uint32_t CaptureConstants(SpriteRenderFrame* frame, HComponentRenderConstants constants)
+    {
+        if (!constants || !GetRenderConstantCount(constants))
+            return INVALID_FRAME_INDEX;
+        uint32_t count = GetRenderConstantCount(constants);
+        HashState64 state;
+        dmHashInit64(&state, false);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmRender::HConstant source = GetRenderConstant(constants, i);
+            dmhash_t name = dmRender::GetConstantName(source);
+            dmRenderDDF::MaterialDesc::ConstantType type = dmRender::GetConstantType(source);
+            uint32_t value_count;
+            const Vector4* values = dmRender::GetConstantValues(source, &value_count);
+            dmHashUpdateBuffer64(&state, &name, sizeof(name));
+            dmHashUpdateBuffer64(&state, &type, sizeof(type));
+            dmHashUpdateBuffer64(&state, &value_count, sizeof(value_count));
+            dmHashUpdateBuffer64(&state, values, value_count * sizeof(Vector4));
+        }
+        uint64_t key = dmHashFinal64(&state);
+        uint32_t* head = frame->m_ConstantMap.Get(key);
+        uint32_t next = head ? *head : INVALID_FRAME_INDEX;
+        for (uint32_t index = next; index != INVALID_FRAME_INDEX; index = frame->m_ConstantNext[index])
+        {
+            const SpriteFrameBlock& candidate = frame->m_Constants[index];
+            if (candidate.m_Count != count)
+                continue;
+            bool equal = true;
+            for (uint32_t i = 0; i < count && equal; ++i)
+            {
+                const SpriteFrameConstant& constant = frame->m_ConstantDescriptors[candidate.m_Begin + i];
+                dmRender::HConstant source = GetRenderConstant(constants, i);
+                uint32_t value_count;
+                const Vector4* values = dmRender::GetConstantValues(source, &value_count);
+                equal = constant.m_Name == dmRender::GetConstantName(source) && constant.m_Type == dmRender::GetConstantType(source) &&
+                    constant.m_Values.m_Count == value_count && (value_count == 0 || memcmp(&frame->m_ConstantValues[constant.m_Values.m_Begin], values, value_count * sizeof(Vector4)) == 0);
+            }
+            if (equal)
+                return index;
+        }
+        SpriteFrameBlock block = {frame->m_ConstantDescriptors.Size(), count};
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmRender::HConstant source = GetRenderConstant(constants, i);
+            SpriteFrameConstant constant;
+            constant.m_Name = dmRender::GetConstantName(source);
+            constant.m_Type = dmRender::GetConstantType(source);
+            constant.m_Values.m_Begin = frame->m_ConstantValues.Size();
+            Vector4* values = dmRender::GetConstantValues(source, &constant.m_Values.m_Count);
+            for (uint32_t v = 0; v < constant.m_Values.m_Count; ++v)
+            {
+                if (!FramePush(frame, frame->m_ConstantValues, values[v]))
+                    return INVALID_FRAME_INDEX;
+            }
+            FramePush(frame, frame->m_ConstantDescriptors, constant);
+        }
+        uint32_t index = frame->m_Constants.Size();
+        FramePush(frame, frame->m_Constants, block);
+        FramePush(frame, frame->m_ConstantNext, next);
+        FramePut(frame, frame->m_ConstantMap, key, index);
+        return index;
+    }
+
+    static void CaptureSpriteFrame(SpriteWorld* world, dmResource::HFactory factory, SpriteRenderFrame* frame)
+    {
+        DM_PROFILE("SpriteCapture");
+        ReleaseSpriteFrame(frame, factory);
+        frame->m_Overflow = false;
+        frame->m_VertexCount = world->m_VertexCount;
+        frame->m_IndexCount = world->m_IndexCount;
+        frame->m_VertexMemorySize = world->m_VertexMemorySize;
+        const dmArray<SpriteComponent>& components = world->m_Components.GetRawObjects();
+        uint32_t previous_binding = INVALID_FRAME_INDEX;
+        for (uint32_t i = 0; i < components.Size(); ++i)
+        {
+            const SpriteComponent* component = &components[i];
+            if (!component->m_Enabled || !component->m_AddedToUpdate || !component->m_VertexCount || !component->m_IndexCount)
+                continue;
+            SpriteRenderData data;
+            data.m_World = component->m_World;
+            data.m_Slice9 = component->m_Slice9;
+            data.m_Size[0] = component->m_Size.getX();
+            data.m_Size[1] = component->m_Size.getY();
+            data.m_Pivot[0] = component->m_PivotX;
+            data.m_Pivot[1] = component->m_PivotY;
+            data.m_Flags = component->m_FlipHorizontal | (component->m_FlipVertical << 1) | (component->m_UseSlice9 << 2);
+            data.m_VertexCount = component->m_VertexCount;
+            data.m_BatchKey = component->m_MixedHash;
+            data.m_TagListKey = dmRender::GetMaterialTagListKey(GetComponentMaterial(component));
+            data.m_Binding = CaptureBinding(frame, component, factory, previous_binding);
+            if (frame->m_Overflow)
+                break;
+            previous_binding = data.m_Binding;
+            uint32_t* geometry = frame->m_GeometryMap.Get(component->m_AnimationDataHash);
+            if (geometry)
+                data.m_Geometry = *geometry;
+            else
+            {
+                // Resource messages may replace atlas DDF after component update.
+                // Its live animation cache can still point at the freed generation.
+                // Resolve each unique geometry from the currently retained binding.
+                AnimationData copy = {};
+                ResolveAnimationData(component, &copy);
+                data.m_Geometry = frame->m_Geometry.Size();
+                FramePush(frame, frame->m_Geometry, copy);
+                FramePut(frame, frame->m_GeometryMap, component->m_AnimationDataHash, data.m_Geometry);
+            }
+            data.m_Constants = CaptureConstants(frame, component->m_RenderConstants);
+            data.m_Attributes = INVALID_FRAME_INDEX;
+            if (component->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+            {
+                const DynamicAttributeInfo& attributes = world->m_DynamicVertexAttributePool.Get(component->m_DynamicVertexAttributeIndex);
+                SpriteFrameBlock block = {frame->m_AttributeValues.Size(), attributes.m_NumInfos};
+                for (uint32_t a = 0; a < attributes.m_NumInfos; ++a)
+                    FramePush(frame, frame->m_AttributeValues, attributes.m_Infos[a]);
+                data.m_Attributes = frame->m_Attributes.Size();
+                FramePush(frame, frame->m_Attributes, block);
+            }
+            FramePush(frame, frame->m_Sprites, data);
+            FramePush(frame, frame->m_Bounds, world->m_CullingInfo[i]);
+            if (frame->m_Overflow)
+                break;
+        }
+        for (uint32_t i = 0; i < frame->m_Bindings.Size(); ++i)
+            frame->m_Bindings[i].m_Resolved.m_Textures = frame->m_Bindings[i].m_Textures;
+    }
+
+    // A stack-only adapter keeps the existing quad/slice9/trimmed geometry math in
+    // one place. It contains only captured render fields, never live game pointers.
+    static const SpriteComponent* GetRenderSprite(SpriteRendererState* renderer, uint32_t index, SpriteComponent* view)
+    {
+        if (!renderer->m_Frame)
+            return &renderer->m_LegacyWorld->m_Components.GetRawObjects()[index];
+        const SpriteRenderData& data = renderer->m_Frame->m_Sprites[index];
+        memset(view, 0, sizeof(*view));
+        view->m_World = data.m_World;
+        view->m_Size = Vector3(data.m_Size[0], data.m_Size[1], 0);
+        view->m_Slice9 = data.m_Slice9;
+        view->m_PivotX = data.m_Pivot[0];
+        view->m_PivotY = data.m_Pivot[1];
+        view->m_FlipHorizontal = data.m_Flags & 1;
+        view->m_FlipVertical = (data.m_Flags >> 1) & 1;
+        view->m_UseSlice9 = (data.m_Flags >> 2) & 1;
+        view->m_VertexCount = data.m_VertexCount;
+        view->m_Resource = &renderer->m_Frame->m_Bindings[data.m_Binding].m_Resolved;
+        view->m_NumTextures = view->m_Resource->m_NumTextures;
+        view->m_Enabled = 1;
+        view->m_DynamicVertexAttributeIndex = INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        return view;
+    }
+
+    static void PrepareSpriteConstants(SpriteRendererState* renderer)
+    {
+        const SpriteRenderFrame* frame = renderer->m_Frame;
+        if (!frame)
+            return;
+        for (uint32_t i = 0; i < frame->m_Constants.Size(); ++i)
+        {
+            if (i == renderer->m_ConstantBuffers.Size())
+                FramePush(renderer->m_ConstantBuffers, dmRender::NewNamedConstantBuffer());
+            dmRender::HNamedConstantBuffer buffer = renderer->m_ConstantBuffers[i];
+            dmRender::ClearNamedConstantBuffer(buffer);
+            const SpriteFrameBlock& block = frame->m_Constants[i];
+            for (uint32_t c = 0; c < block.m_Count; ++c)
+            {
+                const SpriteFrameConstant& constant = frame->m_ConstantDescriptors[block.m_Begin + c];
+                dmRender::SetNamedConstant(buffer, constant.m_Name,
+                    constant.m_Values.m_Count ? (Vector4*)&frame->m_ConstantValues[constant.m_Values.m_Begin] : 0, constant.m_Values.m_Count, constant.m_Type);
+            }
+        }
+    }
+
+    static void CreateVertexData(SpriteRendererState* sprite_world, dmGraphics::VertexAttributeInfos* material_attribute_info,
         uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("CreateVertexData");
@@ -1505,7 +1978,6 @@ namespace dmGameSystem
         uint8_t* indices         = *ib_where;
         uint32_t index_type_size = sprite_world->m_Is16BitIndex ? sizeof(uint16_t) : sizeof(uint32_t);
 
-        const dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
 
         // The offset for the indices
         uint32_t vertex_offset = sprite_world->m_VerticesWritten;
@@ -1513,27 +1985,47 @@ namespace dmGameSystem
 
         // The list of pointers to the scratch uvs and page indices
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT] = {};
-        float* scratch_pi_ptrs[MAX_TEXTURE_COUNT] = {};
-        float* scratch_tt_ptrs[MAX_TEXTURE_COUNT] = {};
+        const float* scratch_pi_ptrs[MAX_TEXTURE_COUNT] = {};
+        const float* scratch_tt_ptrs[MAX_TEXTURE_COUNT] = {};
 
-        dmGraphics::VertexAttributeInfos* scratch_attribute_infos = GetScratchVertexAttributeInfos(material_attribute_info->m_NumInfos);
+        if (sprite_world->m_AttributeScratch.Capacity() < material_attribute_info->m_NumInfos)
+            sprite_world->m_AttributeScratch.SetCapacity(material_attribute_info->m_NumInfos);
+        dmGraphics::VertexAttributeInfos scratch;
+        scratch.m_Infos = sprite_world->m_AttributeScratch.Begin();
+        dmGraphics::VertexAttributeInfos* scratch_attribute_infos = &scratch;
         dmGraphics::WriteAttributeParams write_params = {};
 
         for (uint32_t* i = begin; i != end; ++i)
         {
             uint32_t component_index         = (uint32_t)buf[*i].m_UserData;
-            const SpriteComponent* component = (const SpriteComponent*) &components[component_index];
+            SpriteComponent view;
+            const SpriteComponent* component = GetRenderSprite(sprite_world, component_index, &view);
             const Matrix4& world_matrix      = component->m_World;
 
             float sp_width  = component->m_Size.getX();
             float sp_height = component->m_Size.getY();
             uint8_t textures_num = component->m_NumTextures;
-            AnimationData* animations = GetOrCreateAnimationData(sprite_world, component);
+            const SpriteRenderFrame* frame = sprite_world->m_Frame;
+            const SpriteRenderData* data = frame ? &frame->m_Sprites[component_index] : 0;
+            const AnimationData* animations = frame ? &frame->m_Geometry[data->m_Geometry] : GetOrCreateAnimationData(sprite_world->m_LegacyWorld, component);
 
             // Fill in the custom sprite attributes (if specified), otherwise fallback to use the material attributes
-            if (component->m_Resource->m_DDF->m_Attributes.m_Count > 0 || component->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+            if (frame)
             {
-                FillAttributeInfos(&sprite_world->m_DynamicVertexAttributePool,
+                DynamicAttributeInfo attributes = {};
+                if (data->m_Attributes != INVALID_FRAME_INDEX)
+                {
+                    const SpriteFrameBlock& block = frame->m_Attributes[data->m_Attributes];
+                    attributes.m_Infos = (DynamicAttributeInfo::Info*)&frame->m_AttributeValues[block.m_Begin];
+                    attributes.m_NumInfos = block.m_Count;
+                }
+                FillAttributeInfos(&attributes, component->m_Resource->m_DDF->m_Attributes.m_Data,
+                    component->m_Resource->m_DDF->m_Attributes.m_Count, material_attribute_info,
+                    scratch_attribute_infos, dmGraphics::COORDINATE_SPACE_WORLD);
+            }
+            else if (component->m_Resource->m_DDF->m_Attributes.m_Count > 0 || component->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+            {
+                FillAttributeInfos(&sprite_world->m_LegacyWorld->m_DynamicVertexAttributePool,
                     component->m_DynamicVertexAttributeIndex,
                     component->m_Resource->m_DDF->m_Attributes.m_Data,
                     component->m_Resource->m_DDF->m_Attributes.m_Count,
@@ -1773,22 +2265,22 @@ namespace dmGameSystem
         *ib_where = indices;
     }
 
-    static void EnsureVertexBufferCapacity(SpriteWorld* sprite_world, uint32_t vertex_stride, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
+    static void EnsureVertexBufferCapacity(SpriteRendererState* sprite_world, uint32_t vertex_stride, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         uint32_t write_offset = sprite_world->m_VertexBufferWritePtr - sprite_world->m_VertexBufferData;
         uint32_t required_size = write_offset;
 
-        const dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         for (uint32_t* i = begin; i != end; ++i)
         {
             uint32_t component_index = (uint32_t) buf[*i].m_UserData;
-            const SpriteComponent& component = components[component_index];
+            uint32_t vertex_count = sprite_world->m_Frame ? sprite_world->m_Frame->m_Sprites[component_index].m_VertexCount :
+                sprite_world->m_LegacyWorld->m_Components.GetRawObjects()[component_index].m_VertexCount;
             uint32_t remainder = required_size % vertex_stride;
             if (remainder != 0)
             {
                 required_size += vertex_stride - remainder;
             }
-            required_size += component.m_VertexCount * vertex_stride;
+            required_size += vertex_count * vertex_stride;
         }
 
         if (required_size <= sprite_world->m_VertexMemorySize)
@@ -1801,12 +2293,13 @@ namespace dmGameSystem
         sprite_world->m_VertexMemorySize = required_size;
     }
 
-    static void RenderBatch(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    static void RenderBatch(SpriteRendererState* sprite_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("SpriteRenderBatch");
 
         uint32_t component_index = (uint32_t)buf[*begin].m_UserData;
-        const SpriteComponent* first = (const SpriteComponent*) &sprite_world->m_Components.GetRawObjects()[component_index];
+        SpriteComponent view;
+        const SpriteComponent* first = GetRenderSprite(sprite_world, component_index, &view);
         assert(first->m_Enabled);
 
         SpriteResource* resource = first->m_Resource;
@@ -1878,7 +2371,13 @@ namespace dmGameSystem
         ro.m_VertexCount = num_elements;
 
         HComponentRenderConstants constants = GetRenderConstants(first);
-        if (constants) {
+        if (sprite_world->m_Frame)
+        {
+            uint32_t constant_index = sprite_world->m_Frame->m_Sprites[component_index].m_Constants;
+            if (constant_index != INVALID_FRAME_INDEX)
+                ro.m_ConstantBuffer = sprite_world->m_ConstantBuffers[constant_index];
+        }
+        else if (constants) {
             dmGameSystem::EnableRenderObjectConstants(&ro, constants);
         }
 
@@ -2110,7 +2609,7 @@ namespace dmGameSystem
             // Get the correct animation frames, and other meta data
             AnimationData* anim_data = GetOrCreateAnimationData(world, component);
             // update cached pivot
-            if (is_component_changed)
+            if (is_component_changed || anim_data->m_CreatedTick == world->m_AnimationDataCache.m_CurrentEngineTick)
             {
                 GetPivot(anim_data, &component->m_PivotX, &component->m_PivotY);
                 UpdateVertexMetricsCache(component, anim_data, render_context);
@@ -2121,13 +2620,6 @@ namespace dmGameSystem
                 continue;
             PostMessages(component);
         }
-
-        dmRender::TrimBuffer(render_context, world->m_VertexBuffer);
-        dmRender::RewindBuffer(render_context, world->m_VertexBuffer);
-
-        dmRender::TrimBuffer(render_context, world->m_IndexBuffer);
-        dmRender::RewindBuffer(render_context, world->m_IndexBuffer);
-        world->m_DispatchCount = 0;
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -2193,8 +2685,8 @@ namespace dmGameSystem
     {
         DM_PROFILE("Sprite");
 
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
-        const SpriteCullingInfo* infos = sprite_world->m_CullingInfo.Begin();
+        SpriteRendererState* sprite_world = (SpriteRendererState*)params.m_UserData;
+        const SpriteCullingInfo* infos = sprite_world->m_Frame ? sprite_world->m_Frame->m_Bounds.Begin() : sprite_world->m_LegacyWorld->m_CullingInfo.Begin();
 
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
@@ -2210,7 +2702,7 @@ namespace dmGameSystem
 
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
-        SpriteWorld* world = (SpriteWorld*) params.m_UserData;
+        SpriteRendererState* world = (SpriteRendererState*) params.m_UserData;
 
         switch (params.m_Operation)
         {
@@ -2218,6 +2710,7 @@ namespace dmGameSystem
                 world->m_VertexBufferWritePtr = world->m_VertexBufferData;
                 world->m_IndexBufferWritePtr = world->m_IndexBufferData;
                 world->m_RenderObjectsInUse = 0;
+                world->m_VerticesWritten = 0;
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
                 {
@@ -2246,52 +2739,90 @@ namespace dmGameSystem
         }
     }
 
-    dmGameObject::UpdateResult CompSpriteRender(const dmGameObject::ComponentsRenderParams& params)
+    static dmGameObject::UpdateResult SubmitSpriteFrame(SpriteRendererState* renderer, dmRender::HRenderContext render_context,
+                                                       uint32_t vertex_count, uint32_t index_count, uint32_t vertex_memory_size)
     {
-        SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
-
-        dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
-
-        sprite_world->m_VerticesWritten = 0;
-
-        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
-        uint32_t sprite_count = components.Size();
-
+        uint32_t sprite_count = renderer->m_Frame ? renderer->m_Frame->m_Sprites.Size() : renderer->m_LegacyWorld->m_Components.GetRawObjects().Size();
+        // Even an empty capture must release the previous frame's retained resources.
         if (!sprite_count)
             return dmGameObject::UPDATE_RESULT_OK;
 
-        if (sprite_world->m_ReallocBuffers)
-        {
-            ReAllocateBuffers(sprite_world, render_context);
-        }
+        renderer->m_ReallocBuffers |= vertex_memory_size > renderer->m_VertexMemorySize || index_count > renderer->m_IndexCount;
+        renderer->m_VertexMemorySize = dmMath::Max(renderer->m_VertexMemorySize, vertex_memory_size);
+        renderer->m_VertexCount = vertex_count;
+        renderer->m_IndexCount = index_count;
+        if (renderer->m_ReallocBuffers)
+            ReAllocateBuffers(renderer, render_context);
+        dmRender::TrimBuffer(render_context, renderer->m_VertexBuffer);
+        dmRender::RewindBuffer(render_context, renderer->m_VertexBuffer);
+        dmRender::TrimBuffer(render_context, renderer->m_IndexBuffer);
+        dmRender::RewindBuffer(render_context, renderer->m_IndexBuffer);
+        renderer->m_DispatchCount = 0;
+        renderer->m_VerticesWritten = 0;
+        PrepareSpriteConstants(renderer);
 
-        // Submit all sprites as entries in the render list for sorting.
-        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, sprite_count);
-        dmRender::HRenderListDispatch sprite_dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, sprite_world);
-        dmRender::RenderListEntry* write_ptr = render_list;
-
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(render_context, sprite_count);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, renderer);
+        dmRender::RenderListEntry* write_ptr = entries;
         for (uint32_t i = 0; i < sprite_count; ++i)
         {
-            SpriteComponent& component = components[i];
-            if (!component.m_Enabled || !component.m_AddedToUpdate || component.m_VertexCount == 0 || component.m_IndexCount == 0)
-                continue;
-
-            const Vector3 trans = component.m_World.getCol(3).getXYZ();
-            write_ptr->m_WorldPosition = Point3(trans);
-            write_ptr->m_UserData = i; // Assuming the object pool stays intact
-            write_ptr->m_BatchKey = component.m_MixedHash;
-            write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetComponentMaterial(&component));
-            write_ptr->m_Dispatch = sprite_dispatch;
+            if (renderer->m_Frame)
+            {
+                const SpriteRenderData& data = renderer->m_Frame->m_Sprites[i];
+                write_ptr->m_WorldPosition = Point3(data.m_World.getCol3().getXYZ());
+                write_ptr->m_BatchKey = data.m_BatchKey;
+                write_ptr->m_TagListKey = data.m_TagListKey;
+            }
+            else
+            {
+                const SpriteComponent& component = renderer->m_LegacyWorld->m_Components.GetRawObjects()[i];
+                if (!component.m_Enabled || !component.m_AddedToUpdate || !component.m_VertexCount || !component.m_IndexCount)
+                    continue;
+                write_ptr->m_WorldPosition = Point3(component.m_World.getCol3().getXYZ());
+                write_ptr->m_BatchKey = component.m_MixedHash;
+                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetComponentMaterial(&component));
+            }
+            write_ptr->m_UserData = i;
+            write_ptr->m_Dispatch = dispatch;
             write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
-
             DM_PROPERTY_ADD_U32(rmtp_Sprite, 1);
         }
-
-        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+        dmRender::RenderListSubmit(render_context, entries, write_ptr);
         return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    dmGameObject::UpdateResult CompSpriteRender(const dmGameObject::ComponentsRenderParams& params)
+    {
+        SpriteContext* context = (SpriteContext*)params.m_Context;
+        SpriteWorld* world = (SpriteWorld*)params.m_World;
+        SpriteRendererState* renderer = &world->m_Renderer;
+        dmRender::HRenderContext render_context = context->m_RenderContext;
+        if (context->m_SnapshotInline)
+        {
+            if (!renderer->m_Frame)
+                renderer->m_Frame = new SpriteRenderFrame();
+            renderer->m_LegacyWorld = 0;
+            uint64_t start = dmTime::GetMonotonicTime();
+            CaptureSpriteFrame(world, context->m_Factory, renderer->m_Frame);
+            renderer->m_CaptureTotalUs += dmTime::GetMonotonicTime() - start;
+            ++renderer->m_CaptureCount;
+        }
+        else
+        {
+            // Runtime mode changes are test-only; startup configuration is fixed.
+            if (renderer->m_Frame)
+            {
+                ReleaseSpriteFrame(renderer->m_Frame, context->m_Factory);
+                delete renderer->m_Frame;
+                renderer->m_Frame = 0;
+            }
+            renderer->m_LegacyWorld = world;
+        }
+        renderer->m_ReallocBuffers |= world->m_ReallocBuffers;
+        world->m_ReallocBuffers = 0;
+        return SubmitSpriteFrame(renderer, render_context, world->m_VertexCount, world->m_IndexCount, world->m_VertexMemorySize);
     }
 
     static bool CompSpriteGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
@@ -2777,17 +3308,146 @@ namespace dmGameSystem
         }
     }
 
+    template <typename T> static void CountFrameArray(const dmArray<T>& array, SpriteSnapshotStats* stats)
+    {
+        stats->m_PayloadUsedBytes += (uint64_t)array.Size() * sizeof(T);
+        stats->m_FrameCapacityBytes += (uint64_t)array.Capacity() * sizeof(T);
+    }
+
+    template <typename K> static uint32_t FrameMapCapacity(const dmHashTable<K, uint32_t>& map)
+    {
+        return map.Capacity() ? sizeof(uint32_t) * dmMath::Max(1U, map.Capacity() * 2 / 3) + sizeof(typename dmHashTable<K, uint32_t>::Entry) * map.Capacity() : 0;
+    }
+
+    static void ComputeSpriteSnapshotStats(SpriteWorld* world, const SpriteRenderFrame* frame, SpriteSnapshotStats* stats, bool renderer_idle = true)
+    {
+        memset(stats, 0, sizeof(*stats));
+        const SpriteRendererState& renderer = world->m_Renderer;
+        stats->m_RecordBytes = sizeof(SpriteRenderData);
+        stats->m_BoundBytes = sizeof(SpriteCullingInfo);
+        stats->m_Inline = frame != 0;
+        stats->m_CaptureCount = renderer.m_CaptureCount;
+        stats->m_CaptureTotalUs = renderer.m_CaptureTotalUs;
+        if (renderer_idle)
+        {
+            stats->m_RendererCpuCapacityBytes = renderer.m_VertexMemorySize + renderer.m_IndexCapacityBytes +
+                renderer.m_AttributeScratch.Capacity() * sizeof(dmGraphics::VertexAttributeInfo) +
+                renderer.m_ConstantBuffers.Capacity() * sizeof(dmRender::HNamedConstantBuffer) +
+                renderer.m_RenderObjects.Capacity() * sizeof(dmRender::RenderObject*) +
+                renderer.m_RenderObjects.Size() * sizeof(dmRender::RenderObject) +
+                (renderer.m_ScratchPositionWorld.Capacity() + renderer.m_ScratchPositionLocal.Capacity()) * sizeof(Vector4);
+            for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
+                stats->m_RendererCpuCapacityBytes += renderer.m_ScratchUVs[i].Capacity() * sizeof(float);
+            for (uint32_t i = 0; i < renderer.m_ConstantBuffers.Size(); ++i)
+                stats->m_ConstantBufferCapacityBytes += dmRender::GetNamedConstantBufferCapacity(renderer.m_ConstantBuffers[i]);
+            stats->m_RendererCpuCapacityBytes += stats->m_ConstantBufferCapacityBytes;
+            stats->m_RendererGpuLogicalBytes = dmRender::GetBufferedRenderBufferDataSize(renderer.m_VertexBuffer) + dmRender::GetBufferedRenderBufferDataSize(renderer.m_IndexBuffer);
+        }
+        if (!frame)
+            return;
+        stats->m_SpriteCount = frame->m_Sprites.Size();
+        stats->m_BindingCount = frame->m_Bindings.Size();
+        stats->m_GeometryCount = frame->m_Geometry.Size();
+        stats->m_ConstantBlockCount = frame->m_Constants.Size();
+        stats->m_AttributeBlockCount = frame->m_Attributes.Size();
+        stats->m_FrameCapacityBytes = sizeof(*frame);
+        stats->m_FrameGrowthPeakBytes = frame->m_GrowthPeakBytes;
+        CountFrameArray(frame->m_Sprites, stats);
+        CountFrameArray(frame->m_Bounds, stats);
+        CountFrameArray(frame->m_Bindings, stats);
+        CountFrameArray(frame->m_Geometry, stats);
+        CountFrameArray(frame->m_Constants, stats);
+        CountFrameArray(frame->m_ConstantNext, stats);
+        CountFrameArray(frame->m_ConstantDescriptors, stats);
+        CountFrameArray(frame->m_ConstantValues, stats);
+        CountFrameArray(frame->m_Attributes, stats);
+        CountFrameArray(frame->m_AttributeValues, stats);
+        stats->m_FrameCapacityBytes += FrameMapCapacity(frame->m_ResourceSizes) + FrameMapCapacity(frame->m_BindingMap) + FrameMapCapacity(frame->m_GeometryMap) + FrameMapCapacity(frame->m_ConstantMap);
+        stats->m_RetainedResourceReportedBytes = frame->m_ResourceBytes;
+        for (uint32_t i = 0; i < frame->m_Bindings.Size(); ++i)
+            stats->m_RetainedReferenceCount += 2 + frame->m_Bindings[i].m_Resolved.m_NumTextures;
+    }
+
+    void GetSpriteSnapshotStats(void* sprite_world, SpriteSnapshotStats* stats)
+    {
+        SpriteWorld* world = (SpriteWorld*)sprite_world;
+        if (world->m_Threaded)
+            *stats = world->m_ThreadStats;
+        else
+            ComputeSpriteSnapshotStats(world, world->m_Renderer.m_Frame, stats);
+    }
+
+    void ReleaseSpriteThreadFrames(void* sprite_world, SpriteContext* context)
+    {
+        SpriteWorld* world = (SpriteWorld*)sprite_world;
+        for (uint32_t i = 0; i < 2; ++i)
+            if (world->m_ThreadFrames[i])
+                ReleaseSpriteFrame(world->m_ThreadFrames[i], context->m_Factory);
+    }
+
+    bool CaptureSpriteThreadFrame(void* sprite_world, SpriteContext* context, uint32_t slot, uint32_t capacity_limit)
+    {
+        SpriteWorld* world = (SpriteWorld*)sprite_world;
+        assert(slot < 2 && context->m_SnapshotThreaded);
+        assert(world->m_Threaded || !world->m_Renderer.m_Frame);
+        world->m_Threaded = true;
+        // Only this reserved slot is free. Never release the other reader slot.
+        // Factory references and capture counters remain producer-owned.
+        if (!world->m_ThreadFrames[slot])
+            world->m_ThreadFrames[slot] = new SpriteRenderFrame();
+        world->m_ThreadFrames[slot]->m_CapacityLimit = dmMath::Min(capacity_limit, 32U * 1024 * 1024);
+        uint64_t begin = dmTime::GetMonotonicTime();
+        CaptureSpriteFrame(world, context->m_Factory, world->m_ThreadFrames[slot]);
+        world->m_Renderer.m_CaptureTotalUs += dmTime::GetMonotonicTime() - begin;
+        ++world->m_Renderer.m_CaptureCount;
+        ComputeSpriteSnapshotStats(world, world->m_ThreadFrames[slot], &world->m_ThreadStats, false);
+        SpriteSnapshotStats other;
+        ComputeSpriteSnapshotStats(world, world->m_ThreadFrames[1 - slot], &other, false);
+        world->m_ThreadStats.m_FrameCapacityBytes += other.m_FrameCapacityBytes;
+        world->m_ThreadStats.m_FrameGrowthPeakBytes += other.m_FrameGrowthPeakBytes;
+        world->m_ThreadStats.m_Threaded = 1;
+        // Hard admission budget, including both slot capacities and capture maps.
+        if (world->m_ThreadFrames[slot]->m_Overflow || world->m_ThreadFrames[slot]->m_CapacityBytes > capacity_limit || world->m_ThreadStats.m_FrameCapacityBytes > 64 * 1024 * 1024)
+        {
+            dmLogError("Sprite thread slot capacity budget exceeded; frame rejected");
+            return false;
+        }
+        return true;
+    }
+
+    void FinishSpriteThreadFrame(void* sprite_world, SpriteContext* context, uint32_t slot)
+    {
+        SpriteWorld* world = (SpriteWorld*)sprite_world;
+        // Called after the previous consumer completes, before publishing this slot.
+        if (world->m_ThreadFrames[1 - slot])
+            ReleaseSpriteFrame(world->m_ThreadFrames[1 - slot], context->m_Factory);
+        SpriteSnapshotStats renderer;
+        ComputeSpriteSnapshotStats(world, 0, &renderer);
+        world->m_ThreadStats.m_RendererCpuCapacityBytes = renderer.m_RendererCpuCapacityBytes;
+        world->m_ThreadStats.m_ConstantBufferCapacityBytes = renderer.m_ConstantBufferCapacityBytes;
+        world->m_ThreadStats.m_RendererGpuLogicalBytes = renderer.m_RendererGpuLogicalBytes;
+    }
+
+    void RenderSpriteThreadFrame(void* sprite_world, SpriteContext* context, uint32_t slot)
+    {
+        SpriteWorld* world = (SpriteWorld*)sprite_world;
+        SpriteRenderFrame* frame = world->m_ThreadFrames[slot];
+        world->m_Renderer.m_Frame = frame;
+        world->m_Renderer.m_LegacyWorld = 0;
+        SubmitSpriteFrame(&world->m_Renderer, context->m_RenderContext, frame->m_VertexCount, frame->m_IndexCount, frame->m_VertexMemorySize);
+    }
+
     // For tests
     void GetSpriteWorldRenderBuffers(void* sprite_world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer)
     {
         SpriteWorld* world = (SpriteWorld*) sprite_world;
-        *vx_buffer = world->m_VertexBuffer;
-        *ix_buffer = world->m_IndexBuffer;
+        *vx_buffer = world->m_Renderer.m_VertexBuffer;
+        *ix_buffer = world->m_Renderer.m_IndexBuffer;
     }
 
     uint32_t GetSpriteWorldVertexBufferCapacity(void* sprite_world)
     {
-        return ((SpriteWorld*) sprite_world)->m_VertexMemorySize;
+        return ((SpriteWorld*) sprite_world)->m_Renderer.m_VertexMemorySize;
     }
 
     void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out)

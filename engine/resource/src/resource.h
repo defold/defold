@@ -48,6 +48,9 @@ namespace dmResourceProvider
 
 namespace dmResource
 {
+    // Internal PoC barrier: resource operations remain producer-owned.
+    void SetRenderMutationBarrier(void (*barrier)(void*), void* context);
+
     // This is both for the total resource path, ie m_UriParts.X concatenated with relative path
     const uint32_t RESOURCE_PATH_MAX = 1024;
 

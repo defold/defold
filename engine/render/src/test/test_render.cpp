@@ -38,6 +38,11 @@
 #include "../../../graphics/src/test/test_graphics_util.h"
 
 #include "render/render.h"
+#include "render/render_command.h"
+#include "render/render_thread.h"
+#include <dlib/mutex.h>
+#include <dlib/condition_variable.h>
+#include <dlib/time.h>
 #include "render/render_private.h"
 #include "render/font/fontmap.h"
 #include "render/font/fontmap_private.h"
@@ -4133,4 +4138,207 @@ int main(int argc, char **argv)
     TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
+}
+
+struct ThreadQueueProbe
+{
+    dmMutex::HMutex m_Mutex;
+    dmConditionVariable::HConditionVariable m_Changed;
+    uint64_t m_Ids[128];
+    uint32_t m_Slots[128];
+    uint32_t m_Count;
+    uint32_t m_Controls;
+    uint32_t m_CountAtControl;
+    bool m_Reading;
+    bool m_Release;
+};
+
+static void ProbeRenderThread(void* data, uint32_t slot, uint64_t id)
+{
+    ThreadQueueProbe* p = (ThreadQueueProbe*)data;
+    DM_MUTEX_SCOPED_LOCK(p->m_Mutex);
+    p->m_Reading = true;
+    dmConditionVariable::Broadcast(p->m_Changed);
+    while (!p->m_Release)
+        dmConditionVariable::Wait(p->m_Changed, p->m_Mutex);
+    p->m_Ids[p->m_Count] = id;
+    p->m_Slots[p->m_Count++] = slot;
+}
+
+static void ProbeRenderControl(void* data)
+{
+    ThreadQueueProbe* p = (ThreadQueueProbe*)data;
+    p->m_CountAtControl = p->m_Count;
+    ++p->m_Controls;
+}
+
+// Verifies two-slot admission, ordered completion, and control service with no
+// frames pending, guarding against overwrite, dropped frames and pause starvation.
+TEST(dmRenderThreadTest, OrderedSlotsAndPausedControls)
+{
+    ThreadQueueProbe probe = {};
+    probe.m_Mutex = dmMutex::New();
+    probe.m_Changed = dmConditionVariable::New();
+    dmRender::HRenderThread thread = dmRender::NewRenderThread(ProbeRenderThread, &probe);
+    uint32_t first = dmRender::BeginRenderThreadFrame(thread);
+    dmRender::PublishRenderThreadFrame(thread, first);
+    dmMutex::Lock(probe.m_Mutex);
+    while (!probe.m_Reading)
+        dmConditionVariable::Wait(probe.m_Changed, probe.m_Mutex);
+    dmMutex::Unlock(probe.m_Mutex);
+    uint32_t next = dmRender::BeginRenderThreadFrame(thread);
+    ASSERT_NE(first, next);
+    dmRender::RenderThreadStats stats;
+    dmRender::GetRenderThreadStats(thread, &stats);
+    ASSERT_EQ(1U, stats.m_Submitted);
+    ASSERT_EQ(0U, stats.m_Completed);
+    ASSERT_EQ(2U, stats.m_SlotCount);
+    ASSERT_EQ(1U, stats.m_ControlCapacity);
+    dmRender::MarkRenderThreadFrameCaptured(thread);
+    dmRender::GetRenderThreadStats(thread, &stats);
+    ASSERT_EQ(1U, stats.m_CapturesWithConsumerOutstanding);
+    dmRender::CancelRenderThreadFrame(thread, next);
+    dmMutex::Lock(probe.m_Mutex);
+    probe.m_Release = true;
+    dmConditionVariable::Broadcast(probe.m_Changed);
+    dmMutex::Unlock(probe.m_Mutex);
+    dmRender::RunRenderThreadControl(thread, ProbeRenderControl, &probe);
+    ASSERT_EQ(1U, probe.m_CountAtControl);
+    dmRender::RunRenderThreadControl(thread, ProbeRenderControl, &probe);
+    ASSERT_EQ(2U, probe.m_Controls);
+    for (uint32_t i = 1; i < 128; ++i)
+        dmRender::PublishRenderThreadFrame(thread, dmRender::BeginRenderThreadFrame(thread));
+    dmRender::DrainRenderThread(thread);
+    dmRender::GetRenderThreadStats(thread, &stats);
+    ASSERT_EQ(128U, stats.m_Submitted);
+    ASSERT_EQ(stats.m_Submitted, stats.m_Completed);
+    ASSERT_EQ(1U, stats.m_MaxOutstanding);
+    ASSERT_EQ(2U, stats.m_Controls);
+    for (uint32_t i = 0; i < 128; ++i)
+    {
+        ASSERT_EQ(i + 1, probe.m_Ids[i]);
+        ASSERT_EQ(i % 2, probe.m_Slots[i]);
+    }
+    dmRender::DeleteRenderThread(thread);
+    dmConditionVariable::Delete(probe.m_Changed);
+    dmMutex::Delete(probe.m_Mutex);
+}
+
+// Verifies capture owns pointer operands after the Lua-side values change, and
+// replay may use the same captured matrices repeatedly without freeing slot data.
+TEST_F(dmRenderTest, SpriteThreadCommandOwnership)
+{
+    dmVMath::Matrix4 matrix = dmVMath::Matrix4::identity();
+    dmRender::Predicate predicate = {};
+    predicate.m_TagCount = 1;
+    predicate.m_Tags[0] = dmHashString64("tile");
+    dmRender::FrustumOptions frustum;
+    frustum.m_Matrix = matrix;
+    frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    dmRender::Command source[] = {
+        dmRender::Command(dmRender::COMMAND_TYPE_SET_VIEW, (uint64_t)&matrix),
+        dmRender::Command(dmRender::COMMAND_TYPE_DRAW, (uint64_t)&predicate, 0, (uint64_t)&frustum, dmRender::SORT_BACK_TO_FRONT)
+    };
+    dmRender::CapturedCommands captured;
+    ASSERT_TRUE(dmRender::CaptureCommands(source, 2, &captured));
+    matrix.setCol3(dmVMath::Vector4(100, 200, 300, 1));
+    predicate.m_Tags[0] = 0;
+    frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
+    ASSERT_EQ(dmHashString64("tile"), ((dmRender::Predicate*)captured.m_Commands[1].m_Operands[0])->m_Tags[0]);
+    ASSERT_EQ(6U, ((dmRender::FrustumOptions*)captured.m_Commands[1].m_Operands[2])->m_NumPlanes);
+    ASSERT_EQ(0.0f, ((dmVMath::Matrix4*)captured.m_Commands[0].m_Operands[0])->getCol3().getX());
+    dmRender::ParseCommands(m_Context, captured.m_Commands, 1, false);
+    dmRender::ParseCommands(m_Context, captured.m_Commands, 1, false);
+}
+
+// Verifies unsupported commands and overflow fail admission instead of silently
+// dropping commands or retaining pointers to mutable resource/camera state.
+TEST(dmRenderThreadTest, RejectUnsupportedCommandsAndOverflow)
+{
+    dmRender::CapturedCommands captured;
+    dmRender::Command command(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA, 1, 0);
+    ASSERT_FALSE(dmRender::CaptureCommands(&command, 1, &captured));
+    ASSERT_EQ(0U, captured.m_Count);
+    ASSERT_FALSE(dmRender::CaptureCommands(&command, dmRender::CapturedCommands::MAX_COMMANDS + 1, &captured));
+    command = dmRender::Command(dmRender::COMMAND_TYPE_SET_RENDER_TARGET, 1, 0, 0);
+    ASSERT_FALSE(dmRender::CaptureCommands(&command, 1, &captured));
+    dmRender::Predicate predicate = {};
+    command = dmRender::Command(dmRender::COMMAND_TYPE_DRAW, (uint64_t)&predicate, 1, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_FALSE(dmRender::CaptureCommands(&command, 1, &captured));
+}
+
+// Verifies shutdown drains a published frame, including after a cancelled build;
+// guards against abandoning queued work or joining with a reserved slot.
+TEST(dmRenderThreadTest, ShutdownDrainsAfterCancellation)
+{
+    ThreadQueueProbe probe = {};
+    probe.m_Mutex = dmMutex::New();
+    probe.m_Changed = dmConditionVariable::New();
+    probe.m_Release = true;
+    dmRender::HRenderThread thread = dmRender::NewRenderThread(ProbeRenderThread, &probe);
+    dmRender::CancelRenderThreadFrame(thread, dmRender::BeginRenderThreadFrame(thread));
+    dmRender::PublishRenderThreadFrame(thread, dmRender::BeginRenderThreadFrame(thread));
+    dmRender::DeleteRenderThread(thread);
+    ASSERT_EQ(1U, probe.m_Count);
+    ASSERT_EQ(1U, probe.m_Ids[0]);
+    dmConditionVariable::Delete(probe.m_Changed);
+    dmMutex::Delete(probe.m_Mutex);
+}
+
+// Verifies retained constant-buffer capacity includes copied values after clear,
+// guarding against reporting only the handle array as renderer memory.
+TEST_F(dmRenderTest, NamedConstantMemoryCapacity)
+{
+    dmRender::HNamedConstantBuffer buffer = dmRender::NewNamedConstantBuffer();
+    uint64_t empty = dmRender::GetNamedConstantBufferCapacity(buffer);
+    dmVMath::Vector4 values[64];
+    memset(values, 0, sizeof(values));
+    dmRender::SetNamedConstant(buffer, dmHashString64("memory"), values, 64);
+    uint64_t filled = dmRender::GetNamedConstantBufferCapacity(buffer);
+    ASSERT_GE(filled, empty + sizeof(values));
+    dmRender::ClearNamedConstantBuffer(buffer);
+    ASSERT_EQ(filled, dmRender::GetNamedConstantBufferCapacity(buffer));
+    dmRender::DeleteNamedConstantBuffer(buffer);
+}
+
+// Verifies optional tracing has fixed storage and never overwrites a consumer's
+// record when it fills; guards against trace-induced lifetime races.
+TEST(dmRenderThreadTest, FrameTraceBoundedStorage)
+{
+    dmRender::FrameTrace* trace = dmRender::NewFrameTrace(2);
+    dmRender::FrameTraceRecord* first = dmRender::BeginFrameTrace(trace);
+    first->m_SubmitEnd = 123;
+    ASSERT_NE((void*)0, dmRender::BeginFrameTrace(trace));
+    ASSERT_EQ((void*)0, dmRender::BeginFrameTrace(trace));
+    ASSERT_EQ(2U, trace->m_Count);
+    ASSERT_EQ(1U, trace->m_Dropped);
+    ASSERT_EQ(123U, first->m_SubmitEnd);
+    ASSERT_TRUE(dmRender::DeleteFrameTrace(trace, 0));
+}
+
+struct TracePublicationProbe
+{
+    dmRender::FrameTraceRecord* m_Record;
+    bool m_PublishedBeforeRead;
+};
+
+static void ProbeTracePublication(void* data, uint32_t slot, uint64_t id)
+{
+    TracePublicationProbe* probe = (TracePublicationProbe*)data;
+    probe->m_PublishedBeforeRead = probe->m_Record->m_Publish >= probe->m_Record->m_InputBegin;
+}
+
+// Verifies the publication timestamp is visible to the worker after queue handoff,
+// and that fresh GPU completion fields cannot inherit data from another frame.
+TEST(dmRenderThreadTest, TracePublicationOwnership)
+{
+    dmRender::FrameTrace* trace = dmRender::NewFrameTrace(1);
+    TracePublicationProbe probe = {};
+    probe.m_Record = dmRender::BeginFrameTrace(trace);
+    ASSERT_EQ(0U, probe.m_Record->m_Graphics.m_GpuCompleted);
+    dmRender::HRenderThread thread = dmRender::NewRenderThread(ProbeTracePublication, &probe);
+    dmRender::PublishRenderThreadFrame(thread, dmRender::BeginRenderThreadFrame(thread), probe.m_Record);
+    dmRender::DeleteRenderThread(thread);
+    ASSERT_TRUE(probe.m_PublishedBeforeRead);
+    ASSERT_TRUE(dmRender::DeleteFrameTrace(trace, 0));
 }

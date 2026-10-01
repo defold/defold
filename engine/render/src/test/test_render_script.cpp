@@ -2555,3 +2555,50 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
+
+// Verifies producer recording leaves consumer constants/state untouched and
+// rejects shared-state APIs before they can allocate or dereference handles.
+TEST_F(dmRenderScriptTest, ThreadRecordingOwnershipAndEarlyRejection)
+{
+    const char* script =
+        "function init(self) self.p = render.predicate({'tile'}) end\n"
+        "function update(self, dt)\n"
+        " render.set_view(vmath.matrix4())\n"
+        " render.draw(self.p, {frustum=vmath.matrix4()})\n"
+        " assert(not pcall(render.draw, self.p, {constants=render.constant_buffer()}))\n"
+        " assert(not pcall(render.render_target, 'forbidden', {}))\n"
+        " assert(not pcall(render.set_render_target, 12345))\n"
+        " assert(not pcall(render.enable_texture, 0, 12345))\n"
+        " assert(not pcall(render.set_camera, 12345))\n"
+        " assert(not pcall(render.set_listener, function() end))\n"
+        "end";
+    dmRender::HRenderScript rs = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    ASSERT_NE((void*)0, rs);
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, rs);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(instance));
+    dmRender::SetRenderScriptThreadedRecording(instance, true);
+    m_Context->m_ConstantBufferCloneCursor = 37;
+    dmRender::CapturedCommands captured;
+    ASSERT_TRUE(dmRender::CaptureRenderScriptInstance(instance, 0.016f, &captured));
+    ASSERT_EQ(2U, captured.m_Count);
+    ASSERT_EQ(37U, m_Context->m_ConstantBufferCloneCursor);
+    ASSERT_EQ(0U, m_Context->m_ConstantBufferClones.Size());
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, rs);
+}
+
+// Verifies a listener installed during init prevents the first publication;
+// guards against invoking a Lua callback on the render worker.
+TEST_F(dmRenderScriptTest, ThreadRecordingRejectsInitListener)
+{
+    const char* script = "function init(self) render.set_listener(function() end) end";
+    dmRender::HRenderScript rs = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, rs);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(instance));
+    dmRender::SetRenderScriptThreadedRecording(instance, true);
+    dmRender::CapturedCommands captured;
+    ASSERT_FALSE(dmRender::CaptureRenderScriptInstance(instance, 0.016f, &captured));
+    ASSERT_EQ(0U, captured.m_Count);
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, rs);
+}

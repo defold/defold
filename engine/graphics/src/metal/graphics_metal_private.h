@@ -272,6 +272,8 @@ namespace dmGraphics
 
     struct MetalFrameResource
     {
+        RenderFrameTimings* m_Timings;
+        dmMutex::HMutex m_CompletionMutex;
         ResourcesToDestroyList*    m_ResourcesToDestroy;
         MetalConstantScratchBuffer m_ConstantScratchBuffer;
         MetalArgumentBufferPool    m_ArgumentBufferPool;
@@ -317,6 +319,8 @@ namespace dmGraphics
         MetalContext(const ContextParams& params);
 
         GraphicsContext                    m_BaseContext;
+        RenderFrameTimings*                m_NextFrameTimings;
+        bool                               m_SpriteThreadSurface; // Main writes only while consumer is idle.
         void*                              m_View;
         CAMetalLayer*                      m_Layer;
         MetalFrameResource                 m_FrameResources[MAX_FRAMES_IN_FLIGHT];

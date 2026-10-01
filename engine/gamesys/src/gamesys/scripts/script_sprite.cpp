@@ -22,10 +22,12 @@
 #include <script/script.h>
 
 #include "gamesys.h"
+#include <dlib/time.h>
 #include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
 
 #include "script_sprite.h"
+#include "../components/comp_sprite.h"
 
 extern "C"
 {
@@ -500,8 +502,117 @@ namespace dmGameSystem
         return 0;
     }
 
+    // Experimental diagnostics for the sprite-only inline snapshot benchmark.
+    static int SpriteComp_GetSnapshotStats(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* world = dmGameObject::GetWorld(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
+        SpriteSnapshotStats stats;
+        GetSpriteSnapshotStats(world, &stats);
+        lua_newtable(L);
+        lua_pushstring(L, stats.m_Threaded ? "snapshot-threaded" : (stats.m_Inline ? "snapshot-inline" : "existing"));
+        lua_setfield(L, -2, "mode");
+        lua_pushnumber(L, (lua_Number)stats.m_PayloadUsedBytes);
+        lua_setfield(L, -2, "payload_used_bytes");
+        lua_pushnumber(L, (lua_Number)stats.m_FrameCapacityBytes);
+        lua_setfield(L, -2, "frame_capacity_bytes");
+        lua_pushnumber(L, (lua_Number)stats.m_RendererCpuCapacityBytes);
+        lua_setfield(L, -2, "renderer_cpu_capacity_bytes");
+        lua_pushnumber(L, (lua_Number)stats.m_ConstantBufferCapacityBytes);
+        lua_setfield(L, -2, "constant_buffer_capacity_bytes");
+        lua_pushnumber(L, (lua_Number)stats.m_RendererGpuLogicalBytes);
+        lua_setfield(L, -2, "renderer_gpu_logical_bytes");
+        lua_pushnumber(L, (lua_Number)stats.m_RetainedResourceReportedBytes);
+        lua_setfield(L, -2, "retained_resource_reported_bytes");
+        lua_pushnumber(L, (lua_Number)stats.m_FrameGrowthPeakBytes);
+        lua_setfield(L, -2, "frame_growth_peak_bytes");
+        lua_pushnumber(L, (lua_Number)stats.m_CaptureCount);
+        lua_setfield(L, -2, "capture_count");
+        lua_pushnumber(L, (lua_Number)stats.m_CaptureTotalUs);
+        lua_setfield(L, -2, "capture_total_us");
+        lua_pushnumber(L, (lua_Number)stats.m_RecordBytes);
+        lua_setfield(L, -2, "record_bytes");
+        lua_pushnumber(L, (lua_Number)stats.m_BoundBytes);
+        lua_setfield(L, -2, "bound_bytes");
+        lua_pushnumber(L, (lua_Number)stats.m_SpriteCount);
+        lua_setfield(L, -2, "sprite_count");
+        lua_pushnumber(L, (lua_Number)stats.m_BindingCount);
+        lua_setfield(L, -2, "binding_count");
+        lua_pushnumber(L, (lua_Number)stats.m_GeometryCount);
+        lua_setfield(L, -2, "geometry_count");
+        lua_pushnumber(L, (lua_Number)stats.m_ConstantBlockCount);
+        lua_setfield(L, -2, "constant_block_count");
+        lua_pushnumber(L, (lua_Number)stats.m_AttributeBlockCount);
+        lua_setfield(L, -2, "attribute_block_count");
+        lua_pushnumber(L, (lua_Number)stats.m_RetainedReferenceCount);
+        lua_setfield(L, -2, "retained_reference_count");
+        SpriteContext* context = (SpriteContext*)dmGameObject::GetContext(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
+        uint64_t device_bytes;
+        if (dmGraphics::GetRenderDeviceAllocatedBytes(dmRender::GetGraphicsContext(context->m_RenderContext), &device_bytes))
+        {
+            lua_pushnumber(L, (lua_Number)device_bytes);
+            lua_setfield(L, -2, "metal_device_allocated_bytes");
+        }
+        if (context->m_RenderThread)
+        {
+            lua_pushnumber(L, context->m_SnapshotCommandBytes);
+            lua_setfield(L, -2, "thread_command_capacity_bytes");
+            lua_pushnumber(L, 0x80000);
+            lua_setfield(L, -2, "thread_stack_bytes");
+            dmRender::RenderThreadStats thread;
+            dmRender::GetRenderThreadStats(context->m_RenderThread, &thread);
+            lua_pushnumber(L, (lua_Number)thread.m_CapturesWithConsumerOutstanding);
+            lua_setfield(L, -2, "thread_captures_with_consumer_outstanding");
+            lua_pushnumber(L, (lua_Number)thread.m_Submitted);
+            lua_setfield(L, -2, "thread_submitted");
+            lua_pushnumber(L, (lua_Number)thread.m_Completed);
+            lua_setfield(L, -2, "thread_completed");
+            lua_pushnumber(L, (lua_Number)thread.m_ProducerWaitUs);
+            lua_setfield(L, -2, "thread_producer_wait_us");
+            lua_pushnumber(L, (lua_Number)thread.m_RenderUs);
+            lua_setfield(L, -2, "thread_render_us");
+            lua_pushnumber(L, (lua_Number)thread.m_FrameAgeUs);
+            lua_setfield(L, -2, "thread_frame_age_us");
+            lua_pushnumber(L, (lua_Number)thread.m_Controls);
+            lua_setfield(L, -2, "thread_controls");
+            lua_pushnumber(L, (lua_Number)thread.m_ControlUs);
+            lua_setfield(L, -2, "thread_control_us");
+            lua_pushnumber(L, (lua_Number)thread.m_MaxOutstanding);
+            lua_setfield(L, -2, "thread_max_outstanding");
+            lua_pushnumber(L, (lua_Number)thread.m_SlotCount);
+            lua_setfield(L, -2, "thread_slot_count");
+            lua_pushnumber(L, (lua_Number)thread.m_ControlCapacity);
+            lua_setfield(L, -2, "thread_control_capacity");
+            lua_pushnumber(L, (lua_Number)thread.m_QueueBytes);
+            lua_setfield(L, -2, "thread_queue_bytes");
+        }
+        return 1;
+    }
+
+    static int SpriteComp_SnapshotPause(lua_State* L)
+    {
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        SpriteContext* context = (SpriteContext*)dmGameObject::GetContext(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
+        if (!context->m_SnapshotPause)
+            return luaL_error(L, "snapshot pause requires render.sprite_snapshot=2");
+        context->m_SnapshotPause(context->m_SnapshotContext, lua_toboolean(L, 1));
+        return 0;
+    }
+
+    // Internal benchmark clock: independent of wall-clock corrections. On macOS,
+    // monotonic elapsed time excludes system sleep, matching engine frame timing.
+    static int SpriteComp_SnapshotClock(lua_State* L)
+    {
+        lua_pushnumber(L, (lua_Number)dmTime::GetMonotonicTime() / 1000000.0);
+        return 1;
+    }
+
     static const luaL_reg SPRITE_COMP_FUNCTIONS[] =
     {
+            {"_get_snapshot_stats", SpriteComp_GetSnapshotStats},
+            {"_snapshot_pause", SpriteComp_SnapshotPause},
+            {"_snapshot_clock", SpriteComp_SnapshotClock},
             {"set_hflip",       SpriteComp_SetHFlip},
             {"set_vflip",       SpriteComp_SetVFlip},
             {"reset_constant",  SpriteComp_ResetConstant},

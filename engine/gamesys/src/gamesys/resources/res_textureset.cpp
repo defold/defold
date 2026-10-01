@@ -196,7 +196,7 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(physics_context->m_Context, params->m_Factory, texture_set_ddf, &tmp_tile_set, params->m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
-            uint8_t current_generation = tile_set->m_TexturesGeneration;
+            uint32_t current_generation = tile_set->m_TexturesGeneration;
             ReleaseResources(params->m_Factory, tile_set);
 
             tile_set->m_TextureSet = tmp_tile_set.m_TextureSet;

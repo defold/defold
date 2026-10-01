@@ -51,6 +51,7 @@ namespace dmGraphics
     static HContext                     MetalGetContext();
     static bool                         MetalInitialize(MetalContext* context);
     static void                         MetalStopAsyncProcessing(MetalContext* context);
+    static void                         MetalDrainRenderThreadGpu(HContext context);
     static GraphicsAdapter g_Metal_adapter(ADAPTER_FAMILY_METAL);
     static MetalContext*   g_MetalContext = 0x0;
 
@@ -431,15 +432,13 @@ namespace dmGraphics
         {
             MetalContext* context = (MetalContext*) _context;
             MetalStopAsyncProcessing(context);
+            MetalDrainRenderThreadGpu(_context);
 
             for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
             {
                 MetalFrameResource& frame = context->m_FrameResources[i];
 
-                if (frame.m_CommandBuffer && frame.m_InFlight)
-                {
-                    frame.m_CommandBuffer->waitUntilCompleted();
-                }
+                dmMutex::Delete(frame.m_CompletionMutex);
 
                 FlushResourcesToDestroy(context, frame.m_ResourcesToDestroy);
                 ReleaseMetalDeviceBuffer(&frame.m_ConstantScratchBuffer.m_DeviceBuffer);
@@ -1477,6 +1476,7 @@ namespace dmGraphics
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
         {
+            context->m_FrameResources[i].m_CompletionMutex = dmMutex::New();
             context->m_FrameResources[i].m_ResourcesToDestroy = new ResourcesToDestroyList;
             context->m_FrameResources[i].m_ResourcesToDestroy->SetCapacity(8);
             context->m_FrameResources[i].m_CommandBuffer = 0;
@@ -1964,14 +1964,62 @@ namespace dmGraphics
         }
     }
 
+    static void MetalSetFrameTimings(HContext handle, RenderFrameTimings* timings)
+    {
+        ((MetalContext*)handle)->m_NextFrameTimings = timings;
+    }
+
+    static uint64_t MetalDeviceAllocatedBytes(HContext handle)
+    {
+        return ((MetalContext*)handle)->m_Device->currentAllocatedSize();
+    }
+
+    static void MetalPrepareRenderThreadSurface(HContext handle, bool enabled)
+    {
+        MetalContext* context = (MetalContext*)handle;
+        // Called on main after CPU drain. Finish startup uploads before handing
+        // the context to the renderer; subsequent uploads are synchronous.
+        while (dmAtomicGet32(&context->m_PendingAsyncTextureJobs))
+        {
+            JobSystemUpdate(context->m_JobContext, 0);
+            dmTime::Sleep(100);
+        }
+        context->m_SpriteThreadSurface = enabled;
+        uint32_t width = 0, height = 0;
+        GetDrawableSize(context, &width, &height);
+        context->m_Layer.drawableSize = CGSizeMake(width, height);
+    }
+
+    static void MetalDrainRenderThreadGpu(HContext handle)
+    {
+        MetalContext* context = (MetalContext*)handle;
+        assert(!context->m_FrameBegun);
+        // Acquiring every permit waits for completion callbacks as well as GPU
+        // execution. It avoids racing their command-buffer releases.
+        for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
+            dispatch_semaphore_wait(context->m_FrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
+        for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
+            dispatch_semaphore_signal(context->m_FrameBoundarySemaphore);
+    }
+
     static void MetalBeginFrame(HContext _context)
     {
         MetalContext* context = (MetalContext*) _context;
+        RenderFrameTimings* timings = context->m_NextFrameTimings;
+        context->m_NextFrameTimings = 0;
+        if (timings) timings->m_SlotWaitBegin = dmTime::GetMonotonicTime();
         dispatch_semaphore_wait(context->m_FrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
+        if (timings) timings->m_SlotWaitEnd = dmTime::GetMonotonicTime();
 
         MetalFrameResource& frame = GetCurrentFrameResource(context);
+        DM_MUTEX_SCOPED_LOCK(frame.m_CompletionMutex);
         assert(!frame.m_InFlight);
+        frame.m_Timings = timings;
+        if (context->m_SpriteThreadSurface)
+            frame.m_AutoReleasePool = NS::AutoreleasePool::alloc()->init();
 
+        if (!context->m_SpriteThreadSurface)
+        {
 #if defined(DM_PLATFORM_IOS)
         UIView* native_view = ResolveNativeView(context);
         if (native_view)
@@ -1994,8 +2042,12 @@ namespace dmGraphics
         context->m_Layer.drawableSize = CGSizeMake(requested_drawable_width, requested_drawable_height);
 #endif
 
+        }
+
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+        if (timings) timings->m_DrawableBegin = dmTime::GetMonotonicTime();
         frame.m_Drawable = (__bridge CA::MetalDrawable*)[context->m_Layer nextDrawable];
+        if (timings) timings->m_DrawableEnd = dmTime::GetMonotonicTime();
         if (frame.m_Drawable)
         {
             frame.m_Drawable->retain();
@@ -2030,12 +2082,25 @@ namespace dmGraphics
 
         color_tex->m_Texture    = frame.m_Drawable->texture();
         ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
+        if (timings) timings->m_EncodeBegin = dmTime::GetMonotonicTime();
     }
 
     static void MetalCommandBufferCompleted(MetalContext* context, uint32_t frame_index)
     {
         MetalFrameResource& frame = context->m_FrameResources[frame_index];
+        dmMutex::Lock(frame.m_CompletionMutex);
 
+        if (frame.m_Timings)
+        {
+            // Callback owns these fields. Records are never reused, and teardown
+            // acquires all semaphore permits before reading or freeing them.
+            double begin = frame.m_CommandBuffer->GPUStartTime();
+            double end = frame.m_CommandBuffer->GPUEndTime();
+            frame.m_Timings->m_GpuCompleted = frame.m_CommandBuffer->status() == MTL::CommandBufferStatusCompleted ? 1 : 2;
+            if (begin > 0 && end >= begin)
+                frame.m_Timings->m_GpuDurationUs = (uint64_t)((end - begin) * 1000000.0);
+            frame.m_Timings = 0;
+        }
         FlushResourcesToDestroy(context, frame.m_ResourcesToDestroy);
 
         if (frame.m_CommandBuffer)
@@ -2053,6 +2118,7 @@ namespace dmGraphics
         frame.m_RenderCommandEncoder = 0;
         frame.m_InFlight = 0;
 
+        dmMutex::Unlock(frame.m_CompletionMutex);
         dispatch_semaphore_signal(context->m_FrameBoundarySemaphore);
     }
 
@@ -2069,7 +2135,11 @@ namespace dmGraphics
 
         const uint32_t frame_index = context->m_CurrentFrameInFlight;
         MetalFrameResource& frame = context->m_FrameResources[frame_index];
+        // Explicitly publish frame data to Metal's asynchronous completion thread.
+        // The callback cannot release its command buffer until commit returns.
+        DM_MUTEX_SCOPED_LOCK(frame.m_CompletionMutex);
 
+        if (frame.m_Timings) frame.m_Timings->m_CommitBegin = dmTime::GetMonotonicTime();
         frame.m_CommandBuffer->presentDrawable(frame.m_Drawable);
 
         // Register completion callback
@@ -2078,6 +2148,7 @@ namespace dmGraphics
         });
 
         frame.m_CommandBuffer->commit();
+        if (frame.m_Timings) frame.m_Timings->m_CommitEnd = dmTime::GetMonotonicTime();
 
         if (context->m_AsyncProcessingSupport)
         {
@@ -2086,6 +2157,12 @@ namespace dmGraphics
 
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
         context->m_FrameBegun = 0;
+        if (frame.m_AutoReleasePool)
+        {
+            // Drain on the same worker that created the pool, once per frame.
+            frame.m_AutoReleasePool->release();
+            frame.m_AutoReleasePool = 0;
+        }
     }
 
     static const BufferType* MetalColorBufferBits()
@@ -5917,6 +5994,9 @@ namespace dmGraphics
 
     static GraphicsAdapterFunctionTable MetalRegisterFunctionTable()
     {
+#if defined(DM_PLATFORM_MACOS)
+        RegisterRenderThreadAdapter(MetalPrepareRenderThreadSurface, MetalDrainRenderThreadGpu, MetalDeviceAllocatedBytes, MetalSetFrameTimings);
+#endif
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Metal);
         DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Metal, SetSwapInterval);

@@ -30,6 +30,7 @@
 
 #include <input/input.h>
 #include <render/render.h>
+#include <render/render_thread.h>
 #include <physics/physics.h>
 #include <platform/window.h>
 
@@ -244,6 +245,12 @@ namespace dmGameSystem
         dmResource::HFactory        m_Factory;
         uint32_t                    m_MaxSpriteCount;
         uint32_t                    m_Subpixels : 1;
+        uint32_t                    m_SnapshotInline : 1;
+        uint32_t                    m_SnapshotThreaded : 1;
+        dmRender::HRenderThread      m_RenderThread;
+        uint32_t                    m_SnapshotCommandBytes;
+        void (*m_SnapshotPause)(void* context, bool paused);
+        void* m_SnapshotContext;
     };
 
     struct ModelContext

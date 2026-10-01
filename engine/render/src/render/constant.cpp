@@ -145,6 +145,12 @@ HNamedConstantBuffer NewNamedConstantBuffer()
     return buffer;
 }
 
+uint64_t GetNamedConstantBufferCapacity(HNamedConstantBuffer buffer)
+{
+    return sizeof(*buffer) + buffer->m_Constants.Capacity() * sizeof(NamedConstantBuffer::Constant) +
+        buffer->m_Values.Capacity() * sizeof(dmVMath::Vector4);
+}
+
 void DeleteNamedConstantBuffer(HNamedConstantBuffer buffer)
 {
     delete buffer;

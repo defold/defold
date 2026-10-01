@@ -835,6 +835,12 @@ namespace dmRender
         }
     }
 
+    static void CheckProducerRenderAPI(lua_State* L)
+    {
+        if (RenderScriptInstance_Check(L)->m_ThreadedRecording)
+            luaL_error(L, "Render API is outside the sprite thread command subset");
+    }
+
     bool InsertCommand(RenderScriptInstance* i, const Command& command)
     {
         if (i->m_CommandBuffer.Full())
@@ -1077,6 +1083,7 @@ namespace dmRender
      */
     int RenderScript_RenderTarget(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         DM_LUA_STACK_CHECK(L, 1);
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -1352,6 +1359,7 @@ namespace dmRender
      */
     int RenderScript_DeleteRenderTarget(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         if (!lua_isnumber(L, 1))
         {
             return luaL_error(L, "Invalid render target (nil) supplied to %s.delete_render_target.", RENDER_SCRIPT_LIB_NAME);
@@ -1424,6 +1432,8 @@ namespace dmRender
     */
     int RenderScript_SetRenderTarget(lua_State* L)
     {
+        if (RenderScriptInstance_Check(L)->m_ThreadedRecording && !lua_isnil(L, 1) && !(lua_isnumber(L, 1) && lua_tonumber(L, 1) == 0))
+            return luaL_error(L, "Custom render targets are outside the sprite thread command subset");
         DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = 0;
@@ -1500,6 +1510,7 @@ namespace dmRender
      */
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
@@ -1581,6 +1592,7 @@ namespace dmRender
      */
     int RenderScript_EnableTexture(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         DM_LUA_STACK_CHECK(L, 0);
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -1690,6 +1702,7 @@ namespace dmRender
      */
     int RenderScript_DisableTexture(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmhash_t sampler_hash   = 0;
         uint32_t unit           = 0;
@@ -1734,6 +1747,7 @@ namespace dmRender
      */
     int RenderScript_GetRenderTargetWidth(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         int top = lua_gettop(L);
         (void) top;
 
@@ -1773,6 +1787,7 @@ namespace dmRender
      */
     int RenderScript_GetRenderTargetHeight(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         int top = lua_gettop(L);
         (void) top;
 
@@ -1960,6 +1975,9 @@ namespace dmRender
             lua_pop(L, 1);
         }
 
+        if (i->m_ThreadedRecording && constant_buffer)
+            return luaL_error(L, "Per-draw constants are outside the sprite thread command subset");
+
         // we need to pass ownership to the command queue
         FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
@@ -2002,6 +2020,7 @@ namespace dmRender
      */
     int RenderScript_DrawDebug3d(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmVMath::Matrix4* frustum_matrix = 0;
         dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
@@ -2818,6 +2837,7 @@ namespace dmRender
      */
     static int RenderScript_EnableMaterial(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         DM_LUA_STACK_CHECK(L, 0);
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -2870,6 +2890,7 @@ namespace dmRender
      */
     static int RenderScript_DisableMaterial(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_MATERIAL)))
@@ -2914,6 +2935,7 @@ namespace dmRender
      */
     static int RenderScript_SetCamera(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
@@ -2969,6 +2991,7 @@ namespace dmRender
      */
     static int RenderScript_SetCompute(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         DM_LUA_STACK_CHECK(L, 0);
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -3042,6 +3065,7 @@ namespace dmRender
      */
     static int RenderScript_Dispatch(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
@@ -3110,6 +3134,7 @@ namespace dmRender
     */
     static int RenderScript_SetListener(lua_State* L)
     {
+        CheckProducerRenderAPI(L);
         DM_LUA_STACK_CHECK(L, 0);
 
         RenderScriptInstance* script_instance = RenderScriptInstance_Check(L);
@@ -3570,6 +3595,14 @@ bail:
         if (message->m_Descriptor != 0)
         {
             dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
+            if (instance->m_ThreadedRecording && (descriptor == dmRenderDDF::DrawText::m_DDFDescriptor ||
+                descriptor == dmRenderDDF::DrawDebugText::m_DDFDescriptor || descriptor == dmRenderDDF::DrawLine::m_DDFDescriptor ||
+                descriptor == dmRenderDDF::Resize::m_DDFDescriptor))
+            {
+                dmLogError("Built-in render messages are outside the sprite thread command subset");
+                context->m_Result = RENDER_SCRIPT_RESULT_FAILED;
+                return;
+            }
             if (descriptor == dmRenderDDF::DrawText::m_DDFDescriptor || descriptor == dmRenderDDF::DrawDebugText::m_DDFDescriptor)
             {
                 if (instance->m_RenderContext->m_SystemFontMap == 0)
@@ -3639,6 +3672,36 @@ bail:
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
         }
         return result;
+    }
+
+    void SetRenderScriptThreadedRecording(HRenderScriptInstance instance, bool enabled)
+    {
+        instance->m_ThreadedRecording = enabled;
+    }
+
+    bool CaptureRenderScriptInstance(HRenderScriptInstance instance, float dt, CapturedCommands* commands)
+    {
+        if (instance->m_ThreadedRecording && instance->m_RenderContext->m_CallbackInfo)
+        {
+            dmLogError("Render listeners are outside the sprite thread command subset");
+            commands->m_Count = 0;
+            return false;
+        }
+        // Producer-only command storage. Supported recording APIs never mutate
+        // the consumer context; copied operands contain no Lua userdata.
+        instance->m_CommandBuffer.SetSize(0);
+
+        dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
+        RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, &dt);
+        bool ok = result == RENDER_SCRIPT_RESULT_OK && CaptureCommands(instance->m_CommandBuffer.Begin(), instance->m_CommandBuffer.Size(), commands);
+        ReleaseCommandOperands(instance->m_CommandBuffer.Begin(), instance->m_CommandBuffer.Size());
+        instance->m_CommandBuffer.SetSize(0);
+        if (!ok)
+        {
+            commands->m_Count = 0;
+            dmLogError("Sprite thread command capture failed; frame rejected.");
+        }
+        return ok;
     }
 
     void OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance)

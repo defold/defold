@@ -360,6 +360,11 @@ namespace dmRender
 
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      DispatchRenderScriptInstance(HRenderScriptInstance render_script_instance);
+    struct CapturedCommands;
+    void                    SetRenderScriptThreadedRecording(HRenderScriptInstance instance, bool enabled);
+    uint64_t                GetNamedConstantBufferCapacity(HNamedConstantBuffer buffer);
+    uint64_t                GetBufferedRenderBufferDataSize(HBufferedRenderBuffer buffer);
+    bool                    CaptureRenderScriptInstance(HRenderScriptInstance instance, float dt, CapturedCommands* commands);
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance, float dt);
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 

@@ -121,6 +121,21 @@ struct ResourceFactory
 
 namespace dmResource
 {
+static void (*g_RenderMutationBarrier)(void*) = 0;
+static void* g_RenderMutationContext = 0;
+
+void SetRenderMutationBarrier(void (*barrier)(void*), void* context)
+{
+    g_RenderMutationBarrier = barrier;
+    g_RenderMutationContext = context;
+}
+
+static void RenderMutationBarrier()
+{
+    if (g_RenderMutationBarrier)
+        g_RenderMutationBarrier(g_RenderMutationContext);
+}
+
 const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 
 #define RESOURCE_SOCKET_NAME "@resource"
@@ -699,6 +714,7 @@ const char* GetExtFromPath(const char* path)
 static Result DoCreateResource(HFactory factory, ResourceType* resource_type, const char* name, const char* canonical_path,
     dmhash_t canonical_path_hash, void* buffer, uint32_t buffer_size, uint32_t resource_size, void** resource_out)
 {
+    RenderMutationBarrier();
     // TODO: We should *NOT* allocate SResource dynamically...
     ResourceDescriptor tmp_resource;
     memset(&tmp_resource, 0, sizeof(tmp_resource));
@@ -1088,6 +1104,7 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
 
 static Result DoReloadResource(HFactory factory, const char* name, HResourceDescriptor* out_descriptor)
 {
+    RenderMutationBarrier();
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
 
@@ -1208,6 +1225,7 @@ Result ReloadResource(HFactory factory, const char* name, HResourceDescriptor* o
 
 Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t datasize)
 {
+    RenderMutationBarrier();
     DM_PROFILE(__FUNCTION__);
 
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
@@ -1265,6 +1283,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
 
 Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
 {
+    RenderMutationBarrier();
     DM_PROFILE(__FUNCTION__);
 
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
@@ -1479,6 +1498,7 @@ void Release(HFactory factory, void* resource)
 
     if (rd->m_ReferenceCount == 0)
     {
+        RenderMutationBarrier();
         ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
 
         DM_PROFILE_DYN(resource_type->m_Extension, 0);

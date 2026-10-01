@@ -43,7 +43,7 @@ namespace dmGameSystem
         dmhash_t                            m_TexturePath;
         dmGameSystemDDF::TextureSet*        m_TextureSet;
         dmPhysics::HHullSet2D               m_HullSet;
-        uint8_t                             m_TexturesGeneration; // increase counter when reload resource data
+        uint32_t                            m_TexturesGeneration; // increase counter when reload resource data
     };
 }
 

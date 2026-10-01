@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdio.h>
+#include <string.h>
 #include <dlib/log.h>
 #include <dmsdk/dlib/intersection.h>
 #include "render_command.h"
@@ -22,17 +23,20 @@ namespace dmRender
 {
     Command::Command(CommandType type)
     {
+        memset(m_Operands, 0, sizeof(m_Operands));
         m_Type = type;
     }
 
     Command::Command(CommandType type, uint64_t op0)
     {
+        memset(m_Operands, 0, sizeof(m_Operands));
         m_Type = type;
         m_Operands[0] = op0;
     }
 
     Command::Command(CommandType type, uint64_t op0, uint64_t op1)
     {
+        memset(m_Operands, 0, sizeof(m_Operands));
         m_Type = type;
         m_Operands[0] = op0;
         m_Operands[1] = op1;
@@ -40,6 +44,7 @@ namespace dmRender
 
     Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2)
     {
+        memset(m_Operands, 0, sizeof(m_Operands));
         m_Type = type;
         m_Operands[0] = op0;
         m_Operands[1] = op1;
@@ -48,6 +53,7 @@ namespace dmRender
 
     Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3)
     {
+        memset(m_Operands, 0, sizeof(m_Operands));
         m_Type = type;
         m_Operands[0] = op0;
         m_Operands[1] = op1;
@@ -55,7 +61,82 @@ namespace dmRender
         m_Operands[3] = op3;
     }
 
-    void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count)
+    void ReleaseCommandOperands(Command* commands, uint32_t count)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Command& c = commands[i];
+            if (c.m_Type == COMMAND_TYPE_SET_VIEW || c.m_Type == COMMAND_TYPE_SET_PROJECTION)
+                delete (dmVMath::Matrix4*)c.m_Operands[0];
+            else if (c.m_Type == COMMAND_TYPE_DRAW)
+                delete (FrustumOptions*)c.m_Operands[2];
+            else if (c.m_Type == COMMAND_TYPE_DRAW_DEBUG3D)
+                delete (FrustumOptions*)c.m_Operands[0];
+        }
+    }
+
+    bool CaptureCommands(Command* commands, uint32_t count, CapturedCommands* output)
+    {
+        output->m_Count = 0;
+        if (count > CapturedCommands::MAX_COMMANDS)
+        {
+            dmLogError("Sprite thread command capacity exceeded (%u > %u)", count, CapturedCommands::MAX_COMMANDS);
+            return false;
+        }
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Command& c = output->m_Commands[i];
+            c = commands[i];
+            switch (c.m_Type)
+            {
+                case COMMAND_TYPE_SET_VIEW:
+                case COMMAND_TYPE_SET_PROJECTION:
+                    output->m_Matrices[i] = *(dmVMath::Matrix4*)c.m_Operands[0];
+                    c.m_Operands[0] = (uint64_t)&output->m_Matrices[i];
+                    break;
+                case COMMAND_TYPE_DRAW:
+                    // Per-draw constant buffers and cameras need a separate capture
+                    // path; per-sprite constants are already owned by the sprite slot.
+                    if (!c.m_Operands[0] || c.m_Operands[1])
+                        return false;
+                    output->m_Predicates[i] = *(Predicate*)c.m_Operands[0];
+                    c.m_Operands[0] = (uint64_t)&output->m_Predicates[i];
+                    if (c.m_Operands[2])
+                    {
+                        output->m_Frustums[i] = *(FrustumOptions*)c.m_Operands[2];
+                        c.m_Operands[2] = (uint64_t)&output->m_Frustums[i];
+                    }
+                    break;
+                case COMMAND_TYPE_SET_RENDER_TARGET:
+                    if (c.m_Operands[0])
+                        return false;
+                    break;
+                case COMMAND_TYPE_ENABLE_STATE:
+                case COMMAND_TYPE_DISABLE_STATE:
+                case COMMAND_TYPE_CLEAR:
+                case COMMAND_TYPE_SET_VIEWPORT:
+                case COMMAND_TYPE_SET_BLEND_FUNC:
+                case COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE:
+                case COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE:
+                case COMMAND_TYPE_SET_COLOR_MASK:
+                case COMMAND_TYPE_SET_DEPTH_MASK:
+                case COMMAND_TYPE_SET_DEPTH_FUNC:
+                case COMMAND_TYPE_SET_STENCIL_MASK:
+                case COMMAND_TYPE_SET_STENCIL_FUNC:
+                case COMMAND_TYPE_SET_STENCIL_OP:
+                case COMMAND_TYPE_SET_CULL_FACE:
+                case COMMAND_TYPE_SET_POLYGON_OFFSET:
+                    break;
+                default:
+                    dmLogError("Unsupported sprite thread render command: %d", c.m_Type);
+                    return false;
+            }
+        }
+        output->m_Count = count;
+        return true;
+    }
+
+    void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count, bool release_operands)
     {
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
 
@@ -122,14 +203,14 @@ namespace dmRender
                 {
                     dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[0];
                     dmRender::SetViewMatrix(render_context, *matrix);
-                    delete matrix;
+                    if (release_operands) delete matrix;
                     break;
                 }
                 case COMMAND_TYPE_SET_PROJECTION:
                 {
                     dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[0];
                     dmRender::SetProjectionMatrix(render_context, *matrix);
-                    delete matrix;
+                    if (release_operands) delete matrix;
                     break;
                 }
                 case COMMAND_TYPE_SET_BLEND_FUNC:
@@ -201,14 +282,14 @@ namespace dmRender
                                                              (dmRender::HNamedConstantBuffer)c->m_Operands[1],
                                                              frustum_options,
                                                              sort_order);
-                    delete frustum_options;
+                    if (release_operands) delete frustum_options;
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG3D:
                 {
                     FrustumOptions* frustum_options = (FrustumOptions*)c->m_Operands[0];
                     dmRender::DrawDebug3d(render_context, frustum_options);
-                    delete frustum_options;
+                    if (release_operands) delete frustum_options;
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_MATERIAL:

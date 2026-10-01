@@ -30,6 +30,32 @@
 
 namespace dmGraphics
 {
+    // Opt-in per-frame diagnostics. Caller owns storage until GPU drain completes.
+    // CPU timestamps use dmTime's clock; GPU duration uses Metal's own clock.
+    struct RenderFrameTimings
+    {
+        uint64_t m_SlotWaitBegin;
+        uint64_t m_SlotWaitEnd;
+        uint64_t m_DrawableBegin;
+        uint64_t m_DrawableEnd;
+        uint64_t m_EncodeBegin;
+        uint64_t m_CommitBegin;
+        uint64_t m_CommitEnd;
+        uint64_t m_GpuDurationUs;
+        uint64_t m_GpuCompleted; // 0 = unavailable, 1 = completed, 2 = failed
+    };
+    typedef void (*RenderThreadAdapterTimings)(HContext context, RenderFrameTimings* timings);
+    bool SetRenderFrameTimings(HContext context, RenderFrameTimings* timings);
+    // Internal macOS/Metal sprite-thread PoC hooks, absent on other adapters.
+    typedef void (*RenderThreadAdapterPrepare)(HContext context, bool enabled);
+    typedef void (*RenderThreadAdapterDrain)(HContext context);
+    typedef uint64_t (*RenderThreadAdapterMemory)(HContext context);
+    void RegisterRenderThreadAdapter(RenderThreadAdapterPrepare prepare, RenderThreadAdapterDrain drain, RenderThreadAdapterMemory memory, RenderThreadAdapterTimings timings);
+    bool GetRenderDeviceAllocatedBytes(HContext context, uint64_t* bytes);
+    bool PrepareRenderThreadSurface(HContext context, bool enabled);
+    void DrainRenderThreadGpu(HContext context);
+    void SetRenderThreadMutationBarrier(void (*barrier)(void*), void* context);
+
     /**
      * Callback function called when the window is requested to close.
      * @param user_data user data that was supplied when opening the window

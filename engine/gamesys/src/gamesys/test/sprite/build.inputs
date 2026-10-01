@@ -12,6 +12,8 @@
 /sprite/invalid_vertexspace.sprite
 /sprite/sprite_flipbook_anim.go
 /sprite/sprite_property_anim.go
+/sprite/snapshot_values.go
+/sprite/snapshot_trimmed.go
 /sprite/sprite_slice9.go
 /sprite/test_comp.go
 /sprite/texture_transform_multi.go

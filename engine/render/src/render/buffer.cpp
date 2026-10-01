@@ -113,6 +113,18 @@ namespace dmRender
         }
     }
 
+    uint64_t GetBufferedRenderBufferDataSize(HBufferedRenderBuffer buffer)
+    {
+        if (!buffer)
+            return 0;
+        uint64_t bytes = 0;
+        for (uint32_t i = 0; i < buffer->m_Buffers.Size(); ++i)
+            bytes += buffer->m_Type == RENDER_BUFFER_TYPE_VERTEX_BUFFER ?
+                dmGraphics::GetVertexBufferSize((dmGraphics::HVertexBuffer)buffer->m_Buffers[i]) :
+                dmGraphics::GetIndexBufferSize((dmGraphics::HIndexBuffer)buffer->m_Buffers[i]);
+        return bytes;
+    }
+
     void SetBufferSubData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t offset, uint32_t size, void* data)
     {
         switch(buffer->m_Type)

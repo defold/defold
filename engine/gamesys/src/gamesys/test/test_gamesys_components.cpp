@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include "../components/comp_sprite.h"
+#include "../resources/res_textureset.h"
 
 using namespace dmVMath;
 
@@ -682,6 +684,341 @@ TEST_F(SpriteTest, RenderScriptMaterialOverrideGrowsVertexBuffer)
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_RenderContext, render_script);
     dmResource::Release(m_Factory, mat4_material_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static void CaptureSpriteTestFrame(dmRender::HRenderContext context, dmGameObject::HCollection collection)
+{
+    dmRender::ClearRenderObjects(context);
+    dmRender::RenderListBegin(context);
+    dmGameObject::Render(collection);
+    dmRender::RenderListEnd(context);
+}
+
+static void CopySpriteTestBuffers(void* world, dmArray<uint8_t>& vertices, dmArray<uint8_t>& indices)
+{
+    dmRender::HBufferedRenderBuffer vb, ib;
+    dmGameSystem::GetSpriteWorldRenderBuffers(world, &vb, &ib);
+    uint32_t vertex_size = dmGraphics::GetVertexBufferSize(vb->m_Buffers[0]);
+    uint32_t index_size = dmGraphics::GetIndexBufferSize(ib->m_Buffers[0]);
+    vertices.SetCapacity(vertex_size);
+    vertices.SetSize(vertex_size);
+    indices.SetCapacity(index_size);
+    indices.SetSize(index_size);
+    memcpy(vertices.Begin(), ((dmGraphics::VertexBuffer*)vb->m_Buffers[0])->m_Buffer, vertex_size);
+    memcpy(indices.Begin(), ((dmGraphics::IndexBuffer*)ib->m_Buffers[0])->m_Buffer, index_size);
+}
+
+// Snapshot vertices/indices must match legacy quads, slice9, trimmed and multi-texture
+// geometry even after simulation changes and destroys the source component/cache.
+TEST_F(SpriteTest, SnapshotGeometrySurvivesDeletion)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    const char* paths[] = {"/sprite/valid_sprite.goc", "/sprite/textureless.goc", "/sprite/texture_transform_multi.goc", "/sprite/sprite_slice9.goc", "/sprite/snapshot_trimmed.goc"};
+    for (uint32_t f = 0; f < DM_ARRAY_SIZE(paths); ++f)
+    {
+        m_SpriteContext.m_SnapshotInline = 0;
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, paths[f], dmHashString64("/snapshot"), 0, Point3(17, 29, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+        ASSERT_NE((void*)0, go);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        PostSpriteFlip(m_Collection, dmHashString64("/snapshot"), dmHashString64("sprite"), true, true);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        RenderCollection(m_RenderContext, m_Collection);
+        dmArray<uint8_t> expected_vertices, expected_indices;
+        CopySpriteTestBuffers(world, expected_vertices, expected_indices);
+        ASSERT_GT(expected_vertices.Size(), 0U);
+        m_SpriteContext.m_SnapshotInline = 1;
+        CaptureSpriteTestFrame(m_RenderContext, m_Collection);
+        dmGameObject::SetPosition(go, Point3(1234, 5678, 0));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        dmGameObject::Delete(m_Collection, go, true);
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        // Evict the live animation cache as well as freeing the component.
+        for (uint32_t tick = 0; tick < 12; ++tick)
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        dmArray<uint8_t> actual_vertices, actual_indices;
+        CopySpriteTestBuffers(world, actual_vertices, actual_indices);
+        ASSERT_EQ(expected_vertices.Size(), actual_vertices.Size());
+        ASSERT_EQ(expected_indices.Size(), actual_indices.Size());
+        ASSERT_EQ(0, memcmp(expected_vertices.Begin(), actual_vertices.Begin(), expected_vertices.Size()));
+        ASSERT_EQ(0, memcmp(expected_indices.Begin(), actual_indices.Begin(), expected_indices.Size()));
+        CaptureSpriteTestFrame(m_RenderContext, m_Collection);
+        dmGameSystem::SpriteSnapshotStats stats;
+        dmGameSystem::GetSpriteSnapshotStats(world, &stats);
+        ASSERT_EQ(0U, stats.m_RetainedReferenceCount);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies the consumer uses its captured slot after component deletion, and
+// switching to an empty second slot releases references without touching gameplay.
+TEST_F(SpriteTest, ThreadSnapshotDeletionAndSlotReuse)
+{
+    m_SpriteContext.m_SnapshotThreaded = 1;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/snapshot"), 0, Point3(17, 29, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    RenderCollection(m_RenderContext, m_Collection);
+    dmArray<uint8_t> expected_vertices, expected_indices;
+    CopySpriteTestBuffers(world, expected_vertices, expected_indices);
+    ASSERT_TRUE(dmGameSystem::CaptureSpriteThreadFrame(world, &m_SpriteContext, 0));
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmRender::ClearRenderObjects(m_RenderContext);
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameSystem::RenderSpriteThreadFrame(world, &m_SpriteContext, 0);
+    dmRender::RenderListEnd(m_RenderContext);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    dmArray<uint8_t> vertices, indices;
+    CopySpriteTestBuffers(world, vertices, indices);
+    ASSERT_EQ(expected_vertices.Size(), vertices.Size());
+    ASSERT_EQ(0, memcmp(expected_vertices.Begin(), vertices.Begin(), vertices.Size()));
+    ASSERT_EQ(expected_indices.Size(), indices.Size());
+    ASSERT_EQ(0, memcmp(expected_indices.Begin(), indices.Begin(), indices.Size()));
+    ASSERT_TRUE(dmGameSystem::CaptureSpriteThreadFrame(world, &m_SpriteContext, 1));
+    // Capturing the next (empty) slot must not release the first slot's payload.
+    dmRender::ClearRenderObjects(m_RenderContext);
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameSystem::RenderSpriteThreadFrame(world, &m_SpriteContext, 0);
+    dmRender::RenderListEnd(m_RenderContext);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    CopySpriteTestBuffers(world, vertices, indices);
+    ASSERT_EQ(expected_vertices.Size(), vertices.Size());
+    ASSERT_EQ(0, memcmp(expected_vertices.Begin(), vertices.Begin(), vertices.Size()));
+    dmGameSystem::FinishSpriteThreadFrame(world, &m_SpriteContext, 1);
+    dmGameSystem::SpriteSnapshotStats stats;
+    dmGameSystem::GetSpriteSnapshotStats(world, &stats);
+    ASSERT_TRUE(stats.m_Threaded);
+    ASSERT_EQ(0U, stats.m_RetainedReferenceCount);
+    ASSERT_EQ(0U, stats.m_PayloadUsedBytes);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies the slot budget rejects growth before allocation and a failed capture
+// releases retained resources and can be retried with an adequate budget.
+TEST_F(SpriteTest, ThreadSnapshotCapacityAdmission)
+{
+    m_SpriteContext.m_SnapshotThreaded = 1;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_NE((void*)0, Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/snapshot"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1)));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_FALSE(dmGameSystem::CaptureSpriteThreadFrame(world, &m_SpriteContext, 0, 1024));
+    dmGameSystem::SpriteSnapshotStats stats;
+    dmGameSystem::GetSpriteSnapshotStats(world, &stats);
+    ASSERT_LE(stats.m_FrameCapacityBytes, 1024U);
+    ASSERT_EQ(0U, stats.m_RetainedReferenceCount);
+    ASSERT_TRUE(dmGameSystem::CaptureSpriteThreadFrame(world, &m_SpriteContext, 0));
+    dmGameSystem::GetSpriteSnapshotStats(world, &stats);
+    ASSERT_EQ(1U, stats.m_SpriteCount);
+    ASSERT_GT(stats.m_RetainedReferenceCount, 0U);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Constants and dynamic attributes must be copied, preserving the captured values
+// when their live allocations are overwritten and released before consumption.
+TEST_F(SpriteTest, SnapshotCopiesConstantsAndAttributes)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/snapshot_values.goc", dmHashString64("/snapshot"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, dmHashString64("sprite"), dmHashString64("tint"), options, dmGameObject::PropertyVar(Vector4(1, 2, 3, 4))));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, dmHashString64("sprite"), dmHashString64("crash_attr"), options, dmGameObject::PropertyVar(7.0)));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    RenderCollection(m_RenderContext, m_Collection);
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    dmArray<uint8_t> expected_vertices, expected_indices;
+    CopySpriteTestBuffers(world, expected_vertices, expected_indices);
+    void* retained_sprite = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/snapshot_values.spritec", &retained_sprite));
+    uint32_t refs_before = dmResource::GetRefCount(m_Factory, retained_sprite);
+    m_SpriteContext.m_SnapshotInline = 1;
+    CaptureSpriteTestFrame(m_RenderContext, m_Collection);
+    ASSERT_EQ(refs_before + 1, dmResource::GetRefCount(m_Factory, retained_sprite));
+    dmGameSystem::SpriteSnapshotStats stats;
+    dmGameSystem::GetSpriteSnapshotStats(world, &stats);
+    ASSERT_EQ(1U, stats.m_ConstantBlockCount);
+    ASSERT_EQ(1U, stats.m_AttributeBlockCount);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, dmHashString64("sprite"), dmHashString64("tint"), options, dmGameObject::PropertyVar(Vector4(9, 9, 9, 9))));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, dmHashString64("sprite"), dmHashString64("crash_attr"), options, dmGameObject::PropertyVar(99.0)));
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    ASSERT_EQ(1U, context->m_RenderObjects.Size());
+    Vector4* values = 0;
+    uint32_t count = 0;
+    ASSERT_TRUE(dmRender::GetNamedConstant(context->m_RenderObjects[0]->m_ConstantBuffer, dmHashString64("tint"), &values, &count));
+    ASSERT_EQ(1U, count);
+    ASSERT_EQ(1.0f, values[0].getX());
+    ASSERT_EQ(4.0f, values[0].getW());
+    dmArray<uint8_t> actual_vertices, actual_indices;
+    CopySpriteTestBuffers(world, actual_vertices, actual_indices);
+    ASSERT_EQ(expected_vertices.Size(), actual_vertices.Size());
+    ASSERT_EQ(0, memcmp(expected_vertices.Begin(), actual_vertices.Begin(), expected_vertices.Size()));
+    dmRender::ClearRenderObjects(m_RenderContext);
+    uint32_t refs_captured = dmResource::GetRefCount(m_Factory, retained_sprite);
+    CaptureSpriteTestFrame(m_RenderContext, m_Collection);
+    ASSERT_EQ(refs_captured - 1, dmResource::GetRefCount(m_Factory, retained_sprite));
+    dmResource::Release(m_Factory, retained_sprite);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Each view must cull against captured bounds, including after pool compaction;
+// repeated passes must preserve the shared frame and empty captures release refs.
+TEST_F(SpriteTest, SnapshotBoundsAndCapacity)
+{
+    m_SpriteContext.m_SnapshotInline = 1;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance first = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/first"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance second = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/second"), 0, Point3(10000, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    CaptureSpriteTestFrame(m_RenderContext, m_Collection);
+    dmGameSystem::SpriteSnapshotStats initial;
+    dmGameSystem::GetSpriteSnapshotStats(world, &initial);
+    ASSERT_EQ(128U, initial.m_RecordBytes);
+    ASSERT_EQ(16U, initial.m_BoundBytes);
+    ASSERT_EQ(2U, initial.m_SpriteCount);
+    ASSERT_EQ(1U, initial.m_BindingCount);
+    ASSERT_EQ(1U, initial.m_GeometryCount);
+    for (uint32_t i = 0; i < 32; ++i)
+    {
+        RenderCollection(m_RenderContext, m_Collection);
+        dmGameSystem::SpriteSnapshotStats stats;
+        dmGameSystem::GetSpriteSnapshotStats(world, &stats);
+        ASSERT_EQ(initial.m_FrameCapacityBytes, stats.m_FrameCapacityBytes);
+        ASSERT_EQ(initial.m_RetainedReferenceCount, stats.m_RetainedReferenceCount);
+    }
+    CaptureSpriteTestFrame(m_RenderContext, m_Collection);
+    dmGameObject::Delete(m_Collection, first, true);
+    dmGameObject::SetPosition(second, Point3(-10000, 0, 0));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        float center = pass == 1 ? 10000.0f : 0.0f;
+        dmRender::FrustumOptions frustum;
+        frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
+        frustum.m_Matrix = Matrix4::orthographic(center - 1000, center + 1000, -1000, 1000, -1, 1);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, &frustum, dmRender::SORT_BACK_TO_FRONT));
+        ASSERT_EQ(pass == 1 ? dmRender::VISIBILITY_NONE : dmRender::VISIBILITY_FULL, context->m_RenderList[0].m_Visibility);
+        ASSERT_EQ(pass == 1 ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE, context->m_RenderList[1].m_Visibility);
+        dmRender::ClearRenderObjects(m_RenderContext);
+    }
+    dmGameObject::Delete(m_Collection, second, true);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    CaptureSpriteTestFrame(m_RenderContext, m_Collection);
+    dmGameSystem::SpriteSnapshotStats empty;
+    dmGameSystem::GetSpriteSnapshotStats(world, &empty);
+    ASSERT_EQ(0U, empty.m_SpriteCount);
+    ASSERT_EQ(0U, empty.m_RetainedReferenceCount);
+    ASSERT_EQ(0U, empty.m_PayloadUsedBytes);
+    ASSERT_EQ(initial.m_FrameCapacityBytes, empty.m_FrameCapacityBytes);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// A material selected after capture can increase vertex stride; staging must grow
+// from captured vertex counts without reading the deleted component.
+TEST_F(SpriteTest, SnapshotRenderMaterialOverride)
+{
+    m_SpriteContext.m_SnapshotInline = 1;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/attribute_stride.goc", dmHashString64("/snapshot"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    CaptureSpriteTestFrame(m_RenderContext, m_Collection);
+    dmGameSystem::MaterialResource* material = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/attribute_stride_mat4.materialc", (void**)&material));
+    uint32_t required = 4 * dmGraphics::GetVertexDeclarationStride(dmRender::GetVertexDeclaration(material->m_Material));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_LT(dmGameSystem::GetSpriteWorldVertexBufferCapacity(world), required);
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    context->m_Material = material->m_Material;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(required, dmGameSystem::GetSpriteWorldVertexBufferCapacity(world));
+    context->m_Material = 0;
+    dmRender::ClearRenderObjects(m_RenderContext);
+    dmResource::Release(m_Factory, material);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Equal constant values share one frame block; changing values splits blocks and
+// repeated captures retain bounded capacity instead of growing with frame count.
+TEST_F(SpriteTest, SnapshotConstantDeduplication)
+{
+    m_SpriteContext.m_SnapshotInline = 1;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance first = Spawn(m_Factory, m_Collection, "/sprite/snapshot_values.goc", dmHashString64("/first"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance second = Spawn(m_Factory, m_Collection, "/sprite/snapshot_values.goc", dmHashString64("/second"), 0, Point3(10, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(first, dmHashString64("sprite"), dmHashString64("tint"), options, dmGameObject::PropertyVar(Vector4(1, 2, 3, 4))));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    uint64_t capacity = 0;
+    for (uint32_t iteration = 0; iteration < 32; ++iteration)
+    {
+        bool equal = (iteration % 2) == 0;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(second, dmHashString64("sprite"), dmHashString64("tint"), options, dmGameObject::PropertyVar(Vector4(equal ? 1 : 9, 2, 3, 4))));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        RenderCollection(m_RenderContext, m_Collection);
+        dmGameSystem::SpriteSnapshotStats stats;
+        dmGameSystem::GetSpriteSnapshotStats(world, &stats);
+        ASSERT_EQ(equal ? 1U : 2U, stats.m_ConstantBlockCount);
+        ASSERT_EQ(1U, stats.m_BindingCount);
+        if (iteration == 1)
+            capacity = stats.m_FrameCapacityBytes;
+        if (iteration > 1)
+            ASSERT_EQ(capacity, stats.m_FrameCapacityBytes);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies adjacent-binding reuse checks effective texture/material overrides,
+// resets between captures, and preserves the generated legacy geometry.
+TEST_F(SpriteTest, SnapshotAdjacentBindingOverrides)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instances[3];
+    const char* names[] = {"/first", "/second", "/third"};
+    for (uint32_t i = 0; i < 3; ++i)
+        instances[i] = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64(names[i]), 0, Point3(i * 32, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    void* atlas = 0;
+    void* material = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/atlas_valid_64x64.a.texturesetc", &atlas));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/snapshot_values.materialc", &material));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    for (uint32_t step = 0; step < 3; ++step)
+    {
+        if (step == 1)
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(instances[1], dmHashString64("sprite"), dmHashString64("image"), dmHashString64("/sprite/atlas_valid_64x64.a.texturesetc")));
+        if (step == 2)
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(instances[2], dmHashString64("sprite"), dmHashString64("material"), dmHashString64("/sprite/snapshot_values.materialc")));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        m_SpriteContext.m_SnapshotInline = 0;
+        RenderCollection(m_RenderContext, m_Collection);
+        dmArray<uint8_t> expected_vertices, expected_indices;
+        CopySpriteTestBuffers(world, expected_vertices, expected_indices);
+        m_SpriteContext.m_SnapshotInline = 1;
+        RenderCollection(m_RenderContext, m_Collection);
+        dmGameSystem::SpriteSnapshotStats stats;
+        dmGameSystem::GetSpriteSnapshotStats(world, &stats);
+        ASSERT_EQ(step + 1, stats.m_BindingCount);
+        dmArray<uint8_t> actual_vertices, actual_indices;
+        CopySpriteTestBuffers(world, actual_vertices, actual_indices);
+        ASSERT_EQ(expected_vertices.Size(), actual_vertices.Size());
+        ASSERT_EQ(expected_indices.Size(), actual_indices.Size());
+        ASSERT_EQ(0, memcmp(expected_vertices.Begin(), actual_vertices.Begin(), actual_vertices.Size()));
+        ASSERT_EQ(0, memcmp(expected_indices.Begin(), actual_indices.Begin(), actual_indices.Size()));
+    }
+    dmResource::Release(m_Factory, atlas);
+    dmResource::Release(m_Factory, material);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -3253,4 +3590,69 @@ TEST_F(ComponentTest, GetSetErrorCollisionShape)
     ASSERT_NE((void*)0, go_base);
 
     ASSERT_FALSE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies capture resolves current atlas geometry after replacement between
+// update and capture; ASan guards against stale animation-cache DDF pointers.
+TEST_F(SpriteTest, SnapshotAtlasReplacementAfterUpdate)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_NE((void*)0, Spawn(m_Factory, m_Collection, "/sprite/snapshot_trimmed.goc", dmHashString64("/reload-snapshot"), 0, Point3(17, 29, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1)));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    RenderCollection(m_RenderContext, m_Collection);
+    dmArray<uint8_t> expected_vertices, expected_indices;
+    CopySpriteTestBuffers(world, expected_vertices, expected_indices);
+    char path[256];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/sprite/sprite/image_stale_animation_id_in_range.a.texturesetc");
+    uint32_t size;
+    uint8_t* bytes = dmTestUtil::ReadFile(path, &size);
+    ASSERT_NE((uint8_t*)0, bytes);
+    // No update between replacing the DDF and consuming the captured frame.
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64("/sprite/image_stale_animation_id_in_range.a.texturesetc"), bytes, size));
+    dmMemory::AlignedFree(bytes);
+    m_SpriteContext.m_SnapshotThreaded = 1;
+    ASSERT_TRUE(dmGameSystem::CaptureSpriteThreadFrame(world, &m_SpriteContext, 0));
+    dmGameSystem::FinishSpriteThreadFrame(world, &m_SpriteContext, 0);
+    dmRender::ClearRenderObjects(m_RenderContext);
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameSystem::RenderSpriteThreadFrame(world, &m_SpriteContext, 0);
+    dmRender::RenderListEnd(m_RenderContext);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    dmArray<uint8_t> vertices, indices;
+    CopySpriteTestBuffers(world, vertices, indices);
+    ASSERT_EQ(expected_vertices.Size(), vertices.Size());
+    ASSERT_EQ(0, memcmp(expected_vertices.Begin(), vertices.Begin(), vertices.Size()));
+    ASSERT_EQ(expected_indices.Size(), indices.Size());
+    ASSERT_EQ(0, memcmp(expected_indices.Begin(), indices.Begin(), indices.Size()));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies an atlas replacement invalidates simulation's cached DDF pointers,
+// even when animation hashes stay unchanged; guards against the animated churn UAF.
+TEST_F(SpriteTest, AtlasReplacementInvalidatesAnimationCache)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_NE((void*)0, Spawn(m_Factory, m_Collection, "/sprite/snapshot_trimmed.goc", dmHashString64("/reload-animation"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1)));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    char path[256];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/sprite/sprite/image_stale_animation_id_in_range.a.texturesetc");
+    uint32_t size;
+    uint8_t* bytes = dmTestUtil::ReadFile(path, &size);
+    ASSERT_NE((uint8_t*)0, bytes);
+    // Invoke recreation directly to reproduce release builds without reload callbacks.
+    ResourceRecreateParams params = {};
+    params.m_Factory = m_Factory;
+    params.m_Context = &m_PhysicsContextBox2D;
+    params.m_Buffer = bytes;
+    params.m_BufferSize = size;
+    ASSERT_EQ(RESOURCE_RESULT_OK, ResourceGetDescriptorByHash(m_Factory, dmHashString64("/sprite/image_stale_animation_id_in_range.a.texturesetc"), &params.m_Resource));
+    for (uint32_t iteration = 0; iteration < 3; ++iteration)
+    {
+        ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResTextureSetRecreate(&params));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        RenderCollection(m_RenderContext, m_Collection);
+    }
+    dmMemory::AlignedFree(bytes);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

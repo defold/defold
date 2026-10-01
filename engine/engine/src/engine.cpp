@@ -62,6 +62,9 @@
 #include <hid/hid.h>
 #include <sound/sound.h>
 #include <render/render.h>
+#include <render/render_thread.h>
+#include <render/render_command.h>
+#include <gamesys/components/comp_sprite.h>
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
 #include <platform/window.hpp>
@@ -432,6 +435,11 @@ namespace dmEngine
     , m_MouseSensitivity(1.0f)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
+    , m_SpriteThread(0)
+    , m_SpriteTrace(0)
+    , m_SpritePaceBegin(0)
+    , m_SpritePaceEnd(0)
+    , m_SpritePaceDeadline(0)
     , m_ScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
@@ -489,8 +497,129 @@ namespace dmEngine
         return new Engine(engine_service);
     }
 
+    struct SpriteThreadState
+    {
+        dmRender::HRenderThread m_Thread;
+        dmRender::CapturedCommands m_Commands[2];
+        dmRender::FrameTraceRecord* m_Trace[2];
+        void* m_World;
+        float m_Time[2];
+        float m_Dt[2];
+        uint32_t m_DelayUs;
+        bool m_ProducerOwnsGraphics;
+        bool m_Paused;
+    };
+
+    static void SpriteThreadGpuDrain(void* context)
+    {
+        dmGraphics::DrainRenderThreadGpu(((Engine*)context)->m_GraphicsContext);
+    }
+
+    static void SpriteThreadBarrier(void* context)
+    {
+        Engine* engine = (Engine*)context;
+        SpriteThreadState* state = engine->m_SpriteThread;
+        if (!state || state->m_ProducerOwnsGraphics)
+            return;
+        dmRender::RunRenderThreadControl(state->m_Thread, SpriteThreadGpuDrain, engine);
+        // The only producer is blocked above. No frame can be published during a
+        // resource mutation, and factory refs remain on this thread throughout.
+        state->m_ProducerOwnsGraphics = true;
+    }
+
+    static void SpriteThreadPause(void* context, bool paused)
+    {
+        Engine* engine = (Engine*)context;
+        // Explicit control even while already paused exercises the idle worker.
+        dmRender::RunRenderThreadControl(engine->m_SpriteThread->m_Thread, SpriteThreadGpuDrain, engine);
+        engine->m_SpriteThread->m_ProducerOwnsGraphics = true;
+        engine->m_SpriteThread->m_Paused = paused;
+    }
+
+    static void SpriteThreadRender(void* context, uint32_t slot, uint64_t id)
+    {
+        Engine* engine = (Engine*)context;
+        SpriteThreadState* state = engine->m_SpriteThread;
+        dmRender::FrameTraceRecord* trace = state->m_Trace[slot];
+        if (trace) trace->m_RenderBegin = dmTime::GetMonotonicTime();
+        if (state->m_DelayUs)
+            dmTime::Sleep(state->m_DelayUs);
+        dmRender::BeginFrame(engine->m_RenderContext, state->m_Time[slot], state->m_Dt[slot]);
+        if (trace) dmGraphics::SetRenderFrameTimings(engine->m_GraphicsContext, &trace->m_Graphics);
+        dmGraphics::BeginFrame(engine->m_GraphicsContext);
+        dmRender::RenderListBegin(engine->m_RenderContext);
+        dmGameSystem::RenderSpriteThreadFrame(state->m_World, &engine->m_SpriteContext, slot);
+        dmRender::RenderListEnd(engine->m_RenderContext);
+        dmRender::CapturedCommands& commands = state->m_Commands[slot];
+        dmRender::ParseCommands(engine->m_RenderContext, commands.m_Commands, commands.m_Count, false);
+        dmRender::ClearRenderObjects(engine->m_RenderContext);
+        dmGraphics::Flip(engine->m_GraphicsContext);
+        if (trace) trace->m_SubmitEnd = dmTime::GetMonotonicTime();
+    }
+
+    static dmGameObject::CreateResult RejectSpriteThreadComponent(const dmGameObject::ComponentCreateParams& params)
+    {
+        dmLogError("Sprite thread PoC supports only sprite, script and preloaded factory components");
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    static bool StartSpriteThread(Engine* engine)
+    {
+#if !defined(DM_PLATFORM_MACOS)
+        dmLogError("Sprite thread PoC requires macOS/Metal");
+        return false;
+#else
+        if (!engine->m_RenderScriptPrototype || !dmGraphics::PrepareRenderThreadSurface(engine->m_GraphicsContext, true))
+        {
+            dmLogError("Sprite thread PoC requires Metal and a supported render script");
+            return false;
+        }
+        SpriteThreadState* state = new SpriteThreadState;
+        engine->m_SpriteThread = state;
+        state->m_World = dmGameObject::GetWorld(engine->m_MainCollection, dmGameObject::GetComponentTypeIndex(engine->m_MainCollection, dmHashString64("spritec")));
+        state->m_DelayUs = dmConfigFile::GetInt(engine->m_Config, "render.sprite_thread_delay_us", 0);
+        state->m_ProducerOwnsGraphics = false;
+        state->m_Paused = false;
+        dmRender::SetRenderScriptThreadedRecording(engine->m_RenderScriptPrototype->m_Instance, true);
+        state->m_Thread = dmRender::NewRenderThread(SpriteThreadRender, engine);
+        engine->m_SpriteContext.m_RenderThread = state->m_Thread;
+        engine->m_SpriteContext.m_SnapshotCommandBytes = sizeof(state->m_Commands);
+        engine->m_SpriteContext.m_SnapshotPause = SpriteThreadPause;
+        engine->m_SpriteContext.m_SnapshotContext = engine;
+        // Startup submitted frames are still GPU work; drain those too.
+        SpriteThreadBarrier(engine);
+        dmGraphics::SetRenderThreadMutationBarrier(SpriteThreadBarrier, engine);
+        dmResource::SetRenderMutationBarrier(SpriteThreadBarrier, engine);
+        return true;
+#endif
+    }
+
+    static void StopSpriteThread(Engine* engine)
+    {
+        if (!engine->m_SpriteThread)
+            return;
+        SpriteThreadBarrier(engine);
+        dmGraphics::SetRenderThreadMutationBarrier(0, 0);
+        dmResource::SetRenderMutationBarrier(0, 0);
+        dmRender::DeleteRenderThread(engine->m_SpriteThread->m_Thread);
+        engine->m_SpriteContext.m_RenderThread = 0;
+        engine->m_SpriteContext.m_SnapshotPause = 0;
+        dmGraphics::PrepareRenderThreadSurface(engine->m_GraphicsContext, false);
+        delete engine->m_SpriteThread;
+        engine->m_SpriteThread = 0;
+    }
+
     void Delete(HEngine engine)
     {
+        StopSpriteThread(engine);
+        if (engine->m_SpriteTrace)
+        {
+            if (dmGraphics::SetRenderFrameTimings(engine->m_GraphicsContext, 0))
+                dmGraphics::DrainRenderThreadGpu(engine->m_GraphicsContext);
+            if (!dmRender::DeleteFrameTrace(engine->m_SpriteTrace, dmConfigFile::GetString(engine->m_Config, "render.sprite_trace", 0)))
+                dmLogError("Could not save sprite CPU pipeline trace");
+            engine->m_SpriteTrace = 0;
+        }
         {
             ScopedExtensionParams params(engine);
 
@@ -1573,6 +1702,12 @@ namespace dmEngine
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpriteContext.m_Factory = engine->m_Factory;
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
+        engine->m_SpriteContext.m_SnapshotInline = dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) == 1;
+        engine->m_SpriteContext.m_SnapshotThreaded = dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) == 2;
+
+        if (dmConfigFile::GetString(engine->m_Config, "render.sprite_trace", 0))
+            engine->m_SpriteTrace = dmRender::NewFrameTrace(65536);
+
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
         engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
@@ -1638,6 +1773,21 @@ namespace dmEngine
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
+        if (dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) < 0 || dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) > 2)
+        {
+            dmLogError("render.sprite_snapshot must be 0, 1 or 2");
+            goto bail;
+        }
+        if (engine->m_SpriteContext.m_SnapshotThreaded)
+        {
+            for (uint32_t i = 0; i < dmGameObject::GetNumComponentTypes(engine->m_Register); ++i)
+            {
+                dmGameObject::ComponentType* type = dmGameObject::GetComponentType(engine->m_Register, i);
+                if (strcmp(type->m_Name, "spritec") && strcmp(type->m_Name, "scriptc") && strcmp(type->m_Name, "factoryc"))
+                    type->m_CreateFunction = RejectSpriteThreadComponent;
+            }
+        }
+
         if (!LoadBootstrapContent(engine, engine->m_Config))
         {
             dmLogError("Unable to load bootstrap data.");
@@ -1699,6 +1849,8 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
         dmGameObject::Init(engine->m_MainCollection);
+        if (engine->m_SpriteContext.m_SnapshotThreaded && !StartSpriteThread(engine))
+            goto bail;
 
         engine->m_LastReloadMTime = 0;
 
@@ -1986,6 +2138,7 @@ bail:
         {
             DM_PROFILE("Frame");
 
+            dmRender::FrameTraceRecord* sprite_trace = 0;
             bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
 
             {
@@ -2060,6 +2213,14 @@ bail:
                     return;
                 }
 
+                if (engine->m_SpriteTrace) sprite_trace = dmRender::BeginFrameTrace(engine->m_SpriteTrace);
+                if (sprite_trace)
+                {
+                    sprite_trace->m_PaceBegin = engine->m_SpritePaceBegin;
+                    sprite_trace->m_PaceEnd = engine->m_SpritePaceEnd;
+                    sprite_trace->m_PaceDeadline = engine->m_SpritePaceDeadline;
+                    engine->m_SpritePaceBegin = engine->m_SpritePaceEnd = engine->m_SpritePaceDeadline = 0;
+                }
                 dmInput::Update(engine->m_InputContext);
                 dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
 
@@ -2081,17 +2242,43 @@ bail:
                 }
 
 
+                uint32_t sprite_slot = engine->m_SpriteThread ? dmRender::BeginRenderThreadFrame(engine->m_SpriteThread->m_Thread) : 0;
+                bool sprite_frame_ready = false;
                 dmGameObject::UpdateContext update_context;
                 update_context.m_TimeScale = 1.0f;
                 update_context.m_DT = dt;
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
+                if (sprite_trace) sprite_trace->m_UpdateEnd = dmTime::GetMonotonicTime();
 
                 dmSound::Update();
 
+                if (engine->m_SpriteThread)
+                {
+                    SpriteThreadState* state = engine->m_SpriteThread;
+                    // Lua records into producer-only storage while the worker
+                    // reads the previous slot. Unsupported shared-state APIs fail early.
+                    bool script_ok = dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance) == dmRender::RENDER_SCRIPT_RESULT_OK;
+                    if (!script_ok)
+                        dmEngine::Exit(engine, 1);
+                    if (script_ok && do_render && !state->m_Paused && !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED))
+                    {
+                        if (!dmRender::CaptureRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt, &state->m_Commands[sprite_slot]))
+                        {
+                            dmEngine::Exit(engine, 1);
+                        }
+                        else
+                        {
+                            state->m_Time[sprite_slot] = engine->m_Stats.m_TotalTime + dt;
+                            state->m_Dt[sprite_slot] = dt;
+                            sprite_frame_ready = true;
+                        }
+                    }
+                }
+
                 // Don't render while iconified
-                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
+                if (!engine->m_SpriteThread && !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
                     // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
@@ -2106,6 +2293,7 @@ bail:
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
                     dmGameObject::Render(engine->m_MainCollection);
+                    if (sprite_trace) sprite_trace->m_PrepareEnd = dmTime::GetMonotonicTime();
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2116,6 +2304,8 @@ bail:
 
                     dmRender::RenderListEnd(engine->m_RenderContext);
 
+                    if (sprite_trace) sprite_trace->m_RenderBegin = dmTime::GetMonotonicTime();
+                    if (sprite_trace) dmGraphics::SetRenderFrameTimings(engine->m_GraphicsContext, &sprite_trace->m_Graphics);
                     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
                     if (engine->m_RenderScriptPrototype)
@@ -2138,12 +2328,37 @@ bail:
                 dmGameObject::PostUpdate(engine->m_MainCollection);
                 dmGameObject::PostUpdate(engine->m_Register);
 
-                if (do_render)
+                if (do_render && !engine->m_SpriteThread)
                 {
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
                 }
 
                 dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
+                if (engine->m_SpriteThread)
+                {
+                    SpriteThreadState* state = engine->m_SpriteThread;
+                    if (sprite_frame_ready && !dmGameSystem::CaptureSpriteThreadFrame(state->m_World, &engine->m_SpriteContext, sprite_slot))
+                    {
+                        sprite_frame_ready = false;
+                        dmEngine::Exit(engine, 1);
+                    }
+                    if (sprite_frame_ready)
+                    {
+                        if (sprite_trace) sprite_trace->m_PrepareEnd = dmTime::GetMonotonicTime();
+                        dmRender::MarkRenderThreadFrameCaptured(state->m_Thread);
+                        dmRender::DrainRenderThread(state->m_Thread);
+                        if (sprite_trace) sprite_trace->m_QueueDrainEnd = dmTime::GetMonotonicTime();
+                        dmGameSystem::FinishSpriteThreadFrame(state->m_World, &engine->m_SpriteContext, sprite_slot);
+                        if (sprite_trace) sprite_trace->m_SurfaceBegin = dmTime::GetMonotonicTime();
+                        dmGraphics::PrepareRenderThreadSurface(engine->m_GraphicsContext, true);
+                        if (sprite_trace) sprite_trace->m_SurfaceEnd = dmTime::GetMonotonicTime();
+                        state->m_ProducerOwnsGraphics = false;
+                        state->m_Trace[sprite_slot] = sprite_trace;
+                        dmRender::PublishRenderThreadFrame(state->m_Thread, sprite_slot, sprite_trace);
+                    }
+                    else
+                        dmRender::CancelRenderThreadFrame(state->m_Thread, sprite_slot);
+                }
             } // Sim
 
             DM_PROPERTY_SET_U32(rmtp_LuaRefs, dmScript::GetLuaRefCount());
@@ -2162,7 +2377,7 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
-            if (do_render)
+            if (do_render && !engine->m_SpriteThread)
             {
 #if !defined(DM_RELEASE)
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
@@ -2178,6 +2393,7 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
+                if (sprite_trace) sprite_trace->m_SubmitEnd = dmTime::GetMonotonicTime();
 
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
@@ -2271,6 +2487,7 @@ bail:
             engine->m_FrameTimeRemainder = 0;
         }
 
+        if (engine->m_SpriteTrace) engine->m_SpritePaceDeadline = engine->m_NextFrameTime;
         while (now < engine->m_NextFrameTime)
         {
             dmTime::Sleep((uint32_t)(engine->m_NextFrameTime - now));
@@ -2429,10 +2646,16 @@ bail:
         // Platform-owned loops still apply their requested swap interval here even
         // though they do not use the engine-side timer.
         ApplyEffectiveSwapInterval(engine);
+        if (engine->m_SpriteTrace)
+        {
+            engine->m_SpritePaceBegin = dmTime::GetMonotonicTime();
+            engine->m_SpritePaceDeadline = 0;
+        }
         if (dmEngine::UseEngineFramePacing())
         {
             frame_was_paced = PaceFrame(engine);
         }
+        if (engine->m_SpriteTrace) engine->m_SpritePaceEnd = dmTime::GetMonotonicTime();
         CalcTimeStep(engine, frame_was_paced, step_dt, num_steps);
 
         for (uint32_t i = 0; i < num_steps; ++i)

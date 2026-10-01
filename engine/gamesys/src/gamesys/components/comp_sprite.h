@@ -19,6 +19,40 @@
 
 namespace dmGameSystem
 {
+    // Internal PoC diagnostics, not a public SDK contract. Frame capacity includes
+    // capture lookup tables and allocation-growth peaks. Renderer CPU includes
+    // named constant buffers; logical GPU and reported resource sizes are separate.
+    struct SpriteSnapshotStats
+    {
+        uint64_t m_PayloadUsedBytes;
+        uint64_t m_FrameCapacityBytes;
+        uint64_t m_RendererCpuCapacityBytes;
+        uint64_t m_ConstantBufferCapacityBytes;
+        uint64_t m_RendererGpuLogicalBytes;
+        uint64_t m_RetainedResourceReportedBytes;
+        uint64_t m_FrameGrowthPeakBytes;
+        uint64_t m_CaptureCount;
+        uint64_t m_CaptureTotalUs;
+        uint32_t m_RecordBytes;
+        uint32_t m_BoundBytes;
+        uint32_t m_SpriteCount;
+        uint32_t m_BindingCount;
+        uint32_t m_GeometryCount;
+        uint32_t m_ConstantBlockCount;
+        uint32_t m_AttributeBlockCount;
+        uint32_t m_RetainedReferenceCount;
+        uint8_t m_Inline;
+        uint8_t m_Threaded;
+    };
+
+    struct SpriteContext;
+    // Capture may overlap the other slot. Finish retires it after consumer drain.
+    void FinishSpriteThreadFrame(void* world, SpriteContext* context, uint32_t slot);
+    bool CaptureSpriteThreadFrame(void* world, SpriteContext* context, uint32_t slot, uint32_t capacity_limit = 32 * 1024 * 1024);
+    void RenderSpriteThreadFrame(void* world, SpriteContext* context, uint32_t slot);
+    void ReleaseSpriteThreadFrames(void* world, SpriteContext* context);
+    void GetSpriteSnapshotStats(void* sprite_world, SpriteSnapshotStats* stats);
+
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompSpriteDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);

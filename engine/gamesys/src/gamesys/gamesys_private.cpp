@@ -316,9 +316,17 @@ namespace dmGameSystem
         }
     }
 
+    void FillAttributeInfos(DynamicAttributePool* pool, uint16_t index,
+        const dmGraphics::VertexAttribute* attributes, uint32_t count,
+        dmGraphics::VertexAttributeInfos* material, dmGraphics::VertexAttributeInfos* result,
+        dmGraphics::CoordinateSpace space)
+    {
+        const DynamicAttributeInfo* dynamic = pool && index != INVALID_DYNAMIC_ATTRIBUTE_INDEX ? &pool->Get(index) : 0;
+        FillAttributeInfos(dynamic, attributes, count, material, result, space);
+    }
+
     // Prepares the list of attributes that could potentially overrides an already specified material attribute
-    void FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool,
-        uint16_t component_dynamic_attribute_index,
+    void FillAttributeInfos(const DynamicAttributeInfo* dynamic_attributes,
         const dmGraphics::VertexAttribute* component_attributes,
         uint32_t num_component_attributes,
         dmGraphics::VertexAttributeInfos* material_infos,
@@ -342,9 +350,9 @@ namespace dmGameSystem
             }
 
             // 1. Fill from dynamic attributes first
-            if (dynamic_attribute_pool != 0x0 && component_dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+            if (dynamic_attributes != 0)
             {
-                const DynamicAttributeInfo& dynamic_info = dynamic_attribute_pool->Get(component_dynamic_attribute_index);
+                const DynamicAttributeInfo& dynamic_info = *dynamic_attributes;
                 int32_t dynamic_attribute_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
                 if (dynamic_attribute_index >= 0)
                 {
