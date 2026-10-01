@@ -70,7 +70,7 @@
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$MaterialDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$TextureDesc]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
            [internal.graph.types Arc]
@@ -137,7 +137,7 @@
                           (->color-vtx vcount)
                           renderables)))))
 
-(defn render-lines [^GL2 gl render-args renderables rcount]
+(defn render-lines [^GL3 gl render-args renderables rcount]
   (when-let [vb (gen-lines-vb renderables)]
     (let [vertex-binding (vtx2/use-with ::lines vb line-shader)]
       (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
@@ -179,7 +179,7 @@
         node-ids (into #{} (map :node-id) renderables)]
     (font/request-vertex-buffer gl node-ids font-data text-entries render-args)))
 
-(defn- gen-vb [^GL2 gl renderables render-args]
+(defn- gen-vb [^GL3 gl renderables render-args]
   (let [user-data (get-in renderables [0 :user-data])]
     (cond
       (contains? user-data :geom-data)
@@ -191,7 +191,7 @@
       (contains? user-data :gen-vb)
       ((:gen-vb user-data) user-data renderables))))
 
-(defn render-tris [^GL2 gl render-args renderables _rcount]
+(defn render-tris [^GL3 gl render-args renderables _rcount]
   (let [user-data (get-in renderables [0 :user-data])
         clipping-state (:clipping-state user-data)
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
