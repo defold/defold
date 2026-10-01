@@ -583,29 +583,29 @@
   (inherits InstanceNode)
 
   (property path g/Any
-    (value (g/fnk [source-resource ddf-properties]
-             {:resource source-resource
-              :overrides ddf-properties}))
-    (set (fn [evaluation-context self _old-value new-value]
-           (let [basis (g/ec-basis evaluation-context)
-                 base-source-connections [[:resource :source-resource]
-                                          [:node-outline :source-outline]
-                                          [:scene :scene]
-                                          [:ddf-properties :ddf-properties]
-                                          [:resource-property-build-targets :resource-property-build-targets]]
-                 editable-source-connections (conj base-source-connections
-                                                   [:_node-id    :source-id]
-                                                   [:go-inst-ids :go-inst-ids])
-                 non-editable-source-connections (conj editable-source-connections
-                                                       [:build-targets :build-targets])]
-             (concat
-               ;; Delete previous source resource node if it was an override node created by us.
-               ;; Else, disconnect all connections from the previous source resource node.
-               (when-some [old-source (g/node-feeding-into basis self :source-resource)]
-                 (if (g/override? basis old-source)
-                   (g/delete-node old-source)
-                   (for [[from to] non-editable-source-connections]
-                     (g/disconnect old-source from self to))))
+            (value (g/fnk [source-resource ddf-properties]
+                     {:resource source-resource
+                      :overrides ddf-properties}))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [basis (g/ec-basis evaluation-context)
+                         base-source-connections [[:resource :source-resource]
+                                                  [:node-outline :source-outline]
+                                                  [:scene :scene]
+                                                  [:ddf-properties :ddf-properties]
+                                                  [:resource-property-build-targets :resource-property-build-targets]]
+                         editable-source-connections (conj base-source-connections
+                                                           [:_node-id    :source-id]
+                                                           [:go-inst-ids :go-inst-ids])
+                         non-editable-source-connections (conj editable-source-connections
+                                                               [:build-targets :build-targets])]
+                     (concat
+                       ;; Delete previous source resource node if it was an override node created by us.
+                       ;; Else, disconnect all connections from the previous source resource node.
+                       (when-some [old-source (g/node-feeding-into basis self :source-resource)]
+                         (if (g/override? basis old-source)
+                           (g/delete-node old-source)
+                           (for [[from to] non-editable-source-connections]
+                             (g/disconnect old-source from self to))))
 
                        ;; Connect the new source resource node to ourselves. If it is editable, create an override node for it and its dependent nodes.
                        ;; If it is non-editable, simply connect the source resource directly.

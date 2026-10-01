@@ -934,7 +934,10 @@
     (loop [node-load-infos (vec node-load-infos)
            read-node-ids (into #{} (map :node-id) node-load-infos)
            pending-node-load-infos node-load-infos]
-      (let [read-proj-paths (into #{} (map (comp resource/proj-path :resource)) node-load-infos)
+      (let [read-proj-paths
+            (coll/into-> node-load-infos #{}
+              (map (comp resource/proj-path :resource)))
+
             prerequisite-node-id+resource-pairs
             (coll/into-> pending-node-load-infos []
               (mapcat :prerequisite-proj-paths)
@@ -942,12 +945,13 @@
               (keep old-node-ids-by-proj-path)
               (remove read-node-ids)
               (distinct)
-              (filter #(g/node-by-id basis %))
-              (remove #(resource-node/loaded? basis %))
-              (map #(pair % (resource-node/resource basis %)))
+              (keep #(g/node-by-id basis %))
+              (remove #(resource-node/node-loaded? basis %))
+              (coll/pair-map-by gt/node-id #(resource/node-resource basis %))
               (filter (fn [[_node-id resource]]
                         (or (resource/loaded? resource)
                             (not (:allow-unloaded-use (resource/resource-type resource)))))))]
+
         (if (coll/empty? prerequisite-node-id+resource-pairs)
           (sort-node-load-infos-for-loading node-load-infos old-node-ids-by-proj-path old-node-id->dependency-proj-paths)
           (let [prerequisite-node-load-infos (read-node-load-infos read-opts prerequisite-node-id+resource-pairs 0 render-progress!)]
@@ -1008,6 +1012,12 @@
      (let [nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
 
+(defn get-project
+  ([]
+   (get-project (g/now)))
+  ([basis]
+   (g/graph-value basis :project-id)))
+
 (defn workspace
   ([project]
    (g/raw-property-value (g/unsafe-basis) project :workspace))
@@ -1047,10 +1057,12 @@
           node-ids
           resources)))
 
-(defn- materialize-resource-node [project node-id evaluation-context]
+(defn- materialize-resource-node [node-id evaluation-context]
   (let [basis (g/ec-basis evaluation-context)
         resource (resource-node/resource basis node-id)
         workspace (resource/workspace resource)
+        project (get-project basis)
+        transpiler-tx-data-fn (get-transpiler-tx-data-fn! evaluation-context)
         read-opts (g/tx-cached-value! evaluation-context [:read-opts]
                     (workspace/make-read-opts basis workspace :include-editor-dependencies true))
         load-opts (g/tx-cached-value! evaluation-context [:load-opts]
@@ -1077,10 +1089,12 @@
         (map (fn [[node-id source-value]]
                (pair node-id {:source-value source-value})))))
     (e/concat
-      (e/mapcat (fn [[node-id _source-value]] (g/invalidate-output node-id :source-value)) node-id+source-value-pairs)
+      ;; TODO(partial-project-loading): We don't need this anymore after the source-value refactor.
+      (e/mapcat (fn [[node-id _source-value]]
+                  (g/invalidate-output node-id :source-value))
+                node-id+source-value-pairs)
       (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
-      (load-nodes-tx-data load-opts (get-transpiler-tx-data-fn! evaluation-context)
-                          node-load-infos progress/null-render-progress! progress/null-render-progress! nil))))
+      (load-nodes-tx-data load-opts transpiler-tx-data-fn node-load-infos progress/null-render-progress! progress/null-render-progress! nil))))
 
 (defn make-resource-node-tx-data [project node-type node-id resource]
   {:pre [(g/node-id? project)
@@ -1089,10 +1103,10 @@
   (e/concat
     (g/add-node
       (g/construct-shell node-type
-        (when (resource/loaded? resource)
-          (partial materialize-resource-node project))
         {:_node-id node-id
-         :resource resource}))
+         :resource resource}
+        (when (resource/loaded? resource)
+          materialize-resource-node)))
     (g/connect node-id :node-id+resource project :node-id+resources)
     (g/expand-ec
       (fn [evaluation-context]
@@ -1778,16 +1792,6 @@
 
              :game-project-proj-path->additional-meta-info
              (coll/pair-map-by #(str (FilenameUtils/removeExtension (key %)) ".project") val proj-path+meta-info-pairs)})))
-
-(defn get-project
-  ([]
-   (get-project (g/now)))
-  ([basis]
-   ;; Deprecated node-ID argument. Remove after 2027-09-08.
-   (g/graph-value (if (integer? basis) (g/now) basis) :project-id))
-  ;; Deprecated compatibility arity. Remove after 2027-09-08.
-  ([basis _node]
-   (get-project basis)))
 
 (defn find-resources [project query]
   (let [resource-path-to-node (g/node-value project :nodes-by-resource-path)

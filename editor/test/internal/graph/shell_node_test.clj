@@ -39,13 +39,13 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode
+            {:_node-id node-id
+             :identity "shell"}
             (fn [self _evaluation-context]
               (swap! calls inc)
               [(g/set-property self :value 7)
                (g/add-node (g/construct ShellTestNode :_node-id child-id :value 5))
-               (g/connect child-id :result self :dependency)])
-            {:_node-id node-id
-             :identity "shell"})))
+               (g/connect child-id :result self :dependency)]))))
       (let [evaluation-context (g/make-evaluation-context)
             shell (g/node-by-id (g/ec-basis evaluation-context) node-id)]
         (is (= "shell" (g/node-value node-id :identity evaluation-context)))
@@ -72,11 +72,11 @@
         (g/add-node
           (g/construct-shell
             ShellTestNode
+            {:_node-id node-id
+             :identity "shell"}
             (fn materialize-fn [self _evaluation-context]
               [(g/set-property self :identity "materialized")
-               (g/set-property self :value 7)])
-            {:_node-id node-id
-             :identity "shell"})))
+               (g/set-property self :value 7)]))))
       (let [evaluation-context (g/make-evaluation-context)
             initial-basis (g/ec-basis evaluation-context)
             shell (g/node-by-id initial-basis node-id)]
@@ -105,7 +105,7 @@
 
       (g/transact
         (concat
-          (g/add-node (g/construct-shell ShellTestNode materialize-fn {:_node-id source-id}))
+          (g/add-node (g/construct-shell ShellTestNode {:_node-id source-id} materialize-fn))
           (g/add-node (g/construct ShellConsumer :_node-id consumer-id))))
       (g/transact
         (g/set-property consumer-id :source source-id))
@@ -125,9 +125,9 @@
 
       (g/transact
         (concat
-          (g/add-node (g/construct-shell ShellTestNode materialize-fn {:_node-id parent}))
-          (g/add-node (g/construct-shell ShellTestNode materialize-fn {:_node-id child}))
-          (g/add-node (g/construct-shell ShellTestNode materialize-fn {:_node-id unrelated}))
+          (g/add-node (g/construct-shell ShellTestNode {:_node-id parent} materialize-fn))
+          (g/add-node (g/construct-shell ShellTestNode {:_node-id child} materialize-fn))
+          (g/add-node (g/construct-shell ShellTestNode {:_node-id unrelated} materialize-fn))
           (g/connect child :result parent :dependency)))
       (is (= 20 (g/node-value parent :result)))
       (is (= [parent child] @loaded))
@@ -140,11 +140,11 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode
+            {:_node-id node-id}
             (fn materialize-fn [self evaluation-context]
               (g/merge-evaluation-user-data! evaluation-context {self {:source-value :staged}})
               [(g/set-property self :value 9)
-               (g/callback #(when @fail (throw (ex-info "load failed" {}))))])
-            {:_node-id node-id})))
+               (g/callback #(when @fail (throw (ex-info "load failed" {}))))]))))
       (let [evaluation-context (g/make-evaluation-context)]
         (is (thrown-with-msg? ExceptionInfo #"load failed" (g/node-value node-id :result evaluation-context)))
         (is (in/unmaterialized-shell-node? (g/node-by-id (g/ec-basis evaluation-context) node-id)))
@@ -161,9 +161,9 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode
+            {:_node-id node-id}
             (fn [self _evaluation-context]
-              (g/non-undoable (g/set-property self :value 13)))
-            {:_node-id node-id})))
+              (g/non-undoable (g/set-property self :value 13))))))
       (is (= 13 (g/node-value node-id :result)))
       (is (= 13 (g/raw-property-value (g/now) node-id :value))))))
 
@@ -177,7 +177,7 @@
 
       (g/transact
         (g/add-node
-          (g/construct-shell ShellTestNode materialize-fn {:_node-id node-id})))
+          (g/construct-shell ShellTestNode {:_node-id node-id} materialize-fn)))
       (let [evaluation-context (g/make-evaluation-context)]
         (is (= 1 (g/node-value node-id :result evaluation-context)))
         (g/transact (g/delete-node node-id))
@@ -190,8 +190,8 @@
           materialize-fn (fn [self _evaluation-context] (g/set-property self :value 17))]
       (g/transact
         (concat
-          (g/add-node (g/construct-shell ShellTestNode materialize-fn {:_node-id a}))
-          (g/add-node (g/construct-shell ShellTestNode materialize-fn {:_node-id b}))))
+          (g/add-node (g/construct-shell ShellTestNode {:_node-id a} materialize-fn))
+          (g/add-node (g/construct-shell ShellTestNode {:_node-id b} materialize-fn))))
       (let [evaluation-context (g/make-evaluation-context)
             derived-context (assoc evaluation-context :tracer nil)
             initial-basis (g/ec-basis evaluation-context)]
@@ -239,8 +239,8 @@
       (g/transact
         (concat
           (g/add-node (g/construct SharedMaterializationState :_node-id shared))
-          (g/add-node (g/construct-shell ShellTestNode materialize-fn {:_node-id a}))
-          (g/add-node (g/construct-shell ShellTestNode materialize-fn {:_node-id b}))))
+          (g/add-node (g/construct-shell ShellTestNode {:_node-id a} materialize-fn))
+          (g/add-node (g/construct-shell ShellTestNode {:_node-id b} materialize-fn))))
       (let [first-context (g/make-evaluation-context)
             second-context (g/make-evaluation-context)]
         (g/node-value a :result first-context)
@@ -260,14 +260,14 @@
         (concat
           (g/add-node
             (g/construct-shell ShellTestNode
+              {:_node-id parent}
               (fn materialize-fn [self evaluation-context]
-                (g/set-property self :value (g/node-value child :result evaluation-context)))
-              {:_node-id parent}))
+                (g/set-property self :value (g/node-value child :result evaluation-context)))))
           (g/add-node
             (g/construct-shell ShellTestNode
+              {:_node-id child}
               (fn materialize-fn [self _evaluation-context]
-                (g/set-property self :value 23))
-              {:_node-id child}))))
+                (g/set-property self :value 23))))))
       (let [evaluation-context (g/make-evaluation-context)]
         (g/node-value parent :result (assoc evaluation-context :dry-run true))
         (is (= 23 (g/node-value parent :result evaluation-context)))
@@ -282,11 +282,11 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode
+            {:_node-id node-id
+             :identity "before"}
             (fn materialize-fn [self _evaluation-context]
               (swap! calls inc)
-              (g/set-property self :value 7))
-            {:_node-id node-id
-             :identity "before"})))
+              (g/set-property self :value 7)))))
       (g/transact (g/set-property node-id :identity "after"))
       (is (= "after" (g/node-value node-id :identity)))
       (is (zero? @calls))
@@ -302,9 +302,9 @@
         (concat
           (g/add-node
             (g/construct-shell ShellTestNode
+              {:_node-id source}
               (fn materialize-fn [self _evaluation-context]
-                (g/set-property self :value 31))
-              {:_node-id source}))
+                (g/set-property self :value 31))))
           (g/add-node
             (g/construct ShellTestNode :_node-id target))))
       (g/transact
@@ -319,10 +319,10 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode
+            {:_node-id source}
             (fn materialize-fn [self _evaluation-context]
               [(g/add-node (g/construct ShellTestNode :_node-id child :value 19))
-               (g/connect child :result self :dependency)])
-            {:_node-id source})))
+               (g/connect child :result self :dependency)]))))
       (g/transact
         (g/override source {}
           (fn init-fn [_evaluation-context original->override]
@@ -366,13 +366,13 @@
         (g/transact
           (g/add-node
             (g/construct-shell ShellWithChild
-                               (fn [self evaluation-context]
-                                 (swap! calls inc)
-                                 (let [child (first (g/take-node-ids 1))]
-                                   (g/merge-evaluation-user-data! evaluation-context {self {:source-value :loaded}})
-                                   [(g/add-node (g/construct ShellTestNode :_node-id child :value 42))
-                                    (g/set-property self :child child)]))
-                               {:_node-id shell})))
+              {:_node-id shell}
+              (fn [self evaluation-context]
+                (swap! calls inc)
+                (let [child (first (g/take-node-ids 1))]
+                  (g/merge-evaluation-user-data! evaluation-context {self {:source-value :loaded}})
+                  [(g/add-node (g/construct ShellTestNode :_node-id child :value 42))
+                   (g/set-property self :child child)])))))
         (let [first-context (g/make-evaluation-context)
               second-context (g/make-evaluation-context)
               child (g/node-value shell :child first-context)]
@@ -396,18 +396,18 @@
         (g/transact
           [(g/add-node
              (g/construct-shell ShellWithChild
-                                (fn [self evaluation-context]
-                                  (swap! calls conj self)
-                                  (g/set-property self :child (g/node-value prerequisite :child evaluation-context)))
-                                {:_node-id parent}))
+               {:_node-id parent}
+               (fn [self evaluation-context]
+                 (swap! calls conj self)
+                 (g/set-property self :child (g/node-value prerequisite :child evaluation-context)))))
            (g/add-node
              (g/construct-shell ShellWithChild
-                                (fn [self _evaluation-context]
-                                  (swap! calls conj self)
-                                  (let [child (first (g/take-node-ids 1))]
-                                    [(g/add-node (g/construct ShellTestNode :_node-id child :value 37))
-                                     (g/set-property self :child child)]))
-                                {:_node-id prerequisite}))])
+               {:_node-id prerequisite}
+               (fn [self _evaluation-context]
+                 (swap! calls conj self)
+                 (let [child (first (g/take-node-ids 1))]
+                   [(g/add-node (g/construct ShellTestNode :_node-id child :value 37))
+                    (g/set-property self :child child)]))))])
         (let [first-context (g/make-evaluation-context)
               second-context (g/make-evaluation-context)
               third-context (g/make-evaluation-context)]
@@ -433,15 +433,15 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellWithChild
-                             (fn [self _evaluation-context]
-                               (swap! calls inc)
-                               (deliver entered true)
-                               (when (= ::timeout (deref release 10000 ::timeout))
-                                 (throw (ex-info "Timed out waiting to finish load" {})))
-                               (let [child (first (g/take-node-ids 1))]
-                                 [(g/add-node (g/construct ShellTestNode :_node-id child :value 11))
-                                  (g/set-property self :child child)]))
-                             {:_node-id shell})))
+            {:_node-id shell}
+            (fn [self _evaluation-context]
+              (swap! calls inc)
+              (deliver entered true)
+              (when (= ::timeout (deref release 10000 ::timeout))
+                (throw (ex-info "Timed out waiting to finish load" {})))
+              (let [child (first (g/take-node-ids 1))]
+                [(g/add-node (g/construct ShellTestNode :_node-id child :value 11))
+                 (g/set-property self :child child)])))))
       (let [first-context (g/make-evaluation-context)
             second-context (g/make-evaluation-context)
             first-result (future (g/node-value shell :child first-context))]
@@ -469,8 +469,9 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode
-                             (fn [self _evaluation-context] (g/set-property self :value 1))
-                             {:_node-id shell})))
+            {:_node-id shell}
+            (fn [self _evaluation-context]
+              (g/set-property self :value 1)))))
       (let [first-context (g/make-evaluation-context)
             second-context (g/make-evaluation-context)]
         (is (= 1 (g/node-value shell :result first-context)))
@@ -487,10 +488,10 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode
-                             (fn [self _evaluation-context]
-                               (swap! calls inc)
-                               (g/set-property self :value 5))
-                             {:_node-id shell})))
+            {:_node-id shell}
+            (fn [self _evaluation-context]
+              (swap! calls inc)
+              (g/set-property self :value 5)))))
       (let [old-basis (g/now)]
         (is (= 5 (g/node-value shell :result)))
         (let [evaluation-context (g/make-evaluation-context {:basis old-basis})]
@@ -506,18 +507,18 @@
         (g/transact
           [(g/add-node
              (g/construct-shell ShellTestNode
-                                (fn [self evaluation-context]
-                                  (let [value (g/node-value child :result evaluation-context)]
-                                    (when @fail
-                                      (throw (ex-info "outer load failed" {})))
-                                    (g/set-property self :value value)))
-                                {:_node-id parent}))
+               {:_node-id parent}
+               (fn [self evaluation-context]
+                 (let [value (g/node-value child :result evaluation-context)]
+                   (when @fail
+                     (throw (ex-info "outer load failed" {})))
+                   (g/set-property self :value value)))))
            (g/add-node
              (g/construct-shell ShellTestNode
-                                (fn [self _evaluation-context]
-                                  (swap! child-calls inc)
-                                  (g/set-property self :value 23))
-                                {:_node-id child}))])
+               {:_node-id child}
+               (fn [self _evaluation-context]
+                 (swap! child-calls inc)
+                 (g/set-property self :value 23))))])
         (let [first-context (g/make-evaluation-context)
               second-context (g/make-evaluation-context)]
           (when preload-child
@@ -540,9 +541,9 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode
-                             (fn [self _evaluation-context]
-                               (g/set-property self :value (swap! calls inc)))
-                             {:_node-id shell})))
+            {:_node-id shell}
+            (fn [self _evaluation-context]
+              (g/set-property self :value (swap! calls inc))))))
       (let [clone (atom (g/clone-system))]
         (is (= 1 (g/node-value shell :result)))
         (binding [g/*the-system* clone]
@@ -556,8 +557,9 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode
-                             (fn [self _evaluation-context] (g/set-property self :value 1))
-                             {:_node-id shell})))
+            {:_node-id shell}
+            (fn [self _evaluation-context]
+              (g/set-property self :value 1)))))
       (let [evaluation-context (g/make-evaluation-context)]
         (is (= 1 (g/node-value shell :result evaluation-context)))
         (is (= 1 (g/node-value shell :result)))
@@ -572,17 +574,18 @@
       (g/transact
         [(g/add-node
            (g/construct-shell ShellWithChild
-                              (fn [self evaluation-context]
-                                (swap! calls inc)
-                                (let [value (g/node-value prerequisite :result evaluation-context)
-                                      child (first (g/take-node-ids 1))]
-                                  [(g/add-node (g/construct ShellTestNode :_node-id child :value value))
-                                   (g/set-property self :child child)]))
-                              {:_node-id parent}))
+             {:_node-id parent}
+             (fn [self evaluation-context]
+               (swap! calls inc)
+               (let [value (g/node-value prerequisite :result evaluation-context)
+                     child (first (g/take-node-ids 1))]
+                 [(g/add-node (g/construct ShellTestNode :_node-id child :value value))
+                  (g/set-property self :child child)]))))
          (g/add-node
            (g/construct-shell ShellTestNode
-                              (fn [self _evaluation-context] (g/set-property self :value 17))
-                              {:_node-id prerequisite}))])
+             {:_node-id prerequisite}
+             (fn [self _evaluation-context]
+               (g/set-property self :value 17))))])
       (let [first-context (g/make-evaluation-context)
             child (g/node-value parent :child first-context)]
         (is (= 17 (g/node-value prerequisite :result)))
@@ -600,15 +603,15 @@
         [(g/add-node (g/construct ShellConsumer :_node-id consumer))
          (g/add-node
            (g/construct-shell ShellTestNode
-                              (fn [_self _evaluation-context]
-                                [(g/add-node (g/construct ShellTestNode :_node-id child :value 11))
-                                 (g/set-property consumer :source prerequisite)])
-                              {:_node-id parent}))
+             {:_node-id parent}
+             (fn [_self _evaluation-context]
+               [(g/add-node (g/construct ShellTestNode :_node-id child :value 11))
+                (g/set-property consumer :source prerequisite)])))
          (g/add-node
            (g/construct-shell ShellTestNode
-                              (fn [self _evaluation-context]
-                                (g/connect child :result self :dependency))
-                              {:_node-id prerequisite}))])
+             {:_node-id prerequisite}
+             (fn [self _evaluation-context]
+               (g/connect child :result self :dependency))))])
       (let [first-context (g/make-evaluation-context)
             second-context (g/make-evaluation-context)]
         (g/materialize-node! parent first-context)

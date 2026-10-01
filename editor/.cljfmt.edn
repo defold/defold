@@ -15,6 +15,7 @@
                  dev/run-with-progress [[:inner 0]]
                  dev/run-with-terminal-progress [[:inner 0]]
                  dynamo.graph/construct [[:inner 0]]
+                 dynamo.graph/construct-shell [[:inner 0]]
                  dynamo.graph/deftype [[:block 1] [:inner 1 -1]]
                  dynamo.graph/let-ec [[:inner 0]]
                  dynamo.graph/make-node [[:inner 0]]

@@ -416,8 +416,8 @@
   "Constructs a node whose non-unjammable outputs materialize it on demand.
   materialize-fn receives the node-id and evaluation-context and returns the
   transaction steps that populate it. Default setters run on materialization."
-  [node-type materialize-fn properties]
-  (in/construct-shell node-type materialize-fn properties))
+  [node-type properties materialize-fn]
+  (in/construct-shell node-type properties materialize-fn))
 
 (defn materialize-shell
   "Transaction step that marks a shell as materialized and runs its default

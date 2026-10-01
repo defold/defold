@@ -189,10 +189,12 @@
       "  x86_64-linux:"
       "    context:"
       "      excludeLibs: [BulletDynamics]"]}
-    (let [manifest-node (project/get-resource-node project "/legacy.appmanifest")
-          manifest (g/node-value manifest-node :manifest)
-          upload (extender-resource-yaml (make-extender-resources project "arm64-macos") "_app/app.manifest")]
-      (is (true? (:dirty (g/node-value manifest-node :save-data))))
+    (g/let-ec [manifest-node (project/get-resource-node project "/legacy.appmanifest" evaluation-context)
+               manifest (g/node-value manifest-node :manifest evaluation-context)
+               extender-resources (#'native-extensions/make-extender-resources project "arm64-macos" evaluation-context)
+               upload (extender-resource-yaml extender-resources "_app/app.manifest")
+               save-data (g/node-value manifest-node :save-data evaluation-context)]
+      (is (true? (:dirty save-data)))
       (doseq [platform [nil :arm64-osx :x86_64-win32]]
         (let [context (if-not platform
                         (:context manifest)

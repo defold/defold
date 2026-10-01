@@ -787,20 +787,20 @@
 ;;; Construction
 
 (defn construct
-  [node-type-ref args]
+  [node-type-ref properties]
   (assert (and node-type-ref (deref node-type-ref)))
-  (assert (or (nil? args) (map? args)))
-  (validate-property-labels node-type-ref args)
-  (validate-property-values node-type-ref (:_node-id args) args)
+  (assert (or (nil? properties) (map? properties)))
+  (validate-property-labels node-type-ref properties)
+  (validate-property-values node-type-ref (:_node-id properties) properties)
   (coll/merge
     (->NodeImpl nil node-type-ref)
-    args))
+    properties))
 
-(defn construct-shell [node-type-ref materialize-fn args]
+(defn construct-shell [node-type-ref properties materialize-fn]
   {:pre [(or (nil? materialize-fn) (ifn? materialize-fn))]}
-  (validate-property-labels node-type-ref args)
-  (validate-property-values node-type-ref (:_node-id args) args)
-  (coll/merge (->ShellNode nil node-type-ref materialize-fn) args))
+  (validate-property-labels node-type-ref properties)
+  (validate-property-values node-type-ref (:_node-id properties) properties)
+  (coll/merge (->ShellNode nil node-type-ref materialize-fn) properties))
 
 ;;; ----------------------------------------
 ;;; Node type implementation

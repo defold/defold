@@ -158,18 +158,27 @@
     evaluation-context))
 
 (defn- apply-evaluation-context [ctx evaluation-context]
-  (let [{:keys [changes user-data applied-user-data]} @(:state-atom evaluation-context)
+  (let [state-atom (:state-atom evaluation-context)
+        {:keys [changes user-data applied-user-data]} @state-atom
+        has-changes (not (coll/empty? changes))
         user-data-changed (not (identical? user-data applied-user-data))
-        ctx (cond-> (reduce (fn [ctx change]
-                              (cond-> (-> (perform-change ctx change)
-                                          (update :completed-action-count inc))
-                                (:realized-changes ctx) (update :realized-changes conj change)))
-                            ctx
-                            changes)
+        ctx (cond-> ctx
+
+              has-changes
+              (coll/reduce=> changes
+                (fn [ctx change]
+                  (-> ctx
+                      (perform-change change)
+                      (update :completed-action-count inc)
+                      (cond->
+                        (:realized-changes ctx)
+                        (update :realized-changes conj change)))))
+
               user-data-changed
               (update :evaluation-user-data #(merge-with merge % user-data)))]
-    (when (or (coll/not-empty changes) user-data-changed)
-      (swap! (:state-atom evaluation-context) assoc :changes [] :applied-user-data user-data))
+
+    (when (or has-changes user-data-changed)
+      (swap! state-atom assoc :changes [] :applied-user-data user-data))
     ctx))
 
 (defn- mark-input-activated
