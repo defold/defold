@@ -212,7 +212,15 @@
                                   :type "factory"
                                   :data embedded-component-data}]})]
 
-    {"ambient_light"
+    {"area_light"
+     {:data {:struct {:fields
+                      {"intensity" {:number 1.0}
+                       "color" light-color
+                       "range" {:number 10.0}
+                       "width" {:number 1.0}
+                       "height" {:number 1.0}}}}}
+
+     "ambient_light"
      {:data {:struct {:fields
                       {"intensity" {:number 1.0}
                        "color" light-color}}}}

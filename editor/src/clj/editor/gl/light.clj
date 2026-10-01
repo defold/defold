@@ -20,7 +20,7 @@
             [editor.types :as types]
             [util.coll :as coll])
   (:import [com.jogamp.opengl GL2]
-           [javax.vecmath Matrix4d Point3d Vector3d Vector4d]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -45,6 +45,7 @@
     :directional 0.0
     :point 1.0
     :spot 2.0
+    :area 4.0
     0.0))
 
 (defn- world-space-light-direction
@@ -86,6 +87,22 @@
         color-v4 (color->vector4d light-color)
         type-index (engine-light-type-index light-type)]
     (case light-type
+      :area
+      (let [rotation (doto (Quat4d. ^Quat4d (:world-rotation renderable math/identity-quat))
+                       (.normalize))
+            ^Vector3d scale (:world-scale renderable math/one-v3)
+
+            width (* (double (:width light-data)) (Math/abs (.x scale)))
+            height (* (double (:height light-data)) (Math/abs (.y scale)))]
+        ;; Match runtime quaternion packing without mutating the scene's rotation.
+        (when (neg? (.w rotation))
+          (.negate rotation))
+        {:position (Vector4d. (.x translation) (.y translation) (.z translation) (.w rotation))
+         :color color-v4
+         :direction-range (Vector4d. (.x rotation) (.y rotation) (.z rotation)
+                                    (* light-range (preview-renderable-min-scale renderable)))
+         :params (Vector4d. type-index light-intensity width height)})
+
       :directional
       (let [d (world-space-light-direction transform)]
         {:position translation-v4

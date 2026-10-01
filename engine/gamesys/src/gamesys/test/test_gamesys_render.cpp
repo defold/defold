@@ -1467,9 +1467,9 @@ TEST_F(MaterialTest, TestLightBufferSmallerThanProjectMax)
 
 TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
 {
-    // Spawns ambient and point-light components, updates their persistent instance data, renders the
+    // Spawns ambient, area, and point-light components, updates their persistent instance data, renders the
     // collection to submit the visible instances, then applies light_buffer.material. The ambient
-    // instance is folded into light_info.xyz while only point lights are uploaded to lights[].
+    // instance is folded into light_info.xyz while area and point lights are uploaded to lights[].
     dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
     ASSERT_NE((void*)0, render_ctx);
 
@@ -1485,7 +1485,8 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
         dmSnPrintf(id_buf, sizeof(id_buf), "/lpl%u", i);
 
         positions[i] = Point3(i * 0.1f, (float) i * 1.5f, (float) i * 2.0f);
-        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/light/valid_point_light.goc", dmHashString64(id_buf), 0, positions[i], Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+        const char* light_path = i == 0 ? "/light/valid_area_light.goc" : "/light/valid_point_light.goc";
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, light_path, dmHashString64(id_buf), 0, positions[i], Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
         ASSERT_NE((dmGameObject::HInstance)0, go);
     }
 
@@ -1493,6 +1494,7 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
 
     // Light data is commited into a scratch buffer before pushing it to the GPU
     ASSERT_EQ(11u, render_ctx->m_LightBufferScratch.Size());
+    ASSERT_VEC4(Vector4(4.0f, 4.0f, 2.0f, 3.0f), render_ctx->m_LightBufferScratch[1].m_Params);
     for (uint32_t i = 0; i < 10; ++i)
     {
         ASSERT_VEC3(positions[i], render_ctx->m_LightBufferScratch[i + 1].m_Position);
@@ -1673,13 +1675,15 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboCompute)
         dmSnPrintf(id_buf, sizeof(id_buf), "/lcpl%u", i);
 
         positions[i] = Point3(i * 0.1f, (float) i * 1.5f, (float) i * 2.0f);
-        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/light/valid_point_light.goc", dmHashString64(id_buf), 0, positions[i], Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+        const char* light_path = i == 0 ? "/light/valid_area_light.goc" : "/light/valid_point_light.goc";
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, light_path, dmHashString64(id_buf), 0, positions[i], Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
         ASSERT_NE((dmGameObject::HInstance)0, go);
     }
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ASSERT_EQ(10u, render_ctx->m_LightBufferScratch.Size());
+    ASSERT_VEC4(Vector4(4.0f, 4.0f, 2.0f, 3.0f), render_ctx->m_LightBufferScratch[0].m_Params);
     for (uint32_t i = 0; i < 10; ++i)
     {
         ASSERT_VEC3(positions[i], render_ctx->m_LightBufferScratch[i].m_Position);

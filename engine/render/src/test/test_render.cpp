@@ -3665,6 +3665,94 @@ TEST_F(dmRenderTest, LightBufferTestSetLightInstanceUpdates)
     dmRender::DeleteLightPrototype(m_Context, prototype);
 }
 
+// Verifies area dimensions and complete rotation fit the existing light-buffer layout.
+TEST_F(dmRenderTest, AreaLightBufferPacking)
+{
+    dmRender::LightPrototypeParams params;
+    ASSERT_EQ(1.0f, params.m_Width);
+    ASSERT_EQ(1.0f, params.m_Height);
+    params.m_Type = dmRender::LIGHT_TYPE_AREA;
+    params.m_Width = 2.0f;
+    params.m_Height = 3.0f;
+    params.m_Range = 8.0f;
+    params.m_Intensity = 4.0f;
+    params.m_Color = dmVMath::Vector4(0.2f, 0.4f, 0.8f, 0.5f);
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, instance);
+
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_Context;
+    ASSERT_EQ(64u, sizeof(dmRender::LightSTD140));
+    const dmVMath::Quat rotation = dmVMath::Normalize(dmVMath::Quat(1.0f, 2.0f, 3.0f, 4.0f));
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1.0f, 2.0f, 3.0f), rotation * 2.0f, dmVMath::Vector3(-2.0f, 3.0f, 4.0f));
+    const dmRender::LightSTD140& light = render_ctx->m_LightBufferScratch[0];
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 2.0f, 3.0f, rotation.getW()), light.m_Position);
+    ASSERT_VEC4(params.m_Color, light.m_Color);
+    ASSERT_VEC4(dmVMath::Vector4(rotation.getX(), rotation.getY(), rotation.getZ(), 16.0f), light.m_DirectionRange);
+    ASSERT_VEC4(dmVMath::Vector4(4.0f, 4.0f, 4.0f, 9.0f), light.m_Params);
+
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0.0f), dmVMath::Quat::identity(), dmVMath::Vector3(0.0f, 3.0f, 4.0f));
+    ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, 0.0f, 0.0f), light.m_DirectionRange);
+    ASSERT_VEC4(dmVMath::Vector4(4.0f, 4.0f, 0.0f, 9.0f), light.m_Params);
+
+    // Scalar callers retain uniform scaling, including clamping negative scale to zero.
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0.0f), dmVMath::Quat::identity(), -1.0f);
+    ASSERT_VEC4(dmVMath::Vector4(4.0f, 4.0f, 0.0f, 0.0f), light.m_Params);
+    dmRender::DeleteLightInstance(m_Context, instance);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
+}
+
+// Guards against losing roll-only changes or stale dimensions after a prototype reload.
+TEST_F(dmRenderTest, AreaLightRotationAndPrototypeUpdates)
+{
+    dmRender::LightPrototypeParams params;
+    params.m_Type = dmRender::LIGHT_TYPE_AREA;
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, instance);
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_Context;
+    const dmRender::LightSTD140& light = render_ctx->m_LightBufferScratch[0];
+    const float half_angle = M_PI_4;
+    const dmVMath::Quat rotation(0.0f, 0.0f, sinf(half_angle), cosf(half_angle));
+    render_ctx->m_LightBufferDirty = 0;
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0.0f), rotation, 1.0f);
+    ASSERT_TRUE(render_ctx->m_LightBufferDirty);
+    ASSERT_NEAR(rotation.getZ(), light.m_DirectionRange.getZ(), 0.0001f);
+    ASSERT_NEAR(rotation.getW(), light.m_Position.getW(), 0.0001f);
+
+    render_ctx->m_LightBufferDirty = 0;
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0.0f), -rotation, 1.0f);
+    ASSERT_FALSE(render_ctx->m_LightBufferDirty);
+
+    params.m_Width = 5.0f;
+    params.m_Height = 7.0f;
+    dmRender::SetLightPrototype(m_Context, prototype, params);
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0.0f), rotation, 1.0f);
+    ASSERT_TRUE(render_ctx->m_LightBufferDirty);
+    ASSERT_VEC4(dmVMath::Vector4(4.0f, 1.0f, 5.0f, 7.0f), light.m_Params);
+    dmRender::DeleteLightInstance(m_Context, instance);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
+}
+
+// Verifies vector scaling preserves the existing spot-light encoding and minimum-axis range.
+TEST_F(dmRenderTest, LightVectorScalePreservesPunctualEncoding)
+{
+    dmRender::LightPrototypeParams params;
+    params.m_Type = dmRender::LIGHT_TYPE_SPOT;
+    params.m_InnerConeAngle = 0.2f;
+    params.m_OuterConeAngle = 0.8f;
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1.0f, 2.0f, 3.0f), dmVMath::Quat::identity(), dmVMath::Vector3(-2.0f, 3.0f, 4.0f));
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_Context;
+    const dmRender::LightSTD140& light = render_ctx->m_LightBufferScratch[0];
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 2.0f, 3.0f, 1.0f), light.m_Position);
+    ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 20.0f), light.m_DirectionRange);
+    ASSERT_VEC4(dmVMath::Vector4(2.0f, 1.0f, 0.2f, 0.8f), light.m_Params);
+    dmRender::DeleteLightInstance(m_Context, instance);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
+}
+
 TEST(Constants, Constant)
 {
     dmhash_t original_name_hash = dmHashString64("test_constant");

@@ -423,6 +423,130 @@ TEST_F(LightResourceTest, LightResourcePrototype)
     dmResource::Release(m_Factory, (void*)res);
 }
 
+// Verifies area resources reload in place and reject missing dimensions without losing valid data.
+TEST_F(LightResourceTest, AreaLightResourceReload)
+{
+    const char* resource_path = "/light/valid_area_light.area_light.lightc";
+    dmGameSystem::LightResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_path, (void**)&resource));
+    dmRender::HLightPrototype prototype = dmGameSystem::GetLightPrototype(resource);
+    const dmRender::LightPrototype* params = dmRender::GetLightPrototype(m_RenderContext, prototype);
+    ASSERT_EQ(dmRender::LIGHT_TYPE_AREA, params->m_Type);
+    ASSERT_VEC4(Vector4(0.2f, 0.4f, 0.8f, 1.0f), params->m_Color);
+    ASSERT_NEAR(4.0f, params->m_Intensity, EPSILON);
+    ASSERT_NEAR(8.0f, params->m_Range, EPSILON);
+    ASSERT_NEAR(2.0f, params->m_Width, EPSILON);
+    ASSERT_NEAR(3.0f, params->m_Height, EPSILON);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/light/valid_area_light.goc", dmHashString64("/area_reload"), 0,
+                                      Point3(0.0f), Quat::identity(), Vector3(1.0f));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+
+    char path[256];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s%s", GetContentFolder(), resource_path);
+    dmGameSystemDDF::Data* ddf = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(path, dmGameSystemDDF::Data::m_DDFDescriptor, (void**)&ddf));
+    dmStructDDF::Struct::FieldsEntry* width = 0;
+    dmStructDDF::Struct::FieldsEntry* height = 0;
+    dmStructDDF::Struct& data = ddf->m_Data.m_Kind.m_Struct;
+    for (uint32_t i = 0; i < data.m_Fields.m_Count; ++i)
+    {
+        dmStructDDF::Struct::FieldsEntry* field = &data.m_Fields[i];
+        if (strcmp(field->m_Key, "width") == 0)
+            width = field;
+        else if (strcmp(field->m_Key, "height") == 0)
+            height = field;
+    }
+    ASSERT_NE((void*)0, width);
+    ASSERT_NE((void*)0, height);
+    width->m_Value->m_Kind.m_Number = 5.0;
+    height->m_Value->m_Kind.m_Number = 7.0;
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(ddf, dmGameSystemDDF::Data::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(resource_path), buffer.Begin(), buffer.Size()));
+    ASSERT_EQ(prototype, dmGameSystem::GetLightPrototype(resource));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    ASSERT_VEC4(Vector4(4.0f, 4.0f, 5.0f, 7.0f), render_ctx->m_LightBufferScratch[0].m_Params);
+
+    dmStructDDF::Struct::FieldsEntry* dimensions[] = { width, height };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(dimensions); ++i)
+    {
+        const char* key = dimensions[i]->m_Key;
+        dimensions[i]->m_Key = "missing_dimension";
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(ddf, dmGameSystemDDF::Data::m_DDFDescriptor, buffer));
+        dimensions[i]->m_Key = key;
+        ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::SetResource(m_Factory, dmHashString64(resource_path), buffer.Begin(), buffer.Size()));
+        ASSERT_NEAR(5.0f, params->m_Width, EPSILON);
+        ASSERT_NEAR(7.0f, params->m_Height, EPSILON);
+    }
+
+    dmDDF::FreeMessage(ddf);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Guards against dropping emitter roll and per-axis dimensions from hierarchical game-object transforms.
+TEST_F(LightResourceTest, AreaLightComponentUsesWorldTransform)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance parent = Spawn(m_Factory, m_Collection, "/light/valid_ambient_light.goc", dmHashString64("/area_parent"), 0,
+                                          Point3(10.0f, 20.0f, 30.0f), Quat::identity(), Vector3(1.0f));
+    dmGameObject::HInstance child = Spawn(m_Factory, m_Collection, "/light/valid_area_light.goc", dmHashString64("/area_child"), 0,
+                                         Point3(1.0f, 2.0f, 3.0f), Quat::identity(), Vector3(1.0f));
+    ASSERT_NE((dmGameObject::HInstance)0, parent);
+    ASSERT_NE((dmGameObject::HInstance)0, child);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    dmGameObject::SetScale(parent, Vector3(2.0f, 3.0f, 4.0f));
+    const Quat rotation(0.0f, 0.0f, sinf(M_PI_4), cosf(M_PI_4));
+    dmGameObject::SetRotation(parent, rotation);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    const dmRender::LightSTD140& light = render_ctx->m_LightBufferScratch[1];
+    ASSERT_VEC3(dmGameObject::GetWorldPosition(child), light.m_Position);
+    ASSERT_NEAR(rotation.getW(), light.m_Position.getW(), EPSILON);
+    ASSERT_VEC4(Vector4(0.0f, 0.0f, rotation.getZ(), 16.0f), light.m_DirectionRange);
+    ASSERT_VEC4(Vector4(4.0f, 4.0f, 4.0f, 9.0f), light.m_Params);
+
+    dmGameObject::SetScale(parent, Vector3(0.0f, 3.0f, 4.0f));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_NEAR(0.0f, light.m_DirectionRange.getW(), EPSILON);
+    ASSERT_VEC4(Vector4(4.0f, 4.0f, 0.0f, 9.0f), light.m_Params);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Guards editor/runtime parity when rotated area children inherit nonuniform or reflected scale.
+TEST_F(LightResourceTest, AreaLightComponentComposesRotationAndScale)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    const Quat parent_rotation(0.0f, sinf(M_PI / 12.0f), 0.0f, cosf(M_PI / 12.0f));
+    const Quat child_rotation(0.0f, 0.0f, sinf(M_PI / 8.0f), cosf(M_PI / 8.0f));
+    const Quat expected_rotation = Normalize(parent_rotation * child_rotation);
+    dmGameObject::HInstance parent = Spawn(m_Factory, m_Collection, "/light/valid_ambient_light.goc", dmHashString64("/area_parent"), 0,
+                                          Point3(10.0f, 20.0f, 30.0f), parent_rotation, Vector3(1.0f));
+    dmGameObject::HInstance child = Spawn(m_Factory, m_Collection, "/light/valid_area_light.goc", dmHashString64("/area_child"), 0,
+                                         Point3(1.0f, 2.0f, 3.0f), child_rotation, Vector3(1.0f));
+    ASSERT_NE((dmGameObject::HInstance)0, parent);
+    ASSERT_NE((dmGameObject::HInstance)0, child);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    const Vector3 parent_scales[] = { Vector3(2.0f, 1.0f, 1.0f), Vector3(-2.0f, 1.0f, 1.0f),
+                                     Vector3(2.0f, -1.0f, 1.0f), Vector3(2.0f, 1.0f, -1.0f) };
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(parent_scales); ++i)
+    {
+        dmGameObject::SetScale(parent, parent_scales[i]);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        const dmRender::LightSTD140& light = render_ctx->m_LightBufferScratch[1];
+        ASSERT_VEC3(dmGameObject::GetWorldPosition(child), light.m_Position);
+        ASSERT_NEAR(expected_rotation.getW(), light.m_Position.getW(), EPSILON);
+        ASSERT_VEC4(Vector4(expected_rotation.getX(), expected_rotation.getY(), expected_rotation.getZ(), 8.0f), light.m_DirectionRange);
+        ASSERT_VEC4(Vector4(4.0f, 4.0f, 4.0f, 3.0f), light.m_Params);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(LightResourceTest, LightComponentUpdatesLightBuffer)
 {
     // CompLightLateUpdate calls dmRender::SetLightInstance, which commits into m_LightBufferScratch
@@ -1896,6 +2020,7 @@ const char* valid_light_resources[] = {
     "/light/valid_point.point_light.lightc",
     "/light/valid_directional_light.directional_light.lightc",
     "/light/valid_spot_light.spot_light.lightc",
+    "/light/valid_area_light.area_light.lightc",
     "/light/valid_ambient_light.ambient_light.lightc"
 };
 INSTANTIATE_TEST_CASE_P(Light, ResourceTest, jc_test_values_in(valid_light_resources));
@@ -1913,6 +2038,7 @@ const char* valid_light_gos[] = {
     "/light/valid_point_light.goc",
     "/light/valid_directional_light.goc",
     "/light/valid_spot_light.goc",
+    "/light/valid_area_light.goc",
     "/light/valid_ambient_light.goc"
 };
 INSTANTIATE_TEST_CASE_P(Light, ComponentTest, jc_test_values_in(valid_light_gos));

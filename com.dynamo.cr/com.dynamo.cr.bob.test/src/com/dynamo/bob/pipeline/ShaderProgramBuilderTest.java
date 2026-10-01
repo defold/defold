@@ -18,6 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -750,6 +751,45 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             System.err.printf("SOURCE:\n'%s'%n", source);
         }
         assertEquals(expected, source);
+    }
+
+    // Verifies area lighting and its horizon clipping arrays compile for GLSL, GLES, Metal, SPIR-V, and WGSL.
+    @Test
+    public void testAreaLightingShaderLanguages() throws Exception {
+        for (String include : new String[] {"lighting.glsl", "area_lighting.glsl"}) {
+            String resourcePath = "/builtins/materials/" + include;
+            try (InputStream stream = getClass().getResourceAsStream(resourcePath)) {
+                assertNotNull(resourcePath, stream);
+                addFile(resourcePath, stream.readAllBytes());
+            }
+        }
+
+        ShaderDesc.Language[] languages = {
+            ShaderDesc.Language.LANGUAGE_GLSL_SM120,
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            ShaderDesc.Language.LANGUAGE_GLES_SM100,
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_MSL_22,
+            ShaderDesc.Language.LANGUAGE_SPIRV,
+            ShaderDesc.Language.LANGUAGE_WGSL
+        };
+        IShaderCompiler.CompileOptions options = new IShaderCompiler.CompileOptions();
+        options.forceIncludeShaderLanguages.addAll(Arrays.asList(languages));
+        String source =
+            "#version 140\n" +
+            "#define MAX_LIGHT_COUNT 4\n" +
+            "in mat4 var_view;\n" +
+            "in vec3 var_normal;\n" +
+            "in vec3 var_position;\n" +
+            "out vec4 color;\n" +
+            "#include \"/builtins/materials/lighting.glsl\"\n" +
+            "void main() {\n" +
+            "    color = vec4(ambient_light() + diffuse_lambert(normalize(var_normal), var_position), 1.0);\n" +
+            "}\n";
+        ShaderDesc shader = addAndBuildShaderDescs(
+            createShaderModules(new String[] {"/area_lighting.fp"}, options),
+            new String[] {source}, "/area_lighting.shbundle");
+        checkExpectedLanguages(shader, languages);
     }
 
     @Test

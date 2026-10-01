@@ -24,7 +24,7 @@
             [editor.scene :as scene]
             [editor.scene-cache :as scene-cache]
             [editor.types :as types])
-  (:import [javax.vecmath Matrix4d Vector3d Vector4d]))
+  (:import [javax.vecmath Matrix4d Quat4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -42,6 +42,81 @@
 
 (defn- preview-light-data-from-scene [renderables-by-pass]
   (light/preview-light-data-from-renderables (get renderables-by-pass pass/transparent [])))
+
+;; Verifies the area-light ABI preserves quaternion orientation and per-axis dimensions under mirrored scale.
+(deftest renderable->std140-area-transform-test
+  (let [rotation (Quat4d. 0.0 0.6 0.0 0.8)
+        packed-light (light/renderable->std140-light
+                       {:world-translation (Vector3d. 3.0 4.0 5.0)
+                        :world-rotation rotation
+                        :world-scale (Vector3d. -2.0 3.0 -4.0)
+                        :user-data {:editor-preview-light {:light-type :area
+                                                           :color [0.25 0.5 0.75]
+                                                           :intensity 2.0
+                                                           :range 10.0
+                                                           :width 4.0
+                                                           :height 5.0}}})]
+    (is (= (Vector4d. 3.0 4.0 5.0 0.8) (:position packed-light)))
+    (is (= (Vector4d. 0.25 0.5 0.75 1.0) (:color packed-light)))
+    (is (= (Vector4d. 0.0 0.6 0.0 20.0) (:direction-range packed-light)))
+    (is (= (Vector4d. 4.0 2.0 8.0 15.0) (:params packed-light)))))
+
+;; Verifies equivalent negative quaternions use the same runtime representation without mutating scene transforms.
+(deftest renderable->std140-area-canonical-rotation-test
+  (let [rotation (doto (Quat4d.) (.set 0.0 -1.2 0.0 -1.6))
+        packed-light (light/renderable->std140-light
+                       {:world-rotation rotation
+                        :user-data {:editor-preview-light {:light-type :area
+                                                           :color [1.0 1.0 1.0]
+                                                           :intensity 1.0
+                                                           :range 10.0
+                                                           :width 1.0
+                                                           :height 1.0}}})]
+    (is (= (Vector4d. 0.0 0.0 0.0 0.8) (:position packed-light)))
+    (is (= (Vector4d. 0.0 0.6 0.0 10.0) (:direction-range packed-light)))
+    (is (= -1.2 (.y rotation)))
+    (is (= -1.6 (.w rotation)))))
+
+;; Verifies zero area extents and range survive preview packing so the shader can disable degenerate emitters.
+(deftest renderable->std140-area-zero-size-test
+  (doseq [[scale light-range width height expected]
+          [[(Vector3d. 1.0 1.0 1.0) 0.0 1.0 1.0 [0.0 1.0 1.0]]
+           [(Vector3d. 1.0 1.0 1.0) 10.0 0.0 1.0 [10.0 0.0 1.0]]
+           [(Vector3d. 1.0 1.0 1.0) 10.0 1.0 0.0 [10.0 1.0 0.0]]
+           [(Vector3d. 0.0 1.0 1.0) 10.0 1.0 1.0 [0.0 0.0 1.0]]]]
+    (let [{:keys [^Vector4d direction-range ^Vector4d params]}
+          (light/renderable->std140-light
+            {:world-scale scale
+             :user-data {:editor-preview-light {:light-type :area
+                                                :color [1.0 1.0 1.0]
+                                                :intensity 1.0
+                                                :range light-range
+                                                :width width
+                                                :height height}}})]
+      (is (= expected [(.w direction-range) (.z params) (.w params)])))))
+
+;; Verifies scaling updates both gizmo bounds and preview-light shader data, including the light range.
+(deftest area-preview-fn-updates-dimensions-and-range-test
+  (let [[aabb user-data]
+        (#'editor-light/area-light-preview-fn
+          geom/null-aabb
+          {:width 1.0
+           :height 1.0
+           :range 10.0
+           :editor-preview-light {:light-type :area
+                                  :color [1.0 1.0 1.0]
+                                  :intensity 1.0
+                                  :range 10.0
+                                  :width 1.0
+                                  :height 1.0}}
+          {:width 4.0 :height 6.0 :range 20.0})]
+    (is (= (#'editor-light/area-light-aabb 4.0 6.0 20.0) aabb))
+    (is (= 4.0 (:width user-data)))
+    (is (= 6.0 (:height user-data)))
+    (is (= 20.0 (:range user-data)))
+    (is (= 20.0 (.w ^Vector4d (:direction-range (light/renderable->std140-light {:user-data user-data})))))
+    (is (= (Vector4d. 4.0 1.0 4.0 6.0)
+           (:params (light/renderable->std140-light {:user-data user-data}))))))
 
 (deftest renderable->std140-point-red-test
   (let [m (light/renderable->std140-light
