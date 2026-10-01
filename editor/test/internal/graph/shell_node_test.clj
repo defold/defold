@@ -51,7 +51,7 @@
         (is (= "shell" (g/node-value node-id :identity evaluation-context)))
         (is (zero? @calls))
         (is (thrown? ExceptionInfo (gt/get-property shell (g/ec-basis evaluation-context) :value)))
-        (is (thrown? ExceptionInfo (gt/assigned-properties shell)))
+        (is (thrown? ExceptionInfo (g/own-property-values (g/ec-basis evaluation-context) shell)))
         (is (= 12 (g/node-value node-id :result evaluation-context)))
         (is (= 12 (g/node-value node-id :result evaluation-context)))
         (is (= 1 @calls))
@@ -64,6 +64,36 @@
         (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
                               (g/update-system-from-evaluation-context! evaluation-context)))
         (is (= 1 @calls))))))
+
+(deftest shell-property-access-uses-supplied-basis-test
+  (with-clean-system
+    (let [node-id (first (g/take-node-ids 1))]
+      (g/transact
+        (g/add-node
+          (g/construct-shell
+            ShellTestNode
+            (fn materialize-fn [self _evaluation-context]
+              [(g/set-property self :identity "materialized")
+               (g/set-property self :value 7)])
+            {:_node-id node-id
+             :identity "shell"})))
+      (let [evaluation-context (g/make-evaluation-context)
+            initial-basis (g/ec-basis evaluation-context)
+            shell (g/node-by-id initial-basis node-id)]
+        (is (= 7 (g/node-value node-id :result evaluation-context)))
+        (let [materialized-basis (g/ec-basis evaluation-context)
+              materialized-node (g/node-by-id materialized-basis node-id)]
+          (doseq [node [shell materialized-node]]
+            (testing "Property reads use the materialized node in the supplied basis."
+              (is (= "materialized" (gt/get-property node materialized-basis :identity)))
+              (is (= 7 (gt/get-property node materialized-basis :value)))
+              (is (= {:identity "materialized" :value 7}
+                     (g/own-property-values materialized-basis node))))
+
+            (testing "An older basis retains its values and materialization guards."
+              (is (= "shell" (gt/get-property node initial-basis :identity)))
+              (is (thrown? ExceptionInfo (gt/get-property node initial-basis :value)))
+              (is (thrown? ExceptionInfo (g/own-property-values initial-basis node))))))))))
 
 (deftest materialization-in-property-setter-test
   (with-clean-system

@@ -941,8 +941,8 @@
 
 (def ^:private node-type-deref->stripped-prop-kws (fn/memoize node-type-deref->stripped-prop-kws-raw))
 
-(defn- make-prop->value-for-default-layout [node]
-  (let [node-properties (g/own-property-values node)]
+(defn- make-prop->value-for-default-layout [basis node]
+  (let [node-properties (g/own-property-values basis node)]
     (if (coll/empty? node-properties)
       node-properties
       (let [node-type (g/node-type node)
@@ -978,7 +978,7 @@
                   (if-let [override-node (g/node-by-id basis override-node-id)]
                     (reduce conj! node-properties (gt/overridden-properties override-node))
                     node-properties))
-                (transient (g/own-property-values root-node))
+                (transient (g/own-property-values basis root-node))
                 override-node-ids)]
 
     (if (coll/empty? node-properties)
@@ -1347,7 +1347,7 @@
                       (coll/not-empty (get layout->prop->value-for-original ""))
 
                       prop->value-for-default-layout
-                      (cond->> (make-prop->value-for-default-layout _this)
+                      (cond->> (make-prop->value-for-default-layout (g/ec-basis _evaluation-context) _this)
                         prop->value-for-default-layout-in-original
                         (coll/merge prop->value-for-default-layout-in-original))
 
@@ -1377,45 +1377,45 @@
             ;; originals here.
             (let [current-layout (:current-layout trivial-gui-scene-info)]
               (when (coll/not-empty current-layout)
-                (let [basis (g/ec-basis _evaluation-context)]
-                  (loop [node-id _node-id
-                         layout-names (:layout-names trivial-gui-scene-info)
-                         prop->value (get layout->prop->override current-layout)]
-                    (if-let [original-node-id (g/override-original basis node-id)]
-                      (let [trivial-gui-scene-info-for-original (g/node-value original-node-id :trivial-gui-scene-info _evaluation-context)]
-                        (if (g/error-value? trivial-gui-scene-info-for-original)
-                          trivial-gui-scene-info-for-original
+                (loop [node-id _node-id
+                       layout-names (:layout-names trivial-gui-scene-info)
+                       prop->value (get layout->prop->override current-layout)]
+                  (if-let [original-node-id (g/override-original (g/ec-basis _evaluation-context) node-id)]
+                    (let [trivial-gui-scene-info-for-original (g/node-value original-node-id :trivial-gui-scene-info _evaluation-context)]
+                      (if (g/error-value? trivial-gui-scene-info-for-original)
+                        trivial-gui-scene-info-for-original
 
-                          ;; If our scene introduces the current-layout, we
-                          ;; don't need to consider any more layout overrides
-                          ;; from our override originals. Instead, anything not
-                          ;; overridden for the current-layout by this point
-                          ;; will use values from our default layout, or values
-                          ;; inherited from the default layout in our override
-                          ;; originals.
-                          (let [layout-names-for-original (:layout-names trivial-gui-scene-info-for-original)
-                                introduces-current-layout (and (contains? layout-names current-layout)
-                                                               (not (contains? layout-names-for-original current-layout)))]
-                            (if introduces-current-layout
-                              (coll/merge
-                                (make-recursive-prop->value-for-default-layout basis node-id)
-                                prop->value)
-                              (let [layout->prop->override-for-original (g/node-value original-node-id :layout->prop->override _evaluation-context)]
-                                (if (g/error-value? layout->prop->override-for-original)
-                                  layout->prop->override-for-original
-                                  (recur original-node-id
-                                         layout-names-for-original
-                                         (coll/merge
-                                           (get layout->prop->override-for-original current-layout)
-                                           prop->value))))))))
+                        ;; If our scene introduces the current-layout, we
+                        ;; don't need to consider any more layout overrides
+                        ;; from our override originals. Instead, anything not
+                        ;; overridden for the current-layout by this point
+                        ;; will use values from our default layout, or values
+                        ;; inherited from the default layout in our override
+                        ;; originals.
+                        (let [layout-names-for-original (:layout-names trivial-gui-scene-info-for-original)
+                              introduces-current-layout (and (contains? layout-names current-layout)
+                                                             (not (contains? layout-names-for-original current-layout)))]
+                          (if introduces-current-layout
+                            (coll/merge
+                              (make-recursive-prop->value-for-default-layout (g/ec-basis _evaluation-context) node-id)
+                              prop->value)
+                            (let [layout->prop->override-for-original (g/node-value original-node-id :layout->prop->override _evaluation-context)]
+                              (if (g/error-value? layout->prop->override-for-original)
+                                layout->prop->override-for-original
+                                (recur original-node-id
+                                       layout-names-for-original
+                                       (coll/merge
+                                         (get layout->prop->override-for-original current-layout)
+                                         prop->value))))))))
 
-                      ;; We've reached the override root. Anything not
-                      ;; overridden for the current-layout by this point will
-                      ;; use values from our default layout.
-                      (let [node (g/node-by-id basis node-id)]
-                        (coll/merge
-                          (make-prop->value-for-default-layout node)
-                          prop->value)))))))))
+                    ;; We've reached the override root. Anything not
+                    ;; overridden for the current-layout by this point will
+                    ;; use values from our default layout.
+                    (let [basis (g/ec-basis _evaluation-context)
+                          node (g/node-by-id basis node-id)]
+                      (coll/merge
+                        (make-prop->value-for-default-layout basis node)
+                        prop->value))))))))
   (output _properties g/Properties :cached
           (g/fnk [_declared-properties layout->prop->override trivial-gui-scene-info]
             ;; For layout properties, the :original-value of each property is

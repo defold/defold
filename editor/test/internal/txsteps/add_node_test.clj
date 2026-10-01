@@ -255,7 +255,7 @@
                (g/node-value node-id :effect-log-property)
                (g/node-value node-id :effect-log-output)))
         (is (= nil
-               (gt/assigned-properties (g/node-by-id node-id)))))
+               (gt/assigned-properties (g/node-by-id node-id) (g/now)))))
 
       (testing "Effects from setter applied after setting the value."
         (g/transact
@@ -269,7 +269,7 @@
                 :effect-log-property [{:prop-kw :effecting-property
                                        :old-value nil
                                        :new-value nil}]}
-               (gt/assigned-properties (g/node-by-id node-id)))))
+               (gt/assigned-properties (g/node-by-id node-id) (g/now)))))
 
       (testing "Undo."
         (g/undo! :undo/global)
@@ -277,7 +277,7 @@
                (g/node-value node-id :effect-log-property)
                (g/node-value node-id :effect-log-output)))
         (is (= nil
-               (gt/assigned-properties (g/node-by-id node-id)))))
+               (gt/assigned-properties (g/node-by-id node-id) (g/now)))))
 
       (testing "Redo."
         (g/redo! :undo/global)
@@ -290,7 +290,7 @@
                 :effect-log-property [{:prop-kw :effecting-property
                                        :old-value nil
                                        :new-value nil}]}
-               (gt/assigned-properties (g/node-by-id node-id))))))))
+               (gt/assigned-properties (g/node-by-id node-id) (g/now))))))))
 
 (g/defnode UndoRedoTestNode
   (inherits helpers/EffectLogNode)

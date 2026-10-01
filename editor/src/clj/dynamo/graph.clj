@@ -43,7 +43,7 @@
 
 (namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error-value? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than package-if-error])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics])
+(namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics own-property-values])
 
 (namespaces/import-fn internal.node/evaluation-context-basis ec-basis)
 
@@ -195,18 +195,6 @@
 
 (defn node-override? [node]
   (some? (gt/original node)))
-
-(defn own-property-values
-  "Returns a map of property-label property-value for the specified node. If the
-  queried node is an override node, the map will contain overridden properties
-  only. Otherwise, the map will include assigned properties and defaults."
-  [node]
-  (or (if (node-override? node)
-        (gt/overridden-properties node)
-        (coll/merge
-          (in/defaults (gt/node-type node))
-          (gt/assigned-properties node)))
-      {}))
 
 (defn invalidate-counters
   "The current state of the invalidate counters in the system."

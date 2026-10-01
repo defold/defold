@@ -401,7 +401,7 @@
                     property (:name @node-type)))
     (assoc this property value))
 
-  (assigned-properties [this] (.__extmap this))
+  (assigned-properties [this _basis] (.__extmap this))
   (overridden-properties [this] {})
   (property-overridden?  [this property] false)
 
@@ -422,64 +422,84 @@
     nil)
 
   (set-original [this original-id]
-    (throw (ex-info "Originals can't be changed for original nodes" {})))
+    (throw (ex-info "Originals can't be changed for original nodes." {})))
 
   (override-id [this]
     nil))
+
+(defn- shell-node-safe-output?
+  [node-type label]
+  "Return true if the specified output label can be safely evaluated on an
+  unmaterialized node."
+  (if-let [output (some-> node-type deref :output (get label))]
+    (unjammable? output)
+    false))
+
+(defn- shell-node-resolve
+  "We might have been materialized by earlier evaluation-context queries. Look
+  up ourselves in the basis to ensure we're seeing the latest version of
+  ourselves."
+  [basis shell-node node-id]
+  (or (ig/node-by-id-at basis node-id)
+      shell-node))
 
 (defonce/record ShellNode [_node-id _node-type _materialize-fn]
   gt/Node
   (node-id [_] _node-id)
   (node-type [_] _node-type)
 
-  (get-property [this _basis property]
-    (when (and _materialize-fn
-               (not (unjammable? (get (all-properties _node-type) property))))
-      (throw (ex-info "Cannot read a property of an unmaterialized shell node without an evaluation-context."
-                      {:node-id _node-id
-                       :property property})))
-    (get this property (get (defaults _node-type) property)))
+  (get-property [this basis property]
+    (let [^ShellNode this (shell-node-resolve basis this _node-id)]
+      (when (and (.-_materialize-fn this)
+                 (not (shell-node-safe-output? _node-type property)))
+        (throw
+          (ex-info
+            "Cannot read a property of an unmaterialized shell node without an evaluation-context."
+            {:node-id _node-id
+             :property property})))
+      (let [value (get this property ::not-found)]
+        (if (identical? value ::not-found)
+          (get (defaults _node-type) property)
+          value))))
 
-  (set-property [this _basis property value]
-    (assert (contains? (all-properties _node-type) property)
-            (str "No such property " property " on " (:name @_node-type)))
-    (assoc this property value))
+  (set-property [this basis property value]
+    (let [^ShellNode this (shell-node-resolve basis this _node-id)]
+      (assert (has-property? _node-type property)
+              (str "No such property " property " on " (:name @_node-type)))
+      (assoc this property value)))
 
-  (assigned-properties [this]
-    (when _materialize-fn
-      (throw (ex-info "Cannot enumerate properties of an unmaterialized shell node."
-                      {:node-id _node-id})))
-    (.__extmap this))
+  (assigned-properties [this basis]
+    (let [^ShellNode this (shell-node-resolve basis this _node-id)]
+      (.__extmap this)))
 
   (overridden-properties [_] {})
   (property-overridden? [_ _property] false)
 
   gt/Evaluation
   (produce-value [this label evaluation-context]
-    ;; We might have been materialized by earlier evaluation-context queries.
-    ;; Ensure we're seeing the latest version of ourselves.
-    (let [node (ig/node-by-id-at (evaluation-context-basis evaluation-context) _node-id)]
-      (if (and (:_materialize-fn node)
-               (not (unjammable? (get-in @_node-type [:output label]))))
+    (let [^ShellNode this (shell-node-resolve (evaluation-context-basis evaluation-context) this _node-id)]
+      (if (and (.-_materialize-fn this)
+               (not (shell-node-safe-output? _node-type label)))
         (let [materialize-node! (:materialize-node! evaluation-context)
               _ (materialize-node! _node-id evaluation-context)
               materialized-node (ig/node-by-id-at (evaluation-context-basis evaluation-context) _node-id)]
           (gt/produce-value materialized-node label evaluation-context))
         (let [beh (behavior _node-type label)]
           (assert beh (str "No such output, input, or property " label " on " (:name @_node-type)))
-          ((:fn beh) (or node this) label evaluation-context)))))
+          ((:fn beh) this label evaluation-context)))))
 
   gt/OverrideNode
   (clear-property [_ _basis property]
     (throw-clear-property-disallowed-exception! _node-type property))
   (original [_] nil)
   (set-original [_ _original-id]
-    (throw (ex-info "Originals can't be changed for original nodes" {})))
+    (throw
+      (ex-info "Originals can't be changed for original nodes." {})))
   (override-id [_] nil))
 
 (defn unmaterialized-shell-node? [node]
   (and (instance? ShellNode node)
-       (some? (:_materialize-fn node))))
+       (some? (.-_materialize-fn ^ShellNode node))))
 
 ;;; ----------------------------------------
 ;;; Evaluating outputs
@@ -603,14 +623,38 @@
 
 (defn node-property-value [node label evaluation-context]
   (validate-evaluation-context evaluation-context)
-  (let [node-id (gt/node-id node)]
-    (when (and (unmaterialized-shell-node? node)
-               (not (unjammable? (get (all-properties (gt/node-type node)) label))))
-      ((:materialize-node! evaluation-context) node-id evaluation-context))
-    (let [node (ig/node-by-id-at (evaluation-context-basis evaluation-context) node-id)
-          node-type (gt/node-type node)]
-      (when-let [behavior (property-behavior node-type label)]
-        ((:fn behavior) node label evaluation-context)))))
+  (let [node-type (gt/node-type node)
+        node (if (and (unmaterialized-shell-node? node)
+                      (not (shell-node-safe-output? node-type label)))
+               (let [node-id (gt/node-id node)
+                     materialize-node! (:materialize-node! evaluation-context)]
+                 (materialize-node! node-id evaluation-context)
+                 (ig/node-by-id-at (evaluation-context-basis evaluation-context) node-id))
+               node)]
+    (when-let [behavior (property-behavior node-type label)]
+      ((:fn behavior) node label evaluation-context))))
+
+(defn own-property-values
+  "Returns a map of property-label property-value for the specified node. If the
+  queried node is an override node, the map will contain overridden properties
+  only. Otherwise, the map will include assigned properties and defaults."
+  [basis node]
+  (or (if (gt/original node)
+        (gt/overridden-properties node)
+        (let [node
+              (if-not (instance? ShellNode node)
+                node
+                (let [node (shell-node-resolve basis node (gt/node-id node))]
+                  (when (unmaterialized-shell-node? node)
+                    (throw
+                      (ex-info
+                        "Cannot enumerate properties of an unmaterialized shell node."
+                        {:node node})))
+                  node))]
+          (coll/merge
+            (defaults (gt/node-type node))
+            (gt/assigned-properties node basis))))
+      {}))
 
 (def ^:dynamic *suppress-schema-warnings* false)
 
@@ -1916,7 +1960,7 @@
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))
       (assoc-in this [:properties property] value)))
-  (assigned-properties [this] properties)
+  (assigned-properties [this _basis] properties)
   (overridden-properties [this] properties)
   (property-overridden?  [this property] (contains? properties property))
 

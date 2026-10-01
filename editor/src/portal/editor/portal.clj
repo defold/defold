@@ -238,8 +238,7 @@
                   {'resource (viewer resource evaluation-context)})
 
                 {'properties
-                 (-> node
-                     (g/own-property-values)
+                 (-> (g/own-property-values basis node)
                      (coll/into-> empty-navigable-node-label-map)
                      (map-viewer evaluation-context))}
 

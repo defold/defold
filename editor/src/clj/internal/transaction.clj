@@ -771,19 +771,18 @@
 
 (defn- realize-set-property-impl
   [ctx undoable-changes node property-label old-value new-value]
-  (let [node-id (gt/node-id node)
+  (let [basis (:basis ctx)
+        node-id (gt/node-id node)
         node-type (gt/node-type node)
-        property-assigned (contains? (if (in/unmaterialized-shell-node? node)
-                                       node
-                                       (gt/assigned-properties node))
-                                     property-label)
+        assigned-properties (gt/assigned-properties node basis)
+        property-assigned (contains? assigned-properties property-label)
 
         ctx+undoable-changes
         (if-let [{:keys [node-id
                          property-label
                          old-raw-value
                          new-raw-value]}
-                 (ig/basis-plan-set-raw-property (:basis ctx) node-id property-label new-value)]
+                 (ig/basis-plan-set-raw-property basis node-id property-label new-value)]
           (do
             (in/validate-property-value node-type node-id property-label new-raw-value)
             (perform-and-conj-change ctx undoable-changes (->SetRawPropertyTXC node-id property-label old-raw-value new-raw-value)))
@@ -858,7 +857,7 @@
         ordered-property-setter-infos (in/ordered-property-setter-infos node-type)]
     (if (coll/empty? ordered-property-setter-infos)
       (pair ctx undoable-changes)
-      (let [assigned-properties (gt/assigned-properties node)
+      (let [assigned-properties (gt/assigned-properties node (:basis ctx))
             value-fn (if (some? (gt/original node))
                        (fn override-node-value-fn [property-label _default-value]
                          (get assigned-properties property-label))
