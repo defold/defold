@@ -2793,21 +2793,33 @@ class EngineDAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    # Game-object self supports cyclic fields, completions, and edits without
+    # calling application getters or metamethods during inspection.
     def test_game_object_self(self):
         self.check_instance("go")
 
+    # GUI self supports cyclic fields, completions, and edits without calling
+    # application getters or metamethods during inspection.
     def test_gui_self(self):
         self.check_instance("gui")
 
+    # Render self supports cyclic fields, completions, and edits without calling
+    # application getters or metamethods during inspection.
     def test_render_self(self):
         self.check_instance("render")
 
+    # Game-object self remains inspectable and editable in a yielded coroutine
+    # without resuming it or calling application getters during inspection.
     def test_yielded_game_object_self(self):
         self.check_instance("go", yielded=True)
 
+    # GUI self remains inspectable and editable in a yielded coroutine without
+    # resuming it or calling application getters during inspection.
     def test_yielded_gui_self(self):
         self.check_instance("gui", yielded=True)
 
+    # Render self remains inspectable and editable in a yielded coroutine without
+    # resuming it or calling application getters during inspection.
     def test_yielded_render_self(self):
         self.check_instance("render", yielded=True)
 
@@ -2959,12 +2971,18 @@ class EngineDAPTests(DAPTestCase):
                 self.assertEqual(self.port, port)
         self.finished()
 
+    # Reattaching after sys.reboot restores inspection and edits in fresh Lua
+    # contexts and reuses the released listener port (regression for issue 7750).
     def test_reattach_after_sys_reboot(self):
         self.check_reattach_after_reboot(shared_state=False)
 
+    # Reattaching after sys.reboot also restores inspection and edits with shared
+    # Lua state and reuses the listener port (regression for issue 7750).
     def test_reattach_after_sys_reboot_with_shared_state(self):
         self.check_reattach_after_reboot(shared_state=True)
 
+    # Replacing the native instance getter disables inspection, edits, and
+    # completions without calling the replacement; restoring it restores access.
     def test_replaced_instance_getter_is_not_called(self):
         c = self.start_engine("go", case="getter")
         c.initialize()
