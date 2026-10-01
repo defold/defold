@@ -3665,6 +3665,171 @@ TEST_F(dmRenderTest, LightBufferTestSetLightInstanceUpdates)
     dmRender::DeleteLightPrototype(m_Context, prototype);
 }
 
+// Verifies shader indices skip ambient, deleted and unsubmitted slots before any GPU upload.
+TEST_F(dmRenderTest, LightRenderDataCompaction)
+{
+    dmRender::LightPrototypeParams params;
+    dmRender::HLightPrototype prototypes[6];
+    dmRender::HLightInstance lights[6];
+    const dmRender::LightType types[] = {
+        dmRender::LIGHT_TYPE_AMBIENT, dmRender::LIGHT_TYPE_POINT, dmRender::LIGHT_TYPE_POINT,
+        dmRender::LIGHT_TYPE_POINT, dmRender::LIGHT_TYPE_DIRECTIONAL, dmRender::LIGHT_TYPE_SPOT
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(lights); ++i)
+    {
+        params.m_Type = types[i];
+        prototypes[i] = dmRender::NewLightPrototype(m_Context, params);
+        lights[i] = dmRender::NewLightInstance(m_Context, prototypes[i]);
+        dmRender::SetLightInstance(m_Context, lights[i], dmVMath::Point3((float)i, 2, 3), dmVMath::Quat::identity(), 1.0f);
+        if (i != 2)
+            dmRender::SubmitLightInstance(m_Context, lights[i]);
+    }
+    dmRender::DeleteLightInstance(m_Context, lights[3]);
+
+    dmRender::LightInstanceRenderData data;
+    const uint32_t slots[] = {1, 4, 5};
+    uint64_t revision = dmRender::GetLightBufferRevision(m_Context);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(slots); ++i)
+    {
+        ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, lights[slots[i]], &data));
+        ASSERT_EQ(i, data.m_BufferIndex);
+        ASSERT_EQ(revision, data.m_BufferRevision);
+        ASSERT_EQ(types[slots[i]], data.m_Type);
+        ASSERT_VEC4(dmVMath::Vector4((float)slots[i], 2, 3, 1), dmVMath::Vector4(data.m_Position));
+    }
+    const dmRender::HLightInstance missing[] = {0, UINT32_MAX, lights[0], lights[2], lights[3]};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(missing); ++i)
+    {
+        data.m_BufferIndex = 123;
+        ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, missing[i], &data));
+        ASSERT_EQ(dmRender::INVALID_LIGHT_BUFFER_INDEX, data.m_BufferIndex);
+        ASSERT_EQ(revision, data.m_BufferRevision);
+    }
+    ASSERT_EQ((dmGraphics::HUniformBuffer)0, m_Context->m_LightUniformBuffer);
+    ASSERT_TRUE(m_Context->m_LightBufferDirty);
+    ASSERT_FALSE(m_Context->m_LightBufferPrepareDirty);
+    ASSERT_VEC4(dmVMath::Vector4(1, 1, 1, 0), dmVMath::Vector4(m_Context->m_AmbientLight, 0));
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(lights); ++i)
+    {
+        if (i != 3)
+            dmRender::DeleteLightInstance(m_Context, lights[i]);
+        dmRender::DeleteLightPrototype(m_Context, prototypes[i]);
+    }
+}
+
+// Verifies revisions track membership changes and frame resets, and stale handles cannot select reused slots.
+TEST_F(dmRenderTest, LightRenderDataRevisionsAndLifetime)
+{
+    dmRender::LightPrototypeParams params;
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    dmRender::HLightInstance a = dmRender::NewLightInstance(m_Context, prototype);
+    dmRender::HLightInstance b = dmRender::NewLightInstance(m_Context, prototype);
+    dmRender::LightInstanceRenderData data;
+    ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+    uint64_t revision = data.m_BufferRevision;
+
+    dmRender::SubmitLightInstance(m_Context, b);
+    ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+    ASSERT_EQ(0u, data.m_BufferIndex);
+    ASSERT_GT(data.m_BufferRevision, revision);
+    revision = data.m_BufferRevision;
+    dmRender::SubmitLightInstance(m_Context, b);
+    dmRender::RenderListBegin(m_Context);
+    ASSERT_EQ(revision, dmRender::GetLightBufferRevision(m_Context));
+
+    dmRender::SubmitLightInstance(m_Context, a);
+    ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+    ASSERT_EQ(1u, data.m_BufferIndex);
+    ASSERT_GT(data.m_BufferRevision, revision);
+    revision = data.m_BufferRevision;
+    dmRender::DeleteLightInstance(m_Context, a);
+    ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, a, &data));
+    ASSERT_EQ(dmRender::INVALID_LIGHT_BUFFER_INDEX, data.m_BufferIndex);
+    ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+    ASSERT_EQ(0u, data.m_BufferIndex);
+    ASSERT_GT(data.m_BufferRevision, revision);
+    revision = data.m_BufferRevision;
+
+    dmRender::HLightInstance replacement = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE(a, replacement);
+    ASSERT_EQ(a & 0xFFFF, replacement & 0xFFFF);
+    ASSERT_GT(dmRender::GetLightBufferRevision(m_Context), revision);
+    dmRender::SubmitLightInstance(m_Context, replacement);
+    ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, a, &data));
+    ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, replacement, &data));
+    ASSERT_EQ(0u, data.m_BufferIndex);
+    revision = data.m_BufferRevision;
+
+    dmRender::BeginFrame(m_Context, 1.0f, 1.0f / 60.0f);
+    ASSERT_GT(dmRender::GetLightBufferRevision(m_Context), revision);
+    ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, replacement, &data));
+    ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+    dmRender::SubmitLightInstance(m_Context, b);
+    ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+    ASSERT_EQ(0u, data.m_BufferIndex);
+    ASSERT_EQ(dmRender::GetLightBufferRevision(m_Context), data.m_BufferRevision);
+
+    dmRender::DeleteLightInstance(m_Context, b);
+    dmRender::DeleteLightInstance(m_Context, replacement);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
+    revision = dmRender::GetLightBufferRevision(m_Context);
+    dmRender::SetLightBufferCount(m_Context, 0);
+    ASSERT_GT(dmRender::GetLightBufferRevision(m_Context), revision);
+    ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+}
+
+// Verifies queries expose resolved transforms and prototype changes for all punctual types, not raw resource data.
+TEST_F(dmRenderTest, LightRenderDataResolvedTransforms)
+{
+    const dmVMath::Point3 position(1, 2, 3);
+    const float half_angle = 3.14159265f / 4.0f;
+    const dmVMath::Quat rotation(0, sinf(half_angle), 0, cosf(half_angle));
+    const dmVMath::Vector3 direction = dmVMath::Rotate(rotation, dmVMath::Vector3(0, 0, -1));
+    for (uint32_t type = dmRender::LIGHT_TYPE_DIRECTIONAL; type <= dmRender::LIGHT_TYPE_SPOT; ++type)
+    {
+        dmRender::LightPrototypeParams params;
+        params.m_Type = (dmRender::LightType) type;
+        params.m_Color = dmVMath::Vector4(0.2f, 0.4f, 0.6f, 1.0f);
+        params.m_Intensity = 5.0f;
+        params.m_Range = 12.0f;
+        params.m_InnerConeAngle = 0.2f;
+        params.m_OuterConeAngle = 0.7f;
+        dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+        dmRender::HLightInstance light = dmRender::NewLightInstance(m_Context, prototype);
+        dmRender::SetLightInstance(m_Context, light, position, rotation, 3.0f);
+        dmRender::SubmitLightInstance(m_Context, light);
+
+        dmRender::LightInstanceRenderData data;
+        ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, light, &data));
+        ASSERT_EQ(params.m_Type, data.m_Type);
+        ASSERT_VEC4(dmVMath::Vector4(position), dmVMath::Vector4(data.m_Position));
+        dmVMath::Vector3 expected_direction = type == dmRender::LIGHT_TYPE_POINT ? dmVMath::Vector3(0, 0, 0) : direction;
+        ASSERT_VEC4(dmVMath::Vector4(expected_direction, 0), dmVMath::Vector4(data.m_Direction, 0));
+        ASSERT_VEC4(params.m_Color, data.m_Color);
+        ASSERT_NEAR(params.m_Intensity, data.m_Intensity, EPSILON);
+        ASSERT_NEAR(type == dmRender::LIGHT_TYPE_DIRECTIONAL ? 0.0f : 36.0f, data.m_Range, EPSILON);
+        ASSERT_NEAR(type == dmRender::LIGHT_TYPE_SPOT ? 0.2f : 0.0f, data.m_InnerConeAngle, EPSILON);
+        ASSERT_NEAR(type == dmRender::LIGHT_TYPE_SPOT ? 0.7f : 0.0f, data.m_OuterConeAngle, EPSILON);
+        uint64_t revision = data.m_BufferRevision;
+        dmRender::SetLightInstance(m_Context, light, position, rotation, 3.0f);
+        ASSERT_EQ(revision, dmRender::GetLightBufferRevision(m_Context));
+
+        params.m_Color = dmVMath::Vector4(1, 0, 0, 1);
+        params.m_Intensity = 2.0f;
+        dmRender::SetLightPrototype(m_Context, prototype, params);
+        dmRender::SetLightInstance(m_Context, light, dmVMath::Point3(4, 5, 6), rotation, 2.0f);
+        ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, light, &data));
+        ASSERT_GT(data.m_BufferRevision, revision);
+        ASSERT_VEC4(dmVMath::Vector4(4, 5, 6, 1), dmVMath::Vector4(data.m_Position));
+        ASSERT_VEC4(params.m_Color, data.m_Color);
+        ASSERT_NEAR(params.m_Intensity, data.m_Intensity, EPSILON);
+        ASSERT_NEAR(type == dmRender::LIGHT_TYPE_DIRECTIONAL ? 0.0f : 24.0f, data.m_Range, EPSILON);
+        dmRender::DeleteLightInstance(m_Context, light);
+        dmRender::DeleteLightPrototype(m_Context, prototype);
+    }
+}
+
 TEST(Constants, Constant)
 {
     dmhash_t original_name_hash = dmHashString64("test_constant");

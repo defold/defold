@@ -21,6 +21,7 @@
 #include <gamesys/gamesys.h>
 #include <gamesys/gamesys_private.h>
 
+#include <dmsdk/gamesys/components/comp_light.h>
 #include <dmsdk/gamesys/resources/res_light.h>
 #include <dmsdk/render/render.h>
 #include <dmsdk/resource/resource.h>
@@ -53,6 +54,11 @@ namespace dmGameSystem
     {
         dmArray<LightComponent*> m_Components;
     };
+
+    dmRender::HLightInstance CompLightGetLightInstance(HLightComponent component)
+    {
+        return component->m_LightInstance;
+    }
 
     static dmGameObject::CreateResult CompLightNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include <dmsdk/gamesys/components/comp_light.h>
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -557,6 +558,81 @@ TEST_F(LightResourceTest, LightComponentUsesWorldTransform)
     ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), render_ctx->m_LightBufferScratch[1].m_Position);
     ASSERT_NEAR(20.0f, render_ctx->m_LightBufferScratch[1].m_DirectionRange.getW(), EPSILON);
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies component lookup and parent transforms agree with uploaded shader data, including queries before the first draw.
+TEST_F(LightResourceTest, LightComponentRenderDataMatchesUpload)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance parent = Spawn(m_Factory, m_Collection, "/light/valid_ambient_light.goc", dmHashString64("/parent"), 0,
+        Point3(10, 20, 30), Quat::identity(), Vector3(2, 3, 4));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/light/valid_spot_light.goc", dmHashString64("/spot"), 0,
+        Point3(1, 2, 3), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, parent);
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(go, parent));
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("light"), &component_type, &component, &world));
+    dmRender::HLightInstance light = dmGameSystem::CompLightGetLightInstance((dmGameSystem::HLightComponent) component);
+    ASSERT_NE((dmRender::HLightInstance)0, light);
+    dmRender::LightInstanceRenderData data;
+    ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_RenderContext, light, &data));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+    ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_RenderContext, light, &data));
+    ASSERT_EQ(0u, data.m_BufferIndex);
+    ASSERT_VEC3(dmGameObject::GetWorldPosition(go), data.m_Position);
+    ASSERT_NEAR(40.0f, data.m_Range, EPSILON);
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    ASSERT_EQ((dmGraphics::HUniformBuffer)0, render_ctx->m_LightUniformBuffer);
+
+    dmGameSystem::MaterialResource* material_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**) &material_res));
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
+    ASSERT_EQ(data.m_BufferRevision, dmRender::GetLightBufferRevision(m_RenderContext));
+    ASSERT_FALSE(render_ctx->m_LightBufferDirty);
+    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*) render_ctx->m_LightUniformBuffer;
+    ASSERT_NE((void*)0, buffer);
+    dmRender::LightSTD140 uploaded;
+    memcpy(&uploaded, buffer->m_Buffer + render_ctx->m_LightBufferDataWriteStart + data.m_BufferIndex * sizeof(uploaded), sizeof(uploaded));
+    ASSERT_VEC4(Vector4(data.m_Position), uploaded.m_Position);
+    ASSERT_VEC4(data.m_Color, uploaded.m_Color);
+    ASSERT_VEC4(Vector4(data.m_Direction, data.m_Range), uploaded.m_DirectionRange);
+    ASSERT_VEC4(Vector4((float)data.m_Type, data.m_Intensity, data.m_InnerConeAngle, data.m_OuterConeAngle), uploaded.m_Params);
+    Vector4 info;
+    memcpy(&info, buffer->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(info));
+    ASSERT_VEC4(Vector4(0.5f, 1.0f, 1.5f, 1.0f), info);
+
+    // Next frame, let the upload prepare first, then query the same data.
+    uint64_t revision = data.m_BufferRevision;
+    dmGameObject::SetPosition(parent, Point3(50, 60, 70));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmRender::BeginFrame(m_RenderContext, 2.0f, m_UpdateContext.m_DT);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
+    ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_RenderContext, light, &data));
+    ASSERT_GT(data.m_BufferRevision, revision);
+    ASSERT_EQ(dmRender::GetLightBufferRevision(m_RenderContext), data.m_BufferRevision);
+    ASSERT_VEC3(dmGameObject::GetWorldPosition(go), data.m_Position);
+    memcpy(&uploaded, buffer->m_Buffer + render_ctx->m_LightBufferDataWriteStart + data.m_BufferIndex * sizeof(uploaded), sizeof(uploaded));
+    ASSERT_VEC4(Vector4(data.m_Position), uploaded.m_Position);
+    ASSERT_FALSE(render_ctx->m_LightBufferDirty);
+
+    dmGameObject::Delete(m_Collection, go, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_RenderContext, light, &data));
+    ASSERT_EQ(dmRender::INVALID_LIGHT_BUFFER_INDEX, data.m_BufferIndex);
+    dmResource::Release(m_Factory, material_res);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 

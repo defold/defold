@@ -413,10 +413,17 @@ namespace dmRender
     void InvalidateLightBuffer(HRenderContext render_context)
     {
         render_context->m_LightBufferDirty = 1;
+        render_context->m_LightBufferPrepareDirty = 1;
+        ++render_context->m_LightBufferRevision;
     }
 
-    static uint32_t CompactLightBufferScratch(HRenderContext render_context)
+    static void PrepareLightBuffer(HRenderContext render_context)
     {
+        if (!render_context->m_LightBufferPrepareDirty)
+        {
+            return;
+        }
+
         render_context->m_LightBufferUploadScratch.SetSize(0);
 
         uint32_t allocated_light_count = render_context->m_RenderLightsIndices.Size();
@@ -429,6 +436,7 @@ namespace dmRender
         uint32_t render_light_count = render_context->m_RenderLights.Size();
         for (uint32_t i = 0; i < render_light_count; ++i)
         {
+            render_context->m_LightBufferIndices[i] = INVALID_LIGHT_BUFFER_INDEX;
             const LightInstance* instance = &render_context->m_RenderLights[i];
             if (instance->m_LightPrototype == 0 || !render_context->m_LightBufferSubmitted[i])
             {
@@ -443,17 +451,58 @@ namespace dmRender
             }
             else
             {
+                render_context->m_LightBufferIndices[i] = render_context->m_LightBufferUploadScratch.Size();
                 render_context->m_LightBufferUploadScratch.Push(light);
             }
         }
 
         render_context->m_AmbientLight = ambient_light;
-        return render_context->m_LightBufferUploadScratch.Size();
+        render_context->m_LightBufferPrepareDirty = 0;
+    }
+
+    bool GetLightInstanceRenderData(HRenderContext context, HLightInstance instance, LightInstanceRenderData* out_data)
+    {
+        assert(context);
+        assert(out_data);
+        out_data->m_BufferIndex = INVALID_LIGHT_BUFFER_INDEX;
+        out_data->m_BufferRevision = context->m_LightBufferRevision;
+
+        uint16_t slot = instance & 0xFFFF;
+        const LightInstance* light = slot < context->m_RenderLights.Size() ? &context->m_RenderLights[slot] : 0;
+        if (!light || light->m_LightPrototype == 0 || light->m_Version != (instance >> 16))
+        {
+            return false;
+        }
+
+        PrepareLightBuffer(context);
+        uint32_t index = context->m_LightBufferIndices[slot];
+        if (index == INVALID_LIGHT_BUFFER_INDEX)
+        {
+            return false;
+        }
+
+        const LightSTD140& data = context->m_LightBufferUploadScratch[index];
+        out_data->m_BufferIndex = index;
+        out_data->m_Position = dmVMath::Point3(data.m_Position.getXYZ());
+        out_data->m_Direction = data.m_DirectionRange.getXYZ();
+        out_data->m_Color = data.m_Color;
+        out_data->m_Type = (LightType) (uint32_t) data.m_Params.getX();
+        out_data->m_Range = data.m_DirectionRange.getW();
+        out_data->m_Intensity = data.m_Params.getY();
+        out_data->m_InnerConeAngle = data.m_Params.getZ();
+        out_data->m_OuterConeAngle = data.m_Params.getW();
+        return true;
+    }
+
+    uint64_t GetLightBufferRevision(HRenderContext context)
+    {
+        return context->m_LightBufferRevision;
     }
 
     static void WriteLightInstanceData(HRenderContext render_context, dmGraphics::HUniformBuffer light_buffer)
     {
-        uint32_t active_light_count = CompactLightBufferScratch(render_context);
+        PrepareLightBuffer(render_context);
+        uint32_t active_light_count = render_context->m_LightBufferUploadScratch.Size();
 
         dmVMath::Vector4 info(render_context->m_AmbientLight, (float) active_light_count);
         dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
@@ -508,7 +557,7 @@ namespace dmRender
         render_context->m_MaxLightCount               = (uint16_t) max_lights;
         render_context->m_LightBufferInfoWriteStart   = 0;
         render_context->m_LightBufferDataWriteStart   = 0;
-        render_context->m_LightBufferDirty            = 1;
+        InvalidateLightBuffer(render_context);
         render_context->m_AmbientLight                = dmVMath::Vector3(0.0f, 0.0f, 0.0f);
 
         if (render_context->m_RenderLightsIndices.Capacity() < max_lights)
@@ -531,6 +580,7 @@ namespace dmRender
         render_context->m_LightBufferScratch.SetSize(0);
         render_context->m_LightBufferUploadScratch.SetSize(0);
         render_context->m_LightBufferUploadScratch.SetCapacity(0);
+        render_context->m_LightBufferIndices.EnsureSize(max_lights);
         if (render_context->m_LightBufferSubmitted.Capacity() < max_lights)
         {
             render_context->m_LightBufferSubmitted.SetCapacity(max_lights);

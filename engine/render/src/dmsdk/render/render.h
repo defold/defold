@@ -99,6 +99,94 @@ namespace dmRender
     typedef uint32_t HLightPrototype;
 
     /*#
+     * Light instance handle, owned by the render context. Zero is invalid.
+     * A handle identifies a light across frames; it is not a light buffer index.
+     * @typedef
+     * @name HLightInstance
+     */
+    typedef uint32_t HLightInstance;
+
+    /*#
+     * Light type. Ambient lights contribute to light_info and have no individual buffer entry.
+     * @enum
+     * @name LightType
+     * @member LIGHT_TYPE_DIRECTIONAL
+     * @member LIGHT_TYPE_POINT
+     * @member LIGHT_TYPE_SPOT
+     * @member LIGHT_TYPE_AMBIENT
+     */
+    enum LightType
+    {
+        LIGHT_TYPE_DIRECTIONAL = 0,
+        LIGHT_TYPE_POINT       = 1,
+        LIGHT_TYPE_SPOT        = 2,
+        LIGHT_TYPE_AMBIENT     = 3,
+    };
+
+    /*#
+     * No individual entry in the compacted light buffer.
+     * @constant
+     * @name INVALID_LIGHT_BUFFER_INDEX
+     */
+    const uint32_t INVALID_LIGHT_BUFFER_INDEX = UINT32_MAX;
+
+    /*#
+     * Copied light data from the same CPU snapshot used to upload the light buffer.
+     * @struct
+     * @name LightInstanceRenderData
+     * @member m_Position [type: dmVMath::Point3] world position
+     * @member m_Direction [type: dmVMath::Vector3] world forward direction for directional/spot lights; zero for point lights
+     * @member m_Color [type: dmVMath::Vector4] light color, before multiplying by intensity
+     * @member m_BufferRevision [type: uint64_t] revision of this snapshot
+     * @member m_BufferIndex [type: uint32_t] zero-based index into LightBuffer.lights, not an allocation slot or byte offset
+     * @member m_Type [type: LightType] light type
+     * @member m_Range [type: float] effective world-space range, including scale; zero for directional lights
+     * @member m_Intensity [type: float] light intensity
+     * @member m_InnerConeAngle [type: float] spot inner cone angle in radians; zero for other types
+     * @member m_OuterConeAngle [type: float] spot outer cone angle in radians; zero for other types
+     */
+    struct LightInstanceRenderData
+    {
+        dmVMath::Point3  m_Position;
+        dmVMath::Vector3 m_Direction;
+        dmVMath::Vector4 m_Color;
+        uint64_t        m_BufferRevision;
+        uint32_t        m_BufferIndex;
+        LightType       m_Type;
+        float           m_Range;
+        float           m_Intensity;
+        float           m_InnerConeAngle;
+        float           m_OuterConeAngle;
+    };
+
+    /*#
+     * Query a submitted light's compacted buffer index and resolved data without GPU work.
+     * Call on the engine thread after component light submission, for example from render-script update.
+     * Before submission, including component init and the start of a frame, the light has no buffer entry.
+     * The first query after invalidation prepares the CPU snapshot; subsequent queries reuse it.
+     * The index remains valid only while GetLightBufferRevision returns the copied revision.
+     * Query again after frame changes, submissions, creation, deletion or light data updates.
+     * Indices address the project-sized buffer; shaders with smaller lights arrays must respect their own capacity.
+     * @name GetLightInstanceRenderData
+     * @param context [type: HRenderContext] render context that owns the light
+     * @param instance [type: HLightInstance] light instance handle
+     * @param out_data [type: LightInstanceRenderData*] non-null output; on failure only m_BufferIndex (INVALID_LIGHT_BUFFER_INDEX) and m_BufferRevision are written
+     * @return result [type: bool] true if the instance is valid, submitted and non-ambient; false for invalid, deleted, unsubmitted or ambient lights
+     */
+    bool GetLightInstanceRenderData(HRenderContext context, HLightInstance instance, LightInstanceRenderData* out_data);
+
+    /*#
+     * Get the light buffer invalidation revision without preparing or uploading data.
+     * Changes when a frame begins or light buffer inputs are invalidated, even if the resulting data is identical.
+     * Queries and GPU uploads do not change it. This is not a per-light revision for shadow cache invalidation.
+     * Revisions and handles are scoped to the lifetime of the owning render context. Call on the engine thread.
+     * @name GetLightBufferRevision
+     * @param context [type: HRenderContext] render context
+     * @return revision [type: uint64_t] current light buffer revision
+     */
+    uint64_t GetLightBufferRevision(HRenderContext context);
+
+    /*#
      * @enum
      * @name Result
      * @member RESULT_OK
