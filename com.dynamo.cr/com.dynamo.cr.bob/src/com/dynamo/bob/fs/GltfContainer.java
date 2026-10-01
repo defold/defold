@@ -44,6 +44,7 @@ import com.dynamo.bob.pipeline.ModelUtil;
 import com.dynamo.bob.pipeline.Modelimporter;
 import com.dynamo.gamesys.proto.ModelProto;
 import com.dynamo.render.proto.Material.MaterialDesc;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
 /**
@@ -55,159 +56,65 @@ import com.google.protobuf.TextFormat;
  */
 public final class GltfContainer {
 
-    /** The kind of virtual asset extracted from a glTF container. */
-    public enum AssetKind {
-        MATERIAL,
-        IMAGE,
-        MESH
-    }
-
     /** Immutable metadata for a glTF texture and its selected image. */
     public record TextureMetadata(int index, String name, int samplerIndex, int minFilter, int magFilter,
                                   int wrapS, int wrapT, boolean basisu) {}
 
     /**
      * Immutable native-backed relationship from a generated material sampler to
-     * the image that supplies it. Embedded image paths are container-relative;
-     * external image paths are project-absolute (starting with a slash).
+     * the image that supplies it. Image paths are project-absolute
+     * (starting with a slash), including embedded images beneath the source resource.
      */
     public record SamplerBinding(String samplerName, int materialIndex, int textureIndex,
-                                 int imageIndex, String imagePath) {}
+                                 int imageIndex, String imageResourcePath) {}
 
     /**
      * Immutable, file-system-independent description of one virtual glTF asset.
-     * The path is relative to the source glTF resource.
      */
-    public abstract static class Asset {
-        private final String path;
-        private final AssetKind kind;
-        private final int index;
-        private final String name;
-        private final byte[] content;
-
-        Asset(String path, AssetKind kind, int index, String name, byte[] content) {
-            this.path = path;
-            this.kind = kind;
-            this.index = index;
-            this.name = name;
-            this.content = content.clone();
-        }
-
-        public final String getPath() {
-            return path;
-        }
-
-        public final AssetKind getKind() {
-            return kind;
-        }
-
-        public final int getIndex() {
-            return index;
-        }
-
-        public final String getName() {
-            return name;
-        }
-
-        public final byte[] getContent() {
-            return content.clone();
-        }
+    public sealed interface Asset permits MaterialAsset, ImageAsset, MeshMetadata {
+        String resourcePath();
+        int index();
+        String name();
+        ByteString content();
     }
 
     /** A virtual Defold material backed by native ModelImporter material data. */
-    public static final class MaterialAsset extends Asset {
-        private final MaterialDesc materialDesc;
-        private final Modelimporter.Material sourceMaterial;
-        private final Map<String, SamplerBinding> samplerBindings;
+    public record MaterialAsset(String resourcePath, int index, String name, ByteString content,
+                                MaterialDesc materialDesc, Modelimporter.Material sourceMaterial,
+                                Map<String, SamplerBinding> samplerBindings) implements Asset {
+        public MaterialAsset {
+            samplerBindings = immutableSamplerBindings(samplerBindings);
+        }
 
-        MaterialAsset(String path, Modelimporter.Material sourceMaterial, MaterialDesc materialDesc,
+        MaterialAsset(String resourcePath, Modelimporter.Material sourceMaterial, MaterialDesc materialDesc,
                       Map<String, SamplerBinding> samplerBindings) {
-            super(path, AssetKind.MATERIAL, sourceMaterial.index, sourceMaterial.name,
-                    TextFormat.printToString(materialDesc).getBytes(StandardCharsets.UTF_8));
-            this.materialDesc = materialDesc;
-            this.sourceMaterial = sourceMaterial;
-            this.samplerBindings = immutableSamplerBindings(samplerBindings);
-        }
-
-        public MaterialDesc getMaterialDesc() {
-            return materialDesc;
-        }
-
-        public Map<String, SamplerBinding> getSamplerBindings() {
-            return samplerBindings;
-        }
-
-        Modelimporter.Material getSourceMaterial() {
-            return sourceMaterial;
+            this(resourcePath, sourceMaterial.index, sourceMaterial.name,
+                    ByteString.copyFromUtf8(TextFormat.printToString(materialDesc)),
+                    materialDesc, sourceMaterial, samplerBindings);
         }
     }
 
-    /** A virtual encoded image plus metadata for textures that select it. */
-    public static final class ImageAsset extends Asset {
-        private final String uri;
-        private final String mimeType;
-        private final String sourceKind;
-        private final List<TextureMetadata> textures;
-        private final ImageLocation location;
-
-        ImageAsset(String path, int index, String name, String uri, String mimeType, String sourceKind,
-                   byte[] content, List<TextureMetadata> textures, ImageLocation location) {
-            super(path, AssetKind.IMAGE, index, name, content);
-            this.uri = uri;
-            this.mimeType = mimeType;
-            this.sourceKind = sourceKind;
-            this.textures = Collections.unmodifiableList(
-                    new ArrayList<TextureMetadata>(textures));
-            this.location = location;
-        }
-
-        public String getUri() {
-            return uri;
-        }
-
-        public String getMimeType() {
-            return mimeType;
-        }
-
-        public String getSourceKind() {
-            return sourceKind;
-        }
-
-        /** Textures selecting this image; each extracted texture belongs to one image. */
-        public List<TextureMetadata> getTextures() {
-            return textures;
-        }
-
-        /** Non-null when inspection defers reading this image's bytes. */
-        public ImageLocation getLocation() {
-            return location;
+    /**
+     * A virtual encoded image plus metadata for textures that select it.
+     * Each texture belongs to one image; location is non-null when inspection defers reading its bytes.
+     */
+    public record ImageAsset(String resourcePath, int index, String name, String uri, String mimeType,
+                             String sourceKind, ByteString content, List<TextureMetadata> textures,
+                             ImageLocation location) implements Asset {
+        public ImageAsset {
+            textures = List.copyOf(textures);
         }
     }
 
-    /** Project-relative encoded image location; length -1 denotes the whole resource. */
-    public record ImageLocation(String path, long offset, long length) {}
+    /** Encoded image location; length -1 denotes the whole resource. */
+    public record ImageLocation(String resourcePath, long offset, long length) {}
 
     /** A virtual glTF mesh plus its immutable native-backed summary metadata. */
-    public static final class MeshMetadata extends Asset {
-        private final boolean nameGenerated;
-        private final int primitiveCount;
-        private final int vertexCount;
+    public record MeshMetadata(String resourcePath, int index, String name, boolean nameGenerated,
+                               int primitiveCount, int vertexCount, ByteString content) implements Asset {}
 
-        MeshMetadata(String path, int index, String name, boolean nameGenerated,
-                     int primitiveCount, int vertexCount, ModelProto.ModelDesc model) {
-            super(path, AssetKind.MESH, index, name, TextFormat.printToString(model).getBytes(StandardCharsets.UTF_8));
-            this.nameGenerated = nameGenerated;
-            this.primitiveCount = primitiveCount;
-            this.vertexCount = vertexCount;
-        }
-
-        public boolean isNameGenerated() { return nameGenerated; }
-        public int getPrimitiveCount() { return primitiveCount; }
-        public int getVertexCount() { return vertexCount; }
-    }
-
-    /** An ordinary external image reference, not a resource inside this container. */
-    public record ImageReference(int index, String name, String path, String uri, String mimeType,
+    /** External image reference with a project-absolute resource path (starting with a slash). */
+    public record ImageReference(int index, String name, String resourcePath, String uri, String mimeType,
                                  List<TextureMetadata> textures) {
         public ImageReference {
             textures = List.copyOf(textures);
@@ -271,20 +178,15 @@ public final class GltfContainer {
 
         List<GltfResource> resources = new ArrayList<GltfResource>();
         for (Asset asset : extraction.assets()) {
-            String path = sourceResource.getPath() + "/" + asset.getPath();
-            if (asset instanceof MaterialAsset) {
-                MaterialAsset material = (MaterialAsset)asset;
-                resources.add(new GltfMaterialResource(fileSystem, sourceResource, path,
-                        material.getSourceMaterial(), material.getMaterialDesc(), material.getSamplerBindings()));
-            } else if (asset instanceof ImageAsset) {
-                ImageAsset image = (ImageAsset)asset;
-                resources.add(new GltfImageResource(fileSystem, sourceResource, path, image.getIndex(),
-                        image.getName(), image.getUri(), image.getMimeType(), image.getSourceKind(),
-                        image.getContent(), image.getTextures()));
-            } else if (asset instanceof MeshMetadata) {
-                resources.add(new GltfMeshResource(fileSystem, sourceResource, path,
-                        (MeshMetadata)asset));
-            }
+            String path = asset.resourcePath().substring(1);
+            resources.add(switch (asset) {
+                case MaterialAsset material -> new GltfMaterialResource(fileSystem, sourceResource, path,
+                        material.sourceMaterial(), material.materialDesc(), material.samplerBindings());
+                case ImageAsset image -> new GltfImageResource(fileSystem, sourceResource, path, image.index(),
+                        image.name(), image.uri(), image.mimeType(), image.sourceKind(),
+                        image.content().toByteArray(), image.textures());
+                case MeshMetadata mesh -> new GltfMeshResource(fileSystem, sourceResource, mesh);
+            });
         }
 
         return new GltfContainer(sourceResource, resources, extraction.diagnostics(),
@@ -296,8 +198,8 @@ public final class GltfContainer {
      *
      * The supplied resolver is used by native ModelImporter for external buffers
      * containing embedded image buffer views. External images remain references.
-     * Asset paths are relative to {@code sourcePath}; external image paths are
-     * project-absolute. Returned byte arrays are defensive copies.
+     * Asset and external image resource paths are project-absolute.
+     * Encoded asset content is immutable.
      */
     public static Extraction extract(byte[] sourceBytes, String sourcePath,
                                      ModelImporterJni.DataResolver dataResolver) throws IOException {
@@ -322,11 +224,16 @@ public final class GltfContainer {
         List<Asset> assets = new ArrayList<>();
         List<String> diagnostics = new ArrayList<>();
         List<ImageReference> externalImages = new ArrayList<>();
-        Map<Integer, String> imagePaths = extractImages(scene, sourcePath, imageResolver, assets, diagnostics, externalImages);
-        extractMaterials(scene, imagePaths, assets);
-        List<MeshMetadata> meshes = extractMeshMetadata(scene, sourcePath, assets);
+        String sourceResourcePath = sourcePath.startsWith("/") ? sourcePath : "/" + sourcePath;
+        Map<Integer, String> imagePaths = extractImages(scene, sourceResourcePath, imageResolver, assets, diagnostics, externalImages);
+        extractMaterials(scene, sourceResourcePath, imagePaths, assets);
+        List<MeshMetadata> meshes = extractMeshMetadata(scene, sourceResourcePath, assets);
         assets.addAll(meshes);
-        assets.sort(Comparator.comparing(Asset::getKind).thenComparingInt(Asset::getIndex));
+        assets.sort(Comparator.comparingInt((Asset asset) -> switch (asset) {
+            case MaterialAsset _ -> 0;
+            case ImageAsset _ -> 1;
+            case MeshMetadata _ -> 2;
+        }).thenComparingInt(Asset::index));
         return new Extraction(assets, meshes, diagnostics, externalImages);
     }
 
@@ -335,6 +242,7 @@ public final class GltfContainer {
      * External images are returned as references regardless of their format or existence.
      */
     public static Extraction inspect(InputStream stream, String sourcePath) throws IOException {
+        String sourceResourcePath = sourcePath.startsWith("/") ? sourcePath : "/" + sourcePath;
         ModelUtil.ModelSource source = ModelUtil.readModelSource(stream);
         Modelimporter.Options options = new Modelimporter.Options();
         options.loadMaterialsOnly = true;
@@ -370,7 +278,7 @@ public final class GltfContainer {
                     if (source.binaryOffset() < 0 || (long)image.bufferOffset + image.bufferSize > source.binaryLength()) {
                         throw new IOException("image buffer view exceeds the GLB BIN chunk");
                     }
-                    location = new ImageLocation(sourcePath, source.binaryOffset() + image.bufferOffset, image.bufferSize);
+                    location = new ImageLocation(sourceResourcePath, source.binaryOffset() + image.bufferOffset, image.bufferSize);
                 }
                 if (mimeType == null) {
                     throw new IOException("embedded image has no mimeType");
@@ -382,7 +290,7 @@ public final class GltfContainer {
     }
 
     /**
-     * Resolves a glTF external-resource URI to a normalized project-relative path.
+     * Resolves a glTF external-resource URI to a normalized resource path.
      *
      * {@link ModelImporterJni.DataResolver} implementations can use this helper
      * before looking up an external buffer or image in their own resource system.
@@ -429,7 +337,7 @@ public final class GltfContainer {
             throw new IOException(String.format("external resource escapes the project root: '%s'",
                     uriForDiagnostic(rawUri)));
         }
-        return path;
+        return "/" + path;
     }
 
     public IResource getSourceResource() {
@@ -495,17 +403,16 @@ public final class GltfContainer {
                 new LinkedHashMap<String, SamplerBinding>(samplerBindings));
     }
 
-    private static List<MeshMetadata> extractMeshMetadata(Modelimporter.Scene scene, String sourcePath, List<Asset> assets) {
+    private static List<MeshMetadata> extractMeshMetadata(Modelimporter.Scene scene, String sourceResourcePath, List<Asset> assets) {
         var meshes = new ArrayList<MeshMetadata>();
         if (scene.models == null) {
             return meshes;
         }
 
-        var sourceResourcePath = sourcePath.startsWith("/") ? sourcePath : "/" + sourcePath;
         var materials = new LinkedHashMap<Integer, MaterialAsset>();
         for (var asset : assets) {
             if (asset instanceof MaterialAsset material) {
-                materials.put(material.getIndex(), material);
+                materials.put(material.index(), material);
             }
         }
         var models = Arrays.stream(scene.models)
@@ -543,19 +450,18 @@ public final class GltfContainer {
             for (var materialIndex : usedMaterials) {
                 var material = materials.get(materialIndex);
                 var binding = ModelProto.Material.newBuilder()
-                        .setName(material.getMaterialDesc().getName())
-                        .setMaterial(sourceResourcePath + "/" + material.getPath());
-                for (var sampler : material.getSamplerBindings().values()) {
-                    var imagePath = sampler.imagePath();
+                        .setName(material.materialDesc().getName())
+                        .setMaterial(material.resourcePath());
+                for (var sampler : material.samplerBindings().values()) {
                     binding.addTextures(ModelProto.Texture.newBuilder()
                             .setSampler(sampler.samplerName())
-                            .setTexture(imagePath.startsWith("/") ? imagePath : sourceResourcePath + "/" + imagePath));
+                            .setTexture(sampler.imageResourcePath()));
                 }
                 modelDesc.addMaterials(binding);
             }
-            String path = "meshes/" + pathNames.get(model.index);
-            meshes.add(new MeshMetadata(path, model.index, model.name, model.nameIsGenerated,
-                    primitiveCount, (int)vertexCount, modelDesc.build()));
+            String resourcePath = sourceResourcePath + "/meshes/" + pathNames.get(model.index);
+            meshes.add(new MeshMetadata(resourcePath, model.index, model.name, model.nameIsGenerated,
+                    primitiveCount, (int)vertexCount, ByteString.copyFromUtf8(TextFormat.printToString(modelDesc.build()))));
         }
         return meshes;
     }
@@ -688,7 +594,7 @@ public final class GltfContainer {
         return value.getBytes(StandardCharsets.UTF_8).length;
     }
 
-    private static void extractMaterials(Modelimporter.Scene scene, Map<Integer, String> imagePaths,
+    private static void extractMaterials(Modelimporter.Scene scene, String sourceResourcePath, Map<Integer, String> imagePaths,
                                          List<Asset> assets) {
         if (scene.materials == null) {
             return;
@@ -711,14 +617,14 @@ public final class GltfContainer {
             if (dynamicMaterials.contains(material)) {
                 continue;
             }
-            String path = "materials/" + pathNames.get(material.index) + ".material";
-            assets.add(new MaterialAsset(path, material, GltfMaterialResource.createMaterialDesc(material),
+            String resourcePath = sourceResourcePath + "/materials/" + pathNames.get(material.index) + ".material";
+            assets.add(new MaterialAsset(resourcePath, material, GltfMaterialResource.createMaterialDesc(material),
                     samplerBindings(material, imagePaths)));
         }
     }
 
     private static Map<Integer, String> extractImages(
-            Modelimporter.Scene scene, String sourcePath, ImageResolver imageResolver,
+            Modelimporter.Scene scene, String sourceResourcePath, ImageResolver imageResolver,
             List<Asset> assets, List<String> diagnostics, List<ImageReference> externalImages) {
         Map<Integer, String> imagePaths = new LinkedHashMap<Integer, String>();
         if (scene.images == null) {
@@ -738,7 +644,7 @@ public final class GltfContainer {
         for (Modelimporter.Image image : scene.images) {
             try {
                 if (isExternalImage(image)) {
-                    imagePaths.put(image.index, "/" + resolveExternalResourcePath(sourcePath, image.uri));
+                    imagePaths.put(image.index, resolveExternalResourcePath(sourceResourcePath, image.uri));
                     continue;
                 }
                 ResolvedImage resolvedImage = imageResolver.resolve(image);
@@ -748,8 +654,8 @@ public final class GltfContainer {
                 String mimeType = resolvedImage.mimeType == null
                         ? mimeTypeForExtension(extension)
                         : resolvedImage.mimeType;
-                String path = "images/" + pathNames.get(image.index) + "." + extension;
-                imagePaths.put(image.index, path);
+                String resourcePath = sourceResourcePath + "/images/" + pathNames.get(image.index) + "." + extension;
+                imagePaths.put(image.index, resourcePath);
                 resolvedImages.put(image.index, new ResolvedImage(resolvedImage.uri, mimeType,
                         resolvedImage.sourceKind, resolvedImage.content, resolvedImage.location));
             } catch (IOException e) {
@@ -759,7 +665,7 @@ public final class GltfContainer {
         // Select texture images after collecting both embedded assets and external references.
         for (Modelimporter.Image image : scene.images) {
             String imagePath = imagePaths.get(image.index);
-            if (imagePath != null && imagePath.startsWith("/")) {
+            if (imagePath != null && isExternalImage(image)) {
                 externalImages.add(new ImageReference(image.index, image.name, imagePath, image.uri,
                         normalizedMimeType(image.mimeType), textureMetadata(scene, image.index, imagePaths)));
                 continue;
@@ -770,7 +676,7 @@ public final class GltfContainer {
             }
             assets.add(new ImageAsset(imagePaths.get(image.index), image.index, image.name,
                     resolvedImage.uri, resolvedImage.mimeType, resolvedImage.sourceKind,
-                    resolvedImage.content == null ? new byte[0] : resolvedImage.content,
+                    resolvedImage.content == null ? ByteString.EMPTY : ByteString.copyFrom(resolvedImage.content),
                     textureMetadata(scene, image.index, imagePaths), resolvedImage.location));
         }
         return imagePaths;
@@ -804,9 +710,9 @@ public final class GltfContainer {
                 continue;
             }
 
-            String imagePath = imagePaths.get(image.index);
+            String imageResourcePath = imagePaths.get(image.index);
             result.put(entry.getKey(), new SamplerBinding(
-                    entry.getKey(), material.index, texture.index, image.index, imagePath));
+                    entry.getKey(), material.index, texture.index, image.index, imageResourcePath));
         }
         return result;
     }
@@ -1048,7 +954,7 @@ public final class GltfContainer {
 
     private static byte[] resolveExternalResource(IFileSystem fileSystem, IResource sourceResource, String rawUri,
                                                   DependencyTracker dependencyTracker) throws IOException {
-        String path = resolveExternalResourcePath(sourceResource, rawUri);
+        String path = resolveExternalResourcePath(sourceResource, rawUri).substring(1);
         IResource resource = fileSystem.get(path);
         if (resource == null || !resource.exists() || !resource.isFile()) {
             dependencyTracker.recordMissing(path);

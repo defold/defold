@@ -314,12 +314,34 @@
               image-path (gltf/uri->proj-path "/models/robot.gltf" uri)
               bindings (gltf/material-binding-descriptors source nil resolve-resource)]
           (is (nil? (workspace/find-resource workspace "/models/robot.gltf/images")))
-          (is (= [image-path] (gltf/external-image-paths source)))
+          (is (= [image-path] (gltf/external-image-proj-paths source)))
           (is (= (vec (repeat 5 image-path))
                  (mapv (comp resource/proj-path :texture) (:textures (first bindings)))))
           (is (= [image-path]
                  (mapv (comp resource/proj-path :image)
                        (:textures (gltf/metadata-descriptors source resolve-resource))))))))))
+
+;; Verifies shared asset and sampler project paths resolve for file and ZIP
+;; containers, guarding against duplicated prefixes and misplaced embedded images.
+(deftest asset-and-sampler-proj-paths-resolve-embedded-and-external-images
+  (doseq [origin [:file :zip]
+          [content image-proj-path] [[(gltf-content "Paint") "/models/albedo.png"]
+                                     [(embedded-gltf-content "Paint") "/models/robot.gltf/images/Albedo_0.png"]]]
+    (with-gltf-project origin content
+      (fn [_project-path workspace _project]
+        (let [source (workspace/find-resource workspace "/models/robot.gltf")
+              material (workspace/find-resource workspace "/models/robot.gltf/materials/Paint_0.material")
+              sampler-bindings (:sampler-bindings (gltf/asset-info material))
+              bindings (gltf/material-binding-descriptors source nil (partial workspace/resolve-workspace-resource workspace))]
+          (is (= 5 (count sampler-bindings)))
+          (is (coll/every? #(= image-proj-path (:image-proj-path %)) sampler-bindings))
+          (is (= 5 (count (:textures (first bindings)))))
+          (is (coll/every? #(= image-proj-path (resource/proj-path (:texture %))) (:textures (first bindings))))
+          (is (= (resource/proj-path material) (:proj-path (gltf/asset-info material))))
+          (doseq [asset-resource (coll/into-> (resource/children source) []
+                                   resource/xform-recursive-resources
+                                   (filter gltf/asset-info))]
+            (is (= (resource/proj-path asset-resource) (:proj-path (gltf/asset-info asset-resource))))))))))
 
 (deftest missing-geometry-does-not-hide-container-assets
   (with-gltf-project :file (gltf-content "Paint" "geometry.bin")

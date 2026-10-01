@@ -29,7 +29,9 @@
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
         extension "embedded-test"]
     (defmethod resource/expand extension [source stream]
-      (assoc source :children [(resource/make-resource-entry source {:path "text" :ext "txt" :content (ByteString/readFrom stream)})]))
+      (assoc source :children [(resource/make-resource-entry source (str (resource/proj-path source) "/text")
+                                                             :ext "txt"
+                                                             :content (ByteString/readFrom stream))]))
     (try
       (with-open [_deleter (test-util/make-directory-deleter project-path)]
         (doseq [index (range 16)]
@@ -48,3 +50,20 @@
                 (is (= ["hello"] (g/node-value (test-util/resource-node project child-path) :lines))))))))
       (finally
         (remove-method resource/expand extension)))))
+
+;; Verifies entries retain their supplied proj-path and reject paths outside the
+;; source, including siblings whose names start with the source's name.
+(deftest entry-proj-path-must-be-beneath-source
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_deleter (test-util/make-directory-deleter project-path)]
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              source (workspace/find-resource workspace "/game.project")
+              entry (resource/make-resource-entry source "/game.project/child.txt")]
+          (is (= "/game.project/child.txt" (resource/proj-path entry)))
+          (is (= "txt" (resource/ext entry)))
+          (doseq [proj-path ["/game.project"
+                             "/game.project-other/child.txt"
+                             "/else/child.txt"
+                             "game.project/child.txt"]]
+            (is (thrown? AssertionError (resource/make-resource-entry source proj-path)))))))))

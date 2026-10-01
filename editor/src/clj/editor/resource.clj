@@ -741,18 +741,18 @@
   (.write w (format "{:EmbeddedResource %s}" (pr-str (proj-path resource)))))
 
 (defn make-resource-entry
-  "Creates a read-only entry in a physical file or ZIP entry. Content is
+  "Creates a read-only entry at entry-proj-path beneath source. Content is
   ByteString or nil. Resource names are path basenames. File/path coercion
   retains the physical origin; abs-path is nil for entries."
-  [source {:keys [path ext content children data]}]
+  [source entry-proj-path & {:keys [ext content children data]}]
   {:pre [(or (file-resource? source) (zip-resource? source))
          (= :file (source-type source))
-         (not (string/starts-with? path "/"))
+         (string/starts-with? entry-proj-path (str (proj-path source) "/"))
          (or (nil? content) (instance? ByteString content))]}
   (->EmbeddedResource
     source
-    (str (proj-path source) "/" path)
-    (or ext (FilenameUtils/getExtension ^String path))
+    entry-proj-path
+    (or ext (FilenameUtils/getExtension ^String entry-proj-path))
     (if children :folder :file)
     children
     content

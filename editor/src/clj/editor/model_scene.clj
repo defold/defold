@@ -1344,7 +1344,7 @@
     (if-not include-editor-dependencies
       external-buffer-proj-paths
       (coll/into-> (resource/children source-resource)
-        (into external-buffer-proj-paths (gltf/external-image-paths source-resource))
+        (into external-buffer-proj-paths (gltf/external-image-proj-paths source-resource))
         resource/xform-recursive-resources
         (filter #(#{:material :image} (:kind (gltf/asset-info %))))
         (map resource/proj-path)))))

@@ -23,13 +23,14 @@
             [editor.resource-io :as resource-io]
             [editor.texture-util :as texture-util]
             [editor.workspace :as workspace]
+            [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce]
+            [util.fn :as fn]
             [util.http-server :as http-server]
             [util.path :as path])
   (:import [com.dynamo.bob.fs GltfContainer GltfContainer$Asset GltfContainer$Extraction GltfContainer$ImageAsset GltfContainer$ImageLocation GltfContainer$ImageReference GltfContainer$MaterialAsset GltfContainer$MeshMetadata GltfContainer$SamplerBinding GltfContainer$TextureMetadata]
            [com.dynamo.bob.pipeline ModelImporterJni$DataResolver]
-           [com.google.protobuf ByteString]
            [java.io FileNotFoundException IOException]
            [java.util Map]
            [org.apache.commons.io.input BoundedInputStream]))
@@ -38,15 +39,30 @@
 
 (declare EmbeddedImageNode load-embedded-image embedded-image-dependencies)
 
-(defonce/record EmbeddedImageResource [entry buffer-path offset length backing-resource]
+(def ^:private embedded-image-resource-type
+  (fn/memoize
+    {:limit 8}
+    (fn embedded-image-resource-type [resource-type]
+      (assoc resource-type
+        :node-type EmbeddedImageNode
+        :load-fn load-embedded-image
+        :dependencies-fn embedded-image-dependencies))))
+
+;; An image whose encoded bytes occupy a range in a GLB or external glTF buffer.
+;; All fields are non-nil except backing-resource.
+;; entry: resource/Resource for the virtual image; its :source is the glTF/GLB.
+;; buffer-proj-path: String; proj-path of the resource holding the image bytes.
+;; offset: non-negative long; byte offset into that resource.
+;; length: non-negative long; number of encoded image bytes.
+;; backing-resource: resource/Resource or nil. Initially nil; EmbeddedImageNode
+;;   supplies the connected buffer resource from the graph's evaluation context.
+(defonce/record EmbeddedImageResource [entry buffer-proj-path offset length backing-resource]
   resource/Resource
   (children [_this] nil)
   (ext [_this] (resource/ext entry))
   (lookup-resource-type [_this editable->type-ext->resource-type]
-    (assoc (resource/lookup-resource-type entry editable->type-ext->resource-type)
-      :node-type EmbeddedImageNode
-      :load-fn load-embedded-image
-      :dependencies-fn embedded-image-dependencies))
+    (embedded-image-resource-type
+      (resource/lookup-resource-type entry editable->type-ext->resource-type)))
   (source-type [_this] :file)
   (exists? [_this] (resource/exists? entry))
   (read-only? [_this] true)
@@ -70,11 +86,11 @@
           ;; have no backing-resource supplied by the graph and resolve the
           ;; buffer from the workspace here.
           buffer (or backing-resource
-                     (if (= buffer-path (resource/proj-path source))
+                     (if (= buffer-proj-path (resource/proj-path source))
                        source
-                       (workspace/find-resource (g/unsafe-basis) (resource/workspace source) buffer-path)))]
+                       (workspace/find-resource (g/unsafe-basis) (resource/workspace source) buffer-proj-path)))]
       (when-not buffer
-        (throw (FileNotFoundException. buffer-path)))
+        (throw (FileNotFoundException. buffer-proj-path)))
       (let [stream (io/input-stream buffer)]
         (try
           (.skipNBytes stream (long offset))
@@ -121,7 +137,7 @@
   materials."
   [source-resource material-indices resolve-resource]
   (let [asset-resources (asset-resources source-resource)
-        resource-by-asset-path (coll/pair-map-by #(:path (asset-info %)) asset-resources)]
+        resource-by-proj-path (coll/pair-map-by resource/proj-path asset-resources)]
     (coll/into-> asset-resources []
       (keep
         (fn [material-resource]
@@ -135,9 +151,9 @@
                :textures
                (coll/into-> sampler-bindings []
                  (keep
-                   (fn [{:keys [sampler image-path]}]
-                     (when-let [texture-resource (or (resource-by-asset-path image-path)
-                                                     (resolve-resource image-path))]
+                   (fn [{:keys [sampler image-proj-path]}]
+                     (when-let [texture-resource (or (resource-by-proj-path image-proj-path)
+                                                     (resolve-resource image-proj-path))]
                        {:sampler sampler
                         :texture texture-resource}))))})))))))
 
@@ -147,7 +163,7 @@
   (let [asset-resources (asset-resources source-resource)
 
         image-descriptors
-        (into (mapv #(assoc % :image (resolve-resource (:path %)))
+        (into (mapv #(assoc % :image (resolve-resource (:proj-path %)))
                     (get-in source-resource [:data :external-images]))
               (comp (filter #(= :image (:kind (asset-info %))))
                     (map #(assoc (asset-info %) :image %)))
@@ -205,15 +221,15 @@
      :meshes (vec (sort-by :index mesh-descriptors))
      :textures (vec (sort-by :index texture-descriptors))}))
 
-(defn external-image-paths [source-resource]
-  (mapv :path (get-in source-resource [:data :external-images])))
+(defn external-image-proj-paths [source-resource]
+  (mapv :proj-path (get-in source-resource [:data :external-images])))
 
 (defn uri->proj-path
   "Resolves an external URI against a glTF source path, returning nil for
   unsupported paths."
   ^String [^String source-path ^String uri]
   (try
-    (str "/" (GltfContainer/resolveExternalResourcePath source-path uri))
+    (GltfContainer/resolveExternalResourcePath source-path uri)
     (catch Exception _
       nil)))
 
@@ -269,16 +285,16 @@
 (defn- gltf-asset-info
   "Converts extracted asset metadata to the map stored on its virtual resource."
   [^GltfContainer$Asset asset]
-  (let [common-info {:index (.getIndex asset)
-                     :name (.getName asset)
-                     :path (.getPath asset)}]
+  (let [common-info {:index (.index asset)
+                     :name (.name asset)
+                     :proj-path (.resourcePath asset)}]
     (cond
       (instance? GltfContainer$MaterialAsset asset)
       (let [^GltfContainer$MaterialAsset material-asset asset
-            ^Map sampler-bindings (.getSamplerBindings material-asset)]
+            ^Map sampler-bindings (.samplerBindings material-asset)]
         (assoc common-info
           :kind :material
-          :material-name (-> material-asset .getMaterialDesc .getName)
+          :material-name (-> material-asset .materialDesc .getName)
           :sampler-bindings
           (coll/into-> (.values sampler-bindings) []
             (map (fn [^GltfContainer$SamplerBinding sampler-binding]
@@ -286,26 +302,26 @@
                     :material-index (.materialIndex sampler-binding)
                     :texture-index (.textureIndex sampler-binding)
                     :image-index (.imageIndex sampler-binding)
-                    :image-path (.imagePath sampler-binding)})))))
+                    :image-proj-path (.imageResourcePath sampler-binding)})))))
 
       (instance? GltfContainer$MeshMetadata asset)
       (let [^GltfContainer$MeshMetadata mesh asset]
         (assoc common-info
           :kind :mesh
-          :name-generated (.isNameGenerated mesh)
-          :primitive-count (.getPrimitiveCount mesh)
-          :vertex-count (.getVertexCount mesh)))
+          :name-generated (.nameGenerated mesh)
+          :primitive-count (.primitiveCount mesh)
+          :vertex-count (.vertexCount mesh)))
 
       :else
       (let [^GltfContainer$ImageAsset image-asset asset
-            source-kind (.getSourceKind image-asset)]
+            source-kind (.sourceKind image-asset)]
         (assoc common-info
           :kind :image
           :uri (when-not (= "data-uri" source-kind)
-                 (.getUri image-asset))
-          :mime-type (.getMimeType image-asset)
+                 (.uri image-asset))
+          :mime-type (.mimeType image-asset)
           :source-kind source-kind
-          :textures (texture-metadata (.getTextures image-asset)))))))
+          :textures (texture-metadata (.textures image-asset)))))))
 
 (g/defnode EmbeddedImageNode
   (inherits image/ImageNode)
@@ -340,52 +356,47 @@
     (into (vec (image-load-fn load-opts node-load-info))
           (g/expand-ec
             (fn [evaluation-context]
-              (let [image-resource (resolve-resource-fn resource (:buffer-path resource))
+              (let [image-resource (resolve-resource-fn resource (:buffer-proj-path resource))
                     connections [[:resource :backing-resource]]]
                 (:tx-data (project/connect-resource-node evaluation-context project image-resource node-id connections))))))))
 
 (defn- embedded-image-dependencies [_read-opts resource _source-value]
-  [(:buffer-path resource)])
+  [(:buffer-proj-path resource)])
 
 (defn- expand
   "Discovers embedded assets and external references using only the container bytes."
   [source stream]
-  (let [^GltfContainer$Extraction extraction (GltfContainer/inspect stream (resource/path source))
-        children-by-group
-        (reduce
-          (fn [groups ^GltfContainer$Asset asset]
-            (let [path (.getPath asset)
-                  group (subs path 0 (.indexOf ^String path "/"))
-                  {:keys [kind] :as info} (gltf-asset-info asset)
+  (let [^GltfContainer$Extraction extraction (GltfContainer/inspect stream (resource/proj-path source))
+        children-by-group-proj-path
+        (util/group-into
+          (sorted-map) []
+          #(resource/parent-proj-path (.resourcePath ^GltfContainer$Asset %))
+          (fn [^GltfContainer$Asset asset]
+            (let [{:keys [kind] :as info} (gltf-asset-info asset)
                   ^GltfContainer$ImageLocation location (when (instance? GltfContainer$ImageAsset asset)
-                                                          (.getLocation ^GltfContainer$ImageAsset asset))
-                  content (when-not location
-                            (ByteString/copyFrom (.getContent asset)))
-                  child (resource/make-resource-entry source
-                                                      {:path path
-                                                       :ext (when (= :mesh kind) "gltf-mesh")
-                                                       :content content
-                                                       :data {:asset info}})
-                  child (if location
-                          (->EmbeddedImageResource child (str "/" (.path location)) (.offset location) (.length location) nil)
-                          child)]
-              (update groups group (fnil conj []) child)))
-          (sorted-map)
+                                                          (.location ^GltfContainer$ImageAsset asset))
+                  child (resource/make-resource-entry source (.resourcePath asset)
+                                                      :ext (when (= :mesh kind) "gltf-mesh")
+                                                      :content (when-not location (.content asset))
+                                                      :data {:asset info})]
+              (if-not location
+                child
+                (->EmbeddedImageResource child (.resourcePath location) (.offset location) (.length location) nil))))
           (.assets extraction))]
     (assoc source
       :data {:external-images
              (mapv (fn [^GltfContainer$ImageReference image]
                      {:index (.index image)
                       :name (.name image)
-                      :path (.path image)
+                      :proj-path (.resourcePath image)
                       :uri (.uri image)
                       :mime-type (.mimeType image)
                       :source-kind "external-uri"
                       :textures (texture-metadata (.textures image))})
                    (.externalImages extraction))}
-      :children (coll/into-> children-by-group []
-                  (map (fn [[group children]]
-                         (resource/make-resource-entry source {:path group :children children})))))))
+      :children (coll/into-> children-by-group-proj-path []
+                  (map (fn [[group-proj-path children]]
+                         (resource/make-resource-entry source group-proj-path :children children)))))))
 
 (defmethod resource/expand "gltf" [source stream]
   (expand source stream))
