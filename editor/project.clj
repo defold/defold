@@ -298,39 +298,39 @@
                       :no-spec-asserts {:jvm-opts ["-Dclojure.spec.compile-asserts=false"]}
                       :performance [:no-decorated-exceptions :no-schemas :no-spec-asserts]
                       :16gb {:jvm-opts ["-Xmx16g"]}
-                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "27" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "27" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "27" :classifier "linux" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "27" :classifier "linux" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "27" :classifier "linux" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "27" :classifier "linux"]
+                                                    [org.openjfx/javafx-controls "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "27" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "27" :classifier "linux" :exclusions [org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]]
                                      :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-linux/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:dll|dylib)$"]
                                      :uberjar-name "editor-x86_64-linux-standalone.jar"}
-                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "27" :classifier "win" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "27" :classifier "win" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "27" :classifier "win" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "27" :classifier "win" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "27" :classifier "win" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "27" :classifier "win"]
+                                                    [org.openjfx/javafx-controls "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "27" :classifier "win" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "27" :classifier "win" :exclusions [org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]]
                                      :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dylib)$"]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
-                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "27" :classifier "mac" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "27" :classifier "mac" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "27" :classifier "mac" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "27" :classifier "mac" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac"]
+                                                    [org.openjfx/javafx-controls "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "27" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "27" :classifier "mac" :exclusions [org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]]
                                      :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dll)$"]
                                      :uberjar-name "editor-x86_64-macos-standalone.jar"}
-                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
-                                                   [org.openjfx/javafx-controls "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                   [org.openjfx/javafx-graphics "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                   [org.openjfx/javafx-media "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                   [org.openjfx/javafx-fxml "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                   [org.openjfx/javafx-swing "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac-aarch64"]
+                                                   [org.openjfx/javafx-controls "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]
+                                                   [org.openjfx/javafx-graphics "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
+                                                   [org.openjfx/javafx-media "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]
+                                                   [org.openjfx/javafx-fxml "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls]]
+                                                   [org.openjfx/javafx-swing "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]]
                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!arm64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                          #"^[^/]+\.(?:so|dll)$"]
                                     :uberjar-name "editor-arm64-macos-standalone.jar"}
@@ -359,7 +359,7 @@
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.3.0.zip"
                                                     "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.9.2.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.5.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.8.2.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.9.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="

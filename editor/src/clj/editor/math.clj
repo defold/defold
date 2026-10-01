@@ -702,17 +702,17 @@
         {:keys [view view-inv view-proj view-proj-inv]} derived-render-transforms]
     (cond-> derived-render-transforms
 
-            (and has-world-space-position (not has-local-space-position))
-            (assoc :world identity-mat4
-                   :world-inv identity-mat4
-                   :world-view view
-                   :world-view-inv view-inv
-                   :world-view-proj view-proj
-                   :world-view-proj-inv view-proj-inv)
+      (and has-world-space-position (not has-local-space-position))
+      (assoc :world identity-mat4
+             :world-inv identity-mat4
+             :world-view view
+             :world-view-inv view-inv
+             :world-view-proj view-proj
+             :world-view-proj-inv view-proj-inv)
 
-            (and has-world-space-normal (not has-local-space-normal))
-            (assoc :normal (derive-normal-transform view)
-                   :world-rotation identity-quat))))
+      (and has-world-space-normal (not has-local-space-normal))
+      (assoc :normal (derive-normal-transform view)
+             :world-rotation identity-quat))))
 
 (def render-transform-keys
   #{:actual/normal

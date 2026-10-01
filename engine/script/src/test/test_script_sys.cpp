@@ -66,6 +66,8 @@ static void CheckRebootArguments(dmMessage::Message* message, void* user_data)
     *(bool*)user_data = true;
 }
 
+// Verifies that all eight sys.reboot arguments reach the system message, guarding
+// against losing debugger options or the project path after the sixth argument.
 TEST_F(ScriptSysTest, RebootArguments)
 {
     dmMessage::HSocket socket;

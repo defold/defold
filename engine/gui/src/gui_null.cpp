@@ -52,6 +52,9 @@ namespace dmGui
         return false;
     }
 
+    void SetScriptInstanceMetaData(dmScript::HContext, const char*, void*)
+    {
+    }
 
     // gui_null.cpp
     const dmhash_t DEFAULT_LAYER = dmHashString64("");

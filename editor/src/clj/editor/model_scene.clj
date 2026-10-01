@@ -42,7 +42,7 @@
             [util.coll :as coll]
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [java.nio ByteOrder FloatBuffer]
            [javax.vecmath Matrix4d Vector4d]))
 
@@ -212,25 +212,25 @@
             (let [attribute-buffers
                   (cond-> {:semantic-type-position [positions]}
 
-                          (pos? normal-count)
-                          (assoc :semantic-type-normal [normals])
+                    (pos? normal-count)
+                    (assoc :semantic-type-normal [normals])
 
-                          (pos? tangent-count)
-                          (assoc :semantic-type-tangent [tangents])
+                    (pos? tangent-count)
+                    (assoc :semantic-type-tangent [tangents])
 
-                          (pos? color-count)
-                          (assoc :semantic-type-color [colors])
+                    (pos? color-count)
+                    (assoc :semantic-type-color [colors])
 
-                          (or (pos? texcoord0-count)
-                              (pos? texcoord1-count))
-                          (assoc :semantic-type-texcoord (cond-> [(when (pos? texcoord0-count) texcoord0s)]
-                                                                 (pos? texcoord1-count) (conj texcoord1s))))]
+                    (or (pos? texcoord0-count)
+                        (pos? texcoord1-count))
+                    (assoc :semantic-type-texcoord (cond-> [(when (pos? texcoord0-count) texcoord0s)]
+                                                     (pos? texcoord1-count) (conj texcoord1s))))]
               (cond-> {:attribute-buffers attribute-buffers}
 
-                      (not (neg? max-index))
-                      (assoc :index-buffer indices)))))))))
+                (not (neg? max-index))
+                (assoc :index-buffer indices)))))))))
 
-(defn- render-mesh-opaque [^GL2 gl render-args renderables]
+(defn- render-mesh-opaque [^GL3 gl render-args renderables]
   (let [renderable (first renderables)
         {:keys [attribute-bindings coordinate-space-info index-buffer material-data shader textures]} (:user-data renderable)
         render-args (math/rederive-render-transforms render-args coordinate-space-info)
@@ -252,7 +252,7 @@
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
 
-(defn- render-mesh-opaque-selection [^GL2 gl render-args renderables]
+(defn- render-mesh-opaque-selection [^GL3 gl render-args renderables]
   ;; TODO(instancing): We should use instanced rendering and put the picking-id as a per-instance attribute.
   (let [{:keys [picking-id user-data]} (first renderables)
         {:keys [index-buffer textures]} user-data
@@ -277,7 +277,7 @@
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
 
-(defn- render-mesh [^GL2 gl render-args renderables rcount]
+(defn- render-mesh [^GL3 gl render-args renderables rcount]
   ;; TODO(instancing): Batch instanced meshes together and populate an instance-buffer with the per-instance attributes.
   (assert (= 1 rcount) "Batching is disabled in the editor for simplicity.")
   (condp = (:pass render-args)
@@ -739,10 +739,10 @@
                                    (and scene-aabb (seq augmented-model-scenes))
                                    (assoc-in [0 :aabb] scene-aabb))]
       (cond-> (assoc scene
-        :node-id new-node-id
-        :node-outline-key new-node-outline-key
-        :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
-        :children augmented-model-scenes)
+                :node-id new-node-id
+                :node-outline-key new-node-outline-key
+                :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
+                :children augmented-model-scenes)
         scene-aabb (assoc :aabb scene-aabb)))))
 
 (defn make-material-name->material-scene-info

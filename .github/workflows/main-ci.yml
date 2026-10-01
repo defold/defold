@@ -112,28 +112,28 @@ jobs:
             codesign: true
           - name: "bld-eng-darwin (x86_64-macos)"
             platform: x86_64-macos
-            runner: macos-26
+            runner: xcode-27
             timeout: 30
             engine_args: "--skip-builtins --skip-docs"
             dotnet: true
             codesign: true
           - name: "bld-eng-darwin (arm64-macos)"
             platform: arm64-macos
-            runner: macos-26
+            runner: xcode-27
             timeout: 30
             engine_args: "--skip-builtins --skip-docs"
             dotnet: true
             codesign: true
           - name: "bld-eng-darwin (arm64-ios, true)"
             platform: arm64-ios
-            runner: macos-26
+            runner: xcode-27
             timeout: 30
             engine_args: "--skip-tests --skip-builtins --skip-docs"
             dotnet: true
             codesign: true
           - name: "bld-eng-darwin (arm64_sim-ios, true)"
             platform: arm64_sim-ios
-            runner: macos-26
+            runner: xcode-27
             timeout: 30
             engine_args: "--skip-tests --skip-builtins --skip-docs"
             dotnet: true
@@ -266,7 +266,11 @@ jobs:
         if: runner.os == 'macOS'
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: "26.5.0"
+          # The runner reports build 27A9269 as 27.1.0/GM, despite the beta app path.
+          xcode-version: "27.1.0"
+      - name: "Install Rosetta for Intel macOS tests"
+        if: matrix.platform == 'x86_64-macos'
+        run: sudo softwareupdate --install-rosetta --agree-to-license
       - &step_java
         name: "Install Java"
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -301,6 +305,12 @@ jobs:
       - name: "Verify emsdk"
         if: matrix.emsdk
         run: "emcc -v && export | grep EM"
+      - name: "Setup Node for WASM tests"
+        if: matrix.platform == 'wasm-web'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.0.1
+        with:
+          node-version: '22'
+          package-manager-cache: false
       - name: "Set up Android SDK"
         if: matrix.android
         uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7 # untagged pinned SHA
@@ -380,6 +390,29 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
         run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
+      # Run browser lifecycle tests separately while the regular engine tests are skipped.
+      - name: "Install browser test dependencies"
+        if: matrix.platform == 'wasm-web'
+        working-directory: engine/platform/src/test/browser
+        run: |
+          npm ci
+          npx playwright install --with-deps --no-shell chromium
+      - name: "Run native window browser tests"
+        if: matrix.platform == 'wasm-web'
+        timeout-minutes: 5
+        run: |
+          source ci/env.sh
+          cmake -S . -B engine/build/wasm-web -DBUILD_TESTS=ON
+          xvfb-run --auto-servernum cmake --build engine/build/wasm-web --target run_test_native_web_browser
+      - name: "Upload browser test results"
+        if: "!cancelled() && matrix.platform == 'wasm-web'"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-window-browser-wasm-web
+          path: |
+            engine/platform/src/test/browser/playwright-report
+            engine/platform/src/test/browser/test-results
+          retention-days: 7
       - name: "Upload build reports"
         if: always() && runner.os == 'Linux' && endsWith(matrix.platform, '-linux')
         uses: ./.github/actions/upload-build-reports
@@ -436,17 +469,17 @@ jobs:
           - id: switch
             title: "Switch"
             repo: "defold/defold-switch"
-            ref: "${{ vars.SWITCH_PRIVATE_REF || 'dev' }}"
+            ref: "${{ vars.SWITCH_PRIVATE_REF }}"
             platform: "arm64-nx64"
           - id: ps
             title: "PlayStation"
             repo: "defold/defold-ps4"
-            ref: "${{ vars.PS_PRIVATE_REF || 'dev' }}"
+            ref: "${{ vars.PS_PRIVATE_REF }}"
             platform: "x86_64-ps4,x86_64-ps5"
           - id: xbox
             title: "Xbox"
             repo: "defold/defold-xbox"
-            ref: "${{ vars.XBOX_PRIVATE_REF || 'dev' }}"
+            ref: "${{ vars.XBOX_PRIVATE_REF }}"
             platform: "x86_64-xbone"
     runs-on: ubuntu-latest
     permissions:
@@ -476,14 +509,18 @@ jobs:
           BUILD_SHA: *build_sha
         run: |
           public_branch="${{ env.BUILD_BRANCH || github.ref_name }}"
+          # Match release branches unless a console-specific ref overrides them.
+          private_ref="dev"
           channel="alpha"
           release="false"
           case "$public_branch" in
             master)
+              private_ref="master"
               channel="stable"
               release="true"
               ;;
             beta)
+              private_ref="beta"
               channel="beta"
               release="true"
               ;;
@@ -491,11 +528,13 @@ jobs:
               release="true"
               ;;
           esac
+          private_ref="${PRIVATE_REF:-$private_ref}"
+          echo "Dispatching public branch '$public_branch' with private ref '$private_ref'"
           request_id="${{ github.run_id }}-${{ github.run_attempt }}-$(uuidgen | tr -d '-' | cut -c 1-12)"
 
           gh workflow run private-ci.yml \
             --repo ${{ matrix.repo }} \
-            --ref "${{ matrix.ref }}" \
+            --ref "$private_ref" \
             -f public_repo="${{ github.repository }}" \
             -f public_branch="$public_branch" \
             -f public_sha="$BUILD_SHA" \

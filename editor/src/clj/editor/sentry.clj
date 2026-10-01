@@ -23,8 +23,8 @@
     [service.log :as log]
     [util.http-client :as http])
   (:import
-   (java.util.concurrent LinkedBlockingQueue TimeUnit)
-   (java.time LocalDateTime ZoneOffset)))
+    (java.util.concurrent LinkedBlockingQueue TimeUnit)
+    (java.time LocalDateTime ZoneOffset)))
 
 (set! *warn-on-reflection* true)
 
@@ -120,16 +120,16 @@
                              :java-version (system/java-runtime-version)}
                :environment environment
                :extra       (merge {:java-home (system/java-home)}
-                              (to-safe-json-value (ex-data ex)))
+                                   (to-safe-json-value (ex-data ex)))
                :fingerprint ["{{ default }}" environment]
                :exception   (exception-data ex thread)
                :threads     (thread-data thread ex)}]
     (cond-> event
       gl-info (-> (update :tags assoc :gpu-vendor (:vendor gl-info))
-                (update :extra assoc
-                  :gpu (:renderer gl-info)
-                  :gpu-version (:version gl-info)
-                  :gpu-info (:desc gl-info))))))
+                  (update :extra assoc
+                          :gpu (:renderer gl-info)
+                          :gpu-version (:version gl-info)
+                          :gpu-info (:desc gl-info))))))
 
 (defn x-sentry-auth
   [^LocalDateTime ts key secret]

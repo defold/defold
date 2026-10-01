@@ -68,9 +68,9 @@
 (s/defn make-color :- java.awt.Color
   "creates a color using rgb values (optional a). Color values between 0 and 1.0"
   ([r :- Float g :- Float b :- Float]
-    (java.awt.Color. r g b))
+   (java.awt.Color. r g b))
   ([r :- Float g :- Float b :- Float a :- Float]
-    (java.awt.Color. r g b a)))
+   (java.awt.Color. r g b a)))
 
 (s/defn make-image :- Image
   [nm :- s/Any contents :- BufferedImage]
@@ -78,11 +78,11 @@
 
 (s/defn blank-image :- BufferedImage
   ([space :- Rect]
-    (blank-image (.width space) (.height space)))
+   (blank-image (.width space) (.height space)))
   ([width :- s/Int height :- s/Int]
-    (blank-image width height BufferedImage/TYPE_4BYTE_ABGR))
+   (blank-image width height BufferedImage/TYPE_4BYTE_ABGR))
   ([width :- s/Int height :- s/Int t :- s/Int]
-    (BufferedImage. width height t)))
+   (BufferedImage. width height t)))
 
 (s/defn flood :- BufferedImage
   "Floods the image with the specified color (r g b <a>). Color values between 0 and 1.0."
