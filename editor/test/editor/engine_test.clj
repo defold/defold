@@ -27,6 +27,8 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+;; Verify valid DAP listener ports are discovered and invalid ports are ignored,
+;; guarding against losing service metadata while updating the debugger address.
 (deftest dap-listener-discovery-test
   (is (= 8172 (engine/debugger-port {})))
   (is (= 8175 (engine/debugger-port {:instance-index 3})))
@@ -80,6 +82,8 @@
       (engine/launch! binary (io/file "/project") nil false 0 true)
       (is (= [] (into [] (drop 2) (peek @launches)))))))
 
+;; Verify debugger, instance, and focus arguments survive local and remote reboots,
+;; guarding against misplaced project arguments and unreachable remote listeners.
 (deftest debug-reboot-test
   (doseq [remote [false true]
           debug [false true]
