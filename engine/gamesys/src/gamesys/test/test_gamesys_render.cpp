@@ -1277,6 +1277,8 @@ TEST_F(MiscTests, MaterialModule)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+#if defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+// Verify the Lua compute module on targets that compile and register that API.
 TEST_F(MiscTests, ComputeModule)
 {
     dmGameSystem::ComputeResource* compute_program_res;
@@ -1293,6 +1295,8 @@ TEST_F(MiscTests, ComputeModule)
 
     dmResource::Release(m_Factory, compute_program_res);
 }
+#endif
+
 TEST_F(MaterialTest, TestUniformBuffersLayout)
 {
     dmGameSystem::MaterialResource* material_res;

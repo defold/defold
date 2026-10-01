@@ -96,18 +96,15 @@ for building and repacking an APK for Android 14 or newer.
 
 Run `./scripts/build.py --platform=<platform> install_ext` before the first
 engine build, with the platform SDK already set up. It installs the prepackaged
-dependencies, then builds Bullet, Basis Universal, LZ4, and,
-on iOS and Android, GLFW with the same platform toolchain and installs them into
+dependencies, then builds Bullet, Basis Universal, and LZ4
+with the same platform toolchain and installs them into
 `tmp/dynamo_home/ext`. Run `install_ext` again when those sources or the toolchain
 change. Its persistent CMake cache lives under `external/build/<platform>` and is
 separate from the engine build to keep normal rebuilds fast.
 
-Both iOS targets (`arm64-ios`, `arm64_sim-ios`) and all Android targets
-(`armv7-android`, `arm64-android`, `x86_64-android`) always build GLFW from source
-during `install_ext`. Their package lists do not include a prebuilt GLFW archive.
-`install_ext` builds the libraries before `build_engine` consumes them, and the
-platform SDK includes the resulting libraries. Android also builds and installs
-`libdmglfw_vulkan.a` and `share/java/glfw_android.jar`.
+The iOS, Android, and web window backends build directly into the engine's
+`platform` library during `build_engine`; they do not need a separate GLFW
+dependency from `install_ext`. Desktop platforms continue to use GLFW3.
 
 `scripts/build.py build_engine` configures from the top-level `CMakeLists.txt`,
 with one CMake cache under `engine/build/<platform>`. Each engine library still

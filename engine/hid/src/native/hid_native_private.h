@@ -45,7 +45,7 @@ namespace dmHID
     void           ReleaseGamepad(HContext context, Gamepad* gamepad);
     void           SetGamepadConnectionStatus(HContext context, Gamepad* gamepad, bool connection_status);
 
-    GamepadDriver* CreateGamepadDriverGLFW(HContext context);
+    GamepadDriver* CreateGamepadDriverPlatform(HContext context);
     GamepadDriver* CreateGamepadDriverApple(HContext context);
 }
 

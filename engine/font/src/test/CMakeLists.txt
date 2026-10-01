@@ -125,7 +125,10 @@ defold_target_link_libraries(test_markup_null "${TARGET_PLATFORM}"
   font
   font_richtext_null)
 defold_target_link_socket(test_markup_null "${TARGET_PLATFORM}" PRIVATE)
-defold_register_test_target(test_markup_null ON "${FONT_ROOT}" RUN_GROUP font)
+defold_register_test_target(test_markup_null ON "${FONT_ROOT}"
+  RUN_GROUP font
+  STAGE_FILES
+    "src/test/data" "src/test/data")
 
 if(FONT_RENDERER_IS_DESKTOP)
   defold_add_executable(test_fontc_markup_api "${FONT_TEST_ROOT}/test_fontc_markup_api.cpp")

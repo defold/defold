@@ -25,7 +25,6 @@ and installation layout:
 
 | Package selector | Archive prefix | Contents |
 | --- | --- | --- |
-| `glfw` | `glfw-2.7.1` | Platform archive with headers, native libraries, and Android Java or web JavaScript support files. |
 | `opus` | `opus-1.5.2` | Decoder library in the platform archive; headers in the common archive. |
 | `harfbuzz` | `harfbuzz-13.2.1` | Library in the platform archive; headers and Defold's configuration override in the common archive. |
 | `sheenbidi` | `SheenBidi-2.9.0` | Unity-built library in the platform archive; headers in the common archive. |
