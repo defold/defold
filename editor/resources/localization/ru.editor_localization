@@ -175,8 +175,6 @@ dialog.model-auto-fill.content = При этом будут назначены �
 dialog.model-auto-fill.content-replace = При этом текущие назначения материалов и текстур модели будут заменены ресурсами, предоставленными файлом glTF.
 dialog.model-auto-fill.button.keep-current = Сохранить текущие
 dialog.model-auto-fill.button.auto-fill = Заполнить автоматически
-notification.gltf-pbr-library = Для материалов glTF требуется библиотека PBR-шейдеров.
-notification.gltf-pbr-library.action.add = Добавить библиотеку
 
 # Error Dialog
 

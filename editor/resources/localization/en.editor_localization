@@ -175,8 +175,6 @@ dialog.model-auto-fill.content = This assigns the materials and referenced textu
 dialog.model-auto-fill.content-replace = This replaces the model's existing material and texture assignments with the resources exposed by the glTF file.
 dialog.model-auto-fill.button.keep-current = Keep Current
 dialog.model-auto-fill.button.auto-fill = Auto Fill
-notification.gltf-pbr-library = glTF materials require the PBR shader library.
-notification.gltf-pbr-library.action.add = Add Library
 
 # Error Dialog
 

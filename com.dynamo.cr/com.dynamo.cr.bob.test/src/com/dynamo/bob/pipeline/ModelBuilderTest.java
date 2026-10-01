@@ -24,6 +24,7 @@ import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.GltfMountPoint;
@@ -121,6 +122,18 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("/test_animation_generated_0.animationsetc", rigScene.getAnimationSet());
     }
 
+    // Verifies the standalone built-in glTF material and its include graph compile as a model dependency.
+    @Test
+    public void testModelBuildsWithBuiltinGltfMaterial() throws Exception {
+        addFile("/builtin.gltf", GLTF);
+        getProject().mount(new ClassLoaderResourceScanner());
+        var outputs = build("/builtin.model", "mesh: \"/builtin.gltf\"\nmaterials { name: \"default\" material: \"/builtins/materials/gltf.material\" }\n");
+        var model = getMessage(outputs, Model.class);
+        assertEquals(ResourceUtil.minifyPath("/builtins/materials/gltf.materialc"), model.getMaterials(0).getMaterial());
+        assertTrue(getProject().getResource("/builtins/materials/gltf.material").exists());
+    }
+
+    // Verifies generated glTF materials and images build using packaged shaders without an external PBR library.
     @Test
     public void testModelBuildsGltfVirtualMaterialAndImage() throws Exception {
         addImage("/virtual.png", 2, 2);
@@ -132,11 +145,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
                 + "\"materials\":[{\"name\":\"VirtualMaterial\",\"pbrMetallicRoughness\":{"
                 + "\"baseColorTexture\":{\"index\":0}}}]");
         addFile("/virtual.gltf", virtualGltf);
-        getFileSystem().addMountPoint(new GltfMountPoint(getFileSystem()));
-
-        String shaderSource = "void main() {}\n";
-        addFile("/defold-pbr/shaders/pbr.vp", shaderSource);
-        addFile("/defold-pbr/shaders/pbr.fp", shaderSource);
+        getProject().mount(new ClassLoaderResourceScanner());
 
         String modelSource =
                 "mesh: \"/virtual.gltf\"\n" +
@@ -158,6 +167,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(getFileSystem().get("build/virtual.gltf/images/VirtualImage_0.texturec").exists());
     }
 
+    // Verifies copied glTF meshes build with the packaged shaders and no project shader stubs.
     @Test
     public void testCopiedMeshesBuildAsModels() throws Exception {
         String primitive = "{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}";
@@ -166,9 +176,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
                 + primitive.replace("{\"primitives", "{\"name\":\"Shared\",\"primitives"))
                 .replace("\"indices\":1", "\"indices\":1,\"material\":0");
         addFile("/meshes.gltf", source);
-        getFileSystem().addMountPoint(new GltfMountPoint(getFileSystem()));
-        addFile("/defold-pbr/shaders/pbr.vp", "void main() {}\n");
-        addFile("/defold-pbr/shaders/pbr.fp", "void main() {}\n");
+        getProject().mount(new ClassLoaderResourceScanner());
 
         var names = List.of("Shared_0", "Shared_1");
         for (int index = 0; index < names.size(); ++index) {

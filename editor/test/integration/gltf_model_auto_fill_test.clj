@@ -85,6 +85,24 @@
   {:mesh (some-> (test-util/prop model-node-id :mesh) resource/proj-path)
    :materials (material-bindings model-node-id)})
 
+;; Verifies auto-filled built-in glTF models preview and build, guarding against unresolved shader dependencies.
+(deftest builtin-gltf-auto-fill-previews-and-builds
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_deleter (test-util/make-directory-deleter project-path)]
+      (fs/create-file! (io/file project-path "builtin.model") "name: \"builtin\"\nmesh: \"\"\n")
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              project (test-util/setup-project! workspace)
+              model-node-id (test-util/resource-node project "/builtin.model")]
+          (doseq [name ["cube" "quad" "quad_2x2" "sphere"]]
+            (testing name
+              (with-redefs [dialogs/make-confirmation-dialog (fn [_localization _props] true)]
+                (edit-property! model-node-id :mesh
+                                (workspace/find-resource workspace (str "/builtins/assets/gltf/" name ".gltf"))))
+              (is (not (g/error-value? (g/node-value model-node-id :scene))))
+              (with-open [_build (test-util/build! model-node-id)]
+                (is (not (g/error-value? (g/node-value model-node-id :build-targets))))))))))))
+
 (deftest gltf-mesh-user-edit-auto-fill
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
         model-file (io/file project-path "robot.model")

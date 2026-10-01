@@ -552,8 +552,8 @@ public class GltfMountPointTest {
         MaterialDesc material = builder.build();
 
         assertEquals("Paint", material.getName());
-        assertEquals("/defold-pbr/shaders/pbr.vp", material.getVertexProgram());
-        assertEquals("/defold-pbr/shaders/pbr.fp", material.getFragmentProgram());
+        assertEquals("/builtins/materials/gltf.vp", material.getVertexProgram());
+        assertEquals("/builtins/materials/gltf.fp", material.getFragmentProgram());
         assertEquals(MaterialDesc.VertexSpace.VERTEX_SPACE_LOCAL, material.getVertexSpace());
         assertEquals(list("model"), material.getTagsList());
         assertEquals(4, material.getVertexConstantsCount());
@@ -695,8 +695,8 @@ public class GltfMountPointTest {
                 "models/untextured.gltf/materials/Paint_0.material");
         MaterialDesc untexturedMaterial = untexturedResource.getMaterialDesc();
         assertEquals(0, untexturedMaterial.getSamplersCount());
-        assertEquals("/defold-pbr/shaders/pbr.vp", untexturedMaterial.getVertexProgram());
-        assertEquals("/defold-pbr/shaders/pbr.fp", untexturedMaterial.getFragmentProgram());
+        assertEquals("/builtins/materials/gltf.vp", untexturedMaterial.getVertexProgram());
+        assertEquals("/builtins/materials/gltf.fp", untexturedMaterial.getFragmentProgram());
         assertArrayEquals(new float[] { 0.25f, 0.5f, 0.75f, 1.0f },
                 untexturedResource.getSourceMaterial().pbrMetallicRoughness.baseColorFactor, 0.0f);
     }

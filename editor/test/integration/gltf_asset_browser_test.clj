@@ -18,27 +18,19 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
-            [editor.defold-project :as project]
             [editor.fs :as fs]
-            [editor.game-project :as game-project]
             [editor.handler :as handler]
-            [editor.notifications :as notifications]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support :refer [with-clean-system]])
+            [support.test-support :refer [with-clean-system]])
   (:import [com.dynamo.gamesys.proto ModelProto$Model ModelProto$ModelDesc]
            [java.io File]
-           [java.net URI]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
            [java.util Base64]
-           [java.util.zip ZipEntry ZipOutputStream]
-           [javafx.scene Scene]
-           [javafx.scene.control TreeItem]
-           [javafx.scene.layout VBox]))
+           [javafx.scene.control TreeItem]))
 
 (set! *warn-on-reflection* true)
 
@@ -220,6 +212,7 @@
                                              [(handler/->context :asset-browser {:selection selection})]
                                              {}))))))))
 
+;; Verifies exported glTF meshes preview and build using built-in shaders, including the default mesh index zero.
 (deftest copying-meshes-exports-buildable-models
   (with-glb-project
     (fn [workspace project source-file]
@@ -238,9 +231,6 @@
                                    :texture "/robot.glb/images/Albedo_0.png"}]}]
                      (:materials model-desc)))
               (io/copy exported-file (io/file project-directory (.getName exported-file)))))
-          (doseq [extension ["vp" "fp"]]
-            (fs/create-file! (io/file project-directory (str "defold-pbr/shaders/pbr." extension))
-                             "void main() {}\n"))
           (workspace/resource-sync! workspace)
           (doseq [[index name mesh-name] [[0 "mymesh_0" "mymesh"]
                                           [2 "Shared_0" "Shared"]
@@ -249,7 +239,7 @@
             (testing name
               (let [node (test-util/resource-node project (str "/" name ".model"))
                     save-value (g/node-value node :save-value)]
-                (is (= index (:mesh-index save-value)))
+                (is (= index (test-util/prop node :mesh-index)))
                 (is (= mesh-name (:mesh-name save-value)))
                 (is (= [index] (into [] (keep :mesh-index) (:children (g/node-value node :scene)))))
                 (with-open [_build (test-util/build! node)]
@@ -265,9 +255,6 @@
         (fn [workspace project source-file]
           (let [mesh (workspace/find-resource workspace "/robot.glb/meshes/Shared_0")
                 project-directory (.getParentFile ^File source-file)]
-            (doseq [extension ["vp" "fp"]]
-              (fs/create-file! (io/file project-directory (str "defold-pbr/shaders/pbr." extension))
-                               "void main() {}\n"))
             (doseq [[name content] [["explicit" (slurp mesh)]
                                     ["omitted" (string/replace (slurp mesh) "mesh_index: 0\n" "")]]]
               (testing name
@@ -309,107 +296,3 @@
         (workspace/resource-sync! workspace)
         (is (nil? (workspace/find-resource workspace "/robot.glb/materials/Paint_Chrome_0.material")))
         (is (g/error-value? (g/node-value model :scene)))))))
-
-(deftest pbr-library-notification-follows-imports-and-dependencies
-  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
-    (with-open [_deleter (test-util/make-directory-deleter project-path)]
-      (with-clean-system
-        (let [workspace (test-util/setup-workspace! project-path)
-              project (test-util/setup-project! workspace)
-              notifications (workspace/notifications workspace)
-              notification #(get-in (g/node-value notifications :notifications)
-                                    [:id->notification ::project/pbr-library])
-              game-project (test-util/resource-node project "/game.project")
-              dependencies (project/project-dependencies project)]
-          (is (nil? (notification)) "Built-in glTF materials do not trigger the offer")
-          (fs/create-file! (io/file project-path "first.gltf") (gltf-content "Paint"))
-          (fs/create-file! (io/file project-path "second.glb") (glb-content "Paint"))
-          (workspace/resource-sync! workspace)
-          (is (= :info (:type (notification))))
-          (is (= "Add Library" (test-util/localization (get-in (notification) [:actions 0 :message]))))
-          (let [command-call (atom nil)]
-            (with-redefs [ui/main-scene (constantly (Scene. (VBox.)))
-                          ui/execute-command (fn [_ command user-data]
-                                               (reset! command-call [command user-data]))]
-              ((get-in (notification) [:actions 0 :on-action])))
-            (is (= [:private/add-dependency {:dep-url "https://github.com/defold/asset-pbr/archive/refs/heads/master.zip"}]
-                   @command-call)))
-          (is (= 1 (count (:ids (g/node-value notifications :notifications)))))
-          (is (= dependencies (project/project-dependencies project)))
-
-          (notifications/close! notifications ::project/pbr-library)
-          (workspace/resource-sync! workspace)
-          (is (nil? (notification)))
-          (fs/create-file! (io/file project-path "note.txt") "Unrelated file")
-          (workspace/resource-sync! workspace)
-          (is (nil? (notification)) "Unrelated resource changes preserve dismissal")
-
-          (fs/create-file! (io/file project-path "third.gltf") (gltf-content "Paint"))
-          (workspace/resource-sync! workspace)
-          (is (some? (notification)) "A new import offers the library again")
-          (fs/create-file! (io/file project-path "fourth.gltf") (gltf-content "Paint"))
-          (workspace/resource-sync! workspace)
-          (is (= 1 (count (:ids (g/node-value notifications :notifications)))))
-
-          (game-project/set-setting! game-project ["project" "dependencies"] ["https://github.com/defold/asset-pbr/archive/0123456789abcdef0123456789abcdef01234567.zip"])
-          (is (some? (notification)) "The offer remains visible while dependencies await fetching")
-          (notifications/close! notifications ::project/pbr-library)
-          (fs/create-file! (io/file project-path "fifth.gltf") (gltf-content "Paint"))
-          (workspace/resource-sync! workspace)
-          (is (some? (notification)) "New imports show the offer while dependencies await fetching")
-          (is (= 2 (count (:ids (g/node-value notifications :notifications))))
-              "The PBR and Fetch Libraries notifications are both visible")
-
-          (game-project/set-setting! game-project ["project" "dependencies"] [])
-          (project/update-library-notifications! project [])
-          (is (some? (notification)) "The offer remains visible when dependencies match without new imports")
-          (fs/create-file! (io/file project-path "sixth.gltf") (gltf-content "Paint"))
-          (workspace/resource-sync! workspace)
-          (is (some? (notification))))))))
-
-(deftest pbr-library-notification-checks-shader-resources
-  (doseq [origin [:file :zip]]
-    (testing origin
-      (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
-            library-uri (URI/create "https://github.com/defold/asset-pbr/archive/0123456789abcdef0123456789abcdef01234567.zip")
-            shader-paths ["defold-pbr/shaders/pbr.vp" "defold-pbr/shaders/pbr.fp"]]
-        (with-open [_deleter (test-util/make-directory-deleter project-path)]
-          (test-util/with-project-default-library-directory
-            (if (= :file origin)
-              (doseq [path shader-paths]
-                (fs/create-parent-directories! (io/file project-path path))
-                (fs/create-file! (io/file project-path path) "void main() {}"))
-              (let [archive (test-support/library-file (io/file project-path) library-uri "")]
-                (fs/create-parent-directories! archive)
-                (with-open [out (ZipOutputStream. (io/output-stream archive))]
-                  (doseq [[^String path content] [["game.project" "[library]\ninclude_dirs = defold-pbr\n"]
-                                                  [(shader-paths 0) "void main() {}"]
-                                                  [(shader-paths 1) "void main() {}"]]]
-                    (.putNextEntry out (ZipEntry. path))
-                    (.write out (.getBytes ^String content StandardCharsets/UTF_8))
-                    (.closeEntry out)))
-                (fs/create-file! (io/file project-path "game.project")
-                                 (str "[project]\ndependencies = " library-uri "\n"))))
-            (with-clean-system
-              (let [workspace (test-util/setup-workspace! project-path)]
-                (when (= :zip origin)
-                  (test-util/set-cached-project-dependencies! workspace [library-uri])
-                  (workspace/resource-sync! workspace))
-                (let [project (test-util/setup-project! workspace)
-                      notifications (workspace/notifications workspace)
-                      notification #(get-in (g/node-value notifications :notifications)
-                                            [:id->notification ::project/pbr-library])]
-                  (is (= (set (project/project-dependencies project))
-                         (set (workspace/dependencies workspace)))
-                      "Dependencies are fetched; the check must use their shader resources")
-                  (fs/create-file! (io/file project-path "robot.gltf") (gltf-content "Paint"))
-                  (workspace/resource-sync! workspace)
-                  (is (nil? (notification)) "Either local or library shaders satisfy the requirement")
-                  (when (= :file origin)
-                    (fs/delete-file! (io/file project-path (shader-paths 1)))
-                    (fs/create-file! (io/file project-path "second.gltf") (gltf-content "Paint"))
-                    (workspace/resource-sync! workspace)
-                    (is (some? (notification)) "Both shaders are required")
-                    (fs/create-file! (io/file project-path (shader-paths 1)) "void main() {}")
-                    (workspace/resource-sync! workspace)
-                    (is (nil? (notification)) "Making the shaders available clears the offer")))))))))))

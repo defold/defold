@@ -1523,56 +1523,38 @@
    (when-let [settings (settings project evaluation-context)]
      (settings ["project" "dependencies"]))))
 
-(defn update-library-notifications
-  "Creates notification updates for dependency changes and newly imported materials."
-  [project added-resources evaluation-context]
+(defn update-fetch-libraries-notification
+  "Create transaction steps for showing or hiding a 'Fetch Libraries' suggestion
+  when the project dependency list differs from the currently installed
+  dependencies in the workspace."
+  [project evaluation-context]
   (when-let [workspace (workspace project evaluation-context)]
     (let [ignored-dep (:default (:element (settings-core/get-meta-setting gpc/meta-settings ["project" "dependencies"])))
           desired-deps (disj (set (project-dependencies project evaluation-context)) ignored-dep)
           installed-deps (set (workspace/dependencies workspace evaluation-context))
           notifications (workspace/notifications workspace evaluation-context)
-          resources (g/node-value workspace :resource-map evaluation-context)]
-      [(if (coll/every? resources ["/defold-pbr/shaders/pbr.vp" "/defold-pbr/shaders/pbr.fp"])
-         (notifications/close notifications ::pbr-library)
-         (when (coll/any? (fn [resource]
-                            (and (= "material" (resource/ext resource))
-                                 (loop [parent-path (resource/parent-proj-path (resource/proj-path resource))]
-                                   (when-let [parent (resources parent-path)]
-                                     (if (= :file (resource/source-type parent))
-                                       (and (resource/file-resource? parent)
-                                            (#{"gltf" "glb"} (resource/ext parent)))
-                                       (recur (resource/parent-proj-path parent-path)))))))
-                          added-resources)
-           (notifications/show
-             notifications
-             {:id ::pbr-library
-              :type :info
-              :message (localization/message "notification.gltf-pbr-library")
-              :actions [{:message (localization/message "notification.gltf-pbr-library.action.add")
-                         :on-action #(ui/execute-command
-                                       (ui/contexts (ui/main-scene) true)
-                                       :private/add-dependency
-                                       {:dep-url "https://github.com/defold/asset-pbr/archive/refs/heads/master.zip"})}]})))
-       (if (= desired-deps installed-deps)
-         (notifications/close notifications ::dependencies-changed)
-         (notifications/show
-           notifications
-           {:id ::dependencies-changed
-            :type :info
-            :message (localization/message "notification.fetch-libraries.changed")
-            :actions [{:message (localization/message "notification.fetch-libraries.action.fetch")
-                       :on-action #(ui/execute-command
-                                     (ui/contexts (ui/main-scene) true)
-                                     :project.fetch-libraries
-                                     nil)}]}))])))
+          notification-id ::dependencies-changed]
+      (if (not= desired-deps installed-deps)
+        (notifications/show
+          notifications
+          {:id notification-id
+           :type :info
+           :message (localization/message "notification.fetch-libraries.changed")
+           :actions [{:message (localization/message "notification.fetch-libraries.action.fetch")
+                      :on-action #(ui/execute-command
+                                    (ui/contexts (ui/main-scene) true)
+                                    :project.fetch-libraries
+                                    nil)}]})
+        (notifications/close notifications notification-id)))))
 
-(defn update-library-notifications!
-  "Updates notifications for dependency changes and newly imported materials."
-  [project added-resources]
+(defn update-fetch-libraries-notification!
+  "Show or hide a 'Fetch Libraries' suggestion when the project dependency list
+  differs from the currently installed dependencies in the workspace."
+  [project]
   (g/transact
     {:undoable false}
     (g/with-auto-evaluation-context evaluation-context
-      (update-library-notifications project added-resources evaluation-context)))
+      (update-fetch-libraries-notification project evaluation-context)))
   nil)
 
 (defn- handle-resource-changes [project changes render-progress!]
@@ -1592,8 +1574,8 @@
     ;; (resource-update/print-plan resource-change-plan)
     (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
     (lsp/apply-resource-changes! (lsp/get-lsp) changes)
-    ;; Update library offers after imported resources and external dependency edits load.
-    (update-library-notifications! project (:added changes))))
+    ;; Suggest fetching libraries if dependencies changed externally.
+    (update-fetch-libraries-notification! project)))
 
 (defn parse-filter-param
   [_node-id ^String s]
