@@ -20,8 +20,13 @@ message GlyphBank
     message Glyph
     {
         required uint32 character         = 1;                  // utf32 codepoint
-        optional float  width             = 2 [default = 0];    // glyph width
-        optional float  advance           = 3 [default = 0.0];
+
+        // Pixel width of the glyph bitmap, including raster rounding and
+        // SDF/effect margins, but excluding the atlas border (glyph_padding).
+        optional float  width             = 2 [default = 0];
+        optional float  advance           = 3 [default = 0.0]; // distance to the next glyph's pen origin
+        // Horizontal offset from the glyph's pen origin to the bitmap's left
+        // edge, including raster rounding and SDF/effect margins. May be negative.
         optional float  left_bearing      = 4 [default = 0.0];
         optional int32  ascent            = 5 [default = 0]; // WHY 32 bits???
         optional int32  descent           = 6 [default = 0]; // WHY 32 bits???
@@ -29,6 +34,13 @@ message GlyphBank
         optional int32  y                 = 8 [default = 0]; // only used in editor preview
         optional uint64 glyph_data_offset = 9; // WHY 64 bits???
         optional uint64 glyph_data_size   = 10; // 32 bits should suffice?
+
+        // Fractional native font metrics at the compiled size, matching editor
+        // preview. Used for measurement, alignment and wrapping when
+        // has_layout_metrics is true, independently of raster rounding and
+        // SDF/effect margins. They do not size or position the bitmap.
+        optional float  layout_width     = 11 [default = 0]; // measured glyph width, distinct from advance
+        optional float  layout_left_bearing = 12 [default = 0]; // pen origin to the measured left edge
     }
 
     repeated Glyph             glyphs                = 1;
@@ -58,4 +70,5 @@ message GlyphBank
 
     optional uint32            padding               = 19 [default = 0];
     optional bool              is_monospaced         = 20 [default = false];
+    optional bool              has_layout_metrics    = 21 [default = false]; // false preserves legacy bitmap-based layout
 }

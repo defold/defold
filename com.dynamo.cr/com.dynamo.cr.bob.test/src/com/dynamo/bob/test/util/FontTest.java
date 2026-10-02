@@ -542,6 +542,8 @@ public class FontTest {
         assertTrue(glyphBank.getGlyphs(0).getGlyphDataSize() > 1);
     }
 
+    // Verifies compiled layout metrics match preview measurement independently
+    // of bitmap/SDF padding, guarding against the pivot shift in #13339.
     @Test
     public void testCompiledFontLayoutPaddingPreservesFractionalMetrics() throws Exception {
         FontDesc baseDesc = FontDesc.newBuilder()
@@ -560,6 +562,16 @@ public class FontTest {
 
         for (int i = 0; i < descriptions.length; ++i) {
             FontDesc fontDesc = descriptions[i];
+            FontRenderer.Params params = new FontRenderer.Params();
+            params.size = fontDesc.getSize();
+            params.cacheWidth = 1;
+            params.cacheHeight = 1;
+            params.useTextShaping = false;
+            float expectedWidth;
+            try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont());
+                 FontRenderer renderer = new FontRenderer(fontDesc.getFont(), input.readAllBytes(), params)) {
+                expectedWidth = renderer.measure("L", false, 0, 1, 0).width;
+            }
             Fontc fontc = new Fontc();
             try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
                 fontc.compile(input, fontDesc, false);
@@ -579,11 +591,43 @@ public class FontTest {
                 assertEquals(expectedPadding[i], bank.getPadding());
                 assertEquals(8.4287109375f, bank.getGlyphs(0).getAdvance(), EPSILON);
                 assertEquals(16.296875f, bank.getMaxAscent() + bank.getMaxDescent(), EPSILON);
+                assertTrue(bank.getHasLayoutMetrics());
+                Glyph glyph = bank.getGlyphs(1);
+                assertEquals('L', glyph.getCharacter());
+                assertEquals(expectedWidth, glyph.getLayoutLeftBearing() + glyph.getLayoutWidth(), EPSILON);
             }
             if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
                 // Layout padding must not change the native SDF's sampling range.
                 assertEquals(i == 0 ? 3.0f : 6.5f, fontc.getGlyphBank().getSdfSpread(), EPSILON);
             }
+        }
+    }
+
+    // Verifies proportional fonts also preserve preview measurement, guarding
+    // against applying raster bounds to compiled text layout (#13339).
+    @Test
+    public void testCompiledProportionalFontLayoutMetrics() throws Exception {
+        FontDesc desc = FontDesc.newBuilder().setFont("Tuffy.ttf").setMaterial("font.material")
+            .setSize(15).setCharacters("Wi").setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD).build();
+        GlyphBank bank;
+        try (InputStream input = getClass().getResourceAsStream(desc.getFont())) {
+            bank = new Fontc().compileForEditorBuild(input, desc, null, null);
+        }
+        assertFalse(bank.getIsMonospaced());
+        assertTrue(bank.getHasLayoutMetrics());
+        Glyph wide = bank.getGlyphs(0);
+        Glyph narrow = bank.getGlyphs(1);
+        assertEquals('W', wide.getCharacter());
+        assertEquals('i', narrow.getCharacter());
+        assertTrue(wide.getAdvance() > narrow.getAdvance());
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = desc.getSize();
+        params.cacheWidth = params.cacheHeight = 1;
+        params.useTextShaping = false;
+        try (InputStream input = getClass().getResourceAsStream(desc.getFont());
+             FontRenderer renderer = new FontRenderer(desc.getFont(), input.readAllBytes(), params)) {
+            assertEquals(renderer.measure("Wi", false, 0, 1, 0).width,
+                wide.getAdvance() + (narrow.getLayoutLeftBearing() + narrow.getLayoutWidth()), EPSILON);
         }
     }
 
