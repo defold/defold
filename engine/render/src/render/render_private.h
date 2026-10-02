@@ -27,6 +27,7 @@
 #include <dlib/index_pool.h>
 
 #include "render.h"
+#include "prepared_render_list.h"
 
 extern "C"
 {
@@ -216,6 +217,7 @@ namespace dmRender
     {
         RenderListDispatchFn        m_DispatchFn;
         RenderListVisibilityFn      m_VisibilityFn;
+        RenderListBoundsFn          m_SnapshotBoundsFn;
         void*                       m_UserData;
     };
 

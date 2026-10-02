@@ -20,6 +20,10 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#if defined(__APPLE__)
+#include <pthread.h>
+#include <pthread/qos.h>
+#endif
 
 namespace dmRender
 {
@@ -105,12 +109,24 @@ namespace dmRender
         bool m_Stop;
         bool m_Building;
         bool m_ControlPending;
+        bool m_InteractiveQos;
     };
 
     static void RenderWorker(void* data)
     {
         RenderThread* t = (RenderThread*)data;
+#if defined(__APPLE__)
+        pthread_override_t qos_override = 0;
+        if (t->m_InteractiveQos)
+        {
+            qos_override = pthread_override_qos_class_start_np(pthread_self(), QOS_CLASS_USER_INTERACTIVE, 0);
+            fprintf(stderr, "%s\n", qos_override ? "PoC worker QoS: enabled" : "ERROR: PoC worker QoS failed");
+        }
+#endif
         dmMutex::Lock(t->m_Mutex);
+#if defined(__APPLE__)
+        t->m_Stats.m_InteractiveQosApplied = qos_override != 0;
+#endif
         for (;;)
         {
             if (t->m_ControlPending)
@@ -150,9 +166,13 @@ namespace dmRender
             dmConditionVariable::Wait(t->m_Changed, t->m_Mutex);
         }
         dmMutex::Unlock(t->m_Mutex);
+#if defined(__APPLE__)
+        if (qos_override && pthread_override_qos_class_end_np(qos_override) != 0)
+            fprintf(stderr, "ERROR: PoC worker QoS cleanup failed\n");
+#endif
     }
 
-    HRenderThread NewRenderThread(RenderThreadFunction render, void* context)
+    HRenderThread NewRenderThread(RenderThreadFunction render, void* context, bool interactive_qos)
     {
         RenderThread* t = new RenderThread;
         memset(t, 0, sizeof(*t));
@@ -160,6 +180,7 @@ namespace dmRender
         t->m_Changed = dmConditionVariable::New();
         t->m_Render = render;
         t->m_Context = context;
+        t->m_InteractiveQos = interactive_qos;
         t->m_Stats.m_SlotCount = 2;
         t->m_Stats.m_ControlCapacity = 1;
         t->m_Stats.m_QueueBytes = sizeof(*t);

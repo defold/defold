@@ -20,6 +20,12 @@
 
 namespace dmTime
 {
+#if defined(__APPLE__)
+    // Experimental blocking wait in GetMonotonicTime() microseconds. Returns
+    // false on a Mach API failure so the caller can fall back to ordinary sleep.
+    bool SleepUntil(uint64_t deadline, bool staged = false);
+#endif
+
     inline void BusyWait(uint32_t useconds) {
         uint64_t end = dmTime::GetMonotonicTime() + (uint64_t)useconds;
         while (dmTime::GetMonotonicTime() < end);

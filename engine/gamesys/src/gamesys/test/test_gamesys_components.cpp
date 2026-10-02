@@ -14,6 +14,8 @@
 
 #include "test_gamesys_private.h"
 #include "../components/comp_sprite.h"
+#include "../components/comp_particlefx.h"
+#include <render/prepared_render_list.h>
 #include "../resources/res_textureset.h"
 
 using namespace dmVMath;
@@ -3654,5 +3656,85 @@ TEST_F(SpriteTest, AtlasReplacementInvalidatesAnimationCache)
         RenderCollection(m_RenderContext, m_Collection);
     }
     dmMemory::AlignedFree(bytes);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies particle preparation produces the same vertices as legacy batching,
+// then keeps those vertices and culling bounds intact across another simulation update.
+TEST_F(ParticleFxTest, PreparedParticleGeometrySurvivesUpdate)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instances[2];
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        instances[i] = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64(i ? "/outside" : "/inside"), 0,
+            Point3(i ? 1000 : 0, 0, 0), Quat::identity(), Vector3(1));
+        ASSERT_NE((void*)0, instances[i]);
+        dmMessage::URL receiver;
+        receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+        receiver.m_Path = dmGameObject::GetIdentifier(instances[i]);
+        receiver.m_Fragment = dmHashString64("particlefx");
+        dmMessage::Post(0, &receiver, dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash,
+            (uintptr_t)instances[i], (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, 0, 0, 0);
+    }
+    m_UpdateContext.m_DT = 0.1f;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    }
+    uint32_t type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("particlefxc"));
+    dmGameObject::ComponentsRenderParams params;
+    params.m_Collection = m_Collection;
+    params.m_World = dmGameObject::GetWorld(m_Collection, type);
+    params.m_Context = dmGameObject::GetContext(m_Collection, type);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameSystem::CompParticleFXRender(params));
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    dmRender::HBufferedRenderBuffer buffer;
+    dmGameSystem::GetParticleFXWorldRenderBuffers(params.m_World, &buffer);
+    dmGraphics::VertexBuffer* vb = (dmGraphics::VertexBuffer*)dmRender::GetBuffer(m_RenderContext, buffer);
+    uint32_t size = dmGraphics::GetVertexBufferSize((dmGraphics::HVertexBuffer)vb);
+    ASSERT_GT(size, 0U);
+    dmArray<uint8_t> expected;
+    expected.SetCapacity(size);
+    expected.PushArray((uint8_t*)vb->m_Buffer, size);
+
+    ((dmGameSystem::ParticleFXContext*)params.m_Context)->m_PreparedRendering = true;
+    dmGraphics::VertexUploadBatch uploads;
+    dmRender::PreparedRenderList frame;
+    dmGraphics::BeginVertexUploadCapture(&uploads);
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameSystem::CompParticleFXRender(params));
+    dmRender::RenderListEnd(m_RenderContext);
+    bool prepared = dmRender::PrepareRenderList(m_RenderContext, &frame);
+    bool captured = dmGraphics::EndVertexUploadCapture();
+    ASSERT_TRUE(prepared);
+    ASSERT_TRUE(captured);
+    ASSERT_EQ(2U, frame.m_Entries.Size());
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGraphics::ReplayVertexUploads(&uploads);
+    vb = (dmGraphics::VertexBuffer*)dmRender::GetBuffer(m_RenderContext, buffer);
+    ASSERT_EQ(size, dmGraphics::GetVertexBufferSize((dmGraphics::HVertexBuffer)vb));
+    // The legacy test material has unpopulated normal/uv fields and the GPU
+    // allocation has spare alignment vertices. Compare the authored position
+    // bytes of actual vertices, excluding those unspecified bytes.
+    for (uint32_t i = 0; i < frame.m_Entries.Size(); ++i)
+    {
+        const dmRender::RenderObject& ro = frame.m_Entries[i].m_Object;
+        uint32_t stride = dmGraphics::GetVertexDeclarationStride(ro.m_VertexDeclaration);
+        for (uint32_t v = ro.m_VertexStart; v < ro.m_VertexStart + ro.m_VertexCount; ++v)
+            ASSERT_EQ(0, memcmp(expected.Begin() + v * stride, vb->m_Buffer + v * stride, 3 * sizeof(float)));
+    }
+    dmRender::RenderListBegin(m_RenderContext);
+    dmRender::SubmitPreparedRenderList(m_RenderContext, &frame);
+    dmRender::FrustumOptions frustum;
+    frustum.m_Matrix = Matrix4::orthographic(-100, 100, -100, 100, -1, 1);
+    frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
+    dmRender::DrawRenderList(m_RenderContext, 0, 0, &frustum, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(1U, m_RenderContext->m_RenderObjects.Size());
+    dmRender::ClearRenderObjects(m_RenderContext);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

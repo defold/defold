@@ -109,6 +109,7 @@ namespace dmEngine
     };
 
     struct SpriteThreadState;
+    struct MixedInlineState;
     struct Engine
     {
         Engine(dmEngineService::HEngineService engine_service);
@@ -132,7 +133,10 @@ namespace dmEngine
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         SpriteThreadState*                         m_SpriteThread;
+        MixedInlineState*                          m_MixedInline;
         dmRender::FrameTrace*                       m_SpriteTrace;
+        const char*                                m_PocCapturePath;
+        uint32_t                                   m_PocCaptureFramesLeft;
         uint64_t                                   m_SpritePaceBegin;
         uint64_t                                   m_SpritePaceEnd;
         uint64_t                                   m_SpritePaceDeadline;
@@ -172,6 +176,9 @@ namespace dmEngine
         uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
         uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
         uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
+        uint32_t                                    m_PocDeadlineWait;          // Apple experiment: 0 ordinary sleep, 1 deadline, 2 staged deadline
+        uint32_t                                    m_PocReplayFrequency;       // Opt-in deterministic simulation; pacing still uses wall time
+        void*                                       m_PocMainQosOverride;       // Scoped Apple experiment; released before engine deletion
         float                                       m_PacedFrameTimeDebt;       // Signed accounted-elapsed-versus-simulated time balance, preserved across pacing modes
         float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
         uint32_t                                    m_UpdateFrequency;
@@ -270,6 +277,7 @@ namespace dmEngine
     // adds at most max(0, max_time_step - fixed_dt); negative balance shortens the
     // step without allowing negative dt. Exposed for deterministic unit testing.
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
+    bool IsPocThreadComponentAllowed(const char* name, bool mixed, bool gameplay, bool has_renderer);
 
     /**
      *

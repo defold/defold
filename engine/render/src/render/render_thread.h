@@ -39,6 +39,7 @@ namespace dmRender
         uint32_t m_SlotCount;
         uint32_t m_ControlCapacity;
         uint32_t m_QueueBytes;
+        uint32_t m_InteractiveQosApplied;
     };
     // Opt-in bounded CPU trace. Producer allocates records; publication transfers
     // each record to the consumer; Metal completion writes only GPU fields.
@@ -70,7 +71,7 @@ namespace dmRender
     FrameTraceRecord* BeginFrameTrace(FrameTrace* trace);
     bool DeleteFrameTrace(FrameTrace* trace, const char* path);
 
-    HRenderThread NewRenderThread(RenderThreadFunction render, void* context);
+    HRenderThread NewRenderThread(RenderThreadFunction render, void* context, bool interactive_qos = false);
     // Begin reserves the only building slot. Publish waits for the previous reader.
     uint32_t BeginRenderThreadFrame(HRenderThread thread);
     void MarkRenderThreadFrameCaptured(HRenderThread thread);

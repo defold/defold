@@ -47,6 +47,83 @@ namespace dmGraphics
     static void (*g_RenderMutationBarrier)(void*) = 0;
     static void* g_RenderMutationContext = 0;
     static dmThread::Thread g_RenderProducerThread;
+    static VertexUploadBatch* g_VertexUploadCapture = 0;
+
+    uint64_t GetVertexUploadCapacity(const VertexUploadBatch* batch)
+    {
+        return sizeof(*batch) + batch->m_Data.Capacity() + batch->m_Uploads.Capacity() * sizeof(VertexUpload);
+    }
+
+    void BeginVertexUploadCapture(VertexUploadBatch* batch)
+    {
+        assert(!g_VertexUploadCapture);
+        batch->m_Uploads.SetSize(0);
+        batch->m_Data.SetSize(0);
+        batch->m_Failed = false;
+        g_VertexUploadCapture = batch;
+    }
+
+    bool EndVertexUploadCapture()
+    {
+        assert(g_VertexUploadCapture);
+        bool ok = !g_VertexUploadCapture->m_Failed;
+        g_VertexUploadCapture = 0;
+        if (!ok) dmLogError("Mixed vertex upload capture exceeded its fixed budget");
+        return ok;
+    }
+
+    static void CaptureVertexUpload(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data, BufferUsage usage, bool sub_data)
+    {
+        VertexUploadBatch* batch = g_VertexUploadCapture;
+        if (batch->m_Failed) return;
+        uint32_t bytes = data ? size : 0;
+        uint64_t needed = (uint64_t)batch->m_Data.Size() + bytes;
+        if (size > VertexUploadBatch::MAX_PAYLOAD || needed > VertexUploadBatch::MAX_PAYLOAD || batch->m_Uploads.Size() == VertexUploadBatch::MAX_UPLOADS)
+        {
+            batch->m_Failed = true;
+            return;
+        }
+        uint32_t data_capacity = batch->m_Data.Capacity();
+        uint32_t upload_capacity = batch->m_Uploads.Capacity();
+        if (needed > data_capacity)
+            data_capacity = dmMath::Min<uint32_t>(VertexUploadBatch::MAX_PAYLOAD, dmMath::Max<uint32_t>((uint32_t)needed, dmMath::Max<uint32_t>(4096, data_capacity * 2)));
+        if (batch->m_Uploads.Full())
+            upload_capacity = dmMath::Min<uint32_t>(VertexUploadBatch::MAX_UPLOADS, dmMath::Max<uint32_t>(16, upload_capacity * 2));
+        const uint64_t growth = GetVertexUploadCapacity(batch) +
+            (data_capacity != batch->m_Data.Capacity() ? data_capacity : 0) +
+            (upload_capacity != batch->m_Uploads.Capacity() ? upload_capacity * sizeof(VertexUpload) : 0);
+        if (growth > VertexUploadBatch::MAX_GROWTH_BYTES)
+        {
+            batch->m_Failed = true;
+            return;
+        }
+        batch->m_GrowthPeak = dmMath::Max(batch->m_GrowthPeak, growth);
+        if (data_capacity != batch->m_Data.Capacity()) batch->m_Data.SetCapacity(data_capacity);
+        if (upload_capacity != batch->m_Uploads.Capacity()) batch->m_Uploads.SetCapacity(upload_capacity);
+        VertexUpload upload;
+        upload.m_Buffer = buffer;
+        upload.m_Offset = offset;
+        upload.m_Size = size;
+        upload.m_DataOffset = data ? batch->m_Data.Size() : UINT32_MAX;
+        upload.m_Usage = usage;
+        upload.m_SubData = sub_data;
+        if (bytes) batch->m_Data.PushArray((const uint8_t*)data, bytes);
+        batch->m_Uploads.Push(upload);
+    }
+
+    void ReplayVertexUploads(const VertexUploadBatch* batch)
+    {
+        assert(!g_VertexUploadCapture && !batch->m_Failed);
+        for (uint32_t i = 0; i < batch->m_Uploads.Size(); ++i)
+        {
+            const VertexUpload& upload = batch->m_Uploads[i];
+            const void* data = upload.m_DataOffset == UINT32_MAX ? 0 : batch->m_Data.Begin() + upload.m_DataOffset;
+            if (upload.m_SubData)
+                SetVertexBufferSubData(upload.m_Buffer, upload.m_Offset, upload.m_Size, data);
+            else
+                SetVertexBufferData(upload.m_Buffer, upload.m_Size, data, upload.m_Usage);
+        }
+    }
 
     void RegisterRenderThreadAdapter(RenderThreadAdapterPrepare prepare, RenderThreadAdapterDrain drain, RenderThreadAdapterMemory memory, RenderThreadAdapterTimings timings)
     {
@@ -2257,11 +2334,21 @@ namespace dmGraphics
     }
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        if (g_VertexUploadCapture)
+        {
+            CaptureVertexUpload(buffer, 0, size, data, buffer_usage, false);
+            return;
+        }
         RenderMutationBarrier();
         g_functions.m_SetVertexBufferData(buffer, size, data, buffer_usage);
     }
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (g_VertexUploadCapture)
+        {
+            CaptureVertexUpload(buffer, offset, size, data, BUFFER_USAGE_STREAM_DRAW, true);
+            return;
+        }
         RenderMutationBarrier();
         g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
     }

@@ -48,6 +48,10 @@
 #include <dlib/sys.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
+#if defined(__APPLE__)
+#include <pthread.h>
+#include <pthread/qos.h>
+#endif
 #include <graphics/graphics.h>
 #include <extension/extension.h>
 #include <extension/extension.hpp>
@@ -64,6 +68,7 @@
 #include <render/render.h>
 #include <render/render_thread.h>
 #include <render/render_command.h>
+#include <render/prepared_render_list.h>
 #include <gamesys/components/comp_sprite.h>
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
@@ -436,7 +441,10 @@ namespace dmEngine
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_SpriteThread(0)
+    , m_MixedInline(0)
     , m_SpriteTrace(0)
+    , m_PocCapturePath(0)
+    , m_PocCaptureFramesLeft(0)
     , m_SpritePaceBegin(0)
     , m_SpritePaceEnd(0)
     , m_SpritePaceDeadline(0)
@@ -460,6 +468,8 @@ namespace dmEngine
     , m_NextFrameTime(0)
     , m_FramePacingFrequency(0)
     , m_FrameTimeRemainder(0)
+    , m_PocDeadlineWait(0)
+    , m_PocMainQosOverride(0)
     , m_PacedFrameTimeDebt(0.0f)
     , m_AccumFrameTime(0.0f)
     , m_UpdateFrequency(0)
@@ -497,12 +507,22 @@ namespace dmEngine
         return new Engine(engine_service);
     }
 
+    struct MixedInlineState
+    {
+        dmRender::PreparedRenderList m_Mixed;
+        dmGraphics::VertexUploadBatch m_Uploads;
+        dmRender::CapturedCommands m_Commands;
+    };
+
     struct SpriteThreadState
     {
         dmRender::HRenderThread m_Thread;
         dmRender::CapturedCommands m_Commands[2];
         dmRender::FrameTraceRecord* m_Trace[2];
         void* m_World;
+        dmRender::PreparedRenderList m_Mixed;
+        dmGraphics::VertexUploadBatch m_MixedUploads;
+        bool m_MixedEnabled;
         float m_Time[2];
         float m_Dt[2];
         uint32_t m_DelayUs;
@@ -536,6 +556,48 @@ namespace dmEngine
         engine->m_SpriteThread->m_Paused = paused;
     }
 
+    // Opt-in diagnostic readback, disabled in all timing runs. Only the rendering
+    // thread touches the countdown; configuration is immutable after startup.
+    static void CapturePocFrame(Engine* engine)
+    {
+        if (!engine->m_PocCapturePath || !engine->m_PocCaptureFramesLeft || --engine->m_PocCaptureFramesLeft)
+            return;
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_METAL)
+        {
+            dmLogError("PoC frame capture requires Metal");
+            return;
+        }
+        int32_t x, y;
+        uint32_t width, height;
+        dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &width, &height);
+        uint64_t bytes = (uint64_t)width * height * 4;
+        if (!bytes || bytes > 64 * 1024 * 1024)
+        {
+            dmLogError("PoC frame capture exceeds 64 MiB");
+            return;
+        }
+        dmArray<uint8_t> pixels;
+        pixels.SetCapacity((uint32_t)bytes);
+        pixels.SetSize((uint32_t)bytes);
+        dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, width, height, pixels.Begin(), pixels.Size());
+        FILE* output = fopen(engine->m_PocCapturePath, "wb");
+        if (!output)
+        {
+            dmLogError("Could not open PoC frame capture");
+            return;
+        }
+        // This diagnostic is Metal-only: readback has native BGRA byte order.
+        fprintf(output, "P6\n%u %u\n255\n", width, height);
+        for (uint32_t i = 0; i < pixels.Size(); i += 4)
+        {
+            uint8_t rgb[3] = { pixels[i + 2], pixels[i + 1], pixels[i] };
+            fwrite(rgb, 1, sizeof(rgb), output);
+        }
+        bool failed = ferror(output) != 0;
+        failed = fclose(output) != 0 || failed;
+        if (failed) dmLogError("Could not write PoC frame capture");
+    }
+
     static void SpriteThreadRender(void* context, uint32_t slot, uint64_t id)
     {
         Engine* engine = (Engine*)context;
@@ -547,20 +609,36 @@ namespace dmEngine
         dmRender::BeginFrame(engine->m_RenderContext, state->m_Time[slot], state->m_Dt[slot]);
         if (trace) dmGraphics::SetRenderFrameTimings(engine->m_GraphicsContext, &trace->m_Graphics);
         dmGraphics::BeginFrame(engine->m_GraphicsContext);
+        if (state->m_MixedEnabled)
+            dmGraphics::ReplayVertexUploads(&state->m_MixedUploads);
         dmRender::RenderListBegin(engine->m_RenderContext);
         dmGameSystem::RenderSpriteThreadFrame(state->m_World, &engine->m_SpriteContext, slot);
+        if (state->m_MixedEnabled)
+            dmRender::SubmitPreparedRenderList(engine->m_RenderContext, &state->m_Mixed);
         dmRender::RenderListEnd(engine->m_RenderContext);
         dmRender::CapturedCommands& commands = state->m_Commands[slot];
         dmRender::ParseCommands(engine->m_RenderContext, commands.m_Commands, commands.m_Count, false);
         dmRender::ClearRenderObjects(engine->m_RenderContext);
+        CapturePocFrame(engine);
         dmGraphics::Flip(engine->m_GraphicsContext);
         if (trace) trace->m_SubmitEnd = dmTime::GetMonotonicTime();
     }
 
     static dmGameObject::CreateResult RejectSpriteThreadComponent(const dmGameObject::ComponentCreateParams& params)
     {
-        dmLogError("Sprite thread PoC supports only sprite, script and preloaded factory components");
+        dmLogError("Thread PoC component rejected; GUI/particles require mixed_preparation, physics/sound require poc_gameplay_components");
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    bool IsPocThreadComponentAllowed(const char* name, bool mixed, bool gameplay, bool has_renderer)
+    {
+        if (!strcmp(name, "spritec") || !strcmp(name, "scriptc") || !strcmp(name, "factoryc"))
+            return true;
+        if (mixed && (!strcmp(name, "guic") || !strcmp(name, "particlefxc")))
+            return true;
+        // These components remain producer-owned. Reject any future rendering
+        // callback until it has an explicit snapshot/ownership implementation.
+        return gameplay && !has_renderer && (!strcmp(name, "collisionobjectc") || !strcmp(name, "soundc"));
     }
 
     static bool StartSpriteThread(Engine* engine)
@@ -577,11 +655,13 @@ namespace dmEngine
         SpriteThreadState* state = new SpriteThreadState;
         engine->m_SpriteThread = state;
         state->m_World = dmGameObject::GetWorld(engine->m_MainCollection, dmGameObject::GetComponentTypeIndex(engine->m_MainCollection, dmHashString64("spritec")));
+        state->m_MixedEnabled = dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0) != 0;
         state->m_DelayUs = dmConfigFile::GetInt(engine->m_Config, "render.sprite_thread_delay_us", 0);
         state->m_ProducerOwnsGraphics = false;
         state->m_Paused = false;
         dmRender::SetRenderScriptThreadedRecording(engine->m_RenderScriptPrototype->m_Instance, true);
-        state->m_Thread = dmRender::NewRenderThread(SpriteThreadRender, engine);
+        state->m_Thread = dmRender::NewRenderThread(SpriteThreadRender, engine,
+            (dmConfigFile::GetInt(engine->m_Config, "render.poc_qos", 0) & 2) != 0);
         engine->m_SpriteContext.m_RenderThread = state->m_Thread;
         engine->m_SpriteContext.m_SnapshotCommandBytes = sizeof(state->m_Commands);
         engine->m_SpriteContext.m_SnapshotPause = SpriteThreadPause;
@@ -592,6 +672,90 @@ namespace dmEngine
         dmResource::SetRenderMutationBarrier(SpriteThreadBarrier, engine);
         return true;
 #endif
+    }
+
+    static bool PrepareMixedFrame(Engine* engine, dmRender::CapturedCommands& commands,
+                                  dmRender::PreparedRenderList& mixed, dmGraphics::VertexUploadBatch& uploads,
+                                  bool preserve_sprites)
+    {
+        const uint64_t start = dmTime::GetMonotonicTime();
+        // Font SDF scale depends on these. The first milestone admits one view,
+        // projection and viewport, established before every draw in the script.
+        const dmRender::Command* view = 0;
+        const dmRender::Command* projection = 0;
+        const dmRender::Command* viewport = 0;
+        for (uint32_t i = 0; i < commands.m_Count; ++i)
+        {
+            dmRender::Command* cmd = &commands.m_Commands[i];
+            const dmRender::Command** previous = 0;
+            if (cmd->m_Type == dmRender::COMMAND_TYPE_SET_VIEW) previous = &view;
+            if (cmd->m_Type == dmRender::COMMAND_TYPE_SET_PROJECTION) previous = &projection;
+            if (cmd->m_Type == dmRender::COMMAND_TYPE_SET_VIEWPORT) previous = &viewport;
+            if (previous)
+            {
+                if (*previous)
+                {
+                    bool same = cmd->m_Type == dmRender::COMMAND_TYPE_SET_VIEWPORT ?
+                        !memcmp(cmd->m_Operands, (*previous)->m_Operands, sizeof(cmd->m_Operands)) :
+                        !memcmp((void*)cmd->m_Operands[0], (void*)(*previous)->m_Operands[0], sizeof(dmVMath::Matrix4));
+                    if (!same)
+                    {
+                        dmLogError("Mixed preparation requires one view, projection and viewport per frame");
+                        return false;
+                    }
+                }
+                *previous = cmd;
+                bool apply = true;
+                if (cmd->m_Type == dmRender::COMMAND_TYPE_SET_VIEWPORT)
+                {
+                    int32_t x, y;
+                    uint32_t width, height;
+                    dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &width, &height);
+                    apply = x != (int32_t)cmd->m_Operands[0] || y != (int32_t)cmd->m_Operands[1] ||
+                        width != cmd->m_Operands[2] || height != cmd->m_Operands[3];
+                }
+                // The worker leaves the single admitted viewport in place.
+                // Reapplying it here would trigger a GPU mutation drain every
+                // frame; only an actual change needs that ownership transfer.
+                if (apply) dmRender::ParseCommands(engine->m_RenderContext, cmd, 1, false);
+            }
+            if (cmd->m_Type == dmRender::COMMAND_TYPE_DRAW && (!view || !projection || !viewport))
+            {
+                dmLogError("Mixed preparation requires explicit view/projection/viewport before draw");
+                return false;
+            }
+        }
+        if (!preserve_sprites) dmRender::RenderListBegin(engine->m_RenderContext);
+        dmGraphics::BeginVertexUploadCapture(&uploads);
+        bool ok = true;
+        for (uint32_t i = 0; i < dmGameObject::GetNumComponentTypes(engine->m_Register); ++i)
+        {
+            dmGameObject::ComponentType* type = dmGameObject::GetComponentType(engine->m_Register, i);
+            if (strcmp(type->m_Name, "guic") && strcmp(type->m_Name, "particlefxc"))
+                continue;
+            uint32_t index = dmGameObject::GetComponentTypeIndex(engine->m_MainCollection, dmHashString64(type->m_Name));
+            dmGameObject::ComponentsRenderParams params;
+            params.m_Collection = engine->m_MainCollection;
+            params.m_World = dmGameObject::GetWorld(engine->m_MainCollection, index);
+            params.m_Context = type->m_Context;
+            if (type->m_RenderFunction(params) != dmGameObject::UPDATE_RESULT_OK)
+            {
+                ok = false;
+                break;
+            }
+        }
+        dmRender::RenderListEnd(engine->m_RenderContext);
+        bool prepared = dmRender::PrepareRenderList(engine->m_RenderContext, &mixed, preserve_sprites);
+        bool uploaded = dmGraphics::EndVertexUploadCapture();
+        ok = ok && prepared && uploaded;
+        engine->m_SpriteContext.m_MixedPrepareTime += dmTime::GetMonotonicTime() - start;
+        ++engine->m_SpriteContext.m_MixedPrepareCount;
+        engine->m_SpriteContext.m_MixedPacketCount = mixed.m_Entries.Size();
+        engine->m_SpriteContext.m_MixedCapacityBytes = dmRender::GetPreparedRenderListCapacity(&mixed);
+        engine->m_SpriteContext.m_MixedUploadCapacityBytes = dmGraphics::GetVertexUploadCapacity(&uploads);
+        engine->m_SpriteContext.m_MixedUploadUsedBytes = uploads.m_Data.Size();
+        engine->m_SpriteContext.m_MixedUploadGrowthPeak = uploads.m_GrowthPeak;
+        return ok;
     }
 
     static void StopSpriteThread(Engine* engine)
@@ -612,6 +776,16 @@ namespace dmEngine
     void Delete(HEngine engine)
     {
         StopSpriteThread(engine);
+#if defined(__APPLE__)
+        if (engine->m_PocMainQosOverride)
+        {
+            if (pthread_override_qos_class_end_np((pthread_override_t)engine->m_PocMainQosOverride) != 0)
+                fprintf(stderr, "ERROR: PoC main QoS cleanup failed\n");
+            engine->m_PocMainQosOverride = 0;
+        }
+#endif
+        delete engine->m_MixedInline;
+        engine->m_MixedInline = 0;
         if (engine->m_SpriteTrace)
         {
             if (dmGraphics::SetRenderFrameTimings(engine->m_GraphicsContext, 0))
@@ -1483,6 +1657,15 @@ namespace dmEngine
 #endif
 
         engine->m_FixedUpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.fixed_update_frequency", 60);
+        engine->m_PocReplayFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.poc_replay_hz", 0);
+        if (engine->m_PocReplayFrequency > 1000 ||
+            (engine->m_PocReplayFrequency && dmConfigFile::GetInt(engine->m_Config, "replay.enabled", 0) != 1))
+        {
+            dmLogError("engine.poc_replay_hz requires replay.enabled=1 and a frequency from 1 to 1000 (0 disables)");
+            return false;
+        }
+        if (engine->m_PocReplayFrequency)
+            fprintf(stderr, "PoC replay timestep: enabled (hz=%u)\n", engine->m_PocReplayFrequency);
         engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 1.0f / 30);
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
@@ -1773,17 +1956,58 @@ namespace dmEngine
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
+        engine->m_PocCapturePath = dmConfigFile::GetString(engine->m_Config, "render.poc_capture_path", 0);
+        engine->m_PocCaptureFramesLeft = dmConfigFile::GetInt(engine->m_Config, "render.poc_capture_frame", 60);
+        if (dmConfigFile::GetInt(engine->m_Config, "render.poc_qos", 0) < 0 ||
+            dmConfigFile::GetInt(engine->m_Config, "render.poc_qos", 0) > 3)
+        {
+            dmLogError("render.poc_qos must be 0 (default), 1 (main), 2 (worker) or 3 (both)");
+            goto bail;
+        }
+#if !defined(__APPLE__)
+        if (dmConfigFile::GetInt(engine->m_Config, "render.poc_qos", 0))
+        {
+            dmLogError("render.poc_qos is an Apple-only experiment");
+            goto bail;
+        }
+#endif
+        if (dmConfigFile::GetInt(engine->m_Config, "render.poc_deadline_wait", 0) < 0 ||
+            dmConfigFile::GetInt(engine->m_Config, "render.poc_deadline_wait", 0) > 2)
+        {
+            dmLogError("render.poc_deadline_wait must be 0, 1 or 2");
+            goto bail;
+        }
+        engine->m_PocDeadlineWait = dmConfigFile::GetInt(engine->m_Config, "render.poc_deadline_wait", 0);
+        if (engine->m_PocDeadlineWait)
+        {
+#if defined(__APPLE__)
+            // Release builds may omit the log service. Confirm the experiment to
+            // the collector so an older engine cannot silently ignore the flag.
+            fprintf(stderr, "PoC deadline wait: enabled (policy=%u)\n", engine->m_PocDeadlineWait);
+#else
+            dmLogError("render.poc_deadline_wait is an Apple-only experiment");
+            goto bail;
+#endif
+        }
         if (dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) < 0 || dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) > 2)
         {
             dmLogError("render.sprite_snapshot must be 0, 1 or 2");
             goto bail;
         }
-        if (engine->m_SpriteContext.m_SnapshotThreaded)
+        if (engine->m_SpriteContext.m_SnapshotThreaded || (engine->m_SpriteContext.m_SnapshotInline && dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0)))
         {
+            bool gameplay = dmConfigFile::GetInt(engine->m_Config, "render.poc_gameplay_components", 0) != 0;
+            if (gameplay && dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0))
+            {
+                dmLogError("Threaded gameplay PoC does not support physics debug drawing");
+                goto bail;
+            }
             for (uint32_t i = 0; i < dmGameObject::GetNumComponentTypes(engine->m_Register); ++i)
             {
                 dmGameObject::ComponentType* type = dmGameObject::GetComponentType(engine->m_Register, i);
-                if (strcmp(type->m_Name, "spritec") && strcmp(type->m_Name, "scriptc") && strcmp(type->m_Name, "factoryc"))
+                bool mixed = dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0) != 0 &&
+                    (!strcmp(type->m_Name, "guic") || !strcmp(type->m_Name, "particlefxc"));
+                if (!IsPocThreadComponentAllowed(type->m_Name, mixed, gameplay, type->m_RenderFunction != 0))
                     type->m_CreateFunction = RejectSpriteThreadComponent;
             }
         }
@@ -1849,8 +2073,31 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
         dmGameObject::Init(engine->m_MainCollection);
+        if (engine->m_SpriteContext.m_SnapshotInline && !engine->m_SpriteContext.m_SnapshotThreaded &&
+            dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0))
+        {
+            if (!engine->m_RenderScriptPrototype) goto bail;
+            engine->m_MixedInline = new MixedInlineState;
+            engine->m_SpriteContext.m_SnapshotCommandBytes = sizeof(engine->m_MixedInline->m_Commands);
+            dmRender::SetRenderScriptThreadedRecording(engine->m_RenderScriptPrototype->m_Instance, true);
+        }
         if (engine->m_SpriteContext.m_SnapshotThreaded && !StartSpriteThread(engine))
             goto bail;
+
+#if defined(__APPLE__)
+        // Start after worker creation to keep the main-only treatment independent
+        // of inherited scheduling. Preserve the host thread's requested QoS.
+        if (dmConfigFile::GetInt(engine->m_Config, "render.poc_qos", 0) & 1)
+        {
+            engine->m_PocMainQosOverride = pthread_override_qos_class_start_np(pthread_self(), QOS_CLASS_USER_INTERACTIVE, 0);
+            if (!engine->m_PocMainQosOverride)
+            {
+                fprintf(stderr, "ERROR: PoC main QoS failed\n");
+                goto bail;
+            }
+            fprintf(stderr, "PoC main QoS: enabled\n");
+        }
+#endif
 
         engine->m_LastReloadMTime = 0;
 
@@ -2292,7 +2539,17 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameObject::Render(engine->m_MainCollection);
+                    if (engine->m_MixedInline)
+                    {
+                        uint32_t type = dmGameObject::GetComponentTypeIndex(engine->m_MainCollection, dmHashString64("spritec"));
+                        dmGameObject::ComponentsRenderParams params;
+                        params.m_Collection = engine->m_MainCollection;
+                        params.m_World = dmGameObject::GetWorld(engine->m_MainCollection, type);
+                        params.m_Context = &engine->m_SpriteContext;
+                        dmGameSystem::CompSpriteRender(params);
+                    }
+                    else
+                        dmGameObject::Render(engine->m_MainCollection);
                     if (sprite_trace) sprite_trace->m_PrepareEnd = dmTime::GetMonotonicTime();
 
                     // Make sure we dispatch messages to the render script
@@ -2302,13 +2559,31 @@ bail:
                         dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
                     }
 
+                    if (engine->m_MixedInline)
+                    {
+                        MixedInlineState* mixed = engine->m_MixedInline;
+                        bool ok = dmRender::CaptureRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt, &mixed->m_Commands) &&
+                            PrepareMixedFrame(engine, mixed->m_Commands, mixed->m_Mixed, mixed->m_Uploads, true);
+                        if (!ok)
+                        {
+                            dmEngine::Exit(engine, 1);
+                            return;
+                        }
+                    }
                     dmRender::RenderListEnd(engine->m_RenderContext);
+                    if (sprite_trace) sprite_trace->m_PrepareEnd = dmTime::GetMonotonicTime();
 
                     if (sprite_trace) sprite_trace->m_RenderBegin = dmTime::GetMonotonicTime();
                     if (sprite_trace) dmGraphics::SetRenderFrameTimings(engine->m_GraphicsContext, &sprite_trace->m_Graphics);
                     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
-                    if (engine->m_RenderScriptPrototype)
+                    if (engine->m_MixedInline)
+                    {
+                        MixedInlineState* mixed = engine->m_MixedInline;
+                        dmGraphics::ReplayVertexUploads(&mixed->m_Uploads);
+                        dmRender::ParseCommands(engine->m_RenderContext, mixed->m_Commands.m_Commands, mixed->m_Commands.m_Count, false);
+                    }
+                    else if (engine->m_RenderScriptPrototype)
                     {
                         dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
                     }
@@ -2349,6 +2624,14 @@ bail:
                         dmRender::DrainRenderThread(state->m_Thread);
                         if (sprite_trace) sprite_trace->m_QueueDrainEnd = dmTime::GetMonotonicTime();
                         dmGameSystem::FinishSpriteThreadFrame(state->m_World, &engine->m_SpriteContext, sprite_slot);
+                        if (state->m_MixedEnabled)
+                            dmRender::BeginFrame(engine->m_RenderContext, state->m_Time[sprite_slot], state->m_Dt[sprite_slot]);
+                        if (state->m_MixedEnabled && !PrepareMixedFrame(engine, state->m_Commands[sprite_slot], state->m_Mixed, state->m_MixedUploads, false))
+                        {
+                            dmRender::CancelRenderThreadFrame(state->m_Thread, sprite_slot);
+                            dmEngine::Exit(engine, 1);
+                            return;
+                        }
                         if (sprite_trace) sprite_trace->m_SurfaceBegin = dmTime::GetMonotonicTime();
                         dmGraphics::PrepareRenderThreadSurface(engine->m_GraphicsContext, true);
                         if (sprite_trace) sprite_trace->m_SurfaceEnd = dmTime::GetMonotonicTime();
@@ -2392,6 +2675,7 @@ bail:
                     dmExtension::PostRender(ext_params);
                 }
 
+                CapturePocFrame(engine);
                 dmGraphics::Flip(engine->m_GraphicsContext);
                 if (sprite_trace) sprite_trace->m_SubmitEnd = dmTime::GetMonotonicTime();
 
@@ -2490,6 +2774,17 @@ bail:
         if (engine->m_SpriteTrace) engine->m_SpritePaceDeadline = engine->m_NextFrameTime;
         while (now < engine->m_NextFrameTime)
         {
+#if defined(__APPLE__)
+            if (engine->m_PocDeadlineWait)
+            {
+                if (!dmTime::SleepUntil(engine->m_NextFrameTime, engine->m_PocDeadlineWait == 2))
+                {
+                    fprintf(stderr, "ERROR: PoC deadline wait failed; falling back to Sleep\n");
+                    engine->m_PocDeadlineWait = 0;
+                }
+            }
+            else
+#endif
             dmTime::Sleep((uint32_t)(engine->m_NextFrameTime - now));
             now = dmTime::GetMonotonicTime();
         }
@@ -2558,6 +2853,15 @@ bail:
         uint64_t time = dmTime::GetMonotonicTime();
         uint64_t frame_time = time - engine->m_PreviousFrameTime; // The actual time between two engine frames
         engine->m_PreviousFrameTime = time;
+
+        // Replay drives simulation at exactly one fixed step per rendered update.
+        // PaceFrame still controls wall cadence; measured intervals use real time.
+        if (engine->m_PocReplayFrequency)
+        {
+            step_dt = 1.0f / (float)engine->m_PocReplayFrequency;
+            num_steps = 1;
+            return;
+        }
 
         float frame_dt = (float)(frame_time / 1000000.0);
 
@@ -2742,7 +3046,7 @@ bail:
             }
             else if (descriptor == dmSystemDDF::TogglePhysicsDebug::m_DDFDescriptor) // "toggle_physics"
             {
-                if(dLib::IsDebugMode())
+                if(dLib::IsDebugMode() && !self->m_SpriteContext.m_SnapshotThreaded)
                 {
                     self->m_PhysicsContextBox2D.m_BaseContext.m_Debug = !self->m_PhysicsContextBox2D.m_BaseContext.m_Debug;
                     self->m_PhysicsContextBullet3D.m_BaseContext.m_Debug = !self->m_PhysicsContextBullet3D.m_BaseContext.m_Debug;

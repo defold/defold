@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <render/prepared_render_list.h>
 #include "comp_particlefx.h"
 
 #include <float.h>
@@ -329,8 +330,11 @@ namespace dmGameSystem
             }
         }
 
-        dmRender::TrimBuffer(ctx->m_RenderContext, w->m_VertexBuffer);
-        dmRender::RewindBuffer(ctx->m_RenderContext, w->m_VertexBuffer);
+        if (!ctx->m_PreparedRendering)
+        {
+            dmRender::TrimBuffer(ctx->m_RenderContext, w->m_VertexBuffer);
+            dmRender::RewindBuffer(ctx->m_RenderContext, w->m_VertexBuffer);
+        }
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -599,6 +603,12 @@ namespace dmGameSystem
         }
     }
 
+    static void ParticleSnapshotBounds(const dmRender::RenderListEntry& entry, dmVMath::Vector4* sphere)
+    {
+        const dmParticle::EmitterRenderData* data = (const dmParticle::EmitterRenderData*)entry.m_UserData;
+        *sphere = dmVMath::Vector4(dmVMath::Vector3(data->m_FrustumCullingCenter), data->m_FrustumCullingRadiusSq);
+    }
+
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
         for (uint32_t i = 0; i < params.m_NumEntries; ++i)
@@ -625,6 +635,11 @@ namespace dmGameSystem
 
         uint32_t count = components.Size();
         uint32_t world_emitter_count = pfx_world->m_EmitterCount;
+        if (ctx->m_PreparedRendering)
+        {
+            dmRender::TrimBuffer(ctx->m_RenderContext, pfx_world->m_VertexBuffer);
+            dmRender::RewindBuffer(ctx->m_RenderContext, pfx_world->m_VertexBuffer);
+        }
 
         if (pfx_world->m_RenderObjects.Capacity() < world_emitter_count)
         {
@@ -639,6 +654,7 @@ namespace dmGameSystem
 
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(ctx->m_RenderContext, world_emitter_count);
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(ctx->m_RenderContext, &RenderListDispatch, &RenderListFrustumCulling, pfx_world);
+        dmRender::SetRenderListSnapshotBounds(ctx->m_RenderContext, dispatch, ParticleSnapshotBounds);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         for (uint32_t i = 0; i < count; ++i)
@@ -1209,6 +1225,8 @@ namespace dmGameSystem
         particlefx_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, dmParticle::MAX_PARTICLE_GPU_COUNT_KEY, 1024);
         particlefx_context->m_MaxParticleBufferCount = dmConfigFile::GetInt(ctx->m_Config, dmParticle::MAX_PARTICLE_CPU_COUNT_KEY, 1024);
         particlefx_context->m_Debug = false;
+        particlefx_context->m_PreparedRendering = dmConfigFile::GetInt(ctx->m_Config, "render.mixed_preparation", 0) != 0 &&
+            dmConfigFile::GetInt(ctx->m_Config, "render.sprite_snapshot", 0) == 2;
 
         dmGameObject::ComponentTypeSetPrio(type, 800);
         dmGameObject::ComponentTypeSetContext(type, particlefx_context);

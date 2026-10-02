@@ -554,6 +554,22 @@ namespace dmGameSystem
             lua_pushnumber(L, (lua_Number)device_bytes);
             lua_setfield(L, -2, "metal_device_allocated_bytes");
         }
+        lua_pushnumber(L, (lua_Number)context->m_MixedPrepareTime);
+        lua_setfield(L, -2, "mixed_prepare_us_total");
+        lua_pushnumber(L, (lua_Number)context->m_MixedPrepareCount);
+        lua_setfield(L, -2, "mixed_prepare_count");
+        lua_pushnumber(L, (lua_Number)context->m_MixedCapacityBytes);
+        lua_setfield(L, -2, "mixed_packet_capacity_bytes");
+        lua_pushnumber(L, (lua_Number)context->m_MixedUploadCapacityBytes);
+        lua_setfield(L, -2, "mixed_upload_capacity_bytes");
+        lua_pushnumber(L, (lua_Number)context->m_MixedUploadUsedBytes);
+        lua_setfield(L, -2, "mixed_upload_used_bytes");
+        lua_pushnumber(L, (lua_Number)context->m_MixedUploadGrowthPeak);
+        lua_setfield(L, -2, "mixed_upload_growth_peak_bytes");
+        lua_pushnumber(L, context->m_MixedPacketCount);
+        lua_setfield(L, -2, "mixed_packet_count");
+        lua_pushnumber(L, context->m_SnapshotCommandBytes);
+        lua_setfield(L, -2, "captured_command_capacity_bytes");
         if (context->m_RenderThread)
         {
             lua_pushnumber(L, context->m_SnapshotCommandBytes);

@@ -22,6 +22,53 @@ TEST(dmTime, Sleep)
     dmTime::Sleep(1);
 }
 
+#if defined(__APPLE__)
+namespace dmTime
+{
+    uint64_t MicrosecondsToWaitTicks(uint32_t useconds, uint32_t numer, uint32_t denom);
+    uint32_t DeadlineWaitChunk(uint64_t remaining, uint32_t attempt, bool staged);
+}
+
+// Verifies tick rounding and maximum chunk arithmetic without uptime multiplication overflow.
+TEST(dmTime, DeadlineWaitConversion)
+{
+    ASSERT_EQ(0ULL, dmTime::MicrosecondsToWaitTicks(0, 125, 3));
+    ASSERT_EQ(24ULL, dmTime::MicrosecondsToWaitTicks(1, 125, 3));
+    ASSERT_EQ(334ULL, dmTime::MicrosecondsToWaitTicks(1, 3, 1));
+    ASSERT_EQ(4294967295000000000ULL, dmTime::MicrosecondsToWaitTicks(1000000, 1, 0xffffffffU));
+}
+
+// Verifies future deadlines block and expired deadlines return; no upper latency bound is assumed.
+TEST(dmTime, DeadlineWait)
+{
+    uint64_t deadline = dmTime::GetMonotonicTime() + 2000;
+    ASSERT_TRUE(dmTime::SleepUntil(deadline));
+    ASSERT_GE(dmTime::GetMonotonicTime(), deadline);
+    ASSERT_TRUE(dmTime::SleepUntil(0));
+    deadline = dmTime::GetMonotonicTime() + 2000;
+    ASSERT_TRUE(dmTime::SleepUntil(deadline, true));
+    ASSERT_GE(dmTime::GetMonotonicTime(), deadline);
+}
+
+// Verifies staged waits remain positive, bound extra wakeups and avoid overflow for long deadlines.
+TEST(dmTime, StagedDeadlineWaitBounds)
+{
+    ASSERT_EQ(0U, dmTime::DeadlineWaitChunk(0, 0, true));
+    ASSERT_EQ(1U, dmTime::DeadlineWaitChunk(1, 0, true));
+    ASSERT_EQ(250U, dmTime::DeadlineWaitChunk(250, 0, true));
+    ASSERT_EQ(500U, dmTime::DeadlineWaitChunk(1000, 0, true));
+    ASSERT_EQ(1000U, dmTime::DeadlineWaitChunk(1000, 8, true));
+    ASSERT_EQ(1000U, dmTime::DeadlineWaitChunk(1000, 0, false));
+    ASSERT_EQ(1000000U, dmTime::DeadlineWaitChunk(UINT64_MAX, 8, true));
+    for (uint32_t remaining = 1; remaining < 20000; ++remaining)
+    {
+        uint32_t chunk = dmTime::DeadlineWaitChunk(remaining, 0, true);
+        ASSERT_GT(chunk, 0U);
+        ASSERT_LE(chunk, remaining);
+    }
+}
+#endif
+
 #if defined(_WIN32)
 namespace dmTime
 {

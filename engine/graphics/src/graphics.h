@@ -20,6 +20,7 @@
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
+#include <dlib/array.h>
 #include <dlib/jobsystem.h>
 #include <dlib/opaque_handle_container.h>
 
@@ -30,6 +31,32 @@
 
 namespace dmGraphics
 {
+    // Internal PoC upload snapshots. Capture on the producer while its consumer
+    // is idle; replay on the consumer before drawing. Resource barriers protect
+    // handle lifetime. Overflow rejects the complete frame, never falls back.
+    struct VertexUpload
+    {
+        HVertexBuffer m_Buffer;
+        uint32_t m_Offset;
+        uint32_t m_Size;
+        uint32_t m_DataOffset;
+        BufferUsage m_Usage;
+        bool m_SubData;
+    };
+    struct VertexUploadBatch
+    {
+        enum { MAX_UPLOADS = 4096, MAX_PAYLOAD = 16 * 1024 * 1024, MAX_GROWTH_BYTES = 32 * 1024 * 1024 };
+        dmArray<VertexUpload> m_Uploads;
+        dmArray<uint8_t> m_Data;
+        uint64_t m_GrowthPeak;
+        bool m_Failed;
+        VertexUploadBatch() : m_GrowthPeak(sizeof(*this)), m_Failed(false) {}
+    };
+    void BeginVertexUploadCapture(VertexUploadBatch* batch);
+    bool EndVertexUploadCapture();
+    void ReplayVertexUploads(const VertexUploadBatch* batch);
+    uint64_t GetVertexUploadCapacity(const VertexUploadBatch* batch);
+
     // Opt-in per-frame diagnostics. Caller owns storage until GPU drain completes.
     // CPU timestamps use dmTime's clock; GPU duration uses Metal's own clock.
     struct RenderFrameTimings

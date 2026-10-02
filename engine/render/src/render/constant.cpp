@@ -147,6 +147,8 @@ HNamedConstantBuffer NewNamedConstantBuffer()
 
 uint64_t GetNamedConstantBufferCapacity(HNamedConstantBuffer buffer)
 {
+    // A null handle reports the allocation made by NewNamedConstantBuffer.
+    if (!buffer) return sizeof(NamedConstantBuffer) + 16 * sizeof(NamedConstantBuffer::Constant);
     return sizeof(*buffer) + buffer->m_Constants.Capacity() * sizeof(NamedConstantBuffer::Constant) +
         buffer->m_Values.Capacity() * sizeof(dmVMath::Vector4);
 }

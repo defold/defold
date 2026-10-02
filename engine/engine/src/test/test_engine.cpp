@@ -22,6 +22,9 @@
 #include <dlib/http/http_client.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
+#if defined(__APPLE__)
+#include <pthread/qos.h>
+#endif
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
@@ -370,6 +373,127 @@ TEST_F(EngineTest, SetEngineThrottle)
     dmEngine::Delete(engine);
     dmEngineFinalize();
 }
+
+// Verifies gameplay admission cannot accidentally allow a live render callback or unsupported world type.
+TEST_F(EngineTest, ExperimentalGameplayAdmission)
+{
+    ASSERT_FALSE(dmEngine::IsPocThreadComponentAllowed("collisionobjectc", true, false, false));
+    ASSERT_TRUE(dmEngine::IsPocThreadComponentAllowed("collisionobjectc", true, true, false));
+    ASSERT_TRUE(dmEngine::IsPocThreadComponentAllowed("soundc", true, true, false));
+    ASSERT_FALSE(dmEngine::IsPocThreadComponentAllowed("collisionobjectc", true, true, true));
+    ASSERT_FALSE(dmEngine::IsPocThreadComponentAllowed("soundc", true, true, true));
+    ASSERT_FALSE(dmEngine::IsPocThreadComponentAllowed("collectionproxyc", true, true, false));
+    ASSERT_FALSE(dmEngine::IsPocThreadComponentAllowed("labelc", true, true, true));
+    ASSERT_TRUE(dmEngine::IsPocThreadComponentAllowed("guic", true, false, true));
+    ASSERT_FALSE(dmEngine::IsPocThreadComponentAllowed("guic", false, true, true));
+}
+
+// Verifies an accidental fixed replay setting cannot change ordinary gameplay without explicit replay activation.
+TEST_F(EngineTest, ExperimentalReplayRequiresActivation)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {"dmengine", "--config=engine.poc_replay_hz=60",
+                         "--config=dmengine.unload_builtins=0", project_path};
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    ASSERT_FALSE(initialized);
+}
+
+// Verifies opt-in replay advances exactly one fixed simulation tick despite wall-time pauses and cap changes.
+TEST_F(EngineTest, ExperimentalReplayTimeStep)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {"dmengine", "--config=replay.enabled=1", "--config=engine.poc_replay_hz=60",
+                         "--config=display.update_frequency=0", "--config=dmengine.unload_builtins=0", project_path};
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    dmEngine::Stats stats;
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+        for (uint32_t i = 0; i < 6; ++i)
+        {
+            if (i == 3)
+            {
+                dmTime::Sleep(40000);
+                dmEngine::SetUpdateFrequency(engine, 120);
+            }
+            dmEngine::Step(engine);
+        }
+        dmEngine::GetStats(engine, stats);
+        dmEngine::SetRenderEnabled(true);
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(6U, stats.m_FrameCount);
+    ASSERT_NEAR(0.1f, stats.m_TotalTime, 0.000001f);
+}
+
+#if defined(__APPLE__)
+// Verifies the main-thread experiment owns a scoped override without changing the host's requested QoS.
+TEST_F(EngineTest, ExperimentalInteractiveQos)
+{
+    qos_class_t original_qos = qos_class_self();
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {"dmengine", "--config=render.poc_qos=1", "--config=dmengine.unload_builtins=0", project_path};
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool owns_override = engine->m_PocMainQosOverride != 0;
+    qos_class_t requested_qos = qos_class_self();
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(owns_override);
+    ASSERT_EQ(original_qos, requested_qos);
+    ASSERT_EQ(original_qos, qos_class_self());
+}
+
+// Verifies the opt-in blocking timer paces without rendering and respects a runtime cap removal.
+TEST_F(EngineTest, ExperimentalDeadlineWait)
+{
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine", "--config=display.update_frequency=100", "--config=display.swap_interval=0",
+        "--config=render.poc_deadline_wait=2", "--config=dmengine.unload_builtins=0", project_path
+    };
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    uint32_t policy = engine->m_PocDeadlineWait;
+    uint64_t elapsed = 0;
+    uint64_t final_deadline = 1;
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+        uint64_t start = dmTime::GetMonotonicTime();
+        for (uint32_t i = 0; i < 4; ++i)
+            dmEngine::Step(engine);
+        elapsed = dmTime::GetMonotonicTime() - start;
+        dmEngine::SetUpdateFrequency(engine, 0);
+        dmEngine::Step(engine);
+        final_deadline = engine->m_NextFrameTime;
+        dmEngine::SetRenderEnabled(true);
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(2U, policy);
+    ASSERT_GE(elapsed, 30000ULL);
+    ASSERT_EQ(0ULL, final_deadline);
+}
+#endif
 
 TEST_F(EngineTest, FramePacingWithoutRendering)
 {

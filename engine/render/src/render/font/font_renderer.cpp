@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <render/prepared_render_list.h>
 #include <assert.h>                 // for assert
 #include <float.h>                  // for FLT_MAX
 #include <string.h>                 // for memcpy
@@ -670,6 +671,12 @@ namespace dmRender
         }
     }
 
+    static void FontSnapshotBounds(const dmRender::RenderListEntry& entry, dmVMath::Vector4* sphere)
+    {
+        const TextEntry* data = (const TextEntry*)entry.m_UserData;
+        *sphere = dmVMath::Vector4(dmVMath::Vector3(data->m_FrustumCullingCenter), data->m_FrustumCullingRadiusSq);
+    }
+
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
         DM_PROFILE("Label");
@@ -714,6 +721,7 @@ namespace dmRender
             {
                 dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
                 dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &FontRenderListDispatch, &RenderListFrustumCulling, render_context);
+                dmRender::SetRenderListSnapshotBounds(render_context, dispatch, FontSnapshotBounds);
                 dmRender::RenderListEntry* write_ptr = render_list;
 
                 for( uint32_t i = 0; i < count; ++i )

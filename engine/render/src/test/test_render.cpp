@@ -4172,6 +4172,28 @@ static void ProbeRenderControl(void* data)
     ++p->m_Controls;
 }
 
+#if defined(__APPLE__)
+// Verifies the optional worker QoS is applied before consumption and still permits clean draining/joining.
+TEST(dmRenderThreadTest, InteractiveQosLifetime)
+{
+    ThreadQueueProbe probe = {};
+    probe.m_Mutex = dmMutex::New();
+    probe.m_Changed = dmConditionVariable::New();
+    probe.m_Release = true;
+    dmRender::HRenderThread thread = dmRender::NewRenderThread(ProbeRenderThread, &probe, true);
+    dmRender::PublishRenderThreadFrame(thread, dmRender::BeginRenderThreadFrame(thread));
+    dmRender::DrainRenderThread(thread);
+    dmRender::RenderThreadStats stats;
+    dmRender::GetRenderThreadStats(thread, &stats);
+    dmRender::DeleteRenderThread(thread);
+    dmConditionVariable::Delete(probe.m_Changed);
+    dmMutex::Delete(probe.m_Mutex);
+    ASSERT_EQ(1U, stats.m_InteractiveQosApplied);
+    ASSERT_EQ(1ULL, stats.m_Completed);
+    ASSERT_EQ(1U, probe.m_Count);
+}
+#endif
+
 // Verifies two-slot admission, ordered completion, and control service with no
 // frames pending, guarding against overwrite, dropped frames and pause starvation.
 TEST(dmRenderThreadTest, OrderedSlotsAndPausedControls)
@@ -4341,4 +4363,217 @@ TEST(dmRenderThreadTest, TracePublicationOwnership)
     dmRender::DeleteRenderThread(thread);
     ASSERT_TRUE(probe.m_PublishedBeforeRead);
     ASSERT_TRUE(dmRender::DeleteFrameTrace(trace, 0));
+}
+
+struct PreparedProbe
+{
+    dmRender::RenderObject m_Object;
+    dmVMath::Vector4 m_Sphere;
+};
+
+static void PreparedProbeDispatch(const dmRender::RenderListDispatchParams& params)
+{
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+        for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
+            dmRender::AddToRender(params.m_Context, &((PreparedProbe*)params.m_Buf[*i].m_UserData)->m_Object);
+}
+
+static void PreparedProbeBounds(const dmRender::RenderListEntry& entry, dmVMath::Vector4* sphere)
+{
+    *sphere = ((PreparedProbe*)entry.m_UserData)->m_Sphere;
+}
+
+static void PreparedProbeVisibility(const dmRender::RenderListVisibilityParams& params) {}
+
+// Verifies owned constants, stencil state and bounds survive producer mutation;
+// also checks global order and repeated consumption without component callbacks.
+TEST_F(dmRenderTest, PreparedListOwnsDrawData)
+{
+    PreparedProbe probes[2];
+    dmRender::PreparedRenderList frame;
+    dmRender::RenderListBegin(m_Context);
+    dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(m_Context, PreparedProbeDispatch, PreparedProbeVisibility, 0);
+    dmRender::SetRenderListSnapshotBounds(m_Context, dispatch, PreparedProbeBounds);
+    dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, 2);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        probes[i].m_Sphere = Vector4(i ? 100.0f : 0.0f, 0, 0, 0.01f);
+        probes[i].m_Object.Init();
+        probes[i].m_Object.m_SetStencilTest = 1;
+        probes[i].m_Object.m_StencilTestParams.m_Ref = i + 1;
+        probes[i].m_Object.m_ConstantBuffer = dmRender::NewNamedConstantBuffer();
+        Vector4 value(i + 1.0f);
+        dmRender::SetNamedConstant(probes[i].m_Object.m_ConstantBuffer, dmHashString64("tint"), &value, 1);
+        entries[i].m_UserData = (uintptr_t)&probes[i];
+        entries[i].m_Dispatch = dispatch;
+        entries[i].m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+        entries[i].m_Order = 2 - i;
+    }
+    dmRender::RenderListSubmit(m_Context, entries, entries + 2);
+    ASSERT_TRUE(dmRender::PrepareRenderList(m_Context, &frame));
+    ASSERT_EQ(2U, frame.m_Entries.Size());
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmRender::DeleteNamedConstantBuffer(probes[i].m_Object.m_ConstantBuffer);
+        probes[i].m_Object.Init();
+        probes[i].m_Sphere = Vector4(999, 999, 999, 0);
+    }
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitPreparedRenderList(m_Context, &frame);
+    dmRender::FrustumOptions frustum;
+    frustum.m_Matrix = Matrix4::identity();
+    frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    dmRender::DrawRenderList(m_Context, 0, 0, &frustum, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(1U, m_Context->m_RenderObjects[0]->m_StencilTestParams.m_Ref);
+    Vector4* values;
+    uint32_t count;
+    ASSERT_TRUE(dmRender::GetNamedConstant(m_Context->m_RenderObjects[0]->m_ConstantBuffer, dmHashString64("tint"), &values, &count));
+    ASSERT_EQ(1.0f, (float)values[0].getX());
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(2U, m_Context->m_RenderObjects[0]->m_StencilTestParams.m_Ref);
+    ASSERT_EQ(1U, m_Context->m_RenderObjects[1]->m_StencilTestParams.m_Ref);
+    dmRender::RenderListBegin(m_Context);
+    ASSERT_TRUE(dmRender::PrepareRenderList(m_Context, &frame));
+    ASSERT_EQ(0U, frame.m_Entries.Size());
+}
+
+// Rejects unsupported visibility and excessive entries before dispatch/allocation,
+// preventing an unbounded or live-pointer fallback in the worker.
+TEST_F(dmRenderTest, PreparedListAdmission)
+{
+    dmRender::PreparedRenderList frame;
+    dmRender::RenderListBegin(m_Context);
+    dmRender::RenderListMakeDispatch(m_Context, PreparedProbeDispatch, PreparedProbeVisibility, 0);
+    ASSERT_FALSE(dmRender::PrepareRenderList(m_Context, &frame));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::RenderListAlloc(m_Context, dmRender::PreparedRenderList::MAX_ENTRIES + 1);
+    ASSERT_FALSE(dmRender::PrepareRenderList(m_Context, &frame));
+    ASSERT_EQ(0U, frame.m_Entries.Capacity());
+}
+
+// Ensures text becomes identical geometry and drops its shared layout reference
+// on the producer, before a GUI update can mutate or destroy that layout.
+TEST_F(dmRenderTest, PreparedListReleasesTextLayout)
+{
+    dmGraphics::ShaderDescBuilder shaders;
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shaders.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmRender::SetFontMapMaterial(m_SystemFontMap, material);
+    TextLayoutSettings settings = {};
+    settings.m_Leading = 1;
+    HTextLayout layout = CreateTextLayout(m_SystemFontMap, "Hello", settings);
+    dmRender::DrawTextParams params;
+    params.m_TextLayout = layout;
+    dmArray<uint8_t> expected;
+    uint32_t vertices = QueueTextAndCopyVertices(m_Context, m_SystemFontMap, params, expected, 0, 0);
+    ASSERT_GT(vertices, 0U);
+    dmRender::ClearRenderObjects(m_Context);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    ASSERT_EQ(2U, layout->m_RefCount);
+    dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+    dmRender::PreparedRenderList frame;
+    ASSERT_TRUE(dmRender::PrepareRenderList(m_Context, &frame));
+    ASSERT_EQ(1U, layout->m_RefCount);
+    ASSERT_EQ(0U, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(1U, frame.m_Entries.Size());
+    ASSERT_EQ(vertices, frame.m_Entries[0].m_Object.m_VertexCount);
+    ASSERT_EQ(0, memcmp(expected.Begin(), m_Context->m_TextContext.m_ClientBuffer.Begin(), expected.Size()));
+    TextLayoutRelease(layout);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitPreparedRenderList(m_Context, &frame);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+    dmRender::ClearRenderObjects(m_Context);
+    dmRender::SetFontMapMaterial(m_SystemFontMap, 0);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+static void ReplayPreparedProbeUploads(void* context, uint32_t slot, uint64_t id)
+{
+    dmGraphics::ReplayVertexUploads((dmGraphics::VertexUploadBatch*)context);
+}
+
+// Verifies allocation/sub-data command order and copied bytes on a real worker;
+// producer writes after capture must not change the data that reaches the GPU.
+TEST_F(dmRenderTest, PreparedVertexUploadsOwnBytes)
+{
+    uint8_t original[4] = { 9, 9, 9, 9 };
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, sizeof(original), original, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::VertexUploadBatch batch;
+    uint8_t source[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    uint8_t patch[3] = { 20, 21, 22 };
+    dmGraphics::BeginVertexUploadCapture(&batch);
+    dmGraphics::SetVertexBufferData(buffer, sizeof(source), source, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::SetVertexBufferSubData(buffer, 2, sizeof(patch), patch);
+    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
+    ASSERT_EQ(4U, dmGraphics::GetVertexBufferSize(buffer));
+    ASSERT_EQ(11U, batch.m_Data.Size());
+    memset(source, 255, sizeof(source));
+    memset(patch, 255, sizeof(patch));
+    dmRender::HRenderThread worker = dmRender::NewRenderThread(ReplayPreparedProbeUploads, &batch);
+    dmRender::PublishRenderThreadFrame(worker, dmRender::BeginRenderThreadFrame(worker));
+    dmRender::DeleteRenderThread(worker);
+    const uint8_t expected[8] = { 0, 1, 20, 21, 22, 5, 6, 7 };
+    ASSERT_EQ(8U, dmGraphics::GetVertexBufferSize(buffer));
+    ASSERT_EQ(0, memcmp(expected, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer, sizeof(expected)));
+    dmGraphics::BeginVertexUploadCapture(&batch);
+    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
+    ASSERT_EQ(0U, batch.m_Data.Size());
+    ASSERT_EQ(0U, batch.m_Uploads.Size());
+    dmGraphics::DeleteVertexBuffer(buffer);
+}
+
+// Rejects byte/command overflow before dereferencing input or mutating graphics;
+// a failed capture cannot silently fall back to an unsafe producer upload.
+TEST_F(dmRenderTest, PreparedVertexUploadBudgets)
+{
+    dmGraphics::VertexUploadBatch batch;
+    uint8_t byte = 1;
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 1, &byte, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::BeginVertexUploadCapture(&batch);
+    dmGraphics::SetVertexBufferData(buffer, dmGraphics::VertexUploadBatch::MAX_PAYLOAD + 1, &byte, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_FALSE(dmGraphics::EndVertexUploadCapture());
+    ASSERT_EQ(0U, batch.m_Data.Capacity());
+    ASSERT_EQ(1U, dmGraphics::GetVertexBufferSize(buffer));
+    dmGraphics::BeginVertexUploadCapture(&batch);
+    for (uint32_t i = 0; i <= dmGraphics::VertexUploadBatch::MAX_UPLOADS; ++i)
+        dmGraphics::SetVertexBufferData(buffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_FALSE(dmGraphics::EndVertexUploadCapture());
+    ASSERT_EQ((uint32_t)dmGraphics::VertexUploadBatch::MAX_UPLOADS, batch.m_Uploads.Size());
+    ASSERT_EQ(1U, dmGraphics::GetVertexBufferSize(buffer));
+    dmGraphics::DeleteVertexBuffer(buffer);
+}
+
+// The inline control prepares GUI/particle entries while preserving the sprite
+// snapshot dispatch. Rewriting one must not corrupt the other's userdata/order.
+TEST_F(dmRenderTest, PreparedInlineKeepsOtherDispatches)
+{
+    PreparedProbe probes[2];
+    dmRender::PreparedRenderList frame;
+    dmRender::RenderListBegin(m_Context);
+    dmRender::HRenderListDispatch live = dmRender::RenderListMakeDispatch(m_Context, PreparedProbeDispatch, PreparedProbeVisibility, 0);
+    dmRender::HRenderListDispatch prepared = dmRender::RenderListMakeDispatch(m_Context, PreparedProbeDispatch, 0);
+    dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, 2);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        probes[i].m_Object.Init();
+        probes[i].m_Object.m_VertexStart = i + 1;
+        entries[i].m_UserData = (uintptr_t)&probes[i];
+        entries[i].m_Dispatch = i ? prepared : live;
+        entries[i].m_MajorOrder = i ? dmRender::RENDER_ORDER_AFTER_WORLD : dmRender::RENDER_ORDER_WORLD;
+    }
+    dmRender::RenderListSubmit(m_Context, entries, entries + 2);
+    ASSERT_TRUE(dmRender::PrepareRenderList(m_Context, &frame, true));
+    ASSERT_EQ(1U, frame.m_Entries.Size());
+    probes[0].m_Object.m_VertexStart = probes[1].m_Object.m_VertexStart = 9;
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(9U, m_Context->m_RenderObjects[0]->m_VertexStart);
+    ASSERT_EQ(2U, m_Context->m_RenderObjects[1]->m_VertexStart);
 }

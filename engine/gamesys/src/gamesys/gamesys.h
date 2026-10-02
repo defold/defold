@@ -225,6 +225,7 @@ namespace dmGameSystem
         uint32_t m_MaxParticleCount;
         uint32_t m_MaxEmitterCount;
         bool m_Debug;
+        bool m_PreparedRendering;
     };
 
     struct RenderScriptPrototype
@@ -249,6 +250,13 @@ namespace dmGameSystem
         uint32_t                    m_SnapshotThreaded : 1;
         dmRender::HRenderThread      m_RenderThread;
         uint32_t                    m_SnapshotCommandBytes;
+        uint64_t                    m_MixedPrepareTime;
+        uint64_t                    m_MixedPrepareCount;
+        uint64_t                    m_MixedCapacityBytes;
+        uint32_t                    m_MixedPacketCount;
+        uint64_t                    m_MixedUploadCapacityBytes;
+        uint64_t                    m_MixedUploadUsedBytes;
+        uint64_t                    m_MixedUploadGrowthPeak;
         void (*m_SnapshotPause)(void* context, bool paused);
         void* m_SnapshotContext;
     };

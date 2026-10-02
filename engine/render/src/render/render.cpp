@@ -269,6 +269,7 @@ namespace dmRender
         RenderListDispatch d;
         d.m_DispatchFn = dispatch_fn;
         d.m_VisibilityFn = visibility_fn;
+        d.m_SnapshotBoundsFn = 0;
         d.m_UserData = user_data;
         render_context->m_RenderListDispatch.Push(d);
         DM_PROPERTY_ADD_U32(rmtp_RenderDispatchCount, 1);
