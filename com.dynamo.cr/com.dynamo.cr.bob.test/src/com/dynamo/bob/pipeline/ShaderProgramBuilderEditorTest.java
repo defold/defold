@@ -130,6 +130,21 @@ public class ShaderProgramBuilderEditorTest {
     }
 
     @Test
+    public void runtimeDx12CompilesStorageBuffer() throws Exception {
+        assumeTrue(Platform.getHostPlatform() == Platform.X86_64Win32);
+        ShaderCompilePipeline.ShaderModuleDesc compute = new ShaderCompilePipeline.ShaderModuleDesc();
+        compute.type = ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+        compute.resourcePath = "/storage.cp";
+        compute.source = """
+            #version 430
+            layout(local_size_x = 1) in;
+            layout(std430, binding = 0) buffer Output { uint value; };
+            void main() { value = gl_GlobalInvocationID.x; }
+            """;
+        assertDx12RuntimeShaders(new ShaderCompilePipeline.ShaderModuleDesc[] { compute }, 1);
+    }
+
+    @Test
     public void runtimeDx12IncludesBytecodeAndRootSignature() throws Exception {
         assumeTrue(Platform.getHostPlatform() == Platform.X86_64Win32);
         ShaderCompilePipeline.ShaderModuleDesc vertex = new ShaderCompilePipeline.ShaderModuleDesc();

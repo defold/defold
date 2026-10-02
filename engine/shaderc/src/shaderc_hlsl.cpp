@@ -673,39 +673,54 @@ namespace dmShaderc
         uint32_t pos = 0;
         bool ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, "[RootSignature(\"");
 
+        uint32_t parameter_count = 0;
         for (uint32_t i = 0; ok && i < shader_desc->BoundResources; ++i)
         {
             D3D12_SHADER_INPUT_BIND_DESC bind_desc;
             reflection->GetResourceBindingDesc(i, &bind_desc);
 
-            if (i > 0)
-            {
-                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, ",");
-            }
-
+            const char* parameter_format;
             switch (bind_desc.Type)
             {
             case D3D_SIT_CBUFFER:
-                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, "CBV(b%u,space=%u,visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
+                parameter_format = "CBV(b%u,space=%u,visibility=%s)";
                 break;
+            case D3D_SIT_TBUFFER:
             case D3D_SIT_TEXTURE:
-                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, "DescriptorTable(SRV(t%u,space=%u),visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
+            case D3D_SIT_STRUCTURED:
+            case D3D_SIT_BYTEADDRESS:
+                parameter_format = "DescriptorTable(SRV(t%u,space=%u),visibility=%s)";
                 break;
             case D3D_SIT_SAMPLER:
-                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, "DescriptorTable(Sampler(s%u,space=%u),visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
+                parameter_format = "DescriptorTable(Sampler(s%u,space=%u),visibility=%s)";
                 break;
             case D3D_SIT_UAV_RWTYPED:
-                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, "DescriptorTable(UAV(u%u,space=%u),visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
+            case D3D_SIT_UAV_RWSTRUCTURED:
+            case D3D_SIT_UAV_RWBYTEADDRESS:
+            case D3D_SIT_UAV_APPEND_STRUCTURED:
+            case D3D_SIT_UAV_CONSUME_STRUCTURED:
+            case D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER:
+                parameter_format = "DescriptorTable(UAV(u%u,space=%u),visibility=%s)";
                 break;
             default:
-                break;
+                continue;
+            }
+
+            if (parameter_count > 0)
+            {
+                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, ",");
+            }
+            if (ok)
+            {
+                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, parameter_format, bind_desc.BindPoint, bind_desc.Space, visibility);
+                ++parameter_count;
             }
         }
 
         // Scope the root signature to the shader stages in the pipeline to reduce command processor work.
         if (ok && has_root_signature_flags)
         {
-            if (shader_desc->BoundResources > 0)
+            if (parameter_count > 0)
             {
                 ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, ",");
             }
