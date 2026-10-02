@@ -19,6 +19,7 @@
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
+    #include "engine_web.h"
 #endif
 
 namespace dmEngine
@@ -88,6 +89,9 @@ namespace dmEngine
             }
 
 #ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN_PTHREADS__)
+            if (StartWebComponentLoop(engine, params)) return 0;
+#endif
             StepContext ctx;
             ctx.m_Params = params;
             ctx.m_Engine = engine;

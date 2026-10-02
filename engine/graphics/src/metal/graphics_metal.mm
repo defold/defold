@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include "../graphics_packet.h"
 #include <type_traits>
 
 // Metal.hpp is Taken from https://github.com/bkaradzic/metal-cpp/blob/metal-cpp_macOS15.2_iOS18.2/SingleHeader/Metal.hpp
@@ -5314,7 +5315,9 @@ namespace dmGraphics
             }
 
             NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-            MTL::CommandBuffer* command = context->m_CommandQueue->commandBuffer();
+            bool ordered_upload = IsGraphicsPacketOwner() && context->m_FrameBegun;
+            if (ordered_upload) SuspendRenderPass(context);
+            MTL::CommandBuffer* command = ordered_upload ? GetCurrentFrameResource(context).m_CommandBuffer : context->m_CommandQueue->commandBuffer();
             MTL::BlitCommandEncoder* blit = command->blitCommandEncoder();
             for (uint32_t slice = 0; slice < layerCount; ++slice)
             {
@@ -5322,8 +5325,11 @@ namespace dmGraphics
                     texture->m_Texture, baseSlice + slice, target_mip, destination_origin);
             }
             blit->endEncoding();
-            command->commit();
-            command->waitUntilCompleted();
+            if (!ordered_upload)
+            {
+                command->commit();
+                command->waitUntilCompleted();
+            }
             upload_texture->release();
             pool->release();
             return;
@@ -5427,7 +5433,11 @@ namespace dmGraphics
         // Create command buffer. commandBuffer() returns an autoreleased object, so keep an
         // owned reference while this helper blocks on completion.
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        MTL::CommandBuffer* cmdBuf = context->m_CommandQueue->commandBuffer();
+        // Packet execution preserves draw/upload/draw order inside one frame.
+        // A separate committed upload buffer could otherwise overtake encoded draws.
+        bool ordered_upload = IsGraphicsPacketOwner() && context->m_FrameBegun;
+        if (ordered_upload) SuspendRenderPass(context);
+        MTL::CommandBuffer* cmdBuf = ordered_upload ? GetCurrentFrameResource(context).m_CommandBuffer : context->m_CommandQueue->commandBuffer();
         if (cmdBuf)
         {
             cmdBuf->retain();
@@ -5472,8 +5482,11 @@ namespace dmGraphics
             blit->release();
         }
 
-        cmdBuf->commit();
-        cmdBuf->waitUntilCompleted();
+        if (!ordered_upload)
+        {
+            cmdBuf->commit();
+            cmdBuf->waitUntilCompleted();
+        }
         cmdBuf->release();
 
         // cleanup

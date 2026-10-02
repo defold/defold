@@ -106,6 +106,9 @@ namespace dmRender
         uint64_t m_FrameId[2];
         uint64_t m_BeginTime[2];
         RenderThreadStats m_Stats;
+        bool m_External;
+        bool m_ExternalRetiring;
+        uint64_t m_ExternalBegin, m_ExternalEnd;
         bool m_Stop;
         bool m_Building;
         bool m_ControlPending;
@@ -172,7 +175,7 @@ namespace dmRender
 #endif
     }
 
-    HRenderThread NewRenderThread(RenderThreadFunction render, void* context, bool interactive_qos)
+    static HRenderThread CreateRenderThread(RenderThreadFunction render, void* context, bool interactive_qos, bool external)
     {
         RenderThread* t = new RenderThread;
         memset(t, 0, sizeof(*t));
@@ -184,8 +187,58 @@ namespace dmRender
         t->m_Stats.m_SlotCount = 2;
         t->m_Stats.m_ControlCapacity = 1;
         t->m_Stats.m_QueueBytes = sizeof(*t);
-        t->m_Thread = dmThread::New(RenderWorker, 0x80000, t, "sprite-render");
+        t->m_External = external;
+        if (!external) t->m_Thread = dmThread::New(RenderWorker, 0x80000, t, "sprite-render");
         return t;
+    }
+
+    HRenderThread NewRenderThread(RenderThreadFunction render, void* context, bool interactive_qos)
+    {
+        return CreateRenderThread(render, context, interactive_qos, false);
+    }
+
+    HRenderThread NewExternalRenderThread(RenderThreadFunction render, void* context)
+    {
+        return CreateRenderThread(render, context, false, true);
+    }
+
+    static void RetireExternalFrame(RenderThread* t)
+    {
+        uint32_t slot = (uint32_t)(t->m_Stats.m_Completed % 2);
+        t->m_Stats.m_RenderUs += t->m_ExternalEnd - t->m_ExternalBegin;
+        t->m_Stats.m_FrameAgeUs += t->m_ExternalEnd - t->m_BeginTime[slot];
+        t->m_Stats.m_Completed = t->m_FrameId[slot];
+        t->m_Slots[slot] = SLOT_FREE;
+        t->m_ExternalRetiring = false;
+        dmConditionVariable::Broadcast(t->m_Changed);
+    }
+
+    bool PumpExternalRenderThread(HRenderThread t)
+    {
+        assert(t->m_External);
+        if (!dmMutex::TryLock(t->m_Mutex)) return false;
+        if (t->m_ExternalRetiring) RetireExternalFrame(t);
+        uint32_t slot = (uint32_t)(t->m_Stats.m_Completed % 2);
+        if (t->m_Slots[slot] != SLOT_READY)
+        {
+            dmMutex::Unlock(t->m_Mutex);
+            return false;
+        }
+        t->m_Slots[slot] = SLOT_READING;
+        uint64_t id = t->m_FrameId[slot];
+        dmMutex::Unlock(t->m_Mutex);
+        t->m_ExternalBegin = dmTime::GetMonotonicTime();
+        t->m_Render(t->m_Context, slot, id);
+        t->m_ExternalEnd = dmTime::GetMonotonicTime();
+        t->m_ExternalRetiring = true;
+        // A contended acknowledgment is deferred to the next pump; browser main
+        // must never block, even briefly, behind the simulation producer.
+        if (dmMutex::TryLock(t->m_Mutex))
+        {
+            RetireExternalFrame(t);
+            dmMutex::Unlock(t->m_Mutex);
+        }
+        return true;
     }
 
     uint32_t BeginRenderThreadFrame(HRenderThread t)
@@ -243,6 +296,7 @@ namespace dmRender
 
     void RunRenderThreadControl(HRenderThread t, RenderControlFunction fn, void* context)
     {
+        assert(!t->m_External); // External owners use their browser request lane.
         DrainRenderThread(t);
         DM_MUTEX_SCOPED_LOCK(t->m_Mutex);
         t->m_Control = fn;
@@ -267,7 +321,7 @@ namespace dmRender
         t->m_Stop = true;
         dmConditionVariable::Broadcast(t->m_Changed);
         dmMutex::Unlock(t->m_Mutex);
-        dmThread::Join(t->m_Thread);
+        if (!t->m_External) dmThread::Join(t->m_Thread);
         dmConditionVariable::Delete(t->m_Changed);
         dmMutex::Delete(t->m_Mutex);
         delete t;

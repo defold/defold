@@ -232,6 +232,13 @@ namespace dmExtension
         return ret;
     }
 
+    bool HasRenderCallbacks()
+    {
+        for (const ExtensionDesc* ed = GetFirstExtension(); ed; ed = GetNextExtension(ed))
+            if (ed->m_AppInitialized && (ed->m_PreRender || ed->m_PostRender)) return true;
+        return false;
+    }
+
     void PreRender(Params* params)
     {
         const ExtensionDesc* ed = dmExtension::GetFirstExtension();

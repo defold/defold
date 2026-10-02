@@ -17,8 +17,12 @@
 
 #include <gameobject/component.h>
 
+namespace dmRender { struct RenderFrameBuilder; struct RenderFrameConsumers; }
+
 namespace dmGameSystem
 {
+    bool RegisterParticleRenderFrame(void* world, dmRender::RenderFrameConsumers* consumers);
+    bool CaptureParticleRenderFrame(void* world, dmRender::RenderFrameBuilder* builder);
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompParticleFXDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);

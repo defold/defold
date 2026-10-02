@@ -15,6 +15,7 @@
 #include "graphics.h"
 #include "graphics_private.h"
 #include "graphics_adapter.h"
+#include "graphics_packet.h"
 #include <platform/window.hpp>
 
 #if defined(DM_PLATFORM_IOS)
@@ -172,7 +173,7 @@ namespace dmGraphics
 
     static void RenderMutationBarrier()
     {
-        if (g_RenderMutationBarrier && dmThread::GetCurrentThread() == g_RenderProducerThread)
+        if (g_RenderMutationBarrier && dmThread::GetCurrentThread() == g_RenderProducerThread && !IsGraphicsPacketOwner())
             g_RenderMutationBarrier(g_RenderMutationContext);
     }
 
@@ -206,6 +207,31 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter_list = 0;
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
+
+    bool StartGraphicsPackets(HContext context, uint32_t mode, uint32_t delay_us)
+    {
+        GraphicsPacketStats stats;
+        GetGraphicsPacketStats(&stats);
+        if (stats.m_Mode || mode < 1 || mode > 2 || delay_us > 1000000) return false;
+        if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_NULL)
+        {
+#if defined(DM_PLATFORM_MACOS)
+            if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_METAL) return false;
+            if (!PrepareRenderThreadSurface(context, true)) return false;
+            DrainRenderThreadGpu(context);
+#else
+            return false;
+#endif
+        }
+        return InstallGraphicsPackets(&g_functions, context, mode, delay_us);
+    }
+
+
+    bool StartExternalGraphicsOwner(HContext context, ExternalGraphicsDispatch dispatch)
+    {
+        if (!dispatch) return false;
+        return InstallGraphicsPackets(&g_functions, context, 2, 0, dispatch);
+    }
 
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
         GraphicsAdapterIsSupportedCb              is_supported_cb,
@@ -786,6 +812,7 @@ namespace dmGraphics
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
+        FlushGraphicsPackets();
         RenderMutationBarrier();
         // Free dynamically allocated stream storage if present
         if (vertex_declaration && vertex_declaration->m_Streams)
@@ -804,6 +831,7 @@ namespace dmGraphics
 
     bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
     {
+        FlushGraphicsPackets();
         RenderMutationBarrier();
         if (stream_index >= vertex_declaration->m_StreamCount) {
             return false;
@@ -2041,32 +2069,58 @@ namespace dmGraphics
     {
         return g_functions.m_GetWindow(context);
     }
+    struct ExternalWindowState { HContext m_Context; WindowState m_State; uint32_t m_Value; };
+    static void ReadExternalWindowState(void* data)
+    {
+        ExternalWindowState* args = (ExternalWindowState*)data;
+        args->m_Value = GetWindowStateParam(args->m_Context, args->m_State);
+    }
     uint32_t GetWindowRefreshRate(HContext context)
     {
-        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), WINDOW_STATE_REFRESH_RATE);
+        return GetWindowStateParam(context, WINDOW_STATE_REFRESH_RATE);
     }
     uint32_t GetWindowStateParam(HContext context, WindowState state)
     {
+        uint32_t width, height, iconified; float scale;
+        if (state == WINDOW_STATE_ICONIFIED && GetExternalGraphicsWindow(&width, &height, &iconified, &scale))
+            return iconified;
+        ExternalWindowState args = { context, state, 0 };
+        if (DispatchExternalGraphics(ReadExternalWindowState, &args)) return args.m_Value;
         return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), state);
     }
     uint32_t GetWindowWidth(HContext context)
     {
+        uint32_t width, height, iconified; float scale;
+        if (GetExternalGraphicsWindow(&width, &height, &iconified, &scale)) return width;
         return dmPlatform::GetWindowWidth(g_functions.m_GetWindow(context));
     }
     uint32_t GetWindowHeight(HContext context)
     {
+        uint32_t width, height, iconified; float scale;
+        if (GetExternalGraphicsWindow(&width, &height, &iconified, &scale)) return height;
         return dmPlatform::GetWindowHeight(g_functions.m_GetWindow(context));
     }
     float GetDisplayScaleFactor(HContext context)
     {
+        uint32_t width, height, iconified; float scale;
+        if (GetExternalGraphicsWindow(&width, &height, &iconified, &scale)) return scale;
         return dmPlatform::GetDisplayScaleFactor(g_functions.m_GetWindow(context));
     }
     void IconifyWindow(HContext context)
     {
         dmPlatform::IconifyWindow(g_functions.m_GetWindow(context));
     }
+    struct ExternalSwapInterval { HContext m_Context; uint32_t m_Interval; };
+    static void SetExternalSwapInterval(void* data)
+    {
+        ExternalSwapInterval* args = (ExternalSwapInterval*)data;
+        SetSwapInterval(args->m_Context, args->m_Interval);
+    }
     void SetSwapInterval(HContext context, uint32_t swap_interval)
     {
+        ExternalSwapInterval args = {context, swap_interval};
+        if (DispatchExternalGraphics(SetExternalSwapInterval, &args)) return;
+        FlushGraphicsPackets();
         RenderMutationBarrier();
         dmPlatform::SetSwapInterval(g_functions.m_GetWindow(context), swap_interval);
         if (g_functions.m_SetSwapInterval)
@@ -2354,6 +2408,8 @@ namespace dmGraphics
     }
     uint32_t GetVertexBufferSize(HVertexBuffer buffer)
     {
+        uint32_t size;
+        if (GetGraphicsPacketBufferSize(buffer, &size)) return size;
         Buffer* buffer_ptr = (Buffer*) buffer;
         return buffer_ptr ? buffer_ptr->m_Size : 0;
     }
@@ -2383,6 +2439,8 @@ namespace dmGraphics
     }
     uint32_t GetIndexBufferSize(HIndexBuffer buffer)
     {
+        uint32_t size;
+        if (GetGraphicsPacketBufferSize(buffer, &size)) return size;
         Buffer* buffer_ptr = (Buffer*) buffer;
         return buffer_ptr ? buffer_ptr->m_Size : 0;
     }
@@ -2439,6 +2497,7 @@ namespace dmGraphics
     }
     void DeleteProgram(HContext context, HProgram program)
     {
+        FlushGraphicsPackets();
         RenderMutationBarrier();
         DestroyProgram((Program*) program);
         g_functions.m_DeleteProgram(context, program);
@@ -2461,6 +2520,7 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        FlushGraphicsPackets();
         RenderMutationBarrier();
         DestroyProgram((Program*) program);
         return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);

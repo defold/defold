@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include <render/prepared_render_list.h>
+#include <render/render_frame.h>
+#include <particle/particle_render.h>
 #include "comp_particlefx.h"
 
 #include <float.h>
@@ -91,26 +93,53 @@ namespace dmGameSystem
         uint16_t : 15;
     };
 
-    struct ParticleFXWorld
+    struct ParticleFrameEmitter
     {
-        dmArray<ParticleFXComponent>            m_Components;
+        dmParticle::EmitterRenderData m_RenderData;
+        dmRender::HMaterial m_Material;
+        dmGraphics::HTexture m_Texture;
+        uint32_t m_Particles, m_ParticleCount, m_Constants;
+    };
+    struct ParticleEmitterView
+    {
+        dmParticle::EmitterRenderData m_RenderData; // Must remain first for dispatch userdata.
+        MaterialResource m_Material;
+        TextureResource m_Texture;
+        const dmParticle::RenderParticle* m_Particles;
+        uint32_t m_ParticleCount;
+    };
+    struct ParticleFXRenderer
+    {
         dmArray<dmRender::RenderObject>         m_RenderObjects;
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
+        dmRender::HBufferedRenderBuffer         m_VertexBuffer;
+        dmArray<uint8_t>                        m_VertexBufferData;
+        uint32_t                                m_VerticesWritten;
+        uint32_t                                m_DispatchCount;
+        uint32_t                                m_VertexBufferSize;
+        uint32_t                                m_VertexBufferOffset; // Current write position
+        dmArray<dmGraphics::VertexAttributeInfo> m_AttributeScratch;
+        dmArray<ParticleEmitterView> m_EmitterViews;
+        dmParticle::HParticleContext m_LegacyParticleContext;
+        uint32_t m_MaxParticleCount, m_MaxParticleBufferCount;
+        bool m_Captured;
+    };
+
+    struct ParticleFXWorld
+    {
+        ParticleFXRenderer m_Renderer;
+        bool m_RenderFrameEnabled;
+        dmArray<ParticleFXComponent>            m_Components;
         dmArray<ParticleFXComponentPrototype>   m_Prototypes;
         dmIndexPool32                           m_PrototypeIndices;
         ParticleFXContext*                      m_Context;
         dmParticle::HParticleContext            m_ParticleContext;
-        dmRender::HBufferedRenderBuffer         m_VertexBuffer;
-        dmArray<uint8_t>                        m_VertexBufferData;
-        uint32_t                                m_VerticesWritten;
         uint32_t                                m_EmitterCount;
-        uint32_t                                m_DispatchCount;
-        uint32_t                                m_VertexBufferSize;
-        uint32_t                                m_VertexBufferOffset; // Current write position
         float                                   m_DT;
         uint32_t                                m_WarnOutOfROs : 1;
         uint32_t                                m_WarnParticlesExceeded : 1;
     };
+
 
     static void DestroyComponent(ParticleFXWorld* world, ParticleFXComponent* component);
 
@@ -138,18 +167,21 @@ namespace dmGameSystem
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
         ParticleFXWorld* world = new ParticleFXWorld();
         world->m_Context = ctx;
+        world->m_Renderer.m_MaxParticleCount = ctx->m_MaxParticleCount;
+        world->m_Renderer.m_MaxParticleBufferCount = ctx->m_MaxParticleBufferCount;
         uint32_t particle_fx_count = dmMath::Min(params.m_MaxComponentInstances, ctx->m_MaxParticleFXCount);
         world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxParticleFXCount, ctx->m_MaxParticleCount);
+        world->m_Renderer.m_LegacyParticleContext = world->m_ParticleContext;
         world->m_Components.SetCapacity(particle_fx_count);
         world->m_Prototypes.SetCapacity(particle_fx_count);
         world->m_Prototypes.SetSize(particle_fx_count);
         world->m_PrototypeIndices.SetCapacity(particle_fx_count);
 
         uint16_t max_emitter_count = ctx->m_MaxEmitterCount;
-        world->m_RenderObjects.SetCapacity(max_emitter_count);
-        world->m_ConstantBuffers.SetCapacity(max_emitter_count);
-        world->m_ConstantBuffers.SetSize(max_emitter_count);
-        memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*max_emitter_count);
+        world->m_Renderer.m_RenderObjects.SetCapacity(max_emitter_count);
+        world->m_Renderer.m_ConstantBuffers.SetCapacity(max_emitter_count);
+        world->m_Renderer.m_ConstantBuffers.SetSize(max_emitter_count);
+        memset(world->m_Renderer.m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*max_emitter_count);
 
         // position   : 3
         // color      : 4
@@ -158,10 +190,10 @@ namespace dmGameSystem
         const uint32_t particle_buffer_count = dmMath::Min(ctx->m_MaxParticleBufferCount, ctx->m_MaxParticleCount);
         const uint32_t default_vx_size       = sizeof(float) * (3 + 4 + 2 + 1);
         const uint32_t buffer_size           = particle_buffer_count * VERTEX_COUNT * default_vx_size;
-        world->m_VertexBufferData.SetCapacity(buffer_size);
-        world->m_VertexBufferData.SetSize(buffer_size);
-        world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
-        world->m_VertexBufferSize = 0;
+        world->m_Renderer.m_VertexBufferData.SetCapacity(buffer_size);
+        world->m_Renderer.m_VertexBufferData.SetSize(buffer_size);
+        world->m_Renderer.m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
+        world->m_Renderer.m_VertexBufferSize = 0;
 
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
@@ -180,16 +212,16 @@ namespace dmGameSystem
             DestroyComponent(pfx_world, c);
         }
 
-        for (uint32_t i = 0; i < pfx_world->m_ConstantBuffers.Size(); ++i)
+        for (uint32_t i = 0; i < pfx_world->m_Renderer.m_ConstantBuffers.Size(); ++i)
         {
-            if (pfx_world->m_ConstantBuffers[i])
+            if (pfx_world->m_Renderer.m_ConstantBuffers[i])
             {
-                dmRender::DeleteNamedConstantBuffer(pfx_world->m_ConstantBuffers[i]);
+                dmRender::DeleteNamedConstantBuffer(pfx_world->m_Renderer.m_ConstantBuffers[i]);
             }
         }
 
         dmParticle::DestroyContext(pfx_world->m_ParticleContext);
-        dmRender::DeleteBufferedRenderBuffer(ctx->m_RenderContext, pfx_world->m_VertexBuffer);
+        dmRender::DeleteBufferedRenderBuffer(ctx->m_RenderContext, pfx_world->m_Renderer.m_VertexBuffer);
 
         delete pfx_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -275,8 +307,11 @@ namespace dmGameSystem
     {
         ParticleFXWorld* w   = (ParticleFXWorld*)params.m_World;
         w->m_DT              = params.m_UpdateContext->m_DT;
-        w->m_VerticesWritten = 0;
-        w->m_DispatchCount   = 0;
+        if (!w->m_RenderFrameEnabled)
+        {
+            w->m_Renderer.m_VerticesWritten = 0;
+            w->m_Renderer.m_DispatchCount = 0;
+        }
 
         dmArray<ParticleFXComponent>& components = w->m_Components;
         if (components.Empty())
@@ -330,10 +365,10 @@ namespace dmGameSystem
             }
         }
 
-        if (!ctx->m_PreparedRendering)
+        if (!ctx->m_PreparedRendering && !w->m_RenderFrameEnabled)
         {
-            dmRender::TrimBuffer(ctx->m_RenderContext, w->m_VertexBuffer);
-            dmRender::RewindBuffer(ctx->m_RenderContext, w->m_VertexBuffer);
+            dmRender::TrimBuffer(ctx->m_RenderContext, w->m_Renderer.m_VertexBuffer);
+            dmRender::RewindBuffer(ctx->m_RenderContext, w->m_Renderer.m_VertexBuffer);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -351,12 +386,11 @@ namespace dmGameSystem
         return context_material ? context_material : GetComponentMaterial(rd);
     }
 
-    static void RenderBatch(ParticleFXWorld* pfx_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
+    static void RenderBatch(ParticleFXRenderer* pfx_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("ParticleRenderBatch");
         const dmParticle::EmitterRenderData* first = (dmParticle::EmitterRenderData*) buf[*begin].m_UserData;
-        ParticleFXContext* pfx_context = pfx_world->m_Context;
-        dmParticle::HParticleContext particle_context = pfx_world->m_ParticleContext;
+        dmParticle::HParticleContext particle_context = pfx_world->m_LegacyParticleContext;
 
         dmRender::HMaterial material = GetRenderMaterial(render_context, first);
         dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
@@ -365,11 +399,15 @@ namespace dmGameSystem
         // Same default coordinate space as the editor
         FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
 
-        dmGraphics::VertexAttributeInfos* emitter_attribute_info = GetScratchVertexAttributeInfos(material_attribute_info.m_NumInfos);
+        if (pfx_world->m_AttributeScratch.Capacity() < material_attribute_info.m_NumInfos)
+            pfx_world->m_AttributeScratch.SetCapacity(material_attribute_info.m_NumInfos);
+        dmGraphics::VertexAttributeInfos scratch = {};
+        scratch.m_Infos = pfx_world->m_AttributeScratch.Begin();
+        dmGraphics::VertexAttributeInfos* emitter_attribute_info = &scratch;
 
         const uint32_t vx_stride = material_attribute_info.m_VertexStride;
-        const uint32_t max_gpu_count = pfx_context->m_MaxParticleCount;
-        const uint32_t max_cpu_count = pfx_context->m_MaxParticleBufferCount; // How many particles will fit into the scratch buffer
+        const uint32_t max_gpu_count = pfx_world->m_MaxParticleCount;
+        const uint32_t max_cpu_count = pfx_world->m_MaxParticleBufferCount; // How many particles will fit into the scratch buffer
         const uint32_t max_gpu_size = pfx_world->m_VertexBufferSize;
         const uint32_t max_cpu_size = dmMath::Min(max_cpu_count, max_gpu_count) * VERTEX_COUNT * vx_stride;
 
@@ -406,7 +444,8 @@ namespace dmGameSystem
                     emitter_attribute_info,
                     dmGraphics::COORDINATE_SPACE_WORLD);
 
-            uint32_t particle_count = dmParticle::GetParticleCount(particle_context, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
+            const ParticleEmitterView* captured = pfx_world->m_Captured ? (const ParticleEmitterView*)emitter_render_data : 0;
+            uint32_t particle_count = captured ? captured->m_ParticleCount : dmParticle::GetParticleCount(particle_context, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
             // fill up the vertex buffer, and then schedule an upload of vertex buffer data
             for (int p = 0; p < particle_count; )
@@ -415,7 +454,11 @@ namespace dmGameSystem
                 // only get the number of particles that will fit
                 uint32_t num_particles_to_write = size_left / (VERTEX_COUNT * vx_stride);
 
-                dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexDataPartial(particle_context,
+                dmParticle::GenerateVertexDataResult res = captured ?
+                    dmParticle::GenerateCapturedParticleVertices(captured->m_Particles, captured->m_ParticleCount,
+                        p, dmMath::Min(num_particles_to_write, particle_count - p),
+                        *emitter_attribute_info, Vector4(1,1,1,1), vertex_buffer.Begin(), vb_max_size, &vb_size) :
+                    dmParticle::GenerateVertexDataPartial(particle_context,
                     emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
                     p, num_particles_to_write,
                     *emitter_attribute_info, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
@@ -563,12 +606,12 @@ namespace dmGameSystem
     static void UpdateVertexBufferSize(ParticleFXWorld* pfx_world, dmRender::HRenderContext render_context)
     {
         uint32_t buffer_size = CalcVertexBufferSize(pfx_world, render_context);
-        if (buffer_size > pfx_world->m_VertexBufferSize)
+        if (buffer_size > pfx_world->m_Renderer.m_VertexBufferSize)
         {
-            pfx_world->m_VertexBufferSize = buffer_size;
+            pfx_world->m_Renderer.m_VertexBufferSize = buffer_size;
         }
 
-        dmRender::SetBufferData(render_context, pfx_world->m_VertexBuffer, pfx_world->m_VertexBufferSize, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmRender::SetBufferData(render_context, pfx_world->m_Renderer.m_VertexBuffer, pfx_world->m_Renderer.m_VertexBufferSize, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
@@ -577,26 +620,26 @@ namespace dmGameSystem
         switch(params.m_Operation)
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
-                pfx_world->m_VertexBufferOffset = 0;
-                pfx_world->m_RenderObjects.SetSize(0);
+                pfx_world->m_Renderer.m_VertexBufferOffset = 0;
+                pfx_world->m_Renderer.m_RenderObjects.SetSize(0);
 
-                if (dmRender::GetBufferIndex(params.m_Context, pfx_world->m_VertexBuffer) < pfx_world->m_DispatchCount)
+                if (dmRender::GetBufferIndex(params.m_Context, pfx_world->m_Renderer.m_VertexBuffer) < pfx_world->m_Renderer.m_DispatchCount)
                 {
-                    dmRender::AddRenderBuffer(params.m_Context, pfx_world->m_VertexBuffer);
+                    dmRender::AddRenderBuffer(params.m_Context, pfx_world->m_Renderer.m_VertexBuffer);
                 }
 
                 UpdateVertexBufferSize(pfx_world, params.m_Context);
                 break;
             case dmRender::RENDER_LIST_OPERATION_BATCH:
-                RenderBatch(pfx_world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
+                RenderBatch(&pfx_world->m_Renderer, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
-                if (pfx_world->m_VertexBufferOffset)
+                if (pfx_world->m_Renderer.m_VertexBufferOffset)
                 {
-                    DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VerticesWritten);
-                    DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_VertexBufferData.Capacity());
-                    DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSizeGPU, pfx_world->m_VertexBufferSize);
-                    pfx_world->m_DispatchCount++;
+                    DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_Renderer.m_VerticesWritten);
+                    DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_Renderer.m_VertexBufferData.Capacity());
+                    DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSizeGPU, pfx_world->m_Renderer.m_VertexBufferSize);
+                    pfx_world->m_Renderer.m_DispatchCount++;
                 }
                 break;
             default:break;
@@ -637,13 +680,13 @@ namespace dmGameSystem
         uint32_t world_emitter_count = pfx_world->m_EmitterCount;
         if (ctx->m_PreparedRendering)
         {
-            dmRender::TrimBuffer(ctx->m_RenderContext, pfx_world->m_VertexBuffer);
-            dmRender::RewindBuffer(ctx->m_RenderContext, pfx_world->m_VertexBuffer);
+            dmRender::TrimBuffer(ctx->m_RenderContext, pfx_world->m_Renderer.m_VertexBuffer);
+            dmRender::RewindBuffer(ctx->m_RenderContext, pfx_world->m_Renderer.m_VertexBuffer);
         }
 
-        if (pfx_world->m_RenderObjects.Capacity() < world_emitter_count)
+        if (pfx_world->m_Renderer.m_RenderObjects.Capacity() < world_emitter_count)
         {
-            dmLogWarning("Max number of emitters reached (%u), some objects will not be rendered. Increase the capacity with particle_fx.max_emitter_count", pfx_world->m_RenderObjects.Capacity());
+            dmLogWarning("Max number of emitters reached (%u), some objects will not be rendered. Increase the capacity with particle_fx.max_emitter_count", pfx_world->m_Renderer.m_RenderObjects.Capacity());
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
 
@@ -687,6 +730,141 @@ namespace dmGameSystem
         dmRender::RenderListSubmit(ctx->m_RenderContext, render_list, write_ptr);
 
         return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    static void DispatchCapturedParticles(const dmRender::RenderListDispatchParams& params)
+    {
+        ParticleFXRenderer* renderer = (ParticleFXRenderer*)params.m_UserData;
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BEGIN)
+        {
+            renderer->m_VertexBufferOffset = 0;
+            renderer->m_RenderObjects.SetSize(0);
+            if (dmRender::GetBufferIndex(params.m_Context, renderer->m_VertexBuffer) < renderer->m_DispatchCount)
+                dmRender::AddRenderBuffer(params.m_Context, renderer->m_VertexBuffer);
+            uint32_t count = 0, bytes = 0;
+            for (uint32_t i = 0; i < renderer->m_EmitterViews.Size(); ++i)
+            {
+                const ParticleEmitterView& view = renderer->m_EmitterViews[i];
+                uint32_t particles = dmMath::Min(view.m_ParticleCount, renderer->m_MaxParticleCount - count);
+                dmRender::HMaterial material = GetRenderMaterial(params.m_Context, &view.m_RenderData);
+                bytes += (particles + 1) * VERTEX_COUNT * dmGraphics::GetVertexDeclarationStride(dmRender::GetVertexDeclaration(material));
+                count += particles;
+                if (count == renderer->m_MaxParticleCount) break;
+            }
+            renderer->m_VertexBufferSize = dmMath::Max(renderer->m_VertexBufferSize, bytes);
+            dmRender::SetBufferData(params.m_Context, renderer->m_VertexBuffer, renderer->m_VertexBufferSize, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        }
+        else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+            RenderBatch(renderer, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
+        else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_END)
+            ++renderer->m_DispatchCount;
+    }
+
+    static void SubmitParticleRenderFrame(void* state, dmRender::HRenderContext context, const dmRender::RenderFrame& frame)
+    {
+        ParticleFXRenderer* renderer = (ParticleFXRenderer*)state;
+        uint32_t count = 0;
+        for (uint32_t i = 0; i < frame.m_Entries.Size(); ++i)
+            count += frame.m_Entries[i].m_Consumer == 2;
+        if (renderer->m_EmitterViews.Capacity() < count) renderer->m_EmitterViews.SetCapacity(count);
+        renderer->m_EmitterViews.SetSize(count);
+        renderer->m_Captured = true;
+        renderer->m_DispatchCount = renderer->m_VerticesWritten = 0;
+        dmRender::TrimBuffer(context, renderer->m_VertexBuffer);
+        dmRender::RewindBuffer(context, renderer->m_VertexBuffer);
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(context, count);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(context, DispatchCapturedParticles, RenderListFrustumCulling, renderer);
+        uint32_t index = 0;
+        for (uint32_t i = 0; i < frame.m_Entries.Size(); ++i)
+        {
+            const dmRender::RenderFrameEntry& entry = frame.m_Entries[i];
+            if (entry.m_Consumer != 2) continue;
+            const ParticleFrameEmitter& data = *(const ParticleFrameEmitter*)dmRender::GetRenderFrameData(frame, entry.m_Payload, sizeof(ParticleFrameEmitter));
+            ParticleEmitterView& view = renderer->m_EmitterViews[index];
+            view.m_RenderData = data.m_RenderData;
+            view.m_Material.m_Material = data.m_Material;
+            view.m_Texture.m_Texture = data.m_Texture;
+            view.m_RenderData.m_Material = &view.m_Material;
+            view.m_RenderData.m_Texture = &view.m_Texture;
+            view.m_RenderData.m_RenderConstants = data.m_RenderData.m_RenderConstantsSize ? (dmParticle::RenderConstant*)dmRender::GetRenderFrameData(frame, data.m_Constants, data.m_RenderData.m_RenderConstantsSize * sizeof(dmParticle::RenderConstant)) : 0;
+            view.m_ParticleCount = data.m_ParticleCount;
+            view.m_Particles = data.m_ParticleCount ? (const dmParticle::RenderParticle*)dmRender::GetRenderFrameData(frame, data.m_Particles, data.m_ParticleCount * sizeof(dmParticle::RenderParticle)) : 0;
+            dmRender::RenderListEntry& target = entries[index++];
+            target.m_WorldPosition = Point3(data.m_RenderData.m_Transform.getTranslation());
+            target.m_UserData = (uintptr_t)&view;
+            target.m_BatchKey = entry.m_BatchKey;
+            target.m_TagListKey = entry.m_TagListKey;
+            target.m_MajorOrder = entry.m_MajorOrder;
+            target.m_MinorOrder = 0;
+            target.m_Dispatch = dispatch;
+        }
+        dmRender::RenderListSubmit(context, entries, entries + count);
+    }
+
+    bool RegisterParticleRenderFrame(void* particle_world, dmRender::RenderFrameConsumers* consumers)
+    {
+        ParticleFXWorld* world = (ParticleFXWorld*)particle_world;
+        world->m_RenderFrameEnabled = true;
+        world->m_Renderer.m_LegacyParticleContext = 0;
+        return dmRender::RegisterRenderFrameConsumer(consumers, 2, &world->m_Renderer, SubmitParticleRenderFrame);
+    }
+
+    bool CaptureParticleRenderFrame(void* particle_world, dmRender::RenderFrameBuilder* builder)
+    {
+        ParticleFXWorld* world = (ParticleFXWorld*)particle_world;
+        if (world->m_EmitterCount > world->m_Context->m_MaxEmitterCount) return false;
+        for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
+        {
+            const ParticleFXComponent& component = world->m_Components[i];
+            if (!component.m_AddedToUpdate) continue;
+            if (!dmRender::RetainRenderFrameResource(builder, (void*)component.m_ParticlePrototype)) return false;
+            for (uint32_t j = 0; j < dmParticle::GetEmitterCount(component.m_ParticlePrototype); ++j)
+            {
+                dmParticle::EmitterRenderData* source;
+                dmParticle::GetEmitterRenderData(world->m_ParticleContext, component.m_ParticleInstance, j, &source);
+                ParticleFrameEmitter data;
+                data.m_RenderData = *source;
+                data.m_Material = ((MaterialResource*)source->m_Material)->m_Material;
+                data.m_Texture = source->m_Texture ? ((TextureResource*)source->m_Texture)->m_Texture : 0;
+                if (!dmRender::RetainRenderFrameResource(builder, source->m_Material)) return false;
+                if (source->m_Texture && !dmRender::RetainRenderFrameResource(builder, source->m_Texture)) return false;
+                data.m_RenderData.m_Material = data.m_RenderData.m_Texture = 0;
+                data.m_RenderData.m_Instance = dmParticle::INVALID_INSTANCE;
+                data.m_RenderData.m_RenderConstants = 0;
+                data.m_Constants = UINT32_MAX;
+                if (source->m_RenderConstantsSize)
+                {
+                    uint32_t bytes = source->m_RenderConstantsSize * sizeof(dmParticle::RenderConstant);
+                    data.m_Constants = dmRender::AllocateRenderFrameData(builder, bytes);
+                    if (data.m_Constants == UINT32_MAX) return false;
+                    memcpy(builder->m_Frame->m_Data.Begin() + data.m_Constants, source->m_RenderConstants, bytes);
+                }
+                data.m_ParticleCount = dmParticle::GetParticleCount(world->m_ParticleContext, component.m_ParticleInstance, j);
+                data.m_Particles = UINT32_MAX;
+                if (data.m_ParticleCount)
+                {
+                    uint64_t bytes = (uint64_t)data.m_ParticleCount * sizeof(dmParticle::RenderParticle);
+                    if (bytes > dmRender::RENDER_FRAME_LIMIT) return false;
+                    data.m_Particles = dmRender::AllocateRenderFrameData(builder, (uint32_t)bytes);
+                    if (data.m_Particles == UINT32_MAX) return false;
+                    uint32_t captured;
+                    if (!dmParticle::CaptureRenderParticles(world->m_ParticleContext, component.m_ParticleInstance, j,
+                        (dmParticle::RenderParticle*)(builder->m_Frame->m_Data.Begin() + data.m_Particles), data.m_ParticleCount, &captured) || captured != data.m_ParticleCount) return false;
+                }
+                dmRender::RenderFrameEntry entry = {};
+                entry.m_Consumer = 2;
+                entry.m_Bounds = Vector4(Vector3(source->m_FrustumCullingCenter), source->m_FrustumCullingRadiusSq);
+                entry.m_BatchKey = source->m_MixedHash;
+                entry.m_TagListKey = dmRender::GetMaterialTagListKey(data.m_Material);
+                entry.m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+                entry.m_PayloadBytes = sizeof(data);
+                entry.m_Payload = dmRender::AllocateRenderFrameData(builder, sizeof(data));
+                if (entry.m_Payload == UINT32_MAX) return false;
+                memcpy(builder->m_Frame->m_Data.Begin() + entry.m_Payload, &data, sizeof(data));
+                if (!dmRender::AddRenderFrameEntry(builder, entry)) return false;
+            }
+        }
+        return true;
     }
 
     static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, dmhash_t component_id, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
@@ -1257,7 +1435,7 @@ namespace dmGameSystem
     void GetParticleFXWorldRenderBuffers(void* pfx_world, dmRender::HBufferedRenderBuffer* vx_buffer)
     {
         ParticleFXWorld* world = (ParticleFXWorld*) pfx_world;
-        *vx_buffer = world->m_VertexBuffer;
+        *vx_buffer = world->m_Renderer.m_VertexBuffer;
     }
 }
 

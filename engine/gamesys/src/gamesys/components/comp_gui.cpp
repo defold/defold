@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <render/render_frame.h>
+#include <graphics/graphics_packet.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -51,6 +53,7 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include <particle/particle.h>
+#include <particle/particle_render.h>
 #include <gui/gui_script.h>
 
 #include <dmsdk/gamesys/gui.h>
@@ -297,6 +300,9 @@ namespace dmGameSystem
             }
         }
     }
+
+    struct GuiFrameRenderer;
+    static void DeleteGuiFrameRenderer(GuiFrameRenderer* renderer);
 
     struct RenderGuiContext
     {
@@ -811,6 +817,7 @@ namespace dmGameSystem
         delete[] gui_world->m_BoxVertexStreamDeclaration;
         delete[] gui_world->m_ParticleAttributeInfos.m_Infos;
 
+        DeleteGuiFrameRenderer(gui_world->m_FrameRenderer);
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -1699,6 +1706,7 @@ namespace dmGameSystem
             return text_layout.m_Handle;
         }
 
+        if (dmGraphics::IsRenderGraphicsOwnerActive()) dmGraphics::FlushGraphicsPackets();
         TextLayoutSettings settings = {};
         settings.m_Width = width;
         settings.m_LineBreak = line_break;
@@ -2133,6 +2141,283 @@ namespace dmGameSystem
         return num_vertices;
     }
 
+    struct GuiBoxInput
+    {
+        Matrix4 m_Transform;
+        Vector4 m_Color, m_Slice9;
+        Point3 m_Size;
+        float m_UV[6];
+        float m_OriginalWidth, m_OriginalHeight;
+        const dmGameSystemDDF::SpriteGeometry* m_Geometry;
+        uint32_t m_PageIndex;
+        bool m_ManualTexture, m_HasTexture, m_FlipU, m_FlipV;
+    };
+
+    static GuiBoxInput CaptureGuiBoxInput(dmGui::HScene scene, dmGui::HNode node, const Matrix4& transform,
+                                         float opacity, bool has_texture, float width, float height)
+    {
+        GuiBoxInput input;
+        input.m_Transform = transform;
+        input.m_Color = Vector4(dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR).getXYZ(), opacity);
+        input.m_Slice9 = dmGui::GetNodeSlice9(scene, node);
+        input.m_Size = dmGui::GetNodeSize(scene, node);
+        input.m_OriginalWidth = width;
+        input.m_OriginalHeight = height;
+        input.m_HasTexture = has_texture;
+        const float* uv = dmGui::GetNodeFlipbookAnimUV(scene, node);
+        input.m_ManualTexture = uv == 0;
+        if (uv) memcpy(input.m_UV, uv, sizeof(input.m_UV));
+        else memset(input.m_UV, 0, sizeof(input.m_UV));
+        input.m_FlipU = input.m_FlipV = false;
+        if (uv) GetNodeFlipbookAnimUVFlip(scene, node, input.m_FlipU, input.m_FlipV);
+        input.m_PageIndex = 0;
+        input.m_Geometry = 0;
+        dmGameSystemDDF::TextureSet* texture = GetNodeTextureSetDDF(scene, node);
+        if (texture && has_texture && !(sum(input.m_Slice9) == 0 && input.m_ManualTexture))
+        {
+            uint32_t index = texture->m_FrameIndices[dmGui::GetNodeAnimationFrame(scene, node)];
+            input.m_PageIndex = texture->m_PageIndices.m_Count ? texture->m_PageIndices[index] : 0;
+            if (texture->m_Geometries.m_Count) input.m_Geometry = &texture->m_Geometries[index];
+        }
+        return input;
+    }
+
+    static uint32_t GenerateGuiBoxVertices(const GuiBoxInput& input, dmArray<BoxVertex>& vertices)
+    {
+        uint32_t maximum = input.m_Geometry && sum(input.m_Slice9) == 0 ? input.m_Geometry->m_Indices.m_Count : 54;
+        if (vertices.Remaining() < maximum) vertices.OffsetCapacity(dmMath::Max(128U, maximum));
+            // pre-multiplied alpha
+            const Vector4& pm_color = input.m_Color;
+
+            // default not uv_rotated texture coords
+            const float default_tc[6] = {0, 0, 0, 1, 1, 1};
+            const float* tc = input.m_ManualTexture ? 0 : input.m_UV;
+
+            // tc equals 0 when texture is set from lua script directly with gui.set_texture(...) method
+            bool manually_set_texture = tc == 0;
+            if (manually_set_texture) {
+                tc = default_tc;
+            }
+
+            const Vector4& slice9 = input.m_Slice9;
+            bool use_slice_nine = sum(slice9) != 0;
+
+            // render simple quad ignoring 9-slicing
+            if ((!use_slice_nine && manually_set_texture) || !input.m_HasTexture)
+            {
+                BoxVertex v00;
+                v00.SetColor(pm_color);
+                v00.SetPosition(input.m_Transform * Point3(0, 0, 0));
+                v00.SetUV(0, 0);
+                v00.SetPageIndex(0);
+
+                BoxVertex v10;
+                v10.SetColor(pm_color);
+                v10.SetPosition(input.m_Transform * Point3(1, 0, 0));
+                v10.SetUV(1, 0);
+                v10.SetPageIndex(0);
+
+                BoxVertex v01;
+                v01.SetColor(pm_color);
+                v01.SetPosition(input.m_Transform * Point3(0, 1, 0));
+                v01.SetUV(0, 1);
+                v01.SetPageIndex(0);
+
+                BoxVertex v11;
+                v11.SetColor(pm_color);
+                v11.SetPosition(input.m_Transform * Point3(1, 1, 0));
+                v11.SetUV(1, 1);
+                v11.SetPageIndex(0);
+
+                vertices.Push(v00);
+                vertices.Push(v10);
+                vertices.Push(v11);
+                vertices.Push(v00);
+                vertices.Push(v11);
+                vertices.Push(v01);
+
+                return 6;
+            }
+
+            uint32_t page_index = input.m_PageIndex;
+            const dmGameSystemDDF::SpriteGeometry* geometry = input.m_Geometry;
+            bool use_geometries = geometry != 0;
+            bool flip_u = input.m_FlipU;
+            bool flip_v = input.m_FlipV;
+            float pivot_x = 0;
+            float pivot_y = 0;
+
+            if (use_geometries)
+            {
+                pivot_x = geometry->m_PivotX;
+                pivot_y = geometry->m_PivotY;
+            }
+
+            // render using geometries without 9-slicing
+            if (!use_slice_nine && use_geometries)
+            {
+                const Matrix4& w = input.m_Transform;
+
+                // NOTE: The original rendering code is from the comp_sprite.cpp.
+                // Compare with that one if you do any changes to either.
+                uint32_t num_points = geometry->m_Vertices.m_Count / 2;
+
+                const float* points = geometry->m_Vertices.m_Data;
+                const float* uvs = geometry->m_Uvs.m_Data;
+
+                // Depending on the sprite is flipped or not, we loop the vertices forward or backward
+                // to respect face winding (and backface culling)
+                int reverse = (int)flip_u ^ (int)flip_v;
+
+                float scaleX = flip_u ? -1 : 1;
+                float scaleY = flip_v ? -1 : 1;
+
+                // Since we don't use an index buffer, we duplicate the vertices manually
+                uint32_t index_count = geometry->m_Indices.m_Count;
+                for (uint32_t index = 0; index < index_count; ++index)
+                {
+                    uint32_t i = geometry->m_Indices.m_Data[index];
+                    i = reverse ? (num_points - i - 1) : i;
+
+                    const float* point = &points[i * 2];
+                    const float* uv = &uvs[i * 2];
+                    // COnvert from range [-0.5,+0.5] to [0.0, 1.0]
+                    float x = (point[0] - pivot_x) * scaleX + 0.5f;
+                    float y = (point[1] - pivot_y) * scaleY + 0.5f;
+
+                    Vector4 p = w * Point3(x, y, 0.0f);
+                    BoxVertex v(p, uv[0], uv[1], pm_color, page_index);
+                    vertices.Push(v);
+                }
+
+                return index_count;
+            }
+
+            // render 9-sliced node
+
+            //   0 1     2 3
+            // 0 *-*-----*-*
+            //   | |  y  | |
+            // 1 *-*-----*-*
+            //   | |     | |
+            //   |x|     |z|
+            //   | |     | |
+            // 2 *-*-----*-*
+            //   | |  w  | |
+            // 3 *-*-----*-*
+            const int verts_per_slice9 = 6*9;
+            float us[4], vs[4], xs[4], ys[4];
+
+            // v are '1-v'
+            xs[0] = ys[0] = 0;
+            xs[3] = ys[3] = 1;
+
+            // disable slice9 computation below a certain dimension
+            // (avoid div by zero)
+            const float s9_min_dim = 0.001f;
+
+            const float su = 1.0f / input.m_OriginalWidth;
+            const float sv = 1.0f / input.m_OriginalHeight;
+
+            const Point3& size = input.m_Size;
+            const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
+            const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
+
+            static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
+            bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+            if(uv_rotated)
+            {
+                const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
+                const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
+                us[uI[0]] = tc[0];
+                us[uI[1]] = tc[0] + (su * slice9.getW());
+                us[uI[2]] = tc[2] - (su * slice9.getY());
+                us[uI[3]] = tc[2];
+                vs[vI[0]] = tc[1];
+                vs[vI[1]] = tc[1] - (sv * slice9.getX());
+                vs[vI[2]] = tc[5] + (sv * slice9.getZ());
+                vs[vI[3]] = tc[5];
+            }
+            else
+            {
+                const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
+                const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
+                us[uI[0]] = tc[0];
+                us[uI[1]] = tc[0] + (su * slice9.getX());
+                us[uI[2]] = tc[4] - (su * slice9.getZ());
+                us[uI[3]] = tc[4];
+                vs[vI[0]] = tc[1];
+                vs[vI[1]] = tc[1] + (sv * slice9.getW());
+                vs[vI[2]] = tc[3] - (sv * slice9.getY());
+                vs[vI[3]] = tc[3];
+            }
+
+            // Keep the geometry subdivisions aligned with the reversed UV
+            // subdivisions when an asymmetric 9-slice is flipped.
+            xs[1] = sx * (flip_u ? slice9.getZ() : slice9.getX());
+            xs[2] = 1 - sx * (flip_u ? slice9.getX() : slice9.getZ());
+            ys[1] = sy * (flip_v ? slice9.getY() : slice9.getW());
+            ys[2] = 1 - sy * (flip_v ? slice9.getW() : slice9.getY());
+
+            const Matrix4* transform = &input.m_Transform;
+            Vector4 pts[4][4];
+            for (int y=0;y<4;y++)
+            {
+                for (int x=0;x<4;x++)
+                {
+                    pts[y][x] = (*transform * Point3(xs[x], ys[y], 0));
+                }
+            }
+
+            BoxVertex v00, v10, v01, v11;
+            v00.SetColor(pm_color);
+            v10.SetColor(pm_color);
+            v01.SetColor(pm_color);
+            v11.SetColor(pm_color);
+
+            v00.SetPageIndex(page_index);
+            v10.SetPageIndex(page_index);
+            v01.SetPageIndex(page_index);
+            v11.SetPageIndex(page_index);
+
+            for (int y=0;y<3;y++)
+            {
+                for (int x=0;x<3;x++)
+                {
+                    const int x0 = x   - pivot_x;
+                    const int x1 = x+1 - pivot_x;
+                    const int y0 = y   - pivot_y;
+                    const int y1 = y+1 - pivot_y;
+
+                    v00.SetPosition(pts[y0][x0]);
+                    v10.SetPosition(pts[y0][x1]);
+                    v01.SetPosition(pts[y1][x0]);
+                    v11.SetPosition(pts[y1][x1]);
+                    if(uv_rotated)
+                    {
+                        v00.SetUV(us[y0], vs[x0]);
+                        v10.SetUV(us[y0], vs[x1]);
+                        v01.SetUV(us[y1], vs[x0]);
+                        v11.SetUV(us[y1], vs[x1]);
+                    }
+                    else
+                    {
+                        v00.SetUV(us[x0], vs[y0]);
+                        v10.SetUV(us[x1], vs[y0]);
+                        v01.SetUV(us[x0], vs[y1]);
+                        v11.SetUV(us[x1], vs[y1]);
+                    }
+                    vertices.Push(v00);
+                    vertices.Push(v10);
+                    vertices.Push(v11);
+                    vertices.Push(v00);
+                    vertices.Push(v11);
+                    vertices.Push(v01);
+                }
+            }
+            return verts_per_slice9;
+    }
+
     static void RenderBoxNodes(dmGui::HScene scene,
                         const dmGui::RenderEntry* entries,
                         const Matrix4* node_transforms,
@@ -2196,261 +2481,11 @@ namespace dmGameSystem
         float org_height = (float)dmGraphics::GetOriginalTextureHeight(graphics_context, ro.m_Textures[0]);
         assert(org_width > 0 && org_height > 0);
 
-        int rendered_vert_count = 0;
+        uint32_t rendered_vert_count = 0;
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            const dmGui::HNode node = entries[i].m_Node;
-
-            // pre-multiplied alpha
-            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
-            Vector4 pm_color(color.getXYZ(), node_opacities[i]);
-
-            // default not uv_rotated texture coords
-            const float default_tc[6] = {0, 0, 0, 1, 1, 1};
-            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
-
-            // tc equals 0 when texture is set from lua script directly with gui.set_texture(...) method
-            bool manually_set_texture = tc == 0;
-            if (manually_set_texture) {
-                tc = default_tc;
-            }
-
-            Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
-            bool use_slice_nine = sum(slice9) != 0;
-
-            // render simple quad ignoring 9-slicing
-            if ((!use_slice_nine && manually_set_texture) || !texture)
-            {
-                BoxVertex v00;
-                v00.SetColor(pm_color);
-                v00.SetPosition(node_transforms[i] * Point3(0, 0, 0));
-                v00.SetUV(0, 0);
-                v00.SetPageIndex(0);
-
-                BoxVertex v10;
-                v10.SetColor(pm_color);
-                v10.SetPosition(node_transforms[i] * Point3(1, 0, 0));
-                v10.SetUV(1, 0);
-                v10.SetPageIndex(0);
-
-                BoxVertex v01;
-                v01.SetColor(pm_color);
-                v01.SetPosition(node_transforms[i] * Point3(0, 1, 0));
-                v01.SetUV(0, 1);
-                v01.SetPageIndex(0);
-
-                BoxVertex v11;
-                v11.SetColor(pm_color);
-                v11.SetPosition(node_transforms[i] * Point3(1, 1, 0));
-                v11.SetUV(1, 1);
-                v11.SetPageIndex(0);
-
-                gui_world->m_ClientVertexBuffer.Push(v00);
-                gui_world->m_ClientVertexBuffer.Push(v10);
-                gui_world->m_ClientVertexBuffer.Push(v11);
-                gui_world->m_ClientVertexBuffer.Push(v00);
-                gui_world->m_ClientVertexBuffer.Push(v11);
-                gui_world->m_ClientVertexBuffer.Push(v01);
-
-                rendered_vert_count += 6;
-                continue;
-            }
-
-            uint32_t frame_index                         = 0;
-            uint32_t page_index                          = 0;
-
-            dmGameSystemDDF::TextureSet* texture_set_ddf = GetNodeTextureSetDDF(scene, node);
-            if (texture_set_ddf)
-            {
-                frame_index            = dmGui::GetNodeAnimationFrame(scene, node);
-                frame_index            = texture_set_ddf->m_FrameIndices[frame_index];
-                uint32_t* page_indices = texture_set_ddf->m_PageIndices.m_Data;
-                page_index             = page_indices[frame_index];
-            }
-
-            bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
-            bool flip_u = false;
-            bool flip_v = false;
-            if (!manually_set_texture)
-            {
-                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
-            }
-
-            const dmGameSystemDDF::SpriteGeometry* geometry = 0;
-            float pivot_x = 0;
-            float pivot_y = 0;
-
-            if (use_geometries)
-            {
-                geometry = &texture_set_ddf->m_Geometries.m_Data[frame_index];
-                pivot_x = geometry->m_PivotX;
-                pivot_y = geometry->m_PivotY;
-            }
-
-            // render using geometries without 9-slicing
-            if (!use_slice_nine && use_geometries)
-            {
-                const Matrix4& w = node_transforms[i];
-
-                // NOTE: The original rendering code is from the comp_sprite.cpp.
-                // Compare with that one if you do any changes to either.
-                uint32_t num_points = geometry->m_Vertices.m_Count / 2;
-
-                const float* points = geometry->m_Vertices.m_Data;
-                const float* uvs = geometry->m_Uvs.m_Data;
-
-                // Depending on the sprite is flipped or not, we loop the vertices forward or backward
-                // to respect face winding (and backface culling)
-                int reverse = (int)flip_u ^ (int)flip_v;
-
-                float scaleX = flip_u ? -1 : 1;
-                float scaleY = flip_v ? -1 : 1;
-
-                // Since we don't use an index buffer, we duplicate the vertices manually
-                uint32_t index_count = geometry->m_Indices.m_Count;
-                for (uint32_t index = 0; index < index_count; ++index)
-                {
-                    uint32_t i = geometry->m_Indices.m_Data[index];
-                    i = reverse ? (num_points - i - 1) : i;
-
-                    const float* point = &points[i * 2];
-                    const float* uv = &uvs[i * 2];
-                    // COnvert from range [-0.5,+0.5] to [0.0, 1.0]
-                    float x = (point[0] - pivot_x) * scaleX + 0.5f;
-                    float y = (point[1] - pivot_y) * scaleY + 0.5f;
-
-                    Vector4 p = w * Point3(x, y, 0.0f);
-                    BoxVertex v(p, uv[0], uv[1], pm_color, page_index);
-                    gui_world->m_ClientVertexBuffer.Push(v);
-                }
-
-                rendered_vert_count += index_count;
-                continue;
-            }
-
-            // render 9-sliced node
-
-            //   0 1     2 3
-            // 0 *-*-----*-*
-            //   | |  y  | |
-            // 1 *-*-----*-*
-            //   | |     | |
-            //   |x|     |z|
-            //   | |     | |
-            // 2 *-*-----*-*
-            //   | |  w  | |
-            // 3 *-*-----*-*
-            const int verts_per_slice9 = 6*9;
-            float us[4], vs[4], xs[4], ys[4];
-
-            // v are '1-v'
-            xs[0] = ys[0] = 0;
-            xs[3] = ys[3] = 1;
-
-            // disable slice9 computation below a certain dimension
-            // (avoid div by zero)
-            const float s9_min_dim = 0.001f;
-
-            const float su = 1.0f / org_width;
-            const float sv = 1.0f / org_height;
-
-            Point3 size = dmGui::GetNodeSize(scene, node);
-            const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
-            const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
-
-            static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
-            bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
-            if(uv_rotated)
-            {
-                const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
-                const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
-                us[uI[0]] = tc[0];
-                us[uI[1]] = tc[0] + (su * slice9.getW());
-                us[uI[2]] = tc[2] - (su * slice9.getY());
-                us[uI[3]] = tc[2];
-                vs[vI[0]] = tc[1];
-                vs[vI[1]] = tc[1] - (sv * slice9.getX());
-                vs[vI[2]] = tc[5] + (sv * slice9.getZ());
-                vs[vI[3]] = tc[5];
-            }
-            else
-            {
-                const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
-                const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
-                us[uI[0]] = tc[0];
-                us[uI[1]] = tc[0] + (su * slice9.getX());
-                us[uI[2]] = tc[4] - (su * slice9.getZ());
-                us[uI[3]] = tc[4];
-                vs[vI[0]] = tc[1];
-                vs[vI[1]] = tc[1] + (sv * slice9.getW());
-                vs[vI[2]] = tc[3] - (sv * slice9.getY());
-                vs[vI[3]] = tc[3];
-            }
-
-            // Keep the geometry subdivisions aligned with the reversed UV
-            // subdivisions when an asymmetric 9-slice is flipped.
-            xs[1] = sx * (flip_u ? slice9.getZ() : slice9.getX());
-            xs[2] = 1 - sx * (flip_u ? slice9.getX() : slice9.getZ());
-            ys[1] = sy * (flip_v ? slice9.getY() : slice9.getW());
-            ys[2] = 1 - sy * (flip_v ? slice9.getW() : slice9.getY());
-
-            const Matrix4* transform = &node_transforms[i];
-            Vector4 pts[4][4];
-            for (int y=0;y<4;y++)
-            {
-                for (int x=0;x<4;x++)
-                {
-                    pts[y][x] = (*transform * Point3(xs[x], ys[y], 0));
-                }
-            }
-
-            BoxVertex v00, v10, v01, v11;
-            v00.SetColor(pm_color);
-            v10.SetColor(pm_color);
-            v01.SetColor(pm_color);
-            v11.SetColor(pm_color);
-
-            v00.SetPageIndex(page_index);
-            v10.SetPageIndex(page_index);
-            v01.SetPageIndex(page_index);
-            v11.SetPageIndex(page_index);
-
-            for (int y=0;y<3;y++)
-            {
-                for (int x=0;x<3;x++)
-                {
-                    const int x0 = x   - pivot_x;
-                    const int x1 = x+1 - pivot_x;
-                    const int y0 = y   - pivot_y;
-                    const int y1 = y+1 - pivot_y;
-
-                    v00.SetPosition(pts[y0][x0]);
-                    v10.SetPosition(pts[y0][x1]);
-                    v01.SetPosition(pts[y1][x0]);
-                    v11.SetPosition(pts[y1][x1]);
-                    if(uv_rotated)
-                    {
-                        v00.SetUV(us[y0], vs[x0]);
-                        v10.SetUV(us[y0], vs[x1]);
-                        v01.SetUV(us[y1], vs[x0]);
-                        v11.SetUV(us[y1], vs[x1]);
-                    }
-                    else
-                    {
-                        v00.SetUV(us[x0], vs[y0]);
-                        v10.SetUV(us[x1], vs[y0]);
-                        v01.SetUV(us[x0], vs[y1]);
-                        v11.SetUV(us[x1], vs[y1]);
-                    }
-                    gui_world->m_ClientVertexBuffer.Push(v00);
-                    gui_world->m_ClientVertexBuffer.Push(v10);
-                    gui_world->m_ClientVertexBuffer.Push(v11);
-                    gui_world->m_ClientVertexBuffer.Push(v00);
-                    gui_world->m_ClientVertexBuffer.Push(v11);
-                    gui_world->m_ClientVertexBuffer.Push(v01);
-                }
-            }
-            rendered_vert_count += verts_per_slice9;
+            GuiBoxInput input = CaptureGuiBoxInput(scene, entries[i].m_Node, node_transforms[i], node_opacities[i], texture != 0, org_width, org_height);
+            rendered_vert_count += GenerateGuiBoxVertices(input, gui_world->m_ClientVertexBuffer);
         }
 
         ro.m_VertexCount = rendered_vert_count;
@@ -3199,6 +3234,402 @@ namespace dmGameSystem
         }
     }
 
+    struct GuiFrameConstant
+    {
+        dmhash_t m_Name;
+        dmRenderDDF::MaterialDesc::ConstantType m_Type;
+        uint32_t m_Values, m_Count;
+    };
+    struct GuiFrameNode
+    {
+        GuiBoxInput m_Box;
+        dmRender::DrawTextParams m_TextParams;
+        dmRender::HMaterial m_Material;
+        dmRender::HFontMap m_Font;
+        dmGraphics::HTexture m_Texture;
+        dmRender::StencilTestParams m_Stencil;
+        dmGui::BlendMode m_Blend;
+        uint32_t m_Text, m_TextBytes, m_Constants, m_ConstantCount, m_FontVersion;
+        uint32_t m_Particles, m_ParticleCount;
+        Vector4 m_ParticleColor;
+        bool m_IsText, m_IsParticle;
+    };
+    struct GuiFrameTextCache { uint64_t m_Key; HTextLayout m_Layout; };
+    struct GuiFrameRenderer
+    {
+        dmGraphics::VertexAttributeInfo m_ParticleAttributes[4];
+        dmGraphics::VertexAttributeInfos m_ParticleInfos;
+        dmArray<BoxVertex> m_Vertices;
+        dmArray<dmRender::RenderObject> m_Objects;
+        dmArray<dmRender::HNamedConstantBuffer> m_Constants;
+        dmArray<GuiFrameTextCache> m_TextCache;
+        dmArray<dmRender::HConstant> m_TextConstants;
+        dmGraphics::HVertexDeclaration m_Declaration;
+        dmGraphics::HVertexBuffer m_Buffer;
+    };
+
+    static void DeleteGuiFrameRenderer(GuiFrameRenderer* renderer)
+    {
+        if (!renderer) return;
+        for (uint32_t i = 0; i < renderer->m_Constants.Size(); ++i)
+            dmRender::DeleteNamedConstantBuffer(renderer->m_Constants[i]);
+        for (uint32_t i = 0; i < renderer->m_TextCache.Size(); ++i)
+            if (renderer->m_TextCache[i].m_Layout) TextLayoutRelease(renderer->m_TextCache[i].m_Layout);
+        for (uint32_t i = 0; i < renderer->m_TextConstants.Size(); ++i) dmRender::DeleteConstant(renderer->m_TextConstants[i]);
+        delete renderer;
+    }
+
+    static void DispatchGuiFrame(const dmRender::RenderListDispatchParams& params)
+    {
+        if (params.m_Operation != dmRender::RENDER_LIST_OPERATION_BATCH) return;
+        for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
+            dmRender::AddToRender(params.m_Context, (dmRender::RenderObject*)params.m_Buf[*i].m_UserData);
+    }
+
+    static void SubmitGuiRenderFrame(void* state, dmRender::HRenderContext context, const dmRender::RenderFrame& frame)
+    {
+        GuiFrameRenderer* renderer = (GuiFrameRenderer*)state;
+        uint32_t count = 0;
+        for (uint32_t i = 0; i < frame.m_Entries.Size(); ++i) count += frame.m_Entries[i].m_Consumer == 1;
+        if (renderer->m_Objects.Capacity() < count) renderer->m_Objects.SetCapacity(count);
+        renderer->m_Objects.SetSize(0);
+        renderer->m_Vertices.SetSize(0);
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(context, count);
+        dmRender::RenderListEntry* out = entries;
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(context, DispatchGuiFrame, renderer);
+        uint32_t previous_key = 0, text_index = 0, constant_index = 0;
+        bool previous_box = false;
+        for (uint32_t i = 0; i < frame.m_Entries.Size(); ++i)
+        {
+            const dmRender::RenderFrameEntry& entry = frame.m_Entries[i];
+            if (entry.m_Consumer != 1) continue;
+            const GuiFrameNode& node = *(const GuiFrameNode*)dmRender::GetRenderFrameData(frame, entry.m_Payload, sizeof(GuiFrameNode));
+            const GuiFrameConstant* constants = node.m_ConstantCount ? (const GuiFrameConstant*)dmRender::GetRenderFrameData(frame, node.m_Constants, node.m_ConstantCount * sizeof(GuiFrameConstant)) : 0;
+            if (node.m_IsText)
+            {
+                previous_box = false;
+                dmRender::DrawTextParams params = node.m_TextParams;
+                const char* text = (const char*)dmRender::GetRenderFrameData(frame, node.m_Text, node.m_TextBytes);
+                HashState64 hash;
+                dmHashInit64(&hash, false);
+                dmHashUpdateBuffer64(&hash, text, node.m_TextBytes);
+                dmHashUpdateBuffer64(&hash, &node.m_Font, sizeof(node.m_Font));
+                dmHashUpdateBuffer64(&hash, &node.m_FontVersion, sizeof(node.m_FontVersion));
+                dmHashUpdateBuffer64(&hash, &params.m_Width, sizeof(params.m_Width));
+                dmHashUpdateBuffer64(&hash, &params.m_LineBreak, sizeof(params.m_LineBreak));
+                dmHashUpdateBuffer64(&hash, &params.m_Leading, sizeof(params.m_Leading));
+                dmHashUpdateBuffer64(&hash, &params.m_Tracking, sizeof(params.m_Tracking));
+                uint64_t key = dmHashFinal64(&hash);
+                if (text_index == renderer->m_TextCache.Size())
+                {
+                    if (renderer->m_TextCache.Full()) renderer->m_TextCache.OffsetCapacity(16);
+                    GuiFrameTextCache empty = {};
+                    renderer->m_TextCache.Push(empty);
+                }
+                GuiFrameTextCache& cache = renderer->m_TextCache[text_index++];
+                if (cache.m_Key != key || !cache.m_Layout)
+                {
+                    if (cache.m_Layout) TextLayoutRelease(cache.m_Layout);
+                    cache.m_Layout = 0;
+                    TextLayoutSettings settings = {};
+                    settings.m_Width = params.m_Width;
+                    settings.m_LineBreak = params.m_LineBreak;
+                    settings.m_Leading = params.m_Leading;
+                    settings.m_Tracking = params.m_Tracking;
+                    settings.m_BaseStyle = dmHashString64("default");
+                    settings.m_UseBaseStyle = 1;
+                    settings.m_Size = dmRender::GetFontMapSize(node.m_Font);
+                    settings.m_Monospace = dmRender::GetFontMapMonospaced(node.m_Font);
+                    settings.m_Padding = dmRender::GetFontMapPadding(node.m_Font);
+                    dmArray<uint32_t> codepoints;
+                    TextToCodePoints(text, codepoints);
+                    TextLayoutCreate(dmRender::GetFontCollection(node.m_Font), codepoints.Begin(), codepoints.Size(), &settings, &cache.m_Layout);
+                    cache.m_Key = key;
+                }
+                params.m_TextLayout = cache.m_Layout;
+                params.m_Text = cache.m_Layout ? 0 : text;
+                params.m_RenderOrder = entry.m_Order;
+                params.m_NumRenderConstants = dmMath::Min(node.m_ConstantCount, (uint32_t)dmRender::MAX_FONT_RENDER_CONSTANTS);
+                for (uint32_t c = 0; c < params.m_NumRenderConstants; ++c)
+                {
+                    if (constant_index == renderer->m_TextConstants.Size())
+                    {
+                        if (renderer->m_TextConstants.Full()) renderer->m_TextConstants.OffsetCapacity(16);
+                        renderer->m_TextConstants.Push(dmRender::NewConstant(constants[c].m_Name));
+                    }
+                    params.m_RenderConstants[c] = renderer->m_TextConstants[constant_index++];
+                    dmRender::SetConstantName(params.m_RenderConstants[c], constants[c].m_Name);
+                    dmRender::SetConstantType(params.m_RenderConstants[c], constants[c].m_Type);
+                    dmRender::SetConstantValues(params.m_RenderConstants[c], (Vector4*)dmRender::GetRenderFrameData(frame, constants[c].m_Values, constants[c].m_Count * sizeof(Vector4)), constants[c].m_Count);
+                }
+                dmRender::DrawText(context, node.m_Font, node.m_Material, 0, params);
+                continue;
+            }
+            bool batch = previous_box && previous_key == entry.m_BatchKey;
+            previous_box = true;
+            previous_key = entry.m_BatchKey;
+            if (!batch)
+            {
+                uint32_t index = renderer->m_Objects.Size();
+                renderer->m_Objects.SetSize(index + 1);
+                dmRender::RenderObject& ro = renderer->m_Objects[index];
+                ro.Init();
+                ro.m_VertexDeclaration = renderer->m_Declaration;
+                ro.m_VertexBuffer = renderer->m_Buffer;
+                ro.m_VertexStart = renderer->m_Vertices.Size();
+                ro.m_Material = node.m_Material;
+                ro.m_Textures[0] = node.m_Texture;
+                ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+                ro.m_StencilTestParams = node.m_Stencil;
+                ro.m_SetStencilTest = 1;
+                ro.m_SetBlendFactors = 1;
+                SetBlendMode(ro, node.m_Blend);
+                if (index == renderer->m_Constants.Size())
+                {
+                    if (renderer->m_Constants.Full()) renderer->m_Constants.OffsetCapacity(16);
+                    renderer->m_Constants.Push(dmRender::NewNamedConstantBuffer());
+                }
+                ro.m_ConstantBuffer = renderer->m_Constants[index];
+                dmRender::ClearNamedConstantBuffer(ro.m_ConstantBuffer);
+                for (uint32_t c = 0; c < node.m_ConstantCount; ++c)
+                    dmRender::SetNamedConstant(ro.m_ConstantBuffer, constants[c].m_Name,
+                        (Vector4*)dmRender::GetRenderFrameData(frame, constants[c].m_Values, constants[c].m_Count * sizeof(Vector4)), constants[c].m_Count, constants[c].m_Type);
+                out->m_UserData = (uintptr_t)&ro;
+                out->m_BatchKey = index;
+                out->m_TagListKey = entry.m_TagListKey;
+                out->m_Order = entry.m_Order;
+                out->m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+                out->m_MinorOrder = 0;
+                out->m_Dispatch = dispatch;
+                ++out;
+            }
+            if (node.m_IsParticle)
+            {
+                uint32_t count = node.m_ParticleCount * 6;
+                uint32_t start = renderer->m_Vertices.Size();
+                if (renderer->m_Vertices.Remaining() < count) renderer->m_Vertices.OffsetCapacity(dmMath::Max(count, 128U));
+                uint32_t bytes = 0;
+                if (count)
+                    dmParticle::GenerateCapturedParticleVertices((const dmParticle::RenderParticle*)dmRender::GetRenderFrameData(frame, node.m_Particles, node.m_ParticleCount * sizeof(dmParticle::RenderParticle)),
+                        node.m_ParticleCount, 0, node.m_ParticleCount, renderer->m_ParticleInfos, node.m_ParticleColor,
+                        renderer->m_Vertices.End(), count * sizeof(BoxVertex), &bytes);
+                renderer->m_Vertices.SetSize(start + bytes / sizeof(BoxVertex));
+                renderer->m_Objects.Back().m_VertexCount += bytes / sizeof(BoxVertex);
+            }
+            else renderer->m_Objects.Back().m_VertexCount += GenerateGuiBoxVertices(node.m_Box, renderer->m_Vertices);
+        }
+        dmGraphics::SetVertexBufferData(renderer->m_Buffer, renderer->m_Vertices.Size() * sizeof(BoxVertex), renderer->m_Vertices.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmRender::RenderListSubmit(context, entries, out);
+        dmRender::FlushTexts(context, dmRender::RENDER_ORDER_AFTER_WORLD, false);
+    }
+
+    struct GuiFrameCapture
+    {
+        dmRender::RenderFrameBuilder* m_Builder;
+        RenderGuiContext m_Context;
+        bool m_Ok;
+    };
+
+    static void CaptureGuiNodes(dmGui::HScene scene, const dmGui::RenderEntry* entries,
+                                const Matrix4* transforms, const float* opacities,
+                                const dmGui::StencilScope** scopes, uint32_t count, void* user_data)
+    {
+        GuiFrameCapture* capture = (GuiFrameCapture*)user_data;
+        dmRender::RenderFrameBuilder* builder = capture->m_Builder;
+        RenderGuiContext& context = capture->m_Context;
+        context.m_FirstStencil = true;
+        dmGraphics::HContext graphics = dmRender::GetGraphicsContext(context.m_RenderContext);
+        for (uint32_t i = 0; capture->m_Ok && i < count; ++i)
+        {
+            dmGui::HNode node = entries[i].m_Node;
+            dmGui::NodeType type = dmGui::GetNodeType(scene, node);
+            if ((type != dmGui::NODE_TYPE_BOX && type != dmGui::NODE_TYPE_TEXT && type != dmGui::NODE_TYPE_PARTICLEFX) || dmGui::GetNodeCustomType(scene, node))
+            { capture->m_Ok = false; break; }
+            GuiFrameNode data;
+            data.m_IsText = type == dmGui::NODE_TYPE_TEXT;
+            data.m_IsParticle = type == dmGui::NODE_TYPE_PARTICLEFX;
+            data.m_ParticleCount = 0;
+            data.m_Particles = UINT32_MAX;
+            data.m_Blend = dmGui::GetNodeBlendMode(scene, node);
+            data.m_Texture = GetNodeTexture(scene, node);
+            data.m_Material = GetNodeMaterial(&context, scene, node);
+            data.m_Font = 0;
+            data.m_FontVersion = 0;
+            data.m_Text = UINT32_MAX;
+            data.m_TextBytes = 0;
+            data.m_Constants = UINT32_MAX;
+            data.m_ConstantCount = 0;
+            memset(&data.m_Stencil, 0, sizeof(data.m_Stencil));
+            ApplyStencilClipping(&context, scopes[i], data.m_Stencil);
+            void* material = dmGui::GetNodeMaterial(scene, node);
+            if (material && !dmRender::RetainRenderFrameResource(builder, material)) { capture->m_Ok = false; break; }
+            dmGui::NodeTextureType texture_type;
+            void* texture = (void*)dmGui::GetNodeTexture(scene, node, &texture_type);
+            if (texture && !dmRender::RetainRenderFrameResource(builder, texture)) { capture->m_Ok = false; break; }
+            HComponentRenderConstants constants = (HComponentRenderConstants)dmGui::GetNodeRenderConstants(scene, node);
+            data.m_ConstantCount = constants ? GetRenderConstantCount(constants) : 0;
+            if (data.m_ConstantCount)
+            {
+                data.m_Constants = dmRender::AllocateRenderFrameData(builder, data.m_ConstantCount * sizeof(GuiFrameConstant));
+                if (data.m_Constants == UINT32_MAX) { capture->m_Ok = false; break; }
+                for (uint32_t c = 0; c < data.m_ConstantCount; ++c)
+                {
+                    dmRender::HConstant source = GetRenderConstant(constants, c);
+                    GuiFrameConstant value;
+                    value.m_Name = dmRender::GetConstantName(source);
+                    value.m_Type = dmRender::GetConstantType(source);
+                    const Vector4* values = dmRender::GetConstantValues(source, &value.m_Count);
+                    value.m_Values = dmRender::AllocateRenderFrameData(builder, value.m_Count * sizeof(Vector4));
+                    if (value.m_Values == UINT32_MAX) { capture->m_Ok = false; break; }
+                    memcpy(builder->m_Frame->m_Data.Begin() + value.m_Values, values, value.m_Count * sizeof(Vector4));
+                    memcpy(builder->m_Frame->m_Data.Begin() + data.m_Constants + c * sizeof(value), &value, sizeof(value));
+                }
+            }
+            if (!capture->m_Ok) break;
+            if (data.m_IsText)
+            {
+                FontResource* font = (FontResource*)dmGui::GetNodeFont(scene, node);
+                if (!font) continue;
+                if (!dmRender::RetainRenderFrameResource(builder, font)) { capture->m_Ok = false; break; }
+                data.m_Font = ResFontGetHandle(font);
+                data.m_FontVersion = ResFontGetVersion(font);
+                data.m_Material = GetTextNodeMaterial(&context, scene, node, data.m_Font);
+                const char* text = dmGui::GetNodeText(scene, node);
+                if (!text) text = "";
+                // Rich text objects have extension callbacks and mutable styles;
+                // ordinary GUI text is the initial admitted font consumer.
+                if (strchr(text, '<') || (dmGui::GetNodeTextStyle(scene, node) && dmGui::GetNodeTextStyle(scene, node) != dmHashString64("default"))) { capture->m_Ok = false; break; }
+                data.m_TextBytes = strlen(text) + 1;
+                data.m_Text = dmRender::AllocateRenderFrameData(builder, data.m_TextBytes);
+                if (data.m_Text == UINT32_MAX) { capture->m_Ok = false; break; }
+                memcpy(builder->m_Frame->m_Data.Begin() + data.m_Text, text, data.m_TextBytes);
+                dmRender::DrawTextParams& params = data.m_TextParams;
+                params.m_WorldTransform = transforms[i];
+                Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+                Vector4 outline = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_OUTLINE);
+                Vector4 shadow = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SHADOW);
+                params.m_FaceColor = Vector4(color.getXYZ(), opacities[i]);
+                params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacities[i]);
+                params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacities[i]);
+                params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
+                params.m_Leading = dmGui::GetNodeTextLeading(scene, node);
+                params.m_Tracking = dmGui::GetNodeTextTracking(scene, node);
+                Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
+                params.m_Width = size.getX(); params.m_Height = size.getY();
+                params.m_StencilTestParamsSet = 1;
+                params.m_StencilTestParams = data.m_Stencil;
+                GetGuiTextAlignment(scene, node, &params.m_Align, &params.m_VAlign);
+            }
+            else if (data.m_IsParticle)
+            {
+                GuiWorld* world = context.m_GuiWorld;
+                dmParticle::EmitterRenderData* emitter = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
+                if (!emitter) { capture->m_Ok = false; break; }
+                dmTransform::Transform transform = dmTransform::ToTransform(transforms[i]);
+                dmParticle::SetPosition(world->m_ParticleContext, emitter->m_Instance, Point3(transform.GetTranslation()));
+                dmParticle::SetRotation(world->m_ParticleContext, emitter->m_Instance, transform.GetRotation());
+                dmParticle::SetScale(world->m_ParticleContext, emitter->m_Instance, dmMath::Min(transform.GetScalePtr()[0], transform.GetScalePtr()[1]));
+                dmParticle::UpdateRenderData(world->m_ParticleContext, emitter->m_Instance, emitter->m_EmitterIndex, world->m_DT);
+                uint32_t capacity = dmParticle::GetEmitterVertexCount(world->m_ParticleContext, emitter->m_Instance, emitter->m_EmitterIndex) / 6;
+                if (capacity)
+                {
+                    data.m_Particles = dmRender::AllocateRenderFrameData(builder, capacity * sizeof(dmParticle::RenderParticle));
+                    if (data.m_Particles == UINT32_MAX || !dmParticle::CaptureRenderParticles(world->m_ParticleContext, emitter->m_Instance, emitter->m_EmitterIndex,
+                        (dmParticle::RenderParticle*)(builder->m_Frame->m_Data.Begin() + data.m_Particles), capacity, &data.m_ParticleCount)) { capture->m_Ok = false; break; }
+                }
+                TextureResource* texture = (TextureResource*)emitter->m_Texture;
+                if (texture && !dmRender::RetainRenderFrameResource(builder, texture)) { capture->m_Ok = false; break; }
+                data.m_Texture = texture ? texture->m_Texture : 0;
+                data.m_Blend = ddf_blendmode_map.m_Table[emitter->m_BlendMode];
+                data.m_ParticleColor = Vector4(dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR).getXYZ(), opacities[i]);
+                if (emitter->m_RenderConstantsSize)
+                {
+                    data.m_ConstantCount = emitter->m_RenderConstantsSize;
+                    data.m_Constants = dmRender::AllocateRenderFrameData(builder, data.m_ConstantCount * sizeof(GuiFrameConstant));
+                    if (data.m_Constants == UINT32_MAX) { capture->m_Ok = false; break; }
+                    for (uint32_t c = 0; c < data.m_ConstantCount; ++c)
+                    {
+                        const dmParticle::RenderConstant& source = emitter->m_RenderConstants[c];
+                        GuiFrameConstant value;
+                        value.m_Name = source.m_NameHash;
+                        value.m_Count = source.m_IsMatrix4 ? 4 : 1;
+                        value.m_Type = source.m_IsMatrix4 ? dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4 : dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+                        value.m_Values = dmRender::AllocateRenderFrameData(builder, value.m_Count * sizeof(Vector4));
+                        if (value.m_Values == UINT32_MAX) { capture->m_Ok = false; break; }
+                        memcpy(builder->m_Frame->m_Data.Begin() + value.m_Values, &source.m_Value, value.m_Count * sizeof(Vector4));
+                        memcpy(builder->m_Frame->m_Data.Begin() + data.m_Constants + c * sizeof(value), &value, sizeof(value));
+                    }
+                    if (!capture->m_Ok) break;
+                }
+            }
+            else
+            {
+                dmGraphics::HTexture resolved = data.m_Texture ? data.m_Texture : context.m_GuiWorld->m_WhiteTexture;
+                data.m_Box = CaptureGuiBoxInput(scene, node, transforms[i], opacities[i], data.m_Texture != 0,
+                    dmGraphics::GetOriginalTextureWidth(graphics, resolved), dmGraphics::GetOriginalTextureHeight(graphics, resolved));
+                data.m_Texture = resolved;
+            }
+            dmRender::RenderFrameEntry entry = {};
+            entry.m_Consumer = 1;
+            entry.m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+            entry.m_Order = MakeFinalRenderOrder(context.m_GuiWorld->m_RenderOrder, dmGui::GetRenderOrder(scene), context.m_NextSortOrder++);
+            entry.m_TagListKey = dmRender::GetMaterialTagListKey(data.m_Material);
+            HashState32 hash; dmHashInit32(&hash, false);
+            dmHashUpdateBuffer32(&hash, &data.m_Material, sizeof(data.m_Material));
+            dmHashUpdateBuffer32(&hash, &data.m_Texture, sizeof(data.m_Texture));
+            dmHashUpdateBuffer32(&hash, &data.m_Blend, sizeof(data.m_Blend));
+            dmHashUpdateBuffer32(&hash, &data.m_Stencil, sizeof(data.m_Stencil));
+            // Scene identity prevents accidental merging across independently clipped scenes.
+            dmHashUpdateBuffer32(&hash, &scene, sizeof(scene));
+            if (constants) HashRenderConstants(constants, &hash);
+            // Particle constants may differ from node constants; preserve the
+            // emitter boundary rather than merging incompatible constant sets.
+            if (data.m_IsParticle && data.m_ConstantCount) dmHashUpdateBuffer32(&hash, &i, sizeof(i));
+            entry.m_BatchKey = dmHashFinal32(&hash);
+            entry.m_PayloadBytes = sizeof(data);
+            entry.m_Payload = dmRender::AllocateRenderFrameData(builder, sizeof(data));
+            if (entry.m_Payload == UINT32_MAX) { capture->m_Ok = false; break; }
+            memcpy(builder->m_Frame->m_Data.Begin() + entry.m_Payload, &data, sizeof(data));
+            capture->m_Ok = dmRender::AddRenderFrameEntry(builder, entry);
+        }
+    }
+
+    bool RegisterGuiRenderFrame(void* gui_world, dmRender::RenderFrameConsumers* consumers)
+    {
+        GuiWorld* world = (GuiWorld*)gui_world;
+        if (!world->m_FrameRenderer) world->m_FrameRenderer = new GuiFrameRenderer();
+        world->m_FrameRenderer->m_Declaration = world->m_VertexDeclaration;
+        world->m_FrameRenderer->m_Buffer = world->m_VertexBuffer;
+        memcpy(world->m_FrameRenderer->m_ParticleAttributes, world->m_ParticleAttributeInfos.m_Infos, sizeof(world->m_FrameRenderer->m_ParticleAttributes));
+        world->m_FrameRenderer->m_ParticleInfos = world->m_ParticleAttributeInfos;
+        world->m_FrameRenderer->m_ParticleInfos.m_Infos = world->m_FrameRenderer->m_ParticleAttributes;
+        return dmRender::RegisterRenderFrameConsumer(consumers, 1, world->m_FrameRenderer, SubmitGuiRenderFrame);
+    }
+
+    bool CaptureGuiRenderFrame(void* gui_world, dmRender::RenderFrameBuilder* builder)
+    {
+        GuiWorld* world = (GuiWorld*)gui_world;
+        GuiFrameCapture capture;
+        capture.m_Builder = builder;
+        capture.m_Ok = true;
+        capture.m_Context.m_RenderContext = world->m_CompGuiContext->m_RenderContext;
+        capture.m_Context.m_GuiWorld = world;
+        capture.m_Context.m_NextSortOrder = 0;
+        dmGui::RenderSceneParams params;
+        params.m_RenderNodes = CaptureGuiNodes;
+        for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
+        {
+            GuiComponent* component = world->m_Components[i];
+            if (!component->m_Enabled || !component->m_AddedToUpdate || !dmGui::GetNodeCount(component->m_Scene)) continue;
+            if (!dmRender::RetainRenderFrameResource(builder, component->m_Resource) ||
+                !dmRender::RetainRenderFrameResource(builder, GetMaterialResource(component, component->m_Resource))) return false;
+            capture.m_Context.m_Material = GetMaterial(component, component->m_Resource);
+            dmGui::RenderScene(component->m_Scene, params, &capture);
+            if (!capture.m_Ok) return false;
+        }
+        return true;
+    }
+
     static dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
@@ -3553,6 +3984,7 @@ namespace dmGameSystem
     // Public function used by engine (as callback from gui system)
     void GuiGetTextMetricsCallback(dmGameSystem::FontResource* font_resource, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
     {
+        if (dmGraphics::IsRenderGraphicsOwnerActive()) dmGraphics::FlushGraphicsPackets();
         dmRender::HFontMap font = dmGameSystem::ResFontGetHandle(font_resource);
 
         TextLayoutSettings settings = {0};

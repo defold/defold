@@ -1,0 +1,2 @@
+images { image: "/tile.png" }
+extrude_borders: 2

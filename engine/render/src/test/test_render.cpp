@@ -14,6 +14,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <dlib/thread.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dmsdk/dlib/intersection.h>
@@ -40,6 +41,7 @@
 #include "render/render.h"
 #include "render/render_command.h"
 #include "render/render_thread.h"
+#include "render/render_frame.h"
 #include <dlib/mutex.h>
 #include <dlib/condition_variable.h>
 #include <dlib/time.h>
@@ -4576,4 +4578,169 @@ TEST_F(dmRenderTest, PreparedInlineKeepsOtherDispatches)
     ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
     ASSERT_EQ(9U, m_Context->m_RenderObjects[0]->m_VertexStart);
     ASSERT_EQ(2U, m_Context->m_RenderObjects[1]->m_VertexStart);
+}
+
+
+// Named conditions preserve legacy aliases and reject combinations that would
+// otherwise silently benchmark the wrong pipeline or enable two workers.
+TEST(RenderFrameContract, ConditionResolution)
+{
+    dmRender::PocCondition condition;
+    const char* error;
+    ASSERT_TRUE(dmRender::ResolvePocCondition(0, 0, 0, 0, &condition, &error));
+    ASSERT_EQ(dmRender::POC_LEGACY, condition.m_Pipeline);
+    ASSERT_TRUE(dmRender::ResolvePocCondition(0, 0, "2", "0", &condition, &error));
+    ASSERT_EQ(dmRender::POC_COMPONENT, condition.m_Pipeline);
+    ASSERT_TRUE(condition.m_Threaded);
+    ASSERT_TRUE(dmRender::ResolvePocCondition("renderframe", "1", 0, 0, &condition, &error));
+    ASSERT_EQ(dmRender::POC_RENDERFRAME, condition.m_Pipeline);
+    ASSERT_STREQ("renderframe-threaded", dmRender::GetPocConditionName(condition));
+    ASSERT_TRUE(dmRender::ResolvePocCondition("graphics", "0", 0, 0, &condition, &error));
+    ASSERT_STREQ("graphics-inline", dmRender::GetPocConditionName(condition));
+    ASSERT_FALSE(dmRender::ResolvePocCondition("renderframe", "0", "0", 0, &condition, &error));
+    ASSERT_FALSE(dmRender::ResolvePocCondition("legacy", "1", 0, 0, &condition, &error));
+    ASSERT_FALSE(dmRender::ResolvePocCondition(0, 0, "1", "2", &condition, &error));
+    ASSERT_FALSE(dmRender::ResolvePocCondition("typo", "0", 0, 0, &condition, &error));
+    ASSERT_FALSE(dmRender::ResolvePocCondition("component", "true", 0, 0, &condition, &error));
+}
+
+static void CountOwnedFrameEntries(void* renderer, dmRender::HRenderContext, const dmRender::RenderFrame& frame)
+{
+    uint32_t* count = (uint32_t*)renderer;
+    *count += frame.m_Entries.Size();
+}
+
+// Offsets survive arena reallocation, sealed consumers see the captured bytes,
+// and retirement clears active data without discarding reusable slot capacity.
+TEST(RenderFrameContract, OwnedPayloadAndConsumerDispatch)
+{
+    dmRender::RenderFrame frame;
+    dmRender::RenderFrameBuilder builder;
+    dmRender::RenderFrameConsumers consumers;
+    uint32_t count = 0;
+    ASSERT_TRUE(dmRender::RegisterRenderFrameConsumer(&consumers, 1, &count, CountOwnedFrameEntries));
+    ASSERT_FALSE(dmRender::RegisterRenderFrameConsumer(&consumers, 1, &count, CountOwnedFrameEntries));
+    dmRender::BeginRenderFrame(&builder, &frame, 0, 1, 7, 640, 480, 3);
+    uint32_t offset = dmRender::AllocateRenderFrameData(&builder, sizeof(uint32_t));
+    *(uint32_t*)(frame.m_Data.Begin() + offset) = 1234;
+    ASSERT_NE(0xffffffffu, dmRender::AllocateRenderFrameData(&builder, 65536));
+    ASSERT_EQ(1234u, *(const uint32_t*)dmRender::GetRenderFrameData(frame, offset, sizeof(uint32_t)));
+    dmRender::RenderFrameEntry entry = {};
+    entry.m_Consumer = 1;
+    entry.m_Payload = offset;
+    entry.m_PayloadBytes = sizeof(uint32_t);
+    ASSERT_TRUE(dmRender::AddRenderFrameEntry(&builder, entry));
+    ASSERT_TRUE(dmRender::SealRenderFrame(&builder, consumers));
+    frame.m_State = dmRender::FRAME_READING;
+    dmRender::SubmitRenderFrame(0, frame, consumers);
+    ASSERT_EQ(1u, count);
+    frame.m_State = dmRender::FRAME_RETIRED;
+    uint64_t retained = dmRender::GetRenderFrameCapacity(frame);
+    dmRender::RetireRenderFrame(&frame);
+    ASSERT_EQ(0u, frame.m_Data.Size());
+    ASSERT_EQ(0u, frame.m_Entries.Size());
+    ASSERT_EQ(retained, dmRender::GetRenderFrameCapacity(frame));
+}
+
+// Reject unknown consumers, out-of-bounds offsets and allocation replacement
+// peaks before publication, rather than dropping entries or exceeding the budget.
+TEST(RenderFrameContract, AdmissionAndPartialFailure)
+{
+    dmRender::RenderFrame frame;
+    dmRender::RenderFrameBuilder builder;
+    dmRender::RenderFrameConsumers consumers;
+    dmRender::BeginRenderFrame(&builder, &frame, 0, 1, 1, 32, 32, 1);
+    uint32_t offset = dmRender::AllocateRenderFrameData(&builder, 4);
+    dmRender::RenderFrameEntry entry = {};
+    entry.m_Consumer = 1;
+    entry.m_Payload = offset;
+    entry.m_PayloadBytes = 4;
+    ASSERT_TRUE(dmRender::AddRenderFrameEntry(&builder, entry));
+    ASSERT_FALSE(dmRender::SealRenderFrame(&builder, consumers));
+    ASSERT_EQ((const void*)0, dmRender::GetRenderFrameData(frame, 0xfffffff0u, 64));
+    ASSERT_EQ((const void*)0, dmRender::GetRenderFrameData(frame, 0, 0));
+    dmRender::RetireRenderFrame(&frame);
+    dmRender::BeginRenderFrame(&builder, &frame, 0, 2, 2, 32, 32, 1);
+    frame.m_Limit = (uint32_t)dmRender::GetRenderFrameCapacity(frame) + 64;
+    ASSERT_EQ(0xffffffffu, dmRender::AllocateRenderFrameData(&builder, 1024));
+    ASSERT_TRUE(frame.m_Overflow);
+    ASSERT_FALSE(dmRender::SealRenderFrame(&builder, consumers));
+    ASSERT_EQ(0u, frame.m_Data.Size());
+}
+
+// Verifies distinct pass constants and views are owned after producer mutation,
+// and budget rejection leaves no partially executable command stream.
+TEST(dmRenderThreadTest, RenderFramePassConstants)
+{
+    dmRender::HNamedConstantBuffer source = dmRender::NewNamedConstantBuffer();
+    dmhash_t name = dmHashString64("tint");
+    dmVMath::Vector4 tint(1, 2, 3, 4);
+    dmRender::SetNamedConstant(source, name, &tint, 1);
+    dmRender::Predicate predicate = {};
+    dmVMath::Matrix4 views[2] = { dmVMath::Matrix4::identity(), dmVMath::Matrix4::identity() };
+    views[1].setCol3(dmVMath::Vector4(4, 5, 6, 1));
+    dmRender::Command commands[] = {
+        dmRender::Command(dmRender::COMMAND_TYPE_SET_VIEW, (uint64_t)&views[0]),
+        dmRender::Command(dmRender::COMMAND_TYPE_DRAW, (uint64_t)&predicate, (uint64_t)source),
+        dmRender::Command(dmRender::COMMAND_TYPE_SET_VIEW, (uint64_t)&views[1]),
+        dmRender::Command(dmRender::COMMAND_TYPE_DRAW, (uint64_t)&predicate, (uint64_t)source)
+    };
+    dmRender::CapturedCommands captured;
+    ASSERT_TRUE(dmRender::CaptureCommands(commands, 4, &captured, true));
+    tint = dmVMath::Vector4(9);
+    dmRender::SetNamedConstant(source, name, &tint, 1);
+    dmRender::DeleteNamedConstantBuffer(source);
+    views[1] = views[0];
+    dmVMath::Vector4* values;
+    uint32_t count;
+    ASSERT_TRUE(dmRender::GetNamedConstant((dmRender::HNamedConstantBuffer)captured.m_Commands[1].m_Operands[1], name, &values, &count));
+    ASSERT_EQ(1U, count);
+    ASSERT_EQ(1.0f, values[0].getX());
+    ASSERT_NE(captured.m_Commands[1].m_Operands[1], captured.m_Commands[3].m_Operands[1]);
+    ASSERT_EQ(4.0f, ((dmVMath::Matrix4*)captured.m_Commands[2].m_Operands[0])->getCol3().getX());
+    dmRender::CapturedCommands rejected;
+    ASSERT_FALSE(dmRender::CaptureCommands(captured.m_Commands, 4, &rejected, true, sizeof(rejected)));
+    ASSERT_EQ(0U, rejected.m_Count);
+}
+
+struct ExternalRenderProbe
+{
+    dmThread::Thread m_Owner;
+    uint32_t m_Count;
+    uint64_t m_Ids[3];
+    uint32_t m_Slots[3];
+};
+
+static void ConsumeExternalFrame(void* data, uint32_t slot, uint64_t id)
+{
+    ExternalRenderProbe* probe = (ExternalRenderProbe*)data;
+    ASSERT_EQ(probe->m_Owner, dmThread::GetCurrentThread());
+    probe->m_Ids[probe->m_Count] = id;
+    probe->m_Slots[probe->m_Count++] = slot;
+}
+
+// Verifies external consumption never waits for unpublished work and preserves
+// slot ordering/cancellation without starting a rendering worker.
+TEST(dmRenderThreadTest, ExternalOwnerPumpsPublishedFrames)
+{
+    ExternalRenderProbe probe = {};
+    probe.m_Owner = dmThread::GetCurrentThread();
+    dmRender::HRenderThread queue = dmRender::NewExternalRenderThread(ConsumeExternalFrame, &probe);
+    ASSERT_FALSE(dmRender::PumpExternalRenderThread(queue));
+    uint32_t slot = dmRender::BeginRenderThreadFrame(queue);
+    ASSERT_FALSE(dmRender::PumpExternalRenderThread(queue));
+    dmRender::CancelRenderThreadFrame(queue, slot);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmRender::PublishRenderThreadFrame(queue, dmRender::BeginRenderThreadFrame(queue));
+        ASSERT_TRUE(dmRender::PumpExternalRenderThread(queue));
+        ASSERT_FALSE(dmRender::PumpExternalRenderThread(queue));
+        ASSERT_EQ((uint64_t)i + 1, probe.m_Ids[i]);
+        ASSERT_EQ(i % 2, probe.m_Slots[i]);
+    }
+    dmRender::RenderThreadStats stats;
+    dmRender::GetRenderThreadStats(queue, &stats);
+    ASSERT_EQ(3ULL, stats.m_Completed);
+    ASSERT_EQ(1U, stats.m_MaxOutstanding);
+    dmRender::DeleteRenderThread(queue);
 }

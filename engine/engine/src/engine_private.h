@@ -108,6 +108,7 @@ namespace dmEngine
         uint32_t            m_Fps;
     };
 
+    struct RenderFrameState;
     struct SpriteThreadState;
     struct MixedInlineState;
     struct Engine
@@ -132,6 +133,9 @@ namespace dmEngine
         HJobContext                                 m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
+        RenderFrameState*                          m_RenderFrame;
+        uint32_t                                   m_PocPipeline;
+        bool                                       m_PocThreaded;
         SpriteThreadState*                         m_SpriteThread;
         MixedInlineState*                          m_MixedInline;
         dmRender::FrameTrace*                       m_SpriteTrace;

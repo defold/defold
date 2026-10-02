@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <graphics/graphics_packet.h>
 #include <float.h>
 #include <stdio.h>
 #include <assert.h>
@@ -511,8 +512,44 @@ namespace dmGameSystem
         SpriteSnapshotStats stats;
         GetSpriteSnapshotStats(world, &stats);
         lua_newtable(L);
-        lua_pushstring(L, stats.m_Threaded ? "snapshot-threaded" : (stats.m_Inline ? "snapshot-inline" : "existing"));
+        dmGraphics::GraphicsPacketStats packet;
+        dmGraphics::GetGraphicsPacketStats(&packet);
+        lua_pushstring(L, dmGraphics::IsExternalGraphicsProducer() ? "component-web-threaded" : dmGraphics::IsRenderGraphicsOwnerActive() ? (packet.m_Mode == 1 ? "renderframe-inline" : "renderframe-threaded") :
+            packet.m_Mode ? (packet.m_Mode == 1 ? "graphics-inline" : "graphics-threaded") :
+            (stats.m_Threaded ? "snapshot-threaded" : (stats.m_Inline ? "snapshot-inline" : "existing")));
         lua_setfield(L, -2, "mode");
+        lua_pushnumber(L, (lua_Number)packet.m_Mode);
+        lua_setfield(L, -2, "graphics_packet_mode");
+        lua_pushnumber(L, (lua_Number)packet.m_Submitted);
+        lua_setfield(L, -2, "graphics_packet_submitted");
+        lua_pushnumber(L, (lua_Number)packet.m_Completed);
+        lua_setfield(L, -2, "graphics_packet_completed");
+        lua_pushnumber(L, (lua_Number)packet.m_Commands);
+        lua_setfield(L, -2, "graphics_packet_commands");
+        lua_pushnumber(L, (lua_Number)packet.m_CopiedBytes);
+        lua_setfield(L, -2, "graphics_packet_copied_bytes");
+        lua_pushnumber(L, (lua_Number)packet.m_WaitUs);
+        lua_setfield(L, -2, "graphics_packet_wait_us");
+        lua_pushnumber(L, (lua_Number)packet.m_ExecuteUs);
+        lua_setfield(L, -2, "graphics_packet_execute_us");
+        lua_pushnumber(L, (lua_Number)packet.m_SynchronousCalls);
+        lua_setfield(L, -2, "graphics_packet_synchronous_calls");
+        lua_pushnumber(L, (lua_Number)packet.m_OverlapFrames);
+        lua_setfield(L, -2, "graphics_packet_overlap_frames");
+        lua_pushnumber(L, (lua_Number)packet.m_CapacityBytes);
+        lua_setfield(L, -2, "graphics_packet_capacity_bytes");
+        lua_pushnumber(L, (lua_Number)packet.m_GrowthPeakBytes);
+        lua_setfield(L, -2, "graphics_packet_growth_peak_bytes");
+        lua_pushnumber(L, (lua_Number)packet.m_LastFrameBytes);
+        lua_setfield(L, -2, "graphics_packet_last_frame_bytes");
+        lua_pushnumber(L, (lua_Number)packet.m_MaxFrameBytes);
+        lua_setfield(L, -2, "graphics_packet_max_frame_bytes");
+        lua_pushnumber(L, (lua_Number)packet.m_MaxOutstanding);
+        lua_setfield(L, -2, "graphics_packet_max_outstanding");
+        lua_pushnumber(L, packet.m_StackReservedBytes);
+        lua_setfield(L, -2, "graphics_packet_stack_reserved_bytes");
+        lua_pushnumber(L, packet.m_BufferMetadataBytes);
+        lua_setfield(L, -2, "graphics_packet_buffer_metadata_bytes");
         lua_pushnumber(L, (lua_Number)stats.m_PayloadUsedBytes);
         lua_setfield(L, -2, "payload_used_bytes");
         lua_pushnumber(L, (lua_Number)stats.m_FrameCapacityBytes);
@@ -548,6 +585,17 @@ namespace dmGameSystem
         lua_pushnumber(L, (lua_Number)stats.m_RetainedReferenceCount);
         lua_setfield(L, -2, "retained_reference_count");
         SpriteContext* context = (SpriteContext*)dmGameObject::GetContext(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
+        if (dmGraphics::IsRenderGraphicsOwnerActive())
+        {
+            lua_pushnumber(L, (lua_Number)context->m_RenderFrameUsedBytes);
+            lua_setfield(L, -2, "renderframe_arena_used_bytes");
+            lua_pushnumber(L, (lua_Number)context->m_RenderFrameCapacityBytes);
+            lua_setfield(L, -2, "renderframe_capacity_bytes");
+            lua_pushnumber(L, (lua_Number)context->m_RenderFrameGrowthPeakBytes);
+            lua_setfield(L, -2, "renderframe_growth_peak_bytes");
+            lua_pushnumber(L, context->m_RenderFrameReferences);
+            lua_setfield(L, -2, "renderframe_retained_references");
+        }
         uint64_t device_bytes;
         if (dmGraphics::GetRenderDeviceAllocatedBytes(dmRender::GetGraphicsContext(context->m_RenderContext), &device_bytes))
         {
@@ -608,6 +656,7 @@ namespace dmGameSystem
 
     static int SpriteComp_SnapshotPause(lua_State* L)
     {
+        if (dmGraphics::SetGraphicsPacketsPaused(lua_toboolean(L, 1))) return 0;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
         SpriteContext* context = (SpriteContext*)dmGameObject::GetContext(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
         if (!context->m_SnapshotPause)

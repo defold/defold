@@ -29,6 +29,7 @@
 #include <graphics/graphics_ddf.h>
 
 #include "../particle.h"
+#include "../particle_render.h"
 #include "../particle_private.h"
 
 using namespace dmVMath;
@@ -2437,6 +2438,72 @@ TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
         ASSERT_NEAR(local_pos_first[v*4+3], vertex_buffer[v].m_LocalW, EPSILON);
     }
 
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+// Captured evaluated values preserve geometry after another simulation step and
+// destruction; no emitter, animation table or mutable particle pointer may escape.
+TEST_F(ParticleTest, CapturedRenderInputsSurviveSimulationAndDeletion)
+{
+    ASSERT_TRUE(LoadPrototype("anim.particlefxc", &m_Prototype));
+    TileSource tiles;
+    for (uint32_t e = 0; e < 7; ++e) dmParticle::SetTileSource(m_Prototype, e, &tiles);
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0);
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, 0.25f, FetchAnimationCallback);
+    dmParticle::RenderParticle captured[7][16];
+    uint32_t counts[7], expected_size[7];
+    TestVertex expected[7][96];
+    for (uint32_t e = 0; e < 7; ++e)
+    {
+        dmParticle::UpdateRenderData(m_Context, instance, e, 0.25f);
+        ASSERT_TRUE(dmParticle::CaptureRenderParticles(m_Context, instance, e, captured[e], 16, &counts[e]));
+        ASSERT_GT(counts[e], 0u);
+        expected_size[e] = 0;
+        ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_OK, dmParticle::GenerateVertexData(m_Context, instance, e,
+                        m_AttributeInfos, Vector4(0.5f, 0.7f, 1, 0.8f), expected[e], sizeof(expected[e]), &expected_size[e]));
+    }
+    dmParticle::SetPosition(m_Context, instance, Point3(100, 200, 0));
+    dmParticle::Update(m_Context, 0.25f, FetchAnimationCallback);
+    dmParticle::DestroyInstance(m_Context, instance);
+    for (uint32_t e = 0; e < 7; ++e)
+    {
+        TestVertex actual[96];
+        uint32_t size = 0;
+        ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_OK, dmParticle::GenerateCapturedParticleVertices(captured[e], counts[e],
+                        0, counts[e], m_AttributeInfos, Vector4(0.5f, 0.7f, 1, 0.8f), actual, sizeof(actual), &size));
+        ASSERT_EQ(expected_size[e], size);
+        ASSERT_EQ(0, memcmp(expected[e], actual, size));
+    }
+}
+
+// Admission rejects undersized capture storage without writing partial inputs;
+// vertex consumption reports a full-particle buffer limit rather than overrunning.
+TEST_F(ParticleTest, CapturedRenderInputsBounds)
+{
+    ASSERT_TRUE(LoadPrototype("anim.particlefxc", &m_Prototype));
+    TileSource tiles;
+    for (uint32_t e = 0; e < 7; ++e) dmParticle::SetTileSource(m_Prototype, e, &tiles);
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0);
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, 0.25f, FetchAnimationCallback);
+    dmParticle::RenderParticle captured[16];
+    memset(captured, 0x5a, sizeof(captured));
+    uint32_t count = 99;
+    ASSERT_FALSE(dmParticle::CaptureRenderParticles(m_Context, instance, 0, captured, 0, &count));
+    ASSERT_EQ(0u, count);
+    ASSERT_EQ(0x5au, (uint32_t)((uint8_t*)captured)[0]);
+    ASSERT_TRUE(dmParticle::CaptureRenderParticles(m_Context, instance, 0, captured, 16, &count));
+    TestVertex vertices[6];
+    uint32_t size = 0;
+    ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED,
+              dmParticle::GenerateCapturedParticleVertices(captured, count, 0, count, m_AttributeInfos,
+                                    Vector4(1,1,1,1), vertices, sizeof(vertices)-1, &size));
+    ASSERT_EQ(0u, size);
+    ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_OK,
+              dmParticle::GenerateCapturedParticleVertices(captured, count, count, 0xffffffffu, m_AttributeInfos,
+                                    Vector4(1,1,1,1), vertices, sizeof(vertices), &size));
+    ASSERT_EQ(0u, size);
     dmParticle::DestroyInstance(m_Context, instance);
 }
 

@@ -43,6 +43,8 @@ struct Initializer {
     }
 } g_SymbolInitializer;
 
+// Verifies extension lifecycle/context registration and render-hook admission
+// visibility before initialization, while active, and after finalization.
 TEST(dmExtension, Basic)
 {
     HContextRegistry context_registry = ContextRegistryCreate();
@@ -60,8 +62,10 @@ TEST(dmExtension, Basic)
     ASSERT_EQ((void*)&engine_hash_context, ContextRegistryGet(context_registry, "engine_hash"));
 
     ASSERT_EQ(0, g_TestAppInitCount);
+    ASSERT_FALSE(dmExtension::HasRenderCallbacks());
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&appparams));
     ASSERT_EQ(1, g_TestAppInitCount);
+    ASSERT_TRUE(dmExtension::HasRenderCallbacks());
     dmExtension::HExtension extension = dmExtension::GetFirstExtension();
     ASSERT_NE((dmExtension::HExtension)0, extension);
     ASSERT_EQ((dmExtension::HExtension)0, dmExtension::GetNextExtension(extension));
@@ -109,6 +113,7 @@ TEST(dmExtension, Basic)
     ExtensionAppParamsSetContextRegistry(&appfinalizeparams, context_registry);
 
     dmExtension::AppFinalize(&appfinalizeparams);
+    ASSERT_FALSE(dmExtension::HasRenderCallbacks());
     ASSERT_EQ(0, g_TestAppInitCount);
 
     // it deregistered its own context

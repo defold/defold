@@ -101,7 +101,7 @@ endif()
 defold_add_sdk_headers_target(particle_public_sdk_headers
   DESTINATION include/particle
   SOURCE_ROOT "${PARTICLE_SRC_DIR}"
-  FILES "${PARTICLE_SRC_DIR}/particle.h"
+  FILES "${PARTICLE_SRC_DIR}/particle.h" "${PARTICLE_SRC_DIR}/particle_render.h"
   DEPENDS particle)
 defold_add_sdk_headers_target(particle_generated_sdk_headers
   DESTINATION include/particle
@@ -119,6 +119,7 @@ add_custom_target(particle_sdk_headers
 
 install(FILES
   "${PARTICLE_SRC_DIR}/particle.h"
+  "${PARTICLE_SRC_DIR}/particle_render.h"
   "${PARTICLE_PROTO_H}"
   DESTINATION include/particle)
 install(FILES "${PARTICLE_PROTO}" DESTINATION share/proto)

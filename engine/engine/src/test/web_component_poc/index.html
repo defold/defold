@@ -1,0 +1,14 @@
+<!doctype html><html><meta charset="utf-8"><link rel="icon" href="data:,"><title>Web component PoC smoke</title><body style="background:#121824"><canvas id="canvas" width="640" height="360" tabindex="0"></canvas>
+<script>
+const mode = new URLSearchParams(location.search).get('mode') || 'threaded';
+if (!crossOriginIsolated) throw new Error('Serve with COOP: same-origin and COEP: require-corp');
+var Module = {
+ preRun: [function(){ FS.mkdir('/data'); }],
+ canvas: document.getElementById('canvas'),
+ arguments: ['--config=render.poc_pipeline='+(mode==='direct'?'legacy':'component'),'--config=render.poc_threaded='+(mode==='threaded'?1:0),'/content/game.projectc'],
+ print: s => { console.log(s); (window.lines ||= []).push(s); },
+ printErr: s => { console.error(s); (window.lines ||= []).push(s); },
+ onExit: code => { window.exitCode = code; },
+ onAbort: reason => { window.abortReason = String(reason); }
+};
+</script><script src="dmengine_release.js"></script></body></html>

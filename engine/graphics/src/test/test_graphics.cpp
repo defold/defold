@@ -12,12 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include "../graphics_packet.h"
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <dlib/log.h>
 #include <dlib/time.h>
+#include <dlib/thread.h>
+#include <dlib/condition_variable.h>
 #include <ddf/ddf.h>
 #include <platform/window.hpp>
 #include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
@@ -2777,4 +2780,408 @@ int main(int argc, char **argv)
     dmExportedSymbols();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
+}
+
+// Verifies packet uploads own their bytes and preserve ordered writes after source mutation.
+TEST_F(dmGraphicsTest, GraphicsPacketInlineOwnsUploads)
+{
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_Context, 16, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_TRUE(dmGraphics::StartGraphicsPackets(m_Context, 1));
+    char data[16]; memset(data, 7, sizeof(data));
+    dmGraphics::SetVertexBufferData(buffer, sizeof(data), data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    memset(data, 3, sizeof(data));
+    dmGraphics::SetVertexBufferSubData(buffer, 4, 4, data);
+    memset(data, 9, sizeof(data));
+    ASSERT_EQ(16u, dmGraphics::GetVertexBufferSize(buffer));
+    dmGraphics::FlushGraphicsPackets();
+    dmGraphics::VertexBuffer* vb = (dmGraphics::VertexBuffer*)buffer;
+    for (uint32_t i = 0; i < 16; ++i) ASSERT_EQ(i >= 4 && i < 8 ? 3 : 7, vb->m_Buffer[i]);
+    dmGraphics::DeleteVertexBuffer(buffer);
+    dmGraphics::StopGraphicsPackets();
+}
+
+// Verifies producer state queries see recorded state without forcing backend execution.
+TEST_F(dmGraphicsTest, GraphicsPacketShadowState)
+{
+    ASSERT_TRUE(dmGraphics::StartGraphicsPackets(m_Context, 1));
+    dmGraphics::EnableState(m_Context, dmGraphics::STATE_BLEND);
+    dmGraphics::SetBlendFunc(m_Context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE);
+    dmGraphics::SetDepthMask(m_Context, false);
+    dmGraphics::SetViewport(m_Context, 2, 3, 100, 80);
+    dmGraphics::PipelineState shadow = dmGraphics::GetPipelineState(m_Context);
+    ASSERT_EQ(1u, (uint32_t)shadow.m_BlendEnabled);
+    ASSERT_EQ(0u, (uint32_t)shadow.m_WriteDepth);
+    ASSERT_EQ((uint32_t)dmGraphics::BLEND_FACTOR_SRC_ALPHA, (uint32_t)shadow.m_BlendSrcFactor);
+    int32_t x, y; uint32_t w, h;
+    dmGraphics::GetViewport(m_Context, &x, &y, &w, &h);
+    ASSERT_EQ(2, x); ASSERT_EQ(3, y); ASSERT_EQ(100u, w); ASSERT_EQ(80u, h);
+    dmGraphics::GraphicsPacketStats stats; dmGraphics::GetGraphicsPacketStats(&stats);
+    ASSERT_EQ(0u, stats.m_SynchronousCalls);
+    dmGraphics::StopGraphicsPackets();
+    dmGraphics::PipelineState actual = dmGraphics::GetPipelineState(m_Context);
+    ASSERT_EQ((uint32_t)shadow.m_BlendEnabled, (uint32_t)actual.m_BlendEnabled);
+    ASSERT_EQ((uint32_t)shadow.m_WriteDepth, (uint32_t)actual.m_WriteDepth);
+}
+
+// Verifies worker backpressure, ordered uploads and retirement across two reusable slots.
+TEST_F(dmGraphicsTest, GraphicsPacketThreadedSlots)
+{
+    ASSERT_TRUE(dmGraphics::StartGraphicsPackets(m_Context, 2, 1000));
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_Context, 16, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    for (uint32_t i = 0; i < 8; ++i)
+    {
+        char data[16]; memset(data, i, sizeof(data));
+        dmGraphics::BeginFrame(m_Context);
+        dmGraphics::SetVertexBufferData(buffer, sizeof(data), data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::Flip(m_Context);
+        memset(data, 99, sizeof(data));
+    }
+    dmGraphics::FlushGraphicsPackets();
+    dmGraphics::VertexBuffer* vb = (dmGraphics::VertexBuffer*)buffer;
+    ASSERT_EQ(7, vb->m_Buffer[0]);
+    dmGraphics::GraphicsPacketStats stats; dmGraphics::GetGraphicsPacketStats(&stats);
+    ASSERT_EQ(8u, stats.m_Submitted); ASSERT_EQ(8u, stats.m_Completed);
+    ASSERT_EQ(1u, stats.m_MaxOutstanding); ASSERT_GT(stats.m_OverlapFrames, 0u);
+    dmGraphics::DeleteVertexBuffer(buffer);
+    dmGraphics::StopGraphicsPackets();
+}
+
+// Verifies immediate resource results and deletion consume all earlier packet references first.
+TEST_F(dmGraphicsTest, GraphicsPacketResourceOrdering)
+{
+    ASSERT_TRUE(dmGraphics::StartGraphicsPackets(m_Context, 2));
+    char data[16]; memset(data, 4, sizeof(data));
+    dmGraphics::HIndexBuffer buffer = dmGraphics::NewIndexBuffer(m_Context, sizeof(data), data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_NE((dmGraphics::HIndexBuffer)0, buffer);
+    ASSERT_EQ(16u, dmGraphics::GetIndexBufferSize(buffer));
+    memset(data, 5, sizeof(data));
+    dmGraphics::SetIndexBufferData(buffer, sizeof(data), data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    // The queued write must finish before the backend frees its destination.
+    dmGraphics::DeleteIndexBuffer(buffer);
+    dmGraphics::GraphicsPacketStats stats; dmGraphics::GetGraphicsPacketStats(&stats);
+    ASSERT_EQ(2u, stats.m_SynchronousCalls);
+    dmGraphics::StopGraphicsPackets();
+    // Stopping restores the direct adapter rather than leaving a recorder installed.
+    buffer = dmGraphics::NewIndexBuffer(m_Context, sizeof(data), data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::DeleteIndexBuffer(buffer);
+}
+
+// Verifies resources and completion callbacks progress while presentation is paused.
+TEST_F(dmGraphicsTest, GraphicsPacketPausedResources)
+{
+    ASSERT_TRUE(dmGraphics::StartGraphicsPackets(m_Context, 2));
+    ASSERT_TRUE(dmGraphics::SetGraphicsPacketsPaused(true));
+    ASSERT_TRUE(dmGraphics::AreGraphicsPacketsPaused());
+    dmGraphics::TextureCreationParams creation; creation.m_Width = 4; creation.m_Height = 4;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation);
+    char pixels[16]; memset(pixels, 17, sizeof(pixels));
+    dmGraphics::TextureParams params;
+    params.m_Width = 4; params.m_Height = 4; params.m_Data = pixels;
+    params.m_DataSize = sizeof(pixels); params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    int completed = 0;
+    dmGraphics::SetTextureAsync(m_Context, texture, params, TestTextureAsyncCallback, &completed);
+    ASSERT_EQ(1, completed);
+    ASSERT_EQ(4u, dmGraphics::GetTextureWidth(m_Context, texture));
+    dmGraphics::DeleteTexture(m_Context, texture);
+    dmGraphics::GraphicsPacketStats stats; dmGraphics::GetGraphicsPacketStats(&stats);
+    ASSERT_EQ(0u, stats.m_Submitted);
+    ASSERT_TRUE(dmGraphics::SetGraphicsPacketsPaused(false));
+    dmGraphics::StopGraphicsPackets();
+}
+
+// Verifies oversized payloads fail before copying and unsupported commands never execute directly.
+TEST_F(dmGraphicsTest, GraphicsPacketRejectsUnsafeWork)
+{
+    ASSERT_FALSE(dmGraphics::StartGraphicsPackets(m_Context, 3));
+    ASSERT_FALSE(dmGraphics::StartGraphicsPackets(m_Context, 2, 1000001));
+    ASSERT_TRUE(dmGraphics::StartGraphicsPackets(m_Context, 1));
+    ASSERT_FALSE(dmGraphics::StartGraphicsPackets(m_Context, 2));
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_Context, 16, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    char data = 0;
+    ASSERT_DEATH(dmGraphics::SetVertexBufferData(buffer, 33 * 1024 * 1024, &data, dmGraphics::BUFFER_USAGE_STREAM_DRAW), "");
+    ASSERT_DEATH(dmGraphics::DispatchCompute(m_Context, 1, 1, 1), "");
+    dmGraphics::DeleteVertexBuffer(buffer);
+    dmGraphics::StopGraphicsPackets();
+}
+
+struct RenderOwnerProbe
+{
+    uint32_t m_Executed, m_Completed, m_Observed;
+    bool m_OnOwner;
+    dmGraphics::HContext m_Context;
+};
+struct RenderOwnerRequestData { RenderOwnerProbe* m_Probe; uint32_t m_Value; };
+static void RenderOwnerRequest(void* data)
+{
+    RenderOwnerRequestData* request = (RenderOwnerRequestData*)data;
+    request->m_Probe->m_OnOwner = dmGraphics::IsGraphicsPacketOwner();
+    request->m_Probe->m_Observed = request->m_Value;
+    ++request->m_Probe->m_Executed;
+}
+static void RenderOwnerCompleted(void* data) { ++((RenderOwnerProbe*)data)->m_Completed; }
+static void RenderOwnerFrame(void* data)
+{
+    RenderOwnerProbe* probe = (RenderOwnerProbe*)data;
+    probe->m_OnOwner = dmGraphics::IsGraphicsPacketOwner();
+    dmGraphics::BeginFrame(probe->m_Context);
+    dmGraphics::Flip(probe->m_Context);
+    ++probe->m_Executed;
+}
+
+// Verifies copied frameless requests, producer completions exactly once, paused
+// service and render-frame execution all use one persistent graphics owner.
+TEST_F(dmGraphicsTest, RenderLayerOwnerService)
+{
+    ASSERT_TRUE(dmGraphics::StartRenderGraphicsOwner(m_Context, true));
+    RenderOwnerProbe probe = {};
+    probe.m_Context = m_Context;
+    RenderOwnerRequestData request = {&probe, 42};
+    ASSERT_TRUE(dmGraphics::QueueGraphicsOwnerRequest(RenderOwnerRequest, &request, sizeof(request), RenderOwnerCompleted, &probe));
+    request.m_Value = 100;
+    dmGraphics::FlushGraphicsPackets();
+    ASSERT_EQ(42U, probe.m_Observed);
+    ASSERT_EQ(1U, probe.m_Completed);
+    ASSERT_TRUE(probe.m_OnOwner);
+    dmGraphics::FlushGraphicsPackets();
+    ASSERT_EQ(1U, probe.m_Completed);
+    ASSERT_TRUE(dmGraphics::SetGraphicsPacketsPaused(true));
+    ASSERT_FALSE(dmGraphics::SubmitGraphicsOwnerFrame(RenderOwnerFrame, &probe));
+    ASSERT_TRUE(dmGraphics::QueueGraphicsOwnerRequest(RenderOwnerRequest, &request, sizeof(request), RenderOwnerCompleted, &probe));
+    dmGraphics::FlushGraphicsPackets();
+    ASSERT_EQ(2U, probe.m_Completed);
+    ASSERT_EQ(100U, probe.m_Observed);
+    ASSERT_TRUE(dmGraphics::SetGraphicsPacketsPaused(false));
+    ASSERT_TRUE(dmGraphics::SubmitGraphicsOwnerFrame(RenderOwnerFrame, &probe));
+    dmGraphics::FlushGraphicsPackets();
+    ASSERT_EQ(3U, probe.m_Executed);
+    dmGraphics::GraphicsPacketStats stats;
+    dmGraphics::GetGraphicsPacketStats(&stats);
+    ASSERT_EQ(1U, stats.m_Submitted);
+    ASSERT_EQ(1U, stats.m_Completed);
+    ASSERT_FALSE(dmGraphics::QueueGraphicsOwnerRequest(RenderOwnerRequest, &request, 8 * 1024 * 1024 + 1, 0, 0));
+    dmGraphics::StopGraphicsPackets();
+}
+
+static void CountOwnerBarrier(void* data) { ++((RenderOwnerProbe*)data)->m_Completed; }
+static void SetOwnerViewport(void* data)
+{
+    RenderOwnerProbe* probe = (RenderOwnerProbe*)data;
+    probe->m_OnOwner = dmGraphics::IsGraphicsPacketOwner();
+    dmGraphics::SetViewport(probe->m_Context, 0, 0, 32, 32);
+}
+
+// Verifies inline owner execution does not recursively call the producer's
+// mutation barrier when its graphics commands share the producer OS thread.
+TEST_F(dmGraphicsTest, RenderLayerInlineOwnerBarrier)
+{
+    ASSERT_TRUE(dmGraphics::StartRenderGraphicsOwner(m_Context, false));
+    RenderOwnerProbe probe = {};
+    probe.m_Context = m_Context;
+    dmGraphics::SetRenderThreadMutationBarrier(CountOwnerBarrier, &probe);
+    dmGraphics::RunGraphicsOwnerControl(SetOwnerViewport, &probe);
+    ASSERT_TRUE(probe.m_OnOwner);
+    ASSERT_EQ(0U, probe.m_Completed);
+    ASSERT_FALSE(dmGraphics::IsGraphicsPacketOwner());
+    dmGraphics::SetRenderThreadMutationBarrier(0, 0);
+    dmGraphics::StopGraphicsPackets();
+}
+
+struct RenderOwnerProducerProbe { RenderOwnerProbe* m_Probe; bool m_Accepted; };
+static void RenderOwnerProducer(void* data)
+{
+    RenderOwnerProducerProbe* producer = (RenderOwnerProducerProbe*)data;
+    RenderOwnerRequestData request = {producer->m_Probe, 123};
+    producer->m_Accepted = dmGraphics::QueueGraphicsOwnerRequest(RenderOwnerRequest, &request, sizeof(request), RenderOwnerCompleted, producer->m_Probe);
+}
+
+// Verifies a resource-job thread can submit an owned request while no render
+// frame exists, and completion remains on the producer service boundary.
+TEST_F(dmGraphicsTest, RenderLayerResourceProducer)
+{
+    ASSERT_TRUE(dmGraphics::StartRenderGraphicsOwner(m_Context, true));
+    RenderOwnerProbe probe = {};
+    RenderOwnerProducerProbe producer = {&probe, false};
+    dmThread::Thread job = dmThread::New(RenderOwnerProducer, 0x80000, &producer, "resource-poc");
+    dmThread::Join(job);
+    ASSERT_TRUE(producer.m_Accepted);
+    dmGraphics::FlushGraphicsPackets();
+    ASSERT_EQ(123U, probe.m_Observed);
+    ASSERT_EQ(1U, probe.m_Completed);
+    ASSERT_TRUE(probe.m_OnOwner);
+    dmGraphics::StopGraphicsPackets();
+}
+
+struct OwnerExtensionFixture
+{
+    dmGraphics::HContext m_Context;
+    dmGraphics::HVertexBuffer m_Buffer;
+    uint32_t m_Initialized, m_Frames, m_Finalized, m_Completions;
+    bool m_AllOnOwner;
+};
+static void OwnerExtensionInitialize(void* data)
+{
+    OwnerExtensionFixture* fixture = (OwnerExtensionFixture*)data;
+    fixture->m_AllOnOwner = dmGraphics::IsGraphicsPacketOwner();
+    fixture->m_Buffer = dmGraphics::NewVertexBuffer(fixture->m_Context, 16, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ++fixture->m_Initialized;
+}
+struct OwnerExtensionPayload { OwnerExtensionFixture* m_Fixture; uint32_t m_Values[4]; };
+static void OwnerExtensionUpload(void* data)
+{
+    OwnerExtensionPayload* payload = (OwnerExtensionPayload*)data;
+    payload->m_Fixture->m_AllOnOwner &= dmGraphics::IsGraphicsPacketOwner();
+    dmGraphics::SetVertexBufferData(payload->m_Fixture->m_Buffer, sizeof(payload->m_Values), payload->m_Values, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+}
+static void OwnerExtensionCompletion(void* data)
+{
+    OwnerExtensionFixture* fixture = (OwnerExtensionFixture*)data;
+    fixture->m_AllOnOwner &= !dmGraphics::IsGraphicsPacketOwner();
+    ++fixture->m_Completions;
+}
+static void OwnerExtensionFrame(void* data)
+{
+    OwnerExtensionPayload* payload = (OwnerExtensionPayload*)data;
+    dmGraphics::BeginFrame(payload->m_Fixture->m_Context);
+    dmGraphics::SetViewport(payload->m_Fixture->m_Context, 0, 0, WIDTH, HEIGHT);
+    OwnerExtensionUpload(payload);
+    ++payload->m_Fixture->m_Frames;
+    dmGraphics::Flip(payload->m_Fixture->m_Context);
+}
+static void OwnerExtensionFinalize(void* data)
+{
+    OwnerExtensionFixture* fixture = (OwnerExtensionFixture*)data;
+    fixture->m_AllOnOwner &= dmGraphics::IsGraphicsPacketOwner();
+    dmGraphics::DeleteVertexBuffer(fixture->m_Buffer);
+    fixture->m_Buffer = 0;
+    ++fixture->m_Finalized;
+}
+
+// Verifies a private extension-style lifecycle: owner initialization, copied
+// frameless upload, owned frame work, producer completion and drained finalize.
+TEST_F(dmGraphicsTest, RenderLayerExtensionLifecycle)
+{
+    for (uint32_t threaded = 0; threaded < 2; ++threaded)
+    {
+        ASSERT_TRUE(dmGraphics::StartRenderGraphicsOwner(m_Context, threaded != 0));
+        OwnerExtensionFixture fixture = {};
+        fixture.m_Context = m_Context;
+        dmGraphics::RunGraphicsOwnerControl(OwnerExtensionInitialize, &fixture);
+        OwnerExtensionPayload payload = {&fixture, {1, 2, 3, 4}};
+        ASSERT_TRUE(dmGraphics::QueueGraphicsOwnerRequest(OwnerExtensionUpload, &payload, sizeof(payload), OwnerExtensionCompletion, &fixture));
+        ASSERT_TRUE(dmGraphics::SubmitGraphicsOwnerFrame(OwnerExtensionFrame, &payload));
+        // Finalization itself must wait for accepted frame/request work.
+        dmGraphics::RunGraphicsOwnerControl(OwnerExtensionFinalize, &fixture);
+        ASSERT_EQ(1U, fixture.m_Initialized);
+        ASSERT_EQ(1U, fixture.m_Frames);
+        ASSERT_EQ(1U, fixture.m_Finalized);
+        ASSERT_EQ(1U, fixture.m_Completions);
+        ASSERT_TRUE(fixture.m_AllOnOwner);
+        ASSERT_EQ((dmGraphics::HVertexBuffer)0, fixture.m_Buffer);
+        dmGraphics::StopGraphicsPackets();
+    }
+}
+
+struct ClosingOwnerProbe { uint32_t m_Executed, m_Completed; bool m_FollowupAccepted; };
+static void ClosingOwnerExecute(void* data) { ++(*(ClosingOwnerProbe**)data)->m_Executed; }
+static void ClosingOwnerComplete(void* data)
+{
+    ClosingOwnerProbe* probe = (ClosingOwnerProbe*)data;
+    ++probe->m_Completed;
+    probe->m_FollowupAccepted = dmGraphics::QueueGraphicsOwnerRequest(ClosingOwnerExecute, &probe, sizeof(probe), 0, 0);
+}
+
+// Verifies shutdown closes admission before draining accepted jobs/completions,
+// so completion reentry cannot enqueue work whose completion would be lost.
+TEST_F(dmGraphicsTest, RenderLayerShutdownAdmission)
+{
+    for (uint32_t threaded = 0; threaded < 2; ++threaded)
+    {
+        ASSERT_TRUE(dmGraphics::StartRenderGraphicsOwner(m_Context, threaded != 0));
+        ClosingOwnerProbe probe = {};
+        ClosingOwnerProbe* payload = &probe;
+        ASSERT_TRUE(dmGraphics::QueueGraphicsOwnerRequest(ClosingOwnerExecute, &payload, sizeof(payload), ClosingOwnerComplete, &probe));
+        dmGraphics::StopGraphicsPackets();
+        ASSERT_EQ(1U, probe.m_Executed);
+        ASSERT_EQ(1U, probe.m_Completed);
+        ASSERT_FALSE(probe.m_FollowupAccepted);
+    }
+}
+
+struct ExternalOwnerTestLane
+{
+    dmMutex::HMutex m_Mutex;
+    dmConditionVariable::HConditionVariable m_Changed;
+    dmGraphics::GraphicsOwnerTask m_Call;
+    void* m_Data;
+    dmGraphics::HContext m_Context;
+    bool m_Done;
+    uint32_t m_Calls;
+};
+static ExternalOwnerTestLane* g_ExternalTestLane;
+
+static void DispatchExternalTest(dmGraphics::GraphicsOwnerTask execute, void* data)
+{
+    ExternalOwnerTestLane* lane = g_ExternalTestLane;
+    DM_MUTEX_SCOPED_LOCK(lane->m_Mutex);
+    lane->m_Call = execute;
+    lane->m_Data = data;
+    dmConditionVariable::Broadcast(lane->m_Changed);
+    while (lane->m_Call) dmConditionVariable::Wait(lane->m_Changed, lane->m_Mutex);
+}
+
+static void ExternalResourceProducer(void* data)
+{
+    ExternalOwnerTestLane* lane = (ExternalOwnerTestLane*)data;
+    dmGraphics::AttachExternalGraphicsProducer();
+    ASSERT_TRUE(dmGraphics::IsExternalGraphicsProducer());
+    ASSERT_FALSE(dmGraphics::IsGraphicsPacketOwner());
+    uint32_t value = 42;
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(lane->m_Context, 4, &value, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::SetVertexBufferData(buffer, 4, &value, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    value = 99; // The queued upload must own the original 42.
+    dmGraphics::FlushGraphicsPackets();
+    ASSERT_EQ(42U, *(uint32_t*)((dmGraphics::VertexBuffer*)buffer)->m_Buffer);
+    dmGraphics::DeleteVertexBuffer(buffer);
+    dmGraphics::FlushGraphicsPackets();
+    DM_MUTEX_SCOPED_LOCK(lane->m_Mutex);
+    lane->m_Done = true;
+    dmConditionVariable::Broadcast(lane->m_Changed);
+}
+
+// Verifies resource creation, owned upload bytes and deletion run on an external
+// graphics owner while only the simulation producer waits for acknowledgment.
+TEST_F(dmGraphicsTest, ExternalOwnerResourceLane)
+{
+    ExternalOwnerTestLane lane = {};
+    lane.m_Context = m_Context;
+    lane.m_Mutex = dmMutex::New();
+    lane.m_Changed = dmConditionVariable::New();
+    g_ExternalTestLane = &lane;
+    ASSERT_TRUE(dmGraphics::StartExternalGraphicsOwner(m_Context, DispatchExternalTest));
+    dmThread::Thread worker = dmThread::New(ExternalResourceProducer, 0x80000, &lane, "external-resource-test");
+    dmMutex::Lock(lane.m_Mutex);
+    while (!lane.m_Done)
+    {
+        while (!lane.m_Call && !lane.m_Done) dmConditionVariable::Wait(lane.m_Changed, lane.m_Mutex);
+        if (lane.m_Call)
+        {
+            dmGraphics::GraphicsOwnerTask call = lane.m_Call;
+            void* data = lane.m_Data;
+            dmMutex::Unlock(lane.m_Mutex);
+            ASSERT_TRUE(dmGraphics::IsGraphicsPacketOwner());
+            call(data);
+            dmMutex::Lock(lane.m_Mutex);
+            ++lane.m_Calls;
+            lane.m_Call = 0;
+            dmConditionVariable::Broadcast(lane.m_Changed);
+        }
+    }
+    dmMutex::Unlock(lane.m_Mutex);
+    dmThread::Join(worker);
+    ASSERT_EQ(3U, lane.m_Calls);
+    dmGraphics::DetachExternalGraphicsProducer();
+    dmGraphics::StopGraphicsPackets();
+    g_ExternalTestLane = 0;
+    dmConditionVariable::Delete(lane.m_Changed);
+    dmMutex::Delete(lane.m_Mutex);
 }

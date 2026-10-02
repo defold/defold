@@ -62,6 +62,9 @@ namespace dmRender
         RenderContext*                m_RenderContext;
         HRenderScript                 m_RenderScript;
         dmScript::ScriptWorld*        m_ScriptWorld;
+        dmArray<HNamedConstantBuffer>  m_ProducerConstants;
+        uint32_t                      m_ProducerConstantCursor;
+        bool                          m_RenderFrameRecording;
         bool                          m_ThreadedRecording; // Producer-only; reject consumer-state APIs.
         uint32_t                      m_PredicateCount;
         uint32_t                      m_UniqueScriptId;

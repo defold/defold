@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "comp_sprite.h"
+#include <render/render_frame.h>
 
 #include <string.h>
 #include <float.h>
@@ -204,6 +205,16 @@ namespace dmGameSystem
     DM_STATIC_ASSERT(sizeof(SpriteRenderData) == 128, "Sprite snapshot record size");
     DM_STATIC_ASSERT(sizeof(SpriteCullingInfo) == 16, "Sprite snapshot bound size");
 
+    // Only immutable resource data and resolved graphics handles are reachable
+    // through these frame-owned adapters. Capture lookup maps remain producer-only.
+    struct SpriteFrameResolved
+    {
+        MaterialResource m_Material;
+        TextureResource m_MaterialTextures[MAX_TEXTURE_COUNT];
+        TextureSetResource m_TextureSets[MAX_TEXTURE_COUNT];
+        TextureResource m_Textures[MAX_TEXTURE_COUNT];
+    };
+
     struct SpriteFrameBinding
     {
         SpriteResource* m_Source;
@@ -227,12 +238,15 @@ namespace dmGameSystem
 
     struct SpriteRenderFrame
     {
-        SpriteRenderFrame() : m_CapacityBytes(sizeof(SpriteRenderFrame)), m_GrowthPeakBytes(sizeof(SpriteRenderFrame)), m_ResourceBytes(0), m_CapacityLimit(0), m_Overflow(false) {}
+        SpriteRenderFrame() : m_CapacityBytes(sizeof(SpriteRenderFrame)), m_GrowthPeakBytes(sizeof(SpriteRenderFrame)), m_ResourceBytes(0), m_CapacityLimit(0), m_Overflow(false), m_Builder(0), m_CentralDependencies(false) {}
         uint64_t m_CapacityBytes;
         uint64_t m_GrowthPeakBytes;
         uint64_t m_ResourceBytes;
         uint32_t m_CapacityLimit;
         bool m_Overflow;
+        dmRender::RenderFrameBuilder* m_Builder; // Non-null only during extraction.
+        bool m_CentralDependencies;
+        dmArray<SpriteFrameResolved*> m_ResolvedBindings;
         dmArray<SpriteRenderData> m_Sprites;
         dmArray<SpriteCullingInfo> m_Bounds; // Squared radius, matching TestFrustumSphereSq.
         dmArray<SpriteFrameBinding> m_Bindings;
@@ -1656,6 +1670,15 @@ namespace dmGameSystem
             frame->m_Overflow = true;
             return false;
         }
+        if (frame->m_Builder)
+        {
+            if (!dmRender::AdmitRenderFrameAllocation(frame->m_Builder, bytes, old_bytes))
+            {
+                frame->m_Overflow = true;
+                return false;
+            }
+            frame->m_Builder->m_Frame->m_Payloads[0].m_Capacity += bytes;
+        }
         frame->m_GrowthPeakBytes = dmMath::Max(frame->m_GrowthPeakBytes, frame->m_CapacityBytes + bytes + old_bytes);
         frame->m_CapacityBytes += bytes;
         return true;
@@ -1695,7 +1718,7 @@ namespace dmGameSystem
 
     static void ReleaseSpriteFrame(SpriteRenderFrame* frame, dmResource::HFactory factory)
     {
-        for (uint32_t i = 0; i < frame->m_Bindings.Size(); ++i)
+        for (uint32_t i = 0; !frame->m_CentralDependencies && i < frame->m_Bindings.Size(); ++i)
         {
             SpriteFrameBinding& binding = frame->m_Bindings[i];
             for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
@@ -1790,10 +1813,21 @@ namespace dmGameSystem
         CaptureResourceSize(frame, factory, binding.m_Resolved.m_Material);
         for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
             CaptureResourceSize(frame, factory, binding.m_Textures[t].m_TextureSet);
-        dmResource::IncRef(factory, binding.m_Source);
-        dmResource::IncRef(factory, binding.m_Resolved.m_Material);
-        for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
-            dmResource::IncRef(factory, binding.m_Textures[t].m_TextureSet);
+        if (frame->m_Builder)
+        {
+            bool ok = dmRender::RetainRenderFrameResource(frame->m_Builder, binding.m_Source);
+            ok &= dmRender::RetainRenderFrameResource(frame->m_Builder, binding.m_Resolved.m_Material);
+            for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
+                ok &= dmRender::RetainRenderFrameResource(frame->m_Builder, binding.m_Textures[t].m_TextureSet);
+            frame->m_Overflow |= !ok;
+        }
+        else
+        {
+            dmResource::IncRef(factory, binding.m_Source);
+            dmResource::IncRef(factory, binding.m_Resolved.m_Material);
+            for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
+                dmResource::IncRef(factory, binding.m_Textures[t].m_TextureSet);
+        }
         return index;
     }
 
@@ -2740,7 +2774,8 @@ namespace dmGameSystem
     }
 
     static dmGameObject::UpdateResult SubmitSpriteFrame(SpriteRendererState* renderer, dmRender::HRenderContext render_context,
-                                                       uint32_t vertex_count, uint32_t index_count, uint32_t vertex_memory_size)
+                                                       uint32_t vertex_count, uint32_t index_count, uint32_t vertex_memory_size,
+                                                       const dmRender::RenderFrame* global_frame = 0)
     {
         uint32_t sprite_count = renderer->m_Frame ? renderer->m_Frame->m_Sprites.Size() : renderer->m_LegacyWorld->m_Components.GetRawObjects().Size();
         // Even an empty capture must release the previous frame's retained resources.
@@ -2788,6 +2823,24 @@ namespace dmGameSystem
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
             DM_PROPERTY_ADD_U32(rmtp_Sprite, 1);
+        }
+        if (global_frame)
+        {
+            write_ptr = entries;
+            for (uint32_t i = 0; i < global_frame->m_Entries.Size(); ++i)
+            {
+                const dmRender::RenderFrameEntry& entry = global_frame->m_Entries[i];
+                if (entry.m_Consumer != 0) continue;
+                write_ptr->m_WorldPosition = Point3(entry.m_Bounds.getXYZ());
+                write_ptr->m_BatchKey = entry.m_BatchKey;
+                write_ptr->m_TagListKey = entry.m_TagListKey;
+                write_ptr->m_UserData = *(const uint32_t*)dmRender::GetRenderFrameData(*global_frame, entry.m_Payload, sizeof(uint32_t));
+                write_ptr->m_Dispatch = dispatch;
+                write_ptr->m_MajorOrder = entry.m_MajorOrder;
+                write_ptr->m_Order = entry.m_Order;
+                write_ptr->m_MinorOrder = 0;
+                ++write_ptr;
+            }
         }
         dmRender::RenderListSubmit(render_context, entries, write_ptr);
         return dmGameObject::UPDATE_RESULT_OK;
@@ -3435,6 +3488,103 @@ namespace dmGameSystem
         world->m_Renderer.m_Frame = frame;
         world->m_Renderer.m_LegacyWorld = 0;
         SubmitSpriteFrame(&world->m_Renderer, context->m_RenderContext, frame->m_VertexCount, frame->m_IndexCount, frame->m_VertexMemorySize);
+    }
+
+    static void DeleteSpriteRenderPayload(void* payload)
+    {
+        SpriteRenderFrame* frame = (SpriteRenderFrame*)payload;
+        for (uint32_t i = 0; i < frame->m_ResolvedBindings.Size(); ++i)
+            delete frame->m_ResolvedBindings[i];
+        delete frame;
+    }
+
+    static void SubmitSpriteRenderPayload(void* state, dmRender::HRenderContext context, const dmRender::RenderFrame& owner)
+    {
+        SpriteRendererState* renderer = (SpriteRendererState*)state;
+        SpriteRenderFrame* frame = (SpriteRenderFrame*)owner.m_Payloads[0].m_Data;
+        renderer->m_LegacyWorld = 0;
+        renderer->m_Frame = frame;
+        SubmitSpriteFrame(renderer, context, frame->m_VertexCount, frame->m_IndexCount, frame->m_VertexMemorySize, &owner);
+    }
+
+    bool RegisterSpriteRenderFrame(void* sprite_world, dmRender::RenderFrameConsumers* consumers)
+    {
+        SpriteWorld* world = (SpriteWorld*)sprite_world;
+        // Renderer scratch is exclusively accessed by the registered consumer.
+        world->m_Renderer.m_LegacyWorld = 0;
+        world->m_Threaded = true;
+        return dmRender::RegisterRenderFrameConsumer(consumers, 0, &world->m_Renderer, SubmitSpriteRenderPayload);
+    }
+
+    bool CaptureSpriteRenderFrame(void* sprite_world, SpriteContext* context, dmRender::RenderFrameBuilder* builder)
+    {
+        uint64_t capture_begin = dmTime::GetMonotonicTime();
+        SpriteWorld* world = (SpriteWorld*)sprite_world;
+        dmRender::RenderFramePayload& payload = builder->m_Frame->m_Payloads[0];
+        if (!payload.m_Data)
+        {
+            if (!dmRender::AdmitRenderFrameAllocation(builder, sizeof(SpriteRenderFrame), 0)) return false;
+            payload.m_Data = new SpriteRenderFrame();
+            payload.m_Delete = DeleteSpriteRenderPayload;
+            payload.m_Capacity = sizeof(SpriteRenderFrame);
+        }
+        SpriteRenderFrame* frame = (SpriteRenderFrame*)payload.m_Data;
+        frame->m_CentralDependencies = true;
+        frame->m_Builder = builder;
+        CaptureSpriteFrame(world, context->m_Factory, frame);
+        // Resolve mutable resource wrappers into slot-owned adapters only after
+        // binding deduplication. The retained generation protects immutable DDF.
+        for (uint32_t i = 0; !frame->m_Overflow && i < frame->m_Bindings.Size(); ++i)
+        {
+            if (i == frame->m_ResolvedBindings.Size())
+            {
+                if (!GrowSpriteFrame(frame, sizeof(SpriteFrameResolved), 0)) break;
+                SpriteFrameResolved* resolved = new SpriteFrameResolved();
+                if (!FramePush(frame, frame->m_ResolvedBindings, resolved)) { delete resolved; break; }
+            }
+            SpriteFrameBinding& binding = frame->m_Bindings[i];
+            SpriteFrameResolved& resolved = *frame->m_ResolvedBindings[i];
+            resolved.m_Material = *binding.m_Resolved.m_Material;
+            for (uint32_t t = 0; t < resolved.m_Material.m_NumTextures; ++t)
+            {
+                if (!resolved.m_Material.m_Textures[t]) continue;
+                resolved.m_MaterialTextures[t] = *resolved.m_Material.m_Textures[t];
+                resolved.m_Material.m_Textures[t] = &resolved.m_MaterialTextures[t];
+            }
+            binding.m_Resolved.m_Material = &resolved.m_Material;
+            for (uint32_t t = 0; t < binding.m_Resolved.m_NumTextures; ++t)
+            {
+                const TextureSetResource& source = *binding.m_Textures[t].m_TextureSet;
+                resolved.m_Textures[t] = *source.m_Texture;
+                resolved.m_TextureSets[t].m_Texture = &resolved.m_Textures[t];
+                resolved.m_TextureSets[t].m_TextureSet = source.m_TextureSet;
+                resolved.m_TextureSets[t].m_TexturesGeneration = source.m_TexturesGeneration;
+                binding.m_Textures[t].m_TextureSet = &resolved.m_TextureSets[t];
+            }
+        }
+        for (uint32_t i = 0; !frame->m_Overflow && i < frame->m_Sprites.Size(); ++i)
+        {
+            const SpriteRenderData& data = frame->m_Sprites[i];
+            const SpriteCullingInfo& bound = frame->m_Bounds[i];
+            uint32_t offset = dmRender::AllocateRenderFrameData(builder, sizeof(uint32_t));
+            if (offset == UINT32_MAX) { frame->m_Overflow = true; break; }
+            memcpy(builder->m_Frame->m_Data.Begin() + offset, &i, sizeof(i));
+            dmRender::RenderFrameEntry entry = {};
+            entry.m_Bounds = Vector4(bound.m_Position[0], bound.m_Position[1], bound.m_Position[2], bound.m_Radius);
+            entry.m_Payload = offset;
+            entry.m_PayloadBytes = sizeof(uint32_t);
+            entry.m_BatchKey = data.m_BatchKey;
+            entry.m_TagListKey = data.m_TagListKey;
+            entry.m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+            if (!dmRender::AddRenderFrameEntry(builder, entry)) { frame->m_Overflow = true; break; }
+        }
+        payload.m_GrowthPeak = frame->m_GrowthPeakBytes;
+        ++world->m_Renderer.m_CaptureCount;
+        world->m_Renderer.m_CaptureTotalUs += dmTime::GetMonotonicTime() - capture_begin;
+        ComputeSpriteSnapshotStats(world, frame, &world->m_ThreadStats, false);
+        world->m_ThreadStats.m_FrameCapacityBytes = payload.m_Capacity;
+        frame->m_Builder = 0;
+        return !frame->m_Overflow;
     }
 
     // For tests

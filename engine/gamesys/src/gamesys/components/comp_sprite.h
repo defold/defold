@@ -17,6 +17,8 @@
 
 #include <gameobject/component.h>
 
+namespace dmRender { struct RenderFrameBuilder; struct RenderFrameConsumers; }
+
 namespace dmGameSystem
 {
     // Internal PoC diagnostics, not a public SDK contract. Frame capacity includes
@@ -46,6 +48,8 @@ namespace dmGameSystem
     };
 
     struct SpriteContext;
+    bool RegisterSpriteRenderFrame(void* world, dmRender::RenderFrameConsumers* consumers);
+    bool CaptureSpriteRenderFrame(void* world, SpriteContext* context, dmRender::RenderFrameBuilder* builder);
     // Capture may overlap the other slot. Finish retires it after consumer drain.
     void FinishSpriteThreadFrame(void* world, SpriteContext* context, uint32_t slot);
     bool CaptureSpriteThreadFrame(void* world, SpriteContext* context, uint32_t slot, uint32_t capacity_limit = 32 * 1024 * 1024);

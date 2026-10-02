@@ -1,0 +1,47 @@
+local function report(text) io.write(text .. "\n"); io.flush() end
+
+local function spawn(self, first, last)
+    for i = first, last do
+        self.ids[i] = factory.create("#factory", vmath.vector3(i % 32 * 19 + 12, math.floor(i / 32) * 30 + 25, 0))
+    end
+end
+
+function init(self)
+    self.ids, self.tick, self.input_count = {}, 0, 0
+    self.limit = sys.get_config_int("smoke.ticks", 200)
+    msg.post(".", "acquire_input_focus")
+    spawn(self, 1, 256)
+end
+
+function on_input(self, action_id, action)
+    if action.pressed then
+        self.input_count = self.input_count + 1
+        report("WEB_POC_INPUT " .. self.input_count)
+    end
+end
+
+function update(self, dt)
+    self.tick = self.tick + 1
+    local tick = self.tick
+    if tick == 60 then
+        for i = 129, 256 do go.delete(self.ids[i]); self.ids[i] = nil end
+    elseif tick == 90 then
+        spawn(self, 129, 256)
+    end
+    local visual_tick = math.min(tick, 120)
+    local checksum = 0
+    for i, id in pairs(self.ids) do
+        local x = (i * 19 + visual_tick) % 620 + 10
+        local y = (math.floor(i / 32) * 30 + visual_tick % 11) + 25
+        go.set_position(vmath.vector3(x, y, 0), id)
+        checksum = checksum + x * 1000 + y
+    end
+    if tick == 120 then
+        local stats = sprite._get_snapshot_stats()
+        report(string.format("WEB_POC_CHECK checksum=%d mode=%s sprites=%d", checksum, stats.mode, stats.sprite_count))
+    end
+    if tick == self.limit then
+        report(string.format("WEB_POC_PASS checksum=%d inputs=%d ticks=%d", checksum, self.input_count, tick))
+        sys.exit(0)
+    end
+end

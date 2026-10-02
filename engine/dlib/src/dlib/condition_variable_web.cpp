@@ -66,6 +66,10 @@ namespace dmConditionVariable
 
     void Broadcast(HConditionVariable condition)
     {
-        assert(false);
+        assert(condition);
+#if defined(__EMSCRIPTEN_PTHREADS__)
+        int ret = pthread_cond_broadcast(&condition->m_NativeHandle);
+        assert(ret == 0);
+#endif
     }
 } // namespace dmConditionVariable

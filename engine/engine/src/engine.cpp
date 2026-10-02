@@ -12,6 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <render/render_frame.h>
+#include <gamesys/components/comp_gui.h>
+#include <gamesys/components/comp_particlefx.h>
 #include "engine.h"
 
 #include "engine_private.h"
@@ -53,6 +56,7 @@
 #include <pthread/qos.h>
 #endif
 #include <graphics/graphics.h>
+#include <graphics/graphics_packet.h>
 #include <extension/extension.h>
 #include <extension/extension.hpp>
 #include <gamesys/gamesys.h>
@@ -276,6 +280,9 @@ namespace dmEngine
 
     static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
+#if defined(__EMSCRIPTEN_PTHREADS__)
+        if (QueueWebWindowEvent(1, width, height)) return ;
+#endif
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
         dmhash_t message_id = dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash;
@@ -309,7 +316,11 @@ namespace dmEngine
             dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
         }
 
-        if (engine->m_GraphicsContext)
+        if (engine->m_GraphicsContext
+#if defined(__EMSCRIPTEN_PTHREADS__)
+            && !WebComponentActive() // GUI is outside this web milestone.
+#endif
+           )
         {
             UpdateGuiSafeAreaAdjust(engine, width, height);
         }
@@ -319,6 +330,9 @@ namespace dmEngine
 
     static int OnWindowClose(void* user_data)
     {
+#if defined(__EMSCRIPTEN_PTHREADS__)
+        if (QueueWebWindowEvent(2, 0, 0)) return 0;
+#endif
         Engine* engine = (Engine*)user_data;
         engine->m_Alive = false;
         // Never allow closing the window here, clean up and then close manually
@@ -329,6 +343,9 @@ namespace dmEngine
 
     static void OnWindowFocus(void* user_data, uint32_t focus)
     {
+#if defined(__EMSCRIPTEN_PTHREADS__)
+        if (QueueWebWindowEvent(3, focus, 0)) return ;
+#endif
         Engine* engine = (Engine*)user_data;
         ScopedExtensionParams params(engine);
 
@@ -341,6 +358,9 @@ namespace dmEngine
 
     static void OnWindowIconify(void* user_data, uint32_t iconify)
     {
+#if defined(__EMSCRIPTEN_PTHREADS__)
+        if (QueueWebWindowEvent(4, iconify, 0)) return ;
+#endif
         Engine* engine = (Engine*)user_data;
 
         // We reset the time on both events because
@@ -355,6 +375,21 @@ namespace dmEngine
 
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
+
+#if defined(__EMSCRIPTEN_PTHREADS__)
+    void ApplyWebWindowEvent(Engine* engine, uint32_t kind, uint32_t a, uint32_t b)
+    {
+        switch (kind)
+        {
+            case 1: OnWindowResize(engine, a, b); break;
+            case 2: engine->m_Alive = false; break;
+            case 3: OnWindowFocus(engine, a); break;
+            case 4: OnWindowIconify(engine, a); break;
+            case 5: SetUpdateEnabled(a != 0); break;
+            case 6: SetRenderEnabled(a != 0); break;
+        }
+    }
+#endif
 
     static void SetupComponentCreateContext(HEngine engine, dmGameObject::ComponentTypeCreateCtx& component_create_ctx, dmGameObject::ComponentTypeCreateCtxImpl& component_create_ctx_impl)
     {
@@ -440,6 +475,9 @@ namespace dmEngine
     , m_MouseSensitivity(1.0f)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
+    , m_RenderFrame(0)
+    , m_PocPipeline(dmRender::POC_LEGACY)
+    , m_PocThreaded(false)
     , m_SpriteThread(0)
     , m_MixedInline(0)
     , m_SpriteTrace(0)
@@ -514,6 +552,24 @@ namespace dmEngine
         dmRender::CapturedCommands m_Commands;
     };
 
+    struct RenderFrameSubmission
+    {
+        Engine* m_Engine;
+        dmRender::RenderFrame* m_Frame;
+        dmRender::FrameTraceRecord* m_Trace;
+    };
+    struct RenderFrameState
+    {
+        dmRender::RenderFrame m_Frames[2];
+        dmRender::RenderFrameConsumers m_Consumers;
+        RenderFrameSubmission m_Submissions[2];
+        void* m_Worlds[3];
+        uint32_t m_NextSlot, m_SurfaceGeneration, m_Width, m_Height;
+        uint64_t m_NextId;
+        RenderFrameState() : m_NextSlot(0), m_SurfaceGeneration(0), m_Width(0), m_Height(0), m_NextId(1)
+        { memset(m_Worlds, 0, sizeof(m_Worlds)); }
+    };
+
     struct SpriteThreadState
     {
         dmRender::HRenderThread m_Thread;
@@ -530,8 +586,16 @@ namespace dmEngine
         bool m_Paused;
     };
 
+    static void GraphicsPacketResourceBarrier(void*)
+    {
+        dmGraphics::FlushGraphicsPackets();
+    }
+
     static void SpriteThreadGpuDrain(void* context)
     {
+#if defined(__EMSCRIPTEN_PTHREADS__)
+        if (WebComponentActive()) return; // WebGL owns deferred backend deletion.
+#endif
         dmGraphics::DrainRenderThreadGpu(((Engine*)context)->m_GraphicsContext);
     }
 
@@ -539,6 +603,14 @@ namespace dmEngine
     {
         Engine* engine = (Engine*)context;
         SpriteThreadState* state = engine->m_SpriteThread;
+#if defined(__EMSCRIPTEN_PTHREADS__)
+        if (state && engine->m_PocPipeline == dmRender::POC_COMPONENT)
+        {
+            dmRender::DrainRenderThread(state->m_Thread);
+            dmGraphics::FlushGraphicsPackets();
+            return; // Browser main retains graphics ownership permanently.
+        }
+#endif
         if (!state || state->m_ProducerOwnsGraphics)
             return;
         dmRender::RunRenderThreadControl(state->m_Thread, SpriteThreadGpuDrain, engine);
@@ -550,6 +622,14 @@ namespace dmEngine
     static void SpriteThreadPause(void* context, bool paused)
     {
         Engine* engine = (Engine*)context;
+#if defined(__EMSCRIPTEN_PTHREADS__)
+        if (WebComponentActive())
+        {
+            SpriteThreadBarrier(engine);
+            engine->m_SpriteThread->m_Paused = paused;
+            return;
+        }
+#endif
         // Explicit control even while already paused exercises the idle worker.
         dmRender::RunRenderThreadControl(engine->m_SpriteThread->m_Thread, SpriteThreadGpuDrain, engine);
         engine->m_SpriteThread->m_ProducerOwnsGraphics = true;
@@ -601,6 +681,9 @@ namespace dmEngine
     static void SpriteThreadRender(void* context, uint32_t slot, uint64_t id)
     {
         Engine* engine = (Engine*)context;
+#if defined(__EMSCRIPTEN_PTHREADS__)
+        if (WebComponentActive() && !WebCanRender()) return;
+#endif
         SpriteThreadState* state = engine->m_SpriteThread;
         dmRender::FrameTraceRecord* trace = state->m_Trace[slot];
         if (trace) trace->m_RenderBegin = dmTime::GetMonotonicTime();
@@ -624,6 +707,121 @@ namespace dmEngine
         if (trace) trace->m_SubmitEnd = dmTime::GetMonotonicTime();
     }
 
+    static void RenderFrameConsume(void* user_data)
+    {
+        RenderFrameSubmission* submission = (RenderFrameSubmission*)user_data;
+        Engine* engine = submission->m_Engine;
+        dmRender::RenderFrame& frame = *submission->m_Frame;
+        dmRender::FrameTraceRecord* trace = submission->m_Trace;
+        if (trace) trace->m_RenderBegin = dmTime::GetMonotonicTime();
+        dmRender::BeginFrame(engine->m_RenderContext, frame.m_Time, frame.m_Dt);
+        if (trace) dmGraphics::SetRenderFrameTimings(engine->m_GraphicsContext, &trace->m_Graphics);
+        dmGraphics::BeginFrame(engine->m_GraphicsContext);
+        dmRender::RenderListBegin(engine->m_RenderContext);
+        dmRender::SubmitRenderFrame(engine->m_RenderContext, frame, engine->m_RenderFrame->m_Consumers);
+        dmRender::RenderListEnd(engine->m_RenderContext);
+        dmRender::ParseCommands(engine->m_RenderContext, frame.m_Commands.m_Commands, frame.m_Commands.m_Count, false);
+        dmRender::ClearRenderObjects(engine->m_RenderContext);
+        CapturePocFrame(engine);
+        dmGraphics::Flip(engine->m_GraphicsContext);
+        if (trace) trace->m_SubmitEnd = dmTime::GetMonotonicTime();
+    }
+
+    static void RenderFrameFinishTrace(void* context)
+    {
+        Engine* engine = (Engine*)context;
+        if (dmGraphics::SetRenderFrameTimings(engine->m_GraphicsContext, 0))
+            dmGraphics::DrainRenderThreadGpu(engine->m_GraphicsContext);
+    }
+
+    static void RenderFrameResourceBarrier(void* context)
+    {
+        // Resource replacement may mutate retained wrappers or DDF in place.
+        // Keep all graphics execution on the owner while conservatively draining
+        // CPU readers and submitted GPU work before publishing a new generation.
+        dmGraphics::RunGraphicsOwnerControl(SpriteThreadGpuDrain, context);
+    }
+
+    static bool RegisterRenderFrameWorlds(Engine* engine)
+    {
+        if (!engine->m_RenderScriptPrototype) return false;
+        RenderFrameState* state = engine->m_RenderFrame;
+        const char* names[] = {"spritec", "guic", "particlefxc"};
+        for (uint32_t i = 0; i < 3; ++i)
+            state->m_Worlds[i] = dmGameObject::GetWorld(engine->m_MainCollection, dmGameObject::GetComponentTypeIndex(engine->m_MainCollection, dmHashString64(names[i])));
+        if (!dmGameSystem::RegisterSpriteRenderFrame(state->m_Worlds[0], &state->m_Consumers) ||
+            !dmGameSystem::RegisterGuiRenderFrame(state->m_Worlds[1], &state->m_Consumers) ||
+            !dmGameSystem::RegisterParticleRenderFrame(state->m_Worlds[2], &state->m_Consumers)) return false;
+        dmRender::SetRenderScriptRenderFrameRecording(engine->m_RenderScriptPrototype->m_Instance, true);
+        engine->m_SpriteContext.m_SnapshotCommandBytes = sizeof(state->m_Frames);
+        fprintf(stderr, "RenderFrame PoC active: renderframe-%s\n", engine->m_PocThreaded ? "threaded" : "inline");
+        return true;
+    }
+
+    static bool CaptureAndPublishRenderFrame(Engine* engine, float dt, dmRender::FrameTraceRecord* trace)
+    {
+        RenderFrameState* state = engine->m_RenderFrame;
+        uint32_t slot = state->m_NextSlot;
+        dmRender::RenderFrame& frame = state->m_Frames[slot];
+        uint32_t width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
+        uint32_t height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+        if (width != state->m_Width || height != state->m_Height)
+        { state->m_Width = width; state->m_Height = height; ++state->m_SurfaceGeneration; }
+        dmRender::RenderFrameBuilder builder;
+        dmRender::BeginRenderFrame(&builder, &frame, engine->m_Factory, state->m_NextId, state->m_NextId, width, height, state->m_SurfaceGeneration);
+        frame.m_Time = engine->m_Stats.m_TotalTime + dt;
+        frame.m_Dt = dt;
+        uint64_t begin = dmTime::GetMonotonicTime();
+        const char* stage = "sprites";
+        bool ok = dmGameSystem::CaptureSpriteRenderFrame(state->m_Worlds[0], &engine->m_SpriteContext, &builder);
+        if (ok) { stage = "GUI"; ok = dmGameSystem::CaptureGuiRenderFrame(state->m_Worlds[1], &builder); }
+        if (ok) { stage = "particles"; ok = dmGameSystem::CaptureParticleRenderFrame(state->m_Worlds[2], &builder); }
+        if (ok) { stage = "command budget"; ok = dmRender::AdmitRenderFrameAllocation(&builder, 1024 * 1024, 0); }
+        if (ok) { stage = "pass commands"; ok = dmRender::CaptureRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt, &frame.m_Commands); }
+        if (ok) { stage = "seal"; ok = dmRender::SealRenderFrame(&builder, state->m_Consumers); }
+        if (!ok)
+        {
+            fprintf(stderr, "RenderFrame admission failed at %s: unsupported content or frame budget exceeded\n", stage);
+            dmRender::RetireRenderFrame(&frame);
+            return false;
+        }
+        engine->m_SpriteContext.m_MixedPrepareTime += dmTime::GetMonotonicTime() - begin;
+        ++engine->m_SpriteContext.m_MixedPrepareCount;
+        engine->m_SpriteContext.m_MixedCapacityBytes = dmRender::GetRenderFrameCapacity(frame) + dmRender::GetRenderFrameCapacity(state->m_Frames[1-slot]);
+        engine->m_SpriteContext.m_MixedPacketCount = frame.m_Entries.Size();
+        engine->m_SpriteContext.m_RenderFrameUsedBytes = frame.m_Data.Size() + frame.m_Entries.Size() * sizeof(dmRender::RenderFrameEntry);
+        engine->m_SpriteContext.m_RenderFrameCapacityBytes = engine->m_SpriteContext.m_MixedCapacityBytes;
+        engine->m_SpriteContext.m_RenderFrameGrowthPeakBytes = frame.m_GrowthPeak + state->m_Frames[1-slot].m_GrowthPeak;
+        engine->m_SpriteContext.m_RenderFrameReferences = frame.m_Dependencies.Size();
+        if (trace) trace->m_PrepareEnd = dmTime::GetMonotonicTime();
+        dmGraphics::FlushGraphicsPackets();
+        if (trace) trace->m_QueueDrainEnd = dmTime::GetMonotonicTime();
+        state->m_Frames[1-slot].m_State = dmRender::FRAME_RETIRED;
+        dmRender::RetireRenderFrame(&state->m_Frames[1-slot]);
+        if (trace) trace->m_SurfaceBegin = dmTime::GetMonotonicTime();
+        dmGraphics::PrepareGraphicsPacketSurface();
+        if (trace) trace->m_SurfaceEnd = dmTime::GetMonotonicTime();
+        RenderFrameSubmission& submission = state->m_Submissions[slot];
+        submission.m_Engine = engine; submission.m_Frame = &frame; submission.m_Trace = trace;
+        frame.m_State = dmRender::FRAME_READING;
+        if (trace) trace->m_Publish = dmTime::GetMonotonicTime();
+        if (!dmGraphics::SubmitGraphicsOwnerFrame(RenderFrameConsume, &submission)) return false;
+        state->m_NextSlot = 1 - slot;
+        ++state->m_NextId;
+        return true;
+    }
+
+    static void ClearInitialWindow(void* data)
+    {
+        Engine* engine = (Engine*)data;
+        dmGraphics::BeginFrame(engine->m_GraphicsContext);
+        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, engine->m_Width, engine->m_Height);
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+            (engine->m_ClearColor >> 0) & 255, (engine->m_ClearColor >> 8) & 255,
+            (engine->m_ClearColor >> 16) & 255, (engine->m_ClearColor >> 24) & 255, 1.0f, 0);
+        dmGraphics::Flip(engine->m_GraphicsContext);
+    }
+
     static dmGameObject::CreateResult RejectSpriteThreadComponent(const dmGameObject::ComponentCreateParams& params)
     {
         dmLogError("Thread PoC component rejected; GUI/particles require mixed_preparation, physics/sound require poc_gameplay_components");
@@ -643,11 +841,15 @@ namespace dmEngine
 
     static bool StartSpriteThread(Engine* engine)
     {
-#if !defined(DM_PLATFORM_MACOS)
-        dmLogError("Sprite thread PoC requires macOS/Metal");
+#if !defined(DM_PLATFORM_MACOS) && !defined(__EMSCRIPTEN_PTHREADS__)
+        dmLogError("Sprite thread PoC requires macOS/Metal or wasm_pthread-web");
         return false;
 #else
-        if (!engine->m_RenderScriptPrototype || !dmGraphics::PrepareRenderThreadSurface(engine->m_GraphicsContext, true))
+        if (!engine->m_RenderScriptPrototype
+#if !defined(__EMSCRIPTEN_PTHREADS__)
+            || !dmGraphics::PrepareRenderThreadSurface(engine->m_GraphicsContext, true)
+#endif
+           )
         {
             dmLogError("Sprite thread PoC requires Metal and a supported render script");
             return false;
@@ -660,19 +862,40 @@ namespace dmEngine
         state->m_ProducerOwnsGraphics = false;
         state->m_Paused = false;
         dmRender::SetRenderScriptThreadedRecording(engine->m_RenderScriptPrototype->m_Instance, true);
+#if defined(__EMSCRIPTEN_PTHREADS__)
+        state->m_Thread = dmRender::NewExternalRenderThread(SpriteThreadRender, engine);
+#else
         state->m_Thread = dmRender::NewRenderThread(SpriteThreadRender, engine,
             (dmConfigFile::GetInt(engine->m_Config, "render.poc_qos", 0) & 2) != 0);
+#endif
         engine->m_SpriteContext.m_RenderThread = state->m_Thread;
         engine->m_SpriteContext.m_SnapshotCommandBytes = sizeof(state->m_Commands);
         engine->m_SpriteContext.m_SnapshotPause = SpriteThreadPause;
         engine->m_SpriteContext.m_SnapshotContext = engine;
         // Startup submitted frames are still GPU work; drain those too.
+#if !defined(__EMSCRIPTEN_PTHREADS__)
         SpriteThreadBarrier(engine);
         dmGraphics::SetRenderThreadMutationBarrier(SpriteThreadBarrier, engine);
+#endif
         dmResource::SetRenderMutationBarrier(SpriteThreadBarrier, engine);
         return true;
 #endif
     }
+
+#if defined(__EMSCRIPTEN_PTHREADS__)
+    bool PumpWebComponentFrame(Engine* engine)
+    {
+        return dmRender::PumpExternalRenderThread(engine->m_SpriteThread->m_Thread);
+    }
+
+    void DrainWebComponentFrame(Engine* engine) { SpriteThreadBarrier(engine); }
+
+    void AttachWebComponentProducer(Engine* engine)
+    {
+        dmGraphics::AttachExternalGraphicsProducer();
+        dmGraphics::SetRenderThreadMutationBarrier(SpriteThreadBarrier, engine);
+    }
+#endif
 
     static bool PrepareMixedFrame(Engine* engine, dmRender::CapturedCommands& commands,
                                   dmRender::PreparedRenderList& mixed, dmGraphics::VertexUploadBatch& uploads,
@@ -775,6 +998,17 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        if (engine->m_RenderFrame)
+        {
+            RenderFrameResourceBarrier(engine);
+            engine->m_RenderFrame->m_Frames[0].m_State = dmRender::FRAME_RETIRED;
+            engine->m_RenderFrame->m_Frames[1].m_State = dmRender::FRAME_RETIRED;
+            dmRender::RetireRenderFrame(&engine->m_RenderFrame->m_Frames[0]);
+            dmRender::RetireRenderFrame(&engine->m_RenderFrame->m_Frames[1]);
+        }
+        else dmGraphics::StopGraphicsPackets();
+        dmResource::SetRenderMutationBarrier(0, 0);
+        dmGraphics::SetRenderThreadMutationBarrier(0, 0);
         StopSpriteThread(engine);
 #if defined(__APPLE__)
         if (engine->m_PocMainQosOverride)
@@ -788,8 +1022,8 @@ namespace dmEngine
         engine->m_MixedInline = 0;
         if (engine->m_SpriteTrace)
         {
-            if (dmGraphics::SetRenderFrameTimings(engine->m_GraphicsContext, 0))
-                dmGraphics::DrainRenderThreadGpu(engine->m_GraphicsContext);
+            if (engine->m_RenderFrame) dmGraphics::RunGraphicsOwnerControl(RenderFrameFinishTrace, engine);
+            else RenderFrameFinishTrace(engine);
             if (!dmRender::DeleteFrameTrace(engine->m_SpriteTrace, dmConfigFile::GetString(engine->m_Config, "render.sprite_trace", 0)))
                 dmLogError("Could not save sprite CPU pipeline trace");
             engine->m_SpriteTrace = 0;
@@ -875,6 +1109,12 @@ namespace dmEngine
         //     JobSystemDestroy(engine->m_JobThreadContext);
         // }
 
+        if (engine->m_RenderFrame)
+        {
+            dmGraphics::StopGraphicsPackets();
+            delete engine->m_RenderFrame;
+            engine->m_RenderFrame = 0;
+        }
         if (engine->m_GraphicsContext)
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
@@ -1644,6 +1884,50 @@ namespace dmEngine
             return false;
         }
 
+        {
+            dmRender::PocCondition condition;
+            const char* error;
+            if (!dmRender::ResolvePocCondition(dmConfigFile::GetString(engine->m_Config, "render.poc_pipeline", 0),
+                    dmConfigFile::GetString(engine->m_Config, "render.poc_threaded", 0),
+                    dmConfigFile::GetString(engine->m_Config, "render.sprite_snapshot", 0),
+                    dmConfigFile::GetString(engine->m_Config, "render.graphics_packets", 0), &condition, &error))
+            { dmLogError("%s", error); return false; }
+            engine->m_PocPipeline = condition.m_Pipeline;
+            engine->m_PocThreaded = condition.m_Threaded;
+#if defined(__EMSCRIPTEN__)
+            if (condition.m_Pipeline == dmRender::POC_COMPONENT && condition.m_Threaded)
+            {
+#if !defined(__EMSCRIPTEN_PTHREADS__)
+                dmLogError("Web component threading requires the wasm_pthread-web binary");
+                return false;
+#else
+                if (!EM_ASM_INT({ return typeof WebGL2RenderingContext !== 'undefined' && Module.ctx instanceof WebGL2RenderingContext; }))
+                {
+                    fprintf(stderr, "Web component PoC requires WebGL2\n");
+                    return false;
+                }
+                if (dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0) ||
+                    dmConfigFile::GetInt(engine->m_Config, "render.poc_gameplay_components", 0) ||
+                    dmConfigFile::GetInt(engine->m_Config, "sound.use_thread", 1) ||
+                    dmConfigFile::GetInt(engine->m_Config, "sound.max_sound_instances", 128) != 0 ||
+                    dmConfigFile::GetString(engine->m_Config, "render.sprite_trace", 0) ||
+                    dmConfigFile::GetInt(engine->m_Config, "render.sprite_thread_delay_us", 0))
+                {
+                    dmLogError("Web sprite PoC requires mixed/gameplay off, sound.use_thread=0, sound.max_sound_instances=0, and no native trace/delay");
+                    return false;
+                }
+#endif
+            }
+#endif
+            if (condition.m_Pipeline == dmRender::POC_RENDERFRAME)
+            {
+                if (!dmGraphics::StartRenderGraphicsOwner(engine->m_GraphicsContext, condition.m_Threaded)) return false;
+                engine->m_RenderFrame = new RenderFrameState();
+                dmResource::SetRenderMutationBarrier(RenderFrameResourceBarrier, engine);
+                dmGraphics::SetRenderThreadMutationBarrier(RenderFrameResourceBarrier, engine);
+            }
+        }
+
         SetSwapInterval(engine, swap_interval);
 
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
@@ -1717,6 +2001,15 @@ namespace dmEngine
         PopulateContextRegistry(engine);
         extension_params.SetLuaContext(engine->m_ScriptContext);
         dmExtension::Initialize(extension_params);
+        if ((engine->m_RenderFrame ||
+#if defined(__EMSCRIPTEN__)
+             (engine->m_PocPipeline == dmRender::POC_COMPONENT && engine->m_PocThreaded) ||
+#endif
+             false) && dmExtension::HasRenderCallbacks())
+        {
+            fprintf(stderr, "RenderFrame PoC rejects legacy extension render hooks; use explicit owner requests\n");
+            return false;
+        }
 
         module_script_contexts.SetCapacity(1);
         module_script_contexts.Push(engine->m_ScriptContext);
@@ -1885,8 +2178,8 @@ namespace dmEngine
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpriteContext.m_Factory = engine->m_Factory;
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
-        engine->m_SpriteContext.m_SnapshotInline = dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) == 1;
-        engine->m_SpriteContext.m_SnapshotThreaded = dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) == 2;
+        engine->m_SpriteContext.m_SnapshotInline = engine->m_PocPipeline == dmRender::POC_COMPONENT && !engine->m_PocThreaded;
+        engine->m_SpriteContext.m_SnapshotThreaded = engine->m_PocPipeline == dmRender::POC_COMPONENT && engine->m_PocThreaded;
 
         if (dmConfigFile::GetString(engine->m_Config, "render.sprite_trace", 0))
             engine->m_SpriteTrace = dmRender::NewFrameTrace(65536);
@@ -1989,12 +2282,22 @@ namespace dmEngine
             goto bail;
 #endif
         }
+        if (dmConfigFile::GetInt(engine->m_Config, "render.graphics_packets", 0) < 0 ||
+            dmConfigFile::GetInt(engine->m_Config, "render.graphics_packets", 0) > 2 ||
+            (dmConfigFile::GetInt(engine->m_Config, "render.graphics_packets", 0) &&
+             (dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) ||
+              dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0) ||
+              dmConfigFile::GetString(engine->m_Config, "render.sprite_trace", 0))))
+        {
+            dmLogError("graphics_packets must be 0/1/2 and cannot combine with sprite snapshots, mixed preparation or sprite traces");
+            goto bail;
+        }
         if (dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) < 0 || dmConfigFile::GetInt(engine->m_Config, "render.sprite_snapshot", 0) > 2)
         {
             dmLogError("render.sprite_snapshot must be 0, 1 or 2");
             goto bail;
         }
-        if (engine->m_SpriteContext.m_SnapshotThreaded || (engine->m_SpriteContext.m_SnapshotInline && dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0)))
+        if (engine->m_RenderFrame || engine->m_SpriteContext.m_SnapshotThreaded || (engine->m_SpriteContext.m_SnapshotInline && dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0)))
         {
             bool gameplay = dmConfigFile::GetInt(engine->m_Config, "render.poc_gameplay_components", 0) != 0;
             if (gameplay && dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0))
@@ -2005,7 +2308,7 @@ namespace dmEngine
             for (uint32_t i = 0; i < dmGameObject::GetNumComponentTypes(engine->m_Register); ++i)
             {
                 dmGameObject::ComponentType* type = dmGameObject::GetComponentType(engine->m_Register, i);
-                bool mixed = dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0) != 0 &&
+                bool mixed = (engine->m_RenderFrame || dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0) != 0) &&
                     (!strcmp(type->m_Name, "guic") || !strcmp(type->m_Name, "particlefxc"));
                 if (!IsPocThreadComponentAllowed(type->m_Name, mixed, gameplay, type->m_RenderFunction != 0))
                     type->m_CreateFunction = RejectSpriteThreadComponent;
@@ -2031,6 +2334,12 @@ namespace dmEngine
 
         // clear it a couple of times, due to initialization of extensions might stall the updates
         for (int i = 0; i < 3; ++i) {
+            if (engine->m_RenderFrame)
+            {
+                dmGraphics::PrepareGraphicsPacketSurface();
+                dmGraphics::RunGraphicsOwnerControl(ClearInitialWindow, engine);
+                continue;
+            }
             dmGraphics::BeginFrame(engine->m_GraphicsContext);
             dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
             dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
@@ -2081,8 +2390,22 @@ namespace dmEngine
             engine->m_SpriteContext.m_SnapshotCommandBytes = sizeof(engine->m_MixedInline->m_Commands);
             dmRender::SetRenderScriptThreadedRecording(engine->m_RenderScriptPrototype->m_Instance, true);
         }
+        if (engine->m_RenderFrame && !RegisterRenderFrameWorlds(engine)) goto bail;
         if (engine->m_SpriteContext.m_SnapshotThreaded && !StartSpriteThread(engine))
             goto bail;
+        if (engine->m_PocPipeline == dmRender::POC_GRAPHICS)
+        {
+            uint32_t mode = engine->m_PocThreaded ? 2 : 1;
+            if (!dmGraphics::StartGraphicsPackets(engine->m_GraphicsContext, mode,
+                    dmConfigFile::GetInt(engine->m_Config, "render.graphics_packet_delay_us", 0)))
+            {
+                dmLogError("Graphics packet PoC requires macOS/Metal, mode 1 or 2 and delay 0..1000000 us");
+                goto bail;
+            }
+            dmResource::SetRenderMutationBarrier(GraphicsPacketResourceBarrier, engine);
+            dmLogInfo("Graphics packet PoC active: %s", mode == 1 ? "graphics-inline" : "graphics-threaded");
+        }
+
 
 #if defined(__APPLE__)
         // Start after worker creation to keep the main-only treatment independent
@@ -2346,6 +2669,36 @@ bail:
         return skip;
     }
 
+    static void PrepareGameInput(Engine* engine, float dt)
+    {
+        dmInput::Update(engine->m_InputContext);
+        dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
+
+        engine->m_InputBuffer.SetSize(0);
+        dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
+
+        // Sort input so that text and marked text is triggered last
+        // NOTE: Due to Korean keyboards on iOS will send a backspace sometimes to "replace" a character with a new one,
+        //       we want to make sure these keypresses arrive to the input listeners before the "new" character.
+        //       If the backspace arrive after the text, it will instead remove the new character that
+        //       actually should replace the old one.
+        qsort(engine->m_InputBuffer.Begin(), engine->m_InputBuffer.Size(), sizeof(dmGameObject::InputAction), InputBufferOrderSort);
+
+    }
+
+#if defined(__EMSCRIPTEN_PTHREADS__)
+    void PrepareWebInput(Engine* engine, float dt)
+    {
+        dmHID::Update(engine->m_HidContext);
+        PrepareGameInput(engine, dt);
+        if (engine->m_InputBuffer.Size() > 512)
+        {
+            dmLogFatal("Web input snapshot exceeds 512 actions");
+            abort();
+        }
+    }
+#endif
+
     static void StepFrame(HEngine engine, float dt)
     {
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
@@ -2359,14 +2712,20 @@ bail:
 
                 if (!engine->m_RunWhileIconified)
                 {
-                    dmSound::Pause(true);
+#if defined(__EMSCRIPTEN_PTHREADS__)
+                    if (!WebComponentActive())
+#endif
+                        dmSound::Pause(true);
                 }
             }
 
             if (!engine->m_RunWhileIconified) {
                 // NOTE: Polling the event queue is crucial on iOS for life-cycle management
                 // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
-                dmHID::Update(engine->m_HidContext);
+#if defined(__EMSCRIPTEN_PTHREADS__)
+                if (!WebComponentActive())
+#endif
+                    dmHID::Update(engine->m_HidContext);
                 dmTime::Sleep(1000 * 100);
                 return;
             }
@@ -2377,7 +2736,10 @@ bail:
             {
                 engine->m_WasIconified = false;
 
-                dmSound::Pause(false);
+#if defined(__EMSCRIPTEN_PTHREADS__)
+                if (!WebComponentActive())
+#endif
+                    dmSound::Pause(false);
             }
         }
 
@@ -2394,7 +2756,11 @@ bail:
                 bool has_input = false;
                 {
                     DM_PROFILE("Hid");
-                    has_input = dmHID::Update(engine->m_HidContext);
+#if defined(__EMSCRIPTEN_PTHREADS__)
+                    if (WebComponentActive()) has_input = !engine->m_InputBuffer.Empty();
+                    else
+#endif
+                        has_input = dmHID::Update(engine->m_HidContext);
                 }
 
                 // Check if we should skip this frame
@@ -2468,18 +2834,10 @@ bail:
                     sprite_trace->m_PaceDeadline = engine->m_SpritePaceDeadline;
                     engine->m_SpritePaceBegin = engine->m_SpritePaceEnd = engine->m_SpritePaceDeadline = 0;
                 }
-                dmInput::Update(engine->m_InputContext);
-                dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
-
-                engine->m_InputBuffer.SetSize(0);
-                dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
-
-                // Sort input so that text and marked text is triggered last
-                // NOTE: Due to Korean keyboards on iOS will send a backspace sometimes to "replace" a character with a new one,
-                //       we want to make sure these keypresses arrive to the input listeners before the "new" character.
-                //       If the backspace arrive after the text, it will instead remove the new character that
-                //       actually should replace the old one.
-                qsort(engine->m_InputBuffer.Begin(), engine->m_InputBuffer.Size(), sizeof(dmGameObject::InputAction), InputBufferOrderSort);
+#if defined(__EMSCRIPTEN_PTHREADS__)
+                if (!WebComponentActive())
+#endif
+                    PrepareGameInput(engine, dt);
 
                 dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
                 uint32_t input_buffer_size = input_buffer.Size();
@@ -2499,7 +2857,10 @@ bail:
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
                 if (sprite_trace) sprite_trace->m_UpdateEnd = dmTime::GetMonotonicTime();
 
-                dmSound::Update();
+#if defined(__EMSCRIPTEN_PTHREADS__)
+                if (!WebComponentActive())
+#endif
+                    dmSound::Update();
 
                 if (engine->m_SpriteThread)
                 {
@@ -2524,8 +2885,18 @@ bail:
                     }
                 }
 
+                if (engine->m_RenderFrame && dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance) != dmRender::RENDER_SCRIPT_RESULT_OK)
+                { dmEngine::Exit(engine, 1); return; }
+
+                if (engine->m_RenderFrame && do_render && !dmGraphics::AreGraphicsPacketsPaused() &&
+                    !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED))
+                {
+                    if (!CaptureAndPublishRenderFrame(engine, dt, sprite_trace))
+                    { dmEngine::Exit(engine, 1); return; }
+                }
+
                 // Don't render while iconified
-                if (!engine->m_SpriteThread && !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
+                if (!engine->m_RenderFrame && !engine->m_SpriteThread && !dmGraphics::AreGraphicsPacketsPaused() && !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
                     // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
@@ -2603,7 +2974,7 @@ bail:
                 dmGameObject::PostUpdate(engine->m_MainCollection);
                 dmGameObject::PostUpdate(engine->m_Register);
 
-                if (do_render && !engine->m_SpriteThread)
+                if (do_render && !engine->m_RenderFrame && !engine->m_SpriteThread)
                 {
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
                 }
@@ -2633,7 +3004,10 @@ bail:
                             return;
                         }
                         if (sprite_trace) sprite_trace->m_SurfaceBegin = dmTime::GetMonotonicTime();
+#if !defined(__EMSCRIPTEN_PTHREADS__)
                         dmGraphics::PrepareRenderThreadSurface(engine->m_GraphicsContext, true);
+#endif
+                        dmGraphics::FlushGraphicsPackets();
                         if (sprite_trace) sprite_trace->m_SurfaceEnd = dmTime::GetMonotonicTime();
                         state->m_ProducerOwnsGraphics = false;
                         state->m_Trace[sprite_slot] = sprite_trace;
@@ -2660,7 +3034,7 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
-            if (do_render && !engine->m_SpriteThread)
+            if (do_render && !engine->m_RenderFrame && !engine->m_SpriteThread && !dmGraphics::AreGraphicsPacketsPaused())
             {
 #if !defined(DM_RELEASE)
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
@@ -2700,6 +3074,8 @@ bail:
                     record_data->m_FrameCount++;
                 }
             }
+            if (!do_render || dmGraphics::AreGraphicsPacketsPaused())
+                dmGraphics::FlushGraphicsPackets();
         }
         ProfileFrameEnd(profile);
 

@@ -75,7 +75,26 @@ namespace dmRender
         }
     }
 
-    bool CaptureCommands(Command* commands, uint32_t count, CapturedCommands* output)
+    CapturedCommands::CapturedCommands() : m_Count(0)
+    {
+        memset(m_Constants, 0, sizeof(m_Constants));
+    }
+
+    CapturedCommands::~CapturedCommands()
+    {
+        for (uint32_t i = 0; i < MAX_COMMANDS; ++i)
+            if (m_Constants[i]) DeleteNamedConstantBuffer(m_Constants[i]);
+    }
+
+    uint64_t GetCapturedCommandsCapacity(const CapturedCommands& commands)
+    {
+        uint64_t bytes = sizeof(commands);
+        for (uint32_t i = 0; i < CapturedCommands::MAX_COMMANDS; ++i)
+            if (commands.m_Constants[i]) bytes += GetNamedConstantBufferCapacity(commands.m_Constants[i]);
+        return bytes;
+    }
+
+    bool CaptureCommands(Command* commands, uint32_t count, CapturedCommands* output, bool allow_constants, uint64_t limit)
     {
         output->m_Count = 0;
         if (count > CapturedCommands::MAX_COMMANDS)
@@ -95,10 +114,20 @@ namespace dmRender
                     c.m_Operands[0] = (uint64_t)&output->m_Matrices[i];
                     break;
                 case COMMAND_TYPE_DRAW:
-                    // Per-draw constant buffers and cameras need a separate capture
-                    // path; per-sprite constants are already owned by the sprite slot.
-                    if (!c.m_Operands[0] || c.m_Operands[1])
+                    if (!c.m_Operands[0] || (c.m_Operands[1] && !allow_constants))
                         return false;
+                    if (c.m_Operands[1])
+                    {
+                        HNamedConstantBuffer source = (HNamedConstantBuffer)c.m_Operands[1];
+                        // Conservatively admit a complete replacement while old storage
+                        // still exists; CopyNamedConstantBuffer only grows to source size.
+                        uint64_t replacement = GetNamedConstantBufferCapacity(source) + GetNamedConstantBufferCapacity(0);
+                        if (GetCapturedCommandsCapacity(*output) + replacement > limit)
+                            return false;
+                        if (!output->m_Constants[i]) output->m_Constants[i] = NewNamedConstantBuffer();
+                        CopyNamedConstantBuffer(output->m_Constants[i], source);
+                        c.m_Operands[1] = (uint64_t)output->m_Constants[i];
+                    }
                     output->m_Predicates[i] = *(Predicate*)c.m_Operands[0];
                     c.m_Operands[0] = (uint64_t)&output->m_Predicates[i];
                     if (c.m_Operands[2])

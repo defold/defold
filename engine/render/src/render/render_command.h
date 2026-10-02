@@ -65,7 +65,7 @@ namespace dmRender
         uint64_t    m_Operands[4];
     };
 
-    // Fixed storage and copied operands for the deliberately narrow sprite PoC.
+    // Owned pass commands. Constant storage is retained per slot and bounded before growth.
     struct CapturedCommands
     {
         enum { MAX_COMMANDS = 128 };
@@ -73,10 +73,16 @@ namespace dmRender
         dmVMath::Matrix4 m_Matrices[MAX_COMMANDS];
         Predicate m_Predicates[MAX_COMMANDS];
         FrustumOptions m_Frustums[MAX_COMMANDS];
+        HNamedConstantBuffer m_Constants[MAX_COMMANDS];
         uint32_t m_Count;
-        CapturedCommands() : m_Count(0) {}
+        CapturedCommands();
+        ~CapturedCommands();
+    private:
+        CapturedCommands(const CapturedCommands&);
+        CapturedCommands& operator=(const CapturedCommands&);
     };
-    bool CaptureCommands(Command* commands, uint32_t count, CapturedCommands* output);
+    uint64_t GetCapturedCommandsCapacity(const CapturedCommands& commands);
+    bool CaptureCommands(Command* commands, uint32_t count, CapturedCommands* output, bool allow_constants = false, uint64_t limit = 1024 * 1024);
     void ReleaseCommandOperands(Command* commands, uint32_t count);
     void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count, bool release_operands = true);
 }

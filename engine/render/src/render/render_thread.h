@@ -73,6 +73,9 @@ namespace dmRender
 
     HRenderThread NewRenderThread(RenderThreadFunction render, void* context, bool interactive_qos = false);
     // Begin reserves the only building slot. Publish waits for the previous reader.
+    // Browser main consumes only already-published work; the producer may wait.
+    HRenderThread NewExternalRenderThread(RenderThreadFunction render, void* context);
+    bool PumpExternalRenderThread(HRenderThread thread);
     uint32_t BeginRenderThreadFrame(HRenderThread thread);
     void MarkRenderThreadFrameCaptured(HRenderThread thread);
     void PublishRenderThreadFrame(HRenderThread thread, uint32_t slot, FrameTraceRecord* trace = 0);

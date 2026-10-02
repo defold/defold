@@ -24,9 +24,13 @@ namespace dmMessage
     struct URL;
 }
 
+namespace dmRender { struct RenderFrameBuilder; struct RenderFrameConsumers; }
+
 namespace dmGameSystem
 {
     struct FontResource;
+    bool RegisterGuiRenderFrame(void* world, dmRender::RenderFrameConsumers* consumers);
+    bool CaptureGuiRenderFrame(void* world, dmRender::RenderFrameBuilder* builder);
 
     // Callbacks used to integrate dmGui scenes with game objects
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);

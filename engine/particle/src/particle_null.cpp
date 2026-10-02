@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "particle.h"
+#include "particle_render.h"
 
 #include <string.h>
 
@@ -124,5 +125,16 @@ namespace dmParticle
     uint32_t GetVertexBufferSize(uint32_t particle_count, uint32_t vertex_size)
     {
         return 0;
+    }
+    bool CaptureRenderParticles(HParticleContext, HInstance, uint32_t, RenderParticle*, uint32_t, uint32_t* count)
+    {
+        *count = 0;
+        return false;
+    }
+
+    GenerateVertexDataResult GenerateCapturedParticleVertices(const RenderParticle*, uint32_t, uint32_t, uint32_t,
+                        const dmGraphics::VertexAttributeInfos&, const dmVMath::Vector4&, void*, uint32_t, uint32_t*)
+    {
+        return GENERATE_VERTEX_DATA_INVALID_INSTANCE;
     }
 } // namespace dmParticle

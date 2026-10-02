@@ -27,6 +27,7 @@ set(GRAPHICS_TRANSCODER_NULL_DEPENDENCIES dlib)
 set(GRAPHICS_TRANSCODER_BASISU_DEPENDENCIES dlib basis_transcoder)
 set(GRAPHICS_PUBLIC_HEADERS
   "${GRAPHICS_SRC_DIR}/graphics.h"
+  "${GRAPHICS_SRC_DIR}/graphics_packet.h"
   "${GRAPHICS_SRC_DIR}/graphics_util.h"
   "${GRAPHICS_SRC_DIR}/graphics_native.h"
   "${GRAPHICS_SRC_DIR}/opengl/win32/glext.h"

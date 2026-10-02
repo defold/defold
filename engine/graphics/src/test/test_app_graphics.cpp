@@ -27,6 +27,7 @@
 #include <dlib/time.h>
 
 #include "test_app_graphics.h"
+#include "../graphics_packet.h"
 
 #if defined(DM_GRAPHICS_DAWN)
 #include "../webgpu/graphics_webgpu_private.h"
@@ -217,6 +218,104 @@ struct EngineCtx
     bool m_Failed;
 
 } g_EngineCtx;
+
+// Verifies draw/upload/draw ordering: an in-frame texture update must not change the earlier draw.
+struct GraphicsPacketTextureOrderTest : ITest
+{
+    dmGraphics::HProgram m_Program;
+    dmGraphics::HTexture m_Texture;
+    dmGraphics::HVertexDeclaration m_Declaration;
+    GraphicsPacketTextureOrderTest() : m_Program(0), m_Texture(0), m_Declaration(0) {}
+
+    void Initialize(EngineCtx* engine)
+    {
+        using namespace dmGraphics;
+        if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_METAL)
+        {
+            dmLogError("Graphics packet texture ordering test requires Metal");
+            engine->m_Failed = true;
+            return;
+        }
+        const char* vertex =
+            "#include <metal_stdlib>\nusing namespace metal;\n"
+            "vertex float4 main0(uint i [[vertex_id]]) { float2 p[3] = {float2(-1,-1), float2(3,-1), float2(-1,3)}; return float4(p[i],0,1); }";
+        const char* fragment =
+            "#include <metal_stdlib>\nusing namespace metal;\n"
+            "struct Resources { texture2d<float, access::read> tex [[id(0)]]; };\n"
+            "fragment float4 main0(constant Resources& r [[buffer(0)]]) { return r.tex.read(uint2(0)); }";
+        ShaderDesc desc = {};
+        AddShaderWithType(&desc, ShaderDesc::SHADER_TYPE_VERTEX, ShaderDesc::LANGUAGE_MSL_22, (uint8_t*)vertex, strlen(vertex));
+        AddShaderWithType(&desc, ShaderDesc::SHADER_TYPE_FRAGMENT, ShaderDesc::LANGUAGE_MSL_22, (uint8_t*)fragment, strlen(fragment));
+        AddShaderResource(&desc, "tex", ShaderDesc::SHADER_TYPE_TEXTURE2D, 0, 0, BINDING_TYPE_TEXTURE, SHADER_STAGE_FLAG_FRAGMENT);
+        ShaderDesc::MSLResourceMapping mapping = {};
+        mapping.m_NameHash = dmHashString64("tex");
+        desc.m_Shaders.m_Data[1].m_MslResourceMapping.m_Data = &mapping;
+        desc.m_Shaders.m_Data[1].m_MslResourceMapping.m_Count = 1;
+        char errors[1024] = {};
+        m_Program = NewProgram(engine->m_GraphicsContext, &desc, errors, sizeof(errors));
+        DeleteShaderDesc(&desc);
+        if (!m_Program) { dmLogError("Packet shader: %s", errors); engine->m_Failed = true; return; }
+        HVertexStreamDeclaration streams = NewVertexStreamDeclaration(engine->m_GraphicsContext);
+        m_Declaration = NewVertexDeclaration(engine->m_GraphicsContext, streams);
+        DeleteVertexStreamDeclaration(streams);
+        TextureCreationParams creation; creation.m_Width = creation.m_Height = 1;
+        m_Texture = NewTexture(engine->m_GraphicsContext, creation);
+        uint8_t green[4] = {0, 255, 0, 255};
+        TextureParams upload; upload.m_Width = upload.m_Height = 1;
+        upload.m_Format = TEXTURE_FORMAT_RGBA; upload.m_Data = green; upload.m_DataSize = sizeof(green);
+        SetTexture(engine->m_GraphicsContext, m_Texture, upload);
+        if (!StartGraphicsPackets(engine->m_GraphicsContext, HasArgument("packet-inline") ? 1 : 2)) engine->m_Failed = true;
+    }
+
+    void Execute(EngineCtx* engine)
+    {
+        using namespace dmGraphics;
+        HContext context = engine->m_GraphicsContext;
+        uint32_t width = GetWindowWidth(context), height = GetWindowHeight(context);
+        Clear(context, BUFFER_TYPE_COLOR0_BIT, 255, 0, 255, 255, 1, 0);
+        DisableState(context, STATE_DEPTH_TEST); DisableState(context, STATE_BLEND); DisableState(context, STATE_CULL_FACE);
+        EnableProgram(context, m_Program);
+        EnableVertexDeclaration(context, m_Declaration, 0, 0, m_Program);
+        EnableTexture(context, 0, 0, m_Texture);
+        SetViewport(context, 0, 0, width / 2, height);
+        Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
+        uint8_t white[4] = {255, 255, 255, 255};
+        TextureParams upload; upload.m_Width = upload.m_Height = 1;
+        upload.m_Format = TEXTURE_FORMAT_RGBA; upload.m_Data = white; upload.m_DataSize = sizeof(white); upload.m_SubUpdate = true;
+        SetTexture(context, m_Texture, upload);
+        memset(white, 0, sizeof(white));
+        SetViewport(context, width / 2, 0, width / 2, height);
+        Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
+        CheckPixels(engine);
+    }
+
+    void CheckPixels(EngineCtx* engine)
+    {
+        using namespace dmGraphics;
+        uint8_t expected[2][4] = {{0,255,0,255}, {255,255,255,255}};
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            uint8_t pixel[4] = {};
+            ReadPixels(engine->m_GraphicsContext, GetWindowWidth(engine->m_GraphicsContext) * (1 + i * 2) / 4,
+                GetWindowHeight(engine->m_GraphicsContext) / 2, 1, 1, pixel, sizeof(pixel));
+            if (memcmp(pixel, expected[i], 4))
+            {
+                dmLogError("Packet texture order cell %u: got %u,%u,%u,%u", i, pixel[0], pixel[1], pixel[2], pixel[3]);
+                engine->m_Failed = true;
+            }
+        }
+        if (!engine->m_Failed) dmLogInfo("Graphics packet texture draw/upload/draw ordering passed");
+        engine->m_Running = 0;
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine)
+    {
+        dmGraphics::StopGraphicsPackets();
+        if (m_Texture) dmGraphics::DeleteTexture(engine->m_GraphicsContext, m_Texture);
+        if (m_Program) dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        if (m_Declaration) dmGraphics::DeleteVertexDeclaration(m_Declaration);
+    }
+};
 
 struct ClearBackbufferTest : ITest
 {
@@ -1910,6 +2009,7 @@ static void* EngineCreate(int argc, char** argv)
     window_params.m_Width                  = 512;
     window_params.m_Height                 = 512;
     window_params.m_Title                  = "Graphics Test App";
+    if (HasArgument("graphics-packets")) window_params.m_FocusOnShow = 0;
     window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_VULKAN;
     window_params.m_CloseCallback          = OnWindowClose;
     window_params.m_CloseCallbackUserData  = (void*) engine;
@@ -1979,7 +2079,11 @@ static void* EngineCreate(int argc, char** argv)
         engine->m_Failed = true;
     }
 
-    if (HasArgument("ssbo") || HasArgument("ssbo-updates") || HasArgument("ssbo-hazards") || HasArgument("ssbo-shared-stages"))
+    if (HasArgument("graphics-packets"))
+    {
+        engine->m_Test = new GraphicsPacketTextureOrderTest();
+    }
+    else if (HasArgument("ssbo") || HasArgument("ssbo-updates") || HasArgument("ssbo-hazards") || HasArgument("ssbo-shared-stages"))
     {
         dmLogInfo("test_app_graphics: running StorageBufferTest%s", HasArgument("ssbo-hazards") ? " (GPU hazards)" : HasArgument("ssbo-updates") ? " (update ordering)" : "");
         engine->m_Test = new StorageBufferTest();

@@ -34,6 +34,8 @@ int g_TestContextCount = 0;
 static int g_LibContext = 0;
 static int g_InitContext = 0;
 
+static ExtensionResult RenderCallbackTest(ExtensionParams*) { return EXTENSION_RESULT_OK; }
+
 static dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
     HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(params);
@@ -46,6 +48,7 @@ static dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
     assert(libctx == &g_LibContext);
     *libctx = 1976;
 
+    assert(dmExtension::RegisterCallback(dmExtension::CALLBACK_PRE_RENDER, RenderCallbackTest));
     g_TestAppInitCount++;
     return dmExtension::RESULT_OK;
 }

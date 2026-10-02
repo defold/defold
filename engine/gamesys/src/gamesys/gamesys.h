@@ -250,6 +250,10 @@ namespace dmGameSystem
         uint32_t                    m_SnapshotThreaded : 1;
         dmRender::HRenderThread      m_RenderThread;
         uint32_t                    m_SnapshotCommandBytes;
+        uint64_t                    m_RenderFrameUsedBytes;
+        uint64_t                    m_RenderFrameCapacityBytes;
+        uint64_t                    m_RenderFrameGrowthPeakBytes;
+        uint32_t                    m_RenderFrameReferences;
         uint64_t                    m_MixedPrepareTime;
         uint64_t                    m_MixedPrepareCount;
         uint64_t                    m_MixedCapacityBytes;

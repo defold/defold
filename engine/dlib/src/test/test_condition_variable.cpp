@@ -95,6 +95,45 @@ TEST(dmConditionVariable, ProducerConsumer)
     ASSERT_EQ((int64_t) (MAX/2) * (MAX-1), a.m_Sum);
 }
 
+struct BroadcastProbe
+{
+    dmMutex::HMutex m_Mutex;
+    dmConditionVariable::HConditionVariable m_Changed;
+    uint32_t m_Waiting, m_Completed;
+    bool m_Release;
+};
+
+static void AwaitBroadcast(void* data)
+{
+    BroadcastProbe* probe = (BroadcastProbe*)data;
+    DM_MUTEX_SCOPED_LOCK(probe->m_Mutex);
+    ++probe->m_Waiting;
+    dmConditionVariable::Broadcast(probe->m_Changed);
+    while (!probe->m_Release) dmConditionVariable::Wait(probe->m_Changed, probe->m_Mutex);
+    ++probe->m_Completed;
+}
+
+// Verifies broadcast wakes every waiter; guards the former web implementation
+// that asserted instead of broadcasting on pthread-enabled builds.
+TEST(dmConditionVariable, BroadcastWakesAllWaiters)
+{
+    BroadcastProbe probe = {};
+    probe.m_Mutex = dmMutex::New();
+    probe.m_Changed = dmConditionVariable::New();
+    dmThread::Thread a = dmThread::New(AwaitBroadcast, 0x80000, &probe, "broadcast-a");
+    dmThread::Thread b = dmThread::New(AwaitBroadcast, 0x80000, &probe, "broadcast-b");
+    dmMutex::Lock(probe.m_Mutex);
+    while (probe.m_Waiting != 2) dmConditionVariable::Wait(probe.m_Changed, probe.m_Mutex);
+    probe.m_Release = true;
+    dmConditionVariable::Broadcast(probe.m_Changed);
+    dmMutex::Unlock(probe.m_Mutex);
+    dmThread::Join(a);
+    dmThread::Join(b);
+    ASSERT_EQ(2U, probe.m_Completed);
+    dmConditionVariable::Delete(probe.m_Changed);
+    dmMutex::Delete(probe.m_Mutex);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

@@ -76,6 +76,9 @@ namespace dmExtension
      */
     void PreRender(Params* params);
 
+    // Internal ownership admission: legacy graphics hooks cannot be silently skipped.
+    bool HasRenderCallbacks();
+
     /**
      * Call post render functions for extensions
      * @param params parameters

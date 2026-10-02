@@ -36,6 +36,8 @@ set(RENDER_PUBLIC_HEADERS
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
   "${RENDER_SRC_DIR}/render/render_thread.h"
+  "${RENDER_SRC_DIR}/render/render_frame.h"
+  "${RENDER_SRC_DIR}/render/render_command.h"
   "${RENDER_SRC_DIR}/render/font/fontmap.h"
   "${RENDER_SRC_DIR}/render/font/font_renderer.h")
 file(GLOB_RECURSE RENDER_DMSDK_HEADERS CONFIGURE_DEPENDS
@@ -122,6 +124,8 @@ install(FILES
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
   "${RENDER_SRC_DIR}/render/render_thread.h"
+  "${RENDER_SRC_DIR}/render/render_frame.h"
+  "${RENDER_SRC_DIR}/render/render_command.h"
   ${RENDER_PROTO_HEADERS}
   DESTINATION include/render)
 install(FILES

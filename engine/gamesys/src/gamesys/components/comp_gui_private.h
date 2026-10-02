@@ -145,8 +145,10 @@ namespace dmGameSystem
         CompGuiNodeSetNodeDescFn    m_SetNodeDesc;
     };
 
+    struct GuiFrameRenderer;
     struct GuiWorld
     {
+        GuiFrameRenderer* m_FrameRenderer;
         dmArray<GuiRenderObject>                 m_GuiRenderObjects;
         dmArray<HComponentRenderConstants>       m_RenderConstants;
         dmArray<GuiComponent*>                   m_Components;

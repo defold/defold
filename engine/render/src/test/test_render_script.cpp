@@ -2602,3 +2602,46 @@ TEST_F(dmRenderScriptTest, ThreadRecordingRejectsInitListener)
     dmRender::DeleteRenderScriptInstance(instance);
     dmRender::DeleteRenderScript(m_Context, rs);
 }
+
+// Verifies Lua clones constants at each draw, owns distinct views per pass and
+// can record the next slot without modifying the consumer context or first slot.
+TEST_F(dmRenderScriptTest, RenderFrameRecordingOwnsEachPass)
+{
+    const char* script =
+        "function init(self) self.p = render.predicate({'tile'}); self.tick = 0 end\n"
+        "function update(self, dt)\n"
+        " self.tick = self.tick + 1\n"
+        " local cb = render.constant_buffer()\n"
+        " cb.tint = vmath.vector4(self.tick, 0, 0, 1)\n"
+        " render.set_view(vmath.matrix4())\n"
+        " render.draw(self.p, {constants=cb})\n"
+        " cb.tint = vmath.vector4(0, self.tick, 0, 1)\n"
+        " render.set_view(vmath.matrix4_translation(vmath.vector3(5, 0, 0)))\n"
+        " render.draw(self.p, {constants=cb})\n"
+        " cb = nil; collectgarbage('collect')\n"
+        "end";
+    dmRender::HRenderScript rs = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, rs);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(instance));
+    dmRender::SetRenderScriptRenderFrameRecording(instance, true);
+    m_Context->m_ConstantBufferCloneCursor = 37;
+    dmRender::CapturedCommands first, second;
+    ASSERT_TRUE(dmRender::CaptureRenderScriptInstance(instance, .016f, &first));
+    ASSERT_TRUE(dmRender::CaptureRenderScriptInstance(instance, .016f, &second));
+    ASSERT_EQ(4U, first.m_Count);
+    ASSERT_EQ(37U, m_Context->m_ConstantBufferCloneCursor);
+    ASSERT_EQ(0U, m_Context->m_ConstantBufferClones.Size());
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, rs);
+    dmVMath::Vector4* values;
+    uint32_t count;
+    ASSERT_TRUE(dmRender::GetNamedConstant((dmRender::HNamedConstantBuffer)first.m_Commands[1].m_Operands[1], dmHashString64("tint"), &values, &count));
+    ASSERT_EQ(1.0f, values[0].getX());
+    ASSERT_EQ(0.0f, values[0].getY());
+    ASSERT_TRUE(dmRender::GetNamedConstant((dmRender::HNamedConstantBuffer)first.m_Commands[3].m_Operands[1], dmHashString64("tint"), &values, &count));
+    ASSERT_EQ(0.0f, values[0].getX());
+    ASSERT_EQ(1.0f, values[0].getY());
+    ASSERT_TRUE(dmRender::GetNamedConstant((dmRender::HNamedConstantBuffer)second.m_Commands[3].m_Operands[1], dmHashString64("tint"), &values, &count));
+    ASSERT_EQ(2.0f, values[0].getY());
+    ASSERT_EQ(5.0f, ((dmVMath::Matrix4*)first.m_Commands[2].m_Operands[0])->getCol3().getX());
+}

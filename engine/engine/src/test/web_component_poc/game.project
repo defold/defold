@@ -1,0 +1,30 @@
+[project]
+title = Web component threading smoke
+[bootstrap]
+main_collection = /main.collectionc
+render = /smoke.renderc
+[script]
+shared_state = 1
+[display]
+width = 640
+height = 360
+update_frequency = 0
+swap_interval = 1
+[sound]
+use_thread = 0
+max_sound_instances = 0
+[render]
+poc_pipeline = component
+poc_threaded = 1
+
+[input]
+game_binding = /smoke.input_bindingc
+[collection]
+max_instances = 1024
+[sprite]
+max_count = 1024
+
+[engine]
+poc_replay_hz = 60
+[replay]
+enabled = 1

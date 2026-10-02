@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <render/render_frame.h>
 #include "test_gamesys_private.h"
 #include "../components/comp_sprite.h"
 #include "../components/comp_particlefx.h"
@@ -751,6 +752,54 @@ TEST_F(SpriteTest, SnapshotGeometrySurvivesDeletion)
         dmGameSystem::GetSpriteSnapshotStats(world, &stats);
         ASSERT_EQ(0U, stats.m_RetainedReferenceCount);
     }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies the generic render-layer consumer preserves sprite geometry after
+// component deletion and live animation-cache eviction, with deduplicated pins.
+TEST_F(SpriteTest, RenderFrameGeometrySurvivesDeletion)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    const char* paths[] = {"/sprite/valid_sprite.goc", "/sprite/textureless.goc", "/sprite/texture_transform_multi.goc", "/sprite/sprite_slice9.goc", "/sprite/snapshot_trimmed.goc"};
+    dmGameObject::HInstance instances[DM_ARRAY_SIZE(paths)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+    {
+        instances[i] = Spawn(m_Factory, m_Collection, paths[i], dmHashString64(paths[i]), 0,
+            Point3(17 + i * 50, 29, (float)i), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+        ASSERT_NE((void*)0, instances[i]);
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    RenderCollection(m_RenderContext, m_Collection);
+    dmArray<uint8_t> expected_vertices, expected_indices;
+    CopySpriteTestBuffers(world, expected_vertices, expected_indices);
+    dmRender::RenderFrameConsumers consumers;
+    ASSERT_TRUE(dmGameSystem::RegisterSpriteRenderFrame(world, &consumers));
+    dmRender::RenderFrame frame;
+    dmRender::RenderFrameBuilder builder;
+    dmRender::BeginRenderFrame(&builder, &frame, m_Factory, 1, 1, 640, 480, 1);
+    ASSERT_TRUE(dmGameSystem::CaptureSpriteRenderFrame(world, &m_SpriteContext, &builder));
+    ASSERT_TRUE(dmRender::SealRenderFrame(&builder, consumers));
+    ASSERT_EQ((uint32_t)DM_ARRAY_SIZE(paths), frame.m_Entries.Size());
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i) dmGameObject::Delete(m_Collection, instances[i], true);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    for (uint32_t i = 0; i < 12; ++i) ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmRender::ClearRenderObjects(m_RenderContext);
+    dmRender::RenderListBegin(m_RenderContext);
+    frame.m_State = dmRender::FRAME_READING;
+    dmRender::SubmitRenderFrame(m_RenderContext, frame, consumers);
+    dmRender::RenderListEnd(m_RenderContext);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    dmArray<uint8_t> vertices, indices;
+    CopySpriteTestBuffers(world, vertices, indices);
+    ASSERT_EQ(expected_vertices.Size(), vertices.Size());
+    ASSERT_EQ(expected_indices.Size(), indices.Size());
+    ASSERT_EQ(0, memcmp(expected_vertices.Begin(), vertices.Begin(), vertices.Size()));
+    ASSERT_EQ(0, memcmp(expected_indices.Begin(), indices.Begin(), indices.Size()));
+    dmRender::ClearRenderObjects(m_RenderContext);
+    frame.m_State = dmRender::FRAME_RETIRED;
+    dmRender::RetireRenderFrame(&frame);
+    ASSERT_EQ(0U, frame.m_Dependencies.Size());
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 

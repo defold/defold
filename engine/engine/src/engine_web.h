@@ -14,6 +14,25 @@
 
 #ifndef DM_ENGINE_WEB_H
 #define DM_ENGINE_WEB_H
+#include <stdint.h>
+
+#if defined(__EMSCRIPTEN_PTHREADS__)
+namespace dmEngine
+{
+    struct Engine;
+    struct RunLoopParams;
+    bool StartWebComponentLoop(Engine* engine, const RunLoopParams* params);
+    bool WebComponentActive();
+    bool QueueWebWindowEvent(uint32_t kind, uint32_t a, uint32_t b);
+    void ApplyWebWindowEvent(Engine* engine, uint32_t kind, uint32_t a, uint32_t b);
+    void PrepareWebInput(Engine* engine, float dt);
+    bool PumpWebComponentFrame(Engine* engine);
+    void DrainWebComponentFrame(Engine* engine);
+    void AttachWebComponentProducer(Engine* engine);
+    bool WebCanRender();
+    void WebDispatchGraphics(void (*execute)(void*), void* data);
+}
+#endif
 
 #ifdef __cplusplus
 extern "C" {

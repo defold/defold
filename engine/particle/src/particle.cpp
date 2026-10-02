@@ -26,6 +26,7 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include "particle.h"
+#include "particle_render.h"
 #include "particle_private.h"
 
 DM_PROPERTY_GROUP(rmtp_Particles, "Particles", 0);
@@ -1121,7 +1122,37 @@ namespace dmParticle
         1.0f, 1.0f,
     };
 
-    static GenerateVertexDataResult WriteVertexData(Emitter* emitter,
+    static void CaptureRenderParticle(const Emitter* emitter, uint32_t index, RenderParticle* output)
+    {
+        const Particle& particle = emitter->m_Particles[index];
+        const ParticleRenderState& state = particle.m_RenderState;
+        const AnimationData& animation = emitter->m_AnimationData;
+        output->m_WorldTransform = state.m_WorldTransform;
+        output->m_Color = particle.GetColor();
+        output->m_HalfWidth = state.m_HalfWidth;
+        output->m_HalfHeight = state.m_HalfHeight;
+        const float* uv = animation.m_TexCoords ? animation.m_TexCoords + (state.m_Tile << 3) : unit_tex_coords;
+        memcpy(output->m_TexCoords, uv, sizeof(output->m_TexCoords));
+        output->m_PageIndex = animation.m_FrameIndices ? (float)animation.m_PageIndices[animation.m_FrameIndices[state.m_Tile]] : 0.0f;
+        output->m_Flip = (animation.m_HFlip ? 1 : 0) | (animation.m_VFlip ? 2 : 0);
+    }
+
+    bool CaptureRenderParticles(HParticleContext context, HInstance instance, uint32_t emitter_index,
+                                RenderParticle* output, uint32_t capacity, uint32_t* count)
+    {
+        *count = 0;
+        Instance* value = GetInstance(context, instance);
+        if (!value || emitter_index >= value->m_Emitters.Size()) return false;
+        if (IsSleeping(value)) return true;
+        const Emitter& emitter = value->m_Emitters[emitter_index];
+        if (emitter.m_Particles.Size() > capacity) return false;
+        for (uint32_t i = 0; i < emitter.m_Particles.Size(); ++i)
+            CaptureRenderParticle(&emitter, i, &output[i]);
+        *count = emitter.m_Particles.Size();
+        return true;
+    }
+
+    static GenerateVertexDataResult WriteParticleValues(Emitter* emitter, const RenderParticle* captured, uint32_t full_count,
                                                     uint32_t particle_start,
                                                     uint32_t particle_count,
                                                     const dmGraphics::VertexAttributeInfos& attribute_infos,
@@ -1143,22 +1174,9 @@ namespace dmParticle
 
         uint32_t vertex_size = attribute_infos.m_VertexStride;
 
-        emitter->m_VertexIndex = vertex_index;
-        emitter->m_VertexCount = 0;
-
-        const AnimationData& anim_data = emitter->m_AnimationData;
-        float* tex_coords = anim_data.m_TexCoords;
-        uint32_t* page_indices = anim_data.m_PageIndices;
-        uint32_t* frame_indices = anim_data.m_FrameIndices;
-        bool hFlip = anim_data.m_HFlip != 0;
-        bool vFlip = anim_data.m_VFlip != 0;
+        const uint32_t first_vertex = vertex_index;
 
         dmGraphics::VertexAttributeInfoMetadata material_attribute_info_meta = dmGraphics::GetVertexAttributeInfosMetaData(attribute_infos);
-
-        if (tex_coords == 0x0)
-        {
-            tex_coords = unit_tex_coords;
-        }
 
         uint32_t max_vertex_count = vertex_buffer_size / vertex_size;
         uint32_t j;
@@ -1199,13 +1217,13 @@ namespace dmParticle
             dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_TextureTransform2D, texture_transform_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, 1, true);
         }
 
-        uint32_t particle_full_count = emitter->m_Particles.Size();
-        uint32_t particle_end = dmMath::Min(particle_start + particle_count, particle_full_count);
+        uint32_t particle_end = particle_start + dmMath::Min(particle_count, full_count - particle_start);
         for (j = particle_start; j < particle_end && vertex_index + 6 <= max_vertex_count; j++)
         {
-            Particle* particle = &emitter->m_Particles[j];
-            const ParticleRenderState& render_state = particle->m_RenderState;
-            float* tex_coord = &tex_coords[render_state.m_Tile << 3];
+            RenderParticle local;
+            if (!captured) CaptureRenderParticle(emitter, j, &local);
+            const RenderParticle& render_state = captured ? captured[j] : local;
+            const float* tex_coord = render_state.m_TexCoords;
 
             float hx = render_state.m_HalfWidth;
             float hy = render_state.m_HalfHeight;
@@ -1229,22 +1247,13 @@ namespace dmParticle
 
             if (material_attribute_info_meta.m_HasAttributeColor)
             {
-                Vector4 c      = particle->GetColor();
+                Vector4 c      = render_state.m_Color;
                 color_to_write = Vector4(mulPerElem(c.getXYZ(), color.getXYZ()), c.getW() * color.getW());
             }
 
             if (material_attribute_info_meta.m_HasAttributeTexCoord)
             {
-                uint32_t flip_flag = 0;
-                if (hFlip)
-                {
-                    flip_flag = 1;
-                }
-                if (vFlip)
-                {
-                    flip_flag |= 2;
-                }
-                const int* tex_lookup = &tex_coord_order[flip_flag * 6];
+                const int* tex_lookup = &tex_coord_order[render_state.m_Flip * 6];
                 for (int i = 0; i < 6; ++i)
                 {
                     tex_coord_flat[i * 2]     = tex_coord[tex_lookup[i] * 2];
@@ -1254,11 +1263,7 @@ namespace dmParticle
 
             if (material_attribute_info_meta.m_HasAttributePageIndex)
             {
-                if (frame_indices != 0x0)
-                {
-                    uint32_t page_indices_index = frame_indices[render_state.m_Tile];
-                    page_index                  = (float) page_indices[page_indices_index];
-                }
+                page_index = render_state.m_PageIndex;
             }
 
             if (material_attribute_info_meta.m_HasAttributeTextureTransform2D)
@@ -1303,11 +1308,38 @@ namespace dmParticle
         {
             res = GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED;
         }
-        uint32_t num_written = vertex_index - emitter->m_VertexIndex;
-        emitter->m_VertexCount += num_written; // since we check if it's == 0
+        uint32_t num_written = vertex_index - first_vertex;
         *bytes_written = num_written * attribute_infos.m_VertexStride;
 
         return res;
+    }
+
+    static GenerateVertexDataResult WriteVertexData(Emitter* emitter, uint32_t start, uint32_t count,
+                                const dmGraphics::VertexAttributeInfos& attributes, const Vector4& color,
+                                uint32_t vertex_index, uint8_t* buffer, uint32_t capacity, uint32_t* written)
+    {
+        emitter->m_VertexIndex = vertex_index;
+        emitter->m_VertexCount = 0;
+        if (start >= emitter->m_Particles.Size()) { *written = 0; return GENERATE_VERTEX_DATA_OK; }
+        GenerateVertexDataResult result = WriteParticleValues(emitter, 0, emitter->m_Particles.Size(), start, count,
+                                            attributes, color, vertex_index, buffer, capacity, written);
+        emitter->m_VertexCount = *written / attributes.m_VertexStride;
+        return result;
+    }
+
+    GenerateVertexDataResult GenerateCapturedParticleVertices(const RenderParticle* particles, uint32_t count,
+                                uint32_t start, uint32_t length, const dmGraphics::VertexAttributeInfos& attributes,
+                                const Vector4& color, void* buffer, uint32_t capacity, uint32_t* size)
+    {
+        assert(attributes.m_VertexStride != 0);
+        if (start >= count || !buffer || !capacity) return GENERATE_VERTEX_DATA_OK;
+        uint32_t vertex_index = *size / attributes.m_VertexStride;
+        if (*size % attributes.m_VertexStride) ++vertex_index;
+        uint32_t written = 0;
+        GenerateVertexDataResult result = WriteParticleValues(0, particles, count, start, length, attributes, color,
+                                            vertex_index, (uint8_t*)buffer, capacity, &written);
+        *size += written;
+        return result;
     }
 
     struct SortPred

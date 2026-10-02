@@ -854,7 +854,27 @@ namespace dmRender
     {
         if (!InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t)constant_buffer, (uint64_t)frustum_options, (uint64_t)sort_order)))
             return false;
-        i->m_CommandBuffer.Back().m_Operands[1] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        if (i->m_RenderFrameRecording && constant_buffer)
+        {
+            uint64_t capacity = GetNamedConstantBufferCapacity(constant_buffer) + GetNamedConstantBufferCapacity(0);
+            for (uint32_t n = 0; n < i->m_ProducerConstants.Size(); ++n)
+                capacity += GetNamedConstantBufferCapacity(i->m_ProducerConstants[n]);
+            if (capacity > 1024 * 1024)
+            {
+                i->m_CommandBuffer.Pop();
+                return false;
+            }
+            if (i->m_ProducerConstantCursor == i->m_ProducerConstants.Size())
+            {
+                if (i->m_ProducerConstants.Full()) i->m_ProducerConstants.OffsetCapacity(16);
+                i->m_ProducerConstants.Push(NewNamedConstantBuffer());
+            }
+            HNamedConstantBuffer owned = i->m_ProducerConstants[i->m_ProducerConstantCursor++];
+            CopyNamedConstantBuffer(owned, constant_buffer);
+            i->m_CommandBuffer.Back().m_Operands[1] = (uint64_t)owned;
+        }
+        else if (!i->m_RenderFrameRecording)
+            i->m_CommandBuffer.Back().m_Operands[1] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
         return true;
     }
 
@@ -1975,7 +1995,7 @@ namespace dmRender
             lua_pop(L, 1);
         }
 
-        if (i->m_ThreadedRecording && constant_buffer)
+        if (i->m_ThreadedRecording && !i->m_RenderFrameRecording && constant_buffer)
             return luaL_error(L, "Per-draw constants are outside the sprite thread command subset");
 
         // we need to pass ownership to the command queue
@@ -3468,6 +3488,8 @@ bail:
         for (uint32_t i = 0; i < render_script_instance->m_PredicateCount; ++i) {
             delete render_script_instance->m_Predicates[i];
         }
+        for (uint32_t i = 0; i < render_script_instance->m_ProducerConstants.Size(); ++i)
+            DeleteNamedConstantBuffer(render_script_instance->m_ProducerConstants[i]);
         render_script_instance->~RenderScriptInstance();
         ResetRenderScriptInstance(render_script_instance);
     }
@@ -3674,6 +3696,12 @@ bail:
         return result;
     }
 
+    void SetRenderScriptRenderFrameRecording(HRenderScriptInstance instance, bool enabled)
+    {
+        instance->m_RenderFrameRecording = enabled;
+        instance->m_ThreadedRecording = enabled;
+    }
+
     void SetRenderScriptThreadedRecording(HRenderScriptInstance instance, bool enabled)
     {
         instance->m_ThreadedRecording = enabled;
@@ -3687,13 +3715,14 @@ bail:
             commands->m_Count = 0;
             return false;
         }
+        instance->m_ProducerConstantCursor = 0;
         // Producer-only command storage. Supported recording APIs never mutate
         // the consumer context; copied operands contain no Lua userdata.
         instance->m_CommandBuffer.SetSize(0);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
         RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, &dt);
-        bool ok = result == RENDER_SCRIPT_RESULT_OK && CaptureCommands(instance->m_CommandBuffer.Begin(), instance->m_CommandBuffer.Size(), commands);
+        bool ok = result == RENDER_SCRIPT_RESULT_OK && CaptureCommands(instance->m_CommandBuffer.Begin(), instance->m_CommandBuffer.Size(), commands, instance->m_RenderFrameRecording);
         ReleaseCommandOperands(instance->m_CommandBuffer.Begin(), instance->m_CommandBuffer.Size());
         instance->m_CommandBuffer.SetSize(0);
         if (!ok)
