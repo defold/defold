@@ -9,7 +9,8 @@ import tempfile
 def main():
     root = Path(__file__).resolve().parent
     sources = {}
-    for suffix in ('vp', 'fp', 'vp.msl', 'fp.msl', 'cube.fp', 'cube.fp.msl'):
+    for suffix in ('vp', 'fp', 'vp.msl', 'fp.msl', 'vp.wgsl', 'fp.wgsl',
+                   'cube.fp', 'cube.fp.msl', 'cube.fp.wgsl'):
         sources[suffix.replace('.', '_')] = (root / ('graphics_capture.' + suffix)).read_bytes() + b'\0'
     with tempfile.TemporaryDirectory() as directory:
         for stage in ('vert', 'frag', 'cube.frag'):

@@ -104,6 +104,7 @@ static const CaptureBackend CAPTURE_BACKENDS[] = {
     {"metal",  ADAPTER_FAMILY_METAL,   WINDOW_GRAPHICS_API_METAL},
     {"opengl", ADAPTER_FAMILY_OPENGL,  WINDOW_GRAPHICS_API_OPENGL},
     {"vulkan", ADAPTER_FAMILY_VULKAN,  WINDOW_GRAPHICS_API_VULKAN},
+    {"webgpu", ADAPTER_FAMILY_WEBGPU,  WINDOW_GRAPHICS_API_WEBGPU},
 };
 
 // Pixel coordinates are top-down. Depth is normalized to [0, 1] by every shader.
@@ -274,17 +275,20 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
     CAPTURE_SHADER(VERTEX, GLSL_SM330, capture_vp);
     CAPTURE_SHADER(VERTEX, MSL_22, capture_vp_msl);
     CAPTURE_SHADER(VERTEX, SPIRV, capture_vert_spv);
+    CAPTURE_SHADER(VERTEX, WGSL, capture_vp_wgsl);
     if (cubemap)
     {
         CAPTURE_SHADER(FRAGMENT, GLSL_SM330, capture_cube_fp);
         CAPTURE_SHADER(FRAGMENT, MSL_22, capture_cube_fp_msl);
         CAPTURE_SHADER(FRAGMENT, SPIRV, capture_cube_frag_spv);
+        CAPTURE_SHADER(FRAGMENT, WGSL, capture_cube_fp_wgsl);
     }
     else
     {
         CAPTURE_SHADER(FRAGMENT, GLSL_SM330, capture_fp);
         CAPTURE_SHADER(FRAGMENT, MSL_22, capture_fp_msl);
         CAPTURE_SHADER(FRAGMENT, SPIRV, capture_frag_spv);
+        CAPTURE_SHADER(FRAGMENT, WGSL, capture_fp_wgsl);
     }
 #undef CAPTURE_SHADER
 
@@ -573,7 +577,7 @@ static void RenderCapture(HContext context, const CaptureResources& resources, c
 static bool WriteCaptureImage(const char* filename, const uint8_t* pixels)
 {
     uint8_t* rgba = (uint8_t*) malloc(CAPTURE_BYTES);
-    // Production Metal/Vulkan shaders render offscreen targets bottom-up.
+    // Metal, Vulkan and WebGPU follow the production offscreen orientation.
     // Normalize rows only when exporting the image, preserving rasterizer winding.
     bool flip_y = GetInstalledAdapterFamily() != ADAPTER_FAMILY_OPENGL;
     for (uint32_t y = 0; y < CAPTURE_SIZE; ++y)
@@ -802,7 +806,7 @@ int RunGraphicsCapture(int argc, char** argv)
         known_case = known_case || strcmp(name, CAPTURE_CASES[i]) == 0;
     if (list || !known_case || !backend_name || (directory && output_file))
     {
-        dmLogError("Usage: --case <name from --list-cases> --backend metal|opengl|vulkan [--output directory | --output-file file.png]");
+        dmLogError("Usage: --case <name from --list-cases> --backend metal|opengl|vulkan|webgpu [--output directory | --output-file file.png]");
         return 1;
     }
     const CaptureBackend* backend = 0;
@@ -899,7 +903,11 @@ int RunGraphicsCapture(int argc, char** argv)
     DeleteContext(context);
     Finalize();
     JobSystemDestroy(jobs);
-    dmPlatform::CloseWindow(window);
+    // WebGPU closes the platform window in CloseWindow(context).
+    if (backend->m_Family != ADAPTER_FAMILY_WEBGPU)
+    {
+        dmPlatform::CloseWindow(window);
+    }
     dmPlatform::DeleteWindow(window);
     return success ? 0 : 1;
 }

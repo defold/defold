@@ -30,7 +30,7 @@ CASE_DESCRIPTIONS = {
     'stencil_faces': 'Opposite windings: top orange/cyan tiles check separate front/back operations; bottom magenta/green tiles check separate EQUAL/NOTEQUAL comparisons. Results are read with common face state to expose swapped faces.',
 }
 REFERENCE_BACKENDS = {'stencil_faces': 'OpenGL'}
-BACKENDS = ('metal', 'opengl', 'vulkan')
+BACKENDS = ('metal', 'opengl', 'vulkan', 'webgpu')
 BACKGROUND = (37, 73, 109)
 THRESHOLD = 99.0
 SIZE = (256, 256)
