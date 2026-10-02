@@ -114,6 +114,41 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
     defold_target_link_libraries_web(test_app_graphics "${TARGET_PLATFORM}" library_sys.js)
     defold_register_test_target(test_app_graphics OFF)
     if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
+      # Follow fontviewer: generate aligned embedded assets in the build directory.
+      set(_graphics_capture_generated "${CMAKE_CURRENT_BINARY_DIR}/graphics_capture_generated")
+      set(_graphics_capture_shaders vp fp cube.fp vp.msl fp.msl cube.fp.msl vp.wgsl fp.wgsl cube.fp.wgsl)
+      if("GraphicsAdapterVulkan" IN_LIST _graphics_app_symbols)
+        find_program(_graphics_glslang NAMES glslang glslangValidator
+          HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+        foreach(_shader IN ITEMS vert frag cube.frag)
+          if(_shader STREQUAL "vert")
+            set(_stage vert)
+          else()
+            set(_stage frag)
+          endif()
+          set(_spirv "${_graphics_capture_generated}/graphics_capture.${_shader}.spv")
+          add_custom_command(OUTPUT "${_spirv}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${_graphics_capture_generated}"
+            COMMAND "${_graphics_glslang}" -V -S "${_stage}" "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.${_shader}" -o "${_spirv}"
+            DEPENDS "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.${_shader}" "${_graphics_glslang}"
+            VERBATIM)
+          list(APPEND _graphics_capture_shaders "${_shader}.spv")
+        endforeach()
+      endif()
+      foreach(_shader IN LISTS _graphics_capture_shaders)
+        if(_shader MATCHES "\\.spv$")
+          set(_source "${_graphics_capture_generated}/graphics_capture.${_shader}")
+        else()
+          set(_source "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.${_shader}")
+        endif()
+        string(REPLACE "." "_" _symbol "${_shader}")
+        defold_embed_to_header(INPUT "${_source}"
+          OUTPUT_HEADER "${_graphics_capture_generated}/graphics_capture.${_shader}.h"
+          OUTPUT_CPP "${_graphics_capture_generated}/graphics_capture.${_shader}.cpp"
+          SYMBOL "capture_${_symbol}" OUT_HEADER_VAR _header OUT_CPP_VAR _cpp)
+        target_sources(test_app_graphics PRIVATE "${_header}" "${_cpp}")
+      endforeach()
+      target_include_directories(test_app_graphics PRIVATE "${_graphics_capture_generated}")
       target_sources(test_app_graphics PRIVATE "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.cpp")
       target_compile_definitions(test_app_graphics PRIVATE DM_TEST_GRAPHICS_CAPTURE)
 
