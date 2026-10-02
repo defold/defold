@@ -6,11 +6,34 @@ include(defold)
 set(FONT_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(FONT_ROOT "${FONT_TEST_ROOT}/../..")
 set(FONT_SRC_DIR "${FONT_ROOT}/src")
+set(FONT_TEST_BUILD_DIR "${FONT_ROOT}/build/src/test")
+
+# Compile the fixture through Bob so tests exercise its glyph metrics and
+# monospaced padding, using the same relative paths on host and device runners.
+set(_alignment_font "${FONT_TEST_ROOT}/data/font_render/alignment.font")
+set(_alignment_fontc "${FONT_TEST_BUILD_DIR}/data/font_render/alignment.fontc")
+set(_alignment_bank "${FONT_TEST_BUILD_DIR}/data/font_render/alignment.glyph_bankc")
+add_custom_command(OUTPUT "${_alignment_fontc}" "${_alignment_bank}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${FONT_TEST_BUILD_DIR}/data/font_render"
+  COMMAND "${Java_JAVA_EXECUTABLE}" --enable-native-access=ALL-UNNAMED
+    -Djava.awt.headless=true -cp "${DEFOLD_BOB_LIGHT_JAR}"
+    com.dynamo.bob.font.Fontc "${_alignment_font}" "${_alignment_fontc}"
+    "${DEFOLD_HOME}/engine/engine/content"
+  DEPENDS "${_alignment_font}" "${DEFOLD_BOB_LIGHT_JAR}"
+    "${DEFOLD_HOME}/engine/engine/content/builtins/fonts/vera_mo_bd.ttf"
+  COMMENT "Compiling font test data"
+  VERBATIM)
+add_custom_target(font_test_data DEPENDS "${_alignment_bank}")
 
 # Font tests and image generation share fixtures and report outputs, but no devices or ports.
 defold_test_run_settings(_font_test_runner _font_test_run_options font)
 
 function(font_configure_test target font_target)
+  set(_font_test_data)
+  if(target MATCHES "^test_font(_skribidi)?$|^test_font_bitmap_gen")
+    add_dependencies(${target} font_test_data)
+    set(_font_test_data "build/src/test" "build/src/test")
+  endif()
   target_include_directories(${target} PRIVATE
     "${FONT_TEST_ROOT}"
     "${FONT_SRC_DIR}"
@@ -35,7 +58,8 @@ function(font_configure_test target font_target)
   defold_register_test_target(${target} ${run} "${FONT_ROOT}"
     RUN_GROUP font
     STAGE_FILES
-      "src/test/data" "src/test/data")
+      "src/test/data" "src/test/data"
+      ${_font_test_data})
 endfunction()
 
 defold_add_executable(test_font
@@ -125,7 +149,10 @@ defold_target_link_libraries(test_markup_null "${TARGET_PLATFORM}"
   font
   font_richtext_null)
 defold_target_link_socket(test_markup_null "${TARGET_PLATFORM}" PRIVATE)
-defold_register_test_target(test_markup_null ON "${FONT_ROOT}" RUN_GROUP font)
+defold_register_test_target(test_markup_null ON "${FONT_ROOT}"
+  RUN_GROUP font
+  STAGE_FILES
+    "src/test/data" "src/test/data")
 
 if(FONT_RENDERER_IS_DESKTOP)
   defold_add_executable(test_fontc_markup_api "${FONT_TEST_ROOT}/test_fontc_markup_api.cpp")

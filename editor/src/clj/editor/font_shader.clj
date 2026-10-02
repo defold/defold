@@ -17,7 +17,7 @@
             [clojure.string :as string]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture])
-  (:import [com.jogamp.opengl GL2]
+  (:import [com.jogamp.opengl GL3]
            [com.jogamp.opengl.util.texture Texture]
            [javax.vecmath Vector4d]))
 
@@ -25,8 +25,8 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn preview-render-args
-  "Adds the GL 2 adapter's texture sizes after vertex generation has updated the atlases."
-  [^GL2 gl render-args vector-textures]
+  "Adds the float-atlas adapter's texture sizes after vertex generation has updated the atlases."
+  [^GL3 gl render-args vector-textures]
   (into render-args
         (mapv (fn [gpu-texture uniform-key]
                 (let [^Texture tex (texture/->texture gpu-texture gl 0)]
@@ -35,13 +35,13 @@
               [::curve-texture-size-recip ::band-texture-size-recip])))
 
 (defn preview-shader-info
-  "Adapts the built-in Slug shader to the editor's GL 2 texture representation.
+  "Adapts the built-in Slug shader to the editor's floating-point band texture.
   The fragment source includes its resolved dependencies from the resource graph."
   [fragment-source picking]
-  (let [preview-directives (str "#version 120\n#define SLUG_LEGACY_GL\n#define highp\n#define mediump\n#define lowp\n"
-                               (when picking "#define FONT_VECTOR_PICKING\n"))]
+  (let [preview-directives (str "#version 330\n#define SLUG_LEGACY_GL\n#define highp\n#define mediump\n#define lowp\n#define varying in\n#define texture2D texture\nout vec4 preview_fragColor;\n#define gl_FragColor preview_fragColor\n"
+                                (when picking "#define FONT_VECTOR_PICKING\n"))]
     ;; Reflect the vertex attributes through Bob. The fragment shader retains its
-    ;; GL 2 adapter and plain uniforms, without passing through the transpiler.
+    ;; float-atlas adapter and plain uniforms, without passing through the transpiler.
     (update (shader/read-combined-shader-info ["shaders/font_vector.vp"] {} (comp slurp io/resource))
             :shader-type+source-pairs conj
             [:shader-type-fragment (string/replace-first fragment-source
@@ -50,10 +50,10 @@
 
 (defn make-preview-shader [node-id shader-source-info picking]
   (let [{:keys [shader-type+source-pairs
-               location+attribute-name-pairs
-               array-sampler-name->slice-sampler-names
-               strip-resource-binding-namespace-regex-str
-               attribute-reflection-infos]}
+                location+attribute-name-pairs
+                array-sampler-name->slice-sampler-names
+                strip-resource-binding-namespace-regex-str
+                attribute-reflection-infos]}
         (preview-shader-info (:shader-source shader-source-info) picking)
 
         request-data

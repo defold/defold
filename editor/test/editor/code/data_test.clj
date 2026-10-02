@@ -1608,7 +1608,7 @@
 
 (deftest select-next-occurrence-test
   (let [select-next-occurrence (fn [lines cursor-ranges]
-                                   (:cursor-ranges (data/select-next-occurrence lines cursor-ranges (layout-info lines))))]
+                                 (:cursor-ranges (data/select-next-occurrence lines cursor-ranges (layout-info lines))))]
     (testing "Selects word under cursor"
       (is (= [(cr [0 0] [0 3])] (select-next-occurrence ["one word"]
                                                         [(c 0 1)])))
@@ -1837,14 +1837,14 @@
       (is (nil? (data/cursor-range-intersection (cr [0 1] [0 2])
                                                 (cr [0 0] [0 1]))))
       (testing "one is empty"
-       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
-                                                 (cr [0 1] [0 1]))))
-       (is (nil? (data/cursor-range-intersection (cr [0 1] [0 1])
-                                                 (cr [0 0] [0 1]))))
-       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 0])
-                                                 (cr [0 0] [0 1]))))
-       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
-                                                 (cr [0 0] [0 0])))))))
+        (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
+                                                  (cr [0 1] [0 1]))))
+        (is (nil? (data/cursor-range-intersection (cr [0 1] [0 1])
+                                                  (cr [0 0] [0 1]))))
+        (is (nil? (data/cursor-range-intersection (cr [0 0] [0 0])
+                                                  (cr [0 0] [0 1]))))
+        (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
+                                                  (cr [0 0] [0 0])))))))
   (testing "one within another"
     (is (= (cr [0 1] [0 2])
            (data/cursor-range-intersection (cr [0 0] [0 3])

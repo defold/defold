@@ -1,3 +1,17 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 syntax = "proto2";
 package dmFontDDF;
 
@@ -21,8 +35,13 @@ message GlyphBank
     message Glyph
     {
         required uint32 character         = 1;                  // utf32 codepoint
-        optional float  width             = 2 [default = 0];    // glyph width
-        optional float  advance           = 3 [default = 0.0];
+
+        // Pixel width of the glyph bitmap, including raster rounding and
+        // SDF/effect margins, but excluding the atlas border (glyph_padding).
+        optional float  width             = 2 [default = 0];
+        optional float  advance           = 3 [default = 0.0]; // distance to the next glyph's pen origin
+        // Horizontal offset from the glyph's pen origin to the bitmap's left
+        // edge, including raster rounding and SDF/effect margins. May be negative.
         optional float  left_bearing      = 4 [default = 0.0];
         optional int32  ascent            = 5 [default = 0]; // WHY 32 bits???
         optional int32  descent           = 6 [default = 0]; // WHY 32 bits???
@@ -30,8 +49,15 @@ message GlyphBank
         optional int32  y                 = 8 [default = 0]; // only used in editor preview
         optional uint64 glyph_data_offset = 9; // WHY 64 bits???
         optional uint64 glyph_data_size   = 10; // 32 bits should suffice?
-        optional uint64 vector_data_offset = 11;
-        optional uint64 vector_data_size   = 12;
+
+        // Fractional native font metrics at the compiled size, matching editor
+        // preview. Used for measurement, alignment and wrapping when
+        // has_layout_metrics is true, independently of raster rounding and
+        // SDF/effect margins. They do not size or position the bitmap.
+        optional float  layout_width     = 11 [default = 0]; // measured glyph width, distinct from advance
+        optional float  layout_left_bearing = 12 [default = 0]; // pen origin to the measured left edge
+        optional uint64 vector_data_offset = 17;
+        optional uint64 vector_data_size   = 18;
         optional float  outline_width      = 13 [default = 0.0];
         optional float  outline_left_bearing = 14 [default = 0.0];
         optional float  outline_ascent     = 15 [default = 0.0];
@@ -65,6 +91,7 @@ message GlyphBank
 
     optional uint32            padding               = 19 [default = 0];
     optional bool              is_monospaced         = 20 [default = false];
+    optional bool              has_layout_metrics    = 21 [default = false]; // false preserves legacy bitmap-based layout
     optional bool vector_bitmap_effects = 22 [default = false];
-    optional bytes             vector_data           = 21; // normalized quadratic curves, eight float32 values per curve
+    optional bytes             vector_data           = 23; // normalized quadratic curves, eight float32 values per curve
 }

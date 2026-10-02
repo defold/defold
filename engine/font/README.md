@@ -29,7 +29,7 @@ exercise prebaked layout/fallback. Vector banks use the curve and effect payload
 exported by Fontc. Java/Bob tests cover the resource compiler integration.
 Labels and GUI components are not included here.
 
-Editor Vector previews use the same Slug curve and band records, with an OpenGL 2
+Editor Vector previews use the same Slug curve and band records, with a float-atlas
 adapter that stores the two integer band fields as exact float32 values. Faces
 remain analytical; outlines use the generated SDF channel and shadows use the
 blurred bitmap channel. Numeric textures are finalized and uploaded once after
@@ -106,7 +106,7 @@ This writes `build/font-manual/legacy-rich/manual.png`. Use `--help` for all
 options. Manual options cannot be combined with `--case`. Layout/parser support
 is chosen by executable: `test_font_bitmap_gen_skribidi`,
 `test_font_bitmap_gen_plain`, or `test_font_bitmap_gen_skribidi_plain`.
-The CMake target runs all four (496 images) and then generates the report.
+The CMake target runs all four (532 images) and then generates the report.
 
 Rendered reference PNGs belong under
 `src/test/data/reference/<configuration>/`. They require visual

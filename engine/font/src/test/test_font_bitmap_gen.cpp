@@ -27,12 +27,14 @@
 #include <dlib/sys.h>
 #include <dlib/dstrings.h>
 #include <dlib/utf8.h>
+#include <dlib/zlib.h>
 #include "font.h"
 #include "fontcollection.h"
 #include "glyph_gen.h"
 #include "glyph_vertex.h"
 #include "layout_vertex.h"
 #include "text_layout.h"
+#include "test_font_alignment.h"
 
 // PNG support is private to the bitmap generator, never libfont.
 #define STB_IMAGE_STATIC
@@ -47,6 +49,7 @@
 
 static const char* g_TestImageDirectory = 0;
 static uint32_t    g_TestImagesWritten = 0;
+static bool        g_AlignmentPreview = false;
 
 // Test-only rendering follows fontviewer: generated atlas, font-library packed
 // vertices and the actual font shaders. One hidden context serves the entire
@@ -313,36 +316,50 @@ static bool ResolveImageGlyph(void* context, const TextGlyph& glyph, FontLayoutC
     return false;
 }
 
-// Render and finish readback without destroying resources, so transition cases
-// can draw both states through the same atlas, buffer and render target.
-static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HTexture texture,
-                             dmGraphics::HVertexBuffer buffer, dmGraphics::HProgram program,
-                             uint32_t vertex_count, uint32_t width, uint32_t height, dmArray<uint8_t>& pixels)
+static void CopyFontImageGlyph(const FontGlyphBitmap& bitmap, const uint8_t* data, bool rgba,
+                               uint32_t left, uint32_t top, uint32_t atlas_width, dmArray<uint8_t>& atlas)
 {
-    dmGraphics::BeginFrame(g_ImageContext);
-    dmGraphics::SetRenderTarget(g_ImageContext, target, dmGraphics::RenderTargetBindingParams());
-    dmGraphics::SetViewport(g_ImageContext, 0, 0, width, height);
-    dmGraphics::Clear(g_ImageContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
-    dmGraphics::EnableState(g_ImageContext, dmGraphics::STATE_BLEND);
-    dmGraphics::SetBlendFunc(g_ImageContext, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-    dmGraphics::EnableProgram(g_ImageContext, program);
-    dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
-    dmGraphics::SetConstantM4(g_ImageContext, (dmVMath::Vector4*)&projection, 1, dmGraphics::FindUniformLocation(program, "view_proj"));
-    dmGraphics::EnableTexture(g_ImageContext, 0, 0, texture);
-    dmGraphics::EnableVertexBuffer(g_ImageContext, buffer, 0);
-    dmGraphics::EnableVertexDeclaration(g_ImageContext, g_ImageDeclaration, 0, 0, program);
-    dmGraphics::Draw(g_ImageContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_count, 1);
-    pixels.SetCapacity(width * height * 4);
-    pixels.SetSize(pixels.Capacity());
-    dmGraphics::ReadPixels(g_ImageContext, 0, 0, width, height, pixels.Begin(), pixels.Size());
-    dmGraphics::DisableVertexDeclaration(g_ImageContext, g_ImageDeclaration);
-    dmGraphics::DisableVertexBuffer(g_ImageContext, buffer);
-    dmGraphics::DisableTexture(g_ImageContext, 0, texture);
-    dmGraphics::SetRenderTarget(g_ImageContext, 0, dmGraphics::RenderTargetBindingParams());
-    dmGraphics::Flip(g_ImageContext);
+    for (uint32_t y = 0; y < bitmap.m_Height; ++y)
+        for (uint32_t x = 0; x < bitmap.m_Width; ++x)
+        {
+            uint32_t dst = ((top + y) * atlas_width + left + x) * 4;
+            uint32_t src = (y * bitmap.m_Width + x) * bitmap.m_Channels;
+            for (uint32_t channel = 0; channel < 4; ++channel)
+                atlas[dst + channel] = channel == 3 && !rgba ? 255 : data[src + (bitmap.m_Channels == 1 ? 0 : channel)];
+        }
 }
 
-void WriteFontTestImage(const FontImageCase& c, uint32_t width, uint32_t height, dmArray<uint8_t>& pixels, const char* metadata)
+static dmGraphics::HTexture CreateFontImageTexture(uint32_t atlas_width, uint32_t atlas_height, const dmArray<uint8_t>& atlas)
+{
+    dmGraphics::TextureCreationParams creation;
+    creation.m_Width = atlas_width;
+    creation.m_Height = atlas_height;
+    dmGraphics::HTexture      texture = dmGraphics::NewTexture(g_ImageContext, creation);
+    dmGraphics::TextureParams tex;
+    tex.m_Width = atlas_width;
+    tex.m_Height = atlas_height;
+    tex.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    tex.m_Data = atlas.Begin();
+    tex.m_DataSize = atlas.Size();
+    tex.m_MinFilter = tex.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+    dmGraphics::SetTexture(g_ImageContext, texture, tex);
+    return texture;
+}
+
+static dmGraphics::HRenderTarget CreateFontImageTarget(uint32_t width, uint32_t height)
+{
+    dmGraphics::RenderTargetCreationParams rt;
+    rt.m_ColorBufferCreationParams[0].m_Width = width;
+    rt.m_ColorBufferCreationParams[0].m_Height = height;
+    rt.m_ColorBufferParams[0].m_Width = width;
+    rt.m_ColorBufferParams[0].m_Height = height;
+    rt.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    rt.m_SampleCount = 1;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(g_ImageContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, rt);
+    return target;
+}
+
+static void GetFontImageDirectory(char* directory, uint32_t directory_size)
 {
     const char* root = g_TestImageDirectory ? g_TestImageDirectory : "build/font-test-images";
 #if defined(FONT_USE_SKRIBIDI)
@@ -355,9 +372,12 @@ void WriteFontTestImage(const FontImageCase& c, uint32_t width, uint32_t height,
 #else
     const char* rich_name = "rich";
 #endif
-    char directory[1024];
-    dmSnPrintf(directory, sizeof(directory), "%s/%s-%s", root, layout_name, rich_name);
+    dmSnPrintf(directory, directory_size, "%s/%s-%s", root, layout_name, rich_name);
     ASSERT_TRUE(MakeImageDirectory(directory));
+}
+
+static void WriteFontImage(const char* directory, const char* name, uint32_t width, uint32_t height, dmArray<uint8_t>& pixels)
+{
     // dmGraphics OpenGL readback already flips rows and returns BGRA, as in
     // fontviewer's ConvertBgraToRgbaAndUpdateBounds. Do not flip it twice.
     uint32_t left = width, top = height, right = 0, bottom = 0;
@@ -384,18 +404,124 @@ void WriteFontTestImage(const FontImageCase& c, uint32_t width, uint32_t height,
     ASSERT_LT(right, width - 1);
     ASSERT_LT(bottom, height - 1);
     char filename[1200];
-    dmSnPrintf(filename, sizeof(filename), "%s/%s.png", directory, c.m_Name);
+    dmSnPrintf(filename, sizeof(filename), "%s/%s.png", directory, name);
     ASSERT_NE(0, stbi_write_png(filename, width, height, 4, pixels.Begin(), width * 4));
+    ++g_TestImagesWritten;
+}
+
+// Render and finish readback without destroying resources, so transition cases
+// can draw both states through the same atlas, buffer and render target.
+static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HTexture texture,
+                             dmGraphics::HVertexBuffer buffer, dmGraphics::HProgram program,
+                             uint32_t vertex_count, uint32_t width, uint32_t height, dmArray<uint8_t>& pixels, bool white_box = false)
+{
+    dmGraphics::BeginFrame(g_ImageContext);
+    dmGraphics::SetRenderTarget(g_ImageContext, target, dmGraphics::RenderTargetBindingParams());
+    dmGraphics::SetViewport(g_ImageContext, 0, 0, width, height);
+    dmGraphics::Clear(g_ImageContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
+    if (white_box)
+    {
+        dmGraphics::EnableState(g_ImageContext, dmGraphics::STATE_SCISSOR_TEST);
+        dmGraphics::SetScissor(g_ImageContext, 20, 20, 200, 100);
+        dmGraphics::Clear(g_ImageContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 255, 255, 255, 255, 1, 0);
+        dmGraphics::DisableState(g_ImageContext, dmGraphics::STATE_SCISSOR_TEST);
+    }
+    dmGraphics::EnableState(g_ImageContext, dmGraphics::STATE_BLEND);
+    dmGraphics::SetBlendFunc(g_ImageContext, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+    dmGraphics::EnableProgram(g_ImageContext, program);
+    dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
+    dmGraphics::SetConstantM4(g_ImageContext, (dmVMath::Vector4*)&projection, 1, dmGraphics::FindUniformLocation(program, "view_proj"));
+    dmGraphics::EnableTexture(g_ImageContext, 0, 0, texture);
+    dmGraphics::EnableVertexBuffer(g_ImageContext, buffer, 0);
+    dmGraphics::EnableVertexDeclaration(g_ImageContext, g_ImageDeclaration, 0, 0, program);
+    dmGraphics::Draw(g_ImageContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_count, 1);
+    pixels.SetCapacity(width * height * 4);
+    pixels.SetSize(pixels.Capacity());
+    dmGraphics::ReadPixels(g_ImageContext, 0, 0, width, height, pixels.Begin(), pixels.Size());
+    dmGraphics::DisableVertexDeclaration(g_ImageContext, g_ImageDeclaration);
+    dmGraphics::DisableVertexBuffer(g_ImageContext, buffer);
+    dmGraphics::DisableTexture(g_ImageContext, 0, texture);
+    dmGraphics::SetRenderTarget(g_ImageContext, 0, dmGraphics::RenderTargetBindingParams());
+    dmGraphics::Flip(g_ImageContext);
+}
+
+void WriteFontTestImage(const FontImageCase& c, uint32_t width, uint32_t height, dmArray<uint8_t>& pixels, const char* metadata)
+{
+    char directory[1024];
+    GetFontImageDirectory(directory, sizeof(directory));
+    WriteFontImage(directory, c.m_Name, width, height, pixels);
+    char filename[1200];
     dmSnPrintf(filename, sizeof(filename), "%s/%s.json", directory, c.m_Name);
     FILE* data = fopen(filename, "wb");
     ASSERT_NE((FILE*)0, data);
     fprintf(data, "%s\n", metadata);
     ASSERT_EQ(0, fclose(data));
-    ++g_TestImagesWritten;
+}
+
+static bool AppendAlignmentPixels(void* context, const void* data, uint32_t size)
+{
+    dmArray<uint8_t>* pixels = (dmArray<uint8_t>*)context;
+    pixels->SetCapacity(pixels->Size() + size);
+    pixels->PushArray((const uint8_t*)data, size);
+    return true;
+}
+
+static void TestFontAlignmentImage(const FontImageCase& c)
+{
+    InitializeFontImages();
+    ASSERT_NE((dmGraphics::HContext)0, g_ImageContext);
+    FontAlignmentFixture fixture;
+    CreateAlignmentFixture(fixture, !g_AlignmentPreview);
+    CreateAlignmentVertices(fixture, FONT_ALIGNMENT_PIVOTS[c.m_Pivot]);
+    dmArray<uint8_t> atlas;
+    atlas.SetCapacity(256 * 32 * 4);
+    atlas.SetSize(atlas.Capacity());
+    memset(atlas.Begin(), 0, atlas.Size());
+    for (uint32_t i = 0; i < fixture.m_GlyphCount; ++i)
+    {
+        const FontGlyph& glyph = fixture.m_Glyphs[i];
+        dmArray<uint8_t> decoded;
+        const uint8_t* data = glyph.m_Bitmap.m_Data;
+        if (glyph.m_Bitmap.m_Flags & FONT_GLYPH_BM_FLAG_COMPRESSION_DEFLATE)
+        {
+            ASSERT_EQ(dmZlib::RESULT_OK, dmZlib::InflateBuffer(data, glyph.m_Bitmap.m_DataSize, &decoded, AppendAlignmentPixels));
+            uint8_t previous = 0;
+            for (uint32_t j = 0; j < decoded.Size(); ++j)
+            {
+                decoded[j] += previous;
+                previous = decoded[j];
+            }
+            data = decoded.Begin();
+            ASSERT_EQ(glyph.m_Bitmap.m_Width * glyph.m_Bitmap.m_Height * glyph.m_Bitmap.m_Channels, decoded.Size());
+        }
+        // Bob stores the one-pixel atlas border; native preview bitmaps don't.
+        const uint32_t border = fixture.m_Bank ? 0 : 1;
+        const uint32_t left = i * 32 + border;
+        const uint32_t top = 16 - (int32_t)glyph.m_Ascent + border;
+        ASSERT_LE(left + glyph.m_Bitmap.m_Width, 256u);
+        ASSERT_LE(top + glyph.m_Bitmap.m_Height, 32u);
+        CopyFontImageGlyph(glyph.m_Bitmap, data, false, left, top, 256, atlas);
+    }
+    dmGraphics::HTexture texture = CreateFontImageTexture(256, 32, atlas);
+    dmGraphics::HRenderTarget target = CreateFontImageTarget(240, 140);
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(g_ImageContext, sizeof(fixture.m_Vertices), fixture.m_Vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+    dmArray<uint8_t> pixels;
+    CaptureFontImage(target, texture, buffer, g_ImagePrograms[0], 42, 240, 140, pixels, true);
+    char directory[1024];
+    GetFontImageDirectory(directory, sizeof(directory));
+    WriteFontImage(directory, c.m_Name, 240, 140, pixels);
+    dmGraphics::DeleteVertexBuffer(buffer);
+    dmGraphics::DeleteRenderTarget(g_ImageContext, target);
+    dmGraphics::DeleteTexture(g_ImageContext, texture);
 }
 
 static void TestFontImage(const FontImageCase& c)
 {
+    if (c.m_Pivot >= 0)
+    {
+        TestFontAlignmentImage(c);
+        return;
+    }
     InitializeFontImages();
     ASSERT_NE((dmGraphics::HContext)0, g_ImageContext);
     if (strstr(c.m_Source, "vector"))
@@ -543,14 +669,8 @@ static void TestFontImage(const FontImageCase& c)
     {
         ImageGlyph& image = glyphs[i];
         FontGlyph&  glyph = image.m_Glyph;
-        for (uint32_t y = 0; y < glyph.m_Bitmap.m_Height; ++y)
-            for (uint32_t x = 0; x < glyph.m_Bitmap.m_Width; ++x)
-            {
-                uint32_t dst = (((uint32_t)(1 + max_ascent - glyph.m_Ascent) + y) * atlas_width + image.m_X + 1 + x) * 4;
-                uint32_t src = (y * glyph.m_Bitmap.m_Width + x) * glyph.m_Bitmap.m_Channels;
-                for (uint32_t channel = 0; channel < 4; ++channel)
-                    atlas[dst + channel] = channel == 3 && !fnt ? 255 : glyph.m_Bitmap.m_Data[src + (glyph.m_Bitmap.m_Channels == 1 ? 0 : channel)];
-            }
+        CopyFontImageGlyph(glyph.m_Bitmap, glyph.m_Bitmap.m_Data, fnt,
+                           image.m_X + 1, (uint32_t)(1 + max_ascent - glyph.m_Ascent), atlas_width, atlas);
     }
     FontLayoutVertexConfig config = {};
     config.m_Layout = layout;
@@ -641,26 +761,8 @@ static void TestFontImage(const FontImageCase& c)
         vertices[i].m_Position[0] += geometry.m_OriginX;
         vertices[i].m_Position[1] += (float)height - geometry.m_OriginTop;
     }
-    dmGraphics::TextureCreationParams creation;
-    creation.m_Width = atlas_width;
-    creation.m_Height = atlas_height;
-    dmGraphics::HTexture      texture = dmGraphics::NewTexture(g_ImageContext, creation);
-    dmGraphics::TextureParams tex;
-    tex.m_Width = atlas_width;
-    tex.m_Height = atlas_height;
-    tex.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-    tex.m_Data = atlas.Begin();
-    tex.m_DataSize = atlas.Size();
-    tex.m_MinFilter = tex.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-    dmGraphics::SetTexture(g_ImageContext, texture, tex);
-    dmGraphics::RenderTargetCreationParams rt;
-    rt.m_ColorBufferCreationParams[0].m_Width = width;
-    rt.m_ColorBufferCreationParams[0].m_Height = height;
-    rt.m_ColorBufferParams[0].m_Width = width;
-    rt.m_ColorBufferParams[0].m_Height = height;
-    rt.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-    rt.m_SampleCount = 1;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(g_ImageContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, rt);
+    dmGraphics::HTexture texture = CreateFontImageTexture(atlas_width, atlas_height, atlas);
+    dmGraphics::HRenderTarget target = CreateFontImageTarget(width, height);
     dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(g_ImageContext, vertices.Size() * sizeof(FontGlyphVertex), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
     dmGraphics::HProgram      program = g_ImagePrograms[fnt ? 2 : bitmap ? 1 :
                                                                            0];
@@ -734,20 +836,8 @@ static void TestFontImage(const FontImageCase& c)
         (unsigned long long)dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
     WriteFontTestImage(c, width, height, pixels, metadata);
 
-    const char* root = g_TestImageDirectory ? g_TestImageDirectory : "build/font-test-images";
-#if defined(FONT_USE_SKRIBIDI)
-    const char* layout_name = "full";
-#else
-    const char* layout_name = "legacy";
-#endif
-#if defined(FONT_IMAGE_RICH_NULL)
-    const char* rich_name = "plain";
-#else
-    const char* rich_name = "rich";
-#endif
     char directory[1024];
-    dmSnPrintf(directory, sizeof(directory), "%s/%s-%s", root, layout_name, rich_name);
-    ASSERT_TRUE(MakeImageDirectory(directory));
+    GetFontImageDirectory(directory, sizeof(directory));
     char filename[1200];
 
     // Reuse the half-alpha fixtures for component alpha above one. Runtime
@@ -820,7 +910,7 @@ static void TestFontImage(const FontImageCase& c)
 
 #include "font_image_cases.inc"
 
-static FontImageCase g_ManualCase = { "manual", "ttf_sdf", "ABCDEFGabcdefg 0123456789", 40, 4, 1, 1, 0, 0, 0, 0, false, false, false, 0 };
+static FontImageCase g_ManualCase = { "manual", "ttf_sdf", "ABCDEFGabcdefg 0123456789", 40, 4, 1, 1, 0, 0, 0, 0, false, false, false, 0, -1 };
 
 TEST(FontBitmapManual, Render)
 {
@@ -837,6 +927,7 @@ static void PrintUsage(const char* executable)
     "  --layers single|multi  --text text  --markup\n"
     "  --size pixels  --outline pixels  --outline-alpha 0..1  --face-alpha 0..1\n"
     "  --shadow-alpha 0..1  --shadow-blur pixels  --shadow-x pixels  --shadow-y pixels\n"
+    "  --alignment-preview  Render a pivot reference candidate using editor TTF metrics\n"
     "Manual output: <folder>/<layout>-<rich|plain>/manual.png\n",
     executable);
 }
@@ -852,6 +943,11 @@ int main(int argc, char** argv)
         {
             PrintUsage(argv[0]);
             return 0;
+        }
+        if (strcmp(option, "--alignment-preview") == 0)
+        {
+            g_AlignmentPreview = true;
+            continue;
         }
         if (strcmp(option, "--markup") == 0)
         {
@@ -945,6 +1041,11 @@ int main(int argc, char** argv)
             fprintf(stderr, "Unknown option: %s\n", option);
             return 2;
         }
+    }
+    if (g_AlignmentPreview && (!selected || !strstr(selected, "_pivot_")))
+    {
+        fprintf(stderr, "--alignment-preview requires a pivot --case.\n");
+        return 2;
     }
     if (manual && selected)
     {

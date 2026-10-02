@@ -73,6 +73,6 @@
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
-                                :id :html
-                                :label (localization/message "resource.view.html")
-                                :make-view-fn #'make-view))
+    :id :html
+    :label (localization/message "resource.view.html")
+    :make-view-fn #'make-view))

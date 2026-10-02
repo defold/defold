@@ -430,9 +430,9 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
     }
 
     // The dimensions of the visible area
-    if (options->m_GenerateImage && x0 != x1 && y0 != y1)
+    if ((!options->m_GenerateOutline || options->m_GenerateImage) && x0 != x1 && y0 != y1)
     {
-        // Only modify non empty glyphs (from stbtt_GetGlyphSDF())
+        // Preserve legacy layout bounds while keeping analytical outlines unpadded.
         x0 -= padding;
         y0 -= padding;
         x1 += padding;

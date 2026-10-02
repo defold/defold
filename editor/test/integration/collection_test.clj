@@ -52,13 +52,13 @@
 
 (deftest hierarchical-scene
   (testing "Hierarchical scene"
-           (test-util/with-loaded-project
-             (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")
-                   scene     (g/node-value node-id :scene)]
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")
+            scene     (g/node-value node-id :scene)]
                ; Two game objects under the collection
-               (is (= 2 (count (:children scene))))
+        (is (= 2 (count (:children scene))))
                ; One component and game object under the game object
-               (is (= 2 (count (:children (first (:children scene))))))))))
+        (is (= 2 (count (:children (first (:children scene))))))))))
 
 (defn- reachable? [source target]
   (contains? (graph-dependencies [source]) target))
@@ -77,58 +77,58 @@
 
 (deftest add-embedded-instance
   (testing "Hierarchical scene"
-           (test-util/with-loaded-project
-             (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")]
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")]
                ; Two game objects under the collection
-               (is (= 2 (count (:children (g/node-value node-id :node-outline)))))
+        (is (= 2 (count (:children (g/node-value node-id :node-outline)))))
                ; Select the collection node
-               (app-view/select! app-view [node-id])
+        (app-view/select! app-view [node-id])
                ; Run the add handler
-               (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:workspace workspace :project project :app-view app-view :selection [node-id]}}] {})
+        (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:workspace workspace :project project :app-view app-view :selection [node-id]}}] {})
                ; Three game objects under the collection
-               (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
+        (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
 
 (deftest empty-go
   (testing "Collection with a single empty game object"
-           (test-util/with-loaded-project
-             (let [node-id   (test-util/resource-node project "/collection/empty_go.collection")
-                   outline   (g/node-value node-id :node-outline)
-                   scene     (g/node-value node-id :scene)]
-               ;; Verify outline labels
-               (is (= (list (localization/message "outline.collection") "go") (map :label (tree-seq :children :children outline))))
-               ;; Verify AABBs
-               (is (= [geom/null-aabb geom/empty-bounding-box]
-                      (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/collection/empty_go.collection")
+            outline   (g/node-value node-id :node-outline)
+            scene     (g/node-value node-id :scene)]
+        ;; Verify outline labels
+        (is (= (list (localization/message "outline.collection") "go") (map :label (tree-seq :children :children outline))))
+        ;; Verify AABBs
+        (is (= [geom/null-aabb geom/empty-bounding-box]
+               (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
 
 (deftest unknown-components
   (testing "Load a collection with unknown components"
-           (test-util/with-loaded-project
-             (let [node-id   (test-util/resource-node project "/collection/unknown_components.collection")
-                   outline   (g/node-value node-id :node-outline)
-                   scene     (g/node-value node-id :scene)]
-               ;; Verify outline labels
-               (is (= (list (localization/message "outline.collection") "my_instance" "unknown")
-                      (map :label (tree-seq :children :children outline))))
-               ;; Verify AABBs
-               (is (= [geom/null-aabb geom/empty-bounding-box geom/empty-bounding-box]
-                      (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/collection/unknown_components.collection")
+            outline   (g/node-value node-id :node-outline)
+            scene     (g/node-value node-id :scene)]
+        ;; Verify outline labels
+        (is (= (list (localization/message "outline.collection") "my_instance" "unknown")
+               (map :label (tree-seq :children :children outline))))
+        ;; Verify AABBs
+        (is (= [geom/null-aabb geom/empty-bounding-box geom/empty-bounding-box]
+               (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
 
 (defn- prop [node-id path prop]
   (-> (test-util/outline node-id path)
-    :node-id
-    (test-util/prop prop)))
+      :node-id
+      (test-util/prop prop)))
 
 (defn- url-prop [node-id path]
   (prop node-id path :url))
 
 (deftest urls
   (testing "Checks URLs at different levels"
-           (test-util/with-loaded-project
-             (let [node-id   (test-util/resource-node project "/collection/sub_sub_props.collection")]
-               (is (= "/sub_props" (url-prop node-id [0])))
-               (is (= "/sub_props/props" (url-prop node-id [0 0])))
-               (is (= "/sub_props/props/props" (url-prop node-id [0 0 0])))
-               (is (= "/sub_props/props/props#script" (url-prop node-id [0 0 0 0])))))))
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/collection/sub_sub_props.collection")]
+        (is (= "/sub_props" (url-prop node-id [0])))
+        (is (= "/sub_props/props" (url-prop node-id [0 0])))
+        (is (= "/sub_props/props/props" (url-prop node-id [0 0 0])))
+        (is (= "/sub_props/props/props#script" (url-prop node-id [0 0 0 0])))))))
 
 (defn- script-prop [node-id name]
   (let [key (properties/user-name->key name)]
@@ -216,38 +216,38 @@
     (let [coll-id   (test-util/resource-node project "/collection/props.collection")
           inst-id   (:node-id (test-util/outline coll-id [0]))]
       (testing "game object ref instance"
-               (is (not (build-error? coll-id)))
-               (is (nil? (test-util/prop-error inst-id :path)))
-               (test-util/with-prop [inst-id :path {:resource nil :overrides []}]
-                 (is (g/error? (test-util/prop-error inst-id :path)))
-                 (is (build-error? coll-id)))
-               (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.go")]
-                 (test-util/with-prop [inst-id :path {:resource not-found :overrides []}]
-                   (is (g/error? (test-util/prop-error inst-id :path)))))
-               (test-util/with-prop [inst-id :id "props_embedded"]
-                 (is (g/error? (test-util/prop-error inst-id :id)))
-                 (is (build-error? coll-id))))
+        (is (not (build-error? coll-id)))
+        (is (nil? (test-util/prop-error inst-id :path)))
+        (test-util/with-prop [inst-id :path {:resource nil :overrides []}]
+          (is (g/error? (test-util/prop-error inst-id :path)))
+          (is (build-error? coll-id)))
+        (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.go")]
+          (test-util/with-prop [inst-id :path {:resource not-found :overrides []}]
+            (is (g/error? (test-util/prop-error inst-id :path)))))
+        (test-util/with-prop [inst-id :id "props_embedded"]
+          (is (g/error? (test-util/prop-error inst-id :id)))
+          (is (build-error? coll-id))))
       (testing "game object embedded instance"
-               (let [inst-id (:node-id (test-util/outline coll-id [1]))]
-                 (is (nil? (test-util/prop-error inst-id :id)))
-                 (test-util/with-prop [inst-id :id "props"]
-                   (is (g/error? (test-util/prop-error inst-id :id))))))
+        (let [inst-id (:node-id (test-util/outline coll-id [1]))]
+          (is (nil? (test-util/prop-error inst-id :id)))
+          (test-util/with-prop [inst-id :id "props"]
+            (is (g/error? (test-util/prop-error inst-id :id))))))
       (testing "collection ref instance"
-               (is (not (build-error? coll-id)))
-               (let [res (workspace/resolve-workspace-resource workspace "/collection/test.collection")]
-                 (collection/add-referenced-collection! coll-id res "coll" nil nil nil)
-                 (let [inst-id (:node-id (test-util/outline coll-id [0]))]
-                   (is (nil? (test-util/prop-error inst-id :path)))
-                   (test-util/with-prop [inst-id :path {:resource nil :overrides []}]
-                     (is (g/error? (test-util/prop-error inst-id :path)))
-                     (is (build-error? coll-id)))
-                   (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.collection")]
-                     (test-util/with-prop [inst-id :path {:resource not-found :overrides []}]
-                       (is (g/error? (test-util/prop-error inst-id :path)))))
-                   (is (nil? (test-util/prop-error inst-id :id)))
-                   (test-util/with-prop [inst-id :id "props"]
-                     (is (g/error? (test-util/prop-error inst-id :id)))
-                     (is (build-error? coll-id)))))))))
+        (is (not (build-error? coll-id)))
+        (let [res (workspace/resolve-workspace-resource workspace "/collection/test.collection")]
+          (collection/add-referenced-collection! coll-id res "coll" nil nil nil)
+          (let [inst-id (:node-id (test-util/outline coll-id [0]))]
+            (is (nil? (test-util/prop-error inst-id :path)))
+            (test-util/with-prop [inst-id :path {:resource nil :overrides []}]
+              (is (g/error? (test-util/prop-error inst-id :path)))
+              (is (build-error? coll-id)))
+            (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.collection")]
+              (test-util/with-prop [inst-id :path {:resource not-found :overrides []}]
+                (is (g/error? (test-util/prop-error inst-id :path)))))
+            (is (nil? (test-util/prop-error inst-id :id)))
+            (test-util/with-prop [inst-id :id "props"]
+              (is (g/error? (test-util/prop-error inst-id :id)))
+              (is (build-error? coll-id)))))))))
 
 (defn- vector3-one-pb
   ^DdfMath$Vector3One [^double x ^double y ^double z]

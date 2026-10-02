@@ -75,6 +75,7 @@ protected:
         dmGameObject::SortComponentTypes(m_Register);
 
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
+        m_CallbackHandlesValid = true;
 
         // Register dummy physical resource type
         dmResource::Result e;
@@ -202,6 +203,8 @@ public:
 
     std::map<uint64_t, int>      m_ComponentUserDataAcc;
 
+    bool m_CallbackHandlesValid;
+
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
     dmGameObject::HRegister m_Register;
@@ -211,6 +214,12 @@ public:
     dmHashTable64<void*> m_Contexts;
     HContextRegistry m_ContextRegistry;
 };
+
+static void ValidateCallbackHandle(ComponentTest* test, dmGameObject::HInstance game_object)
+{
+    test->m_CallbackHandlesValid &= dmGameObject::GetCollection(game_object) == test->m_Collection;
+    test->m_CallbackHandlesValid &= dmGameObject::IsValid(game_object);
+}
 
 template <typename T>
 dmResource::Result GenericDDFCreate(const dmResource::ResourceCreateParams* params)
@@ -245,6 +254,7 @@ template <typename T, int add_to_user_data>
 static dmGameObject::CreateResult GenericComponentCreate(const dmGameObject::ComponentCreateParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ValidateCallbackHandle(game_object_test, params.m_Instance);
 
     if (params.m_UserData && add_to_user_data != -1)
     {
@@ -267,6 +277,8 @@ template <typename T>
 static dmGameObject::CreateResult GenericComponentInit(const dmGameObject::ComponentInitParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ValidateCallbackHandle(game_object_test, params.m_Instance);
+    game_object_test->m_CallbackHandlesValid &= params.m_Collection == game_object_test->m_Collection;
     game_object_test->m_ComponentInitCountMap[T::m_DDFHash]++;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -275,6 +287,8 @@ template <typename T>
 static dmGameObject::CreateResult GenericComponentFinal(const dmGameObject::ComponentFinalParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ValidateCallbackHandle(game_object_test, params.m_Instance);
+    game_object_test->m_CallbackHandlesValid &= params.m_Collection == game_object_test->m_Collection;
     game_object_test->m_ComponentFinalCountMap[T::m_DDFHash]++;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -283,6 +297,8 @@ template <typename T>
 static dmGameObject::CreateResult GenericComponentAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ValidateCallbackHandle(game_object_test, params.m_Instance);
+    game_object_test->m_CallbackHandlesValid &= params.m_Collection == game_object_test->m_Collection;
     game_object_test->m_ComponentAddToUpdateCountMap[T::m_DDFHash]++;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -291,6 +307,7 @@ template <typename T>
 static dmGameObject::UpdateResult GenericComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    game_object_test->m_CallbackHandlesValid &= params.m_Collection == game_object_test->m_Collection;
     game_object_test->m_ComponentUpdateCountMap[T::m_DDFHash]++;
     game_object_test->m_ComponentUpdateOrderMap[T::m_DDFHash] = game_object_test->m_UpdateCount++;
     return dmGameObject::UPDATE_RESULT_OK;
@@ -301,6 +318,8 @@ template <typename T>
 static dmGameObject::CreateResult GenericComponentDestroy(const dmGameObject::ComponentDestroyParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ValidateCallbackHandle(game_object_test, params.m_Instance);
+    game_object_test->m_CallbackHandlesValid &= params.m_Collection == game_object_test->m_Collection;
     if (params.m_UserData)
     {
         game_object_test->m_ComponentUserDataAcc[T::m_DDFHash] += *params.m_UserData;
@@ -341,7 +360,7 @@ dmGameObject::ComponentsUpdate ComponentTest::CComponentsUpdate         = Generi
 TEST_F(ComponentTest, TestUpdate)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     dmGameObject::Init(m_Collection);
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
@@ -359,12 +378,13 @@ TEST_F(ComponentTest, TestUpdate)
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentDestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+    ASSERT_TRUE(m_CallbackHandlesValid);
 }
 
 TEST_F(ComponentTest, TestPostDeleteUpdate)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go1"));
 
     dmhash_t message_id = dmHashString64("test");
@@ -385,7 +405,7 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
 TEST_F(ComponentTest, TestNonexistingComponent)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go2.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
+    ASSERT_EQ(0, go);
     ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
@@ -396,7 +416,7 @@ TEST_F(ComponentTest, TestNonexistingComponent)
 TEST_F(ComponentTest, TestPartialNonexistingComponent1)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go3.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
+    ASSERT_EQ(0, go);
 
     // First one exists
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -411,7 +431,7 @@ TEST_F(ComponentTest, TestPartialFailingComponent)
     // Only succeed creating the first component
     m_MaxComponentCreateCountMap[TestGameObjectDDF::AResource::m_DDFHash] = 1;
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go4.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
+    ASSERT_EQ(0, go);
 
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_DestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -424,7 +444,7 @@ TEST_F(ComponentTest, TestPartialFailingComponent)
 TEST_F(ComponentTest, TestComponentUserdata)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go5.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
 
     dmGameObject::Delete(m_Collection, go, false);
     bool ret = dmGameObject::PostUpdate(m_Collection);
@@ -440,7 +460,7 @@ TEST_F(ComponentTest, TestComponentUserdata)
 TEST_F(ComponentTest, TestUpdateOrder)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 2, m_ComponentUpdateOrderMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -452,7 +472,7 @@ TEST_F(ComponentTest, TestUpdateOrder)
 TEST_F(ComponentTest, TestDuplicatedIds)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go6.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
+    ASSERT_EQ(0, go);
 }
 
 TEST_F(ComponentTest, TestIndexId)
@@ -503,10 +523,9 @@ static int LuaTestCompType(lua_State* L)
 {
     int top = lua_gettop(L);
 
-    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     dmGameObject::HComponent component = 0;
     dmMessage::URL receiver;
-    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &component, &receiver, 0);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(dmGameObject::GetInstanceFromLua(L)), "a", &component, &receiver, 0);
     assert(*(uintptr_t*)component == 1);
 
     assert(top == lua_gettop(L));
@@ -544,10 +563,9 @@ static int LuaTestGetComponentFromLua(lua_State* L)
     lua_pushnumber(L, expect_fail);
     lua_setglobal(L, "expected_error");
 
-    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     void* component = 0;
     dmMessage::URL receiver; // needed for error output
-    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), component_ext, (void**)&component, &receiver, 0);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(dmGameObject::GetInstanceFromLua(L)), component_ext, (void**)&component, &receiver, 0);
 
     // If it fails, it will not return here
 
@@ -614,21 +632,22 @@ TEST_F(ComponentTest, FinalCallsFinal)
     }
 
     // 11 objects in total
-    ASSERT_EQ(11u, collection->m_Collection->m_InstanceIndices.Size());
+    dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(collection);
+    ASSERT_EQ(11u, collection_ptr->m_InstanceIndices.Size());
 
     dmGameObject::Init(collection); // Init is required for final
     dmGameObject::Delete(collection, go_a, false);
     dmGameObject::PostUpdate(collection);
 
     // One lingering due to the cap of passes in dmGameObject::PostUpdate, which is currently set to 10
-    ASSERT_EQ(1u, collection->m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(1u, collection_ptr->m_InstanceIndices.Size());
     ASSERT_EQ((uint32_t) 10, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     // One more pass needed to delete the last object in the chain
     dmGameObject::PostUpdate(collection);
 
     // All done
-    ASSERT_EQ(0u, collection->m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(0u, collection_ptr->m_InstanceIndices.Size());
     ASSERT_EQ((uint32_t) 11, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     dmGameObject::DeleteCollection(collection);

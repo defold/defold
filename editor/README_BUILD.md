@@ -65,6 +65,12 @@ lein init
 lein run
 ```
 
+`lein init` installs Bob into the editor's local Maven repository and prepares generated resources. When using a local Bob build, rerun `lein init` without a SHA after rebuilding `bob.jar` or changing inputs to generated resources, before starting the editor again. With a released engine, continue to use `lein init <sha1>` for the matching archived artifacts.
+
+## Running the Editor for Performance Checks
+
+From `editor/`, run `lein with-profile +performance run` when measuring editor runtime performance. The `performance` profile disables exception decoration, schema checks, and compiled spec assertions, which otherwise affect measurements. Use `lein run` for normal development.
+
 
 ## Running Tests
 Run all the tests including the integration tests:
@@ -98,6 +104,8 @@ For this to work you will need a `~/.lein/profiles.clj` file and put the nREPL, 
 ```
 
 Please note that Lein will introduce a nREPL dependency automagically, but its a good idea to override to your preferred version here anyway.
+
+When developing through the REPL, reload the whole changed file from time to time and before finishing. Reloading only individual forms can miss reflection warnings that appear when the namespace is compiled as a whole. Enable `(set! *warn-on-reflection* true)` and, in files with arithmetic, `(set! *unchecked-math* :warn-on-boxed)` near the top of the file to catch reflection and boxed math. Address avoidable warnings, for example by adding appropriate type hints. See [the Cursive guide](README_CURSIVE.md#load-file-in-repl) for the whole-file reload command.
 
 ## Bundling games and running in browser
 

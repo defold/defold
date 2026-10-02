@@ -25,7 +25,7 @@
   (.println (rt/stderr rt) (str label " failed: " (or (ex-message ex) (.getSimpleName (class ex))))))
 
 (s/fdef try-with-extension-exceptions
-        :args (s/cat :kv-args (s/+ (s/cat :k #{:rt :label :catch} :v any?)) :expr any?))
+  :args (s/cat :kv-args (s/+ (s/cat :k #{:rt :label :catch} :v any?)) :expr any?))
 (defmacro try-with-extension-exceptions
   "Convenience macro for executing an expression and reporting extension errors
   to the console

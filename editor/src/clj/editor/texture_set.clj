@@ -24,7 +24,7 @@
             [editor.slice9 :as slice9]
             [util.coll :refer [pair]])
   (:import [com.google.protobuf ByteString]
-           [com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL3]
            [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteOrder FloatBuffer]
            [javax.vecmath Matrix4d Point3d Vector3d]))
@@ -157,7 +157,6 @@
           (map #(pair (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries)))
           animations)))
 
-
 ;; vertex data
 
 (def ^:private animation-overlay-shader shaders/basic-texture-paged-local-space)
@@ -211,9 +210,9 @@
           u-tl (double (nth tl 0))
           v-tl (double (nth tl 1))]
       (vector-of :double
-                 (- u-br u-bl) (- v-br v-bl) 0.0
-                 (- u-tl u-bl) (- v-tl v-bl) 0.0
-                 u-bl v-bl 1.0))
+        (- u-br u-bl) (- v-br v-bl) 0.0
+        (- u-tl u-bl) (- v-tl v-bl) 0.0
+        u-bl v-bl 1.0))
     (let [[bl tl tr br] quad-unflipped
           u-bl (double (nth bl 0))
           v-bl (double (nth bl 1))
@@ -222,9 +221,9 @@
           u-tl (double (nth tl 0))
           v-tl (double (nth tl 1))]
       (vector-of :double
-                 (- u-br u-bl) (- v-br v-bl) 0.0
-                 (- u-tl u-bl) (- v-tl v-bl) 0.0
-                 u-bl v-bl 1.0))))
+        (- u-br u-bl) (- v-br v-bl) 0.0
+        (- u-tl u-bl) (- v-tl v-bl) 0.0
+        u-bl v-bl 1.0))))
 
 (def ^:private texture-transform-identity
   (vector-of :double 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0))
@@ -293,10 +292,10 @@
                        (slice9/sliced? slice9))
                   (-> (slice9/vertex-data animation-frame size slice9 pivot)
                       (assoc :texture-transform
-                             (if-some [raw (or (:tex-coords-raw animation-frame)
-                                               (:tex-coords animation-frame))]
-                               (tex-coords->texture-transform-2d raw (true? (:atlas-rotated animation-frame)))
-                               texture-transform-identity)))
+                        (if-some [raw (or (:tex-coords-raw animation-frame)
+                                          (:tex-coords animation-frame))]
+                          (tex-coords->texture-transform-2d raw (true? (:atlas-rotated animation-frame)))
+                          texture-transform-identity)))
 
                   :else
                   (frame-vertex-data animation-frame size pivot))
@@ -313,7 +312,6 @@
         offset-positions (offset-vertices image-pivot-x image-pivot-y position-data)
         offset-lines (offset-vertices image-pivot-x image-pivot-y line-data)]
     (assoc out :position-data offset-positions :line-data offset-lines)))
-
 
 ;; animation
 
@@ -353,7 +351,6 @@
                       (step-animation state dt anim-data))
      :initial-state {:t         0
                      :frame     0}}))
-
 
 ;; rendering
 
@@ -411,7 +408,7 @@
       6)))
 
 (defn render-animation-overlay
-  [^GL2 gl render-args renderables]
+  [^GL3 gl render-args renderables]
   (let [{:keys [camera viewport]} render-args
         world-pos (Vector3d. animation-preview-offset (- (double (:bottom viewport)) animation-preview-offset) 0.0)]
     (doseq [renderable renderables]
@@ -451,4 +448,4 @@
                 (render-util/render-color-line-loop! gl render-args ::animation-outline colors/outline-color positions)
                 (gl/with-gl-bindings gl render-args [animation-overlay-shader vertex-binding gpu-texture]
                   (shader/set-samplers-by-index animation-overlay-shader gl 0 (:texture-units gpu-texture))
-                  (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 vertex-count))))))))))
+                  (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 vertex-count))))))))))

@@ -58,6 +58,7 @@ struct FontImageCase
     bool  m_Markup;
     bool  m_Change;
     float m_EdgeScale; // Nonzero selects an 8x edge capture at this screen scale.
+    int32_t m_Pivot; // -1 for ordinary cases; otherwise FONT_ALIGNMENT_PIVOTS index.
 };
 
 // Test-only bridge to the production Vector backend. The graphics context is borrowed.

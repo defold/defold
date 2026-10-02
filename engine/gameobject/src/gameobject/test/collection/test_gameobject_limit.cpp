@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/path.h>
 #include <dlib/testutil.h>
@@ -86,11 +87,11 @@ public:
 
 TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
 {
-    // Max usable index is INVALID_INSTANCE_INDEX - 1
-    const uint32_t max_instances = dmGameObject::INVALID_INSTANCE_INDEX - 1;
+    // Exercise fixed-capacity storage past the old 16-bit instance-index boundary.
+    const uint32_t max_instances = 65537;
 
     m_Collection = dmGameObject::NewCollection("limit_col", m_Factory, m_Register, max_instances, 0x0);
-    ASSERT_NE((void*)0, (void*)m_Collection);
+    ASSERT_NE(0, m_Collection);
 
     // Create max_instances objects and set position.x to 1..max_instances
     dmArray<dmGameObject::HInstance> instances;
@@ -98,14 +99,14 @@ TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
     for (uint32_t i = 0; i < max_instances; ++i)
     {
         dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-        ASSERT_NE((void*)0, (void*)go);
+        ASSERT_NE(0, go);
         instances.Push(go);
         dmGameObject::SetPosition(go, Point3((float)(i + 1), 0.0f, 0.0f));
     }
 
     // Next creation should fail (buffer full)
     dmGameObject::HInstance overflow = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_EQ((void*)0, (void*)overflow);
+    ASSERT_EQ(0, overflow);
 
     // Verify we can read back what we wrote
     for (uint32_t i = 0; i < instances.Size(); ++i)
@@ -113,4 +114,43 @@ TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
         float expected = (float)(i + 1);
         ASSERT_NEAR(expected, dmGameObject::GetPosition(instances[i]).getX(), 0.0f);
     }
+}
+
+TEST_F(CollectionLimitTest, RejectsCollectionAboveHandleCapacity)
+{
+    m_Collection = dmGameObject::NewCollection("too_large", m_Factory, m_Register, (1U << 20) + 1, 0x0);
+    ASSERT_EQ(0, m_Collection);
+}
+
+TEST_F(CollectionLimitTest, CollectionRegistryExhaustion)
+{
+    const uint32_t collection_count = 1U << 12;
+    dmArray<dmGameObject::HCollection> collections;
+    collections.SetCapacity(collection_count);
+
+    for (uint32_t i = 0; i < collection_count; ++i)
+    {
+        char name[32];
+        dmSnPrintf(name, sizeof(name), "registry_%u", i);
+        dmGameObject::HCollection collection = dmGameObject::NewCollection(name, m_Factory, m_Register, 1, 0x0);
+        ASSERT_NE(0, collection);
+        ASSERT_LT((uint32_t)(collection & 0xffff), collection_count);
+        collections.Push(collection);
+        dmGameObject::Collection* internal_collection = dmGameObject::GetCollectionFromHandle(collection);
+        ASSERT_NE((dmGameObject::Collection*)0, internal_collection);
+        dmGameObject::DetachCollection(internal_collection, false);
+    }
+
+    ASSERT_EQ(0,
+              dmGameObject::NewCollection("registry_overflow", m_Factory, m_Register, 1, 0x0));
+
+    for (uint32_t i = 0; i < collections.Size(); ++i)
+    {
+        dmGameObject::HCollection collection = collections[i];
+        dmGameObject::Collection* internal_collection = dmGameObject::GetCollectionFromHandle(collection);
+        ASSERT_NE((dmGameObject::Collection*)0, internal_collection);
+        dmGameObject::DeleteCollection(internal_collection);
+        ASSERT_EQ((dmGameObject::Collection*)0, dmGameObject::GetCollectionFromHandle(collection));
+    }
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Register));
 }

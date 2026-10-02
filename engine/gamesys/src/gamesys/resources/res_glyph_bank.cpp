@@ -67,6 +67,8 @@ namespace dmGameSystem
             output->m_VectorData = glyph_bank->m_VectorData.m_Data + glyph.m_VectorDataOffset;
             output->m_VectorDataSize = (uint32_t)glyph.m_VectorDataSize;
         }
+        output->m_LayoutWidth = glyph.m_LayoutWidth;
+        output->m_LayoutLeftBearing = glyph.m_LayoutLeftBearing;
         if (glyph.m_GlyphDataSize != 0)
         {
             const uint8_t* glyph_data = glyph_bank->m_GlyphData.m_Data + glyph.m_GlyphDataOffset;
@@ -92,6 +94,7 @@ namespace dmGameSystem
         resource->m_Provider.m_GlyphChannels = glyph_bank->m_GlyphChannels;
         resource->m_Provider.m_MaxAscent = glyph_bank->m_MaxAscent;
         resource->m_Provider.m_MaxDescent = glyph_bank->m_MaxDescent;
+        resource->m_Provider.m_HasLayoutMetrics = glyph_bank->m_HasLayoutMetrics;
     }
 
     HFont GetFont(GlyphBankResource* resource)

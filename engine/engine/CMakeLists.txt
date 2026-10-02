@@ -459,7 +459,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
       ${ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES})
     if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" platform EGL GLESv1_CM GLESv2)
     endif()
   else()
     if(variant STREQUAL "release")
@@ -559,7 +559,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
     SUFFIX ".so")
 
   set(ENGINE_ANDROID_JARS_INSTALL_CODE "
-      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
+      \"\${CMAKE_INSTALL_PREFIX}/share/java/platform_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\"")
 

@@ -42,7 +42,7 @@
               [case path] cases]
         (testing case
           (test-util/with-prop [node-id prop (workspace/resolve-workspace-resource workspace path)]
-                               (is (g/error? (test-util/prop-error node-id prop)))))))))
+            (is (g/error? (test-util/prop-error node-id prop)))))))))
 
 (deftest unassigned-font-label-preview-test
   (test-util/with-loaded-project
@@ -86,16 +86,24 @@
 
 (deftest label-scene-test
   (test-util/with-loaded-project
-    (let [node-id (project/get-resource-node project "/label/test.label")]
-      (let [scene (g/node-value node-id :scene)
-            aabb (g/node-value node-id :aabb)]
-        (is (= aabb (:aabb scene)))
-        (is (= node-id (:node-id scene)))
-        (is (= node-id (some-> scene :renderable :select-batch-key)))
-        (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
-        (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :text)))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
+    (let [node-id (project/get-resource-node project "/label/test.label")
+          scene (g/node-value node-id :scene)
+          aabb (g/node-value node-id :aabb)]
+      (is (= aabb (:aabb scene)))
+      (is (= node-id (:node-id scene)))
+      (is (= node-id (some-> scene :renderable :select-batch-key)))
+      (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
+      (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :text)))
+      (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
+      (let [fragment-source (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source)]
+        (is (string/starts-with? fragment-source "#version 330"))
+        (is (re-find #"\bout vec4 \w+;" fragment-source))
+        (is (not (re-find #"\bgl_FragColor\b" fragment-source))))
+      (test-util/test-uses-assigned-material
+        workspace project node-id
+        :material
+        [:renderable :user-data :material-shader]
+        [:renderable :user-data :gpu-texture]))))
 
 (deftest native-label-text-box-alignment-test
   (test-util/with-loaded-project
@@ -205,14 +213,6 @@
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key))))))))
 
-(deftest label-scene-test
-  (test-util/with-loaded-project
-    (let [node-id (project/get-resource-node project "/label/test.label")]
-      (test-util/test-uses-assigned-material workspace project node-id
-                                             :material
-                                             [:renderable :user-data :material-shader]
-                                             [:renderable :user-data :gpu-texture]))))
-
 (deftest label-migration-test
   (test-util/with-loaded-project "test/resources/label_migration_project"
     (let [resources-with-dirty-save-data (into #{}
@@ -308,21 +308,21 @@
 (deftest vector-font-size-and-style-survive-build
   (test-util/with-temp-project-content
     {"/styled.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
-                      :material "/builtins/fonts/font-vector.material"
-                      :vector-font-mode :vector-font-mode-vector
-                      :runtime false
-                      :size 37
-                      :outline-alpha 1.0
-                      :outline-width 2.0
-                      :characters "A"
-                      :styles [{:name "default"}
-                               {:name "notice" :markup "<color=#ff6600>"}]}
+                     :material "/builtins/fonts/font-vector.material"
+                     :vector-font-mode :vector-font-mode-vector
+                     :runtime false
+                     :size 37
+                     :outline-alpha 1.0
+                     :outline-width 2.0
+                     :characters "A"
+                     :styles [{:name "default"}
+                              {:name "notice" :markup "<color=#ff6600>"}]}
      "/styled.label" {:font "/styled.font"
-                       :material "/builtins/fonts/label-vector.material"
-                       :text "A"
-                       :size [128.0 32.0 0.0 0.0]
-                       :font-size 64.0
-                       :style "notice"}}
+                      :material "/builtins/fonts/label-vector.material"
+                      :text "A"
+                      :size [128.0 32.0 0.0 0.0]
+                      :font-size 64.0
+                      :style "notice"}}
     (let [font-node (test-util/resource-node project "/styled.font")
           label-node (test-util/resource-node project "/styled.label")]
       (doseq [runtime [false true]]

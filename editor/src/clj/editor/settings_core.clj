@@ -235,10 +235,10 @@
                                                            (meta-setting-default-values setting))]
                                   (coll/pair
                                     path->index
-                                    (assoc! settings index
-                                            (cond-> merged-setting
-                                                    (coll/not-empty default-values)
-                                                    (assoc :defaults default-values)))))
+                                    (assoc! settings
+                                      index (cond-> merged-setting
+                                              (coll/not-empty default-values)
+                                              (assoc :defaults default-values)))))
                                 (coll/pair
                                   (assoc! path->index (:path setting) (count settings))
                                   (conj! settings setting)))))
@@ -283,8 +283,8 @@
   (when-some [meta-setting (meta-settings-map path)]
     (update setting :value
             #(do (->> %
-                     (parse-setting-value meta-setting)
-                     (sanitize-value meta-setting))))))
+                      (parse-setting-value meta-setting)
+                      (sanitize-value meta-setting))))))
 
 (defn load-meta-properties [reader]
   (letfn [(parse-type [s]
@@ -340,7 +340,7 @@
                                         (assoc :path setting-path)))))
 
                               (cond-> (not existing-index)
-                                      (vary-meta update :order assoc setting-path index)))))))
+                                (vary-meta update :order assoc setting-path index)))))))
                 2 (if (= "" (path 0))
                     (let [k (keyword (path 1))]
                       (assoc acc k (case k
@@ -363,13 +363,13 @@
                       (as-> $
                             ;; sanitize-value expects valid type, preserve-extension and element
                             (cond-> $ (contains? $ :default) (update :default #(sanitize-value $ (parse-setting-value $ %))))
-                            (cond-> $ (contains? $ :minimum) (update :minimum #(sanitize-value $ (parse-setting-value $ %))))
-                            (cond-> $ (contains? $ :maximum) (update :maximum #(sanitize-value $ (parse-setting-value $ %))))
-                            (cond-> $ (contains? $ :options) (update :options #(parse-options $ %)))
-                            ;; sanitize help expects valid type, preserve-extension and default
-                            (cond-> $ (contains? $ :help) (update :help #(sanitize-help $ %)))
-                            ;; parse filter expects valid type
-                            (cond-> $ (contains? $ :filter) (update :filter #(parse-filter $ %))))
+                        (cond-> $ (contains? $ :minimum) (update :minimum #(sanitize-value $ (parse-setting-value $ %))))
+                        (cond-> $ (contains? $ :maximum) (update :maximum #(sanitize-value $ (parse-setting-value $ %))))
+                        (cond-> $ (contains? $ :options) (update :options #(parse-options $ %)))
+                        ;; sanitize help expects valid type, preserve-extension and default
+                        (cond-> $ (contains? $ :help) (update :help #(sanitize-help $ %)))
+                        ;; parse filter expects valid type
+                        (cond-> $ (contains? $ :filter) (update :filter #(parse-filter $ %))))
                       (cond->
                         (contains? setting :deprecated) (update :deprecated parse-int-boolean)
                         (contains? setting :private) (update :private parse-int-boolean)
@@ -389,19 +389,19 @@
 (defn resolve-resource-settings [settings value-field resolve-resource-fn]
   (mapv (fn [setting]
           (cond-> setting
-                  ;; Resolve string resource values so the form gets typed values.
-                  ;; This covers raw settings without ResourceSettingNodes, and
-                  ;; defaults from metadata merged after load.
-                  (and (= :resource (:type setting))
-                       (string? (get setting value-field)))
-                  (update value-field resolve-resource-fn)))
+            ;; Resolve string resource values so the form gets typed values.
+            ;; This covers raw settings without ResourceSettingNodes, and
+            ;; defaults from metadata merged after load.
+            (and (= :resource (:type setting))
+                 (string? (get setting value-field)))
+            (update value-field resolve-resource-fn)))
         settings))
 
 (defn make-default-settings [meta-settings]
   (mapv (fn [meta-setting]
           {:path (:path meta-setting)
            :value (:default meta-setting)})
-       meta-settings))
+        meta-settings))
 
 (def setting-category (comp first :path))
 

@@ -147,12 +147,12 @@
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
-                                      :ext exts
-                                      :label (localization/message "resource.type.image")
-                                      :icon "icons/32/Icons_25-AT-Image.png"
-                                      :build-ext "texturec"
-                                      :node-type ImageNode
-                                      :load-fn load-image
-                                      :stateless? true
-                                      :view-types [:scene :default])
+      :ext exts
+      :label (localization/message "resource.type.image")
+      :icon "icons/32/Icons_25-AT-Image.png"
+      :build-ext "texturec"
+      :node-type ImageNode
+      :load-fn load-image
+      :stateless? true
+      :view-types [:scene :default])
     (workspace/register-resource-type workspace :ext "texture")))

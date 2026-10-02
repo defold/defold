@@ -542,6 +542,10 @@ public final class FontRenderer implements AutoCloseable {
         public final float leftBearing;
         public final float ascent;
         public final float descent;
+        /** Width used for text measurement, excluding bitmap sampling bounds. */
+        public final float layoutWidth;
+        /** Bearing used for text measurement, excluding bitmap sampling bounds. */
+        public final float layoutLeftBearing;
 
         private GlyphMetrics(MemorySegment values) {
             codepoint = FontcGlyphMetrics.m_Codepoint(values);
@@ -552,6 +556,8 @@ public final class FontRenderer implements AutoCloseable {
             leftBearing = FontcGlyphMetrics.m_LeftBearing(values);
             ascent = FontcGlyphMetrics.m_Ascent(values);
             descent = FontcGlyphMetrics.m_Descent(values);
+            layoutWidth = FontcGlyphMetrics.m_LayoutWidth(values);
+            layoutLeftBearing = FontcGlyphMetrics.m_LayoutLeftBearing(values);
         }
     }
 

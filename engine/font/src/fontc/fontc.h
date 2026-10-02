@@ -136,6 +136,9 @@ extern "C"
         float    m_LeftBearing;
         float    m_Ascent;
         float    m_Descent;
+        // Text measurement at the renderer's size, independent of raster padding.
+        float    m_LayoutWidth;
+        float    m_LayoutLeftBearing;
     } FontcGlyphMetrics;
 
     typedef struct FontcProperties

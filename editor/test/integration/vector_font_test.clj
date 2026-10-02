@@ -27,6 +27,7 @@
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [java.awt.image BufferedImage]
+           [java.util Arrays]
            [javax.vecmath Matrix4d]))
 
 (defn- image-points [^BufferedImage image pixel-predicate]
@@ -38,6 +39,7 @@
                             [(rem index width) (- height 1 (quot index width))])))
           (.getRGB image 0 0 width height nil 0 width))))
 
+;; Vector colors, effects, and picking must survive an empty-text round trip.
 (deftest vector-label-preview-and-picking
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
@@ -84,9 +86,14 @@
                     (is (test-util/selected? app-view component-node))))
                 (test-util/mouse-click! view 5 5)
                 (is (test-util/selected? app-view go-node))
-                (test-util/with-prop [label-node :text ""]
-                  (is (coll/empty? (image-points (g/valid-node-value view :frame) #(= 0xff00ff %)))))
-                (is (= face (image-points (g/valid-node-value view :frame) #(= 0xff00ff %)))))
+                (let [^BufferedImage before-image (g/valid-node-value view :frame)
+                      width (.getWidth before-image)
+                      height (.getHeight before-image)
+                      ^ints before-pixels (.getRGB before-image 0 0 width height nil 0 width)]
+                  (test-util/with-prop [label-node :text ""]
+                    (is (coll/empty? (image-points (g/valid-node-value view :frame) #(= 0xff00ff %)))))
+                  (let [^BufferedImage after-image (g/valid-node-value view :frame)]
+                    (is (Arrays/equals before-pixels (.getRGB after-image 0 0 width height nil 0 width))))))
               (finally
                 (#'scene/dispose-preview view)
                 (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))
@@ -252,9 +259,9 @@
                 update-image! (fn/make-call-logger texture/update-image!)]
             (try
               (with-redefs [font/request-vertex-buffer (fn [& args]
-                                                       (let [buffer (apply request-vertex-buffer args)]
-                                                         (vswap! buffers conj [buffer (vtx/version buffer)])
-                                                         buffer))
+                                                         (let [buffer (apply request-vertex-buffer args)]
+                                                           (vswap! buffers conj [buffer (vtx/version buffer)])
+                                                           buffer))
                             texture/update-image! update-image!]
                 (g/valid-node-value view :frame)
                 (let [[[initial-buffer initial-version]] @buffers]
@@ -263,9 +270,9 @@
                   (vreset! buffers [])
                   (doseq [zoom [2.0 4.0 0.5 1.0]]
                     (g/set-property! camera-id :local-camera
-                                     (-> initial-camera
-                                         (update :fov-x / zoom)
-                                         (update :fov-y / zoom)))
+                      (-> initial-camera
+                          (update :fov-x / zoom)
+                          (update :fov-y / zoom)))
                     (g/valid-node-value view :frame))
                   (is (= 4 (count @buffers)))
                   (doseq [[buffer version] @buffers]

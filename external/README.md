@@ -1,16 +1,40 @@
 # External
 
-`./scripts/build.py install_ext` installs prepackaged dependencies, then builds
-source dependencies with the regular Defold CMake toolchain and installs them into
-`tmp/dynamo_home/ext`. Run it with the platform SDK set up, before the first engine
+`./scripts/build.py install_ext` installs the remaining prepackaged dependencies,
+then calls `build_ext` to build source dependencies with the regular Defold CMake
+toolchain and install them into `tmp/dynamo_home/ext`. Run it with the platform SDK set up, before the first engine
 build, and whenever these sources or the toolchain change. Use `--platform`
 for cross-compilation; this builds dependencies for the host tools first,
 then for the target platform. Repeated calls reuse each platform's CMake
 build directory.
+`clean_ext --platform=<platform>` removes `external/build/<platform>`,
+`external/*/build/<platform>`, and that platform's installed directories under
+`ext/lib`, `ext/bin`, `ext/include`, and `ext/share`. It defaults to the host
+platform when `--platform` is omitted. Other platforms, shared dependency files,
+toolchains under `ext/SDKs`, engine outputs, source archives, and package archives
+outside the build directories are retained.
 `distclean` removes these build caches as well as the installed SDK.
 
-The other external libraries are distributed as packages. Rebuild those with
-`build_external`, which writes archives under `defold/packages`.
+Use `./scripts/build.py build_ext --platform=<platform>` to rebuild and install
+the source dependencies directly. This builds Basis Universal, both Box2D
+versions, Bullet, HarfBuzz, libunibreak, LZ4, Opus, SheenBidi, and Skribidi on all
+platforms. Protobuf is built for desktop platforms; mobile and web builds use the
+host's Protobuf tools. Protobuf and Abseil use the same CMake toolchain and build
+graph as the other source dependencies and install directly into `ext`.
+`external/build` itself is generated build output.
+
+To force a fresh build, run
+`./scripts/build.py clean_ext install_ext --platform=<platform>`.
+
+The command-time summary lists wall-clock times under `Libraries` for each
+platform's CMake build command, also saved in `build_times.json`. Each time spans
+the library's first task start to its last task finish, including scheduling
+waits. Libraries run in parallel, so these times do not add up to the command's
+elapsed time. Protobuf includes its Abseil dependencies. Only tasks
+executed in the current build are counted.
+
+External libraries can also be distributed as packages. Rebuild the packages
+listed below with `build_external`, which writes archives under `defold/packages`.
 
 From the repository root, with the platform SDK set up:
 
@@ -25,7 +49,6 @@ and installation layout:
 
 | Package selector | Archive prefix | Contents |
 | --- | --- | --- |
-| `glfw` | `glfw-2.7.1` | Platform archive with headers, native libraries, and Android Java or web JavaScript support files. |
 | `opus` | `opus-1.5.2` | Decoder library in the platform archive; headers in the common archive. |
 | `harfbuzz` | `harfbuzz-13.2.1` | Library in the platform archive; headers and Defold's configuration override in the common archive. |
 | `sheenbidi` | `SheenBidi-2.9.0` | Unity-built library in the platform archive; headers in the common archive. |
@@ -58,8 +81,8 @@ standalone Dawn package through `DEFOLD_WIN32_WINNT`.
 Windows packaging also requires LLVM's `llvm-strip`, available on `PATH` or in
 `%ProgramFiles%/LLVM/bin`; `DAWN_STRIP_EXECUTABLE` can override its location.
 
-`build_external` installs the packaged host `protoc` tool if it is missing, so
-the commands below also work before the first `install_ext`.
+External builds do not require an installed `protoc`, so the commands below
+also work before the first `install_ext`.
 
 The **Build Dawn** GitHub Actions workflow builds all four
 platforms and uploads the package archives as artifacts, retained for seven days.
