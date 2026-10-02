@@ -95,11 +95,13 @@ for building and repacking an APK for Android 14 or newer.
 ## Invocation
 
 Run `./scripts/build.py --platform=<platform> install_ext` before the first
-engine build, with the platform SDK already set up. It installs the prepackaged
-dependencies, then builds Bullet, Basis Universal, and LZ4
+engine build, with the platform SDK already set up. It installs the remaining
+prepackaged dependencies, then calls `build_ext` to build Bullet, Basis Universal,
+LZ4, both Box2D versions, HarfBuzz, libunibreak, Opus, SheenBidi, Skribidi, and desktop Protobuf
 with the same platform toolchain and installs them into
-`tmp/dynamo_home/ext`. Run `install_ext` again when those sources or the toolchain
-change. Its persistent CMake cache lives under `external/build/<platform>` and is
+`tmp/dynamo_home/ext`. Run `build_ext` when those sources or the toolchain change,
+or `install_ext` to also reinstall the packages.
+Its persistent CMake cache lives under `external/build/<platform>` and is
 separate from the engine build to keep normal rebuilds fast.
 
 The iOS, Android, and web window backends build directly into the engine's
