@@ -53,10 +53,6 @@ else()
     "${DEFOLD_SDK_ROOT}/ext/include/libunibreak")
 endif()
 
-if(MSVC)
-  set_property(TARGET skribidi PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-endif()
-
 set_target_properties(skribidi PROPERTIES
   POSITION_INDEPENDENT_CODE ON
   PREFIX "lib")

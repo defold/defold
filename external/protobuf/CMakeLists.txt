@@ -80,3 +80,23 @@ set(protobuf_LOCAL_DEPENDENCIES_ONLY ON)
 set(protobuf_WITH_ZLIB OFF)
 set(protobuf_DEBUG_POSTFIX "")
 add_subdirectory("${CMAKE_CURRENT_BINARY_DIR}/sources/protobuf-35.1" protobuf)
+
+# Protobuf and Abseil select /MTd for Debug, but their compiled targets must
+# use the same runtime as the engine (/MT in every configuration).
+function(protobuf_restore_msvc_runtime directory)
+  get_property(targets DIRECTORY "${directory}" PROPERTY BUILDSYSTEM_TARGETS)
+  foreach(target IN LISTS targets)
+    get_target_property(type ${target} TYPE)
+    if(NOT type STREQUAL "INTERFACE_LIBRARY" AND NOT type STREQUAL "UTILITY")
+      set_property(TARGET ${target} PROPERTY MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
+    endif()
+  endforeach()
+  get_property(subdirectories DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
+  foreach(subdirectory IN LISTS subdirectories)
+    protobuf_restore_msvc_runtime("${subdirectory}")
+  endforeach()
+endfunction()
+
+if(DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
+  protobuf_restore_msvc_runtime("${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
