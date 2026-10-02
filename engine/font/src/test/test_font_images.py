@@ -733,7 +733,35 @@ class FontImageReportTest(unittest.TestCase):
                 self.assertEqual(rich, any(c['markup'] for c in cases))
                 self.assertEqual(full, any(c['source'] == 'arabic' for c in cases))
                 count += len(cases)
-        self.assertEqual(392, count)
+        self.assertEqual(428, count)
+
+    # Verifies all pivots use the shared preview references and that a one-pixel
+    # text shift fails even with the large unchanged white box from #13339.
+    def test_pivot_likeness_rejects_shift_on_white_box(self):
+        configurations = ('legacy-plain', 'legacy-rich', 'full-plain', 'full-rich')
+        pivots = [c for c in report.cases(False, False) if 'pivot' in c]
+        self.assertEqual(set(range(9)), {c['pivot'] for c in pivots})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            reference_dir = root/'src/test/data/reference/alignment'
+            reference_dir.mkdir(parents=True)
+            expected = Image.new('RGB', (240, 140), 'black')
+            draw = ImageDraw.Draw(expected)
+            draw.rectangle((20, 20, 219, 119), fill='white')
+            draw.text((60, 60), 'Example', fill='black')
+            shifted = expected.copy()
+            shifted.paste(ImageChops.offset(expected.crop((20, 20, 220, 120)), 1, 0), (20, 20))
+            for case in pivots:
+                expected.save(reference_dir/(case['id']+'.png'))
+                for configuration in configurations:
+                    output = root/'images'/configuration
+                    output.mkdir(parents=True, exist_ok=True)
+                    (shifted if configuration == 'legacy-rich' else expected).save(output/(case['id']+'.png'))
+            with mock.patch.object(report, 'FONT_ROOT', root), mock.patch.object(report, 'cases', return_value=pivots), contextlib.redirect_stdout(io.StringIO()):
+                summary = report.build_reports(root/'images', root/'report', {}, False)
+            self.assertEqual(27, summary['passed'])
+            self.assertEqual(9, summary['failed'])
+            self.assertEqual(0, summary['errors'])
 
     def test_failed_comparison_keeps_images_and_passing_cases_stay_quiet(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -773,7 +801,7 @@ class FontImageReportTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             root=Path(temporary)
             summary=report.build_reports(root/'missing',root/'report',{},False)
-            self.assertEqual(392,summary['failed'])
+            self.assertEqual(428,summary['failed'])
             self.assertEqual(0,summary['completed'])
             self.assertEqual('fail',summary['status'])
             self.assertTrue((root/'report/index.html').exists())
@@ -804,6 +832,7 @@ class BitmapGeneratorCliTest(unittest.TestCase):
                      ('--size', 'nan'), ('--size', '0'), ('--outline', '-1'),
                      ('--face-alpha', '1.1'), ('--size', '40px'), ('--layers', 'both'),
                      ('--outline',), ('--unknown', '1'),
+                     ('--alignment-preview',), ('--case', 'ttf_sdf_single_default', '--alignment-preview'),
                      ('--case', 'ttf_sdf_single_default', '--size', '50')):
             with self.subTest(args=args):
                 self.assertEqual(2, self.run_generator(*args).returncode)
