@@ -2257,7 +2257,9 @@ int main(int argc, char **argv)
 #if defined(DM_TEST_GRAPHICS_CAPTURE)
     int capture_result = RunGraphicsCapture(argc, argv);
     if (capture_result >= 0)
+    {
         return capture_result;
+    }
 #endif
     if (!InstallAdapter(argc, argv))
         return 1;

@@ -112,6 +112,13 @@ struct CaptureContext
     bool        m_WindowOpened;
 };
 
+struct CaptureStencilOperation
+{
+    StencilOp m_Operation;
+    uint8_t   m_Initial;
+    uint8_t   m_Expected;
+};
+
 static const uint32_t CAPTURE_SIZE = 256;
 static const uint32_t CAPTURE_BYTES = CAPTURE_SIZE * CAPTURE_SIZE * 4;
 static const uint32_t CAPTURE_BUFFERS = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
@@ -212,8 +219,8 @@ static HTexture CreateCaptureCubemap(HContext context)
         {
             for (uint32_t x = 0; x < size; ++x)
             {
-                bool dark = x == 0 || y == 0 || x == size - 1 || y == size - 1 ||
-                (x >= 11 && x <= 13 && y >= 12 && y <= 13);
+                bool border = x == 0 || y == 0 || x == size - 1 || y == size - 1;
+                bool dark = border || (x >= 11 && x <= 13 && y >= 12 && y <= 13);
                 bool white = (y == 2 && x >= 2 && x <= 5) || (x == 2 && y >= 2 && y <= 4);
                 if (y >= 6 && y < 11)
                 {
@@ -229,8 +236,18 @@ static HTexture CreateCaptureCubemap(HContext context)
                 uint8_t* pixel = pixels + ((face * size + y) * size + x) * 4;
                 for (uint32_t channel = 0; channel < 3; ++channel)
                 {
-                    pixel[channel] = white ? 255 : dark ? 24 :
-                                                          colors[face][channel];
+                    if (white)
+                    {
+                        pixel[channel] = 255;
+                    }
+                    else if (dark)
+                    {
+                        pixel[channel] = 24;
+                    }
+                    else
+                    {
+                        pixel[channel] = colors[face][channel];
+                    }
                 }
                 pixel[3] = 255;
             }
@@ -241,11 +258,13 @@ static HTexture CreateCaptureCubemap(HContext context)
     creation.m_Width = size;
     creation.m_Height = size;
     creation.m_LayerCount = 6;
+
     HTexture texture = NewTexture(context, creation);
     if (!texture)
     {
         return 0;
     }
+
     TextureParams params;
     params.m_Width = size;
     params.m_Height = size;
@@ -349,12 +368,18 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
     ShaderDesc::MSLResourceMapping metal_bindings[2] = {};
     if (cubemap)
     {
-        AddShaderResource(&desc, "cubemap", family == ADAPTER_FAMILY_OPENGL ? ShaderDesc::SHADER_TYPE_SAMPLER_CUBE : ShaderDesc::SHADER_TYPE_TEXTURE_CUBE, 0, 0, BINDING_TYPE_TEXTURE, SHADER_STAGE_FLAG_FRAGMENT);
+        ShaderDesc::ShaderDataType texture_type = ShaderDesc::SHADER_TYPE_TEXTURE_CUBE;
+        if (family == ADAPTER_FAMILY_OPENGL)
+        {
+            texture_type = ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
+        }
+        AddShaderResource(&desc, "cubemap", texture_type, 0, 0, BINDING_TYPE_TEXTURE, SHADER_STAGE_FLAG_FRAGMENT);
         if (family != ADAPTER_FAMILY_OPENGL)
         {
             AddShaderResource(&desc, "cube_sampler", ShaderDesc::SHADER_TYPE_SAMPLER, 1, 0, BINDING_TYPE_TEXTURE, SHADER_STAGE_FLAG_FRAGMENT);
             desc.m_Reflection.m_Textures[1].m_Bindinginfo.m_SamplerTextureIndex = 0;
         }
+
         for (uint32_t i = 0; i < 2; ++i)
         {
             metal_bindings[i].m_NameHash = dmHashString64(i == 0 ? "cubemap" : "cube_sampler");
@@ -389,6 +414,7 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
 {
     RenderTargetCreationParams params = {};
     params.m_SampleCount = 1;
+
     params.m_ColorBufferCreationParams[0].m_Width = CAPTURE_SIZE;
     params.m_ColorBufferCreationParams[0].m_Height = CAPTURE_SIZE;
     params.m_ColorBufferParams[0].m_Width = CAPTURE_SIZE;
@@ -396,16 +422,19 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     params.m_ColorBufferParams[0].m_Format = TEXTURE_FORMAT_RGBA;
     params.m_ColorBufferLoadOps[0] = ATTACHMENT_OP_LOAD;
     params.m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
+
     params.m_DepthBufferCreationParams.m_Width = CAPTURE_SIZE;
     params.m_DepthBufferCreationParams.m_Height = CAPTURE_SIZE;
     params.m_DepthBufferParams.m_Width = CAPTURE_SIZE;
     params.m_DepthBufferParams.m_Height = CAPTURE_SIZE;
     params.m_DepthBufferParams.m_Format = TEXTURE_FORMAT_DEPTH;
+
     params.m_StencilBufferCreationParams.m_Width = CAPTURE_SIZE;
     params.m_StencilBufferCreationParams.m_Height = CAPTURE_SIZE;
     params.m_StencilBufferParams.m_Width = CAPTURE_SIZE;
     params.m_StencilBufferParams.m_Height = CAPTURE_SIZE;
     params.m_StencilBufferParams.m_Format = TEXTURE_FORMAT_STENCIL;
+
     resources->m_Target = NewRenderTarget(context, CAPTURE_BUFFERS, params);
     resources->m_Program = NewCaptureProgram(context, family, cubemap);
     if (!resources->m_Target || !resources->m_Program)
@@ -423,9 +452,9 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     {
         MakeRectangleVertices(CAPTURE_RECTANGLES[i], vertices + 3 + 6 * i);
     }
-    resources->m_Vertices = cubemap ? CreateCubemapVertices(context) : NewVertexBuffer(context, sizeof(vertices), vertices, BUFFER_USAGE_STATIC_DRAW);
     if (cubemap)
     {
+        resources->m_Vertices = CreateCubemapVertices(context);
         resources->m_Cubemap = CreateCaptureCubemap(context);
         resources->m_CubemapLocation = INVALID_UNIFORM_LOCATION;
         for (uint32_t i = 0; i < GetUniformCount(resources->m_Program); ++i)
@@ -443,6 +472,11 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
             return false;
         }
     }
+    else
+    {
+        resources->m_Vertices = NewVertexBuffer(context, sizeof(vertices), vertices, BUFFER_USAGE_STATIC_DRAW);
+    }
+
     HVertexStreamDeclaration streams = NewVertexStreamDeclaration(context);
     AddVertexStream(streams, "position", 3, TYPE_FLOAT, false);
     AddVertexStream(streams, "color", 3, TYPE_FLOAT, false);
@@ -490,12 +524,14 @@ static void RenderNestedStencil(HContext context)
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
     SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
     DrawRectangle(context, RECT_NESTED_OUTER);
+
     // Children extend outside their parents: equality must reject those pixels.
     SetStencilFunc(context, COMPARE_FUNC_EQUAL, 1, 0xff);
     SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_INCR);
     DrawRectangle(context, RECT_NESTED_CHILD);
     SetStencilFunc(context, COMPARE_FUNC_EQUAL, 2, 0xff);
     DrawRectangle(context, RECT_NESTED_INNER);
+
     DrawStencilValue(context, 1, 0xff, RECT_ORANGE);
     DrawStencilValue(context, 2, 0xff, RECT_GREEN);
     DrawStencilValue(context, 3, 0xff, RECT_BLUE);
@@ -507,20 +543,25 @@ static void RenderStencilMasks(HContext context)
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0xa0, 0xff);
     SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
     DrawRectangle(context, RECT_YELLOW);
+
     SetStencilMask(context, 0x0f);
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0xf5, 0xff);
     DrawRectangle(context, RECT_BITS_LEFT);
+
     SetStencilMask(context, 0xf0);
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0x30, 0xff);
     DrawRectangle(context, RECT_BITS_RIGHT);
+
     // A zero write mask must prevent REPLACE from erasing the result.
     SetStencilMask(context, 0);
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0, 0xff);
     DrawRectangle(context, RECT_ORANGE);
+
     DrawStencilValue(context, 0xa0, 0xff, RECT_YELLOW);
     DrawStencilValue(context, 0xa5, 0xff, RECT_ORANGE);
     DrawStencilValue(context, 0x30, 0xff, RECT_GREEN);
     DrawStencilValue(context, 0x35, 0xff, RECT_BLUE);
+
     // Both stored value and reference must be masked during comparison.
     DrawStencilValue(context, 0xf5, 0x0f, RECT_BITS_LOW_READ);
     DrawStencilValue(context, 0x3f, 0xf0, RECT_BITS_HIGH_READ);
@@ -531,20 +572,30 @@ static void RenderStencilOperations(HContext context)
 {
     // Row-major tiles: zero, replace, increment, increment-clamp, decrement,
     // decrement-clamp, invert, increment-wrap, decrement-wrap.
-    const StencilOp operations[] = { STENCIL_OP_ZERO, STENCIL_OP_REPLACE, STENCIL_OP_INCR, STENCIL_OP_INCR, STENCIL_OP_DECR, STENCIL_OP_DECR, STENCIL_OP_INVERT, STENCIL_OP_INCR_WRAP, STENCIL_OP_DECR_WRAP };
-    const uint8_t   initial[] = { 0x55, 0x55, 0x7e, 0xff, 2, 0, 0x55, 0xff, 0 };
-    const uint8_t   expected[] = { 0, 0xa6, 0x7f, 0xff, 1, 0, 0xaa, 0, 0xff };
+    const CaptureStencilOperation operations[] = {
+        { STENCIL_OP_ZERO,      0x55, 0    },
+        { STENCIL_OP_REPLACE,   0x55, 0xa6 },
+        { STENCIL_OP_INCR,      0x7e, 0x7f },
+        { STENCIL_OP_INCR,      0xff, 0xff },
+        { STENCIL_OP_DECR,      2,    1    },
+        { STENCIL_OP_DECR,      0,    0    },
+        { STENCIL_OP_INVERT,    0x55, 0xaa },
+        { STENCIL_OP_INCR_WRAP, 0xff, 0    },
+        { STENCIL_OP_DECR_WRAP, 0,    0xff },
+    };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(operations); ++i)
     {
         SetColorMask(context, false, false, false, false);
         SetStencilMask(context, 0xff);
-        SetStencilFunc(context, COMPARE_FUNC_ALWAYS, initial[i], 0xff);
+        SetStencilFunc(context, COMPARE_FUNC_ALWAYS, operations[i].m_Initial, 0xff);
         SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
         DrawRectangle(context, RECT_OP_FIRST + i);
+
         SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0xa6, 0xff);
-        SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, operations[i]);
+        SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, operations[i].m_Operation);
         DrawRectangle(context, RECT_OP_FIRST + i);
-        DrawStencilValue(context, expected[i], 0xff, RECT_OP_FIRST + i);
+
+        DrawStencilValue(context, operations[i].m_Expected, 0xff, RECT_OP_FIRST + i);
     }
 }
 
@@ -557,6 +608,7 @@ static void RenderDepthStencil(HContext context)
     EnableState(context, STATE_DEPTH_TEST);
     SetDepthFunc(context, COMPARE_FUNC_ALWAYS);
     DrawRectangle(context, RECT_DEPTH_OCCLUDER);
+
     SetDepthMask(context, false);
     SetDepthFunc(context, COMPARE_FUNC_LESS);
     EnableState(context, STATE_STENCIL_TEST);
@@ -565,10 +617,12 @@ static void RenderDepthStencil(HContext context)
     DrawRectangle(context, RECT_DEPTH_NEAR);
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 2, 0xff);
     DrawRectangle(context, RECT_DEPTH_FAR);
+
     // Stencil failure must take precedence even where depth would also fail.
     SetStencilFunc(context, COMPARE_FUNC_NEVER, 3, 0xff);
     SetStencilOp(context, STENCIL_OP_INVERT, STENCIL_OP_ZERO, STENCIL_OP_REPLACE);
     DrawRectangle(context, RECT_DEPTH_STENCIL_FAIL);
+
     DisableState(context, STATE_DEPTH_TEST);
     DrawStencilValue(context, 1, 0xff, RECT_ORANGE);
     DrawStencilValue(context, 2, 0xff, RECT_GREEN);
@@ -583,16 +637,19 @@ static void RenderStencilFaces(HContext context)
     SetStencilOpSeparate(context, FACE_TYPE_BACK, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_INVERT);
     DrawRectangle(context, RECT_FACE_FRONT);
     DrawRectangle(context, RECT_FACE_BACK);
+
     // Read with identical face state so a swapped front/back implementation
     // cannot cancel its own mistake between writing and reading.
     DrawStencilValue(context, 1, 0xff, RECT_FACE_FRONT);
     DrawStencilValue(context, 0xff, 0xff, RECT_FACE_BACK);
+
     SetColorMask(context, false, false, false, false);
     SetStencilMask(context, 0xff);
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
     SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
     DrawRectangle(context, RECT_FACE_COMPARE_FRONT);
     DrawRectangle(context, RECT_FACE_COMPARE_BACK);
+
     // The graphics API shares reference/read mask between faces; vary only
     // their comparison functions. Wrong face state leaves a rectangle missing.
     SetStencilFuncSeparate(context, FACE_TYPE_FRONT, COMPARE_FUNC_EQUAL, 1, 0xff);
@@ -600,6 +657,7 @@ static void RenderStencilFaces(HContext context)
     SetStencilOp(context, STENCIL_OP_REPLACE, STENCIL_OP_KEEP, STENCIL_OP_INVERT);
     DrawRectangle(context, RECT_FACE_COMPARE_FRONT);
     DrawRectangle(context, RECT_FACE_COMPARE_BACK);
+
     DrawStencilValue(context, 0xfe, 0xff, RECT_FACE_COMPARE_FRONT);
     DrawStencilValue(context, 1, 0xff, RECT_FACE_COMPARE_BACK);
 }
@@ -618,9 +676,11 @@ static void RenderCapture(HContext context, const CaptureResources& resources, c
     SetFaceWinding(context, FACE_WINDING_CCW);
     SetStencilMask(context, 0xff);
     Clear(context, CAPTURE_BUFFERS, 37, 73, 109, 255, 1.0f, 0);
+
     EnableProgram(context, resources.m_Program);
     EnableVertexBuffer(context, resources.m_Vertices, 0);
     EnableVertexDeclaration(context, resources.m_Declaration, 0, 0, resources.m_Program);
+
     if (strcmp(name, "triangle") == 0)
     {
         Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
@@ -671,6 +731,7 @@ static bool WriteCaptureImage(const char* filename, const uint8_t* pixels)
     dmArray<uint8_t> rgba;
     rgba.SetCapacity(CAPTURE_BYTES);
     rgba.SetSize(CAPTURE_BYTES);
+
     // Metal, Vulkan and WebGPU follow the production offscreen orientation.
     // Normalize rows only when exporting the image, preserving rasterizer winding.
     bool flip_y = GetInstalledAdapterFamily() != ADAPTER_FAMILY_OPENGL;
@@ -687,6 +748,7 @@ static bool WriteCaptureImage(const char* filename, const uint8_t* pixels)
             destination[x + 3] = source[x + 3];
         }
     }
+
     bool written = stbi_write_png(filename, CAPTURE_SIZE, CAPTURE_SIZE, 4, rgba.Begin(), CAPTURE_SIZE * 4) != 0;
     if (!written)
     {
@@ -741,7 +803,7 @@ static bool CheckReadbackContinuation(HContext context, const CaptureResources& 
     dmArray<uint8_t> actual;
     bool             valid = true;
     const char*      checks[] = { "viewport", "depth-stencil" };
-    for (uint32_t check = 0; check < 2; ++check)
+    for (uint32_t check = 0; check < DM_ARRAY_SIZE(checks); ++check)
     {
         // Compare an uninterrupted draw sequence against the same sequence
         // split by ReadPixels. No state setters or clears follow that split.
@@ -767,10 +829,12 @@ static bool CheckReadbackContinuation(HContext context, const CaptureResources& 
                 SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
                 SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
                 DrawRectangle(context, RECT_BASIC_MASK);
+
                 SetStencilMask(context, 0);
                 SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_KEEP);
                 SetDepthMask(context, true);
                 DrawRectangle(context, RECT_DEPTH_OCCLUDER);
+
                 SetDepthMask(context, false);
                 SetDepthFunc(context, COMPARE_FUNC_LESS);
                 SetStencilFunc(context, COMPARE_FUNC_EQUAL, 1, 0xff);
@@ -818,6 +882,7 @@ static bool CaptureImage(HContext context, const CaptureResources& resources, co
     BeginFrame(context);
     RenderCapture(context, resources, name);
     ReadCapturePixels(context, pixels);
+
     // An unaligned row width exercises staging-buffer padding and a nonzero
     // source offset, without changing the image used for likeness scoring.
     uint8_t narrow[13 * CAPTURE_SIZE * 4] = {};
@@ -825,12 +890,15 @@ static bool CaptureImage(HContext context, const CaptureResources& resources, co
     bool valid = true;
     for (uint32_t row = 0; row < CAPTURE_SIZE; ++row)
     {
-        valid = valid && memcmp(narrow + row * 13 * 4, pixels.Begin() + (row * CAPTURE_SIZE + 67) * 4, 13 * 4) == 0;
+        const uint8_t* actual_row = narrow + row * 13 * 4;
+        const uint8_t* expected_row = pixels.Begin() + (row * CAPTURE_SIZE + 67) * 4;
+        valid = valid && memcmp(actual_row, expected_row, 13 * 4) == 0;
     }
     if (!valid)
     {
         dmLogError("Capture subregion readback changed pixels or row ordering");
     }
+
     // A complete second render also checks that clears remove stale masks.
     if (strncmp(name, "stencil", 7) == 0)
     {
@@ -848,16 +916,19 @@ static bool CaptureImage(HContext context, const CaptureResources& resources, co
         WriteCaptureDiagnostic(filename, "repeated", repeated.Begin());
         valid = false;
     }
+
     // The triangle uses the untextured program shared by these continuation probes.
     if (strcmp(name, "triangle") == 0 && !CheckReadbackContinuation(context, resources, filename))
     {
         valid = false;
     }
+
     SetRenderTarget(context, 0, RenderTargetBindingParams());
     SetColorMask(context, true, true, true, true);
     DisableState(context, STATE_STENCIL_TEST);
     Clear(context, BUFFER_TYPE_COLOR0_BIT, 37, 73, 109, 255, 1.0f, 0);
     Flip(context);
+
     for (uint32_t i = 0; i < CAPTURE_BYTES; i += 4)
     {
         valid = valid && pixels[i + 3] == 255;
@@ -873,6 +944,7 @@ static bool CaptureImage(HContext context, const CaptureResources& resources, co
 static bool InitializeCapture(const CaptureBackend& backend, CaptureContext* capture)
 {
     capture->m_Window = dmPlatform::NewWindow();
+
     WindowCreateParams window_params;
     WindowCreateParamsInitialize(&window_params);
     window_params.m_Width = CAPTURE_SIZE;
@@ -946,8 +1018,15 @@ int RunGraphicsCapture(int argc, char** argv)
     bool selected = false;
     for (int i = 1; i < argc; ++i)
     {
-        selected = selected || strncmp(argv[i], "--case", 6) == 0 || strcmp(argv[i], "--list-cases") == 0 ||
-        strcmp(argv[i], "--backend") == 0 || strcmp(argv[i], "--output") == 0 || strcmp(argv[i], "--output-file") == 0;
+        if (strncmp(argv[i], "--case", 6) == 0 ||
+            strcmp(argv[i], "--list-cases") == 0 ||
+            strcmp(argv[i], "--backend") == 0 ||
+            strcmp(argv[i], "--output") == 0 ||
+            strcmp(argv[i], "--output-file") == 0)
+        {
+            selected = true;
+            break;
+        }
     }
     if (!selected)
     {
@@ -1001,7 +1080,11 @@ int RunGraphicsCapture(int argc, char** argv)
     bool known_case = false;
     for (uint32_t i = 0; name && i < DM_ARRAY_SIZE(CAPTURE_CASES); ++i)
     {
-        known_case = known_case || strcmp(name, CAPTURE_CASES[i]) == 0;
+        if (strcmp(name, CAPTURE_CASES[i]) == 0)
+        {
+            known_case = true;
+            break;
+        }
     }
     if (list || !known_case || !backend_name || (directory && output_file))
     {
@@ -1014,6 +1097,7 @@ int RunGraphicsCapture(int argc, char** argv)
         if (strcmp(backend_name, CAPTURE_BACKENDS[i].m_Name) == 0)
         {
             backend = &CAPTURE_BACKENDS[i];
+            break;
         }
     }
     if (!backend || !InstallAdapter(backend->m_Family) || GetInstalledAdapterFamily() != backend->m_Family)
@@ -1024,8 +1108,16 @@ int RunGraphicsCapture(int argc, char** argv)
     dmLogInfo("GRAPHICS_CAPTURE_BACKEND=%s", backend->m_Name);
 
     char filename[1024];
-    int  length = output_file ? dmSnPrintf(filename, sizeof(filename), "%s", output_file) :
-                                dmSnPrintf(filename, sizeof(filename), "%s/%s/%s.png", directory ? directory : "graphics-test-images", backend_name, name);
+    int length;
+    if (output_file)
+    {
+        length = dmSnPrintf(filename, sizeof(filename), "%s", output_file);
+    }
+    else
+    {
+        const char* output_directory = directory ? directory : "graphics-test-images";
+        length = dmSnPrintf(filename, sizeof(filename), "%s/%s/%s.png", output_directory, backend_name, name);
+    }
     if (length < 0 || length >= (int)sizeof(filename) || !MakeCaptureParent(filename))
     {
         dmLogError("Cannot create capture output path");

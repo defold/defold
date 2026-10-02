@@ -4730,12 +4730,12 @@ bail:
                 VulkanTexture* new_texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_handle);
 
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color->m_UsageFlags;
+                VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
                 if (!has_msaa && !IsTextureMemoryless(new_texture_color))
                 {
                     vk_usage_flags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
                 }
-                VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
                 if (IsTextureMemoryless(new_texture_color))
                 {
                     vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
@@ -4775,7 +4775,10 @@ bail:
                     HTexture new_texture_color_resolve_handle = NewTexture((HContext) context, params.m_ColorBufferCreationParams[i]);
                     VulkanTexture* new_texture_color_resolve = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_resolve_handle);
 
-                    VkImageUsageFlags vk_resolve_usage_flags = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | new_texture_color_resolve->m_UsageFlags) & ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+                    VkImageUsageFlags vk_resolve_usage_flags = new_texture_color_resolve->m_UsageFlags;
+                    vk_resolve_usage_flags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+                    vk_resolve_usage_flags &= ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+
                     VkResult resolve_res = CreateTexture(
                         context->m_PhysicalDevice.m_Device,
                         context->m_LogicalDevice.m_Device,
@@ -4936,12 +4939,12 @@ bail:
                 VkSampleCountFlagBits vk_sample_count = (VkSampleCountFlagBits) brt->m_SampleCount;
                 const bool has_msaa = vk_sample_count > VK_SAMPLE_COUNT_1_BIT;
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
+                VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
                 if (rt->m_Base.m_SampleCount == 1 && !IsTextureMemoryless(texture_color))
                 {
                     vk_usage_flags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
                 }
-                VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
                 if (IsTextureMemoryless(texture_color))
                 {
                     vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
@@ -4982,7 +4985,9 @@ bail:
             if (brt->m_TextureColorResolve[i])
             {
                 VulkanTexture* texture_color_resolve = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColorResolve[i]);
-                VkImageUsageFlags vk_resolve_usage_flags = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | texture_color_resolve->m_UsageFlags) & ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+                VkImageUsageFlags vk_resolve_usage_flags = texture_color_resolve->m_UsageFlags;
+                vk_resolve_usage_flags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+                vk_resolve_usage_flags &= ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
 
                 texture_color_resolve->m_ImageLayout[0] = VK_IMAGE_LAYOUT_PREINITIALIZED;
 

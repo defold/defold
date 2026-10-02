@@ -5821,6 +5821,7 @@ namespace dmGraphics
             {
                 memcpy(dst + row * dst_row_size, src + row * src_row_size, dst_row_size);
             }
+
             // ReadPixels exposes BGRA even when an offscreen attachment is RGBA.
             if (source_texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm ||
                 source_texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm_sRGB)
