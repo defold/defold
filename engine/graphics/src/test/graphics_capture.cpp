@@ -123,6 +123,8 @@ static const uint32_t CAPTURE_SIZE = 256;
 static const uint32_t CAPTURE_BYTES = CAPTURE_SIZE * CAPTURE_SIZE * 4;
 static const uint32_t CAPTURE_BUFFERS = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
 
+// Each case renders to an offscreen target. run_graphics_images.py compares its
+// PNG with a reviewed reference; the comments below describe the expected image.
 static const char*    CAPTURE_CASES[] = {
     "clear",
     "triangle",
@@ -509,6 +511,8 @@ static void DeleteCaptureResources(HContext context, CaptureResources* resources
     }
 }
 
+// Reveal a stored stencil value with a colored rectangle without changing it.
+// The stencil cases use this to turn otherwise invisible mask errors into pixels.
 static void DrawStencilValue(HContext context, uint32_t reference, uint32_t mask, uint32_t rectangle)
 {
     SetColorMask(context, true, true, true, true);
@@ -519,6 +523,9 @@ static void DrawStencilValue(HContext context, uint32_t reference, uint32_t mask
 }
 
 // Verifies nested masks clip their children, including child geometry outside the parent.
+// Write outer level 1, then increment accepted child pixels to levels 2 and 3.
+// Expect nested orange, green and blue regions; color outside a parent exposes
+// an incorrect comparison or an increment applied to rejected pixels.
 static void RenderNestedStencil(HContext context)
 {
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
@@ -538,16 +545,21 @@ static void RenderNestedStencil(HContext context)
 }
 
 // Verifies masked writes preserve other bits and comparisons mask both stored and reference values.
+// Start at 0xa0, write low bits on the left and high bits on the right. Expect
+// 0xa5 on the left, 0x30 on the right and 0x35 in their overlap, revealed as
+// orange, green and blue on yellow. Magenta/cyan strips then check masked reads.
 static void RenderStencilMasks(HContext context)
 {
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0xa0, 0xff);
     SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
     DrawRectangle(context, RECT_YELLOW);
 
+    // Only the low nibble may change: the reference's high bits must be ignored.
     SetStencilMask(context, 0x0f);
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0xf5, 0xff);
     DrawRectangle(context, RECT_BITS_LEFT);
 
+    // Preserve those low bits in the overlap while replacing the high nibble.
     SetStencilMask(context, 0xf0);
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0x30, 0xff);
     DrawRectangle(context, RECT_BITS_RIGHT);
@@ -568,6 +580,9 @@ static void RenderStencilMasks(HContext context)
 }
 
 // Verifies each stencil operation, including saturation and wrap at the byte limits.
+// Seed each tile with its initial value, apply the operation, then draw green
+// only where the result equals the expected value. All nine tiles must appear;
+// a missing tile identifies the failing operation or clamp/wrap boundary.
 static void RenderStencilOperations(HContext context)
 {
     // Row-major tiles: zero, replace, increment, increment-clamp, decrement,
@@ -600,6 +615,10 @@ static void RenderStencilOperations(HContext context)
 }
 
 // Verifies depth-fail and stencil-fail operations with back-face culling enabled on an offscreen target.
+// An invisible depth occluder crosses three horizontal bands. Expect an orange
+// near band, a green far band with an orange center, and a blue stencil-fail band.
+// This distinguishes pass, depth-fail and stencil-fail operations while also
+// checking that the production offscreen winding survives back-face culling.
 static void RenderDepthStencil(HContext context)
 {
     EnableState(context, STATE_CULL_FACE);
@@ -609,6 +628,8 @@ static void RenderDepthStencil(HContext context)
     SetDepthFunc(context, COMPARE_FUNC_ALWAYS);
     DrawRectangle(context, RECT_DEPTH_OCCLUDER);
 
+    // The near band passes everywhere and stores 1. The far band stores 2
+    // outside the occluder; behind it, depth failure increments zero to 1.
     SetDepthMask(context, false);
     SetDepthFunc(context, COMPARE_FUNC_LESS);
     EnableState(context, STATE_STENCIL_TEST);
@@ -619,6 +640,8 @@ static void RenderDepthStencil(HContext context)
     DrawRectangle(context, RECT_DEPTH_FAR);
 
     // Stencil failure must take precedence even where depth would also fail.
+    // INVERT produces 0xff across the entire bottom band. Choosing the depth-fail
+    // ZERO operation instead would leave a gap in its blue readout.
     SetStencilFunc(context, COMPARE_FUNC_NEVER, 3, 0xff);
     SetStencilOp(context, STENCIL_OP_INVERT, STENCIL_OP_ZERO, STENCIL_OP_REPLACE);
     DrawRectangle(context, RECT_DEPTH_STENCIL_FAIL);
@@ -630,6 +653,9 @@ static void RenderDepthStencil(HContext context)
 }
 
 // Verifies separate front/back state using production shader orientation; guards against swapped face assignments.
+// Opposite windings must select different operations (top pair) and comparisons
+// (bottom pair). Expect orange/cyan above magenta/green; swapped face state or
+// accidentally reusing the front-face settings makes one or more tiles disappear.
 static void RenderStencilFaces(HContext context)
 {
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
@@ -652,6 +678,8 @@ static void RenderStencilFaces(HContext context)
 
     // The graphics API shares reference/read mask between faces; vary only
     // their comparison functions. Wrong face state leaves a rectangle missing.
+    // Both tiles contain 1: front EQUAL passes and inverts it to 0xfe, while
+    // back NOTEQUAL fails and replaces it with 1. Read both with common state.
     SetStencilFuncSeparate(context, FACE_TYPE_FRONT, COMPARE_FUNC_EQUAL, 1, 0xff);
     SetStencilFuncSeparate(context, FACE_TYPE_BACK, COMPARE_FUNC_NOTEQUAL, 1, 0xff);
     SetStencilOp(context, STENCIL_OP_REPLACE, STENCIL_OP_KEEP, STENCIL_OP_INVERT);
@@ -662,6 +690,8 @@ static void RenderStencilFaces(HContext context)
     DrawStencilValue(context, 1, 0xff, RECT_FACE_COMPARE_BACK);
 }
 
+// Reset the target and draw one case. Stencil cases first build masks with color
+// writes disabled, then reveal their values through DrawStencilValue.
 static void RenderCapture(HContext context, const CaptureResources& resources, const char* name)
 {
     SetRenderTarget(context, resources.m_Target, RenderTargetBindingParams());
@@ -675,6 +705,9 @@ static void RenderCapture(HContext context, const CaptureResources& resources, c
     SetDepthMask(context, true);
     SetFaceWinding(context, FACE_WINDING_CCW);
     SetStencilMask(context, 0xff);
+    // The "clear" case issues no draw: expect opaque RGB (37, 73, 109) everywhere.
+    // Unequal channels expose RGBA/BGRA swaps, and readback must flush a deferred
+    // clear even when no draw has started a render pass.
     Clear(context, CAPTURE_BUFFERS, 37, 73, 109, 255, 1.0f, 0);
 
     EnableProgram(context, resources.m_Program);
@@ -683,10 +716,15 @@ static void RenderCapture(HContext context, const CaptureResources& resources, c
 
     if (strcmp(name, "triangle") == 0)
     {
+        // Asymmetric positions and interpolated colors expose flipped coordinates,
+        // vertex-layout errors and channel swaps: blue above, red left, green right.
         Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
     }
     else if (strcmp(name, "cubemap") == 0)
     {
+        // Sampling the uploaded cubemap by direction checks face order, binding and
+        // orientation. Expect +Y above; -X, +Z, +X, -Z across; and -Y below. Labels
+        // and unequal corner markers expose swapped, rotated or mirrored faces.
         SetSampler(context, resources.m_CubemapLocation, 0);
         EnableTexture(context, 0, 0, resources.m_Cubemap);
         Draw(context, PRIMITIVE_TRIANGLES, 0, 36, 1);
@@ -718,6 +756,9 @@ static void RenderCapture(HContext context, const CaptureResources& resources, c
         }
         else
         {
+            // Basic stencil: write 1 into an invisible mask, then draw a larger
+            // orange rectangle through EQUAL. Only their intersection may appear;
+            // the surrounding pixels must retain the clear color.
             SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
             SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
             DrawRectangle(context, RECT_BASIC_MASK);
@@ -797,6 +838,9 @@ static void ReadCapturePixels(HContext context, dmArray<uint8_t>& pixels)
 }
 
 // Verifies readback preserves the active viewport and depth/stencil contents for subsequent draws.
+// Compare exact pixels with an uninterrupted draw sequence. The viewport probe
+// catches a changed triangle position/scale; the depth/stencil probe catches a
+// lost mask or occluder when ReadPixels ends and resumes the render pass.
 static bool CheckReadbackContinuation(HContext context, const CaptureResources& resources, const char* filename)
 {
     dmArray<uint8_t> expected;
@@ -821,6 +865,9 @@ static bool CheckReadbackContinuation(HContext context, const CaptureResources& 
             }
             else
             {
+                // Prepare an invisible mask and nearer occluder. After readback,
+                // the far rectangle must still be rejected outside the mask and
+                // behind the occluder, without rebinding or restoring any state.
                 EnableState(context, STATE_DEPTH_TEST);
                 EnableState(context, STATE_STENCIL_TEST);
                 SetColorMask(context, false, false, false, false);
@@ -868,6 +915,9 @@ static bool CheckReadbackContinuation(HContext context, const CaptureResources& 
 }
 
 // Verifies deterministic repeated rendering and subregion readback; guards against stale clear pipeline state.
+// Every case must match a second render in the same frame, and a narrow readback
+// must exactly match its slice of the full image. These checks can fail even when
+// the first PNG matches its reference, so they also contribute to the exit status.
 static bool CaptureImage(HContext context, const CaptureResources& resources, const char* name, const char* filename)
 {
     const char* diagnostics[] = { "repeated", "viewport-expected", "viewport-actual", "depth-stencil-expected", "depth-stencil-actual" };
@@ -903,6 +953,8 @@ static bool CaptureImage(HContext context, const CaptureResources& resources, co
     if (strncmp(name, "stencil", 7) == 0)
     {
         // Poison pixels outside the mask so the next stencil clear must work.
+        // The following draw must also restore its pipeline after the clear's
+        // internal draw; a stale Metal pipeline cache previously lost these masks.
         SetColorMask(context, false, false, false, false);
         SetStencilMask(context, 0xff);
         SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
@@ -929,6 +981,7 @@ static bool CaptureImage(HContext context, const CaptureResources& resources, co
     Clear(context, BUFFER_TYPE_COLOR0_BIT, 37, 73, 109, 255, 1.0f, 0);
     Flip(context);
 
+    // Opaque alpha also rejects a readback that leaves its zeroed buffer untouched.
     for (uint32_t i = 0; i < CAPTURE_BYTES; i += 4)
     {
         valid = valid && pixels[i + 3] == 255;
