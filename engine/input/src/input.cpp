@@ -937,7 +937,7 @@ namespace dmInput
 
     void ClearAction(void*, const dmhash_t* id, Action* action)
     {
-        // Keep the source for generated releases, including the frame after a wheel pulse.
+        // Active inputs replace the source; the final release keeps the previous source.
         action->m_PrevValue = action->m_Value;
         action->m_Value = 0.0f;
         action->m_PositionSet = 0;
@@ -984,7 +984,6 @@ namespace dmInput
         {
             KeyboardBinding* keyboard_binding = binding->m_KeyboardBinding;
             dmHID::KeyboardPacket* packet = &keyboard_binding->m_Packet;
-            dmHID::KeyboardPacket* prev_packet = &keyboard_binding->m_PreviousPacket;
             if (dmHID::GetKeyboardPacket(keyboard_binding->m_Keyboard, packet))
             {
                 const dmArray<KeyTrigger>& triggers = keyboard_binding->m_Triggers;
@@ -995,7 +994,7 @@ namespace dmInput
                     Action* action = binding->m_Actions.Get(trigger.m_ActionId);
                     if (action != 0x0)
                     {
-                        if (v != 0.0f || dmHID::GetKey(prev_packet, KEY_MAP[trigger.m_Input]))
+                        if (v != 0.0f)
                         {
                             action->m_Source = dmHID::INPUT_SOURCE_KEYBOARD;
                         }
@@ -1006,7 +1005,6 @@ namespace dmInput
                         UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                     }
                 }
-                *prev_packet = *packet;
             }
         }
         if (binding->m_TextBinding != 0x0)
@@ -1077,7 +1075,6 @@ namespace dmInput
                 {
                     const MouseTrigger& trigger = triggers[i];
                     float v = 0.0f;
-                    bool released = false;
                     dmHID::InputSource source = dmHID::INPUT_SOURCE_MOUSE;
                     switch (trigger.m_Input)
                     {
@@ -1091,10 +1088,7 @@ namespace dmInput
                     {
                         dmHID::MouseButton button = MOUSE_BUTTON_MAP[trigger.m_Input];
                         v = dmHID::GetMouseButton(packet, button) ? 1.0f : 0.0f;
-                        released = v == 0.0f && dmHID::GetMouseButton(prev_packet, button);
-                        // A release keeps the source of the button that was held.
-                        dmHID::MousePacket* source_packet = released ? prev_packet : packet;
-                        if (button == dmHID::MOUSE_BUTTON_LEFT && source_packet->m_LeftButtonFromTouch)
+                        if (button == dmHID::MOUSE_BUTTON_LEFT && packet->m_LeftButtonFromTouch)
                         {
                             source = dmHID::INPUT_SOURCE_TOUCH;
                         }
@@ -1107,7 +1101,7 @@ namespace dmInput
 
                     if (action != 0x0)
                     {
-                        if (v != 0.0f || released)
+                        if (v != 0.0f)
                         {
                             action->m_Source = source;
                         }

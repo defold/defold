@@ -1110,7 +1110,7 @@ TEST_F(InputTest, ButtonSourceLifetime)
     dmInput::DeleteBinding(binding);
 }
 
-// Verifies merged sources follow contributing devices, excluding idle polls and incidental coordinates.
+// Verifies merged sources follow active contributors, excluding releases, idle polls, and incidental coordinates.
 TEST_F(InputTest, SharedBindingSources)
 {
     dmInputDDF::KeyTrigger key_trigger = {dmInputDDF::KEY_0, "shared"};
@@ -1151,7 +1151,8 @@ TEST_F(InputTest, SharedBindingSources)
     dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, false);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, action->m_Source);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_KEYBOARD, action->m_Source);
+    ASSERT_EQ(1.0f, action->m_Value);
     ASSERT_FALSE(action->m_Released);
 
     dmHID::SetMousePosition(mouse, 10, 20);
@@ -1181,6 +1182,62 @@ TEST_F(InputTest, SharedBindingSources)
 
     dmInput::SetBinding(binding, &ddf);
     ASSERT_EQ(dmHID::INPUT_SOURCE_KEYBOARD, dmInput::GetAction(binding, dmHashString64("shared"))->m_Source);
+    dmInput::DeleteBinding(binding);
+}
+
+// Verifies either release order and simultaneous releases preserve the active or final source, including touch-emulated clicks.
+TEST_F(InputTest, SharedButtonSourcesFollowActiveInputs)
+{
+    dmInputDDF::KeyTrigger key_trigger = {dmInputDDF::KEY_0, "shared"};
+    dmInputDDF::MouseTrigger mouse_trigger = {dmInputDDF::MOUSE_BUTTON_LEFT, "shared"};
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_KeyTrigger.m_Data = &key_trigger;
+    ddf.m_KeyTrigger.m_Count = 1;
+    ddf.m_MouseTrigger.m_Data = &mouse_trigger;
+    ddf.m_MouseTrigger.m_Count = 1;
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::HKeyboard keyboard = dmHID::GetKeyboard(m_HidContext, 0);
+    dmHID::HMouse mouse = dmHID::GetMouse(m_HidContext, 0);
+    const dmInput::Action* action = dmInput::GetAction(binding, dmHashString64("shared"));
+    const dmHID::InputSource pointer_sources[] = {dmHID::INPUT_SOURCE_MOUSE, dmHID::INPUT_SOURCE_TOUCH};
+
+    for (uint32_t i = 0; i < sizeof(pointer_sources) / sizeof(pointer_sources[0]); ++i)
+    {
+        struct Step
+        {
+            bool m_KeyDown;
+            bool m_MouseDown;
+            dmHID::InputSource m_Source;
+            bool m_Pressed;
+            bool m_Released;
+        };
+        const Step steps[] = {
+            {true,  false, dmHID::INPUT_SOURCE_KEYBOARD, true,  false},
+            {true,  true,  pointer_sources[i],           false, false},
+            {true,  false, dmHID::INPUT_SOURCE_KEYBOARD, false, false},
+            {true,  true,  pointer_sources[i],           false, false},
+            {false, true,  pointer_sources[i],           false, false},
+            {false, false, pointer_sources[i],           false, true},
+            {true,  true,  pointer_sources[i],           true,  false},
+            {false, false, pointer_sources[i],           false, true},
+            {false, false, pointer_sources[i],           false, false},
+        };
+        for (uint32_t j = 0; j < sizeof(steps) / sizeof(steps[0]); ++j)
+        {
+            const Step& step = steps[j];
+            dmHID::SetKey(keyboard, dmHID::KEY_0, step.m_KeyDown);
+            dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, step.m_MouseDown);
+            if (step.m_MouseDown && pointer_sources[i] == dmHID::INPUT_SOURCE_TOUCH)
+                mouse->m_Packet.m_LeftButtonFromTouch = 1;
+            dmHID::Update(m_HidContext);
+            dmInput::UpdateBinding(binding, m_DT);
+            ASSERT_EQ(step.m_Source, action->m_Source);
+            ASSERT_EQ(step.m_KeyDown || step.m_MouseDown ? 1.0f : 0.0f, action->m_Value);
+            ASSERT_EQ(step.m_Pressed, action->m_Pressed);
+            ASSERT_EQ(step.m_Released, action->m_Released);
+        }
+    }
     dmInput::DeleteBinding(binding);
 }
 #endif

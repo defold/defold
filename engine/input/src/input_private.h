@@ -31,7 +31,6 @@ namespace dmInput
     struct KeyboardBinding
     {
         dmHID::HKeyboard      m_Keyboard;
-        dmHID::KeyboardPacket m_PreviousPacket;
         dmHID::KeyboardPacket m_Packet;
         dmArray<KeyTrigger> m_Triggers;
     };

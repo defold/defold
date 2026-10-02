@@ -154,8 +154,10 @@ namespace dmGameObject
      *
      * If a named action merges contributions from several devices, the last
      * contributing device processed wins, in keyboard, text, mouse, then touch
-     * order. Idle device polling does not change the source. Gamepad actions
-     * remain separate per controller.
+     * order. Keyboard keys and mouse buttons contribute to source selection only
+     * while pressed or held. Their releases keep the previously reported source
+     * unless another input contributes in the same frame. Idle device polling
+     * does not change the source. Gamepad actions remain separate per controller.
      *
      * Pointer movement and accelerometer samples are delivered in separate callbacks,
      * both with `action_id == nil`. Pointer movement reports `hash("mouse")` or
