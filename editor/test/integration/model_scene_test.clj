@@ -26,6 +26,7 @@
             [editor.material :as material]
             [editor.math :as math]
             [editor.model-scene :as model-scene]
+            [editor.outline-view :as outline-view]
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.scene :as scene]
@@ -273,6 +274,44 @@
                           (is (= expected-shader
                                  (get-in (scene-mesh-user-data-by-material-index (g/node-value source-node-id :scene))
                                          [index :shader]))))))))))))))))
+
+;; Verifies outline paths hide a glTF/GLB mesh or Meshes group, guarding against mismatched scene and outline paths.
+(deftest gltf-selected-mesh-visibility
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
+        models-directory (io/file project-path "models")]
+    (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
+      (fs/create-file! (io/file models-directory "preview.gltf") (preview-gltf-content))
+      (fs/create-file! (io/file models-directory "preview.glb") (preview-glb-content))
+
+      (test-support/with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              project (test-util/setup-project! workspace)]
+          (doseq [source-proj-path ["/models/preview.gltf" "/models/preview.glb"]]
+            (testing source-proj-path
+              (let [source-node-id (test-util/resource-node project source-proj-path)
+                    preview-scene (g/node-value source-node-id :scene)
+                    decorated-outline (outline-view/decorate-outline
+                                        (g/node-value source-node-id :node-outline)
+                                        #{}
+                                        #{}
+                                        @test-util/localization
+                                        [])
+                    mesh-group-outline (get-in decorated-outline [:outline :children 0])
+                    mesh-outline (get-in mesh-group-outline [:children 0])
+                    mesh-node-id (:node-id mesh-outline)]
+                (doseq [[label selected-outline] [["Mesh" mesh-outline] ["Meshes group" mesh-group-outline]]]
+                  (testing label
+                    (doseq [hidden [false true false]]
+                      (let [render-data (scene/produce-scene-render-data
+                                          {:scene preview-scene
+                                           :selection [(:node-id selected-outline)]
+                                           :hidden-renderable-tags #{}
+                                           :hidden-node-outline-key-paths (if hidden #{(:node-outline-key-path selected-outline)} #{})
+                                           :local-camera (camera/make-camera)})]
+                        (doseq [render-pass [pass/opaque pass/opaque-selection]]
+                          (is (= (if hidden 0 2)
+                                 (count (filterv #(= mesh-node-id (:node-id %))
+                                                 (get-in render-data [:renderables render-pass]))))))))))))))))))
 
 ;; Verifies glTF/GLB metadata and picking, including the flat source scene used
 ;; by Model components.
