@@ -415,7 +415,18 @@
         (Vector4d. (:alpha-cutoff mesh-material-data)
                    (if (:double-sided mesh-material-data) 1.0 0.0)
                    (if (:unlit mesh-material-data) 1.0 0.0)
-                   0.0)]
+                   (case (:alpha-mode mesh-material-data)
+                     :alpha-mode-mask 1.0
+                     :alpha-mode-blend 2.0
+                     0.0))]
+       ["pbrEmissiveFactorAndStrength"
+        (doto (Vector4d.)
+          (math/clj->vecmath (conj (:emissive-factor mesh-material-data)
+                                   (:emissive-strength pbr-emissive-strength))))]
+       ["pbrNormalScaleAndOcclusionStrength"
+        (Vector4d. (get-in mesh-material-data [:normal-texture :scale])
+                   (get-in mesh-material-data [:occlusion-texture :scale])
+                   0.0 0.0)]
        ["pbrCommonTextures"
         (Vector4d. (pbr-texture-index->value
                      (get-in mesh-material-data [:normal-texture :texture :index]))

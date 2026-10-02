@@ -1,31 +1,8 @@
-/*
-MIT License
-
-Copyright (c) 2024 Defold
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
-
 #ifndef DEFOLD_PBR_BRDF
 #define DEFOLD_PBR_BRDF
 
-#include "/builtins/materials/gltf_material.glsl"
+#include "/builtins/materials/gltf_types.glsl"
+#include "/builtins/materials/gltf_common.glsl"
 
 /*
  * Microfacet BRDF helpers for metallic-roughness PBR.
@@ -78,7 +55,7 @@ void evaluate_brdf(MaterialInfo material, vec3 n, vec3 v, vec3 l, vec3 light_col
     diffuse_light = vec3(0.0);
     specular_light = vec3(0.0);
 
-    vec3 h = normalize(l + v);
+    vec3 h = pbr_normalize(l + v, n);
     float n_dot_l = clamped_dot(n, l);
     float n_dot_v = max(abs(dot(n, v)), PBR_EPSILON);
     float n_dot_h = clamped_dot(n, h);

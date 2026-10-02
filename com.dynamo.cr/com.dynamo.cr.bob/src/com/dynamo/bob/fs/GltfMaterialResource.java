@@ -31,6 +31,7 @@ import com.google.protobuf.TextFormat;
 public class GltfMaterialResource extends GltfResource {
 
     private static final String VERTEX_PROGRAM = "/builtins/materials/gltf.vp";
+    private static final String SKINNED_VERTEX_PROGRAM = "/builtins/materials/gltf_skinned.vp";
     private static final String FRAGMENT_PROGRAM = "/builtins/materials/gltf.fp";
 
     private final MaterialDesc materialDesc;
@@ -87,7 +88,7 @@ public class GltfMaterialResource extends GltfResource {
         MaterialDesc.Builder builder = MaterialDesc.newBuilder()
                 .setName(name)
                 .addTags("model")
-                .setVertexProgram(VERTEX_PROGRAM)
+                .setVertexProgram(material.isSkinned != 0 ? SKINNED_VERTEX_PROGRAM : VERTEX_PROGRAM)
                 .setFragmentProgram(FRAGMENT_PROGRAM)
                 .setVertexSpace(MaterialDesc.VertexSpace.VERTEX_SPACE_LOCAL);
 

@@ -28,6 +28,7 @@
             [editor.model-scene :as model-scene]
             [editor.outline-view :as outline-view]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.texture-util :as texture-util]
@@ -39,6 +40,7 @@
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]])
   (:import [ch.qos.logback.classic Logger]
+           [com.dynamo.rig.proto Rig$Material]
            [ch.qos.logback.core.read ListAppender]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
@@ -488,3 +490,16 @@
                       :content-hash)))
         (is (not (identical? initial-collision-preview-position-buffer
                              (collision-preview-position-buffer))))))))
+
+;; Verifies editor PBR factors match runtime, including alpha mode and valid zero factors.
+(deftest pbr-common-material-factors
+  (let [source (protobuf/str->map-with-defaults
+                 Rig$Material
+                 "alphaMode: ALPHA_MODE_BLEND emissiveFactor { x: 0.25 y: 0.5 z: 0.75 } emissiveStrength { emissiveStrength: 2 } normalTexture { scale: 0 } occlusionTexture { scale: 0.3 }")
+        uniforms (into {} (#'model-scene/make-renderable-material-data source))]
+    (is (= [0.25 0.5 0.75 2.0]
+           (math/vecmath->clj (uniforms "pbrEmissiveFactorAndStrength"))))
+    (is (= 2.0 (nth (math/vecmath->clj (uniforms "pbrAlphaCutoffAndDoubleSidedAndIsUnlit")) 3)))
+    (let [[normal-scale occlusion-strength] (math/vecmath->clj (uniforms "pbrNormalScaleAndOcclusionStrength"))]
+      (is (= 0.0 normal-scale))
+      (is (< (Math/abs (- 0.3 occlusion-strength)) 0.00001)))))

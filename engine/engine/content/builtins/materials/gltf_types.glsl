@@ -1,0 +1,68 @@
+#ifndef DEFOLD_PBR_TYPES
+#define DEFOLD_PBR_TYPES
+
+const int PBR_ALPHA_OPAQUE = 0;
+const int PBR_ALPHA_MASK = 1;
+const int PBR_ALPHA_BLEND = 2;
+
+// Resolved, linear material inputs. Modify these before get_material_info().
+struct PBRMaterial
+{
+    vec4 baseColor;
+    vec3 emissive;
+    float metallic;
+    float roughness;
+    float occlusion;
+    float alphaCutoff;
+    int alphaMode;
+    bool doubleSided;
+    bool unlit;
+};
+
+// Unit directions. Position/normal/view are view-space; world* are world-space.
+struct PBRSurface
+{
+    vec3 position;
+    vec3 normal;
+    vec3 geometricNormal;
+    vec3 view;
+    vec3 worldPosition;
+    vec3 worldNormal;
+    vec3 worldGeometricNormal;
+    vec3 worldView;
+};
+
+// Derived BRDF values. Rebuild after changing PBRMaterial's base inputs.
+struct MaterialInfo
+{
+    vec4 baseColor;
+    vec3 diffuseColor;
+    vec3 f0;
+    vec3 f90;
+    float metallic;
+    float perceptualRoughness;
+    float alphaRoughness;
+    float specularWeight;
+};
+
+struct PBRLightSample
+{
+    vec3 direction; // Unit surface-to-light direction, in view space.
+    vec3 radiance;  // Linear light color times intensity and attenuation.
+};
+
+// Linear outgoing light, already weighted by the material response.
+// IBL/GI providers must not apply albedo or the BRDF again when accumulating.
+struct PBRLightContribution
+{
+    vec3 diffuse;
+    vec3 specular;
+};
+
+struct PBRLighting
+{
+    PBRLightContribution direct;
+    PBRLightContribution indirect;
+};
+
+#endif

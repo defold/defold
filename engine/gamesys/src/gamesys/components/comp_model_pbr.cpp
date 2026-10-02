@@ -48,6 +48,9 @@ namespace dmGameSystem
     const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT                   = dmHashString64("pbrAlphaCutoffAndDoubleSidedAndIsUnlit");
     const dmhash_t PBR_COMMON_TEXTURES                                              = dmHashString64("pbrCommonTextures");
 
+    const dmhash_t PBR_EMISSIVE_FACTOR_AND_STRENGTH = dmHashString64("pbrEmissiveFactorAndStrength");
+    const dmhash_t PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH = dmHashString64("pbrNormalScaleAndOcclusionStrength");
+
     static dmRigDDF::Material g_DefaultMaterial;
     static bool               g_DefaultMaterialInitialized = false;
 
@@ -358,8 +361,14 @@ namespace dmGameSystem
         * vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit; // R: alphaCutoff (Default=0.5), G: doubleSided (Default=false), B: unlit (Default=false)
         * vec4 pbrCommonTextures;                      // R: use normalTexture, G: use occlusionTexture, B: use emissiveTexture
         ***********************************/
-        dmVMath::Vector4 alphaCutoffAndDoubleSidedAndIsUnlit = dmVMath::Vector4(ddf_material.m_Alphacutoff, ddf_material.m_Doublesided, ddf_material.m_Unlit, 0.0f);
+        dmVMath::Vector4 alphaCutoffAndDoubleSidedAndIsUnlit = dmVMath::Vector4(ddf_material.m_Alphacutoff, ddf_material.m_Doublesided, ddf_material.m_Unlit, (float) ddf_material.m_Alphamode);
         dmGameSystem::SetRenderConstant(constants, PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, &alphaCutoffAndDoubleSidedAndIsUnlit, 1);
+
+        dmVMath::Vector4 emissive_factor(ddf_material.m_Emissivefactor.getX(), ddf_material.m_Emissivefactor.getY(),
+                                       ddf_material.m_Emissivefactor.getZ(), ddf_material.m_Emissivestrength.m_Emissivestrength);
+        dmGameSystem::SetRenderConstant(constants, PBR_EMISSIVE_FACTOR_AND_STRENGTH, &emissive_factor, 1);
+        dmVMath::Vector4 texture_factors(ddf_material.m_Normaltexture.m_Scale, ddf_material.m_Occlusiontexture.m_Scale, 0.0f, 0.0f);
+        dmGameSystem::SetRenderConstant(constants, PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH, &texture_factors, 1);
 
         if (ddf_material.m_Normaltexture.m_Texture.m_Index != -1 ||
             ddf_material.m_Occlusiontexture.m_Texture.m_Index != -1 ||

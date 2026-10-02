@@ -1,4 +1,5 @@
 #version 140
 
+#define PBR_INSTANCED
 #include "/builtins/materials/gltf_vertex_inputs.glsl"
 #include "/builtins/materials/gltf_vertex.glsl"
