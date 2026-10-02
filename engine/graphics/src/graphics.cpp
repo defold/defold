@@ -47,7 +47,7 @@ namespace dmGraphics
     static RenderThreadAdapterTimings g_RenderThreadTimings = 0;
     static void (*g_RenderMutationBarrier)(void*) = 0;
     static void* g_RenderMutationContext = 0;
-    static dmThread::Thread g_RenderProducerThread;
+    static dmThread::ThreadId g_RenderProducerThread;
     static VertexUploadBatch* g_VertexUploadCapture = 0;
 
     uint64_t GetVertexUploadCapacity(const VertexUploadBatch* batch)
@@ -168,12 +168,12 @@ namespace dmGraphics
     {
         g_RenderMutationBarrier = barrier;
         g_RenderMutationContext = context;
-        g_RenderProducerThread = dmThread::GetCurrentThread();
+        g_RenderProducerThread = dmThread::GetCurrentThreadId();
     }
 
     static void RenderMutationBarrier()
     {
-        if (g_RenderMutationBarrier && dmThread::GetCurrentThread() == g_RenderProducerThread && !IsGraphicsPacketOwner())
+        if (g_RenderMutationBarrier && dmThread::GetCurrentThreadId() == g_RenderProducerThread && !IsGraphicsPacketOwner())
             g_RenderMutationBarrier(g_RenderMutationContext);
     }
 

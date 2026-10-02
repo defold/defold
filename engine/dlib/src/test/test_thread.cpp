@@ -98,6 +98,32 @@ TEST(Thread, Tls)
     dmThread::FreeTls(g_TlsKey);
 }
 
+struct ThreadIdentityProbe
+{
+    dmThread::ThreadId m_First;
+    dmThread::ThreadId m_Second;
+};
+
+static void CaptureThreadIdentity(void* data)
+{
+    ThreadIdentityProbe* probe = (ThreadIdentityProbe*)data;
+    probe->m_First = dmThread::GetCurrentThreadId();
+    probe->m_Second = dmThread::GetCurrentThreadId();
+}
+
+// Verifies stable identities distinguish a worker from its live caller, guarding
+// against treating Windows' shared current-thread pseudo-handle as an identity.
+TEST(Thread, CurrentThreadIdentity)
+{
+    dmThread::ThreadId caller = dmThread::GetCurrentThreadId();
+    ThreadIdentityProbe probe = {};
+    dmThread::Thread worker = dmThread::New(CaptureThreadIdentity, 0x80000, &probe, "identity-test");
+    dmThread::Join(worker);
+    ASSERT_EQ(caller, dmThread::GetCurrentThreadId());
+    ASSERT_EQ(probe.m_First, probe.m_Second);
+    ASSERT_NE(caller, probe.m_First);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

@@ -15,7 +15,7 @@
 #include <assert.h>
 #include <dlib/profile/profile.h>
 #include <dmsdk/dlib/safe_windows.h>
-#include <dmsdk/dlib/thread.h>
+#include "thread.h"
 
 #include <stdlib.h>
 #include <wchar.h>
@@ -112,6 +112,11 @@ namespace dmThread
     void* GetTlsValue(TlsKey key)
     {
         return TlsGetValue(ToNativeTlsKey(key));
+    }
+
+    ThreadId GetCurrentThreadId()
+    {
+        return (ThreadId)::GetCurrentThreadId();
     }
 
     Thread GetCurrentThread()

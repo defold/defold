@@ -42,7 +42,8 @@ namespace dmGraphics
         GraphicsAdapterFunctionTable m_Backend;
         GraphicsAdapterFunctionTable* m_Frontend;
         HContext m_Context;
-        dmThread::Thread m_Producer, m_Owner, m_Thread;
+        dmThread::ThreadId m_Producer, m_Owner;
+        dmThread::Thread m_Thread;
         dmMutex::HMutex m_Mutex;
         dmConditionVariable::HConditionVariable m_Changed;
         GraphicsFramePacket m_Packets[2];
@@ -80,13 +81,13 @@ namespace dmGraphics
 
     bool IsGraphicsPacketOwner()
     {
-        return g_Packets && dmThread::GetCurrentThread() == g_Packets->m_Owner &&
+        return g_Packets && dmThread::GetCurrentThreadId() == g_Packets->m_Owner &&
             (g_Packets->m_Stats.m_Mode == 2 || g_Packets->m_ExecutingInline);
     }
 
     bool IsExternalGraphicsProducer()
     {
-        return g_Packets && g_Packets->m_External && dmThread::GetCurrentThread() == g_Packets->m_Producer && g_Packets->m_Producer != g_Packets->m_Owner;
+        return g_Packets && g_Packets->m_External && dmThread::GetCurrentThreadId() == g_Packets->m_Producer && g_Packets->m_Producer != g_Packets->m_Owner;
     }
 
     bool DispatchExternalGraphics(GraphicsOwnerTask execute, void* data)
@@ -99,7 +100,7 @@ namespace dmGraphics
     void AttachExternalGraphicsProducer()
     {
         assert(g_Packets && g_Packets->m_External);
-        g_Packets->m_Producer = dmThread::GetCurrentThread();
+        g_Packets->m_Producer = dmThread::GetCurrentThreadId();
     }
 
     void DetachExternalGraphicsProducer()
@@ -132,7 +133,7 @@ namespace dmGraphics
     static bool ProducerCall()
     {
         if (g_Packets->m_Stats.m_Mode == 1 && g_Packets->m_ExecutingInline) return false;
-        if (dmThread::GetCurrentThread() == g_Packets->m_Producer) return true;
+        if (dmThread::GetCurrentThreadId() == g_Packets->m_Producer) return true;
         if (IsGraphicsPacketOwner()) return false; // Backend helper re-entry.
         PacketError("only the game producer and graphics owner are admitted");
         return false;
@@ -209,7 +210,7 @@ namespace dmGraphics
     {
         PacketService* s = (PacketService*)data;
         dmMutex::Lock(s->m_Mutex);
-        s->m_Owner = dmThread::GetCurrentThread();
+        s->m_Owner = dmThread::GetCurrentThreadId();
         s->m_Ready = true;
         dmConditionVariable::Broadcast(s->m_Changed);
         for (;;)
@@ -2019,7 +2020,7 @@ namespace dmGraphics
         s->m_External = external;
         s->m_RenderLayer = external != 0;
         s->m_DelayUs = delay_us;
-        s->m_Producer = s->m_Owner = dmThread::GetCurrentThread();
+        s->m_Producer = s->m_Owner = dmThread::GetCurrentThreadId();
         s->m_Mutex = dmMutex::New();
         s->m_Changed = dmConditionVariable::New();
         s->m_Completions.SetCapacity(256);

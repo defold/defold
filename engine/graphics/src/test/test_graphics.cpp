@@ -2933,6 +2933,8 @@ static void RenderOwnerFrame(void* data)
 TEST_F(dmGraphicsTest, RenderLayerOwnerService)
 {
     ASSERT_TRUE(dmGraphics::StartRenderGraphicsOwner(m_Context, true));
+    // A saved Windows pseudo-handle must not classify the producer as the owner.
+    ASSERT_FALSE(dmGraphics::IsGraphicsPacketOwner());
     RenderOwnerProbe probe = {};
     probe.m_Context = m_Context;
     RenderOwnerRequestData request = {&probe, 42};

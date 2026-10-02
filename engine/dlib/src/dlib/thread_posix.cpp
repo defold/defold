@@ -20,7 +20,7 @@
 #include <unistd.h>
 #include <dlib/profile/profile.h>
 #include <dmsdk/dlib/static_assert.h>
-#include <dmsdk/dlib/thread.h>
+#include "thread.h"
 
 #if defined(_WIN32)
 #include <wchar.h>
@@ -154,6 +154,11 @@ namespace dmThread
     void* GetTlsValue(TlsKey key)
     {
         return pthread_getspecific(ToNativeTlsKey(key));
+    }
+
+    ThreadId GetCurrentThreadId()
+    {
+        return (ThreadId)ToThread(pthread_self());
     }
 
     Thread GetCurrentThread()

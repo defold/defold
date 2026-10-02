@@ -4705,7 +4705,7 @@ TEST(dmRenderThreadTest, RenderFramePassConstants)
 
 struct ExternalRenderProbe
 {
-    dmThread::Thread m_Owner;
+    dmThread::ThreadId m_Owner;
     uint32_t m_Count;
     uint64_t m_Ids[3];
     uint32_t m_Slots[3];
@@ -4714,7 +4714,7 @@ struct ExternalRenderProbe
 static void ConsumeExternalFrame(void* data, uint32_t slot, uint64_t id)
 {
     ExternalRenderProbe* probe = (ExternalRenderProbe*)data;
-    ASSERT_EQ(probe->m_Owner, dmThread::GetCurrentThread());
+    ASSERT_EQ(probe->m_Owner, dmThread::GetCurrentThreadId());
     probe->m_Ids[probe->m_Count] = id;
     probe->m_Slots[probe->m_Count++] = slot;
 }
@@ -4724,7 +4724,7 @@ static void ConsumeExternalFrame(void* data, uint32_t slot, uint64_t id)
 TEST(dmRenderThreadTest, ExternalOwnerPumpsPublishedFrames)
 {
     ExternalRenderProbe probe = {};
-    probe.m_Owner = dmThread::GetCurrentThread();
+    probe.m_Owner = dmThread::GetCurrentThreadId();
     dmRender::HRenderThread queue = dmRender::NewExternalRenderThread(ConsumeExternalFrame, &probe);
     ASSERT_FALSE(dmRender::PumpExternalRenderThread(queue));
     uint32_t slot = dmRender::BeginRenderThreadFrame(queue);

@@ -29,6 +29,12 @@
 
 namespace dmThread
 {
+    // Identity for equality checks between live threads, not a joinable handle.
+    // Windows GetCurrentThread() returns a pseudo-handle shared by all callers.
+    // Identities may be reused after a thread exits.
+    typedef uintptr_t ThreadId;
+    ThreadId GetCurrentThreadId();
+
     /*# check for threading support
      *
      * @name dmThread::PlatformHasThreadSupport
