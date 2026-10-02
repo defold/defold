@@ -140,7 +140,7 @@ namespace dmRender
     template <typename T> static bool Grow(RenderFrameBuilder* builder, dmArray<T>& array, uint32_t needed)
     {
         if (needed <= array.Capacity()) return true;
-        uint64_t capacity = dmMath::Max((uint64_t)needed, dmMath::Max(16ULL, (uint64_t)array.Capacity() * 2));
+        uint64_t capacity = dmMath::Max((uint64_t)needed, dmMath::Max((uint64_t)16, (uint64_t)array.Capacity() * 2));
         if (!AdmitRenderFrameAllocation(builder, (capacity - array.Capacity()) * sizeof(T), (uint64_t)array.Capacity() * sizeof(T))) return false;
         array.SetCapacity((uint32_t)capacity);
         return true;
