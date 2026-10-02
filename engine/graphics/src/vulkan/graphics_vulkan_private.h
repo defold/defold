@@ -183,8 +183,6 @@ namespace dmGraphics
             // the attachment load ops. For the main RT this also aliases context->m_MainRenderPass
             // (which already specifies CLEAR for both). VK_NULL_HANDLE when no depth attachment.
             VkRenderPass  m_RenderPassClearColorDepth;
-            // Preserves color and depth/stencil when ReadPixels splits a pass.
-            // Main RT aliases context->m_MainRenderPassLoad; offscreen RTs own it.
             VkRenderPass  m_RenderPassLoad;
             VkFramebuffer m_Framebuffer;
             VkFramebuffer m_CubeMapFramebuffers[CUBEMAP_FACE_COUNT - 1];
@@ -501,7 +499,7 @@ namespace dmGraphics
         DescriptorAllocator             m_MainDescriptorAllocators[DM_MAX_FRAMES_IN_FLIGHT];
         uint32_t                        m_DescriptorAllocatorGeneration[DM_MAX_FRAMES_IN_FLIGHT];
         VkRenderPass                    m_MainRenderPass;
-        VkRenderPass                    m_MainRenderPassLoad; // Compatible with m_MainRenderPass; loads color and depth/stencil when the main RT resumes mid-frame.
+        VkRenderPass                    m_MainRenderPassLoad; // Compatible with m_MainRenderPass, but uses LOAD_OP_LOAD to preserve contents when the main RT is rebound mid-frame.
         VulkanTexture                   m_MainTextureDepthStencil;
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;

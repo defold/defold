@@ -849,7 +849,6 @@ namespace dmGraphics
         // avoids a double-destroy.
         rt->m_Handle.m_RenderPassClear           = context->m_MainRenderPass;
         rt->m_Handle.m_RenderPassClearColorDepth = context->m_MainRenderPass;
-        rt->m_Handle.m_RenderPassLoad = context->m_MainRenderPassLoad;
         rt->m_Handle.m_Framebuffer     = context->m_MainFrameBuffers[0];
         rt->m_Extent                   = context->m_SwapChain->m_ImageExtent;
         RenderTarget* brt              = &rt->m_Base;
@@ -920,7 +919,6 @@ namespace dmGraphics
         attachments[0].m_ImageLayoutInitial = attachments[0].m_ImageLayout;
         attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
 
-        // Readback also resumes through this pass and must retain depth/stencil.
         attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
         attachments[1].m_ImageLayoutInitial = attachments[1].m_ImageLayout;
 
@@ -4548,9 +4546,7 @@ bail:
             }
         }
 
-        // Readback must resume the current target without repeating its initial
-        // load/clear policy or discarding the depth and stencil masks.
-        for (int i = 0; i < num_color_textures; ++i)
+        for (uint32_t i = 0; i < num_color_textures; ++i)
         {
             rp_attachments[i].m_LoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
             rp_attachments[i].m_ImageLayoutInitial = rp_attachments[i].m_ImageLayout;
@@ -4562,8 +4558,7 @@ bail:
         }
         res = CreateRenderPass(context->m_LogicalDevice.m_Device, vk_sample_count, rp_attachments, num_color_textures,
             rp_attachment_depth_stencil, has_msaa ? rp_resolve_attachments : 0, &rtOut->m_Handle.m_RenderPassLoad);
-        if (res != VK_SUCCESS)
-            return res;
+        if (res != VK_SUCCESS) return res;
 
         const bool is_cube_map = rtOut->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP;
         if (is_cube_map)
@@ -6130,6 +6125,7 @@ bail:
         CHECK_VK_ERROR(res);
 
         memcpy(buffer, stage_buffer.m_MappedDataPtr, width * height * 4);
+        // Match OpenGLReadPixels: callers receive BGRA regardless of attachment format.
         if (texture->m_Format == VK_FORMAT_R8G8B8A8_UNORM || texture->m_Format == VK_FORMAT_R8G8B8A8_SRGB)
         {
             uint8_t* pixels = (uint8_t*) buffer;

@@ -107,6 +107,7 @@ class GraphicsImagesTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             return report.make_report(roots or [self.images], self.references, self.output)
 
+    # Verifies the inclusive 99% threshold and its pixel-error calculation.
     def test_threshold_boundary(self):
         self.assertFalse(report.passed(98.999999))
         self.assertTrue(report.passed(99.0))
@@ -120,6 +121,7 @@ class GraphicsImagesTest(unittest.TestCase):
             self.assertEqual(status, result['status'])
             self.assertAlmostEqual(100 * (1 - change / 255), result['likeness_percent'])
 
+    # Verifies full-image clear scoring and rejects empty foreground captures.
     def test_whole_clear_and_empty_foreground(self):
         path = self.references / 'clear.png'
         self.assertEqual('pass', report.comparison(path, path, self.root / 'diff.png', 'clear')['status'])
@@ -127,6 +129,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertEqual('fail', result['status'])
         self.assertIn('No foreground', result['reason'])
 
+    # Verifies a missing stencil mask cannot pass the likeness threshold.
     def test_unmasked_stencil_fails(self):
         image = self.fixture('stencil')
         image.paste((223, 96, 32), (32, 32, 224, 208))
@@ -136,6 +139,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertEqual('fail', result['status'])
         self.assertLess(result['likeness_percent'], 99)
 
+    # Verifies stencil references against independently specified output pixels.
     def test_advanced_stencil_references_match_expected_pixels(self):
         references = Path(report.__file__).with_name('graphics_reference')
         for case in report.CASES:
@@ -145,6 +149,7 @@ class GraphicsImagesTest(unittest.TestCase):
                     difference = report.likeness.ImageChops.difference(self.fixture(case), actual)
                     self.assertIsNone(difference.getbbox(), 'Reference does not match the expected stencil result')
 
+    # Verifies representative nested, mask, operation, depth and face regressions fail.
     def test_advanced_stencil_faults_fail_likeness(self):
         # Representative regressions: child escapes parent, write mask ignored,
         # one operation produces no tile, depth failure skipped, back face lost.
@@ -164,11 +169,13 @@ class GraphicsImagesTest(unittest.TestCase):
                 result = report.comparison(path, self.references / (case + '.png'), self.root / 'diff.png', case)
                 self.assertEqual('fail', result['status'])
 
+    # Verifies the reference cross contains the expected faces, labels and orientation.
     def test_cubemap_reference_matches_expected_cross(self):
         path = Path(report.__file__).with_name('graphics_reference') / 'cubemap.png'
         difference = report.likeness.ImageChops.difference(cubemap_fixture(), report.read_png(path))
         self.assertIsNone(difference.getbbox(), 'Cubemap faces, labels or orientation differ from the expected cross')
 
+    # Verifies missing, swapped, rotated and mirrored cubemap faces fail comparison.
     def test_cubemap_missing_swapped_and_mirrored_faces_fail(self):
         expected = cubemap_fixture()
         right_face = (128, 104, 176, 152)
@@ -192,6 +199,7 @@ class GraphicsImagesTest(unittest.TestCase):
                 result = report.comparison(path, self.references / 'cubemap.png', self.root / 'diff.png', 'cubemap')
                 self.assertEqual('fail', result['status'])
 
+    # Verifies invalid image files, dimensions and transparency are rejected.
     def test_missing_corrupt_dimensions_and_alpha(self):
         self.add_backend('metal')
         for case, damage in zip(report.CASES, ('missing', 'corrupt', 'dimensions')):
@@ -209,6 +217,7 @@ class GraphicsImagesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'opaque'):
             report.read_png(transparent)
 
+    # Verifies a missing reference fails its case without preventing a portable report.
     def test_missing_reference_fails_but_report_finishes(self):
         self.add_backend('metal')
         (self.references / 'triangle.png').unlink()
@@ -221,18 +230,20 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertIn('Rebuild this report', page)
         self.assertNotIn('src="http', page)
 
+    # Verifies saved captures from multiple hosts are compared against the references.
     def test_combines_captures_from_different_systems(self):
         self.add_backend('metal')
         other = self.root / 'windows'
         self.records = []
-        self.add_backend('dx12', root=other)
+        self.add_backend('vulkan', root=other)
         result = self.make_report([self.images, other])
         self.assertEqual(0, result['counts']['fail'])
         self.assertEqual(2 * len(report.CASES), len(result['comparisons']))
-        self.assertEqual({'metal', 'dx12'}, {r['backend'] for r in result['comparisons']})
+        self.assertEqual({'metal', 'vulkan'}, {r['backend'] for r in result['comparisons']})
         self.assertTrue(all(r['kind'] == 'reference' and r['likeness_percent'] == 100 for r in result['comparisons']))
         self.assertEqual(2 * len(report.CASES), result['counts']['pass'])
 
+    # Verifies each case is counted once even when capture and comparison disagree.
     def test_counts_final_case_outcomes_once(self):
         self.add_backend('metal')
         self.assertEqual({'pass': len(report.CASES), 'fail': 0, 'skip': 0}, self.make_report()['counts'])
@@ -242,6 +253,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertEqual('pass', result['captures'][0]['status'])
         self.assertEqual('fail', result['captures'][0]['case_status'])
 
+    # Verifies repeated-render failures retain diagnostic images and require exact equality.
     def test_failed_repeated_render_preserves_images_and_difference(self):
         self.add_backend('metal')
         record = self.records[2]
@@ -268,6 +280,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertIn('First render', page)
         self.assertIn('Repeated render', page)
 
+    # Verifies moved continuation diagnostics remain usable and failures count once.
     def test_continuation_diagnostics_relocate_and_count_once(self):
         self.add_backend('metal')
         original = self.images / 'metal/triangle.png'
@@ -286,6 +299,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertEqual(1, result['counts']['fail'])
         self.assertIn('No After readback image'.lower(), (self.output / 'index.html').read_text(encoding='utf-8').lower())
 
+    # Verifies saved provenance mismatches and graphics errors remain failures.
     def test_saved_backend_mismatch_and_graphics_error(self):
         self.add_backend('metal')
         self.records[0]['actual_backend'] = 'opengl'
@@ -293,6 +307,7 @@ class GraphicsImagesTest(unittest.TestCase):
         (self.images / 'captures.json').write_text(json.dumps(self.records))
         self.assertEqual(2, self.make_report()['counts']['fail'])
 
+    # Verifies missing manifest entries cannot silently reduce test coverage.
     def test_empty_and_truncated_manifest_fail(self):
         (self.images / 'captures.json').write_text('[]')
         self.assertEqual(1, self.make_report()['counts']['fail'])
@@ -300,6 +315,7 @@ class GraphicsImagesTest(unittest.TestCase):
         (self.images / 'captures.json').write_text(json.dumps(self.records[:1]))
         self.assertEqual(len(report.CASES) - 1, self.make_report()['counts']['fail'])
 
+    # Verifies a failed capture cannot reuse stale images or diagnostics.
     def test_capture_failure_removes_stale_output(self):
         self.add_backend('metal')
         output = self.images / 'metal/clear.png'
@@ -312,12 +328,13 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertFalse(output.exists())
         self.assertTrue(all(not path.exists() for path in diagnostics))
 
+    # Verifies process failures and invalid backend identity are recorded as failures.
     def test_crash_timeout_identity_and_graphics_errors(self):
         outcomes = (
             subprocess.CompletedProcess([], -11, 'crashed'),
             subprocess.TimeoutExpired([], 60, output=b'partial log'),
-            subprocess.CompletedProcess([], 0, 'GRAPHICS_CAPTURE_BACKEND=opengl\n'),
-            subprocess.CompletedProcess([], 0, 'GRAPHICS_CAPTURE_BACKEND=metal\nERROR:GRAPHICS: invalid state'),
+            subprocess.CompletedProcess([], 0, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=opengl\n'),
+            subprocess.CompletedProcess([], 0, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\nERROR:GRAPHICS: invalid state'),
         )
         for outcome in outcomes:
             with self.subTest(outcome=outcome):
@@ -330,6 +347,21 @@ class GraphicsImagesTest(unittest.TestCase):
         with mock.patch.object(report.subprocess, 'run', side_effect=subprocess.TimeoutExpired([], 60, output=b'partial')):
             self.assertIn('partial', report.capture(Path('capture'), self.images, 'metal', 'clear')['log'])
 
+    # Verifies dmLogInfo backend identity is accepted once and duplicates are rejected.
+    def test_logged_backend_identity(self):
+        marker = 'INFO:DEFAULT: GRAPHICS_CAPTURE_BACKEND=metal\n'
+        output = self.images / 'metal/clear.png'
+        output.parent.mkdir(parents=True)
+        for log, status in ((marker, 'pass'), (marker * 2, 'fail')):
+            with self.subTest(log=log):
+                def fake_run(*args, **kwargs):
+                    self.fixture('clear').save(output)
+                    return subprocess.CompletedProcess([], 0, log)
+                with mock.patch.object(report.subprocess, 'run', side_effect=fake_run):
+                    result = report.capture(Path('capture'), self.images, 'metal', 'clear')
+                self.assertEqual(status, result['status'])
+
+    # Verifies one failed process does not prevent the remaining cases from running.
     def test_matrix_continues_after_failure(self):
         def fake_capture(executable, root, backend, case):
             return dict(backend=backend, case=case, status='fail', reason='crashed')
@@ -339,6 +371,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertEqual(2 * len(report.CASES), len(records))
         self.assertEqual(2 * len(report.CASES), self.make_report()['counts']['fail'])
 
+    # Verifies policy skips, unavailable adapters and explicit requests are distinguished.
     def test_skip_accounting_and_explicit_unavailable(self):
         self.add_backend('metal')
         diagnostic = report.diagnostic_path(self.images / 'metal/clear.png', 'repeated')
@@ -353,6 +386,7 @@ class GraphicsImagesTest(unittest.TestCase):
         records = report.run_matrix(Path('capture'), self.images, ['metal'], ['metal'], skip_all='Hosted CI policy')
         self.assertTrue(all(r['reason'] == 'Hosted CI policy' for r in records))
 
+    # Verifies capture logs cannot inject HTML into the report.
     def test_report_escapes_logs(self):
         self.add_backend('metal')
         self.records[0]['log'] = '<script>alert(1)</script>'
@@ -362,6 +396,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertNotIn('<script>', page)
         self.assertIn('&lt;script&gt;', page)
 
+    # Verifies case enumeration and rejects invalid or ambiguous capture arguments.
     @unittest.skipUnless(os.environ.get('GRAPHICS_CAPTURE_EXECUTABLE'), 'Capture executable not supplied')
     def test_capture_cli(self):
         executable = os.environ['GRAPHICS_CAPTURE_EXECUTABLE']

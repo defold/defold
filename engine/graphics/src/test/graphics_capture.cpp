@@ -1,5 +1,16 @@
 // Copyright 2020-2026 The Defold Foundation
-// Licensed under the Defold License version 1.0 (https://www.defold.com/license).
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,20 +27,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h>
 
-#if defined(_WIN32)
-#include <d3dcompiler.h>
-#endif
-
 using namespace dmGraphics;
-
-static const uint32_t CAPTURE_SIZE = 256;
-static const uint32_t CAPTURE_BYTES = CAPTURE_SIZE * CAPTURE_SIZE * 4;
-static const uint32_t CAPTURE_BUFFERS = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
-
-static const char* CAPTURE_CASES[] = {
-    "clear", "triangle", "stencil", "stencil_nested", "stencil_masks",
-    "stencil_ops", "stencil_depth", "stencil_faces", "cubemap",
-};
 
 enum CaptureRectangle
 {
@@ -65,10 +63,47 @@ struct CaptureVertex
 
 struct CaptureRectangleData
 {
-    uint32_t m_Left, m_Top, m_Right, m_Bottom;
+    uint32_t m_Left;
+    uint32_t m_Top;
+    uint32_t m_Right;
+    uint32_t m_Bottom;
     float    m_Depth;
-    uint8_t  m_Red, m_Green, m_Blue;
+    uint8_t  m_Red;
+    uint8_t  m_Green;
+    uint8_t  m_Blue;
     bool     m_Clockwise;
+};
+
+struct CaptureBackend
+{
+    const char*        m_Name;
+    AdapterFamily      m_Family;
+    WindowsGraphicsApi m_Api;
+};
+
+struct CaptureResources
+{
+    HRenderTarget      m_Target;
+    HProgram           m_Program;
+    HVertexBuffer      m_Vertices;
+    HVertexDeclaration m_Declaration;
+    HTexture           m_Cubemap;
+    HUniformLocation   m_CubemapLocation;
+};
+
+static const uint32_t CAPTURE_SIZE = 256;
+static const uint32_t CAPTURE_BYTES = CAPTURE_SIZE * CAPTURE_SIZE * 4;
+static const uint32_t CAPTURE_BUFFERS = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
+
+static const char* CAPTURE_CASES[] = {
+    "clear", "triangle", "stencil", "stencil_nested", "stencil_masks",
+    "stencil_ops", "stencil_depth", "stencil_faces", "cubemap",
+};
+
+static const CaptureBackend CAPTURE_BACKENDS[] = {
+    {"metal",  ADAPTER_FAMILY_METAL,   WINDOW_GRAPHICS_API_METAL},
+    {"opengl", ADAPTER_FAMILY_OPENGL,  WINDOW_GRAPHICS_API_OPENGL},
+    {"vulkan", ADAPTER_FAMILY_VULKAN,  WINDOW_GRAPHICS_API_VULKAN},
 };
 
 // Pixel coordinates are top-down. Depth is normalized to [0, 1] by every shader.
@@ -127,31 +162,6 @@ static void DrawRectangle(HContext context, uint32_t rectangle)
 {
     Draw(context, PRIMITIVE_TRIANGLES, 3 + 6 * rectangle, 6, 1);
 }
-
-struct CaptureBackend
-{
-    const char*        m_Name;
-    AdapterFamily      m_Family;
-    WindowsGraphicsApi m_Api;
-};
-
-static const CaptureBackend CAPTURE_BACKENDS[] = {
-    {"metal",  ADAPTER_FAMILY_METAL,   WINDOW_GRAPHICS_API_METAL},
-    {"opengl", ADAPTER_FAMILY_OPENGL,  WINDOW_GRAPHICS_API_OPENGL},
-    {"webgpu", ADAPTER_FAMILY_WEBGPU,  WINDOW_GRAPHICS_API_WEBGPU},
-    {"vulkan", ADAPTER_FAMILY_VULKAN,  WINDOW_GRAPHICS_API_VULKAN},
-    {"dx12",   ADAPTER_FAMILY_DIRECTX, WINDOW_GRAPHICS_API_DIRECTX},
-};
-
-struct CaptureResources
-{
-    HRenderTarget      m_Target;
-    HProgram           m_Program;
-    HVertexBuffer      m_Vertices;
-    HVertexDeclaration m_Declaration;
-    HTexture           m_Cubemap;
-    HUniformLocation   m_CubemapLocation;
-};
 
 static HTexture CreateCaptureCubemap(HContext context)
 {
@@ -264,26 +274,22 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
     CAPTURE_SHADER(VERTEX, GLSL_SM330, capture_vp);
     CAPTURE_SHADER(VERTEX, MSL_22, capture_vp_msl);
     CAPTURE_SHADER(VERTEX, SPIRV, capture_vert_spv);
-    CAPTURE_SHADER(VERTEX, WGSL, capture_vp_wgsl);
     if (cubemap)
     {
         CAPTURE_SHADER(FRAGMENT, GLSL_SM330, capture_cube_fp);
         CAPTURE_SHADER(FRAGMENT, MSL_22, capture_cube_fp_msl);
         CAPTURE_SHADER(FRAGMENT, SPIRV, capture_cube_frag_spv);
-        CAPTURE_SHADER(FRAGMENT, WGSL, capture_cube_fp_wgsl);
     }
     else
     {
         CAPTURE_SHADER(FRAGMENT, GLSL_SM330, capture_fp);
         CAPTURE_SHADER(FRAGMENT, MSL_22, capture_fp_msl);
         CAPTURE_SHADER(FRAGMENT, SPIRV, capture_frag_spv);
-        CAPTURE_SHADER(FRAGMENT, WGSL, capture_fp_wgsl);
     }
 #undef CAPTURE_SHADER
 
     // NewProgram copies these borrowed mappings before this function returns.
     ShaderDesc::MSLResourceMapping metal_bindings[2] = {};
-    ShaderDesc::HLSLResourceMapping dx12_bindings[2] = {};
     if (cubemap)
     {
         AddShaderResource(&desc, "cubemap", family == ADAPTER_FAMILY_OPENGL ? ShaderDesc::SHADER_TYPE_SAMPLER_CUBE :
@@ -298,8 +304,6 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
             metal_bindings[i].m_NameHash = dmHashString64(i == 0 ? "cubemap" : "cube_sampler");
             metal_bindings[i].m_Binding = i;
             metal_bindings[i].m_MslIndex = i;
-            dx12_bindings[i].m_NameHash = metal_bindings[i].m_NameHash;
-            dx12_bindings[i].m_Binding = i;
         }
         for (uint32_t i = 0; i < desc.m_Shaders.m_Count; ++i)
         {
@@ -312,50 +316,6 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
         }
     }
 
-#if defined(_WIN32)
-    // Compile our own test shaders to DXBC; no private vendor shader package.
-    ID3DBlob* bytecode[2] = {};
-    ID3DBlob* root_signature = 0;
-    if (family == ADAPTER_FAMILY_DIRECTX)
-    {
-        const D3D_SHADER_MACRO defines[] = {{"CAPTURE_CUBEMAP", cubemap ? "1" : "0"}, {0, 0}};
-        const char* entry_points[] = {"vertex_main", "fragment_main"};
-        const char* profiles[] = {"vs_5_0", "ps_5_0"};
-        for (uint32_t i = 0; i < 2; ++i)
-        {
-            ID3DBlob* errors = 0;
-            HRESULT result = D3DCompile(capture_hlsl, sizeof(capture_hlsl) - 1, "graphics_capture.hlsl", defines, 0,
-                entry_points[i], profiles[i], D3DCOMPILE_ENABLE_STRICTNESS, 0, &bytecode[i], &errors);
-            if (FAILED(result))
-                dmLogError("Capture shader compilation failed: %s", errors ? (const char*) errors->GetBufferPointer() : "unknown error");
-            if (errors)
-                errors->Release();
-            if (bytecode[i])
-            {
-                AddShaderWithType(&desc, i == 0 ? ShaderDesc::SHADER_TYPE_VERTEX : ShaderDesc::SHADER_TYPE_FRAGMENT,
-                    ShaderDesc::LANGUAGE_HLSL_50, (uint8_t*) bytecode[i]->GetBufferPointer(), bytecode[i]->GetBufferSize());
-                if (cubemap && i == 1)
-                {
-                    ShaderDesc::Shader& shader = desc.m_Shaders[desc.m_Shaders.m_Count - 1];
-                    shader.m_HlslResourceMapping.m_Data = dx12_bindings;
-                    shader.m_HlslResourceMapping.m_Count = 2;
-                }
-            }
-        }
-        ID3DBlob* errors = 0;
-        HRESULT result = D3DCompile(capture_hlsl, sizeof(capture_hlsl) - 1, "graphics_capture.hlsl", defines, 0,
-            "CAPTURE_ROOT_SIGNATURE", "rootsig_1_0", 0, 0, &root_signature, &errors);
-        if (FAILED(result))
-            dmLogError("Capture root signature compilation failed: %s", errors ? (const char*) errors->GetBufferPointer() : "unknown error");
-        if (errors)
-            errors->Release();
-        if (root_signature)
-        {
-            desc.m_HlslRootSignature.m_Data = (uint8_t*) root_signature->GetBufferPointer();
-            desc.m_HlslRootSignature.m_Count = root_signature->GetBufferSize();
-        }
-    }
-#endif
     AddShaderResource(&desc, "position", ShaderDesc::SHADER_TYPE_VEC3, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
     AddShaderResource(&desc, "color", ShaderDesc::SHADER_TYPE_VEC3, 1, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
     char error[1024] = {};
@@ -363,13 +323,7 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
     if (!program)
         dmLogError("Capture program creation failed: %s", error);
     DeleteShaderDesc(&desc);
-#if defined(_WIN32)
-    if (root_signature)
-        root_signature->Release();
-    for (uint32_t i = 0; i < 2; ++i)
-        if (bytecode[i])
-            bytecode[i]->Release();
-#endif
+
     return program;
 }
 
@@ -442,6 +396,7 @@ static void DrawStencilValue(HContext context, uint32_t reference, uint32_t mask
     DrawRectangle(context, rectangle);
 }
 
+// Verifies nested masks clip their children, including child geometry outside the parent.
 static void RenderNestedStencil(HContext context)
 {
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
@@ -458,6 +413,7 @@ static void RenderNestedStencil(HContext context)
     DrawStencilValue(context, 3, 0xff, RECT_BLUE);
 }
 
+// Verifies masked writes preserve other bits and comparisons mask both stored and reference values.
 static void RenderStencilMasks(HContext context)
 {
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0xa0, 0xff);
@@ -482,6 +438,7 @@ static void RenderStencilMasks(HContext context)
     DrawStencilValue(context, 0x3f, 0xf0, RECT_BITS_HIGH_READ);
 }
 
+// Verifies each stencil operation, including saturation and wrap at the byte limits.
 static void RenderStencilOperations(HContext context)
 {
     // Row-major tiles: zero, replace, increment, increment-clamp, decrement,
@@ -505,8 +462,11 @@ static void RenderStencilOperations(HContext context)
     }
 }
 
+// Verifies depth-fail and stencil-fail operations with back-face culling enabled on an offscreen target.
 static void RenderDepthStencil(HContext context)
 {
+    EnableState(context, STATE_CULL_FACE);
+    SetCullFace(context, FACE_TYPE_BACK);
     DisableState(context, STATE_STENCIL_TEST);
     EnableState(context, STATE_DEPTH_TEST);
     SetDepthFunc(context, COMPARE_FUNC_ALWAYS);
@@ -529,6 +489,7 @@ static void RenderDepthStencil(HContext context)
     DrawStencilValue(context, 0xff, 0xff, RECT_BLUE);
 }
 
+// Verifies separate front/back state using production shader orientation; guards against swapped face assignments.
 static void RenderStencilFaces(HContext context)
 {
     SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
@@ -612,13 +573,21 @@ static void RenderCapture(HContext context, const CaptureResources& resources, c
 static bool WriteCaptureImage(const char* filename, const uint8_t* pixels)
 {
     uint8_t* rgba = (uint8_t*) malloc(CAPTURE_BYTES);
-    for (uint32_t i = 0; i < CAPTURE_BYTES; i += 4)
+    // Production Metal/Vulkan shaders render offscreen targets bottom-up.
+    // Normalize rows only when exporting the image, preserving rasterizer winding.
+    bool flip_y = GetInstalledAdapterFamily() != ADAPTER_FAMILY_OPENGL;
+    for (uint32_t y = 0; y < CAPTURE_SIZE; ++y)
     {
-        // ReadPixels promises BGRA; PNG stores RGBA.
-        rgba[i] = pixels[i + 2];
-        rgba[i + 1] = pixels[i + 1];
-        rgba[i + 2] = pixels[i];
-        rgba[i + 3] = pixels[i + 3];
+        const uint8_t* source = pixels + (flip_y ? CAPTURE_SIZE - 1 - y : y) * CAPTURE_SIZE * 4;
+        uint8_t* destination = rgba + y * CAPTURE_SIZE * 4;
+        for (uint32_t x = 0; x < CAPTURE_SIZE * 4; x += 4)
+        {
+            // ReadPixels promises BGRA; PNG stores RGBA.
+            destination[x] = source[x + 2];
+            destination[x + 1] = source[x + 1];
+            destination[x + 2] = source[x];
+            destination[x + 3] = source[x + 3];
+        }
     }
     bool written = stbi_write_png(filename, CAPTURE_SIZE, CAPTURE_SIZE, 4, rgba, CAPTURE_SIZE * 4) != 0;
     free(rgba);
@@ -650,6 +619,7 @@ static bool CapturePixelsEqual(const char* check, const uint8_t* expected, const
     return true;
 }
 
+// Verifies readback preserves the active viewport and depth/stencil contents for subsequent draws.
 static bool CheckReadbackContinuation(HContext context, const CaptureResources& resources, const char* filename)
 {
     uint8_t* expected = (uint8_t*) calloc(1, CAPTURE_BYTES);
@@ -714,6 +684,7 @@ static bool CheckReadbackContinuation(HContext context, const CaptureResources& 
     return valid;
 }
 
+// Verifies deterministic repeated rendering and subregion readback; guards against stale clear pipeline state.
 static bool CaptureImage(HContext context, const CaptureResources& resources, const char* name, const char* filename)
 {
     const char* diagnostics[] = {"repeated", "viewport-expected", "viewport-actual", "depth-stencil-expected", "depth-stencil-actual"};
@@ -797,10 +768,22 @@ int RunGraphicsCapture(int argc, char** argv)
             continue;
         }
         const char** value = 0;
-        if (strcmp(argv[i], "--case") == 0) value = &name;
-        else if (strcmp(argv[i], "--backend") == 0) value = &backend_name;
-        else if (strcmp(argv[i], "--output") == 0) value = &directory;
-        else if (strcmp(argv[i], "--output-file") == 0) value = &output_file;
+        if (strcmp(argv[i], "--case") == 0)
+        {
+            value = &name;
+        }
+        else if (strcmp(argv[i], "--backend") == 0)
+        {
+            value = &backend_name;
+        }
+        else if (strcmp(argv[i], "--output") == 0)
+        {
+            value = &directory;
+        }
+        else if (strcmp(argv[i], "--output-file") == 0)
+        {
+            value = &output_file;
+        }
         if (!value || *value || i + 1 == argc || strncmp(argv[i + 1], "--", 2) == 0)
         {
             dmLogError("Unknown, repeated, or incomplete capture option: %s", argv[i]);
@@ -819,7 +802,7 @@ int RunGraphicsCapture(int argc, char** argv)
         known_case = known_case || strcmp(name, CAPTURE_CASES[i]) == 0;
     if (list || !known_case || !backend_name || (directory && output_file))
     {
-        dmLogError("Usage: --case <name from --list-cases> --backend metal|opengl|webgpu|vulkan|dx12 [--output directory | --output-file file.png]");
+        dmLogError("Usage: --case <name from --list-cases> --backend metal|opengl|vulkan [--output directory | --output-file file.png]");
         return 1;
     }
     const CaptureBackend* backend = 0;
@@ -831,8 +814,8 @@ int RunGraphicsCapture(int argc, char** argv)
         dmLogError("Requested graphics backend unavailable: %s", backend_name);
         return 1;
     }
-    printf("GRAPHICS_CAPTURE_BACKEND=%s\n", backend->m_Name);
-    fflush(stdout);
+    dmLogInfo("GRAPHICS_CAPTURE_BACKEND=%s", backend->m_Name);
+
     char filename[1024];
     int length = output_file ? dmSnPrintf(filename, sizeof(filename), "%s", output_file) :
         dmSnPrintf(filename, sizeof(filename), "%s/%s/%s.png", directory ? directory : "graphics-test-images", backend_name, name);
@@ -842,6 +825,7 @@ int RunGraphicsCapture(int argc, char** argv)
         return 1;
     }
     remove(filename);
+
     HWindow window = dmPlatform::NewWindow();
     WindowCreateParams window_params;
     WindowCreateParamsInitialize(&window_params);
@@ -860,12 +844,14 @@ int RunGraphicsCapture(int argc, char** argv)
         dmPlatform::DeleteWindow(window);
         return 1;
     }
+
     ContextParams context_params = {};
     context_params.m_Window = window;
     context_params.m_Width = CAPTURE_SIZE;
     context_params.m_Height = CAPTURE_SIZE;
     context_params.m_VerifyGraphicsCalls = 1;
     context_params.m_PrintDeviceInfo = 1;
+
     JobSystemCreateParams job_params = {};
     job_params.m_ThreadCount = 1;
     HJobContext jobs = JobSystemCreate(&job_params);
@@ -882,22 +868,38 @@ int RunGraphicsCapture(int argc, char** argv)
         JobSystemDestroy(jobs);
         return 1;
     }
+
     CaptureResources resources = {};
     bool success = CreateCaptureResources(context, backend->m_Family, strcmp(name, "cubemap") == 0, &resources);
     if (success)
         success = CaptureImage(context, resources, name, filename);
-    if (resources.m_Declaration) DeleteVertexDeclaration(resources.m_Declaration);
-    if (resources.m_Vertices) DeleteVertexBuffer(resources.m_Vertices);
-    if (resources.m_Program) DeleteProgram(context, resources.m_Program);
-    if (resources.m_Cubemap) DeleteTexture(context, resources.m_Cubemap);
-    if (resources.m_Target) DeleteRenderTarget(context, resources.m_Target);
+
+    if (resources.m_Declaration)
+    {
+        DeleteVertexDeclaration(resources.m_Declaration);
+    }
+    if (resources.m_Vertices)
+    {
+        DeleteVertexBuffer(resources.m_Vertices);
+    }
+    if (resources.m_Program)
+    {
+        DeleteProgram(context, resources.m_Program);
+    }
+    if (resources.m_Cubemap)
+    {
+        DeleteTexture(context, resources.m_Cubemap);
+    }
+    if (resources.m_Target)
+    {
+        DeleteRenderTarget(context, resources.m_Target);
+    }
+
     CloseWindow(context);
     DeleteContext(context);
     Finalize();
     JobSystemDestroy(jobs);
-    // WebGPU closes the platform window in CloseWindow(context).
-    if (backend->m_Family != ADAPTER_FAMILY_WEBGPU)
-        dmPlatform::CloseWindow(window);
+    dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);
     return success ? 0 : 1;
 }

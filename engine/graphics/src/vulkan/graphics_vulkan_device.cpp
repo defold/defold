@@ -1042,7 +1042,6 @@ bail:
             // Keep depth and stencil load ops in sync for packed depth/stencil attachments so
             // the render-pass CLEAR fast path actually clears stencil too.
             attachment_depth.stencilLoadOp  = depthStencilAttachment->m_LoadOp;
-            // ReadPixels can split a pass before later draws consume its stencil mask.
             attachment_depth.stencilStoreOp = depthStencilAttachment->m_StoreOp;
             attachment_depth.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_depth.finalLayout    = depthStencilAttachment->m_ImageLayout;
@@ -1433,6 +1432,14 @@ bail:
         vk_depth_stencil_create_info.front                 = vk_stencil_op_state_front;
         vk_depth_stencil_create_info.back                  = vk_stencil_op_state_back;
 
+        if (render_target->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            // Match the offscreen cull-face adjustment in DrawSetup: its
+            // positive-height viewport reverses the effective winding.
+            vk_depth_stencil_create_info.front = vk_stencil_op_state_back;
+            vk_depth_stencil_create_info.back  = vk_stencil_op_state_front;
+        }
+
         const VkDynamicState vk_dynamic_state[3] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS};
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;
@@ -1592,12 +1599,12 @@ bail:
         {
             DestroyRenderPass(vk_device, handle->m_RenderPassClearColorDepth);
         }
-        DestroyRenderPass(vk_device, handle->m_RenderPassLoad);
         handle->m_Framebuffer              = VK_NULL_HANDLE;
         handle->m_RenderPass               = VK_NULL_HANDLE;
         handle->m_RenderPassClear          = VK_NULL_HANDLE;
         handle->m_RenderPassClearColorDepth = VK_NULL_HANDLE;
-        handle->m_RenderPassLoad           = VK_NULL_HANDLE;
+        DestroyRenderPass(vk_device, handle->m_RenderPassLoad);
+        handle->m_RenderPassLoad = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)

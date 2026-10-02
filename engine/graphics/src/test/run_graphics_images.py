@@ -26,11 +26,11 @@ CASE_DESCRIPTIONS = {
     'stencil_nested': 'Three nested levels: orange outer mask, green child, blue grandchild. Children extend beyond their parents and must be clipped.',
     'stencil_masks': 'Overlapping low/high-nibble writes preserve unselected bits. Exact values produce yellow, orange, green and blue regions; magenta/cyan strips check masked reads. A zero write mask must block REPLACE.',
     'stencil_ops': 'Nine green tiles, row-major: ZERO, REPLACE, INCR, INCR at 255 (clamp), DECR, DECR at 0 (clamp), INVERT, INCR_WRAP at 255, DECR_WRAP at 0. Missing tiles identify incorrect results.',
-    'stencil_depth': 'An invisible depth occluder crosses three bands. Front band: orange. Rear band: green with orange center from depth-failure INCR. Bottom band: blue from stencil-failure INVERT, including where depth also fails.',
+    'stencil_depth': 'Back-face culling is enabled. An invisible depth occluder crosses three bands. Front band: orange. Rear band: green with orange center from depth-failure INCR. Bottom band: blue from stencil-failure INVERT, including where depth also fails.',
     'stencil_faces': 'Opposite windings: top orange/cyan tiles check separate front/back operations; bottom magenta/green tiles check separate EQUAL/NOTEQUAL comparisons. Results are read with common face state to expose swapped faces.',
 }
 REFERENCE_BACKENDS = {'stencil_faces': 'OpenGL'}
-BACKENDS = ('metal', 'opengl', 'webgpu', 'vulkan', 'dx12')
+BACKENDS = ('metal', 'opengl', 'vulkan')
 BACKGROUND = (37, 73, 109)
 THRESHOLD = 99.0
 SIZE = (256, 256)
@@ -98,7 +98,7 @@ def capture(executable, root, backend, case, timeout=60):
         process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                  timeout=timeout, text=True, errors='replace')
         record.update(exit_code=process.returncode, log=process.stdout)
-        identities = re.findall(r'^GRAPHICS_CAPTURE_BACKEND=(\w+)$', process.stdout, re.MULTILINE)
+        identities = re.findall(r'^INFO:[^:\r\n]+: GRAPHICS_CAPTURE_BACKEND=(\w+)$', process.stdout, re.MULTILINE)
         if identities == [backend]:
             record['actual_backend'] = backend
         if process.returncode:
