@@ -148,8 +148,8 @@ namespace dmGameObject
      * Data supplied to the global `on_input` lifecycle function.
      *
      * The source identifies the input device category independently of the action
-     * name. Mouse input includes clicks simulated from touch; separate touch
-     * actions report `hash("touch")`. Text and marked-text input report
+     * name. Clicks and pointer movement simulated from touch report `hash("touch")`,
+     * as do separate touch actions. Text and marked-text input report
      * `hash("text")`, including input entered with a physical keyboard.
      *
      * If an action merges contributions from several devices, the last contributing

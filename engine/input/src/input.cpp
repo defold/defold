@@ -1079,6 +1079,7 @@ namespace dmInput
                     const MouseTrigger& trigger = triggers[i];
                     float v = 0.0f;
                     bool released = false;
+                    dmHID::InputSource source = dmHID::INPUT_SOURCE_MOUSE;
                     switch (trigger.m_Input)
                     {
                     case dmInputDDF::MOUSE_WHEEL_UP:
@@ -1088,9 +1089,18 @@ namespace dmInput
                         v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
                         break;
                     default:
-                        v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
-                        released = v == 0.0f && dmHID::GetMouseButton(prev_packet, MOUSE_BUTTON_MAP[trigger.m_Input]);
+                    {
+                        dmHID::MouseButton button = MOUSE_BUTTON_MAP[trigger.m_Input];
+                        v = dmHID::GetMouseButton(packet, button) ? 1.0f : 0.0f;
+                        released = v == 0.0f && dmHID::GetMouseButton(prev_packet, button);
+                        // A release keeps the source of the button that was held.
+                        dmHID::MousePacket* source_packet = released ? prev_packet : packet;
+                        if (button == dmHID::MOUSE_BUTTON_LEFT && source_packet->m_LeftButtonFromTouch)
+                        {
+                            source = dmHID::INPUT_SOURCE_TOUCH;
+                        }
                         break;
+                    }
                     }
 
                     v = dmMath::Clamp(v, 0.0f, 1.0f);
@@ -1100,7 +1110,7 @@ namespace dmInput
                     {
                         if (v != 0.0f || released)
                         {
-                            action->m_Source = dmHID::INPUT_SOURCE_MOUSE;
+                            action->m_Source = source;
                         }
                         if (dmMath::Abs(action->m_Value) < v)
                         {
@@ -1126,7 +1136,7 @@ namespace dmInput
                     action->m_PositionSet = 1;
                     if (action->m_DX != 0 || action->m_DY != 0)
                     {
-                        action->m_Source = dmHID::INPUT_SOURCE_MOUSE;
+                        action->m_Source = packet->m_PositionFromTouch ? dmHID::INPUT_SOURCE_TOUCH : dmHID::INPUT_SOURCE_MOUSE;
                     }
                 }
 

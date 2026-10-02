@@ -42,8 +42,8 @@
 namespace dmHID
 {
     /*# input source enumeration
-     * Device category of an input action after input emulation. Mouse input
-     * includes clicks simulated from touch. Zero-initialized actions default
+     * Device category of an input action. Clicks and pointer movement simulated
+     * from touch retain the touch source. Zero-initialized actions default
      * to keyboard input.
      * @enum
      * @name InputSource
@@ -511,6 +511,9 @@ namespace dmHID
         int32_t  m_PositionY;
         int32_t  m_Wheel;
         uint32_t m_Buttons[MAX_MOUSE_BUTTON_COUNT / 32 + 1];
+        uint8_t  m_LeftButtonFromTouch : 1;
+        uint8_t  m_PositionFromTouch : 1;
+        uint8_t  : 6;
     };
 
     /*# Contains the current state of a gamepad

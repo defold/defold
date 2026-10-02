@@ -21,6 +21,7 @@
 #include <dlib/math.h>
 #include <dlib/pprint.h>
 #include <dlib/profile.h>
+#include <dmsdk/hid/hid.h>
 
 #include "script_private.h"
 #include "script_hash.h"
@@ -47,17 +48,37 @@ namespace dmScript
 {
     void PushInputSource(lua_State* L, uint32_t source)
     {
-        // The order matches dmHID::InputSource.
-        static const dmhash_t hashes[] = {
-            dmHashString64("keyboard"),
-            dmHashString64("text"),
-            dmHashString64("mouse"),
-            dmHashString64("touch"),
-            dmHashString64("gamepad"),
-            dmHashString64("accelerometer"),
-        };
-        assert(source < sizeof(hashes) / sizeof(hashes[0]));
-        PushHash(L, hashes[source]);
+        static const dmhash_t keyboard = dmHashString64("keyboard");
+        static const dmhash_t text = dmHashString64("text");
+        static const dmhash_t mouse = dmHashString64("mouse");
+        static const dmhash_t touch = dmHashString64("touch");
+        static const dmhash_t gamepad = dmHashString64("gamepad");
+        static const dmhash_t accelerometer = dmHashString64("accelerometer");
+
+        switch (source)
+        {
+        case dmHID::INPUT_SOURCE_KEYBOARD:
+            PushHash(L, keyboard);
+            break;
+        case dmHID::INPUT_SOURCE_TEXT:
+            PushHash(L, text);
+            break;
+        case dmHID::INPUT_SOURCE_MOUSE:
+            PushHash(L, mouse);
+            break;
+        case dmHID::INPUT_SOURCE_TOUCH:
+            PushHash(L, touch);
+            break;
+        case dmHID::INPUT_SOURCE_GAMEPAD:
+            PushHash(L, gamepad);
+            break;
+        case dmHID::INPUT_SOURCE_ACCELEROMETER:
+            PushHash(L, accelerometer);
+            break;
+        default:
+            assert(false);
+            break;
+        }
     }
 
     /*# Built-ins API documentation

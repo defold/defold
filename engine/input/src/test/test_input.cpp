@@ -1242,7 +1242,7 @@ TEST_F(InputTest, EmptyMarkedTextSource)
     dmInput::DeleteBinding(binding);
 }
 
-// Verifies paired touch and emulated mouse packets keep separate sources through end and cancellation.
+// Verifies touch-emulated clicks and movement retain the touch source through end and cancellation.
 TEST_F(InputTest, TouchAndSimulatedMouseSources)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
@@ -1256,19 +1256,125 @@ TEST_F(InputTest, TouchAndSimulatedMouseSources)
     {
         bool released = phases[i] == dmHID::PHASE_ENDED || phases[i] == dmHID::PHASE_CANCELLED;
         dmHID::ClearTouches(touch);
-        dmHID::AddTouch(touch, 10, 20, 1, phases[i]);
+        dmHID::AddTouch(touch, 10 + i, 20 + i, 1, phases[i]);
         dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, !released);
-        dmHID::SetMousePosition(mouse, 10, 20);
+        if (!released)
+            mouse->m_Packet.m_LeftButtonFromTouch = 1;
+        dmHID::SetMousePosition(mouse, 10 + i, 20 + i);
+        mouse->m_Packet.m_PositionFromTouch = 1;
         dmHID::Update(m_HidContext);
         dmInput::UpdateBinding(binding, m_DT);
         const dmInput::Action* touch_action = dmInput::GetAction(binding, dmHashString64("TOUCH_1"));
         const dmInput::Action* mouse_action = dmInput::GetAction(binding, dmHashString64("MOUSE_CLICK"));
         ASSERT_EQ(dmHID::INPUT_SOURCE_TOUCH, touch_action->m_Source);
-        ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, mouse_action->m_Source);
+        ASSERT_EQ(dmHID::INPUT_SOURCE_TOUCH, mouse_action->m_Source);
+        ASSERT_EQ(dmHID::INPUT_SOURCE_TOUCH, dmInput::GetAction(binding, 0)->m_Source);
         ASSERT_EQ(phases[i], touch_action->m_Touch[0].m_Phase);
         ASSERT_EQ(released, touch_action->m_Released);
         ASSERT_EQ(released, mouse_action->m_Released);
     }
+    dmInput::DeleteBinding(binding);
+}
+
+// Verifies emulated clicks need no touch binding and retain their source on repeat and release alongside real mouse input.
+TEST_F(InputTest, SimulatedMouseSourceWithoutTouchBinding)
+{
+    dmInputDDF::MouseTrigger triggers[] = {
+        {dmInputDDF::MOUSE_BUTTON_LEFT, "click"},
+        {dmInputDDF::MOUSE_BUTTON_RIGHT, "right"},
+        {dmInputDDF::MOUSE_BUTTON_MIDDLE, "middle"},
+        {dmInputDDF::MOUSE_WHEEL_UP, "wheel"},
+    };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_MouseTrigger.m_Data = triggers;
+    ddf.m_MouseTrigger.m_Count = 4;
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    m_HidContext->m_IgnoreTouchDevice = 1;
+    dmHID::HMouse mouse = dmHID::GetMouse(m_HidContext, 0);
+    const dmInput::Action* click = dmInput::GetAction(binding, dmHashString64("click"));
+    const dmInput::Action* right = dmInput::GetAction(binding, dmHashString64("right"));
+    const dmInput::Action* middle = dmInput::GetAction(binding, dmHashString64("middle"));
+    const dmInput::Action* wheel = dmInput::GetAction(binding, dmHashString64("wheel"));
+
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, true);
+    mouse->m_Packet.m_LeftButtonFromTouch = 1;
+    dmHID::SetMousePosition(mouse, 10, 20);
+    mouse->m_Packet.m_PositionFromTouch = 1;
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_RIGHT, true);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_MIDDLE, true);
+    dmHID::SetMouseWheel(mouse, 1);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_TOUCH, click->m_Source);
+    ASSERT_TRUE(click->m_Pressed);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, right->m_Source);
+    ASSERT_TRUE(right->m_Pressed);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, middle->m_Source);
+    ASSERT_TRUE(middle->m_Pressed);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, wheel->m_Source);
+    ASSERT_TRUE(wheel->m_Pressed);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_TOUCH, dmInput::GetAction(binding, 0)->m_Source);
+
+    // Real mouse movement must not change the source of the held emulated click.
+    dmHID::SetMousePosition(mouse, 30, 40);
+    dmInput::UpdateBinding(binding, 1.0f);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_TOUCH, click->m_Source);
+    ASSERT_TRUE(click->m_Repeated);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, wheel->m_Source);
+    ASSERT_TRUE(wheel->m_Released);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, dmInput::GetAction(binding, 0)->m_Source);
+
+    // Releasing other buttons must preserve the origin of the held emulated click.
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_RIGHT, false);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_MIDDLE, false);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_TOUCH, click->m_Source);
+    ASSERT_EQ(1.0f, click->m_Value);
+    ASSERT_FALSE(click->m_Released);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, right->m_Source);
+    ASSERT_TRUE(right->m_Released);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, middle->m_Source);
+    ASSERT_TRUE(middle->m_Released);
+
+    // The backend has cleared the touch marker by the time the release is polled.
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, false);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_TOUCH, click->m_Source);
+    ASSERT_TRUE(click->m_Released);
+
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, true);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, click->m_Source);
+    ASSERT_TRUE(click->m_Pressed);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, false);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, click->m_Source);
+    ASSERT_TRUE(click->m_Released);
+    dmInput::DeleteBinding(binding);
+}
+
+// Verifies an independent mouse click is not mistaken for an emulated click when a touch is active.
+TEST_F(InputTest, RealMouseSourceWithActiveTouch)
+{
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
+    dmHID::Update(m_HidContext);
+    dmHID::AddTouch(dmHID::GetTouchDevice(m_HidContext, 0), 10, 20, 1, dmHID::PHASE_BEGAN);
+    dmHID::HMouse mouse = dmHID::GetMouse(m_HidContext, 0);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, true);
+    dmHID::SetMousePosition(mouse, 30, 40);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_TOUCH, dmInput::GetAction(binding, dmHashString64("TOUCH_1"))->m_Source);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, dmInput::GetAction(binding, dmHashString64("MOUSE_CLICK"))->m_Source);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, dmInput::GetAction(binding, 0)->m_Source);
+
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, false);
+    dmInput::UpdateBinding(binding, m_DT);
+    const dmInput::Action* click = dmInput::GetAction(binding, dmHashString64("MOUSE_CLICK"));
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, click->m_Source);
+    ASSERT_TRUE(click->m_Released);
     dmInput::DeleteBinding(binding);
 }
 
