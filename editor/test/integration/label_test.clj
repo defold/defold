@@ -86,16 +86,24 @@
 
 (deftest label-scene-test
   (test-util/with-loaded-project
-    (let [node-id (project/get-resource-node project "/label/test.label")]
-      (let [scene (g/node-value node-id :scene)
-            aabb (g/node-value node-id :aabb)]
-        (is (= aabb (:aabb scene)))
-        (is (= node-id (:node-id scene)))
-        (is (= node-id (some-> scene :renderable :select-batch-key)))
-        (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
-        (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :lines first)))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
+    (let [node-id (project/get-resource-node project "/label/test.label")
+          scene (g/node-value node-id :scene)
+          aabb (g/node-value node-id :aabb)]
+      (is (= aabb (:aabb scene)))
+      (is (= node-id (:node-id scene)))
+      (is (= node-id (some-> scene :renderable :select-batch-key)))
+      (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
+      (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :text)))
+      (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
+      (let [fragment-source (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source)]
+        (is (string/starts-with? fragment-source "#version 330"))
+        (is (re-find #"\bout vec4 \w+;" fragment-source))
+        (is (not (re-find #"\bgl_FragColor\b" fragment-source))))
+      (test-util/test-uses-assigned-material
+        workspace project node-id
+        :material
+        [:renderable :user-data :material-shader]
+        [:renderable :user-data :gpu-texture]))))
 
 (deftest native-label-text-box-alignment-test
   (test-util/with-loaded-project
@@ -204,14 +212,6 @@
           (is (= {pass/outline {label/render-lines 1}
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key))))))))
-
-(deftest label-scene-test
-  (test-util/with-loaded-project
-    (let [node-id (project/get-resource-node project "/label/test.label")]
-      (test-util/test-uses-assigned-material workspace project node-id
-                                             :material
-                                             [:renderable :user-data :material-shader]
-                                             [:renderable :user-data :gpu-texture]))))
 
 (deftest label-migration-test
   (test-util/with-loaded-project "test/resources/label_migration_project"

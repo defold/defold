@@ -33,6 +33,7 @@
 #include "gameobject_script_util.h"
 #include "gameobject_private.h"
 #include "gameobject_props_lua.h"
+#include "script.h"
 
 #include "gameobject/gameobject_ddf.h"
 
@@ -51,6 +52,16 @@ extern "C"
 
 namespace dmGameObject
 {
+    const char META_TABLE_GET_GAME_OBJECT[] = "__get_game_object";
+
+    static Instance* ResolveScriptInstance(ScriptInstance* script_instance, Collection** out_collection = 0)
+    {
+        Collection* collection = script_instance->m_World->m_Collection;
+        if (out_collection)
+            *out_collection = collection;
+        return GetInstanceFromHandle(collection, script_instance->m_Instance);
+    }
+
     /*# Game object API documentation
      *
      * Functions, core hooks, messages and constants for manipulation of
@@ -306,11 +317,10 @@ namespace dmGameObject
         "on_reload"
     };
 
-    HRegister g_Register = 0;
-
     CompScriptWorld::CompScriptWorld(uint32_t max_instance_count)
     : m_Instances()
     , m_ScriptWorld(0x0)
+    , m_Collection(0x0)
     {
         m_Instances.SetCapacity(max_instance_count);
     }
@@ -418,30 +428,33 @@ namespace dmGameObject
         dmScript::GetInstance(L);
         ScriptInstance* i = ScriptInstance_Check(L);
         lua_pop(L, 1);
-        Instance* instance = i->m_Instance;
-        out_url->m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection);
+        Collection* collection;
+        Instance* instance = ResolveScriptInstance(i, &collection);
+        out_url->m_Socket = dmGameObject::GetMessageSocket(collection->m_HCollection);
         out_url->m_Path = instance->m_Identifier;
         out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
     }
 
     static dmhash_t ScriptInstanceResolvePathCB(uintptr_t resolve_user_data, const char* path) {
         ScriptInstance* i = (ScriptInstance*)resolve_user_data;
+        Instance* instance = ResolveScriptInstance(i);
         if (path != 0x0 && *path != 0)
         {
-            return GetAbsoluteIdentifier(i->m_Instance, path);
+            return GetAbsoluteIdentifier(instance, path);
         }
         else
         {
-            return i->m_Instance->m_Identifier;
+            return instance->m_Identifier;
         }
     }
 
     static int ScriptInstanceGetURL(lua_State* L)
     {
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
-        Instance* instance = i->m_Instance;
+        Collection* collection;
+        Instance* instance = ResolveScriptInstance(i, &collection);
         dmMessage::URL url;
-        url.m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection);
+        url.m_Socket = dmGameObject::GetMessageSocket(collection->m_HCollection);
         url.m_Path = instance->m_Identifier;
         url.m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
         dmScript::PushURL(L, url);
@@ -451,22 +464,23 @@ namespace dmGameObject
     static int ScriptInstanceGetUserData(lua_State* L)
     {
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
-        lua_pushlightuserdata(L, i->m_Instance);
+        lua_pushlightuserdata(L, i);
         return 1;
     }
 
     static int ScriptInstanceResolvePath(lua_State* L)
     {
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
+        Instance* instance = ResolveScriptInstance(i);
         const char* path = luaL_checkstring(L, 2);
 
         if (path != 0x0 && *path != 0)
         {
-            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, path));
+            dmScript::PushHash(L, GetAbsoluteIdentifier(instance, path));
         }
         else
         {
-            dmScript::PushHash(L, i->m_Instance->m_Identifier);
+            dmScript::PushHash(L, instance->m_Identifier);
         }
         return 1;
     }
@@ -474,7 +488,7 @@ namespace dmGameObject
     static int ScriptInstanceIsValid(lua_State* L)
     {
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
-        lua_pushboolean(L, i != 0x0 && i->m_Instance != 0x0);
+        lua_pushboolean(L, i != 0x0 && IsValid(i->m_Instance));
         return 1;
     }
 
@@ -537,42 +551,52 @@ namespace dmGameObject
      * @param instance_arg lua-arg
      * @return instance handler
      */
-    static Instance* ResolveInstance(lua_State* L, int instance_arg)
+    static Instance* ResolveInstance(lua_State* L, int instance_arg, Collection** out_collection)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
+        Collection* collection = i->m_World->m_Collection;
+        HCollection hcollection = collection->m_HCollection;
+        if (out_collection)
+            *out_collection = collection;
         if (lua_gettop(L) == instance_arg && !lua_isnil(L, instance_arg)) {
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
-            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(hcollection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
             }
 
-            instance = GetInstanceFromIdentifier(instance->m_Collection->m_HCollection, receiver.m_Path);
+            Instance* instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (!instance)
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
                 return 0; // Actually never reached
             }
+            return instance;
         }
-        return instance;
+        return GetInstanceFromHandle(collection, i->m_Instance);
     }
 
-    void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
+    static Instance* ResolveInstance(lua_State* L, int instance_arg)
     {
+        return ResolveInstance(L, instance_arg, 0);
+    }
+
+    void GetComponentFromLua(lua_State* L, int index, HCollection hcollection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
+    {
+        Collection* collection = GetCollectionFromHandle(hcollection);
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
         {
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, index, &receiver, &sender);
-            if (sender.m_Socket != receiver.m_Socket || sender.m_Socket != dmGameObject::GetMessageSocket(collection))
+            if (sender.m_Socket != receiver.m_Socket || sender.m_Socket != dmGameObject::GetMessageSocket(hcollection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
                 return; // Actually never reached
             }
 
-            HInstance instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
+            Instance* instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (!instance)
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, index));
@@ -581,7 +605,7 @@ namespace dmGameObject
 
             dmGameObject::HComponentWorld world;
             uint32_t component_type_index;
-            dmGameObject::Result result = dmGameObject::GetComponent(instance, receiver.m_Fragment, &component_type_index, out_component, &world);
+            dmGameObject::Result result = dmGameObject::GetComponent(collection, instance, receiver.m_Fragment, &component_type_index, out_component, &world);
             if ((component_ext != 0x0 || *out_component != 0x0) && result != dmGameObject::RESULT_OK)
             {
                 char buffer[128];
@@ -597,13 +621,13 @@ namespace dmGameObject
             if (component_ext != 0x0)
             {
                 HResourceType resource_type;
-                dmResource::Result resource_res = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(instance->m_Collection->m_HCollection), component_ext, &resource_type);
+                dmResource::Result resource_res = dmResource::GetTypeFromExtension(collection->m_Factory, component_ext, &resource_type);
                 if (resource_res != dmResource::RESULT_OK)
                 {
                     luaL_error(L, "Component type '%s' not found", component_ext);
                     return; // Actually never reached
                 }
-                ComponentType* type = &dmGameObject::GetRegister(instance->m_Collection->m_HCollection)->m_ComponentTypes[component_type_index];
+                ComponentType* type = &collection->m_Register->m_ComponentTypes[component_type_index];
                 if (type->m_ResourceType != resource_type)
                 {
                     luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
@@ -622,22 +646,61 @@ namespace dmGameObject
         }
     }
 
-    HInstance GetInstanceFromLua(lua_State* L) {
-        uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, SCRIPTINSTANCE_TYPE_HASH)) {
-            return (HInstance)user_data;
-        } else {
+    static HGameObject ResolveInstanceFromLua(lua_State* L, uint32_t script_instance_type_hash)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmScript::GetInstance(L);
+        if (lua_type(L, -1) != LUA_TUSERDATA)
+        {
+            lua_pop(L, 1);
             return 0;
         }
+
+        uint32_t user_type_hash = dmScript::GetUserType(L, -1);
+        if (script_instance_type_hash != 0 && user_type_hash != script_instance_type_hash)
+        {
+            lua_pop(L, 1);
+            return 0;
+        }
+
+        if (user_type_hash == SCRIPTINSTANCE_TYPE_HASH)
+        {
+            ScriptInstance* script_instance = (ScriptInstance*)lua_touserdata(L, -1);
+            HGameObject instance = script_instance->m_Instance;
+            lua_pop(L, 1);
+            return instance;
+        }
+
+        if (!lua_getmetatable(L, -1))
+        {
+            lua_pop(L, 1);
+            return 0;
+        }
+
+        lua_pushlstring(L, META_TABLE_GET_GAME_OBJECT, sizeof(META_TABLE_GET_GAME_OBJECT) - 1);
+        lua_rawget(L, -2);
+        ScriptInstanceGameObjectResolver* resolver = (ScriptInstanceGameObjectResolver*)lua_touserdata(L, -1);
+        if (!lua_islightuserdata(L, -1) || resolver == 0 || resolver->m_GetInstance == 0)
+        {
+            lua_pop(L, 3);
+            return 0;
+        }
+
+        void* script_instance = lua_touserdata(L, -3);
+        HGameObject instance = resolver->m_GetInstance(script_instance);
+        lua_pop(L, 3);
+        return instance;
     }
 
-    HInstance GetInstanceFromLua(lua_State* L, uint32_t script_instance_type_hash) {
-        uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, script_instance_type_hash)) {
-            return (HInstance)user_data;
-        } else {
-            return 0;
-        }
+    HInstance GetInstanceFromLua(lua_State* L)
+    {
+        return ResolveInstanceFromLua(L, 0);
+    }
+
+    HInstance GetInstanceFromLua(lua_State* L, uint32_t script_instance_type_hash)
+    {
+        return ResolveInstanceFromLua(L, script_instance_type_hash);
     }
 
     Result PostScriptMessage(const dmDDF::Descriptor* payload_descriptor, const uint8_t* payload, uint32_t payload_size, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call)
@@ -763,13 +826,15 @@ namespace dmGameObject
     int Script_Get(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
+        Collection* collection;
+        ResolveScriptInstance(i, &collection);
+        HCollection hcollection = collection->m_HCollection;
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
         DM_HASH_REVERSE_MEM(hash_ctx, 256);
-        if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
+        if (target.m_Socket != dmGameObject::GetMessageSocket(hcollection))
         {
             return luaL_error(L, "go.get can only access instances within the same collection.");
         }
@@ -782,7 +847,7 @@ namespace dmGameObject
         {
             property_id = dmScript::CheckHash(L, 2);
         }
-        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        Instance* target_instance = GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
         {
             return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
@@ -797,7 +862,7 @@ namespace dmGameObject
         }
 
         dmGameObject::PropertyDesc property_desc;
-        dmGameObject::PropertyResult result = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, options_result.m_Options, property_desc);
+        dmGameObject::PropertyResult result = dmGameObject::GetProperty(collection, target_instance, target.m_Fragment, property_id, options_result.m_Options, property_desc);
         if (result == dmGameObject::PROPERTY_RESULT_OK && !options_result.m_IndexRequested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && property_desc.m_ArrayLength > 1)
         {
             lua_newtable(L);
@@ -818,7 +883,7 @@ namespace dmGameObject
             for (int i = 1; i < property_desc.m_ArrayLength; ++i)
             {
                 SetPropertyOptionsByIndex(&get_arrayed_property_opts, 0, i);
-                result                   = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, get_arrayed_property_opts, property_desc);
+                result                   = dmGameObject::GetProperty(collection, target_instance, target.m_Fragment, property_id, get_arrayed_property_opts, property_desc);
                 handle_go_get_result     = CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, get_arrayed_property_opts, options_result.m_IndexRequested, options_result.m_KeysRequested);
 
                 if (handle_go_get_result != 1)
@@ -912,12 +977,14 @@ namespace dmGameObject
 
         DM_HASH_REVERSE_MEM(hash_ctx, 256);
         ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
+        Collection* collection;
+        ResolveScriptInstance(i, &collection);
+        HCollection hcollection = collection->m_HCollection;
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
-        if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
+        if (target.m_Socket != dmGameObject::GetMessageSocket(hcollection))
         {
             luaL_error(L, "go.set can only access instances within the same collection.");
         }
@@ -932,11 +999,12 @@ namespace dmGameObject
             property_id = dmScript::CheckHash(L, 2);
         }
 
-        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        Instance* target_instance = GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
         {
             return luaL_error(L, "could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
         }
+        HInstance htarget = GetInstanceHandle(collection, target_instance);
 
         LuaToPropertyOptionsResult options_result = {};
 
@@ -973,10 +1041,10 @@ namespace dmGameObject
 
                 if (result == PROPERTY_RESULT_OK)
                 {
-                    result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, set_arrayed_property_opts, property_var);
+                    result = dmGameObject::SetProperty(collection, target_instance, target.m_Fragment, property_id, set_arrayed_property_opts, property_var);
                     if (result != PROPERTY_RESULT_OK)
                     {
-                        return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, set_arrayed_property_opts);
+                        return dmGameObject::HandleGoSetResult(L, result, property_id, htarget, target, set_arrayed_property_opts);
                     }
                 }
 
@@ -991,10 +1059,10 @@ namespace dmGameObject
 
             if (result == PROPERTY_RESULT_OK)
             {
-                result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, options_result.m_Options, property_var);
+                result = dmGameObject::SetProperty(collection, target_instance, target.m_Fragment, property_id, options_result.m_Options, property_var);
             }
 
-            return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, options_result.m_Options);
+            return dmGameObject::HandleGoSetResult(L, result, property_id, htarget, target, options_result.m_Options);
         }
 
         return 0;
@@ -1133,9 +1201,10 @@ namespace dmGameObject
      */
     int Script_SetPosition(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 2);
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 2, &collection);
         dmVMath::Vector3* v = dmScript::CheckVector3(L, 1);
-        dmGameObject::SetPosition(instance, dmVMath::Point3(*v));
+        dmGameObject::SetPosition(collection, instance, dmVMath::Point3(*v));
         return 0;
     }
 
@@ -1163,9 +1232,10 @@ namespace dmGameObject
      */
     int Script_SetRotation(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 2);
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 2, &collection);
         dmVMath::Quat* q = dmScript::CheckQuat(L, 1);
-        dmGameObject::SetRotation(instance, *q);
+        dmGameObject::SetRotation(collection, instance, *q);
         return 0;
     }
 
@@ -1195,7 +1265,8 @@ namespace dmGameObject
      */
     static int Script_SetScale(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 2);
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 2, &collection);
 
         // Supports both vector and number
         Vector3* v = dmScript::ToVector3(L, 1);
@@ -1206,7 +1277,7 @@ namespace dmGameObject
             {
                 return luaL_error(L, "Vector passed to go.set_scale contains components that are below or equal to zero");
             }
-            dmGameObject::SetScale(instance, scale);
+            dmGameObject::SetScale(collection, instance, scale);
             return 0;
         }
 
@@ -1215,7 +1286,7 @@ namespace dmGameObject
         {
             return luaL_error(L, "The scale supplied to go.set_scale must be greater than 0.");
         }
-        dmGameObject::SetScale(instance, (float)n);
+        dmGameObject::SetScale(collection, instance, (float)n);
         return 0;
     }
 
@@ -1245,7 +1316,8 @@ namespace dmGameObject
      */
     static int Script_SetScaleXY(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 2);
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 2, &collection);
 
         // Supports both vector and number
         Vector3* v = dmScript::ToVector3(L, 1);
@@ -1256,7 +1328,7 @@ namespace dmGameObject
             {
                 return luaL_error(L, "Vector passed to go.set_scale_xy contains components that are below or equal to zero");
             }
-            dmGameObject::SetScaleXY(instance, scale.getX(), scale.getY());
+            dmGameObject::SetScaleXY(collection, instance, scale.getX(), scale.getY());
             return 0;
         }
 
@@ -1266,7 +1338,7 @@ namespace dmGameObject
             return luaL_error(L, "The scale supplied to go.set_scale_xy must be greater than 0.");
         }
         float value = (float)n;
-        dmGameObject::SetScaleXY(instance, value, value);
+        dmGameObject::SetScaleXY(collection, instance, value, value);
         return 0;
     }
 
@@ -1308,18 +1380,19 @@ namespace dmGameObject
 
         DM_HASH_REVERSE_MEM(hash_ctx, 256);
         ScriptInstance* i  = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
 
         dmMessage::URL sender, target;
         dmScript::GetURL(L, &sender);
         dmScript::ResolveURL(L, 1, &target, &sender);
 
-        if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        Collection* collection;
+        ResolveScriptInstance(i, &collection);
+        HCollection hcollection = collection->m_HCollection;
+        if (target.m_Socket != dmGameObject::GetMessageSocket(hcollection))
         {
             return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
         }
 
-        HCollection collection    = dmGameObject::GetCollection(instance);
         Instance* child_instance  = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         Instance* parent_instance = 0x0;
 
@@ -1338,7 +1411,7 @@ namespace dmGameObject
                 return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
             }
 
-            if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+            if (target.m_Socket != dmGameObject::GetMessageSocket(hcollection))
             {
                 return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
             }
@@ -1349,7 +1422,7 @@ namespace dmGameObject
 
         if (parent_instance)
         {
-            ddf.m_ParentId = dmGameObject::GetIdentifier(parent_instance);
+            ddf.m_ParentId = parent_instance->m_Identifier;
         }
         else
         {
@@ -1357,12 +1430,12 @@ namespace dmGameObject
         }
 
         dmMessage::URL receiver;
-        receiver.m_Socket   = dmGameObject::GetMessageSocket(child_instance->m_Collection->m_HCollection);
-        receiver.m_Path     = dmGameObject::GetIdentifier(child_instance);
+        receiver.m_Socket   = dmGameObject::GetMessageSocket(hcollection);
+        receiver.m_Path     = child_instance->m_Identifier;
         receiver.m_Fragment = 0;
 
         if (dmMessage::RESULT_OK != dmMessage::Post(0x0, &receiver, dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash,
-            (uintptr_t) child_instance, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor,
+            0, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor,
             &ddf, sizeof(dmGameObjectDDF::SetParent), 0))
         {
             return DM_LUA_ERROR("Could not send parenting message!");
@@ -1394,8 +1467,9 @@ namespace dmGameObject
      */
     int Script_GetParent(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        Instance* parent = dmGameObject::GetParent(instance);
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        Instance* parent = dmGameObject::GetParent(collection, instance);
         if (parent != 0)
         {
             dmScript::PushHash(L, parent->m_Identifier);
@@ -1432,8 +1506,9 @@ namespace dmGameObject
      */
     int Script_GetWorldPosition(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, dmVMath::Vector3(dmGameObject::GetWorldPosition(instance)));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmScript::PushVector3(L, dmVMath::Vector3(dmGameObject::GetWorldPosition(collection, instance)));
         return 1;
     }
 
@@ -1461,8 +1536,9 @@ namespace dmGameObject
      */
     int Script_GetWorldRotation(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushQuat(L, dmGameObject::GetWorldRotation(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmScript::PushQuat(L, dmGameObject::GetWorldRotation(collection, instance));
         return 1;
     }
 
@@ -1492,8 +1568,9 @@ namespace dmGameObject
      */
     int Script_GetWorldScale(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, dmGameObject::GetWorldScale(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmScript::PushVector3(L, dmGameObject::GetWorldScale(collection, instance));
         return 1;
     }
 
@@ -1521,8 +1598,9 @@ namespace dmGameObject
      */
     int Script_GetWorldScaleUniform(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetWorldUniformScale(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        lua_pushnumber(L, dmGameObject::GetWorldUniformScale(collection, instance));
         return 1;
     }
 
@@ -1549,8 +1627,9 @@ namespace dmGameObject
      */
     int Script_GetWorldTransform(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L,1);
-        dmScript::PushMatrix4(L, dmGameObject::GetWorldMatrix(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmScript::PushMatrix4(L, dmGameObject::GetWorldMatrix(collection, instance));
         return 1;
     }
 
@@ -1583,8 +1662,9 @@ namespace dmGameObject
     static int Script_UpdateWorldTransform(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Instance* instance = ResolveInstance(L, 1);
-        dmGameObject::UpdateTransformsForInstance(instance->m_Collection, instance);
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmGameObject::UpdateTransformsForInstance(collection, instance);
         return 0;
     }
 
@@ -1616,14 +1696,15 @@ namespace dmGameObject
     int Script_GetId(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = ResolveScriptInstance(i);
         if (lua_gettop(L) > 0)
         {
             const char* ident = luaL_checkstring(L, 1);
-            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident));
+            dmScript::PushHash(L, GetAbsoluteIdentifier(instance, ident));
         }
         else
         {
-            dmScript::PushHash(L, i->m_Instance->m_Identifier);
+            dmScript::PushHash(L, instance->m_Identifier);
         }
         return 1;
     }
@@ -1665,15 +1746,17 @@ namespace dmGameObject
         dmScript::PushHash(L, args->m_PropertyId);
     }
 
-    static void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
-                                        bool finished, void* userdata1, void* userdata2)
+    static void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id,
+                                    dmhash_t property_id, bool finished,
+                                    void* userdata1, void* userdata2)
     {
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;
         if (dmScript::IsCallbackValid(cbk) && finished)
         {
+            HCollection collection = GetCollection(instance);
             dmMessage::URL url;
-            url.m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection);
-            url.m_Path = instance->m_Identifier;
+            url.m_Socket = dmGameObject::GetMessageSocket(collection);
+            url.m_Path = dmGameObject::GetIdentifier(instance);
             url.m_Fragment = component_id;
 
             LuaAnimationStoppedArgs args(url, property_id);
@@ -1759,12 +1842,11 @@ namespace dmGameObject
 
         DM_HASH_REVERSE_MEM(hash_ctx, 256);
         ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
-        HCollection collection = dmGameObject::GetCollection(instance);
+        HCollection collection = GetCollection(i->m_Instance);
         if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
         {
             luaL_error(L, "go.animate can only animate instances within the same collection.");
@@ -1909,12 +1991,11 @@ namespace dmGameObject
 
         DM_HASH_REVERSE_MEM(hash_ctx, 256);
         ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
-        HCollection collection = dmGameObject::GetCollection(instance);
+        HCollection collection = GetCollection(i->m_Instance);
         if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
         {
             luaL_error(L, "go.animate can only animate instances within the same collection.");
@@ -1975,7 +2056,9 @@ namespace dmGameObject
     {
         DM_HASH_REVERSE_MEM(hash_ctx, 256);
         ScriptInstance* i = ScriptInstance_Check(L);
-        HCollection hcollection = i->m_Instance->m_Collection->m_HCollection;
+        Collection* collection;
+        ResolveScriptInstance(i, &collection);
+        HCollection hcollection = collection->m_HCollection;
 
         // read table
         lua_pushnil(L);
@@ -1989,14 +2072,14 @@ namespace dmGameObject
                 luaL_error(L, "Function called can only access instances within the same collection.");
             }
 
-            Instance *todelete = GetInstanceFromIdentifier(hcollection, receiver.m_Path);
+            Instance *todelete = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (todelete)
             {
                 if(dmGameObject::IsBone(todelete))
                 {
-                    return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, dmGameObject::GetIdentifier(todelete)));
+                    return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, todelete->m_Identifier));
                 }
-                dmGameObject::Delete(hcollection, todelete, recursive);
+                dmGameObject::Delete(collection, todelete, recursive);
             }
             else
             {
@@ -2109,13 +2192,13 @@ namespace dmGameObject
         }
 
         // Resolve argument #1 url
-        dmGameObject::HInstance instance = ResolveInstance(L, 1);
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
         if(dmGameObject::IsBone(instance))
         {
             DM_HASH_REVERSE_MEM(hash_ctx, 256);
-            return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, dmGameObject::GetIdentifier(instance)));
+            return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, instance->m_Identifier));
         }
-        dmGameObject::HCollection collection = instance->m_Collection->m_HCollection;
         dmGameObject::Delete(collection, instance, recursive);
         return 0;
     }
@@ -2240,7 +2323,6 @@ namespace dmGameObject
 
         // get "this" instance
         ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
 
         // resolve target URL
         dmMessage::URL receiver;
@@ -2251,13 +2333,14 @@ namespace dmGameObject
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
 
+        HCollection collection = GetCollection(i->m_Instance);
         dmGameObject::HInstance target_instance = 0;
         
         // Check if target is in the same collection
-        if (receiver.m_Socket == dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        if (receiver.m_Socket == dmGameObject::GetMessageSocket(collection))
         {
             // Same collection - use current collection
-            target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+            target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         }
         else
         {
@@ -2265,7 +2348,7 @@ namespace dmGameObject
             dmhash_t target_socket_hash = dmMessage::GetSocketNameHash(receiver.m_Socket);
             if (target_socket_hash != 0)
             {
-                dmGameObject::HRegister regist = dmGameObject::GetRegister(instance->m_Collection->m_HCollection);
+                dmGameObject::HRegister regist = dmGameObject::GetRegister(collection);
                 dmGameObject::HCollection target_collection = dmGameObject::GetCollectionByHash(regist, target_socket_hash);
                 if (target_collection != 0)
                 {
@@ -2300,8 +2383,9 @@ namespace dmGameObject
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmVMath::Vector3* world_position = dmScript::CheckVector3(L, 1);
-        Instance* instance = ResolveInstance(L, 2);
-        dmVMath::Matrix4 go_world_transform = dmGameObject::GetWorldMatrix(instance);
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 2, &collection);
+        dmVMath::Matrix4 go_world_transform = dmGameObject::GetWorldMatrix(collection, instance);
         dmVMath::Matrix4 inv_transform = dmVMath::Inverse(go_world_transform);
         dmVMath::Vector4 local_position = inv_transform * dmVMath::Vector4(*world_position, 1.0f);
         dmScript::PushVector3(L, local_position.getXYZ());
@@ -2330,8 +2414,9 @@ namespace dmGameObject
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmVMath::Matrix4* world_transform = dmScript::CheckMatrix4(L, 1);
-        Instance* instance = ResolveInstance(L, 2);
-        dmVMath::Matrix4 inv_transform = dmVMath::Inverse(dmGameObject::GetWorldMatrix(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 2, &collection);
+        dmVMath::Matrix4 inv_transform = dmVMath::Inverse(dmGameObject::GetWorldMatrix(collection, instance));
 
         dmScript::PushMatrix4(L, inv_transform * *world_transform);
         return 1;
@@ -2368,10 +2453,8 @@ namespace dmGameObject
         {0, 0}
     };
 
-    void InitializeScript(HRegister regist, dmScript::HContext context)
+    void InitializeScript(dmScript::HContext context)
     {
-        g_Register = regist;
-
         lua_State* L = dmScript::GetLuaState(context);
 
         int top = lua_gettop(L);
@@ -2380,7 +2463,6 @@ namespace dmGameObject
         SCRIPT_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPT, Script_methods, Script_meta);
 
         SCRIPTINSTANCE_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
-
         luaL_register(L, "go", GO_methods);
 
 #define SETPLAYBACK(name) \
@@ -2706,7 +2788,7 @@ bail:
         i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         i->m_Instance = instance;
-        i->m_ScriptWorld = script_world->m_ScriptWorld;
+        i->m_World = script_world;
         i->m_ComponentIndex = component_index;
         i->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
         NewPropertiesParams params;
@@ -2722,7 +2804,7 @@ bail:
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_InstanceReference);
         dmScript::SetInstance(L);
-        dmScript::InitializeInstance(i->m_ScriptWorld);
+        dmScript::InitializeInstance(i->m_World->m_ScriptWorld);
         lua_pushnil(L);
         dmScript::SetInstance(L);
 
@@ -2733,7 +2815,7 @@ bail:
 
     void DeleteScriptInstance(HScriptInstance script_instance)
     {
-        HCollection collection = script_instance->m_Instance->m_Collection->m_HCollection;
+        HCollection collection = script_instance->m_World->m_Collection->m_HCollection;
         CancelAnimationCallbacks(collection, script_instance);
 
         lua_State* L = GetLuaState(script_instance);
@@ -2743,7 +2825,7 @@ bail:
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
-        dmScript::FinalizeInstance(script_instance->m_ScriptWorld);
+        dmScript::FinalizeInstance(script_instance->m_World->m_ScriptWorld);
         lua_pushnil(L);
         dmScript::SetInstance(L);
 

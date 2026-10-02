@@ -1291,10 +1291,10 @@ var Module = {
     },
 
     toggleFullscreen: function(element) {
-        if (GLFW.isFullscreen) {
-            GLFW.cancelFullScreen();
+        if (DefoldPlatform.isFullscreen) {
+            DefoldPlatform.cancelFullScreen();
         } else {
-            GLFW.requestFullScreen(element);
+            DefoldPlatform.requestFullScreen(element);
         }
     },
 

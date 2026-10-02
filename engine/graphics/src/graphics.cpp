@@ -18,7 +18,7 @@
 #include <platform/window.hpp>
 
 #if defined(DM_PLATFORM_IOS)
-#include  <glfw/glfw_native.h> // for glfwAppBootstrap
+#include <platform/platform_app.h>
 #endif
 #include <string.h>
 #include <assert.h>
@@ -2702,7 +2702,7 @@ namespace dmGraphics
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
 #if !defined(DM_GRAPHICS_NULL)
-        glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
+        dmPlatform::AppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
 #endif
     }
 #endif

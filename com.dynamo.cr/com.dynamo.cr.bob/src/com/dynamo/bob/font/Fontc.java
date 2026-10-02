@@ -663,6 +663,12 @@ public class Fontc {
                 .setAlpha(fontDesc.getAlpha()).setOutlineAlpha(fontDesc.getOutlineAlpha())
                 .setOutlineWidth(fontDesc.getOutlineWidth()).addAllStyles(FontStyles.compileStyles(fontDesc)).setLayerMask(GetFontMapLayerMask(fontDesc))
                 .setOutputFormat(fontDesc.getOutputFormat()).setRenderMode(fontDesc.getRenderMode());
+            // Keep the builtin project in sync with FontBuilder.
+            if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+                fontMap.setSdfSpread(GetFontMapSdfSpread(fontDesc))
+                    .setSdfOutline(GetFontMapSdfOutline(fontDesc))
+                    .setSdfShadow(GetFontMapSdfShadow(fontDesc));
+            }
             try (FileOutputStream output = new FileOutputStream(outfile)) {
                 fontMap.build().writeTo(output);
             }

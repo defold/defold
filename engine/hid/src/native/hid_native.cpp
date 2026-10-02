@@ -44,18 +44,18 @@ namespace dmHID
         dmArray<GamepadDriver*> m_GamepadDrivers;
     };
 
-    static void GLFWAddKeyboardChar(void* ctx, int chr)
+    static void PlatformAddKeyboardChar(void* ctx, int chr)
     {
         AddKeyboardChar((HContext) ctx, chr);
     }
 
-    static void GLFWSetMarkedText(void* ctx, char* text)
+    static void PlatformSetMarkedText(void* ctx, char* text)
     {
         SetMarkedText((HContext) ctx, text);
     }
 
 #if !defined(__APPLE__)
-    static void GLFWDeviceChangedCallback(void* ctx, int status)
+    static void PlatformDeviceChangedCallback(void* ctx, int status)
     {
         HContext context = (HContext) ctx;
         NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
@@ -127,7 +127,7 @@ namespace dmHID
 #if defined(__APPLE__)
         InstallGamepadDriver(context, CreateGamepadDriverApple(context), "Apple");
 #else
-        InstallGamepadDriver(context, CreateGamepadDriverGLFW(context), "GLFW");
+        InstallGamepadDriver(context, CreateGamepadDriverPlatform(context), "Platform");
 #endif
     }
 
@@ -198,10 +198,10 @@ namespace dmHID
             }
 
             assert(context->m_Window && "No window has been set.");
-            dmPlatform::SetKeyboardCharCallback(context->m_Window, GLFWAddKeyboardChar, (void*) context);
-            dmPlatform::SetKeyboardMarkedTextCallback(context->m_Window, GLFWSetMarkedText, (void*) context);
+            dmPlatform::SetKeyboardCharCallback(context->m_Window, PlatformAddKeyboardChar, (void*) context);
+            dmPlatform::SetKeyboardMarkedTextCallback(context->m_Window, PlatformSetMarkedText, (void*) context);
 #if !defined(__APPLE__)
-            dmPlatform::SetKeyboardDeviceChangedCallback(context->m_Window, GLFWDeviceChangedCallback, (void*) context);
+            dmPlatform::SetKeyboardDeviceChangedCallback(context->m_Window, PlatformDeviceChangedCallback, (void*) context);
 #endif
 
             assert(context->m_NativeContextUserData == 0);

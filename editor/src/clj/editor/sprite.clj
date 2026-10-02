@@ -43,7 +43,7 @@
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
@@ -141,7 +141,7 @@
              0
              renderable-datas))
 
-(defn render-sprites [^GL2 gl render-args renderables _count]
+(defn render-sprites [^GL3 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         scene-infos (:scene-infos user-data)
         pass (:pass render-args)
@@ -180,7 +180,7 @@
           (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices))))))
 
-(defn- render-sprite-outlines [^GL2 gl render-args renderables _count]
+(defn- render-sprite-outlines [^GL3 gl render-args renderables _count]
   (assert (= pass/outline (:pass render-args)))
   (let [num-quads (count-quads renderables)
         outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables num-quads) outline-shader)]

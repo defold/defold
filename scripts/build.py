@@ -178,7 +178,6 @@ PACKAGES_HOST=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
-# Both iOS targets build GLFW from source in build_ext.
 PACKAGES_IOS_SIMULATOR=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
@@ -337,10 +336,10 @@ PACKAGES_LINUX_ARM64=[
     "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10"]
 
+# Android window backends build with the engine's platform library.
 PACKAGES_ANDROID=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -353,7 +352,6 @@ PACKAGES_ANDROID=[
 PACKAGES_ANDROID_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -366,7 +364,6 @@ PACKAGES_ANDROID_64=[
 PACKAGES_ANDROID_X86_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -377,7 +374,6 @@ PACKAGES_ANDROID_X86_64=[
     "SkriBidi-a4a2f5"]
 
 PACKAGES_EMSCRIPTEN=[
-    "glfw-2.7.1",
     "wagyu-69",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -439,9 +435,8 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-EXTERNAL_LIBS = "glfw opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn".split()
+EXTERNAL_LIBS = "opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn".split()
 EXTERNAL_PACKAGE_VERSIONS = {
-    "glfw": "2.7.1",
     "opus": "1.5.2",
     "box2d": "3.1.0",
     "box2d_v2": "2.2.1",
@@ -1406,6 +1401,8 @@ class Configuration(object):
                     if is_header(file) and ('ddf' in file or file.startswith('res_')):
                         includes.append(os.path.join(root, file))
 
+            # Extender's generated Android entry point uses the platform lifecycle API.
+            includes.append(os.path.join(self.dynamo_home, 'include/platform/platform_app.h'))
             self._add_files_to_zip(zip, includes, basedir, topfolder)
 
             zip.close()
@@ -1452,6 +1449,8 @@ class Configuration(object):
                     if is_header(file) and ('ddf' in file or file.startswith('res_')):
                         includes.append(os.path.join(root, file))
 
+            # Extender's generated Android entry point uses the platform lifecycle API.
+            includes.append(os.path.join(self.dynamo_home, 'include/platform/platform_app.h'))
             self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
 
             # Configs
@@ -1527,12 +1526,6 @@ class Configuration(object):
                 paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-                # Android Jars (external)
-                external_jars = ("glfw_android.jar",)
-                jardir = os.path.join(self.dynamo_home, 'ext/share/java')
-                paths = _findjars(jardir, external_jars)
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-
             # Win32 resource files
             if platform == 'x86_64-win32':
                 resource_dirs = [os.path.join(self.dynamo_home, 'lib/%s' % platform)]
@@ -1561,8 +1554,11 @@ class Configuration(object):
                 self._add_files_to_zip(zip, wagyu_port_files, self.dynamo_home, topfolder)
 
             if platform in ['wasm-web', 'wasm_pthread-web']:
-                for subdir in [f'lib/{platform}/js/', f'ext/lib/{platform}/js/']:
-                    jsdir = os.path.join(self.dynamo_home, subdir)
+                jsdirs = [os.path.join(self.dynamo_home, f'lib/{platform}/js/')]
+                external_jsdir = os.path.join(self.dynamo_home, f'ext/lib/{platform}/js/')
+                if os.path.isdir(external_jsdir):
+                    jsdirs.append(external_jsdir)
+                for jsdir in jsdirs:
                     paths = _findjslibs(jsdir)
                     self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
@@ -1792,7 +1788,7 @@ class Configuration(object):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
         supported_tests['x86_64-win32'] = ['x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
-        supported_tests['x86_64-linux'] = []
+        supported_tests['x86_64-linux'] = ['wasm-web']
         supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web']
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web']
 
@@ -2542,9 +2538,6 @@ class Configuration(object):
             libs = [self.external_package]
 
         for lib in libs:
-            if lib == 'glfw' and self.target_platform not in BASE_PLATFORMS and not self.external_package:
-                self._log("Skipping glfw for unsupported platform: %s" % self.target_platform)
-                continue
             if lib == 'vkquality' and self.target_platform not in ('armv7-android', 'arm64-android', 'x86_64-android') and not self.external_package:
                 self._log("Skipping vkquality for non-Android platform: %s" % self.target_platform)
                 continue

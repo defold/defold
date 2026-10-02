@@ -29,7 +29,7 @@
             [editor.scene-picking :as scene-picking]
             [editor.shaders :as shaders]
             [util.coll :as coll])
-  (:import [com.jogamp.opengl GL GL2]
+  (:import [com.jogamp.opengl GL GL3]
            [java.lang Math Runnable]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
 
@@ -139,7 +139,7 @@
     :local manip-world-rotation
     :world geom/NoRotation))
 
-(defn render-manips [^GL2 gl render-args renderables n]
+(defn render-manips [^GL3 gl render-args renderables n]
   (let [camera (:camera render-args)
         renderable (first renderables)
         user-data (:user-data renderable)
