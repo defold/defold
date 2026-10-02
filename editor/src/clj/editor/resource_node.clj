@@ -28,8 +28,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
-            [internal.util :as util]
-            [util.coll :as coll :refer [pair]]
+            [util.coll :as coll]
             [util.digest :as digest]
             [util.fn :as fn]))
 
@@ -57,17 +56,15 @@
   (let [resource-type (resource/resource-type resource)]
     (save-content save-value resource-type)))
 
-(defn save-data-sha256 [save-data]
+(defn save-data-sha256 [save-data disk-sha256]
   (if (g/error-value? save-data)
     save-data
-    (if-some [content (save-data-content save-data)]
+    (if-let [content (save-data-content save-data)]
       ;; TODO(save-value-cleanup): Can we digest the save-value without converting it to a string?
       (digest/string->sha256-hex content)
-      (let [resource (:resource save-data)
-            node-id (:node-id save-data)
-            workspace (resource/workspace resource)
-            node-id->disk-sha256 (g/node-value workspace :disk-sha256s-by-node-id)]
-        (or (node-id->disk-sha256 node-id)
+      (or disk-sha256
+          (let [resource (:resource save-data)
+                node-id (:node-id save-data)]
             (resource-io/with-error-translation resource node-id :sha256
               (resource/resource->sha256-hex resource)))))))
 
@@ -89,34 +86,34 @@
         dirty (dirty-save-value? save-value source-value resource-type)]
     (make-save-data _node-id resource save-value dirty)))
 
-(g/defnk produce-source-value [_node-id resource]
-  ;; The source-value is managed by the save system. When a file is loaded, we
-  ;; store the value returned by the :read-fn (or an ErrorValue in case of an
-  ;; error) as user-data for the node, and then subsequently update it whenever
-  ;; the file is saved. We make sure to invalidate anything downstream of the
-  ;; source-value output when doing so.
+(g/defnk produce-source-value [_node-id resource ^:try source-value]
   (if (resource/exists? resource)
-    (g/user-data _node-id :source-value)
+    source-value
     (resource-io/file-not-found-error _node-id :source-value :fatal resource)))
 
-(defn set-source-value! [node-id source-value]
-  (g/user-data! node-id :source-value source-value)
-  (g/invalidate-outputs! [(g/endpoint node-id :source-value)]))
+(defn merge-source-values [node-id+source-value-pairs]
+  (g/non-undoable
+    (coll/into-> node-id+source-value-pairs :eduction
+      (mapcat
+        (fn [[node-id source-value]]
+          (g/set-property node-id :source-value source-value))))))
 
-(defn merge-source-values! [node-id+source-value-pairs]
-  (when-not (coll/empty? node-id+source-value-pairs)
-    (let [[invalidated-endpoints
-           user-data-values-by-key-by-node-id]
-          (util/into-multiple
-            (pair []
-                  {})
-            (pair (map (fn [[node-id]]
-                         (g/endpoint node-id :source-value)))
-                  (map (fn [[node-id source-value]]
-                         (pair node-id {:source-value source-value}))))
-            node-id+source-value-pairs)]
-      (g/user-data-merge! user-data-values-by-key-by-node-id)
-      (g/invalidate-outputs! invalidated-endpoints))))
+(defn set-disk-sha256 [node-id disk-sha256]
+  {:pre [(g/node-id? node-id)
+         (or (nil? disk-sha256) (digest/sha256-hex? disk-sha256))]}
+  (g/non-undoable
+    (g/set-property node-id :disk-sha256 disk-sha256)))
+
+(defn merge-disk-sha256s [disk-sha256s-by-node-id]
+  {:pre [(coll/every? (fn [[_node-id disk-sha256]]
+                        (or (nil? disk-sha256)
+                            (digest/sha256-hex? disk-sha256)))
+                      disk-sha256s-by-node-id)]}
+  (g/non-undoable
+    (coll/into-> disk-sha256s-by-node-id :eduction
+      (mapcat
+        (fn [[node-id disk-sha256]]
+          (g/set-property node-id :disk-sha256 disk-sha256))))))
 
 (g/defnk produce-lines [_node-id resource save-value]
   (if (nil? save-value)
@@ -127,8 +124,8 @@
           content (save-content save-value resource-type)]
       (code.util/split-lines content))))
 
-(g/defnk produce-sha256 [save-data]
-  (save-data-sha256 save-data))
+(g/defnk produce-sha256 [save-data disk-sha256]
+  (save-data-sha256 save-data disk-sha256))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
@@ -138,9 +135,15 @@
   (property loaded g/Bool :unjammable (default false)
             (dynamic visible (g/constantly false)))
 
+  ;; Disk state is updated non-undoably when loading or saving the resource.
+  (property disk-sha256 g/Str :unjammable
+            (dynamic visible (g/constantly false)))
+  (property source-value g/Any :unjammable
+            (value produce-source-value)
+            (dynamic visible (g/constantly false)))
+
   (output save-data g/Any :cached produce-save-data)
   (output save-value g/Any (g/constantly nil))
-  (output source-value g/Any :unjammable produce-source-value)
   (output lines types/Lines produce-lines)
 
   (output dirty g/Bool (g/fnk [save-data] (:dirty save-data false)))

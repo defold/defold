@@ -67,8 +67,8 @@
 (defn write-fn [lines]
   (data/lines->string lines))
 
-;; To save memory, we don't store the source-value in the graph.
-;; Instead, we use its hash to determine if we've been dirtied.
+;; To save memory, store a hash of the saved lines as the source-value used for
+;; dirty detection.
 (def source-value-fn hash)
 
 (defn search-value-fn [node-id resource evaluation-context]
@@ -90,9 +90,8 @@
 ;; and read directly from disk up to that point. Once the file is edited we need
 ;; the unmodified lines to be able to undo past the point when the file was last
 ;; saved. When the first edit is performed, we load the original lines from disk
-;; and store it as user-data in the graph. We cannot store this in a property of
-;; the node, because undoing would clear out the state of the unmodified file as
-;; well, which would defeat the purpose.
+;; and store them non-undoably on the node. Saving must not replace these lines,
+;; since undoing the first edit restores them through the save-value output.
 
 (defn- read-lines+disk-sha256
   "Reads the disk state of the specified CodeEditorResourceNode id from disk and
@@ -101,67 +100,49 @@
   The disk-sha256 will also be nil for any resource that is not a file in the
   project."
   [node-id resource]
-  (let [lines+disk-sha256 (resource-io/with-error-translation resource node-id nil
-                            (resource/read-source-value+sha256-hex resource #(read-fn {} resource %)))]
+  (let [lines+disk-sha256
+        (resource-io/with-error-translation resource node-id nil
+          (resource/read-source-value+sha256-hex resource #(read-fn {} resource %)))]
     (if (g/error? lines+disk-sha256)
       [lines+disk-sha256 nil]
       lines+disk-sha256)))
 
-(defn- loaded-unmodified-lines
-  "Returns the unmodified lines for the specified node-id, or nil if the node
-  was never modified."
-  [node-id]
-  ;; Note: Be really careful how you use this. It will be initialized only once,
-  ;; so any outputs that make use of it can potentially produce a stale value as
-  ;; it bypasses the established cache invalidation mechanism.
-  (g/user-data node-id :unmodified-lines))
-
-(defn- set-unmodified-lines!
-  "Sets the unmodified lines for the specified node-id."
-  [node-id lines]
-  (g/user-data! node-id :unmodified-lines lines))
-
 (defn- init-disk-state
-  "Ensures the disk state has been loaded for the specified node-id. The first
-  time this is called for a node-id, the state will be read from disk and
-  returned. Subsequent calls will simply return nil. The loaded-unmodified-lines
-  function will return a non-nil value after this function is called."
+  "Returns [resource, source-value, tx-data] for initializing a node's disk
+  state non-undoably, or nil if it is already initialized in the supplied
+  evaluation context. The caller must apply the returned transaction steps."
   [node-id evaluation-context]
-  (let [read-volatile (volatile! nil)]
-    (g/user-data-swap!
-      node-id :unmodified-lines
-      (fn [loaded-unmodified-lines]
-        (or loaded-unmodified-lines
-            (let [resource (g/node-value node-id :resource evaluation-context)
-                  [lines-or-error-value disk-sha256] (read-lines+disk-sha256 node-id resource)]
-              (vreset! read-volatile [resource lines-or-error-value disk-sha256])
-              lines-or-error-value))))
-    (when-some [[resource lines-or-error-value disk-sha256] (deref read-volatile)]
-      (let [resource-type (resource/resource-type resource)
-            source-value (resource-node/save-value->source-value lines-or-error-value resource-type)]
-        [resource source-value disk-sha256]))))
+  (when-not (g/raw-property-value (:basis evaluation-context) node-id :unmodified-lines)
+    (let [resource (g/node-value node-id :resource evaluation-context)
+          [lines-or-error-value disk-sha256] (read-lines+disk-sha256 node-id resource)
+          resource-type (resource/resource-type resource)
+          source-value (resource-node/save-value->source-value lines-or-error-value resource-type)]
+      [resource
+       source-value
+       (g/non-undoable
+         (g/set-properties node-id
+           :unmodified-lines lines-or-error-value
+           :source-value source-value
+           :disk-sha256 disk-sha256))])))
 
 (defn ensure-loaded!
   "Ensures a lazy-loaded CodeEditorResourceNode has loaded the contents of its
   associated resource into memory."
   [node-id evaluation-context]
-  ;; This function is called externally for its side effects, so we need to
-  ;; invalidate any outputs that depend on the disk-state.
-  (when-some [[resource source-value disk-sha256] (init-disk-state node-id evaluation-context)]
-    (resource-node/set-source-value! node-id source-value)
-    (when disk-sha256
-      (g/transact
-        {:undoable false}
-        (workspace/set-disk-sha256 (resource/workspace resource) node-id disk-sha256)))))
+  (when-let [[_resource _source-value tx-data] (init-disk-state node-id evaluation-context)]
+    (g/transact {:undoable false} tx-data)))
 
 (defn- eager-load [self lines]
   {:pre [(and (vector? lines)
               (string? (first lines)))]}
   (let [indent-type (guess-indent-type lines)]
-    (set-unmodified-lines! self lines) ; Avoids a disk read in modified-lines property setter.
-    (g/set-properties self
-      :modified-lines lines
-      :modified-indent-type indent-type)))
+    (e/concat
+      ;; Avoids a disk read in the modified-lines property setter.
+      (g/non-undoable
+        (g/set-property self :unmodified-lines lines))
+      (g/set-properties self
+        :modified-lines lines
+        :modified-indent-type indent-type))))
 
 (defn- connect-fn [additional-connect-fn connect-breakpoints project self resource]
   (e/concat
@@ -189,17 +170,16 @@
   (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-indent-type IndentType (dynamic visible (g/constantly false)))
+  (property unmodified-lines types/Lines (dynamic visible (g/constantly false)))
 
   (property modified-lines types/Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
                          lsp (lsp/get-lsp basis)]
-                     (if-some [[resource source-value disk-sha256] (init-disk-state self evaluation-context)]
+                     (if-let [[resource source-value tx-data] (init-disk-state self evaluation-context)]
                        (do
                          (lsp/notify-lines-modified! lsp resource source-value new-value)
-                         (resource-node/set-source-value! self source-value)
-                         (when disk-sha256
-                           (workspace/set-disk-sha256 (resource/workspace resource) self disk-sha256)))
+                         tx-data)
                        (let [resource (resource-node/resource basis self)
                              source-value (g/node-value self :source-value evaluation-context)]
                          (lsp/notify-lines-modified! lsp resource source-value new-value)
@@ -209,21 +189,26 @@
 
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
   (output completions g/Any (g/constantly {}))
-  (output indent-type IndentType :cached (g/fnk [_node-id modified-indent-type resource]
-                                           (or modified-indent-type
-                                               (let [lines (resource-io/with-error-translation resource _node-id :indent-type
-                                                             (read-fn {} resource resource))]
-                                                 (if (g/error? lines)
-                                                   default-indent-type
-                                                   (guess-indent-type lines))))))
 
-  (output lines types/Lines (g/fnk [_node-id save-value resource] (or save-value
-                                                                      (resource-io/with-error-translation resource _node-id :lines
-                                                                        (read-fn {} resource resource)))))
+  (output indent-type IndentType :cached
+          (g/fnk [_node-id modified-indent-type resource]
+            (or modified-indent-type
+                (let [lines (resource-io/with-error-translation resource _node-id :indent-type
+                              (read-fn {} resource resource))]
+                  (if (g/error? lines)
+                    default-indent-type
+                    (guess-indent-type lines))))))
 
-  (output save-value types/Lines (g/fnk [_node-id modified-lines]
-                                   (or modified-lines
-                                       (loaded-unmodified-lines _node-id)))))
+  (output lines types/Lines
+          (g/fnk [_node-id save-value resource]
+            (or save-value
+                (resource-io/with-error-translation resource _node-id :lines
+                  (read-fn {} resource resource)))))
+
+  (output save-value types/Lines
+          (g/fnk [modified-lines unmodified-lines]
+            (or modified-lines
+                unmodified-lines))))
 
 (defn code-resource-type? [resource-type]
   (and (:textual? resource-type)

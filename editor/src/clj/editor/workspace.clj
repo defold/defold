@@ -37,7 +37,6 @@ ordinary paths."
             [internal.java :as java]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
-            [util.digest :as digest]
             [util.fn :as fn]
             [util.path :as path]
             [util.text-util :as text-util])
@@ -1064,7 +1063,6 @@ ordinary paths."
   (property resource-list g/Any) ; Assigned from resource-snapshot property setter.
   (property resource-map g/Any) ; Assigned from resource-snapshot property setter.
   (property resource-listeners g/Any)
-  (property disk-sha256s-by-node-id g/Any (default {}))
   (property view-types g/Any (default {:default {:id :default}}))
   (property resource-types g/Any)
   (property resource-types-non-editable g/Any)
@@ -1220,22 +1218,6 @@ ordinary paths."
             (concat
               (g/connect notifications :_node-id workspace :notifications)
               (g/connect code-preprocessors :_node-id workspace :code-preprocessors))))))))
-
-(defn set-disk-sha256 [workspace node-id disk-sha256]
-  {:pre [(g/node-id? workspace)
-         (g/node-id? node-id)
-         (or (nil? disk-sha256) (digest/sha256-hex? disk-sha256))]}
-  (g/non-undoable
-    (g/update-property workspace :disk-sha256s-by-node-id assoc node-id disk-sha256)))
-
-(defn merge-disk-sha256s [workspace disk-sha256s-by-node-id]
-  {:pre [(g/node-id? workspace)
-         (map? disk-sha256s-by-node-id)
-         (every? g/node-id? (keys disk-sha256s-by-node-id))
-         (every? #(or (nil? %) (digest/sha256-hex? %)) (vals disk-sha256s-by-node-id))]}
-  (when-not (coll/empty? disk-sha256s-by-node-id)
-    (g/non-undoable
-      (g/update-property workspace :disk-sha256s-by-node-id into disk-sha256s-by-node-id))))
 
 (defn register-view-type
   "Register a new view type that can be used by resources

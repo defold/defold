@@ -37,7 +37,6 @@
             [internal.graph.types]
             [internal.system :as is]
             [internal.transaction :as it]
-            [util.coll :as coll]
             [util.debug-util :as du]
             [util.eduction :as e]
             [util.fn :as fn])
@@ -265,14 +264,14 @@
           :generate-load-tx-data
           (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]}
                 (project/node-load-infos->stored-disk-state node-load-infos)]
-            (resource-node/merge-source-values! node-id+source-value-pairs)
-            (coll/into->
+            (cond->
               (e/concat
                 (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-                (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
+                (resource-node/merge-disk-sha256s disk-sha256s-by-node-id)
+                (resource-node/merge-source-values node-id+source-value-pairs)
                 (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
-              (if separate-load-tx-data-generation [] :eduction)
-              coll/flatten-xf)))
+              separate-load-tx-data-generation
+              g/eager-tx-data)))
 
         transaction-context (g/make-transaction-context transact-opts)
         pre-tx-basis (:basis transaction-context)

@@ -123,10 +123,14 @@
         observing-resource-listener
         (reify resource/ResourceListener
           (handle-changes [_this changes _render-progress!]
-            (let [old-nodes-by-path (g/valid-node-value project :nodes-by-resource-path)
-                  old-node->old-disk-sha256 (g/valid-node-value workspace :disk-sha256s-by-node-id)
-                  resource-change-plan (resource-update/resource-change-plan old-nodes-by-path old-node->old-disk-sha256 changes)]
-              (swap! resource-change-plans-atom conj resource-change-plan))))
+            (g/with-auto-evaluation-context evaluation-context
+              (let [basis (:basis evaluation-context)
+                    old-nodes-by-path (g/valid-node-value project :nodes-by-resource-path evaluation-context)
+                    resource-change-plan (resource-update/resource-change-plan
+                                           old-nodes-by-path
+                                           #(g/raw-property-value basis % :disk-sha256)
+                                           changes)]
+                (swap! resource-change-plans-atom conj resource-change-plan)))))
 
         progress-span 1
         resource-listeners (workspace/prepend-resource-listener! workspace progress-span observing-resource-listener)]
