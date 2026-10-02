@@ -44,7 +44,7 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
 # Private platform hooks can still list dependencies now built from source.
 SOURCE_BUILT_PACKAGE_PREFIXES = (
     'bullet-', 'protobuf-', 'box2d-', 'box2d_defold-', 'opus-',
-    'harfbuzz-', 'SheenBidi-', 'libunibreak-', 'SkriBidi-')
+    'harfbuzz-', 'SheenBidi-', 'libunibreak-', 'SkriBidi-', 'luajit-')
 
 _CMAKE_FEATURE_FLAG_MAP = {
     '--with-asan': 'WITH_ASAN',
@@ -162,7 +162,6 @@ PACKAGES_ALL=[
     "maven-3.0.1",
     "vecmath",
     "vpx-1.7.0",
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
@@ -171,20 +170,16 @@ PACKAGES_ALL=[
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_SIMULATOR=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_64=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "moltenvk-1474891"]
 
 PACKAGES_MACOS_X86_64=[
-    "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
@@ -206,7 +201,6 @@ PACKAGES_MACOS_X86_64=[
 
 PACKAGES_MACOS_ARM64=[
     "dawn-6bab1bd",
-    "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
@@ -226,7 +220,6 @@ PACKAGES_MACOS_ARM64=[
     "zipalign"]
 
 PACKAGES_WIN32_64=[
-    "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glslang-42d9adf5",
@@ -245,7 +238,6 @@ PACKAGES_WIN32_64=[
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
-    "luajit-2.1.0-3e223cb",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -265,7 +257,6 @@ PACKAGES_LINUX_X86_64=[
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
-    "luajit-2.1.0-3e223cb",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
@@ -280,17 +271,14 @@ PACKAGES_LINUX_ARM64=[
 
 # Android window backends build with the engine's platform library.
 PACKAGES_ANDROID=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "vkquality-1.1-2642a0d"]
 
 PACKAGES_ANDROID_64=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "vkquality-1.1-2642a0d"]
 
 PACKAGES_ANDROID_X86_64=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "vkquality-1.1-2642a0d"]
 
@@ -313,14 +301,6 @@ PLATFORM_PACKAGES = {
     'wasm-web':         PACKAGES_EMSCRIPTEN,
     'wasm_pthread-web': PACKAGES_EMSCRIPTEN
 }
-
-BOB_TOOL_PLATFORMS = [
-    'x86_64-macos',
-    'arm64-macos',
-    'x86_64-linux',
-    'arm64-linux',
-    'x86_64-win32'
-]
 
 # SDKs that include host-side protoc/native-extension pipeline tools.
 SDK_PIPELINE_TOOL_PLATFORMS = (
@@ -1001,10 +981,8 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            # Bob Light packages LuaJIT for every desktop host directly from ext.
             packages = [package for package in PLATFORM_PACKAGES.get(platform, [])
-                        if package not in PACKAGES_HOST or
-                        (platform in BOB_TOOL_PLATFORMS and package.startswith('luajit-'))]
+                        if package not in PACKAGES_HOST]
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:

@@ -1,0 +1,52 @@
+set(compiler_flags [==[@LUAJIT_TARGET_COMPILER_FLAGS@]==])
+separate_arguments(compiler_flags NATIVE_COMMAND "${compiler_flags}")
+set(options [==[$<TARGET_PROPERTY:luajit,COMPILE_OPTIONS>]==])
+set(definitions [==[$<TARGET_PROPERTY:luajit,COMPILE_DEFINITIONS>]==])
+set(host_definitions "${definitions}")
+list(FILTER host_definitions INCLUDE REGEX "^(LUA_|LUAJIT_|LJ_)")
+list(TRANSFORM definitions PREPEND "-D")
+set(includes [==[$<TARGET_PROPERTY:luajit,INCLUDE_DIRECTORIES>;@CMAKE_C_STANDARD_INCLUDE_DIRECTORIES@]==])
+list(FILTER includes EXCLUDE REGEX "^$")
+list(TRANSFORM includes PREPEND "-I")
+if(@MSVC@)
+  set(preprocess /EP /TC)
+else()
+  set(preprocess -E -P -x c)
+endif()
+file(MAKE_DIRECTORY "@LUAJIT_HOST_BUILD_DIR@" "@LUAJIT_GENERATED_DIR@/host" "@LUAJIT_GENERATED_DIR@/jit")
+execute_process(COMMAND "@CMAKE_C_COMPILER@" ${compiler_flags} ${options} ${definitions}
+    ${includes} ${preprocess} "@CMAKE_CURRENT_SOURCE_DIR@/target_arch.h"
+  OUTPUT_FILE "@LUAJIT_HOST_BUILD_DIR@-arch.txt" COMMAND_ERROR_IS_FATAL ANY)
+
+set(host_args)
+if("@CMAKE_GENERATOR@" MATCHES "Visual Studio")
+  file(READ "@LUAJIT_HOST_BUILD_DIR@-arch.txt" arch_config)
+  if(arch_config MATCHES "LJ_BITS 32")
+    list(APPEND host_args -A Win32)
+  elseif("@HOST_PLATFORM@" MATCHES "^arm64-")
+    list(APPEND host_args -A ARM64)
+  else()
+    list(APPEND host_args -A x64)
+  endif()
+  if("@CMAKE_GENERATOR_INSTANCE@")
+    list(APPEND host_args "-DCMAKE_GENERATOR_INSTANCE:PATH=@CMAKE_GENERATOR_INSTANCE@")
+  endif()
+elseif(NOT "@CMAKE_HOST_SYSTEM_NAME@" STREQUAL "Windows")
+  find_program(host_cc clang gcc cc REQUIRED)
+  list(APPEND host_args "-DCMAKE_C_COMPILER:FILEPATH=${host_cc}")
+endif()
+execute_process(COMMAND "@CMAKE_COMMAND@" -E env --unset=CC --unset=CFLAGS --unset=LDFLAGS
+    --unset=CMAKE_TOOLCHAIN_FILE --unset=SDKROOT
+    "@CMAKE_COMMAND@" -S "@CMAKE_CURRENT_SOURCE_DIR@/host"
+    -B "@LUAJIT_HOST_BUILD_DIR@" -G "@CMAKE_GENERATOR@" ${host_args}
+    "-DDEFOLD_SDK_ROOT:PATH=@DEFOLD_SDK_ROOT@"
+    "-DLUAJIT_SOURCE_DIR:PATH=@LUAJIT_SOURCE_DIR@"
+    "-DLUAJIT_GENERATED_DIR:PATH=@LUAJIT_GENERATED_DIR@"
+    "-DLUAJIT_ARCH_FILE:FILEPATH=@LUAJIT_HOST_BUILD_DIR@-arch.txt"
+    "-DLUAJIT_DEFINITIONS:STRING=${host_definitions}"
+    "-DLUAJIT_VM_MODE:STRING=@LUAJIT_VM_MODE@"
+    "-DLUAJIT_VM_FILE:FILEPATH=@LUAJIT_VM_FILE@"
+    -DCMAKE_BUILD_TYPE=Release
+  COMMAND_ERROR_IS_FATAL ANY)
+execute_process(COMMAND "@CMAKE_COMMAND@" --build "@LUAJIT_HOST_BUILD_DIR@" --config Release
+  COMMAND_ERROR_IS_FATAL ANY)
