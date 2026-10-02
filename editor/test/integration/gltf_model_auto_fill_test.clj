@@ -85,23 +85,36 @@
   {:mesh (some-> (test-util/prop model-node-id :mesh) resource/proj-path)
    :materials (material-bindings model-node-id)})
 
-;; Verifies auto-filled built-in glTF models preview and build, guarding against unresolved shader dependencies.
-(deftest builtin-gltf-auto-fill-previews-and-builds
+;; Verifies built-in glTF scene and mesh edits preserve a valid custom material assignment and build.
+(deftest builtin-gltf-models-preserve-custom-materials
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
     (with-open [_deleter (test-util/make-directory-deleter project-path)]
-      (fs/create-file! (io/file project-path "builtin.model") "name: \"builtin\"\nmesh: \"\"\n")
+      (fs/create-file! (io/file project-path "builtin.model")
+                       "mesh: \"\"\nmaterials { name: \"default\" material: \"/builtins/materials/model.material\" textures { sampler: \"tex0\" texture: \"/builtins/graphics/particle_blob.png\" } }\n")
       (with-clean-system
         (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
-              model-node-id (test-util/resource-node project "/builtin.model")]
-          (doseq [name ["cube" "quad" "quad_2x2" "sphere"]]
-            (testing name
+              model-node-id (test-util/resource-node project "/builtin.model")
+              expected-bindings {"default" {:material "/builtins/materials/model.material"
+                                            :textures {"tex0" "/builtins/graphics/particle_blob.png"}}}]
+          (doseq [shape ["cube" "quad" "quad_2x2" "sphere"]]
+            (testing shape
               (with-redefs [dialogs/make-confirmation-dialog (fn [_localization _props] true)]
                 (edit-property! model-node-id :mesh
-                                (workspace/find-resource workspace (str "/builtins/assets/gltf/" name ".gltf"))))
-              (is (not (g/error-value? (g/node-value model-node-id :scene))))
-              (with-open [_build (test-util/build! model-node-id)]
-                (is (not (g/error-value? (g/node-value model-node-id :build-targets))))))))))))
+                                (workspace/find-resource workspace (str "/builtins/assets/gltf/" shape ".gltf")))
+                (doseq [mesh-index [-1 0]]
+                  (testing (str "mesh index " mesh-index)
+                    (edit-property! model-node-id :mesh-index mesh-index)
+                    (is (= expected-bindings (material-bindings model-node-id)))
+                    (is (= {:label "default"
+                            :value (workspace/find-resource workspace "/builtins/materials/model.material")
+                            :error nil}
+                           (select-keys (get-in (g/node-value model-node-id :_properties)
+                                                [:properties :__material__0])
+                                        [:label :value :error])))
+                    (is (not (g/error-value? (g/node-value model-node-id :scene))))
+                    (with-open [_build (test-util/build! model-node-id)]
+                      (is (not (g/error-value? (g/node-value model-node-id :build-targets)))))))))))))))
 
 (deftest gltf-mesh-user-edit-auto-fill
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")

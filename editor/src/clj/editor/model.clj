@@ -533,8 +533,9 @@
           (g/error-value? collision-meshes))
     (set mesh-material-ids)
     (if-let [selected-mesh (resolve-selected-mesh collision-meshes mesh-index)]
+      ;; Unassigned primitives use material slot zero, including the default fallback.
       (coll/into-> (:primitives selected-mesh) #{}
-        (keep :material-name))
+        (map #(or (:material-name %) (nth mesh-material-ids 0))))
       (set mesh-material-ids))))
 
 (g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids collision-meshes mesh-name mesh-index]
