@@ -388,7 +388,7 @@
             (is (= (contains? backends backend) (contains? libs library)))
             (is (= (contains? backends backend) (contains? symbols symbol))))
 
-          (doseq [library ["D3D12.lib" "DXGI.lib" "d3dcompiler.lib"]]
+          (doseq [library ["d3d12.lib" "dxgi.lib" "d3dcompiler.lib"]]
             (is (= (contains? backends :dx12) (contains? libs library))))
 
           (doseq [library ["platform_vulkan" "vulkan-1"]]
@@ -418,15 +418,18 @@
           context (get-in dx12 [:platforms :x86_64-win32 :context])]
       (is (= selection (app-manifest/get-setting-value legacy setting)))
       (is (= :dx12 (app-manifest/get-setting-value dx12 setting)))
-      (is (= #{"graphics_dx12" "D3D12.lib" "DXGI.lib" "d3dcompiler.lib"} (set (:libs context))))
+      (is (= #{"graphics_dx12" "d3d12.lib" "dxgi.lib" "d3dcompiler.lib"} (set (:libs context))))
       (is (= ["graphics"] (:excludeLibs context)))
       (is (= ["GraphicsAdapterDX12"] (:symbols context))))))
 
 (deftest windows-dx12-system-library-names-test
   (let [setting app-manifest/graphics-setting-windows
-        sdk-libs ["D3D12.lib" "DXGI.lib" "d3dcompiler.lib"]
-        bare-libs ["D3D12" "DXGI" "d3dcompiler"]]
-    (doseq [libraries [sdk-libs bare-libs (into sdk-libs bare-libs)]]
+        sdk-libs ["d3d12.lib" "dxgi.lib" "d3dcompiler.lib"]
+        bare-libs ["D3D12" "DXGI" "d3dcompiler"]
+        legacy-libs ["D3D12.lib" "DXGI.lib" "d3dcompiler.lib"]]
+    (doseq [libraries [sdk-libs bare-libs legacy-libs
+                       ["d3d12" "dxgi" "d3dcompiler"]
+                       (into [] cat [sdk-libs bare-libs legacy-libs])]]
       (let [manifest {:platforms {:x86_64-win32
                                  {:context {:libs (into ["custom" "graphics_dx12"] libraries)
                                             :symbols ["GraphicsAdapterDX12"]}}}}

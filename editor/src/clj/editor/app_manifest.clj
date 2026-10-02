@@ -590,13 +590,15 @@
 
         dx12 (into [] cat
                    [(libs-toggles windows ["graphics_dx12"])
-                    ;; Preserve SDK filenames; also recognize the previously written bare names.
+                    ;; Extender runs on a case-sensitive host. Preserve the SDK filename case
+                    ;; while accepting names written by earlier editors.
                     (into []
                           (mapcat (fn [platform]
-                                    (mapv (fn [library]
+                                    (mapv (fn [[library legacy-library]]
                                             (contains-toggle platform :libs (str library ".lib")
-                                                             [(str library ".lib") library]))
-                                          ["D3D12" "DXGI" "d3dcompiler"])))
+                                                             [(str library ".lib") library
+                                                              (str legacy-library ".lib") legacy-library]))
+                                          [["d3d12" "D3D12"] ["dxgi" "DXGI"] ["d3dcompiler" "d3dcompiler"]])))
                           windows)
                     (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"])])
 
