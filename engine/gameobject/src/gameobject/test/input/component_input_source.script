@@ -1,4 +1,27 @@
+input_pointer_received = 0
+input_accelerometer_received = 0
+
 function on_input(self, action_id, action)
-    assert(action_id == hash("test_action"))
-    input_source_received = action.source
+    if action_id == nil then
+        assert(action.value == nil and action.pressed == nil)
+        assert(action.released == nil and action.repeated == nil)
+        if action.source == hash("mouse") or action.source == hash("touch") then
+            assert(action.x == 1 and action.y == 2)
+            assert(action.dx == 3 and action.dy == 4)
+            assert(action.screen_x == 5 and action.screen_y == 6)
+            assert(action.screen_dx == 7 and action.screen_dy == 8)
+            assert(action.acc_x == nil and action.acc_y == nil and action.acc_z == nil)
+            input_pointer_received = input_pointer_received + 1
+            return true
+        end
+        assert(action.source == hash("accelerometer"))
+        assert(action.acc_x == 0.25 and action.acc_y == -0.5 and action.acc_z == 1)
+        assert(action.x == nil and action.y == nil and action.dx == nil and action.dy == nil)
+        assert(action.screen_x == nil and action.screen_y == nil)
+        assert(action.screen_dx == nil and action.screen_dy == nil)
+        input_accelerometer_received = input_accelerometer_received + 1
+    else
+        assert(action_id == hash("test_action"))
+        input_source_received = action.source
+    end
 end

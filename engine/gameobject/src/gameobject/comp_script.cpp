@@ -501,7 +501,7 @@ namespace dmGameObject
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
-            // 0 is reserved for pure mouse movement
+            // 0 is reserved for pointer movement and accelerometer samples
             if (params.m_InputAction->m_ActionId != 0)
             {
                 dmScript::PushHash(L, params.m_InputAction->m_ActionId);

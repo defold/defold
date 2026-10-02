@@ -98,6 +98,7 @@ namespace dmInput
 
     void UpdateBinding(HBinding binding, float dt);
 
+    // Action id 0 refers to pointer movement. Accelerometer samples are delivered by ForEachActive.
     const Action* GetAction(HBinding binding, dmhash_t action_id);
     float GetValue(HBinding binding, dmhash_t action_id);
     bool Pressed(HBinding binding, dmhash_t action_id);
@@ -110,6 +111,7 @@ namespace dmInput
 
     typedef void (*ActionCallback)(dmhash_t action_id, Action* action, void* user_data);
 
+    // Pointer movement and accelerometer samples are separate callbacks, both with action id 0.
     void ForEachActive(HBinding binding, ActionCallback callback, void* user_data);
     bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* context);
 }

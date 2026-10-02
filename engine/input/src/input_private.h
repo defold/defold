@@ -99,8 +99,7 @@ namespace dmInput
 
     struct AccelerationBinding
     {
-        dmHID::AccelerationPacket m_PreviousPacket;
-        dmHID::AccelerationPacket m_Packet;
+        Action m_Action;
     };
 
     struct Binding

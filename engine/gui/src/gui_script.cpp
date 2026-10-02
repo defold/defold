@@ -5516,7 +5516,7 @@ namespace dmGui
      *
      * @name on_input
      * @param self [type:script_instance] script instance used for storing state
-     * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for mouse movement
+     * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for pointer movement and accelerometer samples; check `action.source` to distinguish them
      * @param action [type:on_input.action] input data for the action
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples

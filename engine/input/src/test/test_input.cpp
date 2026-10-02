@@ -1378,36 +1378,185 @@ TEST_F(InputTest, RealMouseSourceWithActiveTouch)
     dmInput::DeleteBinding(binding);
 }
 
-// Verifies accelerometer-only and combined unnamed actions, then a return to mouse-only movement.
+static void UnnamedActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
+{
+    ASSERT_EQ(0ULL, action_id);
+    dmArray<dmInput::Action>* actions = (dmArray<dmInput::Action>*)user_data;
+    actions->Push(*action);
+}
+
+// Verifies disabled accelerometer input allocates no sensor action during setup, updates, or reloads, while pointer input still works.
+TEST_F(InputTest, DisabledAccelerometerDoesNotAllocate)
+{
+    m_HidContext->m_IgnoreAcceleration = 1;
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
+    ASSERT_EQ((dmInput::AccelerationBinding*)0, binding->m_AccelerationBinding);
+
+    dmHID::HMouse mouse = dmHID::GetMouse(m_HidContext, 0);
+    dmArray<dmInput::Action> actions;
+    actions.SetCapacity(4);
+    for (int i = 1; i <= 3; ++i)
+    {
+        dmHID::Update(m_HidContext);
+        dmHID::SetMousePosition(mouse, i * 10, i * 20);
+        dmInput::UpdateBinding(binding, m_DT);
+        ASSERT_EQ((dmInput::AccelerationBinding*)0, binding->m_AccelerationBinding);
+        actions.SetSize(0);
+        dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+        ASSERT_EQ(1U, actions.Size());
+        ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, actions[0].m_Source);
+        ASSERT_TRUE(actions[0].m_PositionSet);
+        ASSERT_FALSE(actions[0].m_AccelerationSet);
+    }
+
+    dmInput::SetBinding(binding, m_TestDDF);
+    ASSERT_EQ((dmInput::AccelerationBinding*)0, binding->m_AccelerationBinding);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ((dmInput::AccelerationBinding*)0, binding->m_AccelerationBinding);
+    dmInput::DeleteBinding(binding);
+}
+
+// Verifies mouse and touch movement stay separate from acceleration, without stale events from idle or disconnected devices.
 TEST_F(InputTest, UnnamedActionSources)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
     dmHID::HMouse mouse = dmHID::GetMouse(m_HidContext, 0);
+    dmArray<dmInput::Action> actions;
+    actions.SetCapacity(4);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+    ASSERT_EQ(0U, actions.Size());
+
     m_HidContext->m_AccelerometerConnected = 1;
     m_HidContext->m_AccelerationPacket.m_X = 0.25f;
+    m_HidContext->m_AccelerationPacket.m_Y = -0.5f;
+    m_HidContext->m_AccelerationPacket.m_Z = 1.0f;
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
-    const dmInput::Action* action = dmInput::GetAction(binding, 0);
-    ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, action->m_Source);
-    ASSERT_TRUE(action->m_AccelerationSet);
-    ASSERT_EQ(0.25f, action->m_AccX);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+    ASSERT_EQ(1U, actions.Size());
+    dmInput::AccelerationBinding* acceleration_binding = binding->m_AccelerationBinding;
+    ASSERT_NE((dmInput::AccelerationBinding*)0, acceleration_binding);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[0].m_Source);
+    ASSERT_TRUE(actions[0].m_AccelerationSet);
+    ASSERT_FALSE(actions[0].m_PositionSet);
+    ASSERT_EQ(0.25f, actions[0].m_AccX);
+    ASSERT_EQ(-0.5f, actions[0].m_AccY);
+    ASSERT_EQ(1.0f, actions[0].m_AccZ);
 
     dmHID::SetMousePosition(mouse, 10, 20);
     dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, action->m_Source);
-    ASSERT_EQ(10, action->m_DX);
-    ASSERT_TRUE(action->m_AccelerationSet);
-    dmHashTable64<dmInput::Action*> actions;
-    actions.SetCapacity(8, 16);
-    dmInput::ForEachActive(binding, MouseCallback, &actions);
+    actions.SetSize(0);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+    ASSERT_EQ(2U, actions.Size());
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, actions[0].m_Source);
+    ASSERT_TRUE(actions[0].m_PositionSet);
+    ASSERT_FALSE(actions[0].m_AccelerationSet);
+    ASSERT_EQ(10, actions[0].m_X);
+    ASSERT_EQ(20, actions[0].m_Y);
+    ASSERT_EQ(10, actions[0].m_DX);
+    ASSERT_EQ(20, actions[0].m_DY);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[1].m_Source);
+    ASSERT_TRUE(actions[1].m_AccelerationSet);
+    ASSERT_FALSE(actions[1].m_PositionSet);
+    ASSERT_EQ(0, actions[1].m_DX);
+    ASSERT_EQ(0, actions[1].m_DY);
+    ASSERT_EQ(0.25f, actions[1].m_AccX);
+    ASSERT_EQ(-0.5f, actions[1].m_AccY);
+    ASSERT_EQ(1.0f, actions[1].m_AccZ);
+    ASSERT_FALSE(dmInput::GetAction(binding, 0)->m_AccelerationSet);
+
+    // Touch-emulated pointer movement must retain its source alongside acceleration.
+    dmHID::SetMousePosition(mouse, 15, 25);
+    mouse->m_Packet.m_PositionFromTouch = 1;
+    dmInput::UpdateBinding(binding, m_DT);
+    actions.SetSize(0);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+    ASSERT_EQ(2U, actions.Size());
+    ASSERT_EQ(dmHID::INPUT_SOURCE_TOUCH, actions[0].m_Source);
+    ASSERT_TRUE(actions[0].m_PositionSet);
+    ASSERT_FALSE(actions[0].m_AccelerationSet);
+    ASSERT_EQ(15, actions[0].m_X);
+    ASSERT_EQ(25, actions[0].m_Y);
+    ASSERT_EQ(5, actions[0].m_DX);
+    ASSERT_EQ(5, actions[0].m_DY);
+    ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[1].m_Source);
+    ASSERT_TRUE(actions[1].m_AccelerationSet);
+    ASSERT_FALSE(actions[1].m_PositionSet);
+
+    // A missing mouse packet must not replay the previous movement.
+    m_HidContext->m_IgnoreMouse = 1;
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+    actions.SetSize(0);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
     ASSERT_EQ(1U, actions.Size());
+    ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[0].m_Source);
+
+    // Stationary mouse polling still permits an unchanged accelerometer sample.
+    m_HidContext->m_IgnoreMouse = 0;
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+    actions.SetSize(0);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+    ASSERT_EQ(1U, actions.Size());
+    ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[0].m_Source);
+    ASSERT_FALSE(actions[0].m_PositionSet);
 
     m_HidContext->m_AccelerometerConnected = 0;
     dmHID::SetMousePosition(mouse, 20, 20);
     dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, action->m_Source);
-    ASSERT_FALSE(action->m_AccelerationSet);
+    actions.SetSize(0);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+    ASSERT_EQ(1U, actions.Size());
+    ASSERT_EQ(dmHID::INPUT_SOURCE_MOUSE, actions[0].m_Source);
+    ASSERT_FALSE(actions[0].m_AccelerationSet);
+
+    dmInput::UpdateBinding(binding, m_DT);
+    actions.SetSize(0);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+    ASSERT_EQ(0U, actions.Size());
+
+    // Reconnecting reuses the sensor action and reports the new sample without stale pointer data.
+    m_HidContext->m_AccelerometerConnected = 1;
+    m_HidContext->m_AccelerationPacket.m_X = 0.75f;
+    dmInput::UpdateBinding(binding, m_DT);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+    ASSERT_EQ(acceleration_binding, binding->m_AccelerationBinding);
+    ASSERT_EQ(1U, actions.Size());
+    ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[0].m_Source);
+    ASSERT_TRUE(actions[0].m_AccelerationSet);
+    ASSERT_FALSE(actions[0].m_PositionSet);
+    ASSERT_EQ(0.75f, actions[0].m_AccX);
+    dmInput::DeleteBinding(binding);
+}
+
+// Verifies binding reloads discard pending acceleration and support sampling without any mouse bindings.
+TEST_F(InputTest, UnnamedActionSourcesAfterRebind)
+{
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
+    m_HidContext->m_AccelerometerConnected = 1;
+    m_HidContext->m_AccelerationPacket.m_X = 0.25f;
+    dmHID::Update(m_HidContext);
+    dmHID::SetMousePosition(dmHID::GetMouse(m_HidContext, 0), 10, 20);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    dmInputDDF::InputBinding ddf = {};
+    dmInput::SetBinding(binding, &ddf);
+    dmArray<dmInput::Action> actions;
+    actions.SetCapacity(4);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+    ASSERT_EQ(0U, actions.Size());
+
+    dmInput::UpdateBinding(binding, m_DT);
+    dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
+    ASSERT_EQ(1U, actions.Size());
+    ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[0].m_Source);
+    ASSERT_TRUE(actions[0].m_AccelerationSet);
+    ASSERT_FALSE(actions[0].m_PositionSet);
+    ASSERT_EQ(0.25f, actions[0].m_AccX);
     dmInput::DeleteBinding(binding);
 }
 

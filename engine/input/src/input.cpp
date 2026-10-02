@@ -684,10 +684,9 @@ namespace dmInput
             binding->m_TextBinding = 0x0;
         }
 
-        if (binding->m_AccelerationBinding == 0x0)
+        if (binding->m_AccelerationBinding != 0x0)
         {
-            binding->m_AccelerationBinding = new AccelerationBinding();
-            memset(binding->m_AccelerationBinding, 0, sizeof(*binding->m_AccelerationBinding));
+            binding->m_AccelerationBinding->m_Action.m_AccelerationSet = 0;
         }
     }
 
@@ -1352,25 +1351,24 @@ namespace dmInput
                 *prev_packet = *packet;
             }
         }
-        if (binding->m_AccelerationBinding != 0x0)
+        if (dmHID::IsAccelerometerConnected(hid_context))
         {
-            if (dmHID::IsAccelerometerConnected(hid_context))
+            if (binding->m_AccelerationBinding == 0x0)
             {
-                Action* action = binding->m_Actions.Get(0);
-                if (action)
-                {
-                    AccelerationBinding* acceleration_binding = binding->m_AccelerationBinding;
-                    dmHID::AccelerationPacket* packet = &acceleration_binding->m_Packet;
-                    dmHID::AccelerationPacket* prev_packet = &acceleration_binding->m_PreviousPacket;
-                    dmHID::GetAccelerationPacket(hid_context, packet);
-                    action->m_AccX = packet->m_X;
-                    action->m_AccY = packet->m_Y;
-                    action->m_AccZ = packet->m_Z;
-                    action->m_AccelerationSet = 1;
-                    action->m_Source = dmHID::INPUT_SOURCE_ACCELEROMETER;
-                    *prev_packet = *packet;
-                }
+                binding->m_AccelerationBinding = new AccelerationBinding();
+                binding->m_AccelerationBinding->m_Action.m_Source = dmHID::INPUT_SOURCE_ACCELEROMETER;
             }
+            dmHID::AccelerationPacket packet;
+            dmHID::GetAccelerationPacket(hid_context, &packet);
+            Action* action = &binding->m_AccelerationBinding->m_Action;
+            action->m_AccX = packet.m_X;
+            action->m_AccY = packet.m_Y;
+            action->m_AccZ = packet.m_Z;
+            action->m_AccelerationSet = 1;
+        }
+        else if (binding->m_AccelerationBinding != 0x0 && binding->m_AccelerationBinding->m_Action.m_AccelerationSet)
+        {
+            binding->m_AccelerationBinding->m_Action.m_AccelerationSet = 0;
         }
     }
 
@@ -1464,7 +1462,7 @@ namespace dmInput
         active = active || action->m_Dirty; // e.g. for analog stick action being released
         active = active || action->m_HasGamepadPacket; // Raw gamepad data
         active = active || action->m_HasText; // Text input
-        active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet)); // Mouse move action
+        active = active || (*key == 0 && action->m_PositionSet && (action->m_DX != 0 || action->m_DY != 0)); // Mouse move action
         if (active)
         {
             data->m_Callback(*key, action, data->m_UserData);
@@ -1487,6 +1485,11 @@ namespace dmInput
                 }
                 gamepad_binding->m_Actions.Iterate<CallbackData>(ForEachActiveCallback, &data);
             }
+        }
+        if (binding->m_AccelerationBinding != 0x0 && binding->m_AccelerationBinding->m_Action.m_AccelerationSet)
+        {
+            // Both devices use an unnamed action, but deliver separate payloads.
+            callback(0, &binding->m_AccelerationBinding->m_Action, user_data);
         }
     }
 
