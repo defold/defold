@@ -154,6 +154,9 @@ function(defold_target_link_libraries target platform)
       list(APPEND _LIBS ${_vendor_libs})
     elseif(_lib STREQUAL "graphics" AND DEFINED DEFOLD_PLATFORM_GRAPHICS_LIBS)
       list(APPEND _LIBS ${DEFOLD_PLATFORM_GRAPHICS_LIBS})
+    elseif(_lib STREQUAL "graphics" AND platform MATCHES "android$" AND WITH_VULKAN AND NOT WITH_OPENGL)
+      # Generic graphics consumers must not reintroduce the GLES platform backend.
+      list(APPEND _LIBS graphics_vulkan)
     elseif(_lib STREQUAL "lua" AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
       list(APPEND _LIBS luajit-5.1)
     else()
@@ -494,6 +497,7 @@ function(defold_add_executable target)
 
   # Forward all remaining args directly to add_executable
   add_executable(${target} ${_sources})
+  defold_validate_android_elf(${target})
 
   if(DEFINED DEFOLD_PLATFORM_EXECUTABLE_SUFFIX)
     set_target_properties(${target} PROPERTIES SUFFIX "${DEFOLD_PLATFORM_EXECUTABLE_SUFFIX}")
@@ -587,6 +591,7 @@ function(defold_add_library target)
 
   # Forward all remaining args directly to add_library
   add_library(${target} ${_sources})
+  defold_validate_android_elf(${target})
 
   if(TARGET defold_sdk)
     get_target_property(_defold_target_type ${target} TYPE)

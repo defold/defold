@@ -7,7 +7,7 @@ Here we describe the flow of the engine, from engine start to engine finish.
 
 The engine entry point is in [engine_main.cpp](../engine/src/engine_main.cpp).
 It has a function called `engine_main()` which gets called from actual `main()` function.
-The main function is usually located in [engine/src/common/main.cpp](engine/src/common/main.cpp), but it may vary, especially on consoles.
+The main function is usually located in [engine/src/common/main.cpp](../engine/src/common/main.cpp), but it may vary, especially on consoles.
 
 The `engine_main()` is responsible for starting the Engine Loop, and also calling `dmExportedSymbols()` which is making sure that each Native Extension gets registered.
 

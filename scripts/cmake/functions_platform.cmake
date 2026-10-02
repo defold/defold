@@ -11,7 +11,7 @@ defold_log("functions_platform.cmake:")
 # - A private platform may explicitly select its platform library
 # - Web targets -> platform
 # - GLFW3 desktop targets (macOS, Linux, Win32):
-#     - If WITH_VULKAN=ON OR platform in {arm64-macos,x86_64-macos}
+#     - If WITH_VULKAN=ON
 #       -> platform_vulkan
 #     - Else -> platform
 # - Other targets -> platform
@@ -32,6 +32,8 @@ function(defold_target_link_platform target platform)
     if(DEFOLD_PLATFORM_WINDOW_LIBRARY)
         set(_plat_lib "${DEFOLD_PLATFORM_WINDOW_LIBRARY}")
     # Web platforms use their platform-native window integration.
+    elseif(platform MATCHES "android$" AND WITH_VULKAN AND NOT WITH_OPENGL)
+        set(_plat_lib platform_vulkan)
     elseif(platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
         set(_plat_lib platform)
     else()
@@ -40,13 +42,13 @@ function(defold_target_link_platform target platform)
 
         list(FIND _glfw3_platforms "${platform}" _idx)
         if(NOT _idx EQUAL -1)
-            # Vulkan if requested or on macOS
+            # Vulkan if requested
             set(_WITH_VULKAN OFF)
             if(DEFINED WITH_VULKAN AND WITH_VULKAN)
                 set(_WITH_VULKAN ON)
             endif()
 
-            if(_WITH_VULKAN OR platform STREQUAL "arm64-macos" OR platform STREQUAL "x86_64-macos")
+            if(_WITH_VULKAN)
                 set(_plat_lib platform_vulkan)
             else()
                 set(_plat_lib platform)
@@ -58,6 +60,11 @@ function(defold_target_link_platform target platform)
 
     # Prefer linking to a CMake target if it exists
     target_link_libraries(${target} ${DPL_SCOPE} ${_plat_lib})
+
+    if(_plat_lib STREQUAL "platform" AND NOT TARGET "${_plat_lib}")
+        # Standalone consumers cannot inherit the platform target's web link options.
+        defold_target_link_libraries_web(${target} "${platform}" SCOPE ${DPL_SCOPE} library_platform.js)
+    endif()
 endfunction()
 
 

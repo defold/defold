@@ -245,6 +245,56 @@ public class ExtenderUtilTest {
         }
     }
 
+    @Test
+    public void testSimulatorGraphicsMigratesBeforeUpload() throws Exception {
+        project.getProjectProperties().putStringValue("ios", "privacymanifest", "");
+        String yaml = "platforms:\n  arm64_sim-ios:\n    context:\n"
+                + "      libs: [graphics_metal, custom]\n"
+                + "      excludeLibs: [graphics_metal]\n"
+                + "      excludeSymbols: [GraphicsAdapterMetal]\n"
+                + "  arm64-ios:\n    context:\n      excludeLibs: [graphics_metal]\n";
+        byte[] original = yaml.getBytes(StandardCharsets.UTF_8);
+        createFile(fileSystem, "simulator.appmanifest", original);
+        project.getProjectProperties().putStringValue("native_extension", "app_manifest", "simulator.appmanifest");
+        byte[] migrated = findResource(ExtenderUtil.getExtensionSources(project, Platform.Arm64IosSim, null),
+                ExtenderUtil.appManifestPath).getContent();
+        String expected = "platforms:\n  arm64_sim-ios:\n    context:\n"
+                + "      libs: [custom]\n      excludeLibs: []\n      excludeSymbols: []\n"
+                + "  arm64-ios:\n    context:\n      excludeLibs: [graphics_metal]\n";
+        assertEquals((Object) new Yaml().load(expected), (Object) new Yaml().load(new String(migrated, StandardCharsets.UTF_8)));
+        assertArrayEquals(original, project.getResource("simulator.appmanifest").getContent());
+        createFile(fileSystem, "simulator.appmanifest", migrated);
+        assertArrayEquals(migrated, findResource(ExtenderUtil.getExtensionSources(project, Platform.Arm64IosSim, null),
+                ExtenderUtil.appManifestPath).getContent());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testLegacyMacOSVulkanPlatformMigratesBeforeUpload() throws Exception {
+        project.getProjectProperties().putStringValue("osx", "privacymanifest", "");
+        for (String platform : List.of("osx", "arm64-osx", "x86_64-osx")) {
+            for (String key : List.of("libs", "engineLibs")) {
+                String yaml = "platforms:\n  " + platform + ":\n    context:\n"
+                        + "      " + key + ": [graphics_vulkan, platform_vulkan, MoltenVK, custom]\n"
+                        + "      excludeLibs: [graphics_metal]\n";
+                byte[] original = yaml.getBytes(StandardCharsets.UTF_8);
+                createFile(fileSystem, "legacy-macos.appmanifest", original);
+                project.getProjectProperties().putStringValue("native_extension", "app_manifest", "legacy-macos.appmanifest");
+                byte[] migrated = findResource(ExtenderUtil.getExtensionSources(project, Platform.Arm64MacOS, null),
+                        ExtenderUtil.appManifestPath).getContent();
+                Map<String, Object> expected = new Yaml().load(yaml);
+                Map<String, Object> platforms = (Map<String, Object>) expected.get("platforms");
+                Map<String, Object> context = (Map<String, Object>) ((Map<String, Object>) platforms.get(platform)).get("context");
+                context.put("excludeLibs", List.of("graphics_metal", "platform"));
+                assertEquals(expected, new Yaml().load(new String(migrated, StandardCharsets.UTF_8)));
+                assertArrayEquals(original, project.getResource("legacy-macos.appmanifest").getContent());
+                createFile(fileSystem, "legacy-macos.appmanifest", migrated);
+                assertArrayEquals(migrated, findResource(ExtenderUtil.getExtensionSources(project, Platform.Arm64MacOS, null),
+                        ExtenderUtil.appManifestPath).getContent());
+            }
+        }
+    }
+
     @SuppressWarnings("unchecked")
     @Test
     public void testLegacyWindowsAppManifestLibrariesAreMigratedBeforeUpload() throws Exception {
@@ -298,12 +348,47 @@ public class ExtenderUtilTest {
         assertArrayEquals(migratedContent, currentResource.getContent());
     }
 
+    // Verifies legacy mobile manifests upload native platform libraries while preserving custom and desktop inputs.
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testLegacyMobilePlatformLibrariesMigrateBeforeUpload() throws Exception {
+        for (String platform : List.of("android", "armv7-android", "arm64-android", "x86_64-android",
+                "ios", "arm64-ios", "arm64_sim-ios", "web", "wasm-web", "wasm_pthread-web")) {
+            boolean simulator = platform.equals("arm64_sim-ios");
+            String yaml = "platforms:\n  " + platform + ":\n    context:\n"
+                    + "      libs: [dmglfw, custom]\n"
+                    + "      excludeLibs: [dmglfw_vulkan]\n"
+                    + "      engineLibs: " + (simulator ? "[dmglfw, custom]\n" : "[dmglfw, 42, null]\n")
+                    + "  x86_64-linux: {context: {libs: [dmglfw]}}\n";
+            byte[] original = yaml.getBytes(StandardCharsets.UTF_8);
+            createFile(fileSystem, "legacy-mobile.appmanifest", original);
+            ExtenderUtil.FSAppManifestResource resource = new ExtenderUtil.FSAppManifestResource(
+                    project.getResource("legacy-mobile.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null);
+            byte[] migrated = resource.getContent();
+            Map<String, Object> manifest = new Yaml().load(new String(migrated, StandardCharsets.UTF_8));
+            Map<String, Object> platforms = (Map<String, Object>) manifest.get("platforms");
+            Map<String, Object> context = (Map<String, Object>) ((Map<String, Object>) platforms.get(platform)).get("context");
+            assertEquals(List.of("platform", "custom"), context.get("libs"));
+            assertEquals(simulator ? List.of() : List.of("platform_vulkan"), context.get("excludeLibs"));
+            assertEquals(simulator ? List.of("platform", "custom") : Arrays.asList("platform", 42, null), context.get("engineLibs"));
+            assertEquals(Map.of("context", Map.of("libs", List.of("dmglfw"))), platforms.get("x86_64-linux"));
+            assertArrayEquals(original, project.getResource("legacy-mobile.appmanifest").getContent());
+            createFile(fileSystem, "current-mobile.appmanifest", migrated);
+            assertArrayEquals(migrated, new ExtenderUtil.FSAppManifestResource(
+                    project.getResource("current-mobile.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null).getContent());
+        }
+    }
+
     @Test
     public void testUnchangedAppManifestsPreserveTheirContent() throws Exception {
         for (String manifestYaml : List.of(
                 "# Preserve comments and formatting\nplatforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}\n",
                 "platforms: [",
                 "platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}",
+                "platforms: {osx: {context: {libs: [platform_vulkan], excludeLibs: [platform_vulkan]}}}",
+                "platforms: {osx: {context: {libs: [graphics_metal]}}}",
+                "platforms: {osx: {context: {libs: [platform_vulkan], excludeLibs: invalid}}}",
+                "platforms: {arm64-ios: {context: {libs: [platform_vulkan]}}}",
                 "", "null", "[]", "not a map", "platforms: null")) {
             byte[] originalContent = manifestYaml.getBytes(StandardCharsets.UTF_8);
             createFile(fileSystem, "unchanged.appmanifest", originalContent);

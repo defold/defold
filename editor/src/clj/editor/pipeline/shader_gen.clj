@@ -50,8 +50,8 @@
 ;;     MyMaterial material;
 ;;   };
 ;;
-;; When crosscompiled to SM120 (which is used by the editor), we will get two
-;; uniforms:
+;; When crosscompiled with uniform buffers emitted as plain uniforms for editor
+;; previews, we will get two uniforms:
 ;;   _<id>.material.diffuse
 ;;   _<id>.material.specular
 ;;
@@ -108,8 +108,8 @@
      :array-size array-size}))
 
 (def ^:private transpile-target-pb-shader-language
-  ;; Use the old GLES2-compatible shaders for rendering in the editor.
-  (shader-language->pb-shader-language :language-glsl-sm120))
+  ;; Editor rendering requires desktop GLSL 330.
+  (shader-language->pb-shader-language :language-glsl-sm330))
 
 (defn- decorate-transpile-error
   [^Exception cause shader-type ^String shader-proj-path ^String shader-source max-page-count & extra-key-value-pairs]
@@ -125,9 +125,9 @@
                  :shader-source shader-source
                  :max-page-count max-page-count}
 
-                (coll/not-empty extra-key-value-pairs)
-                (into (partition-all 2)
-                      extra-key-value-pairs))]
+          (coll/not-empty extra-key-value-pairs)
+          (into (partition-all 2)
+                extra-key-value-pairs))]
 
     (ex-info ex-message ex-map cause)))
 
@@ -174,8 +174,9 @@
 (defn transpile-shader-source
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
-  reflection info. The precision strings should be either \"highp\" or \"mediump\";
-  when nil, mediump float and highp int are used."
+  reflection info. The precision strings should be either \"highp\" or \"mediump\".
+  Editor previews use SM330 and expose uniform-buffer members as ordinary
+  uniforms for editor binding."
   [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str]
   {:pre [(string? shader-path)
          (pos? (count shader-path))

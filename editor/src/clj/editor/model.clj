@@ -353,10 +353,10 @@
                                               ^:try texture-binding-infos
                                               :as info]
                                         (let [info (cond-> info
-                                                           (g/error-value? material-attribute-infos)
-                                                           (assoc :material-attribute-infos [])
-                                                           (g/error-value? vertex-attribute-bytes)
-                                                           (assoc :vertex-attribute-bytes {}))]
+                                                     (g/error-value? material-attribute-infos)
+                                                     (assoc :material-attribute-infos [])
+                                                     (g/error-value? vertex-attribute-bytes)
+                                                     (assoc :vertex-attribute-bytes {}))]
                                           (cond
                                             (g/error-value? texture-binding-infos) (assoc info :texture-binding-infos [])
                                             (g/error-value? samplers) (dissoc info :samplers)
@@ -459,8 +459,8 @@
                                                                       :ext "material"
                                                                       :clear-fn (fn [_ _]
                                                                                   (g/delete-node material-binding-node-id))}}
-                                                         should-be-deleted
-                                                         (assoc :original-value fake-resource))]
+                                                   should-be-deleted
+                                                   (assoc :original-value fake-resource))]
                               combined-material-properties (into [material-property]
                                                                  (map-indexed
                                                                    (fn [binding-index sampler-name+order]
@@ -481,8 +481,8 @@
                                                                                      :edit-type {:type resource/Resource
                                                                                                  :ext supported-image-exts
                                                                                                  :clear-fn (fn [_ _] (g/delete-node _node-id))}}
-                                                                                    texture-binding-should-be-deleted
-                                                                                    (assoc :original-value fake-resource))])
+                                                                              texture-binding-should-be-deleted
+                                                                              (assoc :original-value fake-resource))])
                                                                          ;; texture binding does not exist
                                                                          (let [sampler (key sampler-name+order)]
                                                                            [texture-binding-prop-key
@@ -618,9 +618,9 @@
   (property default-animation g/Str
             (default (protobuf/default ModelProto$ModelDesc :default-animation))
             (dynamic error (g/fnk [_node-id default-animation animation-ids]
-                                  (validate-default-animation _node-id default-animation animation-ids)))
+                             (validate-default-animation _node-id default-animation animation-ids)))
             (dynamic edit-type (g/fnk [animation-ids]
-                                      (properties/->choicebox (into [""] animation-ids))))
+                                 (properties/->choicebox (into [""] animation-ids))))
             (dynamic label (properties/label-dynamic :model :default-animation))
             (dynamic tooltip (properties/tooltip-dynamic :model :default-animation)))
 
@@ -707,16 +707,16 @@
       (cond-> (and (zero? (count materials))
                    (or (pos? (count material))
                        (pos? (count textures))))
-              (assoc :materials [(protobuf/make-map-without-defaults ModelProto$Material
-                                   :name "default"
-                                   :material material
-                                   :textures (into []
-                                                   (map-indexed
-                                                     (fn [i tex-name]
-                                                       (protobuf/make-map-without-defaults ModelProto$Texture
-                                                         :sampler (.intern (str "tex" i))
-                                                         :texture tex-name)))
-                                                   textures))]))))
+        (assoc :materials [(protobuf/make-map-without-defaults ModelProto$Material
+                             :name "default"
+                             :material material
+                             :textures (into []
+                                             (map-indexed
+                                               (fn [i tex-name]
+                                                 (protobuf/make-map-without-defaults ModelProto$Texture
+                                                   :sampler (.intern (str "tex" i))
+                                                   :texture tex-name)))
+                                             textures))]))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

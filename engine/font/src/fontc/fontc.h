@@ -173,6 +173,8 @@ extern "C"
         uint32_t m_DecorationFlags;
         uint32_t m_UnderlinePattern;
         uint32_t m_StrikePattern;
+        float m_FontSize;
+        uint32_t m_FontSizeUnit;
     } FontcStyle;
 
     typedef struct FontcStyleEffect

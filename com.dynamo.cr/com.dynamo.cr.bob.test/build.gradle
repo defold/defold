@@ -22,7 +22,6 @@ configurations {
 dependencies {
     testClasspath files("$testDir/lib/junit-4.12.jar")
     testClasspath files("$testDir/lib/hamcrest-all-1.3.jar")
-    testClasspath files("$testDir/lib/aspectjtools-1.9.5.jar")
     testClasspath files("$testDir/lib/jetty-all-7.0.2.v20100331.jar")
     testClasspath files("$testDir/lib/servlet-api-2.5.jar")
 }

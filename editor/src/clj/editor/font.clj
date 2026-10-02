@@ -57,7 +57,7 @@
            [com.dynamo.font.proto GlyphBankProto$GlyphBank]
            [com.dynamo.render.proto Font$CompiledStyle Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$StyleDesc]
            [com.google.protobuf ByteString]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB Region]
@@ -80,8 +80,8 @@
         (recur (inc glyph-index)
                (conj! result
                       (assoc (glyphs glyph-index)
-                             :glyph-cell-wh {:width (aget glyph-cell-widths glyph-index)
-                                             :height (aget glyph-cell-heights glyph-index)})))))))
+                        :glyph-cell-wh {:width (aget glyph-cell-widths glyph-index)
+                                        :height (aget glyph-cell-heights glyph-index)})))))))
 
 (defn- bitmap-resource-entry [font-resource-map]
   (reduce-kv (fn [_ path resource]
@@ -567,7 +567,7 @@
 (defn- markup-node-font-size
   [^FontRenderer$MarkupNode node ^double base-font-size]
   (when-let [^FontRenderer$MarkupAttribute attribute (or (markup-node-attribute node "")
-                                                          (markup-node-attribute node "value"))]
+                                                         (markup-node-attribute node "value"))]
     (parse-markup-font-size (.-value attribute) base-font-size)))
 
 (defn- markup-span-layer-info
@@ -876,10 +876,10 @@
               line-widths (mapv (partial measure-line (:is-monospaced font-map) (:padding font-map) glyphs text-tracking) lines)
               max-width (reduce max 0 line-widths)]
           (assoc text-layout
-                 :width max-width
-                 :height (* line-height (+ 1 (* text-leading (dec (count lines)))))
-                 :lines lines
-                 :line-widths line-widths))))))
+            :width max-width
+            :height (* line-height (+ 1 (* text-leading (dec (count lines)))))
+            :lines lines
+            :line-widths line-widths))))))
 
 (defn glyph-count
   [text-entries]
@@ -910,7 +910,6 @@
     (case type
       (:defold :bitmap) (->DefoldVertex vcount)
       :distance-field   (->DFVertex vcount))))
-
 
 (defn- fill-vertex-buffer-quads
   [vbuf text-entries font-map is-distance-field put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn unpacked-layer-mask text-cursor-offset alpha outline-alpha shadow-alpha]
@@ -967,7 +966,7 @@
           text-entries))
 
 (defn- fill-vertex-buffer
-  [^GL2 gl vbuf {:keys [type font-map texture] :as font-data} text-entries glyph-cache]
+  [^GL3 gl vbuf {:keys [type font-map texture] :as font-data} text-entries glyph-cache]
   (let [put-glyph-quad-fn (make-put-glyph-quad-fn font-map)
         is-distance-field (= type :distance-field)
         put-pos-uv-fn put-pos-uv!
@@ -1040,8 +1039,8 @@
   ^Matrix4d [{:keys [offset text-cursor-offset world-transform]}]
   (let [[offset-x offset-y] (or offset [0.0 0.0])
         [cursor-x cursor-y] (if (map? text-cursor-offset)
-                             [(:x text-cursor-offset 0.0) (:y text-cursor-offset 0.0)]
-                             (or text-cursor-offset [0.0 0.0]))
+                              [(:x text-cursor-offset 0.0) (:y text-cursor-offset 0.0)]
+                              (or text-cursor-offset [0.0 0.0]))
         translation (doto (Matrix4d.)
                       (.setIdentity)
                       (.setTranslation (Vector3d. (+ offset-x cursor-x) (+ offset-y cursor-y) 0.0)))
@@ -1099,7 +1098,7 @@
     (set! (.-outlineColor properties) (float-array outline-color))
     (set! (.-shadowColor properties) (float-array shadow-color))
     (set! (.-baseStyle properties) (let [style (:style text-layout "default")]
-                                   (if (= "" style) 0 (MurmurHash/hash64 ^String style))))
+                                     (if (= "" style) 0 (MurmurHash/hash64 ^String style))))
     (set! (.-useBaseStyle properties) true)
     (set! (.-baseShadowAlpha properties) (float shadow-alpha))
     (set! (.-sdfScale properties) sdf-scale)
@@ -1120,7 +1119,7 @@
     (.setText native-renderer ^String (:text native-entry-state))))
 
 (defn- generate-native-texture!
-  [^GL2 gl ^FontRenderer native-renderer texture ^long known-atlas-version]
+  [^GL3 gl ^FontRenderer native-renderer texture ^long known-atlas-version]
   (let [^FontRenderer$Texture generated-texture
         (.generateTexture native-renderer known-atlas-version)]
     (when-let [^ByteBuffer pixels (.-pixels generated-texture)]
@@ -1131,7 +1130,7 @@
     (.-atlasVersion generated-texture)))
 
 (defn- prepare-native-render-batch!
-  [^GL2 gl ^FontRenderer native-renderer texture native-entry-states atlas-state]
+  [^GL3 gl ^FontRenderer native-renderer texture native-entry-states atlas-state]
   (let [atlas-key (mapv :atlas-key native-entry-states)
         previous-state @atlas-state
         known-atlas-version (:atlas-version previous-state)
@@ -1219,9 +1218,9 @@
 (scene-cache/register-object-cache! ::native-vb make-native-vb update-native-vb destroy-native-vbs)
 
 (defn gen-vertex-buffer
-  ([^GL2 gl font-data text-entries]
+  ([^GL3 gl font-data text-entries]
    (gen-vertex-buffer gl font-data text-entries nil))
-  ([^GL2 gl {:keys [type font-map] :as font-data} text-entries render-args]
+  ([^GL3 gl {:keys [type font-map] :as font-data} text-entries render-args]
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
          native-renderer-spec (:native-renderer-spec font-map)]
      (if native-renderer-spec
@@ -1236,9 +1235,9 @@
          (vtx/flip! (fill-vertex-buffer gl vbuf font-data text-entries glyph-cache)))))))
 
 (defn request-vertex-buffer
-  ([^GL2 gl request-id font-data text-entries]
+  ([^GL3 gl request-id font-data text-entries]
    (request-vertex-buffer gl request-id font-data text-entries nil))
-  ([^GL2 gl request-id font-data text-entries render-args]
+  ([^GL3 gl request-id font-data text-entries render-args]
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
          native-renderer-spec (get-in font-data [:font-map :native-renderer-spec])]
      (if native-renderer-spec
@@ -1265,22 +1264,23 @@
         cache-cell-height-ratio (/ (:cache-cell-height font-map) cache-height)]
     (Vector4d. cache-width-recip cache-height-recip cache-cell-width-ratio cache-cell-height-ratio)))
 
-(defn render-font [^GL2 gl render-args renderables rcount]
+(defn render-font [^GL3 gl render-args renderables rcount]
   (let [user-data (get (first renderables) :user-data)
         gpu-texture (:texture user-data)
         font-map (:font-map user-data)
         text-layout (:text-layout user-data)
-        vertex-buffer (request-vertex-buffer gl
-                                              (:node-id user-data)
-                                              user-data
-                                              [{:text-layout text-layout
-                                                :align :left
-                                                :offset [0.0 0.0]
-                                                :world-transform (doto (Matrix4d.) (.setIdentity))
-                                                :color (colors/alpha colors/defold-white-light 1.0)
-                                                :outline (colors/alpha colors/mid-grey 1.0)
-                                                :shadow [0.0 0.0 0.0 1.0]}]
-                                              render-args)
+        vertex-buffer (request-vertex-buffer
+                        gl
+                        (:node-id user-data)
+                        user-data
+                        [{:text-layout text-layout
+                          :align :left
+                          :offset [0.0 0.0]
+                          :world-transform (doto (Matrix4d.) (.setIdentity))
+                          :color (colors/alpha colors/defold-white-light 1.0)
+                          :outline (colors/alpha colors/mid-grey 1.0)
+                          :shadow [0.0 0.0 0.0 1.0]}]
+                        render-args)
         material-shader (:shader user-data)
         vcount (count vertex-buffer)]
     (when (> vcount 0)
@@ -1305,20 +1305,20 @@
       (cond-> {:node-id _node-id
                :aabb aabb}
 
-              (and (some? font-map) (not-empty preview-text))
-              (assoc :renderable {:render-fn render-font
-                                  :preview-fn preview-style
-                                  :tags #{:font}
-                                  :batch-key gpu-texture
-                                  :select-batch-key _node-id
-                                  :user-data {:node-id _node-id
-                                              :type type
-                                              :texture gpu-texture
-                                              :font-map font-map
-                                              :shader material-shader
-                                              :text-layout (layout-text font-map preview-text true (:cache-width font-map) 0 1)
-                                              :text preview-text}
-                                  :passes [pass/transparent]}))))
+        (and (some? font-map) (not-empty preview-text))
+        (assoc :renderable {:render-fn render-font
+                            :preview-fn preview-style
+                            :tags #{:font}
+                            :batch-key gpu-texture
+                            :select-batch-key _node-id
+                            :user-data {:node-id _node-id
+                                        :type type
+                                        :texture gpu-texture
+                                        :font-map font-map
+                                        :shader material-shader
+                                        :text-layout (layout-text font-map preview-text true (:cache-width font-map) 0 1)
+                                        :text preview-text}
+                            :passes [pass/transparent]}))))
 
 (g/defnk produce-save-value
   [font material size antialias alpha outline-alpha outline-width
@@ -1386,7 +1386,7 @@
     (set! (.-outputBitmap render-params) output-bitmap)
     (set! (.-antialias render-params) (protobuf/int->boolean (:antialias font-desc)))
     (set! (.-hasOutline render-params) (boolean (and (pos? ^double (:outline-width font-desc))
-                                                      (pos? ^double (:outline-alpha font-desc)))))
+                                                     (pos? ^double (:outline-alpha font-desc)))))
     (set! (.-hasShadow render-params) (boolean (or (pos? ^double (:shadow-alpha font-desc))
                                                    (pos? shadow-blur))))
     (set! (.-useTextShaping render-params) (boolean (and use-font-layout runtime-generation)))
@@ -1514,11 +1514,11 @@
                              :cache-width (:cache-width font-desc)
                              :cache-height (:cache-height font-desc))
 
-                           is-distance-field
-                           (merge (protobuf/make-map-without-defaults Font$FontMap
-                                    :sdf-spread (Fontc/GetFontMapSdfSpread font-desc-pb)
-                                    :sdf-outline (Fontc/GetFontMapSdfOutline font-desc-pb)
-                                    :sdf-shadow (Fontc/GetFontMapSdfShadow font-desc-pb))))
+                     is-distance-field
+                     (merge (protobuf/make-map-without-defaults Font$FontMap
+                              :sdf-spread (Fontc/GetFontMapSdfSpread font-desc-pb)
+                              :sdf-outline (Fontc/GetFontMapSdfOutline font-desc-pb)
+                              :sdf-shadow (Fontc/GetFontMapSdfShadow font-desc-pb))))
             build-target (if (and runtime-generation-build-target
                                   ;; Currently, only distance field fonts can be runtime-generated.
                                   is-distance-field)
@@ -1526,10 +1526,10 @@
                              (assoc pb-map :font (:resource runtime-generation-build-target))
                              (conj dep-build-targets runtime-generation-build-target))
                            (let [source-sha1s (into (sorted-map)
-                                                   (comp (filter #(and (some? %) (resource/exists? %)))
-                                                         (map (juxt resource/proj-path
-                                                                    resource/resource->path-inclusive-sha1-hex)))
-                                                   (into [font] (map val) font-resource-map))
+                                                    (comp (filter #(and (some? %) (resource/exists? %)))
+                                                          (map (juxt resource/proj-path
+                                                                     resource/resource->path-inclusive-sha1-hex)))
+                                                    (into [font] (map val) font-resource-map))
                                  glyph-bank-build-target (make-glyph-bank-build-target
                                                            workspace
                                                            _node-id
@@ -1708,9 +1708,9 @@
                                                         :default-shadow-blur (and shadow (not explicit-blur))
                                                         :outlined (and outline (or (not explicit-width) (pos? (.-outlineWidth style))))}]})))))
   (output build-errors g/Any (g/fnk [_node-id ^:try style-error ^:try markup-error ^:try capability-error]
-                              (g/package-errors _node-id style-error markup-error capability-error)))
+                               (g/package-errors _node-id style-error markup-error capability-error)))
   (output style-msg g/Any (g/fnk [id authored-markup]
-                           (protobuf/make-map-without-defaults Font$StyleDesc :name id :markup authored-markup)))
+                            (protobuf/make-map-without-defaults Font$StyleDesc :name id :markup authored-markup)))
   (output style-info g/Any (g/fnk [_node-id id] {:node-id _node-id :name id}))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id generated build-errors]
@@ -1767,7 +1767,7 @@
         text-layout (layout-text font-map (:text user-data) true (:cache-width font-map) 0 1)
         ascent (:max-ascent font-map)
         aabb (geom/make-aabb (Point3d. 0 ascent 0)
-                            (Point3d. (:width text-layout) (- ascent (:height text-layout)) 0))]
+                             (Point3d. (:width text-layout) (- ascent (:height text-layout)) 0))]
     [aabb (assoc user-data :font-map font-map :text-layout text-layout)]))
 
 (g/defnode FontToolController
@@ -1858,19 +1858,19 @@
             (dynamic tooltip (properties/tooltip-dynamic :font :font)))
 
   (property material resource/Resource ; Required protobuf field.
-    (value (gu/passthrough material-resource))
-    (set (fn [evaluation-context self old-value new-value]
-           (project/resource-setter evaluation-context self old-value new-value
-                                    [:resource :material-resource]
-                                    [:build-targets :dep-build-targets]
-                                    [:samplers :material-samplers]
-                                    [:shader :material-shader])))
-    (dynamic error (g/fnk [_node-id material-resource]
-                     (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material-resource material-message)
-                         (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material-resource material-message))))
-    (dynamic edit-type (g/constantly
-                         {:type resource/Resource
-                          :ext ["material"]})))
+            (value (gu/passthrough material-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :material-resource]
+                                            [:build-targets :dep-build-targets]
+                                            [:samplers :material-samplers]
+                                            [:shader :material-shader])))
+            (dynamic error (g/fnk [_node-id material-resource]
+                             (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material-resource material-message)
+                                 (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material-resource material-message))))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["material"]})))
 
   (property output-format g/Keyword (default (protobuf/default Font$FontDesc :output-format))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat)))
@@ -1976,27 +1976,27 @@
   (output font-map g/Any :cached produce-font-map)
   (output scene g/Any :cached produce-scene)
   (output aabb AABB (g/fnk [font-map preview-text]
-                           (if font-map
-                             (let [[w h] (measure font-map preview-text true (:cache-width font-map) 0 1)
-                                   h-offset (:max-ascent font-map)]
-                               (geom/make-aabb (Point3d. 0 h-offset 0)
-                                               (Point3d. w (- h-offset h) 0)))
-                             geom/null-aabb)))
+                      (if font-map
+                        (let [[w h] (measure font-map preview-text true (:cache-width font-map) 0 1)
+                              h-offset (:max-ascent font-map)]
+                          (geom/make-aabb (Point3d. 0 h-offset 0)
+                                          (Point3d. w (- h-offset h) 0)))
+                        geom/null-aabb)))
   (output gpu-texture g/Any :cached (g/fnk [_node-id font-map material-samplers]
-                                           (when font-map
-                                             (let [w (:cache-width font-map)
-                                                   h (:cache-height font-map)
-                                                   channels (:glyph-channels font-map)
-                                                   data-format (glyph-channels->data-format channels)]
-                                               (texture/empty-texture _node-id data-format w h
-                                                                      (material/sampler->tex-params (first material-samplers)) 0)))))
+                                      (when font-map
+                                        (let [w (:cache-width font-map)
+                                              h (:cache-height font-map)
+                                              channels (:glyph-channels font-map)
+                                              data-format (glyph-channels->data-format channels)]
+                                          (texture/empty-texture _node-id data-format w h
+                                                                 (material/sampler->tex-params (first material-samplers)) 0)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output type g/Keyword produce-font-type)
   (output font-data FontData :cached (g/fnk [type gpu-texture font-map]
-                                            {:type type
-                                             :texture gpu-texture
-                                             :font-map font-map
-                                             :native-renderer-spec (:native-renderer-spec font-map)}))
+                                       {:type type
+                                        :texture gpu-texture
+                                        :font-map font-map
+                                        :native-renderer-spec (:native-renderer-spec font-map)}))
   (output preview-text g/Str :cached produce-preview-text))
 
 (defn load-font [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id font-desc :source-value}]
@@ -2061,7 +2061,7 @@
 
         merged-characters
         (cond-> explicit-characters
-                distinct-extra-characters (str distinct-extra-characters))]
+          distinct-extra-characters (str distinct-extra-characters))]
 
     (-> font-desc
         (dissoc :extra-characters)
@@ -2098,60 +2098,62 @@
       (ext-graph/attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
 (defn register-resource-types [workspace]
-  (into [] cat
+  (into
+    []
+    cat
     [(attachment/register workspace FontStylesNode :styles
-                         :add {FontStyle attach-style}
-                         :get (fn [node evaluation-context]
-                                ;; The generated default is not part of the editable style list.
-                                (into []
-                                      (remove #(g/node-value % :generated evaluation-context))
-                                      (attachment/nodes-getter node evaluation-context))))
+                          :add {FontStyle attach-style}
+                          :get (fn [node evaluation-context]
+                                 ;; The generated default is not part of the editable style list.
+                                 (into []
+                                       (remove #(g/node-value % :generated evaluation-context))
+                                       (attachment/nodes-getter node evaluation-context))))
      (attachment/define-alternative workspace FontNode
-                                    (fn [node evaluation-context]
-                                      (g/node-value node :styles-node evaluation-context)))
-    (resource-node/register-ddf-resource-type workspace
-      :textual? true
-      :ext "font"
-      :label font-label
-      :node-type FontNode
-      :ddf-type Font$FontDesc
-      :load-fn load-font
-      :sanitize-fn sanitize-font
-      :icon font-icon
-      :icon-class :design
-      :category (localization/message "resource.category.resources")
-      :view-types [:scene :text]
-      :view-opts {:scene {:tool-controller FontToolController}})
-    (workspace/register-resource-type workspace
-      :ext "glyph_bank")
-    (workspace/register-resource-type workspace
-      :ext "fnt"
-      :label font-label
-      :node-type BitmapFontSourceNode
-      :load-fn load-bitmap-font-source
-      :icon font-icon
-      :view-types [:default])
-    (workspace/register-resource-type workspace
-      :ext "ttf"
-      :build-ext "ttf"
-      :label font-label
-      :node-type TrueTypeFontSourceNode
-      :load-fn load-true-type-font-source
-      :stateless? true
-      :icon font-icon
-      :view-types [:default])
-    (workspace/register-resource-type workspace
-      :ext "otf"
-      :build-ext "otf"
-      :label font-label
-      :node-type OpenTypeFontSourceNode
-      :load-fn load-true-type-font-source
-      :stateless? true
-      :icon font-icon
-      :view-types [:default])]))
+       (fn [node evaluation-context]
+         (g/node-value node :styles-node evaluation-context)))
+     (resource-node/register-ddf-resource-type workspace
+       :textual? true
+       :ext "font"
+       :label font-label
+       :node-type FontNode
+       :ddf-type Font$FontDesc
+       :load-fn load-font
+       :sanitize-fn sanitize-font
+       :icon font-icon
+       :icon-class :design
+       :category (localization/message "resource.category.resources")
+       :view-types [:scene :text]
+       :view-opts {:scene {:tool-controller FontToolController}})
+     (workspace/register-resource-type workspace
+       :ext "glyph_bank")
+     (workspace/register-resource-type workspace
+       :ext "fnt"
+       :label font-label
+       :node-type BitmapFontSourceNode
+       :load-fn load-bitmap-font-source
+       :icon font-icon
+       :view-types [:default])
+     (workspace/register-resource-type workspace
+       :ext "ttf"
+       :build-ext "ttf"
+       :label font-label
+       :node-type TrueTypeFontSourceNode
+       :load-fn load-true-type-font-source
+       :stateless? true
+       :icon font-icon
+       :view-types [:default])
+     (workspace/register-resource-type workspace
+       :ext "otf"
+       :build-ext "otf"
+       :label font-label
+       :node-type OpenTypeFontSourceNode
+       :load-fn load-true-type-font-source
+       :stateless? true
+       :icon font-icon
+       :view-types [:default])]))
 
 (defn- make-glyph-cache
-  [^GL2 gl params]
+  [^GL3 gl params]
   (let [{:keys [font-map texture]} params
         {:keys [cache-width cache-height cache-cell-width cache-cell-height cache-cell-max-ascent]} font-map
         data-format (glyph-channels->data-format (:glyph-channels font-map))
@@ -2183,24 +2185,24 @@
                                    (assoc m glyph {:x x :y y})))))))
             glyph)))))
 
-(defn- update-glyph-cache [^GL2 gl glyph-cache params]
+(defn- update-glyph-cache [^GL3 gl glyph-cache params]
   (make-glyph-cache gl params))
 
-(defn- destroy-glyph-caches [^GL2 gl font-caches _])
+(defn- destroy-glyph-caches [^GL3 gl font-caches _])
 
 (scene-cache/register-object-cache! ::glyph-caches make-glyph-cache update-glyph-cache destroy-glyph-caches)
 
 (defn- update-vb
-  [^GL2 gl ^VertexBuffer vb {:keys [font-data text-entries glyph-cache]}]
+  [^GL3 gl ^VertexBuffer vb {:keys [font-data text-entries glyph-cache]}]
   (vtx/clear! vb)
   (vtx/flip! (fill-vertex-buffer gl vb font-data text-entries glyph-cache)))
 
 (defn- make-vb
-  [^GL2 gl {:keys [font-data text-entries glyph-cache] :as data}]
+  [^GL3 gl {:keys [font-data text-entries glyph-cache] :as data}]
   (let [vb (make-vbuf (:type font-data) text-entries (:layer-mask (:font-map font-data)))]
     (vtx/flip! (fill-vertex-buffer gl vb font-data text-entries glyph-cache))))
 
 (defn- destroy-vbs
-  [^GL2 gl vbs _])
+  [^GL3 gl vbs _])
 
 (scene-cache/register-object-cache! ::vb make-vb update-vb destroy-vbs)

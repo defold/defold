@@ -50,8 +50,8 @@
                            ILuaTranspiler$Severity/ERROR :fatal)
                :message (.-message issue)
                :user-data (r/make-code-error-user-data (.-resourcePath issue) (.-lineNumber issue))}
-              node-id
-              (assoc :_node-id node-id)))))
+        node-id
+        (assoc :_node-id node-id)))))
 
 (defn- ->fatal-error [node-id issues]
   (let [aggregate (g/error-aggregate issues :_node-id node-id :_label :modified-lines)]

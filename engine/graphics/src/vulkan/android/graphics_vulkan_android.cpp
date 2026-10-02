@@ -263,6 +263,16 @@ namespace dmGraphics
         return recommended;
     }
 
+    void DestroyAndroidWindowSurface(VkInstance instance, VkSurfaceKHR surface)
+    {
+        // Releasing the last native-window reference can destroy a BLASTBufferQueue
+        // callback on Android 13. Its JNI cleanup assumes the thread is attached
+        // to the JVM, just like the OpenGL crash workaround for issue #6956.
+        // Keep this guard around every Android Vulkan surface destruction (#13270).
+        dmAndroid::ThreadAttacher thread;
+        vkDestroySurfaceKHR(instance, surface, 0);
+    }
+
     VkResult CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI, void** nativeWindowOut)
     {
         PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR = (PFN_vkCreateAndroidSurfaceKHR)
@@ -314,7 +324,7 @@ namespace dmGraphics
             // Discard it and retry with the next current native window.
             if (result == VK_SUCCESS)
             {
-                vkDestroySurfaceKHR(vkInstance, *vkSurfaceOut, 0);
+                DestroyAndroidWindowSurface(vkInstance, *vkSurfaceOut);
             }
             *vkSurfaceOut = VK_NULL_HANDLE;
         }
@@ -345,7 +355,7 @@ namespace dmGraphics
 
         if (context->m_WindowSurface != VK_NULL_HANDLE)
         {
-            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
+            DestroyAndroidWindowSurface(context->m_Instance, context->m_WindowSurface);
             context->m_WindowSurface = VK_NULL_HANDLE;
         }
 

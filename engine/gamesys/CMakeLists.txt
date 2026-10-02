@@ -484,7 +484,6 @@ install(DIRECTORY "${GS_ROOT}/src/dmsdk/"
         PATTERN "*.h"
         PATTERN "*.hpp")
 install(FILES ${_ALL_PROTO_FILES} DESTINATION share/proto/gamesys)
-install(FILES "${GS_ROOT}/src/waf_gamesys.py" DESTINATION lib/python)
 install(FILES ${GS_PROTO_PY} DESTINATION lib/python)
 
 # ========= Tests =========

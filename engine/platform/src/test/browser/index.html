@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Defold native window browser test</title>
+    <link rel="icon" href="data:,">
+    <style>
+        canvas { display: block; width: 320px; height: 240px; }
+        #surface { position: relative; background: white; }
+        #controls { position: absolute; top: 0; right: 0; }
+    </style>
+</head>
+<body>
+    <div id="surface">
+        <canvas id="canvas" width="640" height="480" tabindex="0"></canvas>
+        <div id="controls">
+            <button id="fullscreen" onclick="Module._TestFullscreen()">Fullscreen</button>
+            <button id="lock" onclick="Module._TestSetCursorVisible(0)">Lock pointer</button>
+        </div>
+    </div>
+    <button id="outside">Move focus outside the canvas</button>
+    <script>
+        var Module = {
+            canvas: document.getElementById("canvas"),
+            fullScreenContainer: document.getElementById("surface"),
+            onRuntimeInitialized() { Module.ready = true; },
+            print: text => console.log(text),
+            printErr: text => console.error(text),
+            onAbort: reason => { throw new Error("WASM aborted: " + reason); }
+        };
+    </script>
+    <script src="test_native_web_browser.js"></script>
+</body>
+</html>

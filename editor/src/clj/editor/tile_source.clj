@@ -54,7 +54,7 @@
             [util.digestable :as digestable])
   (:import [com.dynamo.bob CompileExceptionError]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$TileSet]
-           [com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL3]
            [editor.types AABB]
            [javax.vecmath Point3d]))
 
@@ -82,8 +82,8 @@
 (def texture-params
   {:min-filter gl/nearest
    :mag-filter gl/nearest
-   :wrap-s     gl/clamp
-   :wrap-t     gl/clamp})
+   :wrap-s     gl/clamp-to-edge
+   :wrap-t     gl/clamp-to-edge})
 
 (vtx/defvertex pos-uv-vtx
   (vec3 position)
@@ -247,9 +247,9 @@
        (not-empty)))
 
 (defn render-animation
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [{:keys [camera viewport pass]} render-args
-        [sx sy sz] (camera/scale-factor camera viewport)]
+        [sx sy _sz] (camera/scale-factor camera viewport)]
     (condp = pass
       pass/outline
       (doseq [renderable renderables]
@@ -433,13 +433,13 @@
               (range (* rows cols))))))
 
 (defn- render-tiles
-  [^GL2 gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor]
+  [^GL3 gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor]
   (let [vbuf (gen-tiles-vbuf tile-source-attributes uv-transforms scale-factor)
         vb (vtx/use-with node-id vbuf tile-shader)
         gpu-texture (texture/set-params gpu-texture texture-params)]
     (gl/with-gl-bindings gl render-args [tile-shader vb gpu-texture]
       (shader/set-uniform tile-shader gl "texture_sampler" 0)
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf)))))
 
 (defn gen-tile-outlines-vbuf
   [tile-source-attributes convex-hulls scale]
@@ -462,11 +462,11 @@
               (range (* rows cols))))))
 
 (defn- render-tile-outlines
-  [^GL2 gl render-args node-id tile-source-attributes convex-hulls scale-factor]
+  [^GL3 gl render-args node-id tile-source-attributes convex-hulls scale-factor]
   (let [vbuf (gen-tile-outlines-vbuf tile-source-attributes convex-hulls scale-factor)
         vb (vtx/use-with node-id vbuf color-shader)]
     (gl/with-gl-bindings gl render-args [color-shader vb]
-      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL3/GL_LINES 0 (count vbuf)))))
 
 (defn conj-hull-outline!
   [vbuf points rgba]
@@ -493,24 +493,24 @@
         y-border (* scale-y tile-border-size)
         npoints (transduce (map :count) + convex-hulls)]
     (persistent!
-     (reduce (fn [vbuf [x y]]
-               (if-let [{:keys [points collision-group]} (nth convex-hulls (+ x (* y cols)) nil)]
-                 (let [offset-x (+ 0.5 (* x (+ x-border w)) x-border)
-                       offset-y (+ 0.5 (* (- rows y 1) (+ y-border h)) y-border)
-                       translated-points (translate-hull-points points offset-x offset-y)
-                       color (collision-groups/color collision-group)]
-                   (conj-hull-outline! vbuf translated-points color))))
-             (->pos-color-vtx (* 2 npoints))
-             (for [y (range rows) x (range cols)] [x y])))))
+      (reduce (fn [vbuf [x y]]
+                (if-let [{:keys [points collision-group]} (nth convex-hulls (+ x (* y cols)) nil)]
+                  (let [offset-x (+ 0.5 (* x (+ x-border w)) x-border)
+                        offset-y (+ 0.5 (* (- rows y 1) (+ y-border h)) y-border)
+                        translated-points (translate-hull-points points offset-x offset-y)
+                        color (collision-groups/color collision-group)]
+                    (conj-hull-outline! vbuf translated-points color))))
+              (->pos-color-vtx (* 2 npoints))
+              (for [y (range rows) x (range cols)] [x y])))))
 
 (defn- render-hulls
-  [^GL2 gl render-args node-id tile-set-attributes convex-hulls scale-factor]
+  [^GL3 gl render-args node-id tile-set-attributes convex-hulls scale-factor]
   (when (seq convex-hulls)
     (let [vbuf (gen-hulls-vbuf tile-set-attributes convex-hulls scale-factor)
           vb (vtx/use-with node-id vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
         (shader/set-uniform tile-shader gl "texture_sampler" 0)
-        (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vbuf))))))
+        (gl/gl-draw-arrays gl GL3/GL_LINES 0 (count vbuf))))))
 
 (defn- render-tile-source
   [gl render-args renderables n]
@@ -860,7 +860,7 @@
       (+ x (* (- rows y 1) cols)))))
 
 (defn- render-tool
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [{:keys [user-data]} (first renderables)
         {:keys [node-id tile-source-attributes active-tile collision-group-node->group selected-collision-group-node]} user-data
         {:keys [width height]} tile-source-attributes
@@ -892,7 +892,7 @@
                        (conj! [x1 y0 0.0 r g b a])))))
           vb (vtx/use-with node-id vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
-        (gl/gl-draw-arrays gl (if is-outline GL2/GL_LINES GL2/GL_TRIANGLES) 0 (count vbuf))))))
+        (gl/gl-draw-arrays gl (if is-outline GL3/GL_LINES GL3/GL_TRIANGLES) 0 (count vbuf))))))
 
 (g/defnk produce-tool-renderables
   [_node-id active-tile tile-source-attributes convex-hulls collision-group-node->group selected-collision-group-node]
@@ -1003,11 +1003,11 @@
 (defmethod scene/attach-tool-controller ::ToolController
   [_ tool-id view-id resource-id]
   (concat
-   (g/connect view-id :selection tool-id :selected-node-ids)
-   (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
-   (g/connect resource-id :convex-hulls tool-id :convex-hulls)
-   (g/connect resource-id :collision-group-node->group tool-id :collision-group-node->group)
-   (g/connect resource-id :_node-id tool-id :tile-source-node)))
+    (g/connect view-id :selection tool-id :selected-node-ids)
+    (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
+    (g/connect resource-id :convex-hulls tool-id :convex-hulls)
+    (g/connect resource-id :collision-group-node->group tool-id :collision-group-node->group)
+    (g/connect resource-id :_node-id tool-id :tile-source-node)))
 
 (defn- make-animation-node [self _project select-fn animation]
   {:pre [(map? animation)]} ; Tile$Animation in map format.
@@ -1116,21 +1116,21 @@
 (handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection evaluation-context] (selection->tile-source selection evaluation-context))
   (label [selection user-data]
-         (if-not user-data
-           (localization/message "command.edit.add-embedded-component.variant.tile-source")
-           (:label user-data)))
+    (if-not user-data
+      (localization/message "command.edit.add-embedded-component.variant.tile-source")
+      (:label user-data)))
   (options [selection user-data]
-           (when-not user-data
-             [{:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")
-               :icon animation-icon
-               :command :edit.add-embedded-component
-               :user-data {:action add-animation-node!
-                           :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")}}
-              {:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")
-               :icon collision-icon
-               :command :edit.add-embedded-component
-               :user-data {:action add-collision-group-node!
-                           :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")}}]))
+    (when-not user-data
+      [{:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")
+        :icon animation-icon
+        :command :edit.add-embedded-component
+        :user-data {:action add-animation-node!
+                    :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")}}
+       {:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")
+        :icon collision-icon
+        :command :edit.add-embedded-component
+        :user-data {:action add-collision-group-node!
+                    :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")}}]))
   (run [selection user-data app-view]
     (g/let-ec [tile-source-node (selection->tile-source selection evaluation-context)]
       ((:action user-data) tile-source-node (fn [node-ids] (app-view/select app-view node-ids))))))

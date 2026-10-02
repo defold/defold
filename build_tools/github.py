@@ -1,23 +1,8 @@
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import hashlib
 import mimetypes
 import logging
 import os
 import time
-from log import log
 
 URL_GRAPHQL_API = "https://api.github.com/graphql"
 URL_REST_API    = "https://api.github.com"
@@ -52,19 +37,21 @@ def _create_headers(headers, token):
 
 # use GraphQL API
 def query(query, token, headers = None, variables = None):
-    import requests
+    # GraphQL callers such as the PR release notes check need no pip packages.
+    import json
+    from urllib.request import Request, urlopen
     try:
-        url = URL_GRAPHQL_API
         if query.strip().startswith("query"):
-            json = { 'query': query, "variables": variables }
+            payload = { 'query': query, "variables": variables }
         elif query.strip().startswith("mutation"):
-            json = { 'query': query, "variables": variables }
+            payload = { 'query': query, "variables": variables }
         else:
-            json = { 'query': "query " + query, "variables": variables }
+            payload = { 'query': "query " + query, "variables": variables }
         headers = _create_headers(headers, token)
-        response = requests.post(url, json = json, headers = headers)
-        response.raise_for_status()
-        return response.json()
+        headers.setdefault("Content-Type", "application/json")
+        request = Request(URL_GRAPHQL_API, data = json.dumps(payload).encode("utf-8"), headers = headers)
+        with urlopen(request, timeout = 30) as response:
+            return json.load(response)
     except Exception as err:
         print(err)
         return None
@@ -160,6 +147,7 @@ def _get_file_sha256(filepath):
 
 def upload_release_asset(release, token, filepath, name, max_attempts = 5):
     import requests
+    from log import log
     headers = _create_headers({}, token)
     content_type, _ = mimetypes.guess_type(name)
     upload_headers = dict(headers, **{"Content-Type": content_type or "application/octet-stream"})

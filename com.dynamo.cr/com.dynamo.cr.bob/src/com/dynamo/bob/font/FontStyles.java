@@ -103,6 +103,8 @@ public final class FontStyles {
 
     private static CompiledStyle toCompiledStyle(String name, FontRenderer.Style style) {
         CompiledStyle.Builder output = CompiledStyle.newBuilder().setName(name).setNameHash(MurmurHash.hash64(name));
+        output.setFontSize(style.fontSize);
+        output.setFontSizeUnit(CompiledStyle.FontSizeUnit.forNumber(style.fontSizeUnit));
         output.setOutlineWidth(style.outlineWidth);
         output.setShadowX(style.shadowX);
         output.setShadowY(style.shadowY);
@@ -131,6 +133,8 @@ public final class FontStyles {
 
     public static FontRenderer.Style toNativeStyle(CompiledStyle input) {
         FontRenderer.Style style = new FontRenderer.Style();
+        style.fontSize = input.getFontSize();
+        style.fontSizeUnit = input.getFontSizeUnit().getNumber();
         style.outlineWidth = input.getOutlineWidth();
         style.shadowX = input.getShadowX();
         style.shadowY = input.getShadowY();

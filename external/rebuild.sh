@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
+set -e
 
 LIB=$1
-shift
+ARG=${2:-}
 
-ARG=$1
-shift
+DEFOLD_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
 PLATFORMS_MACOS="arm64-macos x86_64-macos"
 PLATFORMS_LINUX="arm64-linux x86_64-linux"
@@ -45,8 +45,7 @@ for platform in $PLATFORMS ; do
     echo "************************************"
     echo "PLATFORM = ${platform}"
 
-    (cd ${LIB} && PREFIX=${DYNAMO_HOME} waf configure --platform=${platform})
-    (cd ${LIB} && PREFIX=${DYNAMO_HOME} waf install --platform=${platform})
+    (cd "$DEFOLD_ROOT" && ./scripts/build.py build_external --package="$LIB" --platform="$platform")
 done
 
 

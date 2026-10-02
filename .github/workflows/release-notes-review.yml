@@ -1,0 +1,26 @@
+name: PR - Release notes review
+
+on:
+  # Review workflows run from the PR merge ref. Keep this handoff unprivileged;
+  # the validator runs from the trusted default branch via workflow_run.
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+
+jobs:
+  approved-review:
+    if: ${{ !github.event.pull_request.draft && github.event.review.state == 'approved' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Save pull request number
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir approval
+          printf '%s\n' "$PR_NUMBER" > approval/pr_number
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes-review
+          path: approval/pr_number

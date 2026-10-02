@@ -7,12 +7,12 @@ Defold uses LZ4 HC level 9 through its dlib wrapper.
 Build and install with the regular Defold toolchain:
 
 ```sh
-./scripts/build.py --platform=arm64-macos build_ext
+./scripts/build.py --platform=arm64-macos install_ext
 ```
 
 This installs `liblz4` into `${DYNAMO_HOME}/ext/lib/<platform>` and the headers
 into `${DYNAMO_HOME}/ext/include/lz4`. Both dlib and dlib_shared link the static
-library. Run `build_ext` for each target platform before building the engine.
+library. Run `install_ext` for each target platform before building the engine.
 
 To update, check out the desired upstream tag and run:
 

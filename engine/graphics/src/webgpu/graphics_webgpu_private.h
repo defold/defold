@@ -69,6 +69,14 @@ namespace dmGraphics
         WGPUBuffer    m_Buffer;
     };
 
+    struct WebGPUStorageBuffer
+    {
+        StorageBuffer m_Base;
+        WGPUBuffer    m_Buffer;
+        uint64_t      m_LastRenderPass = 0;
+        uint8_t       m_RenderPassAccess = 0;
+    };
+
     struct WebGPUShaderModule
     {
         WGPUShaderModule m_Module = NULL;
@@ -209,6 +217,7 @@ namespace dmGraphics
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
         uint32_t                           m_CurrentVertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        WebGPUStorageBuffer*               m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         WebGPUTexture*                     m_DefaultTexture2D;
         WebGPUTexture*                     m_DefaultTexture2DArray;
@@ -230,6 +239,7 @@ namespace dmGraphics
         WGPUQueue                          m_Queue;
         WGPUSurface                        m_Surface;
         WGPUTextureFormat                  m_Format;
+        WGPUPresentMode                    m_PresentMode;
         WGPUCommandEncoder                 m_CommandEncoder;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;
@@ -251,9 +261,14 @@ namespace dmGraphics
         uint32_t            m_InitComplete : 1;
         uint32_t            m_OpaqueSurface : 1;
         uint32_t            m_InitializeOpaqueSurface : 1;
+        uint32_t            m_ImmediatePresentModeSupported : 1;
+        uint32_t            m_SwapIntervalChanged : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };
+#if defined(DM_GRAPHICS_DAWN) && defined(DM_PLATFORM_MACOS)
+    WGPUSurface WebGPUCreateSurfaceMacOS(WebGPUContext* context);
+#endif
 } // namespace dmGraphics
 
 #endif // __GRAPHICS_DEVICE_WEBGPU__

@@ -1,20 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
-
-
+from concurrent.futures import ThreadPoolExecutor
 import json
 import time
 import os
@@ -746,10 +731,13 @@ def init_editor(options, platform, jdk):
     invoke_lein(init_command, jdk_path=jdk)
 
 def run_tests(jdk):
-    invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
-    invoke_lein(['test'], jdk_path=jdk)
-    # test that docs can be successfully produced
-    write_docs('target/docs', jdk_path=jdk)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        cljfmt_check = executor.submit(invoke_lein, ['cljfmt', 'check'], jdk_path=jdk)
+        invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
+        invoke_lein(['with-profile', '+headless', 'test'], jdk_path=jdk)
+        # test that docs can be successfully produced
+        write_docs('target/docs', jdk_path=jdk)
+        cljfmt_check.result()
 
 def test(options):
     for platform in options.target_platform:

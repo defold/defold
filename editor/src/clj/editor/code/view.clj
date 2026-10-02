@@ -78,11 +78,14 @@
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]
            [com.sun.javafx.perf PerformanceTracker]
-           [com.sun.javafx.scene.text FontHelper]
+           [com.sun.javafx.scene.text FontHelper TextLayout TextLayout$CaretGeometry$Single TextLayout$CaretGeometry$Split TextLayout$GeometryCallback]
+           [com.sun.javafx.text GlyphLayout GlyphLayoutManager]
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
+           [java.text Bidi]
            [java.util BitSet Collection]
+           [java.util.concurrent ConcurrentHashMap]
            [java.util.regex Pattern]
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
@@ -150,31 +153,121 @@
                                    [(mime-type->DataFormat mime-type) representation]))
                             representation-by-mime-type))))
 
-(def ^:private ^:const min-cached-char-width
-  (double (inc Byte/MIN_VALUE)))
-
-(def ^:private ^:const max-cached-char-width
-  (double Byte/MAX_VALUE))
-
 (defn- make-char-width-cache [^FontStrike font-strike]
-  (let [cache (byte-array (inc (int Character/MAX_VALUE)) Byte/MIN_VALUE)]
+  (let [cache (float-array (inc (int Character/MAX_VALUE)) Float/NaN)]
     (fn get-char-width [^Character character]
       (let [ch (unchecked-char character)
             i (unchecked-int ch)
             cached-width (aget cache i)]
-        (if (= cached-width Byte/MIN_VALUE)
+        (if (Float/isNaN cached-width)
           (let [width (Math/floor (.getCharAdvance font-strike ch))]
-            (when (and (<= min-cached-char-width width)
-                       (<= width max-cached-char-width))
-              (aset cache i (byte width)))
+            (aset cache i (float width))
             width)
-          cached-width)))))
+          (double cached-width))))))
 
-(defonce/record GlyphMetrics [char-width-cache ^double line-height ^double ascent]
+;; WORKAROUND: Pango returns this shared layout to the pool before freeing its own
+;; native pointers, so another thread can take it and double-free them. Reserve
+;; it until JavaFX fixes the race. The CoreText, DirectWrite and HarfBuzz
+;; backends keep no such state, so they are left alone. Re-check on upgrade.
+(defonce ^:private reserved-glyph-layout
+  (delay
+    (let [field (doto (.getDeclaredField GlyphLayoutManager "REUSABLE_INSTANCE")
+                  (.setAccessible true))
+          reusable (.get field nil)]
+      (when (= "com.sun.javafx.font.freetype.PangoGlyphLayout"
+               (.getName (class reusable)))
+        (loop []
+          (let [glyph-layout (GlyphLayoutManager/getInstance)]
+            (if (identical? reusable glyph-layout)
+              glyph-layout
+              (do (.dispose ^GlyphLayout glyph-layout)
+                  (Thread/yield)
+                  (recur)))))))))
+
+;; Text nodes share an unsafe Prism layout, so give each thread its own.
+;; Also remember the last font + text so repeated calls can skip reshaping.
+(defonce ^:private complex-text-layout-state
+  (proxy [ThreadLocal] []
+    (initialValue []
+      @reserved-glyph-layout
+      (object-array [(.createLayout (.getTextLayoutFactory (Toolkit/getToolkit))) nil nil]))))
+
+(defn- text-layout
+  ^TextLayout [^Font font ^String text]
+  (let [^objects state (.get ^ThreadLocal complex-text-layout-state)
+        ^TextLayout layout (aget state 0)
+        last-font (aget state 1)
+        last-text (aget state 2)]
+    (when-not (and (identical? font last-font)
+                   (or (identical? text last-text)
+                       (.equals ^String text last-text)))
+      (.setContent layout text (FontHelper/getNativeFont font))
+      (aset state 1 font)
+      (aset state 2 text))
+    layout))
+
+;; HACK: The shaper guesses a direction from the first letter of the text it is
+;; given, and we hand it one run at a time. A run that starts with Hebrew or
+;; Arabic is read as right-to-left, so its words come out backwards. JavaFX has
+;; no working way to say "left-to-right", so we put an invisible left-to-right
+;; character in front and shift offsets past it. Only runs that contain
+;; right-to-left text get one. Shaping whole lines would fix this properly.
+(defn- ltr-text
+  ^String [^String text]
+  (if (Bidi/requiresBidi (.toCharArray text) 0 (.length text))
+    (str \u200e text)
+    text))
+
+(defn- make-complex-width-cache [^Font font]
+  ;; Shaping long runs is expensive. Clear the bounded cache wholesale to keep
+  ;; lookups cheap.
+  (let [cache (ConcurrentHashMap.)]
+    (fn get-complex-width [^String text]
+      (if-let [cached-width (.get cache text)]
+        cached-width
+        (let [width (double (.getWidth (.getBounds (text-layout font (ltr-text text)))))]
+          (when (<= 4096 (.size cache))
+            (.clear cache))
+          (.put cache text width)
+          width)))))
+
+(defonce/record GlyphMetrics [^Font font char-width-cache complex-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
   (char-width [_this character] (char-width-cache character)))
+
+(extend-type GlyphMetrics
+  data/ComplexTextMetrics
+  (complex-text-width [this text]
+    ((.complex-width-cache this) text))
+  (complex-text-col->x [this text col]
+    (let [marked-text (ltr-text text)
+          mark-length (- (.length marked-text) (.length ^String text))
+          geometry (.getCaretGeometry (text-layout (.font this) marked-text) (+ (long col) mark-length) true)]
+      ;; Direction boundaries have two positions; use the character's side.
+      (if (instance? TextLayout$CaretGeometry$Split geometry)
+        (.x1 ^TextLayout$CaretGeometry$Split geometry)
+        (.x ^TextLayout$CaretGeometry$Single geometry))))
+  (complex-text-x->col [this text x]
+    (let [marked-text (ltr-text text)
+          mark-length (- (.length marked-text) (.length ^String text))]
+      (max 0 (- (.getInsertionIndex (.getHitInfo (text-layout (.font this) marked-text) (float x) (float 0.0))) mark-length))))
+  (complex-text-x->character-col [this text x]
+    (let [marked-text (ltr-text text)
+          mark-length (- (.length marked-text) (.length ^String text))]
+      (max 0 (- (.getCharIndex (.getHitInfo (text-layout (.font this) marked-text) (float x) (float 0.0))) mark-length))))
+  ;; Bidi selections can have disjoint visual spans.
+  (complex-text-selection-spans [this text start-offset end-offset]
+    (let [spans (volatile! [])
+          marked-text (ltr-text text)
+          mark-length (- (.length marked-text) (.length ^String text))
+          ;; The callback receives edges, despite its misleading parameter names.
+          callback (reify TextLayout$GeometryCallback
+                     (addRectangle [_this left _top right _bottom]
+                       (vswap! spans conj [(double left) (double right)])))]
+      (.getRange (text-layout (.font this) marked-text) (+ (long start-offset) mark-length) (+ (long end-offset) mark-length) TextLayout/TYPE_TEXT callback)
+      @spans)))
 
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
@@ -185,7 +278,7 @@
                                 FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
-    (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)))
+    (->GlyphMetrics font (make-char-width-cache font-strike) (make-complex-width-cache font) line-height ascent)))
 
 (def ^:private default-editor-color-scheme
   (let [foreground-color (Color/valueOf "#DDDDDD")
@@ -274,29 +367,34 @@
    [(.y r) (.y r) (+ (.y r) (.h r)) (+ (.y r) (.h r)) (.y r)]])
 
 (defn- cursor-range-outline [rects]
-  (let [^Rect a (first rects)
-        ^Rect b (second rects)
-        ^Rect y (peek (pop rects))
-        ^Rect z (peek rects)]
-    (cond
-      (nil? b)
-      [(rect-outline a)]
+  (if (or (coll/empty? rects)
+          ;; The connected outline assumes one rect per row.
+          (not= (count rects)
+                (count (into #{} (map (fn [^Rect r] (.y r))) rects))))
+    (mapv rect-outline rects)
+    (let [^Rect a (first rects)
+          ^Rect b (second rects)
+          ^Rect y (peek (pop rects))
+          ^Rect z (peek rects)]
+      (cond
+        (nil? b)
+        [(rect-outline a)]
 
-      (and (identical? b z) (< (+ (.x b) (.w b)) (.x a)))
-      [(rect-outline a)
-       (rect-outline b)]
+        (and (identical? b z) (< (+ (.x b) (.w b)) (.x a)))
+        [(rect-outline a)
+         (rect-outline b)]
 
-      :else
-      [[[(.x b) (.x a) (.x a) (+ (.x a) (.w a)) (+ (.x a) (.w a)) (+ (.x z) (.w z)) (+ (.x z) (.w z)) (.x z) (.x b)]
-        [(.y b) (.y b) (.y a) (.y a) (+ (.y y) (.h y)) (+ (.y y) (.h y)) (+ (.y z) (.h z)) (+ (.y z) (.h z)) (.y b)]]])))
+        :else
+        [[[(.x b) (.x a) (.x a) (+ (.x a) (.w a)) (+ (.x a) (.w a)) (+ (.x z) (.w z)) (+ (.x z) (.w z)) (.x z) (.x b)]
+          [(.y b) (.y b) (.y a) (.y a) (+ (.y y) (.h y)) (+ (.y y) (.h y)) (+ (.y z) (.h z)) (+ (.y z) (.h z)) (.y b)]]]))))
 
 (defn- fill-cursor-range! [^GraphicsContext gc type ^Paint fill ^Paint _stroke rects]
   (when (some? fill)
     (.setFill gc fill)
     (case type
-      :word (let [^Rect r (data/expand-rect (first rects) 1.0 0.0)]
-              (assert (= 1 (count rects)))
-              (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
+      :word (doseq [rect rects]
+              (let [^Rect r (data/expand-rect rect 1.0 0.0)]
+                (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0)))
       :range (doseq [^Rect r rects]
                (.fillRect gc (.x r) (.y r) (.w r) (.h r)))
       :underline nil
@@ -321,9 +419,9 @@
     (.setStroke gc stroke)
     (.setLineWidth gc 1.0)
     (case type
-      :word (let [^Rect r (data/expand-rect (first rects) 1.5 0.0)]
-              (assert (= 1 (count rects)))
-              (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
+      :word (doseq [rect rects]
+              (let [^Rect r (data/expand-rect rect 1.5 0.0)]
+                (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0)))
       :range (doseq [polyline (cursor-range-outline rects)]
                (let [[xs ys] polyline]
                  (stroke-opaque-polyline! gc (double-array xs) (double-array ys))))
@@ -391,31 +489,70 @@
   coordinate into document space, then remap back to canvas coordinates when drawing.
   Returns the canvas x coordinate where the drawn string ends, or nil if drawing
   stopped because we reached the end of the visible canvas region."
-  [^GraphicsContext gc ^LayoutInfo layout ^String text start-index end-index x y]
+  [^GraphicsContext gc ^LayoutInfo layout ^String text complex-ranges start-index end-index x y]
   (let [^Rect canvas-rect (.canvas layout)
         visible-start-x (.x canvas-rect)
         visible-end-x (+ visible-start-x (.w canvas-rect))
         offset-x (+ visible-start-x (.scroll-x layout))]
     (loop [^long i start-index
-           x (- ^double x offset-x)]
-      (if (= ^long end-index i)
+           x (- ^double x offset-x)
+           range-index 0]
+      (cond
+        (= ^long end-index i)
         (+ x offset-x)
-        (let [glyph (.charAt text i)
-              next-i (inc i)
-              next-x (double (data/advance-text layout text i next-i x))
-              draw-start-x (+ x offset-x)
-              draw-end-x (+ next-x offset-x)
-              inside-visible-start? (< visible-start-x draw-end-x)
-              inside-visible-end? (< draw-start-x visible-end-x)]
-          ;; Currently using FontSmoothingType/GRAY results in poor kerning when
-          ;; drawing subsequent characters in a string given to fillText. Here
-          ;; glyphs are drawn individually at whole pixels as a workaround.
-          (when (and inside-visible-start?
-                     inside-visible-end?
-                     (not (Character/isWhitespace glyph)))
-            (.fillText gc (String/valueOf glyph) draw-start-x y))
-          (when inside-visible-end?
-            (recur next-i next-x)))))))
+
+        (<= visible-end-x (+ x offset-x))
+        nil
+
+        :else
+        (let [range-index (long (loop [range-index range-index]
+                                  (if-let [[_ ^long range-end] (get complex-ranges range-index)]
+                                    (if (<= range-end i)
+                                      (recur (inc range-index))
+                                      range-index)
+                                    range-index)))
+              [range-start range-end] (get complex-ranges range-index)
+              tab-character (= \tab (.charAt text i))
+              complete-complex-range (and (= i range-start) (<= ^long range-end ^long end-index))
+              seg-end (if tab-character
+                        (inc i)
+                        (if complete-complex-range
+                          range-end
+                          (loop [j (inc i)]
+                            (if (or (= ^long end-index j)
+                                    (= \tab (.charAt text j))
+                                    (= range-start j))
+                              j
+                              (recur (inc j))))))
+              next-x (if complete-complex-range
+                       (+ x ^double (data/complex-text-width (.glyph layout) (.substring text i seg-end)))
+                       (double (data/advance-text layout text i seg-end x)))]
+          (cond
+            tab-character
+            nil
+
+            ;; Splitting a shaped range would break glyph joining and reordering.
+            complete-complex-range
+            (when (< visible-start-x (+ next-x offset-x))
+              (.fillText gc (ltr-text (.substring text i seg-end)) (+ x offset-x) y))
+
+            ;; Drawing ASCII one glyph at a time keeps GRAY-smoothed text crisp.
+            :else
+            (loop [^long glyph-index i
+                   glyph-x (double x)]
+              (when (< glyph-index ^long seg-end)
+                (let [glyph (.charAt text glyph-index)
+                      next-glyph-index (inc glyph-index)
+                      next-glyph-x (double (data/advance-text layout text glyph-index next-glyph-index glyph-x))
+                      draw-start-x (+ glyph-x offset-x)
+                      draw-end-x (+ next-glyph-x offset-x)]
+                  (when (and (< visible-start-x draw-end-x)
+                             (< draw-start-x visible-end-x)
+                             (not (Character/isWhitespace glyph)))
+                    (.fillText gc (String/valueOf glyph) draw-start-x y))
+                  (when (< draw-start-x visible-end-x)
+                    (recur next-glyph-index next-glyph-x))))))
+          (recur seg-end next-x range-index))))))
 
 (defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info indent-type visible-whitespace]
   (let [^Rect canvas-rect (.canvas layout)
@@ -437,73 +574,123 @@
       (when (and (< drawn-line-index drawn-line-count)
                  (< source-line-index source-line-count))
         (let [^String line (lines source-line-index)
+              complex-ranges (data/complex-text-ranges line)
               line-x (+ (.x canvas-rect)
                         (.scroll-x layout))
               line-y (+ ascent
                         (.scroll-y-remainder layout)
                         (* drawn-line-index line-height))]
           (if-some [runs (second (get syntax-info source-line-index))]
-            ;; Draw syntax-highlighted runs.
+            ;; Keep shaped ranges intact, even across syntax scopes. They use the
+            ;; color of the scope where they start.
             (loop [run-index 0
+                   start 0
                    glyph-offset line-x]
-              (when-some [[start scope] (get runs run-index)]
-                (.setFill gc (color-match color-scheme scope))
-                (let [end (or (first (get runs (inc run-index)))
-                              (count line))
-                      glyph-offset (fill-text! gc layout line start end glyph-offset line-y)]
-                  (when (some? glyph-offset)
-                    (recur (inc run-index) (double glyph-offset))))))
+              (when-some [[_ scope] (get runs run-index)]
+                (let [run-end (long (or (first (get runs (inc run-index)))
+                                        (count line)))
+                      complex-range-index (loop [complex-range-index 0]
+                                            (if-let [[_ ^long complex-end] (get complex-ranges complex-range-index)]
+                                              (if (<= complex-end start)
+                                                (recur (inc complex-range-index))
+                                                complex-range-index)
+                                              complex-range-index))
+                      [complex-start complex-end] (get complex-ranges complex-range-index)
+                      end (long (cond
+                                  (= start complex-start) complex-end
+                                  (and complex-start (< start ^long complex-start) (< ^long complex-start run-end)) complex-start
+                                  :else run-end))
+                      next-run-index (long (if (= start complex-start)
+                                             (loop [next-run-index run-index]
+                                               (let [next-run-end (long (or (first (get runs (inc next-run-index)))
+                                                                            (count line)))]
+                                                 (cond
+                                                   (< next-run-end ^long complex-end)
+                                                   (recur (inc next-run-index))
+
+                                                   (= next-run-end complex-end)
+                                                   (inc next-run-index)
+
+                                                   :else
+                                                   next-run-index)))
+                                             (if (= end run-end) (inc run-index) run-index)))]
+                  (.setFill gc (color-match color-scheme scope))
+                  (let [glyph-offset (fill-text! gc layout line complex-ranges start end glyph-offset line-y)]
+                    (when (some? glyph-offset)
+                      (recur next-run-index end (double glyph-offset)))))))
 
             ;; Just draw line as plain text.
             (when-not (string/blank? line)
               (.setFill gc foreground-color)
-              (fill-text! gc layout line 0 (count line) line-x line-y)))
+              (fill-text! gc layout line complex-ranges 0 (count line) line-x line-y)))
 
           (let [line-length (count line)
                 baseline-offset (Math/ceil (/ line-height 4.0))
                 visible-start-x (.x canvas-rect)
                 visible-end-x (+ visible-start-x (.w canvas-rect))]
-            (loop [inside-leading-whitespace? true
+            (loop [inside-leading-whitespace true
+                   range-index 0
                    i 0
                    x 0.0]
               (when (< i line-length)
-                (let [character (.charAt line i)
-                      next-i (inc i)
-                      next-x (double (data/advance-text layout line i next-i x))
-                      draw-start-x (+ x line-x)
-                      draw-end-x (+ next-x line-x)
-                      inside-visible-start? (< visible-start-x draw-end-x)
-                      inside-visible-end? (< draw-start-x visible-end-x)]
-                  (when (and inside-visible-start? inside-visible-end?)
-                    (case character
-                      \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
-                                   sy (- line-y baseline-offset)]
-                               (cond
-                                 (and highlight-rogue-whitespace?
-                                      inside-leading-whitespace?
-                                      (= :tabs indent-type))
-                                 (do (.setFill gc rogue-whitespace-color)
-                                     (.fillRect gc sx sy 1.0 1.0))
+                (let [[range-start range-end] (get complex-ranges range-index)]
+                  (if (= i range-start)
+                    ;; Use shaped geometry because bidi may reorder spaces.
+                    (when (< (+ x line-x) visible-end-x)
+                      (let [^String sub (.substring line i range-end)]
+                        (when visible-whitespace?
+                          (dotimes [j (.length sub)]
+                            (when (= \space (.charAt sub j))
+                              (doseq [[^double x0 ^double x1] (data/complex-text-selection-spans (.glyph layout) sub j (inc j))]
+                                (let [sx (+ line-x x (Math/floor (* (+ x0 x1) 0.5)))
+                                      sy (- line-y baseline-offset)]
+                                  (when (and (< visible-start-x sx) (< sx visible-end-x))
+                                    (.setFill gc space-color)
+                                    (.fillRect gc sx sy 1.0 1.0)))))))
+                        (recur false
+                               (inc range-index)
+                               (long range-end)
+                               (+ x (double (data/complex-text-width (.glyph layout) sub))))))
+                    (let [character (.charAt line i)
+                          next-i (inc i)
+                          next-x (double (data/advance-text layout line i next-i x))
+                          draw-start-x (+ x line-x)
+                          draw-end-x (+ next-x line-x)
+                          inside-visible-start (< visible-start-x draw-end-x)
+                          inside-visible-end (< draw-start-x visible-end-x)]
+                      (when (and inside-visible-start inside-visible-end)
+                        (case character
+                          \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
+                                       sy (- line-y baseline-offset)]
+                                   (cond
+                                     (and highlight-rogue-whitespace?
+                                          inside-leading-whitespace
+                                          (= :tabs indent-type))
+                                     (do (.setFill gc rogue-whitespace-color)
+                                         (.fillRect gc sx sy 1.0 1.0))
 
-                                 visible-whitespace?
-                                 (do (.setFill gc space-color)
-                                     (.fillRect gc sx sy 1.0 1.0))))
+                                     visible-whitespace?
+                                     (do (.setFill gc space-color)
+                                         (.fillRect gc sx sy 1.0 1.0))))
 
-                      \tab (let [sx (+ line-x x 2.0)
-                                 sy (- line-y baseline-offset)]
-                             (cond
-                               (and highlight-rogue-whitespace?
-                                    inside-leading-whitespace?
-                                    (not= :tabs indent-type))
-                               (do (.setFill gc rogue-whitespace-color)
-                                   (.fillRect gc sx sy (- next-x x 4.0) 1.0))
+                          \tab (let [sx (+ line-x x 2.0)
+                                     sy (- line-y baseline-offset)]
+                                 (cond
+                                   (and highlight-rogue-whitespace?
+                                        inside-leading-whitespace
+                                        (not= :tabs indent-type))
+                                   (do (.setFill gc rogue-whitespace-color)
+                                       (.fillRect gc sx sy (- next-x x 4.0) 1.0))
 
-                               visible-whitespace?
-                               (do (.setFill gc tab-color)
-                                   (.fillRect gc sx sy (- next-x x 4.0) 1.0))))
-                      nil))
-                  (when inside-visible-end?
-                    (recur (and inside-leading-whitespace? (Character/isWhitespace character)) next-i next-x))))))
+                                   visible-whitespace?
+                                   (do (.setFill gc tab-color)
+                                       (.fillRect gc sx sy (- next-x x 4.0) 1.0))))
+                          nil))
+                      (when inside-visible-end
+                        (recur (and inside-leading-whitespace (Character/isWhitespace character))
+                               range-index
+                               next-i
+                               next-x))))))))
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
@@ -4287,19 +4474,21 @@
                 :grid-pane/row 3
                 :grid-pane/halignment :right}]}]}]}]}]}}))
 
-(defn- create-breakpoint-editor! [view-node canvas ^Tab tab]
+(defn- create-breakpoint-editor! [view-node canvas]
   (let [state (atom nil)
-        timer (ui/->timer
-                10
-                "breakpoint-code-editor-timer"
-                (fn [_ _ _]
-                  (when (and (.isSelected tab) (not (ui/ui-disabled?)))
-                    (g/with-auto-evaluation-context evaluation-context
-                      (reset! state
-                              (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
-                                {:edited-breakpoint edited-breakpoint
-                                 :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
-                                 :layout (g/node-value view-node :layout evaluation-context)}))))))]
+
+        dispose-timer!
+        (ui/node-timer!
+          canvas 10 "breakpoint-code-editor-timer"
+          (fn [_elapsed-time]
+            (when-not (ui/ui-disabled?)
+              (g/with-auto-evaluation-context evaluation-context
+                (reset! state
+                        (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
+                          {:edited-breakpoint edited-breakpoint
+                           :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
+                           :layout (g/node-value view-node :layout evaluation-context)}))))))]
+
     (fx/mount-renderer
       state
       (fx/create-renderer
@@ -4336,9 +4525,8 @@
         :middleware (comp
                       fxui/wrap-dedupe-desc
                       (fx/wrap-map-desc #(breakpoint-editor-view canvas %)))))
-    (ui/timer-start! timer)
     (fn dispose-breakpoint-editor! []
-      (ui/timer-stop! timer)
+      (dispose-timer!)
       (reset! state nil))))
 
 (defn- make-view! [parent resource-node opts]
@@ -4377,11 +4565,6 @@
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node localization)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node localization)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node editable localization)
-        repainter (ui/->timer "repaint-code-editor-view"
-                              (fn [_ elapsed-time _]
-                                (when (and (.isSelected tab) (not (ui/ui-disabled?)))
-                                  (repaint-view! view-node elapsed-time {:cursor-visible true :editable editable}))))
-        dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas tab)
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :editable editable
                      :app-view app-view
@@ -4469,14 +4652,27 @@
       (let [^Stage stage (g/node-value app-view :stage)
             ^Scene scene (.getScene stage)
             focus-owner-property (.focusOwnerProperty scene)
-            focus-change-listener (make-focus-change-listener view-node grid canvas)]
+            focus-change-listener (make-focus-change-listener view-node grid canvas)
+            dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas)
+            first-repaint (volatile! true)
+
+            dispose-repainter!
+            (ui/node-timer!
+              canvas nil "repaint-code-editor-view"
+              (fn [elapsed-time]
+                (when-not (ui/ui-disabled?)
+                  (repaint-view! view-node elapsed-time {:cursor-visible true :editable editable})
+                  (when @first-repaint
+                    (vreset! first-repaint false)
+                    (slog/smoke-log "code-view-visible")))))]
+
         (.addListener focus-owner-property focus-change-listener)
 
         ;; Remove callbacks when our tab is closed.
         (ui/on-closed! tab (fn [_]
                              (lsp/close-view! lsp view-node)
                              (ui/kill-event-dispatch! canvas)
-                             (ui/timer-stop! repainter)
+                             (dispose-repainter!)
                              (dispose-breakpoint-editor!)
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)
@@ -4490,11 +4686,6 @@
                              (.removeListener visible-whitespace-property visible-whitespace-setter)
                              (.removeListener focus-owner-property focus-change-listener)))))
 
-    ;; Start repaint timer.
-    (ui/timer-start! repainter)
-    ;; Initial draw
-    (ui/run-later (repaint-view! view-node 0 {:cursor-visible true :editable editable})
-                  (ui/run-later (slog/smoke-log "code-view-visible")))
     view-node))
 
 (def ^:private fundamental-read-only-handlers

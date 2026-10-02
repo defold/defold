@@ -55,7 +55,7 @@
                                    :advance 10.0})
                                 (range (int \A) (inc (int \F))))}]
     (is (= "AB\nCD" ((ns-resolve 'editor.font 'produce-preview-text)
-                      {:font-map font-map})))))
+                     {:font-map font-map})))))
 
 (deftest effective-sdf-scale-test
   (let [effective-sdf-scale (ns-resolve 'editor.font 'effective-sdf-scale)
@@ -104,9 +104,9 @@
                                           :use-rich-text true}
                                          "<shadow x=1>Text</shadow>")
         bm-font-attribute-text-error (font/markup-error 0 :text
-                                                       {:rich-text-render-kind :bitmap
-                                                        :use-rich-text true}
-                                                       "<link id=\"<shadow blur=2>\">Text</link>")
+                                                        {:rich-text-render-kind :bitmap
+                                                         :use-rich-text true}
+                                                        "<link id=\"<shadow blur=2>\">Text</link>")
         static-invalid-markup-error (font/markup-error 0 :text
                                                        {:rich-text-render-kind :distance-field
                                                         :use-rich-text true}
@@ -117,53 +117,53 @@
                                                  :use-rich-text true}
                                                 "<outline size='2'>Text</outline>")
         bitmap-hidden-outline-shadow-error (font/markup-error 0 :text
-                                                               {:outline-alpha 1.0
-                                                                :outline-width 3.0
-                                                                :rich-text-render-kind :defold
-                                                                :rich-text-shadow-blur-capacity 4.0
-                                                                :shadow-alpha 1.0
-                                                                :use-rich-text true}
-                                                               "<shadow x='2'>Text</shadow>")
+                                                              {:outline-alpha 1.0
+                                                               :outline-width 3.0
+                                                               :rich-text-render-kind :defold
+                                                               :rich-text-shadow-blur-capacity 4.0
+                                                               :shadow-alpha 1.0
+                                                               :use-rich-text true}
+                                                              "<shadow x='2'>Text</shadow>")
         bitmap-nested-outline-shadow-error (font/markup-error 0 :text
-                                                               {:outline-alpha 1.0
-                                                                :outline-width 3.0
-                                                                :rich-text-render-kind :defold
-                                                                :rich-text-shadow-blur-capacity 4.0
-                                                                :shadow-alpha 1.0
-                                                                :use-rich-text true}
-                                                               "<outline><shadow x='2'>Text</shadow></outline>")
+                                                              {:outline-alpha 1.0
+                                                               :outline-width 3.0
+                                                               :rich-text-render-kind :defold
+                                                               :rich-text-shadow-blur-capacity 4.0
+                                                               :shadow-alpha 1.0
+                                                               :use-rich-text true}
+                                                              "<outline><shadow x='2'>Text</shadow></outline>")
         bitmap-containing-outline-shadow-error (font/markup-error 0 :text
-                                                                   {:outline-alpha 1.0
-                                                                    :outline-width 3.0
-                                                                    :rich-text-render-kind :defold
-                                                                    :rich-text-shadow-blur-capacity 4.0
-                                                                    :shadow-alpha 1.0
-                                                                    :use-rich-text true}
-                                                                   "<shadow x='2'><outline>Text</outline></shadow>")
+                                                                  {:outline-alpha 1.0
+                                                                   :outline-width 3.0
+                                                                   :rich-text-render-kind :defold
+                                                                   :rich-text-shadow-blur-capacity 4.0
+                                                                   :shadow-alpha 1.0
+                                                                   :use-rich-text true}
+                                                                  "<shadow x='2'><outline>Text</outline></shadow>")
         bitmap-partially-outlined-shadow-error (font/markup-error 0 :text
-                                                                   {:outline-alpha 1.0
-                                                                    :outline-width 3.0
-                                                                    :rich-text-render-kind :defold
-                                                                    :rich-text-shadow-blur-capacity 4.0
-                                                                    :shadow-alpha 1.0
-                                                                    :use-rich-text true}
-                                                                   "<shadow x='2'>A<outline>B</outline>C</shadow>")
+                                                                  {:outline-alpha 1.0
+                                                                   :outline-width 3.0
+                                                                   :rich-text-render-kind :defold
+                                                                   :rich-text-shadow-blur-capacity 4.0
+                                                                   :shadow-alpha 1.0
+                                                                   :use-rich-text true}
+                                                                  "<shadow x='2'>A<outline>B</outline>C</shadow>")
         bitmap-fully-outlined-shadow-error (font/markup-error 0 :text
-                                                               {:outline-alpha 1.0
-                                                                :outline-width 3.0
-                                                                :rich-text-render-kind :defold
-                                                                :rich-text-shadow-blur-capacity 4.0
-                                                                :shadow-alpha 1.0
-                                                                :use-rich-text true}
-                                                               "<shadow x='2'><outline>A</outline><outline>B</outline></shadow>")
+                                                              {:outline-alpha 1.0
+                                                               :outline-width 3.0
+                                                               :rich-text-render-kind :defold
+                                                               :rich-text-shadow-blur-capacity 4.0
+                                                               :shadow-alpha 1.0
+                                                               :use-rich-text true}
+                                                              "<shadow x='2'><outline>A</outline><outline>B</outline></shadow>")
         bitmap-disabled-inner-outline-shadow-error (font/markup-error 0 :text
-                                                                        {:outline-alpha 1.0
-                                                                         :outline-width 3.0
-                                                                         :rich-text-render-kind :defold
-                                                                         :rich-text-shadow-blur-capacity 4.0
-                                                                         :shadow-alpha 1.0
-                                                                         :use-rich-text true}
-                                                                        "<outline><shadow x='2'>A<outline size='0'>B</outline></shadow></outline>")
+                                                                      {:outline-alpha 1.0
+                                                                       :outline-width 3.0
+                                                                       :rich-text-render-kind :defold
+                                                                       :rich-text-shadow-blur-capacity 4.0
+                                                                       :shadow-alpha 1.0
+                                                                       :use-rich-text true}
+                                                                      "<outline><shadow x='2'>A<outline size='0'>B</outline></shadow></outline>")
         bitmap-inherited-zero-blur-shadow-error (font/markup-error 0 :text
                                                                    {:outline-alpha 1.0
                                                                     :outline-width 3.0
@@ -218,10 +218,10 @@
                                                   :use-rich-text true}
                                                  "<shadow blur='2'>Text</shadow>")
         overridden-unreserved-blur-error (font/markup-error 0 :text
-                                                             {:rich-text-render-kind :distance-field
-                                                              :rich-text-shadow-blur-capacity 0.0
-                                                              :use-rich-text true}
-                                                             "<shadow blur='2'><shadow blur='0'>Text</shadow></shadow>")]
+                                                            {:rich-text-render-kind :distance-field
+                                                             :rich-text-shadow-blur-capacity 0.0
+                                                             :use-rich-text true}
+                                                            "<shadow blur='2'><shadow blur='0'>Text</shadow></shadow>")]
     (is (g/error-warning? bm-font-error))
     (is (s/includes? (test-util/localization (g/error-message bm-font-error)) "not supported by BMFont"))
     (is (nil? bm-font-attribute-text-error))
@@ -336,7 +336,7 @@
 
 (defn- font-map-uses-text-shaping? [font-node]
   (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
-                                                    [:native-renderer-spec :render-params])]
+                                                   [:native-renderer-spec :render-params])]
     (.-useTextShaping render-params)))
 
 (defn- font-map-uses-rich-text? [font-node]
@@ -521,7 +521,7 @@
     (let [node-id (test-util/resource-node project "/fonts/score.font")]
       (g/clear-system-cache!)
       (with-redefs [font/compile-font (fn [& _]
-                                       (throw (AssertionError. "font-map should not be generated for build-targets")))]
+                                        (throw (AssertionError. "font-map should not be generated for build-targets")))]
         (let [build-targets (g/node-value node-id :build-targets)]
           (when (is (not (g/error? build-targets)))
             (is (some? (coll/some #(get-in % [:user-data :pb-map :glyph-bank]) build-targets)))))))))
@@ -618,7 +618,11 @@
       (is (= "notice" (g/node-value link-node :id)))
       (test-util/with-prop [link-node :id "link:hover"]
         (is (g/error-fatal? (test-util/prop-error link-node :id))))
-      (test-util/with-prop [link-node :markup "<size=48>"]
+      (doseq [markup ["<shake fit=span><color=#FC6600><size=25%>" "<link>" "<sprite id=icon>"]]
+        (test-util/with-prop [link-node :markup markup]
+          (is (nil? (test-util/prop-error link-node :markup)))
+          (is (nil? (g/node-value link-node :build-errors)))))
+      (test-util/with-prop [link-node :markup "<size=invalid>"]
         (is (g/error-fatal? (test-util/prop-error link-node :markup)))
         (is (g/error-fatal? (g/node-value node :build-targets))))
       (g/transact (mapv #(g/delete-node (:node-id %)) (subvec children 1)))
@@ -633,7 +637,7 @@
           original-children (get-in (g/node-value node :node-outline) [:children 0 :children])
           style-node (:node-id (second original-children))]
       (doseq [[property value severity outline-errors] [[:markup "<outline size=2>" :warning [false false false false]]
-                                                        [:markup "<size=48>" :fatal [false true false false]]
+                                                        [:markup "<size=invalid>" :fatal [false true false false]]
                                                         [:id "link:hover" :fatal [false true true false]]]]
         (testing (str property " " value)
           (test-util/with-prop [style-node property value]
@@ -666,7 +670,7 @@
           (is (g/error-warning? (test-util/prop-error style-node :markup)))
           (is (vector? (g/node-value node :build-targets)))
           (is (identical? compiled (g/node-value style-node :compiled-style)))))
-      (g/set-property! style-node :markup "<size=48>")
+      (g/set-property! style-node :markup "<size=invalid>")
       (is (g/error-fatal? (g/node-value node :build-targets))))))
 
 (deftest default-style-markup-follows-font-settings
@@ -695,8 +699,8 @@
             [generated copied] (mapv protobuf/pb->map-with-defaults
                                      (FontStyles/compileStyles
                                        (protobuf/map->pb Font$FontDesc
-                                         (assoc saved :styles [{:name "default"}
-                                                               {:name "copy" :markup updated-markup}]))))]
+                                                         (assoc saved :styles [{:name "default"}
+                                                                               {:name "copy" :markup updated-markup}]))))]
         (is (= {:name "default"} (first (:styles saved))))
         (is (= (dissoc generated :name :name-hash) (dissoc copied :name :name-hash))))
       ;; Property history must invalidate the derived markup rather than leave stale effects.
@@ -734,20 +738,20 @@
 (deftest opening-font-view-dispatches-input
   (test-util/with-loaded-project
     (let [[_node view] (test-util/open-scene-view! project app-view "/editor1/test.font" 320 240
-                                                (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
+                                                   (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
           input-context (scene/input-dispatch-context view)
           final-state (reduce (fn [input-state action-type]
                                 (scene/dispatch-input-action
                                   input-context
                                   input-state
                                   (scene/augment-action view {:type action-type
-                                                             :x 160.0
-                                                             :y 120.0
-                                                             :screen-x 160.0
-                                                             :screen-y 120.0
-                                                             :button :primary
-                                                             :click-count 1
-                                                             :modifiers #{}})))
+                                                              :x 160.0
+                                                              :y 120.0
+                                                              :screen-x 160.0
+                                                              :screen-y 120.0
+                                                              :button :primary
+                                                              :click-count 1
+                                                              :modifiers #{}})))
                               (input/make-input-state)
                               [:mouse-moved :mouse-pressed :mouse-released])]
       (is (= [160.0 120.0] (:view-pos final-state)))
@@ -756,7 +760,7 @@
 (deftest add-style-command-and-selected-preview
   (test-util/with-loaded-project
     (let [[node view] (test-util/open-scene-view! project app-view "/editor1/test.font" 320 240
-                                                       (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
+                                                  (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
           styles-node (g/node-value node :styles-node)]
       (is (= "Style: (default)" (g/node-value view :tool-info-text)))
       (doseq [[parent name] [[node "style"] [styles-node "style1"]]]

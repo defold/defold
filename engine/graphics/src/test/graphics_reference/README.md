@@ -119,7 +119,7 @@ against RGB (37, 73, 109). Rendering defects remain failures, including
 the known DX12 stencil defect; there are no expected-failure exemptions.
 Readback diagnostics compare the whole image and require identical pixels.
 
-Validation on the capture host: all nine cases pass on Metal, OpenGL and
+Initial validation on the capture host: all nine cases pass on Metal, OpenGL and
 Vulkan through MoltenVK with 100% reference likeness: 27 passed, 0 failed,
 9 unavailable WebGPU skips. The initial feature commit `f8f0eabf25` retained
 three Metal failures: basic/nested repeated rendering and separate-face
@@ -135,7 +135,12 @@ that preserve those contents. The 21 graphics harness tests pass, including exac
 reference pixel checks, representative stencil faults, and missing, swapped,
 rotated or mirrored cubemap faces, failed-render diagnostics, portable saved
 diagnostics, stale-image removal and final case totals.
-Native Dawn support is absent from this checkout,
-so WebGPU device validation is pending. DX12 passed a Windows SDK syntax
-check; its actual stencil failure still needs to be captured on Windows.
-Native Linux CI execution is also pending.
+
+After merging `dev` at `9614cb812c` on 2026-10-02, native Dawn is available.
+The four-backend matrix has 35 passes and one failure: WebGPU `stencil_faces`
+has 77.06% likeness. Its pipeline uses the front-face comparison and pass
+operation for the back face as well; this code is unchanged from `dev`.
+The native WebGPU surface readback regression passes with one and four samples.
+The capture harness avoids closing WebGPU's platform window twice during cleanup.
+DX12 passed a Windows SDK syntax check; its actual stencil failure still needs
+to be captured on Windows.

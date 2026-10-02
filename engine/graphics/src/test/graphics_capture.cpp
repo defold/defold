@@ -895,7 +895,9 @@ int RunGraphicsCapture(int argc, char** argv)
     DeleteContext(context);
     Finalize();
     JobSystemDestroy(jobs);
-    dmPlatform::CloseWindow(window);
+    // WebGPU closes the platform window in CloseWindow(context).
+    if (backend->m_Family != ADAPTER_FAMILY_WEBGPU)
+        dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);
     return success ? 0 : 1;
 }

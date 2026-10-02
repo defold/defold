@@ -153,7 +153,11 @@ namespace dmGraphics
 
             VulkanDestroyResources(_context);
 
+#if ANDROID
+            DestroyAndroidWindowSurface(context->m_Instance, context->m_WindowSurface);
+#else
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
+#endif
 
             DestroyInstance(&context->m_Instance);
 

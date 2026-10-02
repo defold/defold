@@ -32,8 +32,9 @@ namespace dmGraphics
     typedef dmHashTable64<Pipeline>    PipelineCache;
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
-    const static uint8_t DM_MAX_FRAMES_IN_FLIGHT = 3; // In flight frames - number of concurrent frames being processed
-    const static uint8_t MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY = 2; // Increase if necessary (or make fully dynamic)
+    const static uint8_t              DM_MAX_FRAMES_IN_FLIGHT = 3; // In flight frames - number of concurrent frames being processed
+    const static uint8_t              MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY = 2; // Increase if necessary (or make fully dynamic)
+    static const VkPipelineStageFlags STORAGE_BUFFER_GRAPHICS_STAGES = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
     enum VulkanResourceType
     {
@@ -74,6 +75,8 @@ namespace dmGraphics
         void*              m_MappedDataPtr;
         VulkanHandle       m_Handle;
         VkBufferUsageFlags m_Usage;
+        VkAccessFlags      m_StorageAccess = 0;
+        VkPipelineStageFlags m_StorageStages = 0;
         uint32_t           m_Destroyed  : 1;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
@@ -208,6 +211,7 @@ namespace dmGraphics
         // Set alongside m_HasPendingClearColor when depth/stencil is also pending a clear.
         // BeginRenderPass picks m_RenderPassClearColorDepth and uses m_DepthAttachmentClearValue.
         uint32_t       m_HasPendingClearDepth : 1;
+        uint32_t       m_ResumePass : 1;
         uint32_t       m_SubPassCount         : 8;
         uint32_t       m_SubPassIndex         : 8;
 
@@ -277,6 +281,8 @@ namespace dmGraphics
         VkCommandPool   m_CommandPool;
         VkCommandPool   m_CommandPoolWorker;
         dmMutex::HMutex m_QueueMutex; // Serializes host access to both queue handles (which may alias).
+        PFN_vkCopyMemoryToImageEXT m_CopyMemoryToImage; // E.g. used on Apple, to upload PVRTC textures
+        PFN_vkTransitionImageLayoutEXT m_TransitionImageLayout;
     };
 
     struct ShaderModule
@@ -507,7 +513,7 @@ namespace dmGraphics
         DeviceBuffer*                   m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                        m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
-        StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
+        StorageBufferBinding            m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         VulkanUniformBuffer*            m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         VulkanProgram*                  m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
@@ -535,7 +541,7 @@ namespace dmGraphics
         uint32_t                        m_SwapInterval;
         uint32_t                        m_SwapIntervalChanged  : 1;
         uint32_t                        m_FrameBegun           : 1;
-        uint32_t                        m_ReadPixelsSubmitted  : 1;
+        uint32_t                        m_ImageAvailableConsumed : 1;
         uint32_t                        m_CurrentFrameInFlight : 2;
         uint32_t                        m_NumFramesInFlight    : 2;
         uint32_t                        m_MainRTBegunThisFrame : 1;
@@ -610,7 +616,7 @@ namespace dmGraphics
 
     // Misc functions
     void            TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count);
-    VkResult        TransitionImageLayout(LogicalDevice* logical_device, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
+    VkResult        TransitionImageLayout(LogicalDevice* logical_device, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1, VkCommandPool command_pool = VK_NULL_HANDLE);
     VkResult        WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
     void            DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
     void            FlushResourcesToDestroy(VulkanContext* context, ResourcesToDestroyList* resource_list);

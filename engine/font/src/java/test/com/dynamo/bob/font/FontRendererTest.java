@@ -132,6 +132,34 @@ public class FontRendererTest {
     }
 
     @Test
+    public void testNamedStyleSizeMatchesInlineMarkup() throws Exception {
+        for (boolean shaping : new boolean[] {false, true}) {
+            try (FontRenderer renderer = createRenderer(32.0f, 512, 512, shaping)) {
+                FontRenderer.Layout plain = renderer.measure("ABC", false, 0, 1, 0);
+                FontRenderer.Layout expected = renderer.measureMarkup("<size=25%>ABC</size>", false, 0, 1, 0);
+                String markup = "<shake fit=span><color=#FC6600><size=25%>";
+                FontRenderer.Style style = FontRenderer.compileStyle(markup);
+                assertEquals(0.25f, style.fontSize, 0.0f);
+                assertEquals(FontRenderer.Style.SIZE_EM, style.fontSizeUnit);
+                renderer.setStyle(1, style);
+                FontRenderer.Properties properties = properties(100, 1, 0);
+                properties.baseStyle = 1;
+                properties.useBaseStyle = true;
+                renderer.setProperties(properties);
+                FontRenderer.Layout actual = renderer.measure("ABC", false, 0, 1, 0);
+                assertEquals(expected.width, actual.width, 0.001f);
+                assertEquals(expected.height, actual.height, 0.001f);
+                renderer.setStyle(1, FontRenderer.compileStyle("<size=200%>"));
+                assertTrue(renderer.measure("ABC", false, 0, 1, 0).width > actual.width);
+                renderer.setStyle(1, FontRenderer.compileStyle("<color=#FC6600>"));
+                actual = renderer.measure("ABC", false, 0, 1, 0);
+                assertEquals(plain.width, actual.width, 0.001f);
+                assertEquals(plain.height, actual.height, 0.001f);
+            }
+        }
+    }
+
+    @Test
     public void testLayoutSelection() throws Exception {
         try (FontRenderer legacy = createRenderer(32.0f, 512, 512, false);
              FontRenderer skribidi = createRenderer(32.0f, 512, 512, true)) {
