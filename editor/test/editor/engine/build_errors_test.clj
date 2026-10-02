@@ -37,8 +37,8 @@
   [logfile result-file manifest-file project-resources]
   (tu/with-loaded-project "test/resources/empty_project"
     (let [project (tu/setup-project!
-                   workspace
-                   (make-fake-empty-files workspace project-resources))
+                    workspace
+                    (make-fake-empty-files workspace project-resources))
           content (slurp-test-file logfile)
           expected-result (read-string (slurp-test-file result-file))
           result (build-errors/parse-compilation-log content project manifest-file)]
@@ -47,121 +47,121 @@
 (deftest defappsflyer
   (let [[expected-result result]
         (parse-log-test
-         "defappsflyer_iOS.txt"
-         "defappsflyer_iOS_parsed.edn"
-         "/defappsflyer/ext.manifest"
-         ["defappsflyer/src/DefAppsFlyer.cpp"
-          "defappsflyer/src/DefAppsFlyer.h"
-          "defappsflyer/src/DefAppsFlyerIOS.mm"
-          "defappsflyer/lib/ios/AppsFlyerTracker.framework/Headers/AppsFlyerTracker.h"
-          "defappsflyer/src/utils/LuaUtils.h"
-          "defappsflyer/ext.manifest"])]
+          "defappsflyer_iOS.txt"
+          "defappsflyer_iOS_parsed.edn"
+          "/defappsflyer/ext.manifest"
+          ["defappsflyer/src/DefAppsFlyer.cpp"
+           "defappsflyer/src/DefAppsFlyer.h"
+           "defappsflyer/src/DefAppsFlyerIOS.mm"
+           "defappsflyer/lib/ios/AppsFlyerTracker.framework/Headers/AppsFlyerTracker.h"
+           "defappsflyer/src/utils/LuaUtils.h"
+           "defappsflyer/ext.manifest"])]
     (is (= expected-result result))))
 
 (deftest missing-symbols
   (let [[expected-result result]
         (parse-log-test
-         "missingSymbols.txt"
-         "missingSymbols_parsed.edn"
-         nil
-         [])]
+          "missingSymbols.txt"
+          "missingSymbols_parsed.edn"
+          nil
+          [])]
     (is (= expected-result result))))
 
 (deftest missing-symbols-2
   (let [[expected-result result]
         (parse-log-test
-         "missingSymbols_2.txt"
-         "missingSymbols_parsed_2.edn"
-         "/win32nativeext/ext.manifest"
-         ["win32nativeext/ext.manifest"
-          "ext2/src/main.cpp"
-          "win32nativeext/src/main.cpp"])]
+          "missingSymbols_2.txt"
+          "missingSymbols_parsed_2.edn"
+          "/win32nativeext/ext.manifest"
+          ["win32nativeext/ext.manifest"
+           "ext2/src/main.cpp"
+           "win32nativeext/src/main.cpp"])]
     (is (= expected-result result))))
 
 (deftest template-barf
   (let [[expected-result result]
         (parse-log-test
-         "templateBarf.txt"
-         "templateBarf_parsed.edn"
-         "/win32nativeext/ext.manifest"
-         ["win32nativeext/ext.manifest"
-          "win32nativeext/src/main.cpp"])]
+          "templateBarf.txt"
+          "templateBarf_parsed.edn"
+          "/win32nativeext/ext.manifest"
+          ["win32nativeext/ext.manifest"
+           "win32nativeext/src/main.cpp"])]
     (is (= expected-result result))))
 
 (deftest win32-errors
   (let [[expected-result result]
         (parse-log-test
-         "errorLogWin32.txt"
-         "errorLogWin32_parsed.edn"
-         "/androidnative/ext.manifest"
-         ["androidnative/ext.manifest"
-          "androidnative/src/main.cpp"
-          "king_device_id/src/kdid.cpp"])]
+          "errorLogWin32.txt"
+          "errorLogWin32_parsed.edn"
+          "/androidnative/ext.manifest"
+          ["androidnative/ext.manifest"
+           "androidnative/src/main.cpp"
+           "king_device_id/src/kdid.cpp"])]
     (is (= expected-result result))))
 
 (deftest android-errors
   (let [[expected-result result]
         (parse-log-test
-         "errorLogAndroid.txt"
-         "errorLogAndroid_parsed.edn"
-         "/androidnative/ext.manifest"
-         ["androidnative/ext.manifest"
-          "androidnative/src/main.cpp"])]
+          "errorLogAndroid.txt"
+          "errorLogAndroid_parsed.edn"
+          "/androidnative/ext.manifest"
+          ["androidnative/ext.manifest"
+           "androidnative/src/main.cpp"])]
     (is (= expected-result result))))
 
 (deftest html5-errors
   (let [[expected-result result]
         (parse-log-test
-         "errorLogHTML5.txt"
-         "errorLogHTML5_parsed.edn"
-         nil
-         [])]
+          "errorLogHTML5.txt"
+          "errorLogHTML5_parsed.edn"
+          nil
+          [])]
     (is (= expected-result result))))
 
 (deftest macOS-errors
   (let [[expected-result result]
         (parse-log-test
-         "errorLogOSX.txt"
-         "errorLogOSX_parsed.edn"
-         nil
-         [])]
+          "errorLogOSX.txt"
+          "errorLogOSX_parsed.edn"
+          nil
+          [])]
     (is (= expected-result result))))
 
 (deftest iOS-errors
   (let [[expected-result result]
         (parse-log-test
-         "errorLogiOS.txt"
-         "errorLogiOS_parsed.edn"
-         nil
-         [])]
+          "errorLogiOS.txt"
+          "errorLogiOS_parsed.edn"
+          nil
+          [])]
     (is (= expected-result result))))
 
 (deftest linux-errors
   (let [[expected-result result]
         (parse-log-test
-         "errorLogLinux.txt"
-         "errorLogLinux_parsed.edn"
-         "/androidnative/ext.manifest"
-         ["androidnative/ext.manifest"
-          "androidnative/src/main.cpp"])]
+          "errorLogLinux.txt"
+          "errorLogLinux_parsed.edn"
+          "/androidnative/ext.manifest"
+          ["androidnative/ext.manifest"
+           "androidnative/src/main.cpp"])]
     (is (= expected-result result))))
 
 (deftest trailing-included-from-does-not-crash
   (let [[expected-result result]
         (parse-log-test
-         "trailingIncludedFrom.txt"
-         "trailingIncludedFrom_parsed.edn"
-         nil
-         [])]
+          "trailingIncludedFrom.txt"
+          "trailingIncludedFrom_parsed.edn"
+          nil
+          [])]
     (is (= expected-result result))))
 
 (deftest orphan-included-from-at-eof-does-not-crash
   (let [[expected-result result]
         (parse-log-test
-         "orphanIncludedFromEOF.txt"
-         "orphanIncludedFromEOF_parsed.edn"
-         nil
-         [])]
+          "orphanIncludedFromEOF.txt"
+          "orphanIncludedFromEOF_parsed.edn"
+          nil
+          [])]
     (is (= expected-result result))))
 
 (deftest manifest-lookup

@@ -63,7 +63,7 @@
       (let [root-node (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
             [sprite-0 sprite-1] (map #(:node-id (test-util/outline root-node [%])) [0 1])]
         (are [s] (do (app-view/select! app-view s)
-                   (= s (g/node-value app-view :selected-node-ids)))
+                     (= s (g/node-value app-view :selected-node-ids)))
           [sprite-0 sprite-1]
           [sprite-1 sprite-0]))))
   (testing "ensures selected nodes are distinct, preserving order"
@@ -71,7 +71,7 @@
       (let [root-node (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
             [sprite-0 sprite-1] (map #(:node-id (test-util/outline root-node [%])) [0 1])]
         (are [in-s out-s] (do (app-view/select! app-view in-s)
-                            (= out-s (g/node-value app-view :selected-node-ids)))
+                              (= out-s (g/node-value app-view :selected-node-ids)))
           [sprite-0 sprite-1 sprite-0 sprite-1] [sprite-0 sprite-1]
           [sprite-0 sprite-0 sprite-1 sprite-1] [sprite-0 sprite-1]
           [sprite-1 sprite-0 sprite-1 sprite-0] [sprite-1 sprite-0]))))
@@ -95,14 +95,14 @@
         (let [root-node-1 (test-util/open-tab! project app-view "/logic/hierarchy.collection")]
           (is (= [root-node-1] (g/node-value app-view :selected-node-ids)))
           (is (and (has-selection? "/logic/two_atlas_sprites.collection")
-                (has-selection? "/logic/hierarchy.collection")))
+                   (has-selection? "/logic/hierarchy.collection")))
           (app-view/select! app-view [root-node-1])
           (is (and (has-selection? "/logic/two_atlas_sprites.collection")
-                (has-selection? "/logic/hierarchy.collection")))
+                   (has-selection? "/logic/hierarchy.collection")))
           (test-util/close-tab! project app-view "/logic/hierarchy.collection")
           ;; Selection lingers when tab is closed
           (is (and (has-selection? "/logic/two_atlas_sprites.collection")
-                (has-selection? "/logic/hierarchy.collection")))
+                   (has-selection? "/logic/hierarchy.collection")))
           ;; New selection to clean out the lingering data from the previous tab
           (app-view/select! app-view [root-node-0])
           (is (has-selection? "/logic/two_atlas_sprites.collection")))))))
@@ -129,8 +129,8 @@
 (defn- revert-all! [workspace git]
   (let [status (git/unified-status git)
         moved-files (->> status
-                      (filter #(= (:change-type %) :rename))
-                      (mapv #(vector (test-util/file workspace (:new-path %)) (test-util/file workspace (:old-path %)))))]
+                         (filter #(= (:change-type %) :rename))
+                         (mapv #(vector (test-util/file workspace (:new-path %)) (test-util/file workspace (:old-path %)))))]
     (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) status))
     (workspace/resource-sync! workspace moved-files)))
 

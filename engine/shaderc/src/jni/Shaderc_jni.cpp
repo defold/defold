@@ -97,6 +97,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(binding, "B");
         GET_FLD_TYPESTR(set, "B");
         GET_FLD_TYPESTR(stageFlags, "B");
+        GET_FLD_TYPESTR(accessFlags, "B");
     }
     {
         SETUP_CLASS(ShaderReflectionJNI, "ShaderReflection");
@@ -230,6 +231,7 @@ jobject C2J_CreateShaderResource(JNIEnv* env, TypeInfos* types, const ShaderReso
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.binding, src->m_Binding);
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.set, src->m_Set);
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.stageFlags, src->m_StageFlags);
+    dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.accessFlags, src->m_AccessFlags);
     return obj;
 }
 
@@ -576,6 +578,7 @@ bool J2C_CreateShaderResource(JNIEnv* env, TypeInfos* types, jobject obj, Shader
     out->m_Binding = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.binding);
     out->m_Set = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.set);
     out->m_StageFlags = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.stageFlags);
+    out->m_AccessFlags = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.accessFlags);
     return true;
 }
 

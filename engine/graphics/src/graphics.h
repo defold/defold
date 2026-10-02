@@ -149,6 +149,7 @@ namespace dmGraphics
         // Per-stage binding limits
         uint32_t    m_MaxSamplersPerStage;
         uint32_t    m_MaxTexturesPerStage;
+        uint32_t    m_MaxStorageBuffersPerStage;
         uint32_t    m_MaxVertexAttributes;
         uint32_t    m_MaxVertexBuffers;
 

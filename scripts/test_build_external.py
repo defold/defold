@@ -1,6 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
-
 import contextlib
 import io
 import os
@@ -9,6 +6,7 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import build
 from BuildTimeTracker import BuildTimeTracker
@@ -60,6 +58,43 @@ class ExternalPackageTests(unittest.TestCase):
                     for member in archive
                     if member.isfile() and not Path(member.name).name.startswith('._')}
 
+    # Verifies mobile install_ext builds source dependencies without restoring the removed GLFW2 dependency.
+    def test_install_ext_builds_mobile_dependencies_without_glfw(self):
+        source_dir = self.root / 'external'
+        source_dir.mkdir()
+        repository_root = Path(build.__file__).resolve().parent.parent
+        shutil.copyfile(repository_root / 'external/CMakeLists.txt', source_dir / 'CMakeLists.txt')
+
+        cmake_modules = self.root / 'scripts/cmake'
+        cmake_modules.mkdir(parents=True)
+        (cmake_modules / 'defold.cmake').write_text('set(DEFOLD_LANGUAGE_LIST NONE)\n')
+        for library in ('bullet3d', 'basisu', 'lz4'):
+            library_dir = source_dir / library
+            library_dir.mkdir()
+            (library_dir / 'CMakeLists.txt').write_text('''
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/lib%s.a" "${TARGET_PLATFORM}")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/lib%s.a" DESTINATION "lib/${TARGET_PLATFORM}")
+''' % (library, library))
+
+        self.configuration.dmsdk = str(self.root / 'sdk/sdk')
+        self.configuration.get_base_platforms = lambda: [self.configuration.host]
+        self.configuration.check_sdk = lambda: None
+        self.configuration._extract_tgz = mock.Mock()
+        self.configuration._install_python_packages = lambda packages: None
+        self.configuration._copy = lambda *args: None
+        for platform in ('armv7-android', 'arm64-android', 'x86_64-android', 'arm64-ios', 'arm64_sim-ios'):
+            with self.subTest(platform=platform):
+                self.configuration.target_platform = platform
+                self.configuration._extract_tgz.reset_mock()
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.configuration.install_ext()
+                installed = Path(self.configuration.ext)
+                for library in ('bullet3d', 'basisu', 'lz4'):
+                    self.assertEqual(platform, (installed / 'lib' / platform / ('lib' + library + '.a')).read_text())
+                self.assertFalse((installed / 'share/java/glfw_android.jar').exists())
+                extracted_archives = [Path(call.args[0]).name for call in self.configuration._extract_tgz.call_args_list]
+                self.assertFalse(any(name.startswith('glfw-2.7.1-') for name in extracted_archives))
+
     def test_read_package_ignores_appledouble_metadata(self):
         (self.root / 'packages').mkdir()
         files = {
@@ -89,24 +124,6 @@ class ExternalPackageTests(unittest.TestCase):
                 self.build_package(package, 'arm64-macos', headers | libraries)
                 self.assertEqual(headers, self.read_package(archive_name + '-common.tar.gz'))
                 self.assertEqual(libraries, self.read_package(archive_name + '-arm64-macos.tar.gz'))
-
-    def test_glfw_keeps_headers_and_support_files_in_platform_archive(self):
-        cases = (
-            ('arm64-android', {
-                'lib/arm64-android/libdmglfw_vulkan.a': 'Vulkan archive',
-                'share/java/glfw_android.jar': 'Android Java classes',
-            }),
-            ('wasm-web', {'lib/wasm-web/js/library_glfw.js': 'JavaScript glue'}),
-        )
-        for platform, support_files in cases:
-            with self.subTest(platform=platform):
-                files = {
-                    'include/glfw/glfw.h': 'GLFW header',
-                    'lib/' + platform + '/libdmglfw.a': 'GLFW archive',
-                } | support_files
-                self.build_package('glfw', platform, files)
-                self.assertEqual(files, self.read_package('glfw-2.7.1-' + platform + '.tar.gz'))
-                self.assertFalse((self.root / 'packages/glfw-2.7.1-common.tar.gz').exists())
 
 
 if __name__ == '__main__':

@@ -3,6 +3,14 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #include <Box2D/Dynamics/b2Body.h>
 #include <Box2D/Dynamics/b2World.h>
@@ -350,18 +358,16 @@ namespace dmGameSystem
     static int Joint_GetBodyA(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DJointMeta* joint_meta = 0;
-        b2Body* body = CheckJoint(L, 1, &joint_meta)->GetBodyA();
-        PushBody(L, body, joint_meta ? joint_meta->m_Collection : 0, GetBodyInstanceId(body));
+        b2Body* body = CheckJoint(L, 1)->GetBodyA();
+        PushBody(L, body, GetBodyInstance(body));
         return 1;
     }
 
     static int Joint_GetBodyB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DJointMeta* joint_meta = 0;
-        b2Body* body = CheckJoint(L, 1, &joint_meta)->GetBodyB();
-        PushBody(L, body, joint_meta ? joint_meta->m_Collection : 0, GetBodyInstanceId(body));
+        b2Body* body = CheckJoint(L, 1)->GetBodyB();
+        PushBody(L, body, GetBodyInstance(body));
         return 1;
     }
 
