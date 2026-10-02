@@ -245,6 +245,52 @@ TEST(FontGlyphBank, LayoutMetrics)
     ASSERT_TRUE(destroyed);
 }
 
+// Verifies separate measurement and bitmap bounds, while old banks keep their
+// previous metrics. Guards against #13339 without changing glyph rasterization.
+TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
+{
+    bool destroyed = false;
+    TestGlyphBankProvider* bank = CreateTestGlyphBank(1, &destroyed);
+    const uint8_t pixels[] = { 0 };
+    FontGlyphBankGlyph& source = bank->m_Glyphs[0];
+    source.m_Codepoint = 'A';
+    source.m_Width = 14;
+    source.m_LeftBearing = -2;
+    source.m_Advance = 9;
+    source.m_Ascent = 12;
+    source.m_Descent = 3;
+    source.m_LayoutWidth = 7.25f;
+    source.m_LayoutLeftBearing = 1.5f;
+    source.m_Data = pixels;
+    source.m_DataSize = sizeof(pixels);
+    bank->m_Provider.m_GlyphPadding = 1;
+    bank->m_Provider.m_GlyphChannels = 1;
+    HFont font = FontCreateGlyphBank("layout.glyph_bankc", &bank->m_Provider);
+    ASSERT_NE((HFont)0, font);
+
+    FontGlyphOptions options;
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
+    ASSERT_EQ(14.0f, glyph.m_Width);
+    ASSERT_EQ(-2.0f, glyph.m_LeftBearing);
+
+    bank->m_Provider.m_HasLayoutMetrics = true;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
+    ASSERT_EQ(7.25f, glyph.m_Width);
+    ASSERT_EQ(1.5f, glyph.m_LeftBearing);
+    ASSERT_EQ(9.0f, glyph.m_Advance);
+
+    options.m_GenerateImage = true;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
+    ASSERT_EQ(14.0f, glyph.m_Width);
+    ASSERT_EQ(-2.0f, glyph.m_LeftBearing);
+    ASSERT_EQ(16u, glyph.m_Bitmap.m_Width);
+    ASSERT_EQ(17u, glyph.m_Bitmap.m_Height);
+    ASSERT_EQ(pixels, glyph.m_Bitmap.m_Data);
+    FontDestroy(font);
+    ASSERT_TRUE(destroyed);
+}
+
 TEST(FontGlyphBank, RejectsInvalidProvider)
 {
     FontGlyphBankProvider provider = {};

@@ -56,6 +56,8 @@ static bool AlignmentGlyph(void* context, uint32_t index, FontGlyphBankGlyph* ou
     output->m_LeftBearing = glyph.m_LeftBearing;
     output->m_Ascent = glyph.m_Ascent;
     output->m_Descent = glyph.m_Descent;
+    output->m_LayoutWidth = glyph.m_LayoutWidth;
+    output->m_LayoutLeftBearing = glyph.m_LayoutLeftBearing;
     if (glyph.m_GlyphDataSize)
     {
         const uint8_t* data = bank->m_GlyphData.m_Data + glyph.m_GlyphDataOffset;
@@ -131,9 +133,10 @@ static void CreateAlignmentFixture(FontAlignmentFixture& fixture, bool compiled)
         fixture.m_Provider.m_GlyphChannels = bank->m_GlyphChannels;
         fixture.m_Provider.m_MaxAscent = bank->m_MaxAscent;
         fixture.m_Provider.m_MaxDescent = bank->m_MaxDescent;
+        fixture.m_Provider.m_HasLayoutMetrics = bank->m_HasLayoutMetrics;
         fixture.m_Font = FontCreateGlyphBank("alignment.glyph_bankc", &fixture.m_Provider);
-        settings.m_Monospace = bank->m_IsMonospaced;
-        settings.m_Padding = bank->m_Padding;
+        settings.m_Monospace = bank->m_IsMonospaced && !bank->m_HasLayoutMetrics;
+        settings.m_Padding = bank->m_HasLayoutMetrics ? 0 : bank->m_Padding;
     }
     else
     {
