@@ -76,6 +76,10 @@ def cases(full, rich):
         lorem=json.loads((DATA/'lorem.json').read_text(encoding="utf-8"))
         for language in ('english','arabic'):
             for multi in (False,True):add('arabic' if language=='arabic' else 'latin',multi,language,text=lorem[language])
+    for pivot, name in enumerate(('nw', 'n', 'ne', 'w', 'center', 'e', 'sw', 's', 'se')):
+        add('compiled_sdf', False, 'pivot_' + name, text='Example', size=15,
+            outline=0, outline_alpha=0, pivot=pivot, background=[255, 255, 255],
+            roi=[20, 20, 200, 100])
     return result
 
 
@@ -94,7 +98,9 @@ def generate_cases(output):
             values=[json.dumps(c[k],ensure_ascii=False) for k in ('id','source','text')]
             values += [str(float(c[k]))+'f' for k in ('size','outline','outline_alpha','face_alpha','shadow_alpha','shadow_blur','shadow_x','shadow_y')]
             values += [str(c[k]).lower() for k in ('multi','markup','change')]
-            values += [str(float(c.get('edge_scale', 0)))+'f']
+            values += [str(float(c.get('edge_scale', 0)))+'f', str(c.get('pivot', -1))]
+            if 'pivot' in c:
+                lines.append('// Verifies compiled-font placement over a white box at this pivot; guards against #13339.')
             lines.append('TEST(FontImages_'+c['id']+', Render)\n{\n    const FontImageCase c = { '+', '.join(values)+' };\n    TestFontImage(c);\n}\n')
         lines.append('#endif')
     output.parent.mkdir(parents=True,exist_ok=True); output.write_text('\n'.join(lines)+'\n', encoding="utf-8")
@@ -799,11 +805,13 @@ def build_reports(images, output, binaries, generation_results):
         for case in cases(full,rich):
             name=case['id']
             command='cd '+shlex.quote(str(FONT_ROOT))+' && '+shlex.join([binary,'--case',name,'--output',str(images)])
-            case=dict(case,id=configuration+'-'+name,full_layout=full,rich_text=rich,background=[0,0,0],
+            case=dict(case,id=configuration+'-'+name,full_layout=full,rich_text=rich,background=case.get('background', [0,0,0]),
                 scenario=configuration,options_description=f"{case['source']} · {'multi' if case['multi'] else 'single'} layer · {configuration} · {case['scenario']} · outline {case['outline']} px",
                 reproduce_command=command)
             if case['change']:
                 case['options_description'] += ' · short text/half outline → full text/full outline; shared atlas and GPU resources'
+            if 'pivot' in case:
+                case['options_description'] += ' · Bob-compiled Vera Mono Bold 15 px · scale 3 · white box 200×100 · frozen editor-preview reference'
             if case.get('edge_scale'):
                 case['options_description'] += f" · scale {case['edge_scale']} · edge sampled at 8× · display zoom 4× (nearest neighbour) · native reference and independent coverage checks"
             if name.endswith('_named_style'):
@@ -816,7 +824,7 @@ def build_reports(images, output, binaries, generation_results):
                 case['options_description'] += ' · 1.13.1 comparison is informational; the 98% gate uses reviewed native references'
             expected.append(case)
             result=compare_case(images/configuration/(name+'.png'),
-                FONT_ROOT/'src/test/data/reference'/configuration/(name+'.png'),case,output/'comparisons'/case['id'])
+                FONT_ROOT/'src/test/data/reference'/('alignment' if 'pivot' in case else configuration)/(name+'.png'),case,output/'comparisons'/case['id'])
             result['executed']=(images/configuration/(name+'.png')).is_file()
             data=images/configuration/(name+'.json')
             if data.exists(): result['extra_artifacts']={'glyph_vertex_data':str(data.resolve())}
@@ -829,7 +837,7 @@ def build_reports(images, output, binaries, generation_results):
             results.append(result)
     return build_report(results,output,dict(title='Font library rendering tests',source='current',backend='opengl',
         expected_cases=expected,executables=executables,stable_case_paths=True,
-        scope='Font generation, glyph-bank providers, layout, vertex packing and shaders. No engine or project.',
+        scope='Font generation, Bob-compiled pivot fixture, glyph-bank providers, layout, vertex packing and shaders. No engine or project.',
         reference_policy='Rendered references require review; old raw-distance-field images are not equivalent.'))
 
 
