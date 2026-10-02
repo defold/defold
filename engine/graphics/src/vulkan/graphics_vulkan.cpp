@@ -4731,7 +4731,9 @@ bail:
 
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color->m_UsageFlags;
                 if (!has_msaa && !IsTextureMemoryless(new_texture_color))
+                {
                     vk_usage_flags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+                }
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
                 if (IsTextureMemoryless(new_texture_color))
@@ -4935,7 +4937,9 @@ bail:
                 const bool has_msaa = vk_sample_count > VK_SAMPLE_COUNT_1_BIT;
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
                 if (rt->m_Base.m_SampleCount == 1 && !IsTextureMemoryless(texture_color))
+                {
                     vk_usage_flags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+                }
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
                 if (IsTextureMemoryless(texture_color))
@@ -5987,7 +5991,8 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        if (!buffer || !width || !height || uint64_t(width) * height * 4 > buffer_size || x < 0 || y < 0)
+        if (!buffer || !width || !height || x < 0 || y < 0 ||
+            uint64_t(width) * height * 4 > buffer_size)
         {
             dmLogError("VulkanReadPixels: invalid destination or region");
             return;
@@ -6002,16 +6007,38 @@ bail:
         }
 
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+
         const bool backbuffer = context->m_CurrentRenderTarget == context->m_MainRenderTarget;
-        HTexture color = backbuffer ? context->m_CurrentSwapchainTexture :
-            (rt->m_Base.m_TextureColorResolve[0] ? rt->m_Base.m_TextureColorResolve[0] : rt->m_Base.m_TextureColor[0]);
-        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, color);
-        if (!texture || uint64_t(x) + width > texture->m_Base.m_Width || uint64_t(y) + height > texture->m_Base.m_Height ||
-            (texture->m_Format != VK_FORMAT_R8G8B8A8_UNORM && texture->m_Format != VK_FORMAT_R8G8B8A8_SRGB &&
-             texture->m_Format != VK_FORMAT_B8G8R8A8_UNORM && texture->m_Format != VK_FORMAT_B8G8R8A8_SRGB))
+        HTexture color_handle = context->m_CurrentSwapchainTexture;
+        if (!backbuffer)
         {
-            dmLogError("VulkanReadPixels: expected an RGBA8/BGRA8 color attachment and an in-bounds region");
+            VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+            color_handle = rt->m_Base.m_TextureColor[0];
+            if (rt->m_Base.m_TextureColorResolve[0])
+            {
+                color_handle = rt->m_Base.m_TextureColorResolve[0];
+            }
+        }
+
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, color_handle);
+        if (!texture)
+        {
+            dmLogError("VulkanReadPixels: no color attachment to read");
+            return;
+        }
+
+        if (uint64_t(x) + width > texture->m_Base.m_Width ||
+            uint64_t(y) + height > texture->m_Base.m_Height)
+        {
+            dmLogError("VulkanReadPixels: region is outside the color attachment");
+            return;
+        }
+
+        const bool is_rgba = texture->m_Format == VK_FORMAT_R8G8B8A8_UNORM || texture->m_Format == VK_FORMAT_R8G8B8A8_SRGB;
+        const bool is_bgra = texture->m_Format == VK_FORMAT_B8G8R8A8_UNORM || texture->m_Format == VK_FORMAT_B8G8R8A8_SRGB;
+        if (!is_rgba && !is_bgra)
+        {
+            dmLogError("VulkanReadPixels: expected an RGBA8/BGRA8 color attachment");
             return;
         }
 
@@ -6125,8 +6152,9 @@ bail:
         CHECK_VK_ERROR(res);
 
         memcpy(buffer, stage_buffer.m_MappedDataPtr, width * height * 4);
+
         // Match OpenGLReadPixels: callers receive BGRA regardless of attachment format.
-        if (texture->m_Format == VK_FORMAT_R8G8B8A8_UNORM || texture->m_Format == VK_FORMAT_R8G8B8A8_SRGB)
+        if (is_rgba)
         {
             uint8_t* pixels = (uint8_t*) buffer;
             for (uint32_t i = 0; i < width * height * 4; i += 4)

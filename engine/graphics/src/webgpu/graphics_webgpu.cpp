@@ -3978,15 +3978,48 @@ static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t w
 {
     WebGPUContext* context = (WebGPUContext*) _context;
     WebGPURenderTarget* rt = context->m_CurrentRenderTarget;
-    HTexture color = rt ? (rt->m_Base.m_TextureColorResolve[0] ? rt->m_Base.m_TextureColorResolve[0] : rt->m_Base.m_TextureColor[0]) : 0;
-    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, color);
-    if (!texture || !buffer || !width || !height || x < 0 || y < 0 || uint64_t(width) * height * 4 > buffer_size ||
-        uint64_t(x) + width > rt->m_Width || uint64_t(y) + height > rt->m_Height ||
-        !(wgpuTextureGetUsage(texture->m_Texture) & WGPUTextureUsage_CopySrc) ||
-        (texture->m_Format != WGPUTextureFormat_RGBA8Unorm && texture->m_Format != WGPUTextureFormat_RGBA8UnormSrgb &&
-         texture->m_Format != WGPUTextureFormat_BGRA8Unorm && texture->m_Format != WGPUTextureFormat_BGRA8UnormSrgb))
+    HTexture color_handle = 0;
+    if (rt)
     {
-        dmLogError("WebGPUReadPixels: expected a readable RGBA8/BGRA8 attachment and an in-bounds region");
+        color_handle = rt->m_Base.m_TextureColor[0];
+        if (rt->m_Base.m_TextureColorResolve[0])
+        {
+            color_handle = rt->m_Base.m_TextureColorResolve[0];
+        }
+    }
+
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, color_handle);
+    if (!texture)
+    {
+        dmLogError("WebGPUReadPixels: no color attachment to read");
+        return;
+    }
+
+    if (!buffer || !width || !height || x < 0 || y < 0 ||
+        uint64_t(width) * height * 4 > buffer_size)
+    {
+        dmLogError("WebGPUReadPixels: invalid destination or region");
+        return;
+    }
+
+    if (uint64_t(x) + width > rt->m_Width ||
+        uint64_t(y) + height > rt->m_Height)
+    {
+        dmLogError("WebGPUReadPixels: region is outside the color attachment");
+        return;
+    }
+
+    if (!(wgpuTextureGetUsage(texture->m_Texture) & WGPUTextureUsage_CopySrc))
+    {
+        dmLogError("WebGPUReadPixels: color attachment does not support copy-source usage");
+        return;
+    }
+
+    const bool is_rgba = texture->m_Format == WGPUTextureFormat_RGBA8Unorm || texture->m_Format == WGPUTextureFormat_RGBA8UnormSrgb;
+    const bool is_bgra = texture->m_Format == WGPUTextureFormat_BGRA8Unorm || texture->m_Format == WGPUTextureFormat_BGRA8UnormSrgb;
+    if (!is_rgba && !is_bgra)
+    {
+        dmLogError("WebGPUReadPixels: expected an RGBA8/BGRA8 color attachment");
         return;
     }
 
@@ -4046,7 +4079,7 @@ static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t w
         {
             memcpy(pixels + row * width * 4, mapped + row * row_pitch, width * 4);
         }
-        if (texture->m_Format == WGPUTextureFormat_RGBA8Unorm || texture->m_Format == WGPUTextureFormat_RGBA8UnormSrgb)
+        if (is_rgba)
         {
             for (uint32_t i = 0; i < width * height * 4; i += 4)
             {
