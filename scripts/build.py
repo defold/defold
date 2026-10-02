@@ -1613,6 +1613,9 @@ class Configuration(object):
             gdc_bin = join(bin_dir, gdc_name)
             gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
+            luajit_name = format_exes("luajit-64", self.target_platform)[0]
+            luajit_bin = join(dynamo_home, 'ext', 'bin', self.target_platform, luajit_name)
+            self.upload_to_archive(luajit_bin, '%s/%s' % (full_archive_path, luajit_name))
 
         # upload mouse_capture lib on desktop platforms
         if self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -2544,7 +2547,7 @@ class Configuration(object):
             self.upload_to_archive(p, '%s/plugins/%s' % (full_archive_path, basename(p)))
 
     def build_bob(self):
-        """Build Bob using the cross-platform tools already installed by install_ext."""
+        """Build Bob using the installed cross-platform tools."""
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
@@ -3283,6 +3286,16 @@ class Configuration(object):
 
         for f in futures:
             f()
+
+        # Bob packages tools from ext/bin, as it did when LuaJIT came from packages.
+        for platform in SDK_PIPELINE_TOOL_PLATFORMS:
+            name = format_exes('luajit-64', platform)[0]
+            source = join(local_dir, sha1, 'engine', platform, name)
+            if os.path.isfile(source):
+                destination = join(self.dynamo_home, 'ext', 'bin', platform, name)
+                self._mkdirs(os.path.dirname(destination))
+                shutil.copy2(source, destination)
+                os.chmod(destination, 0o755)
 
 # ------------------------------------------------------------
 # BEGIN: SMOKE TEST
