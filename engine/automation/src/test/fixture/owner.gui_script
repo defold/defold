@@ -1,0 +1,13 @@
+local function create_node(self)
+    self.node = gui.new_box_node(vmath.vector3(20, 20, 0), vmath.vector3(10, 10, 0))
+    gui.set_id(self.node, "recreated")
+end
+
+function init(self)
+    create_node(self)
+    automation_bridge.command("owned.gui.recreate", function()
+        gui.delete_node(self.node)
+        create_node(self)
+        return true
+    end)
+end

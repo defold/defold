@@ -306,6 +306,7 @@ set(_DEFOLD_ENGINE_LIBS
   tools
   record
   profiler
+  automation
   engine
   sdk)
 foreach(_DEFOLD_ENGINE_LIB IN LISTS _DEFOLD_ENGINE_LIBS)

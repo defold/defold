@@ -10,6 +10,11 @@ include(defold)
 set(DEFOLD_SOLUTION_NAME "defold_libraries" CACHE STRING "Name used for generated IDE solutions")
 project(${DEFOLD_SOLUTION_NAME} LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
+option(AUTOMATION_BUILD_TESTS "Build focused debug automation acceptance tests" ${BUILD_TESTS})
+if(AUTOMATION_BUILD_TESTS)
+  enable_testing()
+endif()
+
 # Load full Defold CMake (platform flags, interface target, etc.)
 include("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/defold.cmake")
 
@@ -180,6 +185,7 @@ set(DEFOLD_ENGINE_LIBS
   tools
   record
   profiler
+  automation
   engine
   sdk)
 set(DEFOLD_HOST_LIBS

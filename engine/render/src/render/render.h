@@ -246,6 +246,23 @@ namespace dmRender
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
+    // Inspection records the actual draw projection. Offscreen and multiple
+    // incompatible passes cannot provide one reliable screen-space mapping.
+    struct InspectionProjection
+    {
+        dmVMath::Matrix4 m_ViewProjection;
+        int32_t m_ViewportX;
+        int32_t m_ViewportY;
+        uint32_t m_ViewportWidth;
+        uint32_t m_ViewportHeight;
+        uint8_t m_State; // 0 unavailable, 1 available, 2 ambiguous
+    };
+    void RecordInspectionProjection(HRenderContext context, const void* component);
+    void EnableInspection(HRenderContext context, bool enable);
+    bool IsInspectionEnabled(HRenderContext context);
+    void GetInspectionProjection(HRenderContext context, uint32_t material_tag, InspectionProjection* projection);
+    void GetComponentInspectionProjection(HRenderContext context, const void* component, InspectionProjection* projection);
+
     const dmVMath::Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
     dmVMath::Matrix4 GetNormalMatrix(HRenderContext render_context, const dmVMath::Matrix4& world_matrix);
 

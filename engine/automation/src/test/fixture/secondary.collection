@@ -1,0 +1,2 @@
+name: "secondary"
+instances { id: "controller" prototype: "/passive.go" }

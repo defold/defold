@@ -16,6 +16,7 @@
 #define DM_GAMESYS_COMP_LABEL_H
 
 #include <gameobject/component.h>
+#include <render/render.h>
 #include <dmsdk/font/text_layout.h>
 
 namespace dmRender
@@ -25,6 +26,8 @@ namespace dmRender
 
 namespace dmGameSystem
 {
+    bool CompLabelGetInspectionBounds(dmRender::HRenderContext context, void* world, uintptr_t component, dmVMath::Vector4* corners, dmRender::InspectionProjection* projection);
+
     dmGameObject::CreateResult CompLabelNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompLabelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);

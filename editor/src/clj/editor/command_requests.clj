@@ -80,7 +80,7 @@
                      (conj {:message (localization-state (localization/message "error.engine.url-not-reported-in-time"))
                             :severity :warning})))]
     (http-server/json-response
-      (cond-> {:success success :issues issues} (string? target-url-result) (assoc :target {:url target-url-result}))
+      (cond-> {:success success :issues issues} (string? target-url-result) (assoc :target (assoc (targets/target-info target nil) :url target-url-result)))
       (if success 200 422))))
 
 (defn- fetch-libraries-response [[lib-results reload-succeeded] localization-state]

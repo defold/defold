@@ -8,6 +8,10 @@ if(TARGET_PLATFORM STREQUAL "x86_64-xbone")
 endif()
 
 set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
+  automation
+  automation_capture
+  automation_capture_null
+  automation_null
   basis_encoder
   basis_transcoder
   crashext
@@ -88,6 +92,8 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   record
   record_null
   render
+  render_inspection
+  render_inspection_null
   resource
   rig
   rig_null
@@ -152,6 +158,11 @@ function(defold_target_link_libraries target platform)
 
     if(_vendor_libs_found)
       list(APPEND _LIBS ${_vendor_libs})
+    elseif(_lib STREQUAL "render")
+      # Shared renderer code uses real or null inspection hooks selected by the
+      # final executable, including consumers of installed SDK archives.
+      list(APPEND _LIBS render
+        "$<IF:$<BOOL:$<TARGET_PROPERTY:DEFOLD_RENDER_INSPECTION>>,render_inspection,render_inspection_null>")
     elseif(_lib STREQUAL "graphics" AND DEFINED DEFOLD_PLATFORM_GRAPHICS_LIBS)
       list(APPEND _LIBS ${DEFOLD_PLATFORM_GRAPHICS_LIBS})
     elseif(_lib STREQUAL "graphics" AND platform MATCHES "android$" AND WITH_VULKAN AND NOT WITH_OPENGL)

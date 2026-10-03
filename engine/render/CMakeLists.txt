@@ -64,6 +64,9 @@ add_custom_target(render_bproto ALL DEPENDS ${RENDER_BPROTO})
 add_custom_target(render_proto_headers DEPENDS ${RENDER_PROTO_CC} ${RENDER_PROTO_HEADERS})
 
 file(GLOB RENDER_CORE_SOURCES CONFIGURE_DEPENDS "${RENDER_SRC_DIR}/render/*.cpp")
+list(REMOVE_ITEM RENDER_CORE_SOURCES
+  "${RENDER_SRC_DIR}/render/render_inspection.cpp"
+  "${RENDER_SRC_DIR}/render/render_inspection_null.cpp")
 file(GLOB RENDER_FONT_SOURCES CONFIGURE_DEPENDS "${RENDER_SRC_DIR}/render/font/*.cpp")
 set(RENDER_SOURCES ${RENDER_CORE_SOURCES} ${RENDER_FONT_SOURCES} ${RENDER_PROTO_CC})
 
@@ -84,7 +87,18 @@ defold_target_link_libraries(render "${TARGET_PLATFORM}" SCOPE PUBLIC
   ${RENDER_DEPENDENCIES})
 defold_target_link_socket(render "${TARGET_PLATFORM}" PUBLIC)
 
-defold_install_targets(TARGETS render
+foreach(_inspection_target render_inspection render_inspection_null)
+  defold_add_library(${_inspection_target} STATIC "${RENDER_SRC_DIR}/render/${_inspection_target}.cpp")
+  target_include_directories(${_inspection_target} PRIVATE
+    "${RENDER_SRC_DIR}"
+    "${RENDER_PROTO_ROOT}"
+    "${CMAKE_CURRENT_BINARY_DIR}")
+  add_dependencies(${_inspection_target} render_proto_headers)
+  defold_target_link_libraries(${_inspection_target} "${TARGET_PLATFORM}" SCOPE PUBLIC
+    ${RENDER_DEPENDENCIES})
+endforeach()
+
+defold_install_targets(TARGETS render render_inspection render_inspection_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

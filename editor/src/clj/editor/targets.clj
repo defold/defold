@@ -26,7 +26,8 @@
             [editor.process :as process]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.http-server :as http-server])
   (:import [com.dynamo.discovery MDNS MDNS$Logger MDNSServiceInfo]
            [java.io ByteArrayOutputStream]
            [java.net InetAddress NetworkInterface URL URLConnection]
@@ -357,6 +358,45 @@
 
 (defn all-launched-targets? [target]
   (= :all-launched-targets (:id target)))
+
+(defn target-info [target selected-id]
+  (cond-> {:id (:id target)
+           :url (:url target)
+           :name (:name target)
+           :launched (launched-target? target)
+           :selected (or (= selected-id (:id target))
+                         (and (= :all-launched-targets selected-id)
+                              (launched-target? target)))}
+    (:instance-index target) (assoc :instance_index (:instance-index target))))
+
+(defn routes [prefs]
+  {"/targets"
+   {"GET" (with-meta
+            (fn [_]
+              (let [selected-id (:id (selected-target prefs))]
+                (http-server/json-response
+                  {:targets (into []
+                                  (comp (remove all-launched-targets?)
+                                        (map #(target-info % selected-id)))
+                                  (all-targets))})))
+            {:openapi
+             {:summary "List concrete engine targets"
+              :description "Read-only target discovery. IDs identify individual targets, including editor launches and remote devices. A null URL means the engine service has not reported its address yet. The all-launched menu item is represented by selection flags, never as a target."
+              :responses
+              {"200" {:description "Current engine targets"
+                      :content {"application/json"
+                                {:schema {:type "object"
+                                          :required ["targets"]
+                                          :properties
+                                          {"targets" {:type "array"
+                                                      :items {:type "object"
+                                                              :required ["id" "url" "selected" "launched"]
+                                                              :properties {"id" {:type "string"}
+                                                                           "url" {:type "string" :nullable true}
+                                                                           "name" {:type "string" :nullable true}
+                                                                           "selected" {:type "boolean"}
+                                                                           "launched" {:type "boolean"}
+                                                                           "instance_index" {:type "integer"}}}}}}}}}}}})}})
 
 (defn- show-error-message [exception workspace]
   (ui/run-later

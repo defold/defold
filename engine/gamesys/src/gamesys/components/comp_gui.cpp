@@ -3191,6 +3191,7 @@ namespace dmGameSystem
     {
         if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
+            dmRender::RecordInspectionProjection(params.m_Context, params.m_UserData);
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
                 dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
@@ -3250,7 +3251,7 @@ namespace dmGameSystem
             const uint32_t count = gui_world->m_GuiRenderObjects.Size() - lastEnd;
 
             dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(gui_context->m_RenderContext, count);
-            dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(gui_context->m_RenderContext, &RenderListDispatch, gui_world);
+            dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(gui_context->m_RenderContext, &RenderListDispatch, c);
             dmRender::RenderListEntry* write_ptr = render_list;
 
             uint32_t render_order = dmGui::GetRenderOrder(c->m_Scene);
@@ -3734,6 +3735,19 @@ namespace dmGameSystem
         }
 
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    void CompGuiGetInspectionProjection(dmRender::HRenderContext render_context, uintptr_t component, dmRender::InspectionProjection* projection)
+    {
+        GuiComponent* gui = (GuiComponent*)component;
+        dmRender::GetComponentInspectionProjection(render_context, gui, projection);
+        if (!projection->m_State)
+            dmRender::GetInspectionProjection(render_context, dmRender::GetMaterialTagListKey(GetMaterial(gui, gui->m_Resource)), projection);
+    }
+
+    dmGui::HScene CompGuiGetScene(uintptr_t component)
+    {
+        return ((GuiComponent*)component)->m_Scene;
     }
 
     static bool CompGuiIterGetNext(dmGameObject::SceneNodeIterator* it)

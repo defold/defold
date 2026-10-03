@@ -75,6 +75,7 @@
 #endif
 
 #include "engine_service.h"
+#include "../../automation/src/automation.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
 #include "script/script_engine.h"
@@ -1180,6 +1181,7 @@ namespace dmEngine
         PopulateContextRegistry(engine);
 
         ScopedExtensionAppParams app_params(engine);
+        if (!dmAutomation::CheckExtensions()) return false;
         dmExtension::Result er = dmExtension::AppInitialize(app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
@@ -1974,6 +1976,8 @@ bail:
                 // NOTE: Polling the event queue is crucial on iOS for life-cycle management
                 // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
                 dmHID::Update(engine->m_HidContext);
+                dmAutomation::ServiceTick(false);
+                if (engine->m_EngineService) dmEngineService::Update(engine->m_EngineService, 0);
                 dmTime::Sleep(1000 * 100);
                 return;
             }
@@ -2003,9 +2007,13 @@ bail:
                     has_input = dmHID::Update(engine->m_HidContext);
                 }
 
+                has_input = dmAutomation::HasPendingInput() || has_input;
+
                 // Check if we should skip this frame
                 if (UpdateFrameThrottle(engine, dt, has_input))
                 {
+                    dmAutomation::ServiceTick(false);
+                    if (engine->m_EngineService) dmEngineService::Update(engine->m_EngineService, profile);
                     ProfileFrameEnd(profile);
                     return;
                 }
@@ -2016,10 +2024,13 @@ bail:
                         // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
                         // might have entered background at this point and OpenGL calls are not permitted and will
                         // crash the application
+                        dmAutomation::ServiceTick(false);
+                        if (engine->m_EngineService) dmEngineService::Update(engine->m_EngineService, profile);
                         ProfileFrameEnd(profile);
                         return;
                     }
                 }
+                dmAutomation::BeforeInput(dt, (uint64_t)engine->m_Stats.m_FrameCount + 1);
 #if defined(DM_HAS_THREADS)
                 uint64_t jobthread_max_time_us = 0;
 #else
@@ -2087,6 +2098,8 @@ bail:
                 }
 
 
+                dmAutomation::AfterInput();
+
                 dmGameObject::UpdateContext update_context;
                 update_context.m_TimeScale = 1.0f;
                 update_context.m_DT = dt;
@@ -2141,6 +2154,7 @@ bail:
                     }
                 }
 
+                dmAutomation::AfterUpdate(do_render);
                 dmGameObject::PostUpdate(GetMainCollection(engine));
                 dmGameObject::PostUpdate(engine->m_Register);
 
@@ -2163,6 +2177,7 @@ bail:
                 fflush(stderr);
             }
 
+            dmAutomation::ServiceTick(do_render);
             if (engine->m_EngineService)
             {
                 dmEngineService::Update(engine->m_EngineService, profile);

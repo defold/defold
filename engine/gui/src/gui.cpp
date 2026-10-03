@@ -2733,6 +2733,12 @@ namespace dmGui
 
     Result ReloadScene(HScene scene)
     {
+        lua_State* L = scene->m_Context->m_LuaState;
+        dmScript::GetInstance(L);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::ReloadInstance(scene->m_ScriptWorld);
+        dmScript::SetInstance(L);
         return RunScript(scene, SCRIPT_FUNCTION_ONRELOAD, LUA_NOREF, 0x0);
     }
 

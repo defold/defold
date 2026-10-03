@@ -1,0 +1,64 @@
+function init(self)
+    msg.post(".", "acquire_input_focus")
+    msg.post("#secondary", "load")
+    self.frame = 0
+    if automation_bridge then
+        assert(type(automation_bridge.acknowledge_input) == "function")
+        assert(automation_bridge.ack == nil)
+    end
+    if not automation_bridge then return end
+    automation_bridge.command("echo", function(data) return data end)
+    automation_bridge.command("publish", function(data)
+        automation_bridge.publish("fixture.value", data)
+        automation_bridge.emit("fixture.published", data)
+        return data
+    end)
+    automation_bridge.publish("fixture.extension", automation_fixture_extension == true)
+    automation_bridge.command("create_owner", function()
+        self.create_owner = true
+        return true
+    end)
+    automation_bridge.command("delete_owner", function()
+        go.delete(self.owner)
+        return true
+    end)
+    automation_bridge.command("reload_collection", function()
+        automation_bridge.publish("fixture.secondary.ready", false)
+        msg.post("#secondary", "disable")
+        msg.post("#secondary", "final")
+        msg.post("#secondary", "unload")
+        return true
+    end)
+    automation_bridge.publish("fixture.ready", true)
+end
+
+function update(self, dt)
+    if self.create_owner then
+        self.create_owner = false
+        self.owner = factory.create("#owners")
+    end
+    self.frame = self.frame + 1
+    if automation_bridge then
+        automation_bridge.publish("fixture.frame", self.frame)
+    end
+end
+
+function on_input(self, action_id, action)
+    if not automation_bridge then return end
+    automation_bridge.emit("fixture.input", {
+        action = action_id == hash("space") and "space" or (action_id == hash("touch") and "touch" or "pointer"),
+        pressed = action.pressed,
+        released = action.released,
+        frame = self.frame,
+    })
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("proxy_loaded") then
+        msg.post(sender, "init")
+        msg.post(sender, "enable")
+        automation_bridge.publish("fixture.secondary.ready", true)
+    elseif message_id == hash("proxy_unloaded") then
+        msg.post(sender, "load")
+    end
+end

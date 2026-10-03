@@ -38,6 +38,8 @@ namespace dmProfilerRemotery
         return dmAtomicGet32(&g_ProfilerInitialized) != 0 && g_Remotery != 0;
     }
 
+    uint16_t GetConnectionPort() { return IsInitialized() ? rmt_Settings()->port : 0; }
+
     static void* CreateListener()
     {
         rmtSettings* settings = rmt_Settings();

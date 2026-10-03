@@ -1269,6 +1269,14 @@ namespace dmScript
         }
     }
 
+    void ReloadInstance(HScriptWorld script_world)
+    {
+        if (!script_world) return;
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* extension = context->m_ScriptExtensions.Begin(); extension != context->m_ScriptExtensions.End(); ++extension)
+            if ((*extension)->ReloadScriptInstance) (*extension)->ReloadScriptInstance(script_world);
+    }
+
     void FinalizeInstance(HScriptWorld script_world)
     {
         if (script_world == 0x0)

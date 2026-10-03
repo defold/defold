@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <gui/gui.h>
+#include <render/render.h>
 #include <dmsdk/gamesys/gui.h>
 
 namespace dmMessage
@@ -26,6 +27,9 @@ namespace dmMessage
 
 namespace dmGameSystem
 {
+    dmGui::HScene CompGuiGetScene(uintptr_t component);
+    void CompGuiGetInspectionProjection(dmRender::HRenderContext render_context, uintptr_t component, dmRender::InspectionProjection* projection);
+
     struct FontResource;
 
     // Callbacks used to integrate dmGui scenes with game objects

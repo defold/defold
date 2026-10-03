@@ -1,0 +1,15 @@
+[project]
+title = Automation engine fixture
+[bootstrap]
+main_collection = /main.collectionc
+[script]
+shared_state = 1
+[automation_bridge]
+application_api = 1
+event_capacity = 32
+[input]
+game_binding = /test.input_bindingc
+[display]
+width = 320
+height = 240
+update_frequency = 60

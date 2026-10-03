@@ -37,6 +37,13 @@ extern "C"
 
 namespace dmRender
 {
+    struct InspectionContext;
+    InspectionContext* NewInspectionContext();
+    void DeleteInspectionContext(InspectionContext* context);
+    void BeginInspectionFrame(HRenderContext context);
+    void SetInspectionRenderTarget(HRenderContext context, dmGraphics::HRenderTarget target);
+    void RecordMaterialInspectionProjection(HRenderContext context, uint32_t tag);
+
     using namespace dmVMath;
 
 #define DEBUG_3D_NAME "_debug3d"
@@ -336,6 +343,7 @@ namespace dmRender
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
         dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
+        InspectionContext*                    m_Inspection;
         HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
         dmOpaqueHandleContainer<LightPrototype> m_LightPrototypes;

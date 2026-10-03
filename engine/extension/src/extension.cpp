@@ -192,6 +192,13 @@ namespace dmExtension
         return extension->m_Next;
     }
 
+    bool HasExtension(const char* name)
+    {
+        for (const ExtensionDesc* extension = GetFirstExtension(); extension; extension = extension->m_Next)
+            if (strncmp(extension->m_Name, name, sizeof(extension->m_Name) - 1) == 0) return true;
+        return false;
+    }
+
     Result AppInitialize(AppParams* params)
     {
         const ExtensionDesc* ed = dmExtension::GetFirstExtension();

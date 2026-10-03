@@ -61,3 +61,9 @@ foreach(_render_test IN ITEMS
     "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp")
   render_configure_test(${_render_test})
 endforeach()
+
+set_property(TARGET test_render PROPERTY DEFOLD_RENDER_INSPECTION ON)
+
+defold_add_executable(test_render_inspection_null
+  "${RENDER_TEST_ROOT}/test_render_inspection_null.cpp")
+render_configure_test(test_render_inspection_null)

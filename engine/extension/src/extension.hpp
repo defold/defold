@@ -32,6 +32,7 @@ namespace dmExtension
      * @return extension [type:HExtension] The first extension, or 0.
      */
     HExtension GetFirstExtension();
+    bool HasExtension(const char* name);
 
     /**
      * Get next extension

@@ -3,6 +3,9 @@ platforms:
     common:
         context:
             defines: ["DM_RELEASE"]
+            excludeLibs: ["automation", "automation_capture", "automation_capture_null", "render_inspection"]
+            libs: ["automation_null", "render_inspection_null"]
+            excludeSymbols: ["EngineAutomation"]
 
     osx:
         context:

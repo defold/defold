@@ -32,6 +32,7 @@
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.scene :as scene]
+            [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
@@ -480,3 +481,19 @@
                   (is (= "200 OK\n" body)))
                 (when (is (realized? opened-url))
                   (is (string/includes? @opened-url "github.com/defold/defold/issues")))))))))))
+
+;; Verifies concrete discovery and OpenAPI metadata without leaking the all-launched sentinel or process handles.
+(deftest automation-target-discovery-test
+  (with-redefs [targets/all-targets (constantly [{:id :all-launched-targets}
+                                                {:id "local" :url "http://127.0.0.1:8001" :process ::process :instance-index 0}
+                                                {:id "phone" :url "http://192.0.2.1:8001"}])
+                targets/selected-target (constantly {:id :all-launched-targets})]
+    (let [routes (targets/routes nil)
+          handler (get-in routes ["/targets" "GET"])]
+      (is (= "List concrete engine targets" (get-in (meta handler) [:openapi :summary])))
+      (with-open [server (http-server/start! (http-server/router-handler routes))]
+        (let [{:keys [status body]} @(http/request (str (http-server/local-url server) "/targets") :as :string)]
+          (is (= 200 status))
+          (is (= {"targets" [{"id" "local" "url" "http://127.0.0.1:8001" "name" nil "launched" true "selected" true "instance_index" 0}
+                            {"id" "phone" "url" "http://192.0.2.1:8001" "name" nil "launched" false "selected" false}]}
+                 (json/read-str body))))))))

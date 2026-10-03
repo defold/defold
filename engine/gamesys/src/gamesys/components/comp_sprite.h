@@ -16,9 +16,12 @@
 #define DM_GAMESYS_COMP_SPRITE_H
 
 #include <gameobject/component.h>
+#include <render/render.h>
 
 namespace dmGameSystem
 {
+    bool CompSpriteGetInspectionBounds(dmRender::HRenderContext context, void* world, uintptr_t component, dmVMath::Vector4* corners, dmRender::InspectionProjection* projection);
+
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompSpriteDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);

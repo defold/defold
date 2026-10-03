@@ -144,6 +144,8 @@ namespace dmScript
         void (*InitializeScriptInstance)(HScriptWorld script_world);
         // Called just before a script instance is deleted
         void (*FinalizeScriptInstance)(HScriptWorld script_world);
+        // Called before on_reload, with the owning instance current in Lua.
+        void (*ReloadScriptInstance)(HScriptWorld script_world);
     };
 
     /**
@@ -428,6 +430,7 @@ namespace dmScript
      * @param script_world the script world
      */
     void FinalizeInstance(HScriptWorld script_world);
+    void ReloadInstance(HScriptWorld script_world);
 
     /**
      * Set value by key using the META_GET_INSTANCE_CONTEXT_TABLE_REF meta table function

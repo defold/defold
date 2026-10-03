@@ -2242,6 +2242,11 @@ namespace dmGameSystem
                 break;
             default:
                 assert(params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH);
+                if (dmRender::IsInspectionEnabled(params.m_Context))
+                {
+                    for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
+                        dmRender::RecordInspectionProjection(params.m_Context, &world->m_Components.GetRawObjects()[params.m_Buf[*i].m_UserData]);
+                }
                 RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
         }
     }
@@ -2735,6 +2740,22 @@ namespace dmGameSystem
         index -= num_bool_properties;
 
         return false;
+    }
+
+    bool CompSpriteGetInspectionBounds(dmRender::HRenderContext context, void* world, uintptr_t component, Vector4* corners, dmRender::InspectionProjection* projection)
+    {
+        SpriteComponent* sprite = &((SpriteWorld*)world)->m_Components.Get((uint32_t)component);
+        if (!sprite->m_Enabled || !sprite->m_AddedToUpdate) return false;
+        dmRender::GetComponentInspectionProjection(context, sprite, projection);
+        float x0 = (-0.5f - sprite->m_PivotX) * sprite->m_Size.getX();
+        float x1 = (0.5f - sprite->m_PivotX) * sprite->m_Size.getX();
+        float y0 = (-0.5f - sprite->m_PivotY) * sprite->m_Size.getY();
+        float y1 = (0.5f - sprite->m_PivotY) * sprite->m_Size.getY();
+        corners[0] = sprite->m_World * Vector4(x0, y0, 0, 1);
+        corners[1] = sprite->m_World * Vector4(x1, y0, 0, 1);
+        corners[2] = sprite->m_World * Vector4(x1, y1, 0, 1);
+        corners[3] = sprite->m_World * Vector4(x0, y1, 0, 1);
+        return true;
     }
 
     void CompSpriteIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)

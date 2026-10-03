@@ -147,6 +147,7 @@ namespace dmRender
 
         context->m_Material = 0;
         context->m_CurrentRenderCamera = 0;
+        context->m_Inspection = NewInspectionContext();
 
         UpdateRenderContextMatrices(context, Matrix4::identity(), Matrix4::identity());
         context->m_Time = 0.0f;
@@ -220,6 +221,7 @@ namespace dmRender
         for (uint32_t i = 0; i < render_context->m_ConstantBufferClones.Size(); ++i)
             DeleteNamedConstantBuffer(render_context->m_ConstantBufferClones[i]);
         dmMessage::DeleteSocket(render_context->m_Socket);
+        DeleteInspectionContext(render_context->m_Inspection);
         delete render_context;
 
         return RESULT_OK;
@@ -403,6 +405,7 @@ namespace dmRender
 
     void BeginFrame(HRenderContext render_context, float time, float dt)
     {
+        BeginInspectionFrame(render_context);
         render_context->m_Time = time;
         render_context->m_Dt = dt;
 
@@ -1080,6 +1083,7 @@ namespace dmRender
         RenderListEntry *base = context->m_RenderList.Begin();
         uint32_t *last = context->m_RenderListSortBuffer.Begin();
         uint32_t count = context->m_RenderListSortBuffer.Size();
+        bool inspection_enabled = IsInspectionEnabled(context);
 
         {
             DM_PROFILE("Dispatch_Batch");
@@ -1088,6 +1092,8 @@ namespace dmRender
             {
                 uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
                 const RenderListEntry *last_entry = &base[*last];
+                if (inspection_enabled)
+                    RecordMaterialInspectionProjection(context, base[*(idx - 1)].m_TagListKey);
                 // continue batch on match, or dispatch
                 if (i < count)
                 {

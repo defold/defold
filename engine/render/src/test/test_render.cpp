@@ -285,6 +285,49 @@ TEST_F(dmRenderTest, TestViewProj)
             ASSERT_EQ(viewproj.getElem(i, j), test.getElem(i, j));
 }
 
+// Inspection records only when enabled and never reuses component projections across frames or enable cycles.
+TEST_F(dmRenderTest, TestInspectionLifecycle)
+{
+    uint32_t components[33] = {};
+    dmRender::InspectionProjection projection = {};
+    ASSERT_FALSE(dmRender::IsInspectionEnabled(m_Context));
+    dmRender::RecordInspectionProjection(m_Context, &components[0]);
+    dmRender::GetComponentInspectionProjection(m_Context, &components[0], &projection);
+    ASSERT_EQ(0, projection.m_State);
+
+    dmRender::EnableInspection(m_Context, true);
+    ASSERT_TRUE(dmRender::IsInspectionEnabled(m_Context));
+    for (uint32_t i = 0; i < 32; ++i)
+        dmRender::RecordInspectionProjection(m_Context, &components[i]);
+    dmRender::RecordInspectionProjection(m_Context, &components[0]);
+    dmRender::EnableInspection(m_Context, true);
+    dmRender::GetComponentInspectionProjection(m_Context, &components[0], &projection);
+    ASSERT_EQ(2, projection.m_State); // Null graphics cannot supply a screen projection.
+    dmRender::GetComponentInspectionProjection(m_Context, &components[32], &projection);
+    ASSERT_EQ(0, projection.m_State);
+    dmRender::RecordMaterialInspectionProjection(m_Context, 1);
+    dmRender::GetInspectionProjection(m_Context, 1, &projection);
+    ASSERT_EQ(2, projection.m_State);
+
+    dmRender::BeginFrame(m_Context, 0.0f, 0.0f);
+    dmRender::GetInspectionProjection(m_Context, 1, &projection);
+    ASSERT_EQ(0, projection.m_State);
+    dmRender::GetComponentInspectionProjection(m_Context, &components[0], &projection);
+    ASSERT_EQ(0, projection.m_State);
+    dmRender::RecordInspectionProjection(m_Context, &components[32]);
+    dmRender::EnableInspection(m_Context, false);
+    ASSERT_FALSE(dmRender::IsInspectionEnabled(m_Context));
+    dmRender::GetComponentInspectionProjection(m_Context, &components[32], &projection);
+    ASSERT_EQ(0, projection.m_State);
+    dmRender::RecordInspectionProjection(m_Context, &components[0]);
+    dmRender::EnableInspection(m_Context, true);
+    dmRender::GetComponentInspectionProjection(m_Context, &components[0], &projection);
+    ASSERT_EQ(0, projection.m_State);
+    dmRender::RecordInspectionProjection(m_Context, &components[0]);
+    dmRender::GetComponentInspectionProjection(m_Context, &components[0], &projection);
+    ASSERT_EQ(2, projection.m_State);
+}
+
 TEST_F(dmRenderTest, TestRenderObjects)
 {
     dmRender::RenderObject ro;

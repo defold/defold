@@ -1,6 +1,16 @@
-# Settings: Derived from src/engine/wscript, debug target
-# Derived from src/engine/wscript, headless target: Removes Record,Sound,Graphics,Input
+# Debug automation capture dependencies; headless uses automation_capture_null.
 platforms:
     common:
         context:
             defines: ["DM_DEBUG"]
+    osx:
+        context:
+            libs: ["dmbedtls"]
+            weakFrameworks: ["ScreenCaptureKit"]
+            frameworks: ["CoreMedia"]
+    ios:
+        context:
+            libs: ["dmbedtls"]
+    win32:
+        context:
+            libs: ["dxgi", "dwmapi", "mfuuid"]

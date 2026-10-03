@@ -80,6 +80,7 @@ namespace dmRender
                     params.m_TransientBufferTypes = c->m_Operands[1];
                     params.m_CubeMapFace = (dmGraphics::CubeMapFace) c->m_Operands[2];
                     dmGraphics::SetRenderTarget(context, c->m_Operands[0], params);
+                    SetInspectionRenderTarget(render_context, c->m_Operands[0]);
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_TEXTURE:

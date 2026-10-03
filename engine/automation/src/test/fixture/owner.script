@@ -1,0 +1,4 @@
+function init(self)
+    automation_bridge.annotate("main:/controller#script", {automation_id = "owned.annotation"})
+    automation_bridge.command("owned", function() return true end)
+end

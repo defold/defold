@@ -885,6 +885,18 @@ namespace dmGameSystem
         return (dmGameObject::HComponent)GetLabelComponent(world, params.m_UserData);
     }
 
+    bool CompLabelGetInspectionBounds(dmRender::HRenderContext context, void* world, uintptr_t component, Vector4* corners, dmRender::InspectionProjection* projection)
+    {
+        LabelComponent* label = GetLabelComponent((LabelWorld*)world, (uint32_t)component);
+        if (!label->m_Enabled || !label->m_AddedToUpdate) return false;
+        dmRender::GetInspectionProjection(context, dmRender::GetMaterialTagListKey(GetMaterial(label, label->m_Resource)), projection);
+        corners[0] = label->m_World * Vector4(0, 0, 0, 1);
+        corners[1] = label->m_World * Vector4(label->m_Size.getX(), 0, 0, 1);
+        corners[2] = label->m_World * Vector4(label->m_Size.getX(), label->m_Size.getY(), 0, 1);
+        corners[3] = label->m_World * Vector4(0, label->m_Size.getY(), 0, 1);
+        return true;
+    }
+
     // For testing
     void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics)
     {

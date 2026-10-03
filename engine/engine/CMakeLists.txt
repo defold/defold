@@ -411,6 +411,10 @@ endif()
 list(APPEND ENGINE_EXPORTED_SYMBOLS ${ENGINE_GRAPHICS_SYMBOLS})
 
 set(ENGINE_PROFILE_LIBS profile profilerext)
+set(ENGINE_AUTOMATION_SYMBOLS)
+if(TARGET automation)
+  set(ENGINE_AUTOMATION_SYMBOLS EngineAutomation)
+endif()
 set(ENGINE_PROFILE_SYMBOLS ProfilerExt ProfilerBasic)
 if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
   list(APPEND ENGINE_PROFILE_LIBS profiler_remotery)
@@ -438,6 +442,17 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   target_compile_definitions(${target} PRIVATE _XBOX)
   if(variant STREQUAL "release")
     target_compile_definitions(${target} PRIVATE DM_RELEASE=1)
+  endif()
+  if(variant STREQUAL "release" OR NOT TARGET automation)
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" automation_null)
+  else()
+    set_property(TARGET ${target} PROPERTY DEFOLD_RENDER_INSPECTION ON)
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" automation)
+    if(graphics_mode STREQUAL "null")
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" automation_capture_null)
+    else()
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" automation_capture)
+    endif()
   endif()
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
     ${engine_lib}
@@ -501,6 +516,7 @@ function(engine_add_binary target)
 endfunction()
 
 set(ENGINE_DMENGINE_SYMBOLS
+  ${ENGINE_AUTOMATION_SYMBOLS}
   ${ENGINE_EXPORTED_SYMBOLS}
   ${ENGINE_PROFILE_SYMBOLS}
   ${ENGINE_RESOURCE_SYMBOLS}
@@ -533,6 +549,7 @@ endif()
 defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
+  ${ENGINE_AUTOMATION_SYMBOLS}
   LiveUpdateExt
   ScriptTypesExt
   ScriptLibParticleFX
@@ -549,6 +566,22 @@ if(COMMAND defold_bundle_target)
   defold_bundle_target(dmengine_headless)
 endif()
 defold_codesign_target(dmengine_headless darwin/entitlements-macos-debug.plist)
+
+if(AUTOMATION_BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM AND
+   TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
+  foreach(fixture unrelated legacy)
+    set(exports "${CMAKE_CURRENT_BINARY_DIR}/__exported_automation_${fixture}.cpp")
+    defold_create_exported_symbols_file("${exports}" "${ENGINE_HEADLESS_SYMBOLS};AutomationFixtureExtension")
+    engine_add_binary(dmengine_automation_${fixture} ${ENGINE_MAIN_SOURCES} "${exports}"
+      "${DEFOLD_HOME}/engine/automation/src/test/extension.cpp")
+    engine_configure_executable(dmengine_automation_${fixture} headless engine engine_service null
+      "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
+    if(fixture STREQUAL "legacy")
+      target_compile_definitions(dmengine_automation_${fixture} PRIVATE AUTOMATION_LEGACY_FIXTURE=1)
+    endif()
+    defold_codesign_target(dmengine_automation_${fixture} darwin/entitlements-macos-debug.plist)
+  endforeach()
+endif()
 
 if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
   set_target_properties(dmengine dmengine_release dmengine_headless PROPERTIES

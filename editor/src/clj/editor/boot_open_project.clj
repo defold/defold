@@ -234,6 +234,7 @@
                            (into []
                                  cat
                                  [(web-server/built-in-routes project)
+                                  (targets/routes prefs)
                                   (ext.server/routes project token)
                                   (engine-profiler/routes)
                                   (console/routes console-view)
