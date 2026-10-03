@@ -35,7 +35,7 @@ namespace dmGameSystem
         {
             return ResCollisionObjectBullet3DCreate(params);
         }
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 
     dmResource::Result ResCollisionObjectDestroy(const dmResource::ResourceDestroyParams* params)
@@ -49,7 +49,7 @@ namespace dmGameSystem
         {
             return ResCollisionObjectBullet3DDestroy(params);
         }
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 
     dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams* params)
@@ -63,6 +63,6 @@ namespace dmGameSystem
         {
             return ResCollisionObjectBullet3DRecreate(params);
         }
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 }

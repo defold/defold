@@ -48,7 +48,7 @@ namespace dmResource
      * @language C++
      * @member  RESULT_OK
      * @member  RESULT_INVALID_DATA
-     * @member  RESULT_DDF_ERROR
+     * @member  RESULT_PROTOBUF_ERROR
      * @member  RESULT_RESOURCE_NOT_FOUND
      * @member  RESULT_MISSING_FILE_EXTENSION
      * @member  RESULT_ALREADY_REGISTERED
@@ -68,12 +68,14 @@ namespace dmResource
      * @member  RESULT_VERSION_MISMATCH
      * @member  RESULT_SIGNATURE_MISMATCH
      * @member  RESULT_UNKNOWN_ERROR
+     * @member  RESULT_LUA_ERROR
+     * @member  RESULT_SCRIPT_CREATION_ERROR
      * @member  RESULT_TOO_MANY_COMPONENTS
      */
     enum Result {
         RESULT_OK = 0,
         RESULT_INVALID_DATA = -1,
-        RESULT_DDF_ERROR = -2,
+        RESULT_PROTOBUF_ERROR = -2,
         RESULT_RESOURCE_NOT_FOUND = -3,
         RESULT_MISSING_FILE_EXTENSION = -4,
         RESULT_ALREADY_REGISTERED = -5,
@@ -93,7 +95,9 @@ namespace dmResource
         RESULT_VERSION_MISMATCH = -19,
         RESULT_SIGNATURE_MISMATCH = -20,
         RESULT_UNKNOWN_ERROR = -21,
-        RESULT_TOO_MANY_COMPONENTS = -22,
+        RESULT_LUA_ERROR = -22,
+        RESULT_SCRIPT_CREATION_ERROR = -23,
+        RESULT_TOO_MANY_COMPONENTS = -24,
     };
 
     /*# 
@@ -333,7 +337,7 @@ namespace dmResource
  * @language C
  * @member  RESOURCE_RESULT_OK
  * @member  RESOURCE_RESULT_INVALID_DATA
- * @member  RESOURCE_RESULT_DDF_ERROR
+ * @member  RESOURCE_RESULT_PROTOBUF_ERROR
  * @member  RESOURCE_RESULT_RESOURCE_NOT_FOUND
  * @member  RESOURCE_RESULT_MISSING_FILE_EXTENSION
  * @member  RESOURCE_RESULT_ALREADY_REGISTERED

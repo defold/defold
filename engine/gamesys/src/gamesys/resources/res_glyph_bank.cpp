@@ -96,7 +96,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmFontDDF::GlyphBank>(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         *params->m_PreloadData = ddf;
@@ -143,7 +143,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmFontDDF::GlyphBank>(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         dmFontDDF::GlyphBank* old_ddf = glyph_bank->m_DDF;
