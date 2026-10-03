@@ -2621,14 +2621,72 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
-    def check_evaluation_frame_identity(self, requests):
+    def check_successive_coroutine_references(self, evaluate_on_coroutine=False):
+        c = self.start('''
+            local function work(value)
+                local x = value
+                local t = {value=value}
+                coroutine.yield()
+                assert(x == value and t.value == value)
+            end
+            co = coroutine.create(function() work(1); work(2) end)
+            assert(coroutine.resume(co))
+            local marker = 1 -- inspect
+            assert(coroutine.resume(co))
+        ''', prelude="original_resume = coroutine.resume")
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        main_frames = self.stopped()
+        main_frame = self.frame
+        main_thread = self.thread
+        thread = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
+        old_frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]
+        self.frame = old_frame["id"]
+        references = list(self.scopes().values())
+        references.append(self.evaluate("t")["variablesReference"])
+        if evaluate_on_coroutine:
+            self.evaluate("saved = function() return x end; original_resume(co)", context="repl")
+            self.frame = main_frame
+            self.assertEqual(self.evaluate("saved()")["result"], "nil")
+        else:
+            self.frame = main_frame
+            self.evaluate("original_resume(co)", context="repl")
+        for reference in references:
+            c.request("setVariable", {"variablesReference": reference, "name": "x", "value": "99"}, success=False)
+            c.request("variables", {"variablesReference": reference}, success=False)
+        c.request("scopes", {"frameId": old_frame["id"]}, success=False)
+        c.request("evaluate", {"frameId": old_frame["id"], "expression": "x"}, success=False)
+        c.request("completions", {"frameId": old_frame["id"], "text": "x", "column": 2}, success=False)
+        new_frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]
+        self.assertEqual(new_frame["line"], old_frame["line"])
+        self.assertNotEqual(new_frame["id"], old_frame["id"])
+        self.frame = new_frame["id"]
+        self.assertEqual(self.evaluate("x", context="hover")["result"], "2")
+        self.assertEqual(c.request("stackTrace", {"threadId": main_thread})["stackFrames"], main_frames)
+        self.frame = main_frame
+        self.resume()
+        self.finished()
+
+    # Resuming another coroutine through a cached API must expire its old IDs,
+    # even when the same function yields at the same line in its next invocation.
+    def test_evaluation_expires_successive_coroutine_invocations(self):
+        self.check_successive_coroutine_references()
+
+    # Escaped evaluation closures must not snapshot locals from a replacement
+    # invocation, and the expired frame's DAP references must remain invalid.
+    def test_evaluation_snapshot_excludes_successive_invocation(self):
+        self.check_successive_coroutine_references(evaluate_on_coroutine=True)
+
+    def check_evaluation_frame_identity(self, requests, same_function=False):
         c = self.start('''
             global_value = 30
             local shared = 10
-            local function first()
-                local x = 1
+            local function first(value)
+                local x = value
                 coroutine.yield()
-                assert(x == 1 and shared == 10 and global_value == 30)
+                assert(x == value and shared == 10 and global_value == 30)
             end
             local function second()
                 local x = 2
@@ -2636,12 +2694,13 @@ class DAPTests(DAPTestCase):
                 assert(x == 2 and shared == 10 and global_value == 30)
             end
             for i = 1, %d do
-                co = coroutine.create(function() first(); second() end)
+                co = coroutine.create(function() first(1); %s end)
                 assert(coroutine.resume(co))
                 local marker = 1 -- inspect
                 assert(coroutine.resume(co))
             end
-        ''' % len(requests))
+        ''' % (len(requests), "first(2)" if same_function else "second()"),
+            prelude="original_resume = coroutine.resume")
         c.initialize()
         c.attach()
         self.breakpoints({"line": self.line("inspect")})
@@ -2651,7 +2710,9 @@ class DAPTests(DAPTestCase):
             main_frame = self.frame
             thread = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
             old_frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
-            sequence = c.send(command, {"frameId": old_frame, **arguments})
+            self.frame = old_frame
+            target = {"variablesReference": self.scopes()["Locals"]} if command == "setVariable" else {"frameId": old_frame}
+            sequence = c.send(command, {**target, **arguments})
             response = c.wait(lambda m: m["type"] == "response" and m["request_seq"] == sequence)
             self.assertFalse(response["success"], (command, arguments, response))
             self.assertIn("Evaluation frame is no longer active", response["message"])
@@ -2683,6 +2744,34 @@ class DAPTests(DAPTestCase):
         self.check_evaluation_frame_identity([
             ("setExpression", {"expression": name, "value": "(function() coroutine.resume(co); return 99 end)()"})
             for name in ("x", "shared", "global_value")])
+
+    # A cached resume can replace the invocation without changing its function
+    # or source line. Reads later in that evaluation must reject the old binding.
+    def test_evaluation_reads_reject_successive_invocations(self):
+        self.check_evaluation_frame_identity([
+            ("evaluate", {"expression": "original_resume(co); return " + name, "context": "repl"})
+            for name in ("x", "shared", "global_value")], same_function=True)
+
+    # Writes within a REPL evaluation must not reach a later invocation of the
+    # same function after resuming the selected coroutine through a cached API.
+    def test_evaluation_writes_reject_successive_invocations(self):
+        self.check_evaluation_frame_identity([
+            ("evaluate", {"expression": "original_resume(co); " + name + " = 99", "context": "repl"})
+            for name in ("x", "shared", "global_value")], same_function=True)
+
+    # setExpression must reject a write when its RHS advances to the next
+    # invocation, despite identical function, stack depth, and source line.
+    def test_set_expression_rejects_successive_invocations(self):
+        self.check_evaluation_frame_identity([
+            ("setExpression", {"expression": name, "value": "(function() original_resume(co); return 99 end)()"})
+            for name in ("x", "shared", "global_value")], same_function=True)
+
+    # setVariable must revalidate its scope after evaluating an RHS that resumes
+    # the coroutine into the next invocation of the same function.
+    def test_set_variable_rejects_successive_invocations(self):
+        self.check_evaluation_frame_identity([
+            ("setVariable", {"name": "x", "value": "(function() original_resume(co); return 99 end)()"})],
+            same_function=True)
 
     # Copy enough varargs to grow the evaluation stack, including interior and
     # trailing nils, without changing the yielded coroutine's resume arguments.

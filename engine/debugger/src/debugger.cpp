@@ -201,11 +201,8 @@ namespace dmDebugger
         Event(d, "thread", &body);
     }
 
-    Thread* TrackThread(Debugger* d, lua_State* L)
+    static Thread* LookupThread(State* state, lua_State* L)
     {
-        State* state = (State*)GetPointer(L, &g_StateKey);
-        if (!state)
-            return 0;
         // Weak thread keys preserve Lua's object identity without keeping
         // coroutines alive or confusing a reused lua_State address with its
         // previous occupant. Hook lookups do not scan other live threads.
@@ -214,6 +211,15 @@ namespace dmDebugger
         lua_rawget(L, -2);
         Thread* thread = (Thread*)lua_touserdata(L, -1);
         lua_pop(L, 2);
+        return thread;
+    }
+
+    Thread* TrackThread(Debugger* d, lua_State* L)
+    {
+        State* state = (State*)GetPointer(L, &g_StateKey);
+        if (!state)
+            return 0;
+        Thread* thread = LookupThread(state, L);
         if (thread)
             return thread;
         thread = new Thread();
@@ -1587,6 +1593,14 @@ namespace dmDebugger
             return;
         if (d->m_Evaluating)
         {
+            // Resumed application threads invalidate their captured bindings,
+            // even if another invocation yields in the same function and line.
+            // Observe hooks so cached resume/wrap APIs are covered too; the
+            // debugger's temporary evaluation threads remain untracked.
+            State*  state = (State*)GetPointer(L, &g_StateKey);
+            Thread* thread = LookupThread(state, L);
+            if (thread)
+                ++thread->m_ExecutionVersion;
             if (ar->event == LUA_HOOKCOUNT)
                 CheckEvaluation(L);
             return;

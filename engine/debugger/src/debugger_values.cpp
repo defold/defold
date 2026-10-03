@@ -100,7 +100,11 @@ namespace dmDebugger
             Frame& frame = d->m_Frames[i];
             int line = 0;
             if (frame.m_Valid)
-                frame.m_Valid = MatchesFunction(frame.m_L, frame.m_Level, frame.m_FunctionRef, &line) && line == frame.m_Line;
+            {
+                Thread* thread = FindThread(d, frame.m_ThreadId, true);
+                frame.m_Valid = thread && frame.m_ExecutionVersion == thread->m_ExecutionVersion &&
+                                MatchesFunction(frame.m_L, frame.m_Level, frame.m_FunctionRef, &line) && line == frame.m_Line;
+            }
         }
         for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
         {
@@ -128,7 +132,8 @@ namespace dmDebugger
                 lua_getinfo(L, "f", &ar);
                 int function_ref = luaL_ref(L, LUA_REGISTRYINDEX);
                 lua_pushthread(L);
-                Frame frame = { d->m_NextId++, L, level, thread->m_Id, luaL_ref(L, LUA_REGISTRYINDEX), function_ref, ar.currentline, true };
+                Frame frame = { d->m_NextId++, L, level, thread->m_Id, luaL_ref(L, LUA_REGISTRYINDEX), function_ref,
+                                ar.currentline, thread->m_ExecutionVersion, true };
                 Push(d->m_Frames, frame);
             }
         }
@@ -319,6 +324,8 @@ namespace dmDebugger
     struct Evaluation
     {
         lua_State* m_L;
+        Thread*    m_Thread;
+        uint64_t   m_ExecutionVersion;
         int        m_FunctionRef;
         int        m_EnvironmentRef;
         int        m_Depth;
@@ -372,6 +379,8 @@ namespace dmDebugger
 
     static bool EvaluationFrame(Evaluation* e, lua_Debug* frame)
     {
+        if (e->m_ExecutionVersion != e->m_Thread->m_ExecutionVersion)
+            return false;
         int level = StackDepth(e->m_L) - e->m_Depth;
         // Evaluation can resume this coroutine between binding accesses. A
         // function at the same depth may have replaced the selected frame.
@@ -492,7 +501,7 @@ namespace dmDebugger
 
     // Evaluated closures can escape to the program. Retain a snapshot of the
     // visible bindings for them, rather than a pointer into a suspended frame.
-    static void SnapshotEnvironment(lua_State* L, Evaluation* e, int level, int environment)
+    static void SnapshotEnvironment(lua_State* L, Evaluation* e, int environment)
     {
         int top = lua_gettop(L);
         lua_newtable(L);
@@ -511,7 +520,7 @@ namespace dmDebugger
                 SnapshotValue(L, names, values, name);
             }
             lua_Debug frame;
-            bool active = MatchesFunction(L, level, e->m_FunctionRef) && lua_getstack(L, level, &frame);
+            bool active = EvaluationFrame(e, &frame);
             for (int i = 1; active; ++i)
             {
                 const char* name = lua_getlocal(L, &frame, i);
@@ -663,6 +672,8 @@ namespace dmDebugger
 
         Evaluation* e = (Evaluation*)lua_newuserdata(evaluation_L, sizeof(Evaluation));
         e->m_L = L;
+        e->m_Thread = TrackThread(d, L);
+        e->m_ExecutionVersion = e->m_Thread->m_ExecutionVersion;
         e->m_Depth = level >= 0 ? StackDepth(L) - level : 0;
         e->m_Active = true;
         e->m_Global = level < 0;
@@ -736,7 +747,7 @@ namespace dmDebugger
             lua_rawset(L, LUA_REGISTRYINDEX);
         }
         lua_xmove(evaluation_L, L, 1);
-        SnapshotEnvironment(L, e, level, environment_ref);
+        SnapshotEnvironment(L, e, environment_ref);
         d->m_Evaluating = false;
         e->m_Active = false;
         luaL_unref(L, LUA_REGISTRYINDEX, e->m_FunctionRef);
