@@ -107,7 +107,7 @@ namespace dmAutomation
         if (!g_AutomationBridge.m_HidContext) return false;
         if (device == INPUT_DEVICE_AUTO) return IsInputDeviceSupported(ResolveInputDevice(device));
         if (device == INPUT_DEVICE_MOUSE) return dmHID::IsMouseConnected(dmHID::GetMouse(g_AutomationBridge.m_HidContext, 0));
-        return device == INPUT_DEVICE_TOUCH && dmHID::IsTouchDeviceConnected(dmHID::GetTouchDevice(g_AutomationBridge.m_HidContext, 0));
+        return device == INPUT_DEVICE_TOUCH && dmHID::IsTouchInputEnabled(g_AutomationBridge.m_HidContext);
     }
 
     InputDevice ResolveInputDevice(InputDevice device)

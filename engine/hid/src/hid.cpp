@@ -267,10 +267,18 @@ namespace dmHID
         return true;
     }
 
+    bool IsTouchInputEnabled(HContext context)
+    {
+        return !context->m_IgnoreTouchDevice;
+    }
+
     bool SetSyntheticTouch(HContext context, int32_t x, int32_t y, uint32_t id, Phase phase)
     {
         TouchDevice* device = &context->m_TouchDevices[0];
-        if (!device->m_Connected || context->m_IgnoreTouchDevice || !CanAppendSyntheticTouch(device, (int16_t)id)) return false;
+        if (!IsTouchInputEnabled(context) || !CanAppendSyntheticTouch(device, (int16_t)id)) return false;
+        // Native HID marks this device connected only after the first physical touch.
+        // A synthetic touch establishes it in the same way for subsequent input bindings.
+        device->m_Connected = 1;
         Touch& touch = device->m_SyntheticTouch;
         int32_t dx = phase == PHASE_BEGAN ? 0 : x - touch.m_X;
         int32_t dy = phase == PHASE_BEGAN ? 0 : y - touch.m_Y;

@@ -295,6 +295,35 @@ TEST_F(HIDTest, SyntheticTouchLifecycle)
     }
 }
 
+// A fresh native-style device accepts its first synthetic touch without prior physical input.
+TEST_F(HIDTest, SyntheticTouchBeforeDeviceConnection)
+{
+    ASSERT_FALSE(dmHID::IsTouchDeviceConnected(m_TouchDevice));
+    ASSERT_TRUE(dmHID::IsTouchInputEnabled(m_Context));
+    ASSERT_TRUE(dmHID::SetSyntheticTouch(m_Context, 10, 20, 1, dmHID::PHASE_BEGAN));
+    ASSERT_TRUE(dmHID::IsTouchDeviceConnected(m_TouchDevice));
+    dmHID::TouchDevicePacket packet;
+    ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_TouchDevice, &packet));
+    ASSERT_EQ(1u, packet.m_TouchCount);
+    ASSERT_EQ(dmHID::PHASE_BEGAN, packet.m_Touches[0].m_Phase);
+    dmHID::ClearSyntheticTouch(m_Context);
+    ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_TouchDevice, &packet));
+    ASSERT_EQ(0u, packet.m_TouchCount);
+}
+
+// Enabling synthetic touch on fresh devices must still respect explicitly disabled touch input.
+TEST_F(HIDTest, SyntheticTouchRespectsIgnoredDevice)
+{
+    dmHID::NewContextParams params;
+    params.m_IgnoreTouchDevice = 1;
+    dmHID::HContext context = dmHID::NewContext(params);
+    ASSERT_FALSE(dmHID::IsTouchInputEnabled(context));
+    ASSERT_FALSE(dmHID::SetSyntheticTouch(context, 10, 20, 1, dmHID::PHASE_BEGAN));
+    ASSERT_FALSE(dmHID::HasSyntheticTouch(context));
+    ASSERT_FALSE(dmHID::IsTouchDeviceConnected(dmHID::GetTouchDevice(context, 0)));
+    dmHID::DeleteContext(context);
+}
+
 // A synthetic touch must not evict a physical contact when its ID or packet capacity is occupied.
 TEST_F(HIDTest, SyntheticTouchPhysicalConflicts)
 {

@@ -309,6 +309,9 @@ namespace dmHID
      */
     bool GetTouchDevicePacket(HTouchDevice device, TouchDevicePacket* out_packet);
 
+    // Touch injection is available whenever touch input is enabled, even before a physical touch.
+    bool IsTouchInputEnabled(HContext context);
+
     // Stage one synthetic sample on the primary touch device without modifying physical
     // touches. Replace earlier synthetic samples, then clear after all input bindings read it.
     // Return false if the device is unavailable, full, or has a physical touch with this ID.
