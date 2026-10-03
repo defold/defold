@@ -1132,7 +1132,7 @@ namespace dmEngine
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
 
         // Accelerometer
-        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
+        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 0);
         new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
 
 #if defined(__EMSCRIPTEN__)

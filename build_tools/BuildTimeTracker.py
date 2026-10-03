@@ -37,6 +37,45 @@ class BuildTimeTracker:
                 'timestamp': datetime.now().isoformat()
             }
             self.logger(f"'{command_name}' completed in {duration:.2f} s")
+
+    @staticmethod
+    def read_ninja_log(build_dir):
+        """Snapshot log records so unchanged builds and log compaction do not replay old timings."""
+        try:
+            with open(os.path.join(build_dir, '.ninja_log'), encoding='utf-8') as f:
+                return set(f.read().splitlines())
+        except FileNotFoundError:
+            return set()
+
+    def record_ninja_library_times(self, command_name, build_dir, previous_log):
+        """Attach per-library timings from tasks executed by this command."""
+        library_tasks = {}
+        for line in self.read_ninja_log(build_dir) - previous_log:
+            parts = line.split('\t')
+            if len(parts) != 5:
+                continue
+            try:
+                start, end = int(parts[0]), int(parts[1])
+            except ValueError:
+                continue
+            if end < start:
+                continue
+            output = parts[3]
+            if os.path.isabs(output):
+                output = os.path.relpath(output, build_dir)
+            output = output.replace('\\', '/')
+            library, separator, _ = output.partition('/')
+            if not separator or library in ('CMakeFiles', '..'):
+                continue
+            # Ninja logs each output of a command separately, including absolute aliases.
+            library_tasks.setdefault(library, set()).add((start, end, parts[4]))
+
+        self.command_times[command_name]['libraries'] = {
+            library: {
+                'elapsed_span': (max(end for _, end, _ in tasks) - min(start for start, _, _ in tasks)) / 1000,
+            }
+            for library, tasks in library_tasks.items()
+        }
             
     def start_component(self, component_name, platform=None):
         """Start timing an engine component build"""
@@ -114,8 +153,17 @@ class BuildTimeTracker:
         # Command times
         if self.command_times:
             self.logger("COMMAND TIMES:")
+            command_width = max(20, max(len(command) for command in self.command_times))
             for cmd, data in sorted(self.command_times.items(), key=lambda x: x[1]['duration'], reverse=True):
-                self.logger(f"  {cmd:<20} {data['duration']:>8.2f} s")
+                self.logger(f"  {cmd:<{command_width}} {data['duration']:>8.2f} s")
+                if 'libraries' in data:
+                    libraries = data['libraries']
+                    if libraries:
+                        self.logger("    Libraries")
+                        for library, timing in sorted(libraries.items(), key=lambda item: item[1]['elapsed_span'], reverse=True):
+                            self.logger(f"      {library:<20} {timing['elapsed_span']:>8.2f} s")
+                    else:
+                        self.logger("    No library tasks ran.")
         
         # Component times in tabular format
         if self.component_times:
@@ -168,4 +216,4 @@ class BuildTimeTracker:
                     
                     self.logger(line)
         
-        self.logger("="*60) 
+        self.logger("="*60)

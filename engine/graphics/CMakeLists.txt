@@ -320,12 +320,10 @@ if(GRAPHICS_BUILD_DX12)
     if(NOT EXISTS "${_DEFOLD_XBONE_GRAPHICS_DX12_DIR}/graphics_dx12_xbox.cpp")
       message(FATAL_ERROR "Xbox DX12 source not found: ${_DEFOLD_XBONE_GRAPHICS_DX12_DIR}/graphics_dx12_xbox.cpp")
     endif()
-    list(FILTER GRAPHICS_DX12_SOURCES EXCLUDE REGEX "/dx12/graphics_dx12(_private)?\\.cpp$")
-    set(GRAPHICS_DX12_PLATFORM_DIR "${_DEFOLD_XBONE_GRAPHICS_DX12_DIR}")
+    # Shared DX12 implementation and headers always come from the public repo.
+    # The private repo supplies only the Xbox adapter and its GDK declarations.
     list(APPEND GRAPHICS_DX12_SOURCES
-      "${GRAPHICS_DX12_PLATFORM_DIR}/graphics_dx12.cpp"
-      "${GRAPHICS_DX12_PLATFORM_DIR}/graphics_dx12_private.cpp"
-      "${GRAPHICS_DX12_PLATFORM_DIR}/graphics_dx12_xbox.cpp")
+      "${_DEFOLD_XBONE_GRAPHICS_DX12_DIR}/graphics_dx12_xbox.cpp")
   elseif(TARGET_PLATFORM MATCHES "win32$")
     list(APPEND GRAPHICS_DX12_SOURCES "${GRAPHICS_DX12_PLATFORM_DIR}/graphics_dx12_win32.cpp")
   endif()
@@ -335,6 +333,9 @@ if(GRAPHICS_BUILD_DX12)
     "${GRAPHICS_DX12_PLATFORM_DIR}"
     "${GRAPHICS_SRC_DIR}/dx12"
     "${DEFOLD_EXT_INCLUDE_DIR}/directx")
+  if(TARGET_PLATFORM_OS STREQUAL "xbone")
+    target_include_directories(graphics_dx12 PUBLIC "${_DEFOLD_XBONE_GRAPHICS_DX12_DIR}")
+  endif()
   defold_target_link_libraries(graphics_dx12 "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_DEPENDENCIES})
   set_target_properties(graphics_dx12 PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_sdk_headers)
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics_dx12)
