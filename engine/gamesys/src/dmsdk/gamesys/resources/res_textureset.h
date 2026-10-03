@@ -33,7 +33,7 @@ namespace dmGameSystem
             m_Texture = 0;
             m_TextureSet = 0;
             m_HullSet = 0;
-            m_TexturesGeneration = 0;
+            m_Id = 0;
         }
 
         dmArray<dmhash_t>                   m_HullCollisionGroups;
@@ -43,7 +43,7 @@ namespace dmGameSystem
         dmhash_t                            m_TexturePath;
         dmGameSystemDDF::TextureSet*        m_TextureSet;
         dmPhysics::HHullSet2D               m_HullSet;
-        uint8_t                             m_TexturesGeneration; // increase counter when reload resource data
+        uint32_t                            m_Id; // unique per create/recreate, never reused by a later resource at the same address
     };
 }
 
