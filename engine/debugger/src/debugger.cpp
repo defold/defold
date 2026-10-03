@@ -23,7 +23,6 @@ namespace dmDebugger
 {
     static char g_DebuggerKey;
     static char g_StateKey;
-    static void Hook(lua_State* L, lua_Debug* ar);
     static void Disconnect(Debugger* d);
     static void SetHooks(Debugger* d, bool enable);
 
@@ -41,6 +40,7 @@ namespace dmDebugger
         , m_StepThread(0)
         , m_StepDepth(0)
         , m_Connections(0)
+        , m_EvaluationTimeout(1000)
         , m_Step(STEP_NONE)
         , m_Port(0)
         , m_StepNativeTailCall(false)
@@ -1075,6 +1075,14 @@ namespace dmDebugger
                 Respond(d, seq, command, 0, "Already attached");
                 return;
             }
+            int timeout_arg = json.Field(args, "evaluationTimeout");
+            int timeout = timeout_arg < 0 ? 1000 : json.Integer(timeout_arg);
+            if (timeout < 1 || timeout > 60000)
+            {
+                Respond(d, seq, command, 0, "evaluationTimeout must be between 1 and 60000 milliseconds");
+                return;
+            }
+            d->m_EvaluationTimeout = timeout;
             const char* root = json.String(json.Field(args, "localRoot"));
             if (root)
             {
@@ -1229,7 +1237,7 @@ namespace dmDebugger
 
     void Update(HDebugger d)
     {
-        if (!d || d->m_Updating)
+        if (!d || d->m_Updating || d->m_Evaluating)
             return;
         UpdateGuard guard(d);
         for (uint32_t i = 0; i < d->m_Threads.Size();)
@@ -1489,13 +1497,17 @@ namespace dmDebugger
         return false;
     }
 
-    static void Hook(lua_State* L, lua_Debug* ar)
+    void Hook(lua_State* L, lua_Debug* ar)
     {
         Debugger* d = (Debugger*)GetPointer(L, &g_DebuggerKey);
         if (!d)
             return;
         if (d->m_Evaluating)
+        {
+            if (ar->event == LUA_HOOKCOUNT)
+                CheckEvaluation(L);
             return;
+        }
         if (ar->event == LUA_HOOKCOUNT)
             Update(d);
         if (!d->m_Attached)
