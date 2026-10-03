@@ -1,0 +1,5 @@
+name: "main"
+instances { id: "controller" prototype: "/controller.go" }
+instances { id: "geometry" prototype: "/geometry.go" }
+instances { id: "body" prototype: "/body.go" position { x: 320 y: 180 } }
+embedded_instances { id: "camera" data: "components { id: \"camera\" component: \"/camera.camera\" }" position { x: 320 y: 180 } }

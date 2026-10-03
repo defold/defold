@@ -184,14 +184,14 @@ namespace dmGameSystem
         float m_Radius;
     };
 
-    // One reusable slot for the inline experiment. Its lifetime ends at the next
-    // capture, after the previous render list has been consumed and cleared.
+    // Frame-owned affine transform: preserve all three axes (including tilted
+    // sprites and nonuniform scale), omitting only the invariant bottom row.
     struct SpriteRenderData
     {
-        Matrix4 m_World;
-        Vector4 m_Slice9;
+        float m_World[12];
         float m_Size[2];
         float m_Pivot[2];
+        uint32_t m_Slice9;
         uint32_t m_Binding;
         uint32_t m_Geometry;
         uint32_t m_Constants;
@@ -199,10 +199,9 @@ namespace dmGameSystem
         uint32_t m_Flags;
         uint32_t m_VertexCount;
         uint32_t m_BatchKey;
-        uint32_t m_TagListKey;
     };
 
-    DM_STATIC_ASSERT(sizeof(SpriteRenderData) == 128, "Sprite snapshot record size");
+    DM_STATIC_ASSERT(sizeof(SpriteRenderData) == 96, "Sprite snapshot record size");
     DM_STATIC_ASSERT(sizeof(SpriteCullingInfo) == 16, "Sprite snapshot bound size");
 
     // Only immutable resource data and resolved graphics handles are reachable
@@ -221,6 +220,7 @@ namespace dmGameSystem
         SpriteResource m_Resolved;
         SpriteTexture m_Textures[MAX_TEXTURE_COUNT];
         uint32_t m_Next;
+        uint32_t m_TagListKey;
     };
 
     struct SpriteFrameBlock
@@ -249,6 +249,7 @@ namespace dmGameSystem
         dmArray<SpriteFrameResolved*> m_ResolvedBindings;
         dmArray<SpriteRenderData> m_Sprites;
         dmArray<SpriteCullingInfo> m_Bounds; // Squared radius, matching TestFrustumSphereSq.
+        dmArray<Vector4> m_Slice9;
         dmArray<SpriteFrameBinding> m_Bindings;
         dmArray<AnimationData> m_Geometry;
         dmArray<SpriteFrameBlock> m_Constants;
@@ -1699,6 +1700,18 @@ namespace dmGameSystem
         return true;
     }
 
+    // Reserve the bulk arrays once before capture instead of repeatedly doubling
+    // them. Keep modest headroom on later growth; never shrink an in-flight slot.
+    template <typename T> static bool ReserveSpriteFrame(SpriteRenderFrame* frame, dmArray<T>& array, uint32_t count)
+    {
+        if (count <= array.Capacity()) return true;
+        uint32_t capacity = (dmMath::Max(count, array.Capacity() + array.Capacity() / 8) + 15U) & ~15U;
+        if (!GrowSpriteFrame(frame, (uint64_t)(capacity - array.Capacity()) * sizeof(T), (uint64_t)array.Capacity() * sizeof(T)))
+            return false;
+        array.SetCapacity(capacity);
+        return true;
+    }
+
     template <typename K> static void FramePut(SpriteRenderFrame* frame, dmHashTable<K, uint32_t>& map, K key, uint32_t value)
     {
         if (frame->m_Overflow)
@@ -1728,6 +1741,7 @@ namespace dmGameSystem
         }
         frame->m_Sprites.SetSize(0);
         frame->m_Bounds.SetSize(0);
+        frame->m_Slice9.SetSize(0);
         frame->m_Bindings.SetSize(0);
         frame->m_Geometry.SetSize(0);
         frame->m_Constants.SetSize(0);
@@ -1779,6 +1793,7 @@ namespace dmGameSystem
         binding.m_Source = component->m_Resource;
         binding.m_Resolved = *component->m_Resource;
         binding.m_Resolved.m_Material = GetMaterialResource(component);
+        binding.m_TagListKey = dmRender::GetMaterialTagListKey(GetComponentMaterial(component));
         binding.m_Resolved.m_Textures = 0; // Fixed up after the table stops growing.
         uintptr_t key[MAX_TEXTURE_COUNT + 2] = {};
         key[0] = (uintptr_t)binding.m_Source;
@@ -1903,6 +1918,17 @@ namespace dmGameSystem
         frame->m_IndexCount = world->m_IndexCount;
         frame->m_VertexMemorySize = world->m_VertexMemorySize;
         const dmArray<SpriteComponent>& components = world->m_Components.GetRawObjects();
+        if (components.Size() > frame->m_Sprites.Capacity() || components.Size() > frame->m_Bounds.Capacity())
+        {
+            uint32_t active = 0;
+            for (uint32_t i = 0; i < components.Size(); ++i)
+            {
+                const SpriteComponent& component = components[i];
+                active += component.m_Enabled && component.m_AddedToUpdate && component.m_VertexCount && component.m_IndexCount;
+            }
+            if (!ReserveSpriteFrame(frame, frame->m_Sprites, active) || !ReserveSpriteFrame(frame, frame->m_Bounds, active))
+                return;
+        }
         uint32_t previous_binding = INVALID_FRAME_INDEX;
         for (uint32_t i = 0; i < components.Size(); ++i)
         {
@@ -1910,8 +1936,19 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_AddedToUpdate || !component->m_VertexCount || !component->m_IndexCount)
                 continue;
             SpriteRenderData data;
-            data.m_World = component->m_World;
-            data.m_Slice9 = component->m_Slice9;
+            for (uint32_t column = 0; column < 4; ++column)
+            {
+                Vector4 value = component->m_World.getCol(column);
+                data.m_World[column * 3] = value.getX();
+                data.m_World[column * 3 + 1] = value.getY();
+                data.m_World[column * 3 + 2] = value.getZ();
+            }
+            data.m_Slice9 = INVALID_FRAME_INDEX;
+            if (component->m_UseSlice9)
+            {
+                data.m_Slice9 = frame->m_Slice9.Size();
+                if (!FramePush(frame, frame->m_Slice9, component->m_Slice9)) break;
+            }
             data.m_Size[0] = component->m_Size.getX();
             data.m_Size[1] = component->m_Size.getY();
             data.m_Pivot[0] = component->m_PivotX;
@@ -1919,7 +1956,6 @@ namespace dmGameSystem
             data.m_Flags = component->m_FlipHorizontal | (component->m_FlipVertical << 1) | (component->m_UseSlice9 << 2);
             data.m_VertexCount = component->m_VertexCount;
             data.m_BatchKey = component->m_MixedHash;
-            data.m_TagListKey = dmRender::GetMaterialTagListKey(GetComponentMaterial(component));
             data.m_Binding = CaptureBinding(frame, component, factory, previous_binding);
             if (frame->m_Overflow)
                 break;
@@ -1966,9 +2002,10 @@ namespace dmGameSystem
             return &renderer->m_LegacyWorld->m_Components.GetRawObjects()[index];
         const SpriteRenderData& data = renderer->m_Frame->m_Sprites[index];
         memset(view, 0, sizeof(*view));
-        view->m_World = data.m_World;
+        for (uint32_t column = 0; column < 4; ++column)
+            view->m_World.setCol(column, Vector4(data.m_World[column * 3], data.m_World[column * 3 + 1], data.m_World[column * 3 + 2], column == 3 ? 1.0f : 0.0f));
         view->m_Size = Vector3(data.m_Size[0], data.m_Size[1], 0);
-        view->m_Slice9 = data.m_Slice9;
+        view->m_Slice9 = data.m_Slice9 == INVALID_FRAME_INDEX ? Vector4(0.0f) : renderer->m_Frame->m_Slice9[data.m_Slice9];
         view->m_PivotX = data.m_Pivot[0];
         view->m_PivotY = data.m_Pivot[1];
         view->m_FlipHorizontal = data.m_Flags & 1;
@@ -2804,9 +2841,9 @@ namespace dmGameSystem
             if (renderer->m_Frame)
             {
                 const SpriteRenderData& data = renderer->m_Frame->m_Sprites[i];
-                write_ptr->m_WorldPosition = Point3(data.m_World.getCol3().getXYZ());
+                write_ptr->m_WorldPosition = Point3(data.m_World[9], data.m_World[10], data.m_World[11]);
                 write_ptr->m_BatchKey = data.m_BatchKey;
-                write_ptr->m_TagListKey = data.m_TagListKey;
+                write_ptr->m_TagListKey = renderer->m_Frame->m_Bindings[data.m_Binding].m_TagListKey;
             }
             else
             {
@@ -3407,6 +3444,7 @@ namespace dmGameSystem
         stats->m_FrameGrowthPeakBytes = frame->m_GrowthPeakBytes;
         CountFrameArray(frame->m_Sprites, stats);
         CountFrameArray(frame->m_Bounds, stats);
+        CountFrameArray(frame->m_Slice9, stats);
         CountFrameArray(frame->m_Bindings, stats);
         CountFrameArray(frame->m_Geometry, stats);
         CountFrameArray(frame->m_Constants, stats);
@@ -3419,6 +3457,7 @@ namespace dmGameSystem
         stats->m_RetainedResourceReportedBytes = frame->m_ResourceBytes;
         for (uint32_t i = 0; i < frame->m_Bindings.Size(); ++i)
             stats->m_RetainedReferenceCount += 2 + frame->m_Bindings[i].m_Resolved.m_NumTextures;
+        stats->m_SlotsPayloadUsedBytes = stats->m_PayloadUsedBytes;
     }
 
     void GetSpriteSnapshotStats(void* sprite_world, SpriteSnapshotStats* stats)
@@ -3457,6 +3496,7 @@ namespace dmGameSystem
         SpriteSnapshotStats other;
         ComputeSpriteSnapshotStats(world, world->m_ThreadFrames[1 - slot], &other, false);
         world->m_ThreadStats.m_FrameCapacityBytes += other.m_FrameCapacityBytes;
+        world->m_ThreadStats.m_SlotsPayloadUsedBytes += other.m_PayloadUsedBytes;
         world->m_ThreadStats.m_FrameGrowthPeakBytes += other.m_FrameGrowthPeakBytes;
         world->m_ThreadStats.m_Threaded = 1;
         // Hard admission budget, including both slot capacities and capture maps.
@@ -3574,7 +3614,7 @@ namespace dmGameSystem
             entry.m_Payload = offset;
             entry.m_PayloadBytes = sizeof(uint32_t);
             entry.m_BatchKey = data.m_BatchKey;
-            entry.m_TagListKey = data.m_TagListKey;
+            entry.m_TagListKey = frame->m_Bindings[data.m_Binding].m_TagListKey;
             entry.m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             if (!dmRender::AddRenderFrameEntry(builder, entry)) { frame->m_Overflow = true; break; }
         }

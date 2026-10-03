@@ -511,10 +511,11 @@ namespace dmGameSystem
         void* world = dmGameObject::GetWorld(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
         SpriteSnapshotStats stats;
         GetSpriteSnapshotStats(world, &stats);
+        SpriteContext* context = (SpriteContext*)dmGameObject::GetContext(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
         lua_newtable(L);
         dmGraphics::GraphicsPacketStats packet;
         dmGraphics::GetGraphicsPacketStats(&packet);
-        lua_pushstring(L, dmGraphics::IsExternalGraphicsProducer() ? "component-web-threaded" : dmGraphics::IsRenderGraphicsOwnerActive() ? (packet.m_Mode == 1 ? "renderframe-inline" : "renderframe-threaded") :
+        lua_pushstring(L, dmGraphics::IsExternalGraphicsProducer() ? (context->m_ComponentFrames ? "component-web-snapshots" : stats.m_Threaded ? "component-web-threaded" : "component-web-serialized") : dmGraphics::IsRenderGraphicsOwnerActive() ? (packet.m_Mode == 1 ? "renderframe-inline" : "renderframe-threaded") :
             packet.m_Mode ? (packet.m_Mode == 1 ? "graphics-inline" : "graphics-threaded") :
             (stats.m_Threaded ? "snapshot-threaded" : (stats.m_Inline ? "snapshot-inline" : "existing")));
         lua_setfield(L, -2, "mode");
@@ -552,6 +553,8 @@ namespace dmGameSystem
         lua_setfield(L, -2, "graphics_packet_buffer_metadata_bytes");
         lua_pushnumber(L, (lua_Number)stats.m_PayloadUsedBytes);
         lua_setfield(L, -2, "payload_used_bytes");
+        lua_pushnumber(L, (lua_Number)stats.m_SlotsPayloadUsedBytes);
+        lua_setfield(L, -2, "slots_payload_used_bytes");
         lua_pushnumber(L, (lua_Number)stats.m_FrameCapacityBytes);
         lua_setfield(L, -2, "frame_capacity_bytes");
         lua_pushnumber(L, (lua_Number)stats.m_RendererCpuCapacityBytes);
@@ -584,7 +587,13 @@ namespace dmGameSystem
         lua_setfield(L, -2, "attribute_block_count");
         lua_pushnumber(L, (lua_Number)stats.m_RetainedReferenceCount);
         lua_setfield(L, -2, "retained_reference_count");
-        SpriteContext* context = (SpriteContext*)dmGameObject::GetContext(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
+        if (context->m_ComponentFrames)
+        {
+            lua_pushnumber(L, (lua_Number)context->m_RenderFrameCapacityBytes);
+            lua_setfield(L, -2, "component_frame_capacity_bytes");
+            lua_pushnumber(L, (lua_Number)context->m_RenderFrameUsedBytes);
+            lua_setfield(L, -2, "component_frame_used_bytes");
+        }
         if (dmGraphics::IsRenderGraphicsOwnerActive())
         {
             lua_pushnumber(L, (lua_Number)context->m_RenderFrameUsedBytes);
@@ -626,6 +635,10 @@ namespace dmGameSystem
             lua_setfield(L, -2, "thread_stack_bytes");
             dmRender::RenderThreadStats thread;
             dmRender::GetRenderThreadStats(context->m_RenderThread, &thread);
+            lua_pushnumber(L, (lua_Number)thread.m_SimulationsDuringRender);
+            lua_setfield(L, -2, "thread_simulations_during_render");
+            lua_pushnumber(L, (lua_Number)thread.m_SimulationOverlapUs);
+            lua_setfield(L, -2, "thread_simulation_overlap_us");
             lua_pushnumber(L, (lua_Number)thread.m_CapturesWithConsumerOutstanding);
             lua_setfield(L, -2, "thread_captures_with_consumer_outstanding");
             lua_pushnumber(L, (lua_Number)thread.m_Submitted);

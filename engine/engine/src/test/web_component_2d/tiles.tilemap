@@ -1,0 +1,3 @@
+tile_set: "/tiles.tilesource"
+material: "/builtins/materials/tile_map.material"
+layers { id: "tiles" z: 0 cell { x: 2 y: 2 tile: 0 } cell { x: 3 y: 2 tile: 0 } }

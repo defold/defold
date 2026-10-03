@@ -451,9 +451,17 @@ namespace dmRender
         return render_context->m_LightBufferUploadScratch.Size();
     }
 
+    void GetComponentFrameLights(HRenderContext context, const LightSTD140** lights, uint32_t* count, dmVMath::Vector3* ambient)
+    {
+        *count = CompactLightBufferScratch(context);
+        *lights = context->m_LightBufferUploadScratch.Begin();
+        *ambient = context->m_AmbientLight;
+    }
+
     static void WriteLightInstanceData(HRenderContext render_context, dmGraphics::HUniformBuffer light_buffer)
     {
-        uint32_t active_light_count = CompactLightBufferScratch(render_context);
+        uint32_t active_light_count = render_context->m_UseCapturedLightBuffer ?
+            render_context->m_LightBufferUploadScratch.Size() : CompactLightBufferScratch(render_context);
 
         dmVMath::Vector4 info(render_context->m_AmbientLight, (float) active_light_count);
         dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,

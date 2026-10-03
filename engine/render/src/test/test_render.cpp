@@ -42,6 +42,8 @@
 #include "render/render_command.h"
 #include "render/render_thread.h"
 #include "render/render_frame.h"
+#include "render/component_frame.h"
+#include <dlib/time.h>
 #include <dlib/mutex.h>
 #include <dlib/condition_variable.h>
 #include <dlib/time.h>
@@ -4743,4 +4745,187 @@ TEST(dmRenderThreadTest, ExternalOwnerPumpsPublishedFrames)
     ASSERT_EQ(3ULL, stats.m_Completed);
     ASSERT_EQ(1U, stats.m_MaxOutstanding);
     dmRender::DeleteRenderThread(queue);
+}
+
+
+// Captured passes own component/render constants, transforms and upload bytes;
+// reusing or deleting producer storage must not affect either pass at consumption.
+TEST_F(dmRenderTest, ComponentFrameOwnsPassData)
+{
+    dmGraphics::ShaderDescBuilder builder;
+    builder.AddTypeMember("tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    builder.AddUniformBuffer("tint", 0, 0, 16);
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
+    dmGraphics::HProgram programs[2];
+    dmRender::HMaterial materials[2];
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        programs[i] = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+        materials[i] = dmRender::NewMaterial(m_Context, programs[i]);
+    }
+    uint8_t bytes[] = { 1, 2, 3, 4 };
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 4, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmRender::HNamedConstantBuffer constants = dmRender::NewNamedConstantBuffer();
+    dmRender::HComponentFrame frame = dmRender::NewComponentFrame();
+    dmRender::HRenderContext consumer = dmRender::NewComponentFrameConsumer(m_Context);
+    dmRender::BeginFrame(m_Context, 123.0f, 0.5f);
+    dmRender::BeginComponentFrameCapture(m_Context, frame);
+    dmRender::RenderObject object;
+    object.m_VertexCount = 3;
+    object.m_VertexBuffer = buffer;
+    object.m_ConstantBuffer = constants;
+    dmRender::AddToRender(m_Context, &object);
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        object.m_Material = materials[i];
+        dmVMath::Vector4 tint((float)i + 1);
+        dmRender::SetNamedConstant(constants, dmHashString64("tint"), &tint, 1);
+        view.setCol3(dmVMath::Vector4((float)i + 7, 0, 0, 1));
+        dmRender::SetViewMatrix(m_Context, view);
+        bytes[0] = (uint8_t)i + 8;
+        dmGraphics::SetVertexBufferSubData(buffer, 0, 4, bytes);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, i ? constants : 0));
+    }
+    ASSERT_TRUE(dmRender::EndComponentFrameCapture(m_Context));
+    ASSERT_EQ(1U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
+    ASSERT_TRUE(dmRender::GetComponentFrameUsedBytes(frame) <= dmRender::GetComponentFrameCapacity(frame));
+    dmRender::DeleteNamedConstantBuffer(constants);
+    object.m_VertexCount = 0;
+    memset(bytes, 255, sizeof(bytes));
+    dmRender::SetViewMatrix(m_Context, dmVMath::Matrix4::identity());
+    dmRender::BeginFrame(m_Context, 999.0f, 1.0f);
+    dmRender::ConsumeComponentFrame(consumer, frame);
+    ASSERT_EQ(8.0f, consumer->m_View.getCol3().getX());
+    ASSERT_EQ(123.0f, consumer->m_Time);
+    ASSERT_EQ(0.5f, consumer->m_Dt);
+    ASSERT_EQ(9U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        const dmGraphics::Uniform* uniform = dmGraphics::GetUniform(programs[i], dmHashString64("tint"));
+        dmGraphics::NullProgram* program = (dmGraphics::NullProgram*)programs[i];
+        uint32_t offset = program->m_BaseProgram.m_ResourceBindings[UNIFORM_LOCATION_GET_OP0(uniform->m_Location)]
+            [UNIFORM_LOCATION_GET_OP1(uniform->m_Location)].m_UniformBufferOffset + UNIFORM_LOCATION_GET_OP2(uniform->m_Location);
+        ASSERT_EQ((float)i + 1, *(float*)(program->m_UniformData + offset));
+    }
+    dmRender::DeleteComponentFrameConsumer(consumer);
+    dmRender::DeleteComponentFrame(frame);
+    dmGraphics::DeleteVertexBuffer(buffer);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmRender::DeleteMaterial(m_Context, materials[i]);
+        dmGraphics::DeleteProgram(m_GraphicsContext, programs[i]);
+    }
+}
+
+// Reject unsupported compute, excessive pass counts and resource invalidation;
+// each slot must recover cleanly when a later capture begins.
+TEST_F(dmRenderTest, ComponentFrameRejectsInvalidCapture)
+{
+    dmRender::HComponentFrame frame = dmRender::NewComponentFrame();
+    dmRender::BeginComponentFrameCapture(m_Context, frame);
+    dmRender::Command compute(dmRender::COMMAND_TYPE_DISPATCH_COMPUTE);
+    dmRender::ParseCommands(m_Context, &compute, 1, false);
+    ASSERT_FALSE(dmRender::EndComponentFrameCapture(m_Context));
+    dmRender::BeginComponentFrameCapture(m_Context, frame);
+    for (uint32_t i = 0; i < 64; ++i)
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+    ASSERT_EQ(dmRender::RESULT_OUT_OF_RESOURCES, dmRender::Draw(m_Context, 0, 0));
+    ASSERT_FALSE(dmRender::EndComponentFrameCapture(m_Context));
+    dmRender::BeginComponentFrameCapture(m_Context, frame);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+    ASSERT_TRUE(dmRender::EndComponentFrameCapture(m_Context));
+    dmGraphics::HVertexDeclaration declaration = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    dmRender::BeginComponentFrameCapture(m_Context, frame);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+    dmGraphics::DeleteVertexDeclaration(declaration);
+    ASSERT_FALSE(dmRender::EndComponentFrameCapture(m_Context));
+    dmRender::DeleteComponentFrame(frame);
+}
+
+// Replay boundaries preserve different uploads to a shared buffer across passes.
+TEST_F(dmRenderTest, ComponentFrameUploadRanges)
+{
+    uint8_t value = 0;
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 1, &value, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::HIndexBuffer indices = dmGraphics::NewIndexBuffer(m_GraphicsContext, 1, &value, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::VertexUploadBatch batch;
+    dmGraphics::BeginVertexUploadCapture(&batch, true);
+    value = 1;
+    dmGraphics::SetVertexBufferSubData(buffer, 0, 1, &value);
+    dmGraphics::SetIndexBufferData(indices, 1, &value, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    value = 2;
+    dmGraphics::SetVertexBufferSubData(buffer, 0, 1, &value);
+    dmGraphics::SetIndexBufferSubData(indices, 0, 1, &value);
+    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
+    dmGraphics::ReplayVertexUploads(&batch, 0, 2);
+    ASSERT_EQ(1U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
+    ASSERT_EQ(1U, ((dmGraphics::IndexBuffer*)indices)->m_Buffer[0]);
+    dmGraphics::ReplayVertexUploads(&batch, 2, 4);
+    ASSERT_EQ(2U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
+    ASSERT_EQ(2U, ((dmGraphics::IndexBuffer*)indices)->m_Buffer[0]);
+    dmGraphics::DeleteIndexBuffer(indices);
+    dmGraphics::DeleteVertexBuffer(buffer);
+}
+
+// Count only complete simulation intervals inside actual consumer execution;
+// idle and retired frames must never be reported as evidence of overlap.
+TEST(dmRenderThreadTest, ComponentFrameSimulationOverlap)
+{
+    ThreadQueueProbe probe = {};
+    probe.m_Mutex = dmMutex::New();
+    probe.m_Changed = dmConditionVariable::New();
+    dmRender::HRenderThread thread = dmRender::NewRenderThread(ProbeRenderThread, &probe);
+    dmRender::MarkRenderThreadSimulationComplete(thread, dmTime::GetMonotonicTime());
+    dmRender::PublishRenderThreadFrame(thread, dmRender::BeginRenderThreadFrame(thread));
+    dmMutex::Lock(probe.m_Mutex);
+    while (!probe.m_Reading) dmConditionVariable::Wait(probe.m_Changed, probe.m_Mutex);
+    dmMutex::Unlock(probe.m_Mutex);
+    uint64_t begin = dmTime::GetMonotonicTime();
+    dmTime::Sleep(1000);
+    dmRender::MarkRenderThreadSimulationComplete(thread, begin);
+    dmMutex::Lock(probe.m_Mutex);
+    probe.m_Release = true;
+    dmConditionVariable::Broadcast(probe.m_Changed);
+    dmMutex::Unlock(probe.m_Mutex);
+    dmRender::DrainRenderThread(thread);
+    dmRender::MarkRenderThreadSimulationComplete(thread, dmTime::GetMonotonicTime());
+    dmRender::RenderThreadStats stats;
+    dmRender::GetRenderThreadStats(thread, &stats);
+    ASSERT_EQ(1ULL, stats.m_SimulationsDuringRender);
+    ASSERT_GE(stats.m_SimulationOverlapUs, 1000ULL);
+    dmRender::DeleteRenderThread(thread);
+    dmConditionVariable::Delete(probe.m_Changed);
+    dmMutex::Delete(probe.m_Mutex);
+}
+
+
+// Light values and configured UBO capacity survive deletion on the producer;
+// sizing the consumer buffer to only active lights would violate shader layouts.
+TEST_F(dmRenderTest, ComponentFrameOwnsLightsAndShaderCapacity)
+{
+    dmRender::LightPrototypeParams params;
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(7, 8, 9), dmVMath::Quat::identity(), 1.0f);
+    uint32_t capacity = m_Context->m_MaxLightCount;
+    dmRender::HComponentFrame frame = dmRender::NewComponentFrame();
+    dmRender::HRenderContext consumer = dmRender::NewComponentFrameConsumer(m_Context);
+    dmRender::BeginFrame(m_Context, 1.0f, 0.1f);
+    dmRender::SubmitLightInstance(m_Context, instance);
+    dmRender::BeginComponentFrameCapture(m_Context, frame);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+    ASSERT_TRUE(dmRender::EndComponentFrameCapture(m_Context));
+    dmRender::DeleteLightInstance(m_Context, instance);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
+    dmRender::SetLightBufferCount(m_Context, 0);
+    dmRender::ConsumeComponentFrame(consumer, frame);
+    ASSERT_EQ(capacity, consumer->m_MaxLightCount);
+    ASSERT_EQ(1U, consumer->m_LightBufferUploadScratch.Size());
+    ASSERT_EQ(7.0f, consumer->m_LightBufferUploadScratch[0].m_Position.getX());
+    ASSERT_EQ(8.0f, consumer->m_LightBufferUploadScratch[0].m_Position.getY());
+    ASSERT_EQ(9.0f, consumer->m_LightBufferUploadScratch[0].m_Position.getZ());
+    dmRender::DeleteComponentFrameConsumer(consumer);
+    dmRender::DeleteComponentFrame(frame);
 }

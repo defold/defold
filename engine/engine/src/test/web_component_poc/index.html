@@ -2,10 +2,14 @@
 <script>
 const mode = new URLSearchParams(location.search).get('mode') || 'threaded';
 if (!crossOriginIsolated) throw new Error('Serve with COOP: same-origin and COEP: require-corp');
+const schedule = new URLSearchParams(location.search).get('schedule') || '0';
+const cacheWindow = new URLSearchParams(location.search).get('cache_window') || '0';
+const stackKb = new URLSearchParams(location.search).get('stack_kb') || '5120';
+const stackMeasure = new URLSearchParams(location.search).get('stack_measure') || '0';
 var Module = {
  preRun: [function(){ FS.mkdir('/data'); }],
  canvas: document.getElementById('canvas'),
- arguments: ['--config=render.poc_pipeline='+(mode==='direct'?'legacy':'component'),'--config=render.poc_threaded='+(mode==='threaded'?1:0),'/content/game.projectc'],
+ arguments: ['--config=render.poc_web_stack_kb='+stackKb,'--config=render.poc_web_stack_measure='+stackMeasure,'--config=render.poc_web_schedule='+schedule,'--config=render.poc_web_cache_window='+cacheWindow,'--config=render.poc_pipeline='+(mode==='direct'?'legacy':'component'),'--config=render.poc_threaded='+(mode==='threaded'?1:0),'/content/game.projectc'],
  print: s => { console.log(s); (window.lines ||= []).push(s); },
  printErr: s => { console.error(s); (window.lines ||= []).push(s); },
  onExit: code => { window.exitCode = code; },

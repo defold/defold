@@ -55,12 +55,14 @@ namespace dmGraphics
         return sizeof(*batch) + batch->m_Data.Capacity() + batch->m_Uploads.Capacity() * sizeof(VertexUpload);
     }
 
-    void BeginVertexUploadCapture(VertexUploadBatch* batch)
+    void BeginVertexUploadCapture(VertexUploadBatch* batch, bool capture_indices)
     {
         assert(!g_VertexUploadCapture);
         batch->m_Uploads.SetSize(0);
         batch->m_Data.SetSize(0);
         batch->m_Failed = false;
+        batch->m_CaptureIndexUploads = capture_indices;
+        batch->m_ProtectResources = false;
         g_VertexUploadCapture = batch;
     }
 
@@ -69,11 +71,23 @@ namespace dmGraphics
         assert(g_VertexUploadCapture);
         bool ok = !g_VertexUploadCapture->m_Failed;
         g_VertexUploadCapture = 0;
-        if (!ok) dmLogError("Mixed vertex upload capture exceeded its fixed budget");
+        if (!ok) dmLogError("Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation");
         return ok;
     }
 
-    static void CaptureVertexUpload(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data, BufferUsage usage, bool sub_data)
+    void ProtectCapturedGraphicsResources()
+    {
+        assert(g_VertexUploadCapture);
+        g_VertexUploadCapture->m_ProtectResources = true;
+    }
+
+    void InvalidateCapturedGraphicsResources()
+    {
+        if (g_VertexUploadCapture && g_VertexUploadCapture->m_ProtectResources)
+            g_VertexUploadCapture->m_Failed = true;
+    }
+
+    static void CaptureVertexUpload(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data, BufferUsage usage, bool sub_data, bool index_buffer = false)
     {
         VertexUploadBatch* batch = g_VertexUploadCapture;
         if (batch->m_Failed) return;
@@ -108,18 +122,30 @@ namespace dmGraphics
         upload.m_DataOffset = data ? batch->m_Data.Size() : UINT32_MAX;
         upload.m_Usage = usage;
         upload.m_SubData = sub_data;
+        upload.m_IndexBuffer = index_buffer;
         if (bytes) batch->m_Data.PushArray((const uint8_t*)data, bytes);
         batch->m_Uploads.Push(upload);
     }
 
     void ReplayVertexUploads(const VertexUploadBatch* batch)
     {
+        ReplayVertexUploads(batch, 0, batch->m_Uploads.Size());
+    }
+
+    void ReplayVertexUploads(const VertexUploadBatch* batch, uint32_t begin, uint32_t end)
+    {
         assert(!g_VertexUploadCapture && !batch->m_Failed);
-        for (uint32_t i = 0; i < batch->m_Uploads.Size(); ++i)
+        assert(begin <= end && end <= batch->m_Uploads.Size());
+        for (uint32_t i = begin; i < end; ++i)
         {
             const VertexUpload& upload = batch->m_Uploads[i];
             const void* data = upload.m_DataOffset == UINT32_MAX ? 0 : batch->m_Data.Begin() + upload.m_DataOffset;
-            if (upload.m_SubData)
+            if (upload.m_IndexBuffer)
+            {
+                if (upload.m_SubData) SetIndexBufferSubData(upload.m_Buffer, upload.m_Offset, upload.m_Size, data);
+                else SetIndexBufferData(upload.m_Buffer, upload.m_Size, data, upload.m_Usage);
+            }
+            else if (upload.m_SubData)
                 SetVertexBufferSubData(upload.m_Buffer, upload.m_Offset, upload.m_Size, data);
             else
                 SetVertexBufferData(upload.m_Buffer, upload.m_Size, data, upload.m_Usage);
@@ -812,6 +838,7 @@ namespace dmGraphics
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
+        InvalidateCapturedGraphicsResources();
         FlushGraphicsPackets();
         RenderMutationBarrier();
         // Free dynamically allocated stream storage if present
@@ -831,6 +858,7 @@ namespace dmGraphics
 
     bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
     {
+        InvalidateCapturedGraphicsResources();
         FlushGraphicsPackets();
         RenderMutationBarrier();
         if (stream_index >= vertex_declaration->m_StreamCount) {
@@ -2081,6 +2109,9 @@ namespace dmGraphics
     }
     uint32_t GetWindowStateParam(HContext context, WindowState state)
     {
+        uint32_t opened;
+        if (state == WINDOW_STATE_OPENED && GetExternalGraphicsWindowOpened(&opened))
+            return opened;
         uint32_t width, height, iconified; float scale;
         if (state == WINDOW_STATE_ICONIFIED && GetExternalGraphicsWindow(&width, &height, &iconified, &scale))
             return iconified;
@@ -2383,6 +2414,7 @@ namespace dmGraphics
     }
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
+        InvalidateCapturedGraphicsResources();
         RenderMutationBarrier();
         g_functions.m_DeleteVertexBuffer(buffer);
     }
@@ -2424,16 +2456,27 @@ namespace dmGraphics
     }
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
+        InvalidateCapturedGraphicsResources();
         RenderMutationBarrier();
         g_functions.m_DeleteIndexBuffer(buffer);
     }
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        if (g_VertexUploadCapture && g_VertexUploadCapture->m_CaptureIndexUploads)
+        {
+            CaptureVertexUpload(buffer, 0, size, data, buffer_usage, false, true);
+            return;
+        }
         RenderMutationBarrier();
         g_functions.m_SetIndexBufferData(buffer, size, data, buffer_usage);
     }
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (g_VertexUploadCapture && g_VertexUploadCapture->m_CaptureIndexUploads)
+        {
+            CaptureVertexUpload(buffer, offset, size, data, BUFFER_USAGE_STREAM_DRAW, true, true);
+            return;
+        }
         RenderMutationBarrier();
         g_functions.m_SetIndexBufferSubData(buffer, offset, size, data);
     }
@@ -2497,6 +2540,7 @@ namespace dmGraphics
     }
     void DeleteProgram(HContext context, HProgram program)
     {
+        InvalidateCapturedGraphicsResources();
         FlushGraphicsPackets();
         RenderMutationBarrier();
         DestroyProgram((Program*) program);
@@ -2520,6 +2564,7 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        InvalidateCapturedGraphicsResources();
         FlushGraphicsPackets();
         RenderMutationBarrier();
         DestroyProgram((Program*) program);
@@ -2720,6 +2765,7 @@ namespace dmGraphics
     }
     void DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
+        InvalidateCapturedGraphicsResources();
         RenderMutationBarrier();
         g_functions.m_DeleteRenderTarget(context, render_target);
     }
@@ -2741,6 +2787,7 @@ namespace dmGraphics
     }
     void SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
+        InvalidateCapturedGraphicsResources();
         RenderMutationBarrier();
         if (GetRenderTargetTextureType(context, render_target) == TEXTURE_TYPE_CUBE_MAP && width != height)
         {
@@ -2762,16 +2809,21 @@ namespace dmGraphics
     }
     void DeleteTexture(HContext context, HTexture t)
     {
+        InvalidateCapturedGraphicsResources();
         RenderMutationBarrier();
         g_functions.m_DeleteTexture(context, t);
     }
     void SetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
+        // Font atlas sub-updates preserve glyphs referenced in this frame. A
+        // complete replacement may invalidate already captured passes.
+        if (!params.m_SubUpdate) InvalidateCapturedGraphicsResources();
         RenderMutationBarrier();
         g_functions.m_SetTexture(context, texture, params);
     }
     void SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
+        InvalidateCapturedGraphicsResources();
         RenderMutationBarrier();
         if (g_RenderMutationBarrier)
         {

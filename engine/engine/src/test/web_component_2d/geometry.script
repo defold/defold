@@ -1,0 +1,66 @@
+local animated = { "#cpu", "#gpu", "#instanced_a", "#instanced_b" }
+local function replace_vertices(count, offset)
+    local vertices = buffer.create(count, {{ name = hash("position"), type = buffer.VALUE_TYPE_FLOAT32, count = 3 }})
+    local positions = buffer.get_stream(vertices, "position")
+    for i = 0, count - 1 do
+        positions[i * 3 + 1] = offset + (i % 3 == 1 and 36 or 0)
+        positions[i * 3 + 2] = i % 3 == 2 and 36 or 0
+        positions[i * 3 + 3] = 0
+    end
+    resource.set_buffer(go.get("#mesh_local", "vertices"), vertices)
+end
+
+-- Exercise update-side GPU uploads and callback lifetimes while rendering uses
+-- browser main. Resizing then shrinking a shared buffer guards against stale
+-- mesh uploads; the animated models cover CPU, GPU and instanced skinning.
+function init(self)
+    self.tick = 0
+    self.done = 0
+    go.set("#mesh_world", "tint", vmath.vector4(1, 1, 0, 1))
+    go.set("#mesh_local", "tint", vmath.vector4(0, 1, 1, 1))
+    go.set("#static", "tint", vmath.vector4(0, 0, 1, 1))
+    go.set("#cpu", "tint", vmath.vector4(1, 0, 1, 1))
+    go.set("#gpu", "tint", vmath.vector4(1, 0, 0, 1))
+    go.set("#instanced_a", "tint", vmath.vector4(0, 1, 0, 1))
+    go.set("#instanced_b", "tint", vmath.vector4(0, 1, 0, 1))
+    for _, url in ipairs(animated) do
+        model.play_anim(url, "move", go.PLAYBACK_ONCE_FORWARD, {}, function(self, id)
+            assert(id == hash("model_animation_done"))
+            self.done = self.done + 1
+        end)
+    end
+end
+
+function update(self, dt)
+    self.tick = self.tick + 1
+    if self.tick == 20 then
+        for _, url in ipairs(animated) do
+            -- The model importer canonicalizes the sole root joint to "root".
+            assert(go.get_position(model.get_go(url, "root")).x > 1, "bone animation did not advance")
+            go.set(url, "cursor", 0.5)
+            go.set(url, "playback_rate", 0)
+        end
+        replace_vertices(6, 8)
+    elseif self.tick == 70 then
+        replace_vertices(3, 16)
+    elseif self.tick == 75 then
+        -- Hold the displaced pose for browser pixel checks, including GPU
+        -- skinning; checking only the final bind pose could miss broken uploads.
+        io.write("WEB_GEOMETRY_MOTION\n")
+        io.flush()
+    elseif self.tick == 100 then
+        for _, url in ipairs(animated) do go.set(url, "playback_rate", 1) end
+    elseif self.tick == 105 then
+        msg.post("#gpu", "disable")
+    elseif self.tick == 115 then
+        msg.post("#gpu", "enable")
+    elseif self.tick == 160 then
+        assert(self.done == 4, "model animation callbacks incomplete")
+        assert(_G.web_geometry_created == 2 and _G.web_geometry_deleted == 2, "dynamic model/mesh lifecycle incomplete")
+        local positions = buffer.get_stream(resource.get_buffer(go.get("#mesh_local", "vertices")), "position")
+        assert(positions[1] == 16)
+        collectgarbage("collect")
+        io.write("WEB_GEOMETRY_CHECK animations=4 created=2 deleted=2 buffer_offset=16\n")
+        io.flush()
+    end
+end

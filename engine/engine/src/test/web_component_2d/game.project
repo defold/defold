@@ -1,0 +1,26 @@
+[project]
+title = Web component smoke
+[bootstrap]
+main_collection = /main.collectionc
+[display]
+width = 640
+height = 360
+update_frequency = 0
+[script]
+shared_state = 1
+[input]
+game_binding = /input.input_bindingc
+[render]
+poc_pipeline = component
+poc_threaded = 1
+poc_web_2d = 1
+[sound]
+use_thread = 0
+max_sound_instances = 16
+[engine]
+poc_replay_hz = 60
+[replay]
+enabled = 1
+[physics]
+type = 2D
+gravity_y = -100

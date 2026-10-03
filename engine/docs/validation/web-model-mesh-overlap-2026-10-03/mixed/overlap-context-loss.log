@@ -1,0 +1,6 @@
+%c    %c    Made with Defold    %c    %c    https://www.defold.com background: #fd6623; padding:5px 0; border: 5px; background: #272c31; color: #fafafa; padding:5px 0; background: #39a3e4; padding:5px 0; background: #ffffff; color: #000000; padding:5px 0;
+PoC replay timestep: enabled (hz=60)
+WEB_POC_ACTIVE component-web-snapshots: simulation=pthread graphics=browser-main slots=2
+WEB_POC_SCHEDULE completion_dispatch=0 metrics=0
+WEB_POC_OPTIONS schedule=0 cache_window=1
+WEB_POC_DONE code=1 mode=component-web-snapshots updates=1 input_snapshots=1

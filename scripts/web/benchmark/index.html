@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><title>Web rendering comparison</title>
+<body style="margin:0;background:#121824"><canvas id="canvas" tabindex="0"></canvas>
+<script>
+const q=new URLSearchParams(location.search), mode=q.get('mode')||'direct';
+const policies={direct:[0,0,0],inline:[0,0,0],threaded:[1,0,0],scheduled:[1,1,0],cached_raf:[1,0,1],cached_completion:[1,1,1],cached_retry:[1,2,1]};
+if(!policies[mode])throw Error('Unknown benchmark mode: '+mode);
+const [threaded,schedule,cacheWindow]=policies[mode];
+const bunny=q.get('scene')==='bunny', width=bunny?720:1280, height=720;
+const canvas=document.getElementById('canvas');
+canvas.width=width;canvas.height=height;canvas.style.width=width+'px';canvas.style.height=height+'px';
+if(!crossOriginIsolated) throw Error('COOP/COEP required');
+var Module={canvas,preRun:[function(){FS.mkdir('/data');}],arguments:[
+ '--config=render.poc_pipeline='+(mode==='direct'?'legacy':'component'),
+ '--config=render.poc_threaded='+threaded,
+ '--config=render.poc_web_schedule='+schedule,
+ '--config=render.poc_web_cache_window='+cacheWindow,
+ '--config=render.poc_web_metrics='+ (q.get('metrics')==='0'?0:1),
+ '--config=render.poc_web_stack_kb='+(q.get('stack_kb')||5120),
+ '--config=render.poc_web_stack_measure='+(q.get('stack_measure')||0),
+ '--config=display.high_dpi='+(bunny?1:0),'--config=display.width='+width,'--config=display.height='+height,
+ '--config=benchmark.output_path=/result.json',
+ '--config=benchmark.warmup_seconds='+(q.get('warmup')||5),
+ '--config=benchmark.measure_seconds='+(q.get('seconds')||15),
+ '--config=benchmark.cooldown_seconds=0.2',
+ '--config=benchmark.memory_interval=2',
+ '--config=render.mixed_preparation=0',
+ '--config=sound.use_thread=0','--config=sound.max_sound_instances=0'],
+ print:s=>{console.log(s);(window.lines||=[]).push(s)},printErr:s=>{console.error(s);(window.lines||=[]).push(s)},
+ onExit:code=>window.exitCode=code,onAbort:reason=>window.abortReason=String(reason)};
+if(q.get('metrics')!=='0')Module.arguments.push('--config=render.sprite_trace=/trace.csv');
+if(bunny) Module.arguments.push('--config=bootstrap.main_collection=/example/bunnymark.collectionc','--config=bunnymark.initial_count='+(q.get('count')||30000));
+for(const key of ['count','simulation_iterations','moving_fraction','sprite_size','passes','visible_fraction']) if(q.has(key))Module.arguments.push('--config=benchmark.'+key+'='+q.get(key));
+Module.arguments.push('/content/game.projectc');
+</script><script src="dmengine_release.js"></script>

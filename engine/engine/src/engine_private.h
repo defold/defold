@@ -110,6 +110,7 @@ namespace dmEngine
 
     struct RenderFrameState;
     struct SpriteThreadState;
+    struct ComponentThreadState;
     struct MixedInlineState;
     struct Engine
     {
@@ -136,6 +137,9 @@ namespace dmEngine
         RenderFrameState*                          m_RenderFrame;
         uint32_t                                   m_PocPipeline;
         bool                                       m_PocThreaded;
+        bool                                       m_PocWebComponents; // Exclusive worker/main handoff for broad component compatibility
+        bool                                       m_PocWebOverlap;
+        ComponentThreadState*                      m_ComponentThread;
         SpriteThreadState*                         m_SpriteThread;
         MixedInlineState*                          m_MixedInline;
         dmRender::FrameTrace*                       m_SpriteTrace;
@@ -281,6 +285,7 @@ namespace dmEngine
     // adds at most max(0, max_time_step - fixed_dt); negative balance shortens the
     // step without allowing negative dt. Exposed for deterministic unit testing.
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
+    bool IsPocWebComponentAllowed(const char* name);
     bool IsPocThreadComponentAllowed(const char* name, bool mixed, bool gameplay, bool has_renderer);
 
     /**

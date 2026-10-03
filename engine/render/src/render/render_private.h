@@ -315,6 +315,7 @@ namespace dmRender
         LIGHT_BUFFER_LIGHT_STRIDE = 64,
     };
 
+    struct ComponentFrame;
     struct RenderContext
     {
         DebugRenderer               m_DebugRenderer;
@@ -373,6 +374,9 @@ namespace dmRender
         uint16_t                    m_UseAdjustedNDC               : 1;
         uint16_t                    m_CurrentRenderCameraUseFrustum : 1;
         uint8_t                     m_IsRenderPaused; // Main-thread state, not a consumer bitfield.
+        ComponentFrame*             m_ComponentFrameCapture;
+        bool                        m_ComponentFramesEnabled;
+        bool                        m_UseCapturedLightBuffer;
     };
 
     struct BufferedRenderBuffer
@@ -405,6 +409,7 @@ namespace dmRender
     void     ApplyProgramSampler(dmRender::HRenderContext render_context, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture);
 
     void FillElementIds(const char* name, char* buffer, uint32_t buffer_size, dmhash_t element_ids[4]);
+    void GetComponentFrameLights(HRenderContext context, const LightSTD140** lights, uint32_t* count, dmVMath::Vector3* ambient);
 
     // Return true if the predicate tags all exist in the material tag list
     bool                            MatchMaterialTags(uint32_t material_tag_count, const dmhash_t* material_tags, uint32_t tag_count, const dmhash_t* tags);

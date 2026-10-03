@@ -35,6 +35,8 @@ namespace dmRender
         uint64_t m_Controls;
         uint64_t m_ControlUs;
         uint64_t m_CapturesWithConsumerOutstanding;
+        uint64_t m_SimulationsDuringRender;
+        uint64_t m_SimulationOverlapUs;
         uint32_t m_MaxOutstanding;
         uint32_t m_SlotCount;
         uint32_t m_ControlCapacity;
@@ -78,6 +80,9 @@ namespace dmRender
     bool PumpExternalRenderThread(HRenderThread thread);
     uint32_t BeginRenderThreadFrame(HRenderThread thread);
     void MarkRenderThreadFrameCaptured(HRenderThread thread);
+    // Counts complete simulation intervals contained in an active consumption.
+    // This is stronger than counting a merely queued/outstanding frame.
+    void MarkRenderThreadSimulationComplete(HRenderThread thread, uint64_t begin);
     void PublishRenderThreadFrame(HRenderThread thread, uint32_t slot, FrameTraceRecord* trace = 0);
     void CancelRenderThreadFrame(HRenderThread thread, uint32_t slot);
     void DrainRenderThread(HRenderThread thread);

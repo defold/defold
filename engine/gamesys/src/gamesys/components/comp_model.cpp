@@ -30,6 +30,7 @@
 #include <graphics/graphics.h>
 #include <rig/rig.h>
 #include <render/render.h>
+#include <render/component_frame.h>
 #include <gameobject/gameobject_ddf.h>
 
 #include "../gamesys.h"
@@ -2427,7 +2428,8 @@ namespace dmGameSystem
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
 
-        WritePoseMatricesToTexture(graphics_context, world);
+        if (!dmRender::AreComponentFramesEnabled(context->m_RenderContext))
+            WritePoseMatricesToTexture(graphics_context, world);
 
         assert(world->m_MaxBatchIndex < VERTEX_BUFFER_MAX_BATCHES);
         for (int i = 0; i <= world->m_MaxBatchIndex; ++i)
@@ -2539,6 +2541,10 @@ namespace dmGameSystem
         ModelContext* context = (ModelContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = (ModelWorld*)params.m_World;
+        // Animation advances while the previous immutable frame is consumed.
+        // Upload this frame's pose only after that consumer has retired.
+        if (dmRender::AreComponentFramesEnabled(render_context))
+            WritePoseMatricesToTexture(dmRender::GetGraphicsContext(render_context), world);
 
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
 

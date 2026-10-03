@@ -1,0 +1,4 @@
+image: "/tile.png"
+tile_width: 8
+tile_height: 8
+animations { id: "tile" start_tile: 1 end_tile: 1 playback: PLAYBACK_LOOP_FORWARD }

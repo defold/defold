@@ -1,0 +1,59 @@
+ERROR:DLIB: Unable to bind to log socket (-1): ACCES
+INFO:DLIB: Log server started on port 0
+[36mModelTest[0m
+[33mGetAABB[0m
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGetAABB[0m [32mPASS[0m (2986 µs)
+[33mPlayAnim[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPlayAnim[0m [32mPASS[0m (1.21514 s)
+[33mPlayAnimMessage[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPlayAnimMessage[0m [32mPASS[0m (1.21241 s)
+[33mPlayAnimMissingAnimation[0m
+ERROR:GAMESYS: 'collection:/go#fox' has no animation named 'Missing'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPlayAnimMissingAnimation[0m [32mPASS[0m (39.254 ms)
+[33mBlendWeightsScript[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBlendWeightsScript[0m [32mPASS[0m (41.364 ms)
+[33mMultiMaterialVertexSpaceRenderBatching[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMultiMaterialVertexSpaceRenderBatching[0m [32mPASS[0m (1333 µs)
+[33mMorphTargetInstancedWeightsBatch[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMorphTargetInstancedWeightsBatch[0m [32mPASS[0m (967 µs)
+[33mInstancedRenderBufferUsesOneBackingPerDispatch[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mInstancedRenderBufferUsesOneBackingPerDispatch[0m [32mPASS[0m (279 µs)
+[33mSelectedMeshUsesInstantiatedMorphModelId[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSelectedMeshUsesInstantiatedMorphModelId[0m [32mPASS[0m (332 µs)
+[33mMorphTargetUniformWeightsSplitInstancedBatches[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMorphTargetUniformWeightsSplitInstancedBatches[0m [32mPASS[0m (616 µs)
+[33mMorphTargetInstancedWeightsClampedPerMesh[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMorphTargetInstancedWeightsClampedPerMesh[0m [32mPASS[0m (559 µs)
+[33mMorphTargetUniformWeightsClampedPerMesh[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMorphTargetUniformWeightsClampedPerMesh[0m [32mPASS[0m (463 µs)
+[33mDynamicVertexAttributes[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDynamicVertexAttributes[0m [32mPASS[0m (785 µs)
+[33mMeshAttributeRenderDataPurge[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMeshAttributeRenderDataPurge[0m [32mPASS[0m (522 µs)
+[33mMeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap[0m [32mPASS[0m (2065 µs)
+[33mMeshAttributeRenderDataPurgeAcrossFrameTickWrap[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMeshAttributeRenderDataPurgeAcrossFrameTickWrap[0m [32mPASS[0m (532 µs)
+[33mPbrProperties[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPbrProperties[0m [32mPASS[0m (3909 µs)
+[36mModelTest[0m took 2.53521 s
+Ran 17 tests, with 3162 assertions in 2.53521 s
+17 tests [32mPASSED[0m and 546 skipped

@@ -3131,6 +3131,13 @@ static void DispatchExternalTest(dmGraphics::GraphicsOwnerTask execute, void* da
     while (lane->m_Call) dmConditionVariable::Wait(lane->m_Changed, lane->m_Mutex);
 }
 
+static void ExternalConsumeUploadedBuffer(void* data)
+{
+    ASSERT_TRUE(dmGraphics::IsGraphicsPacketOwner());
+    dmGraphics::HVertexBuffer buffer = *(dmGraphics::HVertexBuffer*)data;
+    ASSERT_EQ(42U, *(uint32_t*)((dmGraphics::VertexBuffer*)buffer)->m_Buffer);
+}
+
 static void ExternalResourceProducer(void* data)
 {
     ExternalOwnerTestLane* lane = (ExternalOwnerTestLane*)data;
@@ -3141,7 +3148,7 @@ static void ExternalResourceProducer(void* data)
     dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(lane->m_Context, 4, &value, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     dmGraphics::SetVertexBufferData(buffer, 4, &value, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     value = 99; // The queued upload must own the original 42.
-    dmGraphics::FlushGraphicsPackets();
+    ASSERT_TRUE(dmGraphics::DispatchExternalGraphics(ExternalConsumeUploadedBuffer, &buffer));
     ASSERT_EQ(42U, *(uint32_t*)((dmGraphics::VertexBuffer*)buffer)->m_Buffer);
     dmGraphics::DeleteVertexBuffer(buffer);
     dmGraphics::FlushGraphicsPackets();
@@ -3152,6 +3159,7 @@ static void ExternalResourceProducer(void* data)
 
 // Verifies resource creation, owned upload bytes and deletion run on an external
 // graphics owner while only the simulation producer waits for acknowledgment.
+// The consumption handoff must flush pending mesh uploads before it executes.
 TEST_F(dmGraphicsTest, ExternalOwnerResourceLane)
 {
     ExternalOwnerTestLane lane = {};
@@ -3180,7 +3188,70 @@ TEST_F(dmGraphicsTest, ExternalOwnerResourceLane)
     }
     dmMutex::Unlock(lane.m_Mutex);
     dmThread::Join(worker);
-    ASSERT_EQ(3U, lane.m_Calls);
+    ASSERT_EQ(4U, lane.m_Calls);
+    dmGraphics::DetachExternalGraphicsProducer();
+    dmGraphics::StopGraphicsPackets();
+    g_ExternalTestLane = 0;
+    dmConditionVariable::Delete(lane.m_Changed);
+    dmMutex::Delete(lane.m_Mutex);
+}
+
+struct ExternalWindowProbe
+{
+    ExternalOwnerTestLane m_Lane;
+    uint32_t m_Expected;
+};
+
+static void ExternalWindowProducer(void* data)
+{
+    ExternalWindowProbe* probe = (ExternalWindowProbe*)data;
+    dmGraphics::AttachExternalGraphicsProducer();
+    ASSERT_EQ(probe->m_Expected, dmGraphics::GetWindowStateParam(probe->m_Lane.m_Context, WINDOW_STATE_OPENED));
+    DM_MUTEX_SCOPED_LOCK(probe->m_Lane.m_Mutex);
+    probe->m_Lane.m_Done = true;
+    dmConditionVariable::Broadcast(probe->m_Lane.m_Changed);
+}
+
+// Verifies OPENED reads use the published owner snapshot without a roundtrip,
+// refresh to closed on the next publication, and retain the uncached control.
+TEST_F(dmGraphicsTest, ExternalOwnerWindowSnapshot)
+{
+    ExternalWindowProbe probe = {};
+    ExternalOwnerTestLane& lane = probe.m_Lane;
+    lane.m_Context = m_Context;
+    lane.m_Mutex = dmMutex::New();
+    lane.m_Changed = dmConditionVariable::New();
+    g_ExternalTestLane = &lane;
+    ASSERT_TRUE(dmGraphics::StartExternalGraphicsOwner(m_Context, DispatchExternalTest));
+    for (uint32_t step = 0; step < 4; ++step)
+    {
+        if (step == 1) dmGraphics::CloseWindow(m_Context);
+        // Closing on owner must not mutate a snapshot already published to game.
+        if (step != 1) dmGraphics::UpdateExternalGraphicsWindow(m_Context, step != 3);
+        probe.m_Expected = step < 2 ? 1 : 0;
+        lane.m_Done = false;
+        lane.m_Calls = 0;
+        dmThread::Thread worker = dmThread::New(ExternalWindowProducer, 0x80000, &probe, "external-window-test");
+        dmMutex::Lock(lane.m_Mutex);
+        while (!lane.m_Done)
+        {
+            while (!lane.m_Call && !lane.m_Done) dmConditionVariable::Wait(lane.m_Changed, lane.m_Mutex);
+            if (lane.m_Call)
+            {
+                dmGraphics::GraphicsOwnerTask call = lane.m_Call;
+                void* data = lane.m_Data;
+                dmMutex::Unlock(lane.m_Mutex);
+                call(data);
+                dmMutex::Lock(lane.m_Mutex);
+                ++lane.m_Calls;
+                lane.m_Call = 0;
+                dmConditionVariable::Broadcast(lane.m_Changed);
+            }
+        }
+        dmMutex::Unlock(lane.m_Mutex);
+        dmThread::Join(worker);
+        ASSERT_EQ(step == 3 ? 1U : 0U, lane.m_Calls);
+    }
     dmGraphics::DetachExternalGraphicsProducer();
     dmGraphics::StopGraphicsPackets();
     g_ExternalTestLane = 0;

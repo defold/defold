@@ -30,6 +30,7 @@ namespace dmEngine
     void DrainWebComponentFrame(Engine* engine);
     void AttachWebComponentProducer(Engine* engine);
     bool WebCanRender();
+    bool WebHasContinuousFrames(Engine* engine);
     void WebDispatchGraphics(void (*execute)(void*), void* data);
 }
 #endif

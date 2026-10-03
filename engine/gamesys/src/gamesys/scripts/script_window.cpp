@@ -18,6 +18,7 @@
 #include <script/script.h>
 #include <hid/hid.h>
 #include <platform/window.hpp>
+#include <graphics/graphics_packet.h>
 
 #include "script_window.h"
 
@@ -106,6 +107,40 @@ struct CallbackInfo
 };
 
 WindowInfo g_Window = {};
+
+// Keep browser/window calls on the graphics owner. The calling Lua thread waits
+// with live operands; none of these callbacks access Lua or re-enter simulation.
+struct OwnerWindowCall
+{
+    uint32_t m_Operation;
+    WindowSafeArea* m_Area;
+    const char* m_Title;
+    int32_t m_X, m_Y;
+    float m_Scale;
+    bool m_Result;
+};
+static void ExecuteOwnerWindowCall(void* data)
+{
+    OwnerWindowCall* call = (OwnerWindowCall*)data;
+    switch (call->m_Operation)
+    {
+        case 0: call->m_Result = dmPlatform::GetSafeArea(g_Window.m_Window, call->m_Area); break;
+        case 1: call->m_Scale = dmPlatform::GetDisplayScaleFactor(g_Window.m_Window); break;
+        case 2: dmPlatform::SetWindowTitle(g_Window.m_Window, call->m_Title); break;
+        case 3: dmPlatform::SetWindowSize(g_Window.m_Window, call->m_X, call->m_Y); break;
+        case 4: dmPlatform::SetWindowPosition(g_Window.m_Window, call->m_X, call->m_Y); break;
+        case 5:
+            if (call->m_X) dmHID::HideMouseCursor(g_Window.m_HidContext);
+            else dmHID::ShowMouseCursor(g_Window.m_HidContext);
+            break;
+    }
+}
+static void RunOwnerWindowCall(OwnerWindowCall* call)
+{
+    if (!dmGraphics::DispatchExternalGraphics(ExecuteOwnerWindowCall, call))
+        ExecuteOwnerWindowCall(call);
+}
+
 
 static void PushNumberOrNil(lua_State* L, const char* name, bool expression, lua_Number number)
 {
@@ -213,15 +248,9 @@ static int SetMouseLock(lua_State* L)
 
     bool flag = dmScript::CheckBoolean(L, 1);
 
-    // Hiding the cursor is the same thing as locking it currently
-    if (flag)
-    {
-        dmHID::HideMouseCursor(g_Window.m_HidContext);
-    }
-    else
-    {
-        dmHID::ShowMouseCursor(g_Window.m_HidContext);
-    }
+    OwnerWindowCall call = {};
+    call.m_Operation = 5; call.m_X = flag;
+    RunOwnerWindowCall(&call);
 
     return 0;
 }
@@ -314,7 +343,10 @@ static int GetSafeArea(lua_State* L)
     DM_LUA_STACK_CHECK(L, 1);
 
     WindowSafeArea safe_area;
-    if (!dmPlatform::GetSafeArea(g_Window.m_Window, &safe_area))
+    OwnerWindowCall call = {};
+    call.m_Operation = 0; call.m_Area = &safe_area;
+    RunOwnerWindowCall(&call);
+    if (!call.m_Result)
     {
         safe_area.m_X = 0;
         safe_area.m_Y = 0;
@@ -392,7 +424,10 @@ static int GetDisplayScale(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
-    float scale = dmPlatform::GetDisplayScaleFactor(g_Window.m_Window);
+    OwnerWindowCall call = {};
+    call.m_Operation = 1;
+    RunOwnerWindowCall(&call);
+    float scale = call.m_Scale;
     lua_pushnumber(L, scale);
 
     return 1;
@@ -410,7 +445,9 @@ static int SetTitle(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
 
     const char* title = luaL_checkstring(L, 1);
-    dmPlatform::SetWindowTitle(g_Window.m_Window, title);
+    OwnerWindowCall call = {};
+    call.m_Operation = 2; call.m_Title = title;
+    RunOwnerWindowCall(&call);
 
     return 0;
 }
@@ -429,7 +466,9 @@ static int SetSize(lua_State* L)
 
     int width = luaL_checkinteger(L, 1);
     int height = luaL_checkinteger(L, 2);
-    dmPlatform::SetWindowSize(g_Window.m_Window, width, height);
+    OwnerWindowCall call = {};
+    call.m_Operation = 3; call.m_X = width; call.m_Y = height;
+    RunOwnerWindowCall(&call);
 
     return 0;
 }
@@ -449,7 +488,9 @@ static int SetPosition(lua_State* L)
 
     int x = luaL_checkinteger(L, 1);
     int y = luaL_checkinteger(L, 2);
-    dmPlatform::SetWindowPosition(g_Window.m_Window, x, y);
+    OwnerWindowCall call = {};
+    call.m_Operation = 4; call.m_X = x; call.m_Y = y;
+    RunOwnerWindowCall(&call);
 
     return 0;
 }

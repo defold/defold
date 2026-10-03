@@ -1,0 +1,41 @@
+ERROR:DLIB: Unable to bind to log socket (-1): ACCES
+INFO:DLIB: Log server started on port 0
+[36mSpriteTest[0m
+[33mSnapshotGeometrySurvivesDeletion[0m
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotGeometrySurvivesDeletion[0m [32mPASS[0m (5.191 ms)
+[33mSnapshotAffineTransformsAndSlice9[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotAffineTransformsAndSlice9[0m [32mPASS[0m (837 µs)
+[33mThreadSnapshotReservationAndAccounting[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mThreadSnapshotReservationAndAccounting[0m [32mPASS[0m (305 µs)
+[33mThreadSnapshotDeletionAndSlotReuse[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mThreadSnapshotDeletionAndSlotReuse[0m [32mPASS[0m (314 µs)
+[33mThreadSnapshotCapacityAdmission[0m
+ERROR:GAMESYS: Sprite thread slot capacity budget exceeded; frame rejected
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mThreadSnapshotCapacityAdmission[0m [32mPASS[0m (308 µs)
+[33mSnapshotCopiesConstantsAndAttributes[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotCopiesConstantsAndAttributes[0m [32mPASS[0m (615 µs)
+[33mSnapshotBoundsAndCapacity[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotBoundsAndCapacity[0m [32mPASS[0m (347 µs)
+[33mSnapshotRenderMaterialOverride[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotRenderMaterialOverride[0m [32mPASS[0m (920 µs)
+[33mSnapshotConstantDeduplication[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotConstantDeduplication[0m [32mPASS[0m (402 µs)
+[33mSnapshotAdjacentBindingOverrides[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotAdjacentBindingOverrides[0m [32mPASS[0m (841 µs)
+[33mSnapshotAtlasReplacementAfterUpdate[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotAtlasReplacementAfterUpdate[0m [32mPASS[0m (303 µs)
+[36mSpriteTest[0m took 19.349 ms
+Ran 11 tests, with 602 assertions in 19.349 ms
+11 tests [32mPASSED[0m and 552 skipped

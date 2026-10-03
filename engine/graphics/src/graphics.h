@@ -42,6 +42,7 @@ namespace dmGraphics
         uint32_t m_DataOffset;
         BufferUsage m_Usage;
         bool m_SubData;
+        bool m_IndexBuffer;
     };
     struct VertexUploadBatch
     {
@@ -50,11 +51,16 @@ namespace dmGraphics
         dmArray<uint8_t> m_Data;
         uint64_t m_GrowthPeak;
         bool m_Failed;
-        VertexUploadBatch() : m_GrowthPeak(sizeof(*this)), m_Failed(false) {}
+        bool m_CaptureIndexUploads;
+        bool m_ProtectResources;
+        VertexUploadBatch() : m_GrowthPeak(sizeof(*this)), m_Failed(false), m_CaptureIndexUploads(false), m_ProtectResources(false) {}
     };
-    void BeginVertexUploadCapture(VertexUploadBatch* batch);
+    void BeginVertexUploadCapture(VertexUploadBatch* batch, bool capture_indices = false);
     bool EndVertexUploadCapture();
+    void ProtectCapturedGraphicsResources();
+    void InvalidateCapturedGraphicsResources();
     void ReplayVertexUploads(const VertexUploadBatch* batch);
+    void ReplayVertexUploads(const VertexUploadBatch* batch, uint32_t begin, uint32_t end);
     uint64_t GetVertexUploadCapacity(const VertexUploadBatch* batch);
 
     // Opt-in per-frame diagnostics. Caller owns storage until GPU drain completes.

@@ -1,0 +1,10 @@
+ERROR:DLIB: Unable to bind to log socket (-1): ACCES
+INFO:DLIB: Log server started on port 0
+[36mSpriteTest[0m
+[33mRenderFrameGeometrySurvivesDeletion[0m
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRenderFrameGeometrySurvivesDeletion[0m [32mPASS[0m (5.389 ms)
+[36mSpriteTest[0m took 8.383 ms
+Ran 1 tests, with 35 assertions in 8.383 ms
+1 tests [32mPASSED[0m and 562 skipped

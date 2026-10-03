@@ -1,0 +1,3 @@
+name: "proxy"
+instances { id: "child" prototype: "/child.go" position { x: 80 y: 260 } }
+instances { id: "geometry" prototype: "/geometry_child.go" position { x: 300 y: 70 } }

@@ -1,0 +1,10 @@
+name: "model_world"
+tags: "model"
+vertex_program: "/builtins/materials/model.vp"
+fragment_program: "/flat.fp"
+vertex_space: VERTEX_SPACE_WORLD
+vertex_constants { name: "mtx_worldview" type: CONSTANT_TYPE_WORLDVIEW }
+vertex_constants { name: "mtx_view" type: CONSTANT_TYPE_VIEW }
+vertex_constants { name: "mtx_proj" type: CONSTANT_TYPE_PROJECTION }
+vertex_constants { name: "mtx_normal" type: CONSTANT_TYPE_NORMAL }
+fragment_constants { name: "tint" type: CONSTANT_TYPE_USER value { x: 1 y: 1 z: 1 w: 1 } }

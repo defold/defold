@@ -1,0 +1,2 @@
+mesh: "/static.gltf"
+materials { name: "flat" material: "/model_local.material" }

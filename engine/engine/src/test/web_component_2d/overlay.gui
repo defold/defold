@@ -1,0 +1,5 @@
+script: "/overlay.gui_script"
+material: "/builtins/materials/gui.material"
+max_nodes: 128
+fonts { name: "default" font: "/builtins/fonts/default.font" }
+particlefxs { name: "effect" particlefx: "/effect.particlefx" }

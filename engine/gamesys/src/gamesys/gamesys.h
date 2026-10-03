@@ -248,6 +248,7 @@ namespace dmGameSystem
         uint32_t                    m_Subpixels : 1;
         uint32_t                    m_SnapshotInline : 1;
         uint32_t                    m_SnapshotThreaded : 1;
+        uint32_t                    m_ComponentFrames : 1;
         dmRender::HRenderThread      m_RenderThread;
         uint32_t                    m_SnapshotCommandBytes;
         uint64_t                    m_RenderFrameUsedBytes;

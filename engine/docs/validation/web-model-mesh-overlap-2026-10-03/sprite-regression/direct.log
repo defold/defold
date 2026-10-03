@@ -1,0 +1,6 @@
+%c    %c    Made with Defold    %c    %c    https://www.defold.com background: #fd6623; padding:5px 0; border: 5px; background: #272c31; color: #fafafa; padding:5px 0; background: #39a3e4; padding:5px 0; background: #ffffff; color: #000000; padding:5px 0;
+PoC replay timestep: enabled (hz=60)
+WEB_POC_INPUT 1
+WEB_POC_CHECK checksum=82980080 mode=existing sprites=0
+WEB_POC_PASS checksum=82980080 inputs=1 ticks=200
+program exited (with status: 0), but keepRuntimeAlive() is set (counter=1) due to an async operation, so halting execution but not exiting the runtime or preventing further async execution (you can use emscripten_force_exit, if you want to force a true shutdown)

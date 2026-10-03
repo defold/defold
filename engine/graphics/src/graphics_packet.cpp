@@ -54,7 +54,8 @@ namespace dmGraphics
         bool m_JobRunning, m_Closing;
         bool m_RenderLayer, m_OwnerFrame;
         ExternalGraphicsDispatch m_External;
-        uint32_t m_WindowWidth, m_WindowHeight, m_Iconified;
+        uint32_t m_WindowWidth, m_WindowHeight, m_Iconified, m_WindowOpened;
+        bool m_CacheWindowOpened;
         float m_DisplayScale;
         dmHashTable64<uint32_t> m_BufferSizes;
         PipelineState m_Pipeline;
@@ -67,7 +68,7 @@ namespace dmGraphics
         bool m_Busy, m_Stop, m_Ready, m_FrameOpen, m_ExecutingInline, m_Paused;
         PacketService() : m_BuildSlot(0), m_ReadSlot(0), m_DelayUs(0), m_BuildFrameBytes(0),
             m_Control(0), m_ControlData(0), m_Busy(false), m_Stop(false), m_Ready(false), m_FrameOpen(false), m_ExecutingInline(false), m_Paused(false)
-        { m_External = 0; memset(&m_Stats, 0, sizeof(m_Stats)); m_RenderLayer = m_OwnerFrame = m_JobRunning = m_Closing = false; m_JobRead = m_JobCount = m_JobBytes = 0; }
+        { m_External = 0; m_CacheWindowOpened = false; memset(&m_Stats, 0, sizeof(m_Stats)); m_RenderLayer = m_OwnerFrame = m_JobRunning = m_Closing = false; m_JobRead = m_JobCount = m_JobBytes = 0; }
     };
     static PacketService* g_Packets = 0;
     static const uint32_t MAX_PACKET_BYTES = 32 * 1024 * 1024;
@@ -93,6 +94,10 @@ namespace dmGraphics
     bool DispatchExternalGraphics(GraphicsOwnerTask execute, void* data)
     {
         if (!IsExternalGraphicsProducer()) return false;
+        // Mesh updates can queue vertex uploads before component rendering or
+        // render-script consumption. Complete those uploads before handing the
+        // live worlds to the owner; do not rely on an incidental window query.
+        FlushGraphicsPackets();
         g_Packets->m_External(execute, data);
         return true;
     }
@@ -111,13 +116,23 @@ namespace dmGraphics
         g_Packets->m_Stats.m_Mode = 1;
     }
 
-    void UpdateExternalGraphicsWindow(HContext context)
+    void UpdateExternalGraphicsWindow(HContext context, bool cache_opened)
     {
         assert(g_Packets && g_Packets->m_External && IsGraphicsPacketOwner());
         g_Packets->m_WindowWidth = GetWindowWidth(context);
         g_Packets->m_WindowHeight = GetWindowHeight(context);
         g_Packets->m_Iconified = GetWindowStateParam(context, WINDOW_STATE_ICONIFIED);
         g_Packets->m_DisplayScale = GetDisplayScaleFactor(context);
+        g_Packets->m_CacheWindowOpened = cache_opened;
+        if (cache_opened)
+            g_Packets->m_WindowOpened = GetWindowStateParam(context, WINDOW_STATE_OPENED);
+    }
+
+    bool GetExternalGraphicsWindowOpened(uint32_t* opened)
+    {
+        if (!IsExternalGraphicsProducer() || !g_Packets->m_CacheWindowOpened) return false;
+        *opened = g_Packets->m_WindowOpened;
+        return true;
     }
 
     bool GetExternalGraphicsWindow(uint32_t* width, uint32_t* height, uint32_t* iconified, float* scale)

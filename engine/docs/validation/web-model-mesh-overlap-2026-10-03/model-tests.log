@@ -1,0 +1,121 @@
+ERROR:DLIB: Unable to bind to log socket (-1): ACCES
+INFO:DLIB: Log server started on port 0
+Model/ResourceTest
+Test/0 
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /model/valid.modelc was successfully reloaded.
+Test/0  PASS (1926 µs)
+TestPreload/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+TestPreload/0  PASS (7.219 ms)
+TestPreloadAsync/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+TestPreloadAsync/0  PASS (7.426 ms)
+Test/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /model/empty_texture.modelc was successfully reloaded.
+Test/1  PASS (977 µs)
+TestPreload/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+TestPreload/1  PASS (7.714 ms)
+TestPreloadAsync/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+TestPreloadAsync/1  PASS (7.711 ms)
+Model/ResourceTest took 57.741 ms
+Model/ResourceFailTest
+Test/0 
+ERROR:RESOURCE: /model/missing.modelc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Test/0  PASS (1940 µs)
+Test/1 
+ERROR:RESOURCE: /model/invalid_material.modelc has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /model/material_missing_name.materialc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /model/invalid_material.modelc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /model/material_missing_name.materialc: FORMAT_ERROR
+Test/1  PASS (1494 µs)
+Model/ResourceFailTest took 7.426 ms
+Model/ComponentTest
+Test/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+INFO:RESOURCE: /model/valid.modelc was successfully reloaded.
+Test/0  PASS (710 µs)
+TestReloadFail/0 
+ERROR:RESOURCE: /model/valid.modelc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+TestReloadFail/0  PASS (693 µs)
+Model/ComponentTest took 5.786 ms
+Model/ComponentFailTest
+Test/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Test/0  PASS (9 µs)
+Test/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Test/1  PASS (8 µs)
+Model/ComponentFailTest took 1533 µs
+ResourceComponentTest
+ModelTexturePropertyAllTextureSlots
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+ModelTexturePropertyAllTextureSlots PASS (5.067 ms)
+ResourceComponentTest took 6.092 ms
+ModelTest
+GetAABB
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+GetAABB PASS (3045 µs)
+PlayAnim
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+PlayAnim PASS (1.20151 s)
+PlayAnimMessage
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+PlayAnimMessage PASS (1.2144 s)
+PlayAnimMissingAnimation
+ERROR:GAMESYS: 'collection:/go#fox' has no animation named 'Missing'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+PlayAnimMissingAnimation PASS (38.031 ms)
+BlendWeightsScript
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+BlendWeightsScript PASS (40.241 ms)
+MultiMaterialVertexSpaceRenderBatching
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+MultiMaterialVertexSpaceRenderBatching PASS (2211 µs)
+MorphTargetInstancedWeightsBatch
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+MorphTargetInstancedWeightsBatch PASS (1181 µs)
+InstancedRenderBufferUsesOneBackingPerDispatch
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+InstancedRenderBufferUsesOneBackingPerDispatch PASS (1490 µs)
+SelectedMeshUsesInstantiatedMorphModelId
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+SelectedMeshUsesInstantiatedMorphModelId PASS (542 µs)
+MorphTargetUniformWeightsSplitInstancedBatches
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+MorphTargetUniformWeightsSplitInstancedBatches PASS (825 µs)
+MorphTargetInstancedWeightsClampedPerMesh
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+MorphTargetInstancedWeightsClampedPerMesh PASS (941 µs)
+MorphTargetUniformWeightsClampedPerMesh
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+MorphTargetUniformWeightsClampedPerMesh PASS (855 µs)
+DynamicVertexAttributes
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DynamicVertexAttributes PASS (1113 µs)
+MeshAttributeRenderDataPurge
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+MeshAttributeRenderDataPurge PASS (624 µs)
+MeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+MeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap PASS (4213 µs)
+MeshAttributeRenderDataPurgeAcrossFrameTickWrap
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+MeshAttributeRenderDataPurgeAcrossFrameTickWrap PASS (824 µs)
+PbrProperties
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+PbrProperties PASS (5.645 ms)
+ModelTest took 2.54033 s
+Ran 30 tests, with 3329 assertions in 2.6189 s
+30 tests PASSED and 533 skipped

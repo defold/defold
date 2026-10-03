@@ -1,0 +1,16 @@
+{
+  "gitHead": "c09f89173f52d61144d4fd76f8f6224c59b4fe65",
+  "workingTreeChanges": true,
+  "platform": "wasm_pthread-web",
+  "variant": "release",
+  "configuration": "engine/build/wasm-pthread-component-poc",
+  "artifactSha256": {
+    "dmengine_release.js": "1fa84732eeca29ef5b3f8b1431f8bd9c5fd1d4b30535095fc6a682856a57d243",
+    "dmengine_release.wasm": "eea3ee078971e4cb992966165a0b5538e8da9e27ed8c3f8ff6aecf43f25156a4",
+    "dmengine_release.data": "70ddf02fa8926108708ea10cec05c8d1021ffdb038d3414438bf28e27ded3cbc",
+    "index.html": "1bfae8aa6f4dca175aedc164c72026da31f8364a3ce6809bb1d67a150ed96e5b"
+  },
+  "frozenBundle": "/Users/jhonny/dev/defold/tmp/web-model-mesh-overlap-validated-bundle",
+  "mixedResults": "mixed/results.json",
+  "spriteRegressionNote": "Sprite-only regression ran before the final light-capacity fix; that fix is used only by broad component frames."
+}

@@ -1,0 +1,160 @@
+[36mStorageBuffer[0m
+[33mLegacyDescriptorFields[0m
+[33mLegacyDescriptorFields[0m [32mPASS[0m (10 µs)
+[33mFlatBindingsAcrossSetsAndStages[0m
+[33mFlatBindingsAcrossSetsAndStages[0m [32mPASS[0m (1 µs)
+[33mDX12MixedAccessAliases[0m
+[33mDX12MixedAccessAliases[0m [32mPASS[0m (0 µs)
+[36mStorageBuffer[0m took 3089 µs
+[36mdmGraphicsTest[0m
+[33mNewDeleteContext[0m
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+[33mNewDeleteContext[0m [32mPASS[0m (0 µs)
+[33mDoubleNewContext[0m
+[33mDoubleNewContext[0m [32mPASS[0m (0 µs)
+[33mCloseWindow[0m
+[33mCloseWindow[0m [32mPASS[0m (0 µs)
+[33mTestWindowState[0m
+[33mTestWindowState[0m [32mPASS[0m (1 µs)
+[33mTestWindowSize[0m
+[33mTestWindowSize[0m [32mPASS[0m (1 µs)
+[33mTestDefaultTextureFilters[0m
+[33mTestDefaultTextureFilters[0m [32mPASS[0m (0 µs)
+[33mFlip[0m
+[33mFlip[0m [32mPASS[0m (0 µs)
+[33mClear[0m
+[33mClear[0m [32mPASS[0m (1 µs)
+[33mVertexBuffer[0m
+[33mVertexBuffer[0m [32mPASS[0m (146 µs)
+[33mIndexBuffer[0m
+[33mIndexBuffer[0m [32mPASS[0m (1 µs)
+[33mVertexStreamDeclaration[0m
+[33mVertexStreamDeclaration[0m [32mPASS[0m (3 µs)
+[33mVertexDeclaration[0m
+[33mVertexDeclaration[0m [32mPASS[0m (1 µs)
+[33mVertexDeclarationMoreThan8Streams[0m
+[33mVertexDeclarationMoreThan8Streams[0m [32mPASS[0m (3 µs)
+[33mDrawing[0m
+[33mDrawing[0m [32mPASS[0m (2 µs)
+[33mTestUniformBuffers[0m
+WARNING:GRAPHICS: Uniform buffer with hash -1 has an incompatible layout with the currently bound program at the shader binding 'buf' (hash=1685929184)
+[33mTestUniformBuffers[0m [32mPASS[0m (143 µs)
+[33mTestStorageBuffers[0m
+[33mTestStorageBuffers[0m [32mPASS[0m (3 µs)
+[33mTestUniformBufferLayoutCompatibility[0m
+[33mTestUniformBufferLayoutCompatibility[0m [32mPASS[0m (1 µs)
+[33mTestProgram[0m
+[33mTestProgram[0m [32mPASS[0m (10 µs)
+[33mTestComputeProgram[0m
+[33mTestComputeProgram[0m [32mPASS[0m (145 µs)
+[33mVertexAttributeDataTypeConversion[0m
+[33mVertexAttributeDataTypeConversion[0m [32mPASS[0m (188 µs)
+[33mVertexAttributeConversionRulesSemanticTypeNone[0m
+[33mVertexAttributeConversionRulesSemanticTypeNone[0m [32mPASS[0m (4 µs)
+[33mVertexAttributeEngineProvidedData[0m
+[33mVertexAttributeEngineProvidedData[0m [32mPASS[0m (1 µs)
+[33mVertexAttributeConversionRulesSemanticTypeOneAsW[0m
+[33mVertexAttributeConversionRulesSemanticTypeOneAsW[0m [32mPASS[0m (2 µs)
+[33mTestVertexAttributesGL3[0m
+[33mTestVertexAttributesGL3[0m [32mPASS[0m (132 µs)
+[33mTestViewport[0m
+[33mTestViewport[0m [32mPASS[0m (0 µs)
+[33mTestTexture[0m
+[33mTestTexture[0m [32mPASS[0m (2 µs)
+[33mTestTextureAsync[0m
+[33mTestTextureAsync[0m [32mPASS[0m (101.936 ms)
+[33mTestTextureAsyncDelete[0m
+[33mTestTextureAsyncDelete[0m [32mPASS[0m (151.44 ms)
+[33mTestMaxTextureSize[0m
+[33mTestMaxTextureSize[0m [32mPASS[0m (1 µs)
+[33mTestTextureDefautlOriginalDimension[0m
+[33mTestTextureDefautlOriginalDimension[0m [32mPASS[0m (5 µs)
+[33mTestRenderTargetSampleCountConformance[0m
+WARNING:GRAPHICS: Test render target requested sample_count 3, using supported sample_count 2.
+[33mTestRenderTargetSampleCountConformance[0m [32mPASS[0m (3 µs)
+[33mTestRenderTarget[0m
+[33mTestRenderTarget[0m [32mPASS[0m (227 µs)
+[33mTestCubeMapRenderTarget[0m
+ERROR:GRAPHICS: Cubemap render target dimensions must be square.
+ERROR:GRAPHICS: Cubemap render target attachments must be non-zero, square, and equally sized.
+WARNING:GRAPHICS: Null render target requested sample_count 4, using supported sample_count 1.
+[33mTestCubeMapRenderTarget[0m [32mPASS[0m (60 µs)
+[33mTestGetRTAttachment[0m
+[33mTestGetRTAttachment[0m [32mPASS[0m (5 µs)
+[33mTestRTDepthStencilTexture[0m
+[33mTestRTDepthStencilTexture[0m [32mPASS[0m (2 µs)
+[33mTestMasks[0m
+[33mTestMasks[0m [32mPASS[0m (0 µs)
+[33mTestCloseCallback[0m
+[33mTestCloseCallback[0m [32mPASS[0m (173 µs)
+[33mTestTextureSupport[0m
+[33mTestTextureSupport[0m [32mPASS[0m (0 µs)
+[33mTestTextureFormatBPP[0m
+[33mTestTextureFormatBPP[0m [32mPASS[0m (0 µs)
+[33mTestTextureFormatCompressedBlockSize[0m
+[33mTestTextureFormatCompressedBlockSize[0m [32mPASS[0m (0 µs)
+[33mTestEstimateTextureResourceDataSize[0m
+[33mTestEstimateTextureResourceDataSize[0m [32mPASS[0m (0 µs)
+[33mTestTextureFormatDataSize[0m
+[33mTestTextureFormatDataSize[0m [32mPASS[0m (0 µs)
+[33mTestIsTextureFormatCompressed[0m
+[33mTestIsTextureFormatCompressed[0m [32mPASS[0m (0 µs)
+[33mTestBCArrayTextureSupportedForType[0m
+[33mTestBCArrayTextureSupportedForType[0m [32mPASS[0m (0 µs)
+[33mTestGetTextureParams[0m
+[33mTestGetTextureParams[0m [32mPASS[0m (2 µs)
+[33mTestGraphicsHandles[0m
+[33mTestGraphicsHandles[0m [32mPASS[0m (6 µs)
+[33mTestGraphicsNativeSymbols[0m
+[33mTestGraphicsNativeSymbols[0m [32mPASS[0m (0 µs)
+[33mGraphicsPacketInlineOwnsUploads[0m
+[33mGraphicsPacketInlineOwnsUploads[0m [32mPASS[0m (7 µs)
+[33mGraphicsPacketShadowState[0m
+[33mGraphicsPacketShadowState[0m [32mPASS[0m (2 µs)
+[33mGraphicsPacketThreadedSlots[0m
+[33mGraphicsPacketThreadedSlots[0m [32mPASS[0m (12.053 ms)
+[33mGraphicsPacketResourceOrdering[0m
+[33mGraphicsPacketResourceOrdering[0m [32mPASS[0m (101 µs)
+[33mGraphicsPacketPausedResources[0m
+[33mGraphicsPacketPausedResources[0m [32mPASS[0m (88 µs)
+[33mGraphicsPacketRejectsUnsafeWork[0m
+
+jc_test: Death test begin ->
+FATAL:GRAPHICS: Graphics packet PoC: 32 MiB packet capacity exceeded
+jc_test: <- Death test end
+
+jc_test: Death test begin ->
+FATAL:GRAPHICS: Graphics packet PoC: DispatchCompute is not admitted
+jc_test: <- Death test end
+[33mGraphicsPacketRejectsUnsafeWork[0m [32mPASS[0m (39 µs)
+[33mRenderLayerOwnerService[0m
+[33mRenderLayerOwnerService[0m [32mPASS[0m (89 µs)
+[33mRenderLayerInlineOwnerBarrier[0m
+[33mRenderLayerInlineOwnerBarrier[0m [32mPASS[0m (1 µs)
+[33mRenderLayerResourceProducer[0m
+[33mRenderLayerResourceProducer[0m [32mPASS[0m (103 µs)
+[33mRenderLayerExtensionLifecycle[0m
+[33mRenderLayerExtensionLifecycle[0m [32mPASS[0m (81 µs)
+[33mRenderLayerShutdownAdmission[0m
+[33mRenderLayerShutdownAdmission[0m [32mPASS[0m (72 µs)
+[33mExternalOwnerResourceLane[0m
+[33mExternalOwnerResourceLane[0m [32mPASS[0m (82 µs)
+[33mExternalOwnerWindowSnapshot[0m
+[33mExternalOwnerWindowSnapshot[0m [32mPASS[0m (183 µs)
+[36mdmGraphicsTest[0m took 271.335 ms
+[36mdmGraphicsSynchronousTest[0m
+[33mTestTextureAsyncCallbackWithoutAsyncSupport[0m
+[33mTestTextureAsyncCallbackWithoutAsyncSupport[0m [32mPASS[0m (5 µs)
+[33mTestSetTextureBounds[0m
+
+jc_test: Death test begin ->
+Assertion failed: (!params.m_SubUpdate || (params.m_X + params.m_Width <= tex->m_Base.m_Width)), function NullSetTexture, file graphics_null.cpp, line 1723.
+jc_test: <- Death test end
+
+jc_test: Death test begin ->
+Assertion failed: (!params.m_SubUpdate || (params.m_X + params.m_Width <= tex->m_Base.m_Width)), function NullSetTexture, file graphics_null.cpp, line 1723.
+jc_test: <- Death test end
+[33mTestSetTextureBounds[0m [32mPASS[0m (82 µs)
+[36mdmGraphicsSynchronousTest[0m took 125 µs
+Ran 65 tests, with 17328 assertions in 274.549 ms
+65 tests [32mPASSED[0m and 0 skipped

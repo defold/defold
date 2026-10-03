@@ -1,0 +1,2 @@
+name: "child"
+instances { id: "child" prototype: "/child.go" position { x: 80 y: 220 } }

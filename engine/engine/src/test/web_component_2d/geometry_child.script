@@ -1,0 +1,10 @@
+-- Destroying a model while its animation is running must retire its rig,
+-- callback and GPU state safely for both factories and proxy collections.
+function init(self)
+    _G.web_geometry_created = (_G.web_geometry_created or 0) + 1
+    model.play_anim("#model", "move", go.PLAYBACK_LOOP_FORWARD)
+end
+
+function final(self)
+    _G.web_geometry_deleted = (_G.web_geometry_deleted or 0) + 1
+end

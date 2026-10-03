@@ -32,6 +32,7 @@
 #include <gameobject/gameobject_ddf.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
+#include <render/component_frame.h>
 
 #include "../gamesys_private.h"
 #include "comp_private.h"
@@ -507,7 +508,10 @@ namespace dmGameSystem
 
                 // Needs to be calculated here, since the buffer resource might have been changed since the last update
                 component.m_BufferVersion = CalcBufferVersion(&component, br);
-                UpdateVertexBuffer(world, br, component.m_BufferVersion);
+                // Prepared-frame rendering uploads on the render/capture boundary;
+                // update must not mutate buffers used by the previous frame.
+                if (!dmRender::AreComponentFramesEnabled(((MeshContext*)params.m_Context)->m_RenderContext))
+                    UpdateVertexBuffer(world, br, component.m_BufferVersion);
             }
 
             if (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants))
@@ -775,6 +779,11 @@ namespace dmGameSystem
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
             const MeshResource* mr = component->m_Resource;
             dmGameSystem::BufferResource* br = GetBufferResource(component);
+            // Lua can replace/resize this buffer after CompMeshUpdate, including
+            // from a later component update. Refresh before using its new element
+            // count, otherwise this draw can address beyond the old GPU buffer.
+            // In the web handoff path this upload already runs on graphics main.
+            UpdateVertexBuffer(world, br, CalcBufferVersion(component, br));
             VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
             assert(info != 0);
 

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "render_script.h"
+#include <graphics/graphics_packet.h>
 
 #include <string.h>
 
@@ -3154,6 +3155,8 @@ namespace dmRender
     */
     static int RenderScript_SetListener(lua_State* L)
     {
+        if (dmGraphics::IsExternalGraphicsProducer())
+            return luaL_error(L, "Web component PoC does not support render context listeners");
         CheckProducerRenderAPI(L);
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -3700,6 +3703,11 @@ bail:
     {
         instance->m_RenderFrameRecording = enabled;
         instance->m_ThreadedRecording = enabled;
+    }
+
+    bool HasRenderScriptContextListener(HRenderScriptInstance instance)
+    {
+        return instance->m_RenderContext->m_CallbackInfo != 0;
     }
 
     void SetRenderScriptThreadedRecording(HRenderScriptInstance instance, bool enabled)

@@ -1,0 +1,238 @@
+dmRenderTest
+TestFontMapTextureFiltering
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+TestFontMapTextureFiltering PASS (1 µs)
+TestGraphicsContext
+TestGraphicsContext PASS (0 µs)
+TestViewProj
+TestViewProj PASS (1 µs)
+TestRenderObjects
+WARNING:RENDER: Max number of draw calls reached (2), some objects will not be rendered. Increase the capacity with graphics.max_draw_calls
+TestRenderObjects PASS (1 µs)
+TestRenderCamera
+TestRenderCamera PASS (1 µs)
+TestRenderCameraEffectiveAspectRatio
+TestRenderCameraEffectiveAspectRatio PASS (0 µs)
+TestRenderCameraOrthographicAutoZoom
+TestRenderCameraOrthographicAutoZoom PASS (16 µs)
+TestSquare2d
+TestSquare2d PASS (1 µs)
+TestLine2d
+TestLine2d PASS (0 µs)
+TestLine3d
+TestLine3d PASS (1 µs)
+TestRenderListDraw
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListDraw PASS (8 µs)
+TestRenderListDrawState
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+DeleteVertexDeclaration; 0x10155c850
+TestRenderListDrawState PASS (11 µs)
+TestEnableTextureByHash
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestEnableTextureByHash PASS (46 µs)
+TestRenderObjectMaxTextureBindings
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderObjectMaxTextureBindings PASS (20 µs)
+TestEnableDisableContextTextures
+TestEnableDisableContextTextures PASS (3 µs)
+TestDefaultSamplerFilters
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestDefaultSamplerFilters PASS (13 µs)
+TestRenderListCulling
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListCulling PASS (11 µs)
+TestRenderListFrustumCullDeduplication
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListFrustumCullDeduplication PASS (26 µs)
+TestRenderListOrder
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListOrder PASS (7 µs)
+TestRenderListDebug
+TestRenderListDebug PASS (0 µs)
+TestRenderListSortFrontToBack
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListSortFrontToBack PASS (4 µs)
+TestRenderListSortNoneUsesInsertionOrder
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListSortNoneUsesInsertionOrder PASS (3 µs)
+GetTextMetrics
+GetTextMetrics PASS (6 µs)
+GetPreparedTextMetrics
+GetPreparedTextMetrics PASS (3 µs)
+GetTextMetricsWithNullPreparedLayout
+GetTextMetricsWithNullPreparedLayout PASS (0 µs)
+SdfEdgeTransitionWidth
+SdfEdgeTransitionWidth PASS (18 µs)
+CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout
+CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout PASS (9 µs)
+MarkupOutlineLayerOnlyCoversSpan
+MarkupOutlineLayerOnlyCoversSpan PASS (9 µs)
+MarkupWithoutEffectTagsSuppressesBaseEffects
+MarkupWithoutEffectTagsSuppressesBaseEffects PASS (4 µs)
+MarkupOutlineColorOverridesBaseOutlineColor
+MarkupOutlineColorOverridesBaseOutlineColor PASS (7 µs)
+MarkupOutlineSizeZeroDisablesAndOversizeClamps
+MarkupOutlineSizeZeroDisablesAndOversizeClamps PASS (5 µs)
+MarkupCrispShadowOnlyCoversSpan
+MarkupCrispShadowOnlyCoversSpan PASS (17 µs)
+MarkupBitmapShadowDoesNotRevealUntaggedOutline
+MarkupBitmapShadowDoesNotRevealUntaggedOutline PASS (3 µs)
+DrawTextPreservesNodeShadowAlpha
+DrawTextPreservesNodeShadowAlpha PASS (1 µs)
+DrawTextPreservesEffectAlphaAboveOne
+DrawTextPreservesEffectAlphaAboveOne PASS (6 µs)
+DrawTextPreservesEffectAlphaOverrides
+DrawTextPreservesEffectAlphaOverrides PASS (7 µs)
+DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText
+DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText PASS (3 µs)
+MarkupShadowUsesFontBlurWhenOmitted
+MarkupShadowUsesFontBlurWhenOmitted PASS (2 µs)
+MarkupShadowBlurClampsToBakedCapacity
+MarkupShadowBlurClampsToBakedCapacity PASS (4 µs)
+MarkupFontSizeScalesFinalGlyphVertices
+MarkupFontSizeScalesFinalGlyphVertices PASS (2 µs)
+MarkupUnderlineGeneratesGradientVertices
+MarkupUnderlineGeneratesGradientVertices PASS (18 µs)
+MarkupDashedDecorationsGenerateOneProceduralQuadEach
+MarkupDashedDecorationsGenerateOneProceduralQuadEach PASS (6 µs)
+MarkupDecorationInheritsOutlineAndShadowLayers
+MarkupDecorationInheritsOutlineAndShadowLayers PASS (3 µs)
+MarkupAnimatedGlyphGradientReachesFinalVertices
+MarkupAnimatedGlyphGradientReachesFinalVertices PASS (8 µs)
+MarkupAnimatedSpanGradientUsesOneFinalVertexColor
+MarkupAnimatedSpanGradientUsesOneFinalVertexColor PASS (8 µs)
+MarkupUnderlineIgnoresGlyphPositionEffects
+MarkupUnderlineIgnoresGlyphPositionEffects PASS (17 µs)
+CreateFontVertexDataUsesPreparedTextLayout
+WARNING:RENDER: Character buffer exceeded (size: 1), increase the "graphics.max_characters" property in your game.project file.
+CreateFontVertexDataUsesPreparedTextLayout PASS (7 µs)
+DrawTextUsesPreparedTextLayoutThroughRenderQueue
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+DrawTextUsesPreparedTextLayoutThroughRenderQueue PASS (22 µs)
+DrawTextPreparedTextLayoutRetainedUntilClear
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+DrawTextPreparedTextLayoutRetainedUntilClear PASS (9 µs)
+FontVertexDeclaration
+FontVertexDeclaration PASS (13 µs)
+FindRanges
+FindRanges PASS (1 µs)
+FontMapSetup
+FontMapSetup PASS (13 µs)
+FontMapNegativeGlyphAscent
+WARNING:RENDER: Glyph 96 does not fit inside its font cache cell (64 x 128).
+WARNING:RENDER: Glyph 96 does not fit inside its font cache cell (64 x 128).
+FontMapNegativeGlyphAscent PASS (20 µs)
+LightBufferTestSimple
+LightBufferTestSimple PASS (0 µs)
+LightBufferTestAllTypes
+LightBufferTestAllTypes PASS (1 µs)
+LightBufferSubmissionIsPerFrame
+LightBufferSubmissionIsPerFrame PASS (0 µs)
+LightBufferTestMultipleInstances
+LightBufferTestMultipleInstances PASS (14 µs)
+LightBufferTestIndexReuse
+LightBufferTestIndexReuse PASS (1 µs)
+LightBufferTestSetLightInstanceUpdates
+LightBufferTestSetLightInstanceUpdates PASS (1 µs)
+ConstantTypeTimeSetsTimeAndDt
+ConstantTypeTimeSetsTimeAndDt PASS (3 µs)
+ConstantTypeInverseMatricesSetExpectedValues
+ConstantTypeInverseMatricesSetExpectedValues PASS (3 µs)
+SpriteThreadCommandOwnership
+SpriteThreadCommandOwnership PASS (1 µs)
+NamedConstantMemoryCapacity
+NamedConstantMemoryCapacity PASS (14 µs)
+PreparedListOwnsDrawData
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+PreparedListOwnsDrawData PASS (8 µs)
+PreparedListAdmission
+ERROR:RENDER: Mixed preparation exceeds entry limit or has an unsupported visibility callback
+ERROR:RENDER: Mixed preparation exceeds entry limit or has an unsupported visibility callback
+PreparedListAdmission PASS (15 µs)
+PreparedListReleasesTextLayout
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+PreparedListReleasesTextLayout PASS (12 µs)
+PreparedVertexUploadsOwnBytes
+PreparedVertexUploadsOwnBytes PASS (63 µs)
+PreparedVertexUploadBudgets
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+PreparedVertexUploadBudgets PASS (44 µs)
+PreparedInlineKeepsOtherDispatches
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+PreparedInlineKeepsOtherDispatches PASS (5 µs)
+ComponentFrameOwnsPassData
+ComponentFrameOwnsPassData PASS (26 µs)
+ComponentFrameRejectsInvalidCapture
+ERROR:RENDER: Component frame capture rejected: unsupported command or frame capacity exceeded
+ERROR:RENDER: Component frame capture rejected: unsupported command or frame capacity exceeded
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ERROR:RENDER: Component frame capture rejected: unsupported command or frame capacity exceeded
+ComponentFrameRejectsInvalidCapture PASS (19 µs)
+ComponentFrameUploadRanges
+ComponentFrameUploadRanges PASS (1 µs)
+ComponentFrameOwnsLightsAndShaderCapacity
+ComponentFrameOwnsLightsAndShaderCapacity PASS (3 µs)
+dmRenderTest took 4324 µs
+Render
+TextAlignmentOffsets
+TextAlignmentOffsets PASS (1 µs)
+BatchIterator
+BatchIterator PASS (1 µs)
+Render took 10 µs
+Constants
+Constant
+Constant PASS (1 µs)
+NamedConstantsArray
+NamedConstantsArray PASS (73 µs)
+NamedConstants
+NamedConstants PASS (1 µs)
+Constants took 90 µs
+dmRenderThreadTest
+InteractiveQosLifetime
+PoC worker QoS: enabled
+InteractiveQosLifetime PASS (40 µs)
+OrderedSlotsAndPausedControls
+OrderedSlotsAndPausedControls PASS (643 µs)
+RejectUnsupportedCommandsAndOverflow
+ERROR:RENDER: Unsupported sprite thread render command: 24
+ERROR:RENDER: Sprite thread command capacity exceeded (129 > 128)
+RejectUnsupportedCommandsAndOverflow PASS (7 µs)
+ShutdownDrainsAfterCancellation
+ShutdownDrainsAfterCancellation PASS (34 µs)
+FrameTraceBoundedStorage
+FrameTraceBoundedStorage PASS (1 µs)
+TracePublicationOwnership
+TracePublicationOwnership PASS (30 µs)
+RenderFramePassConstants
+RenderFramePassConstants PASS (4 µs)
+ExternalOwnerPumpsPublishedFrames
+ExternalOwnerPumpsPublishedFrames PASS (1 µs)
+ComponentFrameSimulationOverlap
+ComponentFrameSimulationOverlap PASS (1540 µs)
+dmRenderThreadTest took 2377 µs
+RenderFrameContract
+ConditionResolution
+ConditionResolution PASS (1 µs)
+OwnedPayloadAndConsumerDispatch
+OwnedPayloadAndConsumerDispatch PASS (6 µs)
+AdmissionAndPartialFailure
+AdmissionAndPartialFailure PASS (1 µs)
+RenderFrameContract took 23 µs
+Ran 90 tests, with 2523 assertions in 6.824 ms
+90 tests PASSED and 0 skipped

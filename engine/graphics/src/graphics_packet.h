@@ -36,9 +36,12 @@ namespace dmGraphics
     void AttachExternalGraphicsProducer();
     void DetachExternalGraphicsProducer();
     bool IsExternalGraphicsProducer();
+    // Complete queued uploads before the synchronous consumption handoff.
     bool DispatchExternalGraphics(GraphicsOwnerTask execute, void* data);
-    void UpdateExternalGraphicsWindow(HContext context);
+    // Owner writes only while the producer is idle; the caller publishes before waking it.
+    void UpdateExternalGraphicsWindow(HContext context, bool cache_opened = false);
     bool GetExternalGraphicsWindow(uint32_t* width, uint32_t* height, uint32_t* iconified, float* scale);
+    bool GetExternalGraphicsWindowOpened(uint32_t* opened);
     bool StartRenderGraphicsOwner(HContext context, bool threaded);
     bool SubmitGraphicsOwnerFrame(GraphicsOwnerTask consume, void* owned_frame);
     bool QueueGraphicsOwnerRequest(GraphicsOwnerTask execute, const void* data, uint32_t size,

@@ -1,0 +1,124 @@
+{
+  "browser": "154.0.8037.95",
+  "correctnessOnly": true,
+  "results": [
+    {
+      "mode": "overlap",
+      "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 134,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "overlap-slow",
+      "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 166,
+      "artificialDrawDelayMs": 2,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "overlap-completion",
+      "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 1,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "overlap-retry",
+      "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 115,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "threaded",
+      "checkpoint": "WEB_2D_CHECK mode=component-web-serialized inputs=1 sound_done=1",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 0,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "direct",
+      "checkpoint": "WEB_2D_CHECK mode=existing inputs=1 sound_done=1",
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 0,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "inline",
+      "checkpoint": "WEB_2D_CHECK mode=existing inputs=1 sound_done=1",
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 0,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "alias",
+      "checkpoint": "WEB_2D_CHECK mode=component-web-serialized inputs=1 sound_done=1",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 0,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "context-loss",
+      "stoppedCleanly": true
+    },
+    {
+      "mode": "overlap-context-loss",
+      "stoppedCleanly": true
+    }
+  ]
+}

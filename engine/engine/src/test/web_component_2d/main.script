@@ -1,0 +1,68 @@
+local function report(s) io.write(s .. "\n"); io.flush() end
+function init(self)
+    sys.set_error_handler(function(source, message, traceback)
+        report("WEB_2D_ERROR " .. tostring(message) .. " " .. tostring(traceback))
+        sys.exit(1)
+    end)
+    self.tick = 0
+    self.loaded = false
+    self.unloaded = false
+    self.inputs = 0
+    self.sound_done = 0
+    msg.post(".", "acquire_input_focus")
+    msg.post("#proxy", "async_load")
+    particlefx.play("#effect")
+    msg.post("/camera#camera", "acquire_camera_focus")
+end
+function update(self, dt)
+    self.tick = self.tick + 1
+    if self.tick == 20 then
+        label.set_text("#label", "Label updated")
+        assert(tilemap.get_tile("#map", "tiles", 3, 3) == 1)
+        assert(tilemap.set_tile("#map", "tiles", 3, 3, 0))
+        self.spawned = factory.create("#factory", vmath.vector3(120, 120, 0))
+        self.geometry = factory.create("#geometry_factory", vmath.vector3(400, 70, 0))
+        self.collection = collectionfactory.create("#collectionfactory")
+        window.set_size(680, 400)
+        local area = window.get_safe_area()
+        assert(area.width > 0 and window.get_display_scale() > 0)
+    elseif self.tick == 40 then
+        go.delete(self.spawned)
+        go.delete(self.geometry)
+        go.delete(self.collection)
+        msg.post("#proxy", "disable")
+        msg.post("#proxy", "final")
+        msg.post("#proxy", "unload")
+    elseif self.tick == 60 then
+        window.set_size(640, 360)
+    elseif self.tick == 100 then
+        assert(go.get_position("/body").y < 180, "physics must advance")
+        msg.post("/body#collisionobject", "disable")
+    elseif self.tick == 110 then
+        go.set_position(vmath.vector3(320, 140, 0), "/body")
+    elseif self.tick == 180 then
+        assert(self.loaded and self.unloaded, "proxy lifecycle incomplete")
+        assert(label.get_text("#label") == "Label updated")
+        assert(tilemap.get_tile("#map", "tiles", 3, 3) == 0)
+        local stats = sprite._get_snapshot_stats()
+        report("WEB_OVERLAP simulations=" .. (stats.thread_simulations_during_render or 0) .. " us=" .. (stats.thread_simulation_overlap_us or 0) .. " capacity=" .. (stats.component_frame_capacity_bytes or 0))
+        report("WEB_2D_CHECK mode=" .. stats.mode .. " inputs=" .. self.inputs .. " sound_done=" .. self.sound_done)
+    elseif self.tick == 220 then
+        assert(self.inputs > 0 and self.sound_done > 0, "input/sound lifecycle incomplete")
+        report("WEB_2D_PASS")
+        sys.exit(0)
+    end
+end
+function on_message(self, id, message, sender)
+    if id == hash("proxy_loaded") then
+        self.loaded = true
+        msg.post(sender, "init")
+        msg.post(sender, "enable")
+    elseif id == hash("proxy_unloaded") then self.unloaded = true end
+end
+function on_input(self, id, action)
+    if id == hash("play") and action.pressed then
+        self.inputs = self.inputs + 1
+        sound.play("#sound", {}, function(self) self.sound_done = self.sound_done + 1 end)
+    end
+end

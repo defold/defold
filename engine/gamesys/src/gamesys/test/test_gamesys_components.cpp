@@ -755,6 +755,77 @@ TEST_F(SpriteTest, SnapshotGeometrySurvivesDeletion)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Compact affine snapshots must preserve tilted, reflected and nonuniformly
+// scaled sprites, including slice9 data, after their live components disappear.
+TEST_F(SpriteTest, SnapshotAffineTransformsAndSlice9)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    const char* paths[] = {"/sprite/valid_sprite.goc", "/sprite/sprite_slice9.goc", "/sprite/snapshot_trimmed.goc"};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+    {
+        m_SpriteContext.m_SnapshotInline = 0;
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, paths[i], dmHashString64("/affine"), 0,
+            Point3(17, -29, 5), Quat::rotationX(0.4f) * Quat::rotationY(-0.7f) * Quat::rotationZ(0.2f), Vector3(-2, 3, 0.5f));
+        ASSERT_NE((void*)0, go);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        RenderCollection(m_RenderContext, m_Collection);
+        dmArray<uint8_t> expected_vertices, expected_indices;
+        CopySpriteTestBuffers(world, expected_vertices, expected_indices);
+        ASSERT_GT(expected_vertices.Size(), 0U);
+        m_SpriteContext.m_SnapshotInline = 1;
+        CaptureSpriteTestFrame(m_RenderContext, m_Collection);
+        dmGameObject::Delete(m_Collection, go, true);
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        dmArray<uint8_t> vertices, indices;
+        CopySpriteTestBuffers(world, vertices, indices);
+        ASSERT_EQ(expected_vertices.Size(), vertices.Size());
+        ASSERT_EQ(expected_indices.Size(), indices.Size());
+        ASSERT_EQ(0, memcmp(expected_vertices.Begin(), vertices.Begin(), vertices.Size()));
+        ASSERT_EQ(0, memcmp(expected_indices.Begin(), indices.Begin(), indices.Size()));
+        CaptureSpriteTestFrame(m_RenderContext, m_Collection);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Reserving the initial active population avoids temporary bulk-array copies;
+// accounting must include both immutable slots before the older one is retired.
+TEST_F(SpriteTest, ThreadSnapshotReservationAndAccounting)
+{
+    m_SpriteContext.m_SnapshotThreaded = 1;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    for (uint32_t i = 0; i < 32; ++i)
+    {
+        char name[32];
+        dmSnPrintf(name, sizeof(name), "/reserve%u", i);
+        ASSERT_NE((void*)0, Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64(name), 0,
+            Point3((float)i, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1)));
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_TRUE(dmGameSystem::CaptureSpriteThreadFrame(world, &m_SpriteContext, 0));
+    dmGameSystem::SpriteSnapshotStats first, both;
+    dmGameSystem::GetSpriteSnapshotStats(world, &first);
+    ASSERT_EQ(32U, first.m_SpriteCount);
+    ASSERT_EQ(first.m_FrameCapacityBytes, first.m_FrameGrowthPeakBytes);
+    ASSERT_EQ(first.m_PayloadUsedBytes, first.m_SlotsPayloadUsedBytes);
+    ASSERT_TRUE(dmGameSystem::CaptureSpriteThreadFrame(world, &m_SpriteContext, 1));
+    dmGameSystem::GetSpriteSnapshotStats(world, &both);
+    ASSERT_EQ(first.m_FrameCapacityBytes * 2, both.m_FrameCapacityBytes);
+    ASSERT_EQ(first.m_PayloadUsedBytes * 2, both.m_SlotsPayloadUsedBytes);
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmGameSystem::FinishSpriteThreadFrame(world, &m_SpriteContext, i % 2);
+        ASSERT_TRUE(dmGameSystem::CaptureSpriteThreadFrame(world, &m_SpriteContext, 1 - i % 2));
+        dmGameSystem::SpriteSnapshotStats reuse;
+        dmGameSystem::GetSpriteSnapshotStats(world, &reuse);
+        ASSERT_EQ(both.m_FrameCapacityBytes, reuse.m_FrameCapacityBytes);
+        ASSERT_EQ(both.m_FrameGrowthPeakBytes, reuse.m_FrameGrowthPeakBytes);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Verifies the generic render-layer consumer preserves sprite geometry after
 // component deletion and live animation-cache eviction, with deduplicated pins.
 TEST_F(SpriteTest, RenderFrameGeometrySurvivesDeletion)
@@ -933,7 +1004,7 @@ TEST_F(SpriteTest, SnapshotBoundsAndCapacity)
     CaptureSpriteTestFrame(m_RenderContext, m_Collection);
     dmGameSystem::SpriteSnapshotStats initial;
     dmGameSystem::GetSpriteSnapshotStats(world, &initial);
-    ASSERT_EQ(128U, initial.m_RecordBytes);
+    ASSERT_EQ(96U, initial.m_RecordBytes);
     ASSERT_EQ(16U, initial.m_BoundBytes);
     ASSERT_EQ(2U, initial.m_SpriteCount);
     ASSERT_EQ(1U, initial.m_BindingCount);

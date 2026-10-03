@@ -1,0 +1,5 @@
+text: "Label initial"
+font: "/builtins/fonts/default.font"
+material: "/builtins/fonts/label.material"
+size { x: 240 y: 40 }
+pivot: PIVOT_SW

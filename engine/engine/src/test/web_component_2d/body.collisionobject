@@ -1,0 +1,10 @@
+type: COLLISION_OBJECT_TYPE_DYNAMIC
+mass: 1
+friction: 0
+restitution: 0
+group: "body"
+mask: "body"
+embedded_collision_shape {
+ shapes { position { x: 0 y: 0 z: 0 } rotation { x: 0 y: 0 z: 0 w: 1 } shape_type: TYPE_SPHERE index: 0 count: 1 }
+ data: 8
+}

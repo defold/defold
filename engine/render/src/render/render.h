@@ -362,6 +362,7 @@ namespace dmRender
     RenderScriptResult      DispatchRenderScriptInstance(HRenderScriptInstance render_script_instance);
     struct CapturedCommands;
     void                    SetRenderScriptRenderFrameRecording(HRenderScriptInstance instance, bool enabled);
+    bool                    HasRenderScriptContextListener(HRenderScriptInstance instance);
     void                    SetRenderScriptThreadedRecording(HRenderScriptInstance instance, bool enabled);
     uint64_t                GetNamedConstantBufferCapacity(HNamedConstantBuffer buffer);
     uint64_t                GetBufferedRenderBufferDataSize(HBufferedRenderBuffer buffer);

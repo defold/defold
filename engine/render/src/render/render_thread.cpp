@@ -17,6 +17,7 @@
 #include <dlib/mutex.h>
 #include <dlib/condition_variable.h>
 #include <dlib/time.h>
+#include <dlib/atomic.h>
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -105,6 +106,8 @@ namespace dmRender
         SlotState m_Slots[2];
         uint64_t m_FrameId[2];
         uint64_t m_BeginTime[2];
+        uint64_t m_ConsumerBegin;
+        int32_atomic_t m_ConsumerActive;
         RenderThreadStats m_Stats;
         bool m_External;
         bool m_ExternalRetiring;
@@ -151,10 +154,13 @@ namespace dmRender
             {
                 assert(t->m_FrameId[slot] == t->m_Stats.m_Completed + 1);
                 t->m_Slots[slot] = SLOT_READING;
+                t->m_ConsumerBegin = dmTime::GetMonotonicTime();
+                dmAtomicStore32(&t->m_ConsumerActive, 1);
                 uint64_t id = t->m_FrameId[slot];
                 dmMutex::Unlock(t->m_Mutex);
                 uint64_t begin = dmTime::GetMonotonicTime();
                 t->m_Render(t->m_Context, slot, id);
+                dmAtomicStore32(&t->m_ConsumerActive, 0);
                 uint64_t end = dmTime::GetMonotonicTime();
                 dmMutex::Lock(t->m_Mutex);
                 t->m_Stats.m_RenderUs += end - begin;
@@ -225,10 +231,13 @@ namespace dmRender
             return false;
         }
         t->m_Slots[slot] = SLOT_READING;
+        t->m_ConsumerBegin = dmTime::GetMonotonicTime();
+        dmAtomicStore32(&t->m_ConsumerActive, 1);
         uint64_t id = t->m_FrameId[slot];
         dmMutex::Unlock(t->m_Mutex);
         t->m_ExternalBegin = dmTime::GetMonotonicTime();
         t->m_Render(t->m_Context, slot, id);
+        dmAtomicStore32(&t->m_ConsumerActive, 0);
         t->m_ExternalEnd = dmTime::GetMonotonicTime();
         t->m_ExternalRetiring = true;
         // A contended acknowledgment is deferred to the next pump; browser main
@@ -268,6 +277,18 @@ namespace dmRender
         assert(t->m_Building);
         if (t->m_Stats.m_Submitted != t->m_Stats.m_Completed)
             ++t->m_Stats.m_CapturesWithConsumerOutstanding;
+    }
+
+    void MarkRenderThreadSimulationComplete(HRenderThread t, uint64_t begin)
+    {
+        uint64_t end = dmTime::GetMonotonicTime();
+        DM_MUTEX_SCOPED_LOCK(t->m_Mutex);
+        uint32_t slot = (uint32_t)(t->m_Stats.m_Completed % 2);
+        if (t->m_Slots[slot] == SLOT_READING && dmAtomicGet32(&t->m_ConsumerActive) && begin >= t->m_ConsumerBegin)
+        {
+            ++t->m_Stats.m_SimulationsDuringRender;
+            t->m_Stats.m_SimulationOverlapUs += end - begin;
+        }
     }
 
     void PublishRenderThreadFrame(HRenderThread t, uint32_t slot, FrameTraceRecord* trace)

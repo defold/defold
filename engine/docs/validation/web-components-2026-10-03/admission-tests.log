@@ -1,0 +1,9 @@
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+[36mEngineTest[0m
+[33mWebComponentAdmission[0m
+[33mWebComponentAdmission[0m [32mPASS[0m (15 µs)
+[33mWebModelMeshRequireExclusiveHandoff[0m
+[33mWebModelMeshRequireExclusiveHandoff[0m [32mPASS[0m (1 µs)
+[36mEngineTest[0m took 96 µs
+Ran 2 tests, with 24 assertions in 96 µs
+2 tests [32mPASSED[0m and 67 skipped

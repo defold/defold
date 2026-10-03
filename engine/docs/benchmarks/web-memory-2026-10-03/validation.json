@@ -1,0 +1,230 @@
+{
+  "native_snapshot_tests": {
+    "tests": 11,
+    "assertions": 602,
+    "passed": true,
+    "new_regressions": [
+      "SnapshotAffineTransformsAndSlice9",
+      "ThreadSnapshotReservationAndAccounting"
+    ]
+  },
+  "native_render_frame_geometry": {
+    "tests": 1,
+    "assertions": 35,
+    "passed": true
+  },
+  "analysis_unit_tests": {
+    "tests": 2,
+    "passed": true
+  },
+  "sprite_browser": {
+    "browser": "154.0.8037.95",
+    "correctnessOnly": true,
+    "results": [
+      {
+        "mode": "direct",
+        "code": 0,
+        "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=existing sprites=0",
+        "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+        "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+      },
+      {
+        "mode": "inline",
+        "code": 0,
+        "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=snapshot-inline sprites=256",
+        "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+        "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+      },
+      {
+        "mode": "cached-raf",
+        "code": 0,
+        "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=component-web-threaded sprites=256",
+        "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+        "stack": {
+          "reserved": 2097152,
+          "touched": 2768,
+          "measured": true
+        },
+        "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+      },
+      {
+        "mode": "cached-completion",
+        "code": 0,
+        "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=component-web-threaded sprites=256",
+        "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+        "stack": {
+          "reserved": 2097152,
+          "touched": 2768,
+          "measured": true
+        },
+        "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+      },
+      {
+        "mode": "cached-retry",
+        "code": 0,
+        "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=component-web-threaded sprites=256",
+        "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+        "stack": {
+          "reserved": 2097152,
+          "touched": 2768,
+          "measured": true
+        },
+        "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+      },
+      {
+        "mode": "cached-completion-context-loss",
+        "stoppedCleanly": true
+      }
+    ]
+  },
+  "broad_2d_browser": {
+    "browser": "154.0.8037.95",
+    "correctnessOnly": true,
+    "results": [
+      {
+        "mode": "threaded",
+        "checkpoint": "WEB_2D_CHECK mode=component-web-2d-serialized inputs=1 sound_done=1",
+        "stack": {
+          "reserved": 2097152,
+          "touched": 5184,
+          "measured": true
+        },
+        "pixelSha256": "c8734caec84ec202b82ce887da353a360be04c60c951d138e1a6a4128df7ab83"
+      },
+      {
+        "mode": "direct",
+        "checkpoint": "WEB_2D_CHECK mode=existing inputs=1 sound_done=1",
+        "pixelSha256": "c8734caec84ec202b82ce887da353a360be04c60c951d138e1a6a4128df7ab83"
+      },
+      {
+        "mode": "inline",
+        "checkpoint": "WEB_2D_CHECK mode=existing inputs=1 sound_done=1",
+        "pixelSha256": "c8734caec84ec202b82ce887da353a360be04c60c951d138e1a6a4128df7ab83"
+      },
+      {
+        "mode": "context-loss",
+        "stoppedCleanly": true
+      }
+    ]
+  },
+  "stack_pilots": [
+    {
+      "run": "bunny30k-cached_completion-1",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 9936,
+        "measured": true
+      },
+      "valid": true
+    },
+    {
+      "run": "render50k-cached_completion-1",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 4688,
+        "measured": true
+      },
+      "valid": true
+    },
+    {
+      "run": "bunny30k-linear-1",
+      "stack": {
+        "reserved": 2097152,
+        "touched": 9936,
+        "measured": true
+      },
+      "valid": true
+    },
+    {
+      "run": "bunny30k-optimized-1",
+      "stack": {
+        "reserved": 2097152,
+        "touched": 9936,
+        "measured": true
+      },
+      "valid": true
+    },
+    {
+      "run": "render50k-linear-1",
+      "stack": {
+        "reserved": 2097152,
+        "touched": 4688,
+        "measured": true
+      },
+      "valid": true
+    },
+    {
+      "run": "render50k-optimized-1",
+      "stack": {
+        "reserved": 2097152,
+        "touched": 4688,
+        "measured": true
+      },
+      "valid": true
+    }
+  ],
+  "artifact_hashes": {
+    "before": {
+      "dmengine_release.js": "2756b179cc65a2e789061fce1808c29bb1996acd6742f38ce8f3077b0a72889d",
+      "index.html": "0d27fc9045346040faef2678ced678164c303b7a67e04a379514c5ced19decd9",
+      "dmengine_release.data": "7091ff5548d5a76535f944c92080d20e42505326efda888486fc2950756eafa8",
+      "dmengine_release.wasm": "a3d719c70873f32f2e80c58b1a375b08f8dbdf99fa0847dd6307d3435739a42d"
+    },
+    "optimized": {
+      "dmengine_release.js": "2756b179cc65a2e789061fce1808c29bb1996acd6742f38ce8f3077b0a72889d",
+      "index.html": "0d27fc9045346040faef2678ced678164c303b7a67e04a379514c5ced19decd9",
+      "dmengine_release.data": "7091ff5548d5a76535f944c92080d20e42505326efda888486fc2950756eafa8",
+      "dmengine_release.wasm": "860fe336e59d680f6c24aabe285642bebd7cf65765b2f0cbbcd93075768da426"
+    },
+    "linear": {
+      "dmengine_release.js": "9ce90b17a6111c6313616b98fbf42860d853ddc8491832e60bdf4cd447bfe595",
+      "index.html": "0d27fc9045346040faef2678ced678164c303b7a67e04a379514c5ced19decd9",
+      "dmengine_release.data": "7091ff5548d5a76535f944c92080d20e42505326efda888486fc2950756eafa8",
+      "dmengine_release.wasm": "860fe336e59d680f6c24aabe285642bebd7cf65765b2f0cbbcd93075768da426"
+    }
+  },
+  "defaults": {
+    "worker_stack_kib": 5120,
+    "memory_growth": "Emscripten default; optional CMake linear override"
+  },
+  "notes": [
+    "Native tests run from their generated gamesys-test-runtime directory.",
+    "Browser correctness uses headless software graphics; performance uses visible hardware-accelerated Chrome.",
+    "Hidden-state correctness is injected control-flow coverage, not a physical visibility test.",
+    "Deepest stack writes exclude main-thread initialization/finalization, unwritten reservations and JavaScript stack."
+  ],
+  "matrix": {
+    "runs": 36,
+    "valid": 36,
+    "unique_runs": 36,
+    "all_exit_codes_zero": true,
+    "artifact_hashes_unchanged_after_collection": true,
+    "identical_content_archive": true,
+    "timing_overflows": 0,
+    "all_expected_sprite_counts": true
+  },
+  "final_source_hashes": {
+    "engine/gamesys/src/gamesys/components/comp_sprite.cpp": "516e705dc560a782cdf05322ebe2a70e63f104be9a84a7b6e8a93615d2ecddb8",
+    "engine/engine/src/engine_web.cpp": "20f9bc056c9cd68bcb9fdfd285e51032b87abac7ee834bc5f4fd6fd0b80b6f4a",
+    "scripts/cmake/platform_html5.cmake": "f527ae49460fe6c662cc8a5a42c96574b142853a7d4b211ffff272b74560fdae",
+    "scripts/web/benchmark/run.cjs": "f5ee802113044f64666aa5e2a395d912db2f484763fe1ac79f907ee33096cd12",
+    "scripts/web/benchmark/memory_probe.lua": "a1b313d07fc1b223ec880cccdd9d3031bd29b37716fcd4c172e779ceec798256"
+  },
+  "cleanup": {
+    "stopped": [
+      {
+        "pid": 24547,
+        "command": "/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python scripts/web/serve_component_poc.py tmp/web-memory-bundles/before --port 8766"
+      },
+      {
+        "pid": 24557,
+        "command": "caffeinate -diu -t 7200"
+      },
+      {
+        "pid": 25875,
+        "command": "/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python scripts/web/serve_component_poc.py tmp/web-memory-bundles --port 8767"
+      }
+    ],
+    "permanent_power_settings_changed": false
+  }
+}

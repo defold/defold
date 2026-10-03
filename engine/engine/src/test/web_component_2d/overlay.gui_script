@@ -1,0 +1,23 @@
+function init(self)
+    self.box = gui.new_box_node(vmath.vector3(480, 200, 0), vmath.vector3(100, 60, 0))
+    gui.set_color(self.box, vmath.vector4(0.2, 0.8, 0.3, 1))
+    self.text = gui.new_text_node(vmath.vector3(320, 310, 0), "GUI initial")
+    gui.set_font(self.text, "default")
+    self.effect = gui.new_particlefx_node(vmath.vector3(500, 100, 0), "effect")
+    gui.play_particlefx(self.effect)
+    self.tick = 0
+end
+function update(self, dt)
+    self.tick = self.tick + 1
+    if self.tick == 30 then
+        assert(gui.new_texture("dynamic", 2, 2, "rgba", string.rep(string.char(255, 255, 255, 255), 4)))
+        gui.set_texture(self.box, "dynamic")
+        gui.set_text(self.text, "GUI updated")
+        gui.set_size(self.box, vmath.vector3(120, 70, 0))
+    elseif self.tick == 50 then
+        gui.delete_node(self.box)
+        gui.delete_texture("dynamic")
+        self.box = gui.new_box_node(vmath.vector3(480, 200, 0), vmath.vector3(120, 70, 0))
+        gui.set_color(self.box, vmath.vector4(0.2, 0.8, 0.3, 1))
+    end
+end

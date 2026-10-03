@@ -688,6 +688,8 @@ var LibrarySoundDevice =
     dmDeviceJSFreeBufferSlots__proxy: 'sync',
     dmDeviceJSFreeBufferSlots__sig: 'ii',
 
+    dmGetDeviceSampleRate__proxy: 'sync',
+    dmGetDeviceSampleRate__sig: 'ii',
     dmGetDeviceSampleRate: function(id) {
         var shared = DefoldSoundDevice.GetGlobal()._dmJSDeviceShared;
         return shared.devices[id].sampleRate;

@@ -1,0 +1,7 @@
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+EngineTest
+WebComponentAdmission
+WebComponentAdmission PASS (18 µs)
+EngineTest took 106 µs
+Ran 1 tests, with 16 assertions in 106 µs
+1 tests PASSED and 68 skipped

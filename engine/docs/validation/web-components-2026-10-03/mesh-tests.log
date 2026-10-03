@@ -1,0 +1,93 @@
+ERROR:DLIB: Unable to bind to log socket (-1): ACCES
+INFO:DLIB: Log server started on port 0
+[36mMesh/ResourceTest[0m
+[33mTest[0m/0 
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /mesh/no_data.meshc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (1058 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (7.651 ms)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (7.598 ms)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /mesh/triangle.meshc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (628 µs)
+[33mTestPreload[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/1  [32mPASS[0m (7.586 ms)
+[33mTestPreloadAsync[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/1  [32mPASS[0m (7.585 ms)
+[36mMesh/ResourceTest[0m took 56.3 ms
+[36mMeshSet/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /meshset/valid_gltf.meshsetc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (270 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1535 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1541 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /meshset/valid_gltf.skeletonc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (18 µs)
+[33mTestPreload[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/1  [32mPASS[0m (1555 µs)
+[33mTestPreloadAsync[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/1  [32mPASS[0m (1547 µs)
+[33mTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /meshset/valid_gltf_generated_0.animationsetc was successfully reloaded.
+[33mTest[0m/2  [32mPASS[0m (20 µs)
+[33mTestPreload[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/2  [32mPASS[0m (1556 µs)
+[33mTestPreloadAsync[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/2  [32mPASS[0m (1591 µs)
+[36mMeshSet/ResourceTest[0m took 25.517 ms
+[36mMeshSet/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /meshset/missing.meshsetc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (354 µs)
+[33mTest[0m/1 
+ERROR:RESOURCE: /meshset/missing.skeletonc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/1  [32mPASS[0m (135 µs)
+[33mTest[0m/2 
+ERROR:RESOURCE: /meshset/missing.animationsetc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/2  [32mPASS[0m (135 µs)
+[36mMeshSet/ResourceFailTest[0m took 3057 µs
+[36mModelTest[0m
+[33mSelectedMeshUsesInstantiatedMorphModelId[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSelectedMeshUsesInstantiatedMorphModelId[0m [32mPASS[0m (1264 µs)
+[33mMorphTargetInstancedWeightsClampedPerMesh[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMorphTargetInstancedWeightsClampedPerMesh[0m [32mPASS[0m (911 µs)
+[33mMorphTargetUniformWeightsClampedPerMesh[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMorphTargetUniformWeightsClampedPerMesh[0m [32mPASS[0m (654 µs)
+[33mMeshAttributeRenderDataPurge[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMeshAttributeRenderDataPurge[0m [32mPASS[0m (1782 µs)
+[33mMeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap[0m [32mPASS[0m (2418 µs)
+[33mMeshAttributeRenderDataPurgeAcrossFrameTickWrap[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMeshAttributeRenderDataPurgeAcrossFrameTickWrap[0m [32mPASS[0m (555 µs)
+[36mModelTest[0m took 11.369 ms
+Ran 24 tests, with 2217 assertions in 96.243 ms
+24 tests [32mPASSED[0m and 539 skipped

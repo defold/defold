@@ -22,11 +22,12 @@ namespace dmRender { struct RenderFrameBuilder; struct RenderFrameConsumers; }
 namespace dmGameSystem
 {
     // Internal PoC diagnostics, not a public SDK contract. Frame capacity includes
-    // capture lookup tables and allocation-growth peaks. Renderer CPU includes
+    // capture lookup tables; allocation-growth peaks are reported separately. Renderer CPU includes
     // named constant buffers; logical GPU and reported resource sizes are separate.
     struct SpriteSnapshotStats
     {
         uint64_t m_PayloadUsedBytes;
+        uint64_t m_SlotsPayloadUsedBytes; // At capture, before the older slot is retired.
         uint64_t m_FrameCapacityBytes;
         uint64_t m_RendererCpuCapacityBytes;
         uint64_t m_ConstantBufferCapacityBytes;

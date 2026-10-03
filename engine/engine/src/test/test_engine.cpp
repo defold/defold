@@ -388,6 +388,29 @@ TEST_F(EngineTest, ExperimentalGameplayAdmission)
     ASSERT_FALSE(dmEngine::IsPocThreadComponentAllowed("guic", false, true, true));
 }
 
+// Verifies broad web handoff admission includes mesh/model, while unknown
+// extension components remain rejected before their worlds run.
+TEST(EngineTest, WebComponentAdmission)
+{
+    const char* allowed[] = {"spritec", "scriptc", "factoryc", "collectionfactoryc",
+        "collectionproxyc", "guic", "particlefxc", "labelc", "tilegridc",
+        "collisionobjectc", "soundc", "camerac", "lightc", "meshc", "modelc"};
+    for (uint32_t i = 0; i < sizeof(allowed) / sizeof(allowed[0]); ++i)
+        ASSERT_TRUE(dmEngine::IsPocWebComponentAllowed(allowed[i]));
+    ASSERT_FALSE(dmEngine::IsPocWebComponentAllowed("extensionc"));
+}
+
+// Mesh/model compatibility relies on exclusive handoffs; admitting their live
+// worlds to the overlapping snapshot path would race animation and buffer data.
+TEST(EngineTest, WebModelMeshRequireExclusiveHandoff)
+{
+    for (uint32_t flags = 0; flags < 4; ++flags)
+    {
+        ASSERT_FALSE(dmEngine::IsPocThreadComponentAllowed("meshc", flags & 1, flags & 2, true));
+        ASSERT_FALSE(dmEngine::IsPocThreadComponentAllowed("modelc", flags & 1, flags & 2, true));
+    }
+}
+
 // Verifies an accidental fixed replay setting cannot change ordinary gameplay without explicit replay activation.
 TEST_F(EngineTest, ExperimentalReplayRequiresActivation)
 {

@@ -15,9 +15,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <dlib/log.h>
+#include <graphics/graphics_packet.h>
 #include <dmsdk/dlib/intersection.h>
 #include "render_command.h"
 #include "render_private.h"
+#include "component_frame.h"
 
 namespace dmRender
 {
@@ -165,8 +167,32 @@ namespace dmRender
         return true;
     }
 
+    struct ExternalCommandExecution
+    {
+        HRenderContext m_Context;
+        Command* m_Commands;
+        uint32_t m_Count;
+        bool m_ReleaseOperands;
+    };
+
+    static void ExecuteExternalCommands(void* data)
+    {
+        ExternalCommandExecution* execution = (ExternalCommandExecution*)data;
+        ParseCommands(execution->m_Context, execution->m_Commands, execution->m_Count, execution->m_ReleaseOperands);
+    }
+
     void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count, bool release_operands)
     {
+        if (render_context->m_ComponentFrameCapture)
+        {
+            CaptureComponentCommands(render_context, commands, command_count, release_operands);
+            return;
+        }
+        // Broad web component mode parks the only producer until all commands
+        // have executed. Lua operands and live component worlds remain valid;
+        // browser main never waits for the simulation worker.
+        ExternalCommandExecution execution = { render_context, commands, command_count, release_operands };
+        if (dmGraphics::DispatchExternalGraphics(ExecuteExternalCommands, &execution)) return;
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
 
         for (uint32_t i=0; i<command_count; i++)

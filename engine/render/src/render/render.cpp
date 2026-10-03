@@ -27,6 +27,7 @@
 #include <ddf/ddf.h>
 
 #include "render_private.h"
+#include "component_frame.h"
 #include "render_script.h"
 #include "debug_renderer.h"
 #include "font/font_renderer.h"
@@ -172,6 +173,9 @@ namespace dmRender
         context->m_MultiBufferingRequired = 0;
 
         context->m_IsRenderPaused = 0;
+        context->m_ComponentFrameCapture = 0;
+        context->m_ComponentFramesEnabled = false;
+        context->m_UseCapturedLightBuffer = false;
 
         // TODO: This should be a "context property" or something similar.
         dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
@@ -1204,6 +1208,12 @@ namespace dmRender
         {
             return RESULT_INVALID_CONTEXT;
         }
+        if (render_context->m_ComponentFrameCapture)
+        {
+            Result result = CaptureComponentDraw(render_context, predicate, constant_buffer);
+            TrimTextureBindingTable(render_context);
+            return result;
+        }
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
@@ -1225,13 +1235,13 @@ namespace dmRender
             if (ro->m_VertexCount == 0)
                 continue;
 
-            MaterialTagList taglist;
-            uint32_t taglistkey = dmRender::GetMaterialTagListKey(ro->m_Material);
-            dmRender::GetMaterialTagList(render_context, taglistkey, &taglist);
-
-            if (predicate && !dmRender::MatchMaterialTags(taglist.m_Count, taglist.m_Tags, predicate->m_TagCount, predicate->m_Tags))
+            if (predicate)
             {
-                continue;
+                MaterialTagList taglist;
+                uint32_t taglistkey = dmRender::GetMaterialTagListKey(ro->m_Material);
+                dmRender::GetMaterialTagList(render_context, taglistkey, &taglist);
+                if (!dmRender::MatchMaterialTags(taglist.m_Count, taglist.m_Tags, predicate->m_TagCount, predicate->m_Tags))
+                    continue;
             }
 
             if (!context_material)

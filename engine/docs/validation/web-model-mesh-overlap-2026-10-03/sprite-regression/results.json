@@ -1,0 +1,100 @@
+{
+  "browser": "154.0.8037.95",
+  "correctnessOnly": true,
+  "results": [
+    {
+      "mode": "direct",
+      "code": 0,
+      "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=existing sprites=0",
+      "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+      "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+    },
+    {
+      "mode": "inline",
+      "code": 0,
+      "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=snapshot-inline sprites=256",
+      "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+      "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+    },
+    {
+      "mode": "threaded",
+      "code": 0,
+      "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=component-web-threaded sprites=256",
+      "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+    },
+    {
+      "mode": "scheduled",
+      "code": 0,
+      "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=component-web-threaded sprites=256",
+      "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+    },
+    {
+      "mode": "cached-raf",
+      "code": 0,
+      "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=component-web-threaded sprites=256",
+      "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+    },
+    {
+      "mode": "cached-completion",
+      "code": 0,
+      "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=component-web-threaded sprites=256",
+      "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+    },
+    {
+      "mode": "cached-retry",
+      "code": 0,
+      "checkpoint": "WEB_POC_CHECK checksum=82980080 mode=component-web-threaded sprites=256",
+      "pass": "WEB_POC_PASS checksum=82980080 inputs=1 ticks=200",
+      "stack": {
+        "reserved": 5242880,
+        "touched": 0,
+        "measured": false
+      },
+      "pixelSha256": "26f4afe9718d074214a91e407447f339c873989cc8e695ca012b2463115b9d45"
+    },
+    {
+      "mode": "context-loss",
+      "stoppedCleanly": true
+    },
+    {
+      "mode": "scheduled-context-loss",
+      "stoppedCleanly": true
+    },
+    {
+      "mode": "cached-raf-context-loss",
+      "stoppedCleanly": true
+    },
+    {
+      "mode": "cached-completion-context-loss",
+      "stoppedCleanly": true
+    },
+    {
+      "mode": "cached-retry-context-loss",
+      "stoppedCleanly": true
+    }
+  ]
+}

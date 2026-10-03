@@ -1,0 +1,4 @@
+mesh: "/animated.gltf"
+animations: "/animated.gltf"
+skeleton: "/animated.gltf"
+materials { name: "flat" material: "/model_world.material" }

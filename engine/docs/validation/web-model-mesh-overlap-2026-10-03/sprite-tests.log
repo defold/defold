@@ -1,0 +1,41 @@
+ERROR:DLIB: Unable to bind to log socket (-1): ACCES
+INFO:DLIB: Log server started on port 0
+SpriteTest
+SnapshotGeometrySurvivesDeletion
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+SnapshotGeometrySurvivesDeletion PASS (6.241 ms)
+SnapshotAffineTransformsAndSlice9
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+SnapshotAffineTransformsAndSlice9 PASS (968 µs)
+ThreadSnapshotReservationAndAccounting
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+ThreadSnapshotReservationAndAccounting PASS (334 µs)
+ThreadSnapshotDeletionAndSlotReuse
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+ThreadSnapshotDeletionAndSlotReuse PASS (332 µs)
+ThreadSnapshotCapacityAdmission
+ERROR:GAMESYS: Sprite thread slot capacity budget exceeded; frame rejected
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+ThreadSnapshotCapacityAdmission PASS (328 µs)
+SnapshotCopiesConstantsAndAttributes
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+SnapshotCopiesConstantsAndAttributes PASS (1115 µs)
+SnapshotBoundsAndCapacity
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+SnapshotBoundsAndCapacity PASS (1967 µs)
+SnapshotRenderMaterialOverride
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+SnapshotRenderMaterialOverride PASS (1066 µs)
+SnapshotConstantDeduplication
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+SnapshotConstantDeduplication PASS (446 µs)
+SnapshotAdjacentBindingOverrides
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+SnapshotAdjacentBindingOverrides PASS (823 µs)
+SnapshotAtlasReplacementAfterUpdate
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+SnapshotAtlasReplacementAfterUpdate PASS (308 µs)
+SpriteTest took 34.546 ms
+Ran 11 tests, with 602 assertions in 34.546 ms
+11 tests PASSED and 552 skipped
