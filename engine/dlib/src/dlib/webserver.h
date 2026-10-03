@@ -17,6 +17,7 @@
 
 #include <dmsdk/dlib/socket.h>
 #include <dmsdk/dlib/webserver.h>
+#include <dlib/array.h>
 
 namespace dmWebServer
 {
@@ -73,6 +74,9 @@ namespace dmWebServer
      * @param port Port (result)
      */
     void GetName(HServer server, dmSocket::Address* address, uint16_t* port);
+
+    // Write the registered OpenAPI Paths Object, including a terminating zero.
+    void GetOpenAPIPaths(HServer server, dmArray<char>* paths);
 }
 
 #endif // DM_WEBSERVER_H
