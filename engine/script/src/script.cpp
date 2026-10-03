@@ -707,6 +707,15 @@ namespace dmScript
         // [-1] instance
     }
 
+    void GetInstanceRaw(lua_State* L)
+    {
+        lua_pushinteger(L, (lua_Integer)INSTANCE_NAME_HASH);
+        // [-1] name_hash
+
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        // [-1] instance
+    }
+
     void SetInstance(lua_State* L)
     {
         // [-1] instance
@@ -755,6 +764,18 @@ namespace dmScript
         // [-3] meta table
 
         lua_settable(L, -3);
+        // [-1] meta table
+
+        lua_pushliteral(L, "__name");
+        // [-1] __name
+        // [-2] meta table
+
+        lua_pushstring(L, name);
+        // [-1] name
+        // [-2] __name
+        // [-3] meta table
+
+        lua_rawset(L, -3);
         // [-1] meta table
 
         lua_pop(L, 1);
@@ -1526,6 +1547,15 @@ namespace dmScript
     }
 
     static int BacktraceErrorHandler(lua_State *m_state) {
+        HContext context = GetScriptContext(m_state);
+        if (context)
+        {
+            for (HScriptExtension* extension = context->m_ScriptExtensions.Begin(); extension != context->m_ScriptExtensions.End(); ++extension)
+            {
+                if ((*extension)->OnError)
+                    (*extension)->OnError(context, m_state);
+            }
+        }
         lua_createtable(m_state, 0, 2);
         int result_table = lua_gettop(m_state);
 
