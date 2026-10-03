@@ -42,6 +42,7 @@ namespace dmDebugger
         , m_Connections(0)
         , m_EvaluationTimeout(1000)
         , m_Step(STEP_NONE)
+        , m_ThreadDiscoveryPending(false)
         , m_Port(0)
         , m_StepNativeTailCall(false)
         , m_Initialized(false)
@@ -309,7 +310,7 @@ namespace dmDebugger
         }
     };
 
-    void DiscoverThreads(Debugger* d, lua_State* L, lua_State* excluded)
+    static void DiscoverThreads(Debugger* d, lua_State* L, bool preserve_hook = false, lua_State* excluded = 0)
     {
         int             top = lua_gettop(L);
         ThreadDiscovery discovery(L, excluded);
@@ -318,7 +319,8 @@ namespace dmDebugger
         lua_pushthread(L);
         discovery.PopFrom(L);
 
-        // Scan reachable Lua objects at activation, attach/detach, and after evaluation.
+        // Scan reachable Lua objects at activation, attach/detach, and when
+        // inspecting coroutines that may have been created by evaluation.
         // Raw inspection avoids invoking application code, and a queue handles
         // cycles without growing the native call stack. The temporary tables pin
         // objects only for this scan; TrackThread retains them through weak values.
@@ -347,7 +349,7 @@ namespace dmDebugger
                 lua_State* thread = lua_tothread(L, object);
                 if (lua_checkstack(thread, 8))
                 {
-                    TrackThread(d, thread, excluded != 0);
+                    TrackThread(d, thread, preserve_hook);
                     int thread_top = thread == L ? top : lua_gettop(thread);
                     for (int slot = 1; slot <= thread_top; ++slot)
                     {
@@ -374,6 +376,15 @@ namespace dmDebugger
             lua_pop(L, 1);
         }
         lua_settop(L, top);
+    }
+
+    void DiscoverEvaluationThreads(Debugger* d, lua_State* excluded)
+    {
+        if (!d->m_ThreadDiscoveryPending)
+            return;
+        for (uint32_t i = 0; i < d->m_States.Size(); ++i)
+            DiscoverThreads(d, d->m_States[i]->m_L, true, excluded);
+        d->m_ThreadDiscoveryPending = false;
     }
 
     static void Track(lua_State* L, lua_State* coroutine)
@@ -698,6 +709,7 @@ namespace dmDebugger
         d->m_Output.Clear();
         d->m_Exception.Clear();
         d->m_Initialized = d->m_Configured = d->m_Paused = false;
+        d->m_ThreadDiscoveryPending = false;
         d->m_PauseRequested = d->m_ClosePending = d->m_BreakOnError = d->m_StopOnEntry = false;
         d->m_Step = STEP_NONE;
         d->m_AttachSeq = 0;
@@ -1244,6 +1256,7 @@ namespace dmDebugger
         }
         if (!strcmp(command, "threads"))
         {
+            DiscoverEvaluationThreads(d);
             Buffer body;
             body.Add("{\"threads\":[");
             int count = 0;
@@ -1452,6 +1465,7 @@ namespace dmDebugger
         d->m_StopOnEntry = false;
         d->m_Step = STEP_NONE;
         d->m_StoppedThread = thread->m_Id;
+        DiscoverEvaluationThreads(d);
         CaptureFrames(d);
         // A late attachment can stop inside functions whose call hooks were
         // never observed. Their debug information still supplies executable lines.

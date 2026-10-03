@@ -756,12 +756,14 @@ namespace dmDebugger
         luaL_unref(L, LUA_REGISTRYINDEX, e->m_EnvironmentRef);
         luaL_unref(L, LUA_REGISTRYINDEX, context_ref);
         luaL_unref(L, LUA_REGISTRYINDEX, environment_ref);
-        // Application coroutines can outlive evaluation, even after an error
-        // or when cached coroutine APIs bypass our wrappers. Discover them in
-        // every context, since native callbacks can enter another Lua state.
-        // Keep our temporary thread pinned but exclude it from the scan.
-        for (uint32_t i = 0; i < d->m_States.Size(); ++i)
-            DiscoverThreads(d, d->m_States[i]->m_L, evaluation_L);
+        // Cached coroutine APIs and native callbacks can persist new threads in
+        // any context, even after an error. While running, coalesce discovery
+        // until a stop or threads request: conditions and logpoints must not
+        // walk the whole Lua heap on every hit. Paused evaluations report new
+        // threads immediately, excluding our still-pinned temporary thread.
+        d->m_ThreadDiscoveryPending = true;
+        if (d->m_Paused)
+            DiscoverEvaluationThreads(d, evaluation_L);
         d->m_Evaluating = false;
         luaL_unref(L, LUA_REGISTRYINDEX, thread_ref);
         return result == 0;

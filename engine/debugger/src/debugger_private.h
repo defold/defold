@@ -147,6 +147,7 @@ namespace dmDebugger
         uint32_t              m_Connections;
         uint32_t              m_EvaluationTimeout;
         Step                  m_Step;
+        bool                  m_ThreadDiscoveryPending;
         uint16_t              m_Port;
         uint16_t              m_StepNativeTailCall : 1;
         uint16_t              m_Initialized : 1;
@@ -180,7 +181,7 @@ namespace dmDebugger
     lua_State* GetThread(Thread* thread);
     Thread*    FindThread(Debugger* d, uint32_t id, bool include_exited = false);
     Thread*    TrackThread(Debugger* d, lua_State* L, bool preserve_hook = false);
-    void       DiscoverThreads(Debugger* d, lua_State* L, lua_State* excluded = 0);
+    void       DiscoverEvaluationThreads(Debugger* d, lua_State* excluded = 0);
     void       ClearReferences(Debugger* d);
     void       CaptureFrames(Debugger* d);
     int        StackDepth(lua_State* L);
