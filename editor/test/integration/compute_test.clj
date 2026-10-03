@@ -15,9 +15,29 @@
 (ns integration.compute-test
   (:require [clojure.test :refer [deftest is]]
             [dynamo.graph :as g]
-            [integration.test-util :as test-util]))
+            [editor.os :as os]
+            [integration.test-util :as test-util]
+            [util.coll :as coll])
+  (:import [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language]))
 
 (deftest compute-build-targets
   (test-util/with-loaded-project "test/resources/all_types_project"
     (let [node-id (test-util/resource-node project "/test.compute")]
       (is (not (g/error? (g/node-value node-id :build-targets)))))))
+
+(deftest storage-buffer-build-targets
+  (test-util/with-temp-project-content
+    {"/storage.compute" {:compute-program "/storage.cp"}
+     "/storage.cp" ["#version 430"
+                    "layout(local_size_x = 1) in;"
+                    "layout(std430, binding = 0) buffer Output { uint value; };"
+                    "void main() { value = gl_GlobalInvocationID.x; }"]}
+    (let [node (test-util/resource-node project "/storage.compute")
+          targets (g/node-value node :build-targets)]
+      (is (not (g/error? targets)))
+      (when-not (g/error? targets)
+        (let [^Graphics$ShaderDesc shader (get-in targets [0 :deps 0 :user-data :shader-desc])]
+          (is (some? shader))
+          (when shader
+            (is (= (os/is-win32?)
+                   (coll/any? #(= Graphics$ShaderDesc$Language/LANGUAGE_HLSL_51 (.getLanguage %)) (.getShadersList shader))))))))))
