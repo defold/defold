@@ -38,6 +38,7 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.DefaultResource;
 import com.dynamo.bob.fs.FileSystemMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.GltfMountPoint;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
@@ -858,6 +859,7 @@ public class Project implements AutoCloseable {
     }
 
     public void mount(IResourceScanner resourceScanner, List<Library.Result> dependencies) throws IOException, CompileExceptionError {
+        this.resourceWalker.clearCaches();
         this.fileSystem.clearMountPoints();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
 
@@ -891,6 +893,8 @@ public class Project implements AutoCloseable {
                 this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, archive));
             }
         }
+
+        this.fileSystem.addMountPoint(new GltfMountPoint(this.fileSystem));
 
         var problematicResults = dependencies.stream().filter(x -> x.problem() != null).toList();
         if (!problematicResults.isEmpty()) {

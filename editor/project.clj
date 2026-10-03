@@ -241,6 +241,7 @@
                                                       [commons-io/commons-io "2.4"]
                                                       [prismatic/schema "1.1.9"]
                                                       [org.luaj/luaj-jse "3.0.1"]
+                                                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
                                                       ;; editor.code.data reaches util.diff,
                                                       ;; which needs jgit
                                                       [org.eclipse.jgit/org.eclipse.jgit "7.6.0.202603022253-r"]

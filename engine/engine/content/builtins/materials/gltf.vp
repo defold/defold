@@ -1,0 +1,82 @@
+#version 140
+
+/*
+MIT License
+
+Copyright (c) 2024 Defold
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+/*
+ * Vertex setup for Defold PBR models.
+ *
+ * The fragment shader expects view-space position, normal, tangent frame, and
+ * view matrix. Tangents are optional; when unavailable the fragment shader
+ * falls back to interpolated vertex normals.
+ */
+in highp vec4 position;
+in mediump vec3 normal;
+in mediump vec4 tangent;
+in mediump vec4 color;
+in mediump vec2 texcoord0;
+
+out highp vec4 var_position;
+out mediump vec3 var_normal;
+out mediump vec2 var_texcoord0;
+out mediump vec4 var_color;
+out mediump vec3 var_tangent;
+out mediump vec3 var_bitangent;
+out mediump float var_has_tangent;
+out mediump mat4 var_view;
+
+uniform vs_uniforms
+{
+    mediump mat4 mtx_worldview;
+    mediump mat4 mtx_view;
+    mediump mat4 mtx_proj;
+    mediump mat4 mtx_normal;
+};
+
+void main()
+{
+    vec4 p = mtx_worldview * vec4(position.xyz, 1.0);
+    vec3 n = normalize((mtx_normal * vec4(normal, 0.0)).xyz);
+    float tangent_len_sq = dot(tangent.xyz, tangent.xyz);
+    bool has_tangent = tangent_len_sq > 0.0001 && tangent_len_sq < 100.0 && abs(tangent.w) > 0.0001;
+    vec3 t = vec3(1.0, 0.0, 0.0);
+    vec3 b = vec3(0.0, 1.0, 0.0);
+    if (has_tangent)
+    {
+        t = normalize((mtx_normal * vec4(tangent.xyz, 0.0)).xyz);
+        t = normalize(t - n * dot(n, t));
+        b = normalize(cross(n, t)) * tangent.w;
+    }
+
+    var_position = p;
+    var_normal = n;
+    var_texcoord0 = texcoord0;
+    var_color = color;
+    var_tangent = t;
+    var_bitangent = b;
+    var_has_tangent = has_tangent ? 1.0 : 0.0;
+    var_view = mtx_view;
+
+    gl_Position = mtx_proj * p;
+}

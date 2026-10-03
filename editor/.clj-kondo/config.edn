@@ -75,6 +75,7 @@
                         util.defonce/record hooks.util-defonce/record
                         util.defonce/type hooks.util-defonce/type
                         util.fn/defamong hooks.util-fn/defamong}}
+ :lint-as {util.fn/defn-cached clojure.core/defn}
  :linters {:defold/defn-return-type-hint-placement {:level :warning}
            :defold/deprecated-make-nodes-graph-id {:level :warning}
            :defold/prefer-coll-join-to-string {:level :warning}

@@ -137,6 +137,7 @@
                  util.defonce/protocol [[:inner 0] [:inner 1]]
                  util.defonce/record [[:inner 0] [:inner 1]]
                  util.defonce/type [[:inner 0] [:inner 1]]
+                 util.fn/defn-cached [[:inner 0]]
                  util.profiler/profile [[:inner 0]]
                  vlaaad.reveal/defaction [[:inner 0]]
                  vlaaad.reveal/defstream [[:inner 0]]}

@@ -471,7 +471,7 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (resource/lookup-resource-type (g/unsafe-basis) workspace this))
+  (lookup-resource-type [this editable->type-ext->resource-type] (resource/lookup-resource-type-impl this editable->type-ext->resource-type))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
