@@ -307,6 +307,17 @@ python3 engine/debugger/src/test/test_dap.py --debuggee <path-to-dap_debuggee> D
 python3 engine/debugger/src/test/test_dap.py --engine <path-to-dmengine_headless> --engine-content engine/engine/build/src/test/build/default EngineDAPTests
 ```
 
+To compare attached hook overhead with different numbers of idle coroutines:
+
+```sh
+python3 engine/debugger/src/test/benchmark_dap.py --debuggee <path-to-dap_debuggee> --coroutines 0 500 --samples 5
+```
+
+The benchmark measures CPU time inside the active coroutine, excluding startup
+and creation of the idle coroutines. Compare the same host, runtime, and build
+configuration. Timing thresholds are deliberately separate from the functional
+tests, which verify lookup correctness and collection without speed assumptions.
+
 The engine script suite additionally checks that the generic `ScriptExtension`
 error callback sees the original error value and live locals before unwinding.
 

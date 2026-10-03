@@ -166,10 +166,9 @@ namespace dmDebugger
     }
     Thread* FindThread(Debugger* d, uint32_t id, bool include_exited)
     {
-        for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
-            if (d->m_Threads[i]->m_Id == id && (include_exited || (!d->m_Threads[i]->m_Exited && GetThread(d->m_Threads[i]))))
-                return d->m_Threads[i];
-        return 0;
+        Thread** entry = d->m_ThreadIds.Get(id);
+        Thread* thread = entry ? *entry : 0;
+        return thread && (include_exited || (!thread->m_Exited && GetThread(thread))) ? thread : 0;
     }
 
     static void InstallHook(Thread* thread)
@@ -207,10 +206,17 @@ namespace dmDebugger
         State* state = (State*)GetPointer(L, &g_StateKey);
         if (!state)
             return 0;
-        for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
-            if (d->m_Threads[i]->m_State == state && GetThread(d->m_Threads[i]) == L)
-                return d->m_Threads[i];
-        Thread* thread = new Thread();
+        // Weak thread keys preserve Lua's object identity without keeping
+        // coroutines alive or confusing a reused lua_State address with its
+        // previous occupant. Hook lookups do not scan other live threads.
+        lua_rawgeti(L, LUA_REGISTRYINDEX, state->m_ThreadLookupRef);
+        lua_pushthread(L);
+        lua_rawget(L, -2);
+        Thread* thread = (Thread*)lua_touserdata(L, -1);
+        lua_pop(L, 2);
+        if (thread)
+            return thread;
+        thread = new Thread();
         thread->m_State = state;
         thread->m_Id = d->m_NextId++;
         thread->m_Main = state->m_L == L;
@@ -220,6 +226,14 @@ namespace dmDebugger
         lua_pushthread(L);
         lua_rawseti(L, -2, thread->m_Id);
         lua_pop(L, 1);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, state->m_ThreadLookupRef);
+        lua_pushthread(L);
+        lua_pushlightuserdata(L, thread);
+        lua_rawset(L, -3);
+        lua_pop(L, 1);
+        if (d->m_ThreadIds.Full())
+            d->m_ThreadIds.SetCapacity(d->m_ThreadIds.Capacity() ? d->m_ThreadIds.Capacity() * 2 : 16);
+        d->m_ThreadIds.Put(thread->m_Id, thread);
         Push(d->m_Threads, thread);
         if (d->m_Attached)
             InstallHook(thread);
@@ -556,6 +570,7 @@ namespace dmDebugger
         state->m_L = L;
         state->m_Name = strdup(name);
         state->m_ThreadsRef = NewWeakTable(L, "v");
+        state->m_ThreadLookupRef = NewWeakTable(L, "k");
         state->m_ObservedFunctionsRef = NewWeakTable(L, "k");
         SetPointer(L, &g_DebuggerKey, d);
         SetPointer(L, &g_StateKey, state);
@@ -600,6 +615,7 @@ namespace dmDebugger
                 lua_sethook(T, thread->m_OldHook, thread->m_OldMask, thread->m_OldCount);
             if (!thread->m_Exited)
                 ThreadEvent(d, thread, "exited");
+            d->m_ThreadIds.Erase(thread->m_Id);
             delete thread;
             d->m_Threads.EraseSwap(i);
         }
@@ -620,6 +636,7 @@ namespace dmDebugger
         }
         lua_pop(L, 1);
         luaL_unref(L, LUA_REGISTRYINDEX, state->m_ThreadsRef);
+        luaL_unref(L, LUA_REGISTRYINDEX, state->m_ThreadLookupRef);
         luaL_unref(L, LUA_REGISTRYINDEX, state->m_ObservedFunctionsRef);
         SetPointer(L, &g_DebuggerKey, 0);
         SetPointer(L, &g_StateKey, 0);
@@ -1256,6 +1273,7 @@ namespace dmDebugger
                 ++i;
                 continue;
             }
+            d->m_ThreadIds.Erase(thread->m_Id);
             delete thread;
             d->m_Threads.EraseSwap(i);
         }
@@ -1608,8 +1626,10 @@ namespace dmDebugger
             Stop(d, L, "breakpoint", bp->m_Id);
             return;
         }
+        if (d->m_Step == STEP_NONE)
+            return;
         Thread* step_thread = FindThread(d, d->m_StepThread);
-        if (d->m_Step != STEP_NONE && (thread->m_Id == d->m_StepThread || (d->m_Step == STEP_IN && step_thread && step_thread->m_State == thread->m_State)))
+        if (thread->m_Id == d->m_StepThread || (d->m_Step == STEP_IN && step_thread && step_thread->m_State == thread->m_State))
         {
             int depth = StackDepth(L);
             if (d->m_Step == STEP_IN || (d->m_Step == STEP_OVER && depth <= d->m_StepDepth) || (d->m_Step == STEP_OUT && depth < d->m_StepDepth))
