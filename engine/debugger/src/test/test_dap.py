@@ -2544,6 +2544,69 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    def check_evaluation_frame_identity(self, requests):
+        c = self.start('''
+            global_value = 30
+            local shared = 10
+            local function first()
+                local x = 1
+                coroutine.yield()
+                assert(x == 1 and shared == 10 and global_value == 30)
+            end
+            local function second()
+                local x = 2
+                coroutine.yield()
+                assert(x == 2 and shared == 10 and global_value == 30)
+            end
+            for i = 1, %d do
+                co = coroutine.create(function() first(); second() end)
+                assert(coroutine.resume(co))
+                local marker = 1 -- inspect
+                assert(coroutine.resume(co))
+            end
+        ''' % len(requests))
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        for command, arguments in requests:
+            self.stopped()
+            main_frame = self.frame
+            thread = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
+            old_frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+            sequence = c.send(command, {"frameId": old_frame, **arguments})
+            response = c.wait(lambda m: m["type"] == "response" and m["request_seq"] == sequence)
+            self.assertFalse(response["success"], (command, arguments, response))
+            self.assertIn("Evaluation frame is no longer active", response["message"])
+            self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+            self.assertNotEqual(self.frame, old_frame)
+            for binding, value in (("x", "2"), ("shared", "10"), ("global_value", "30")):
+                self.assertEqual(self.evaluate(binding, context="hover")["result"], value)
+            self.frame = main_frame
+            self.resume()
+        self.finished()
+
+    # Reads within a single evaluation must reject a replaced coroutine frame,
+    # including upvalue and global lookups through that frame's environment.
+    def test_evaluation_reads_reject_replaced_frame(self):
+        self.check_evaluation_frame_identity([
+            ("evaluate", {"expression": "coroutine.resume(co); return " + name, "context": "repl"})
+            for name in ("x", "shared", "global_value")])
+
+    # REPL writes after resuming the selected coroutine must not mutate locals
+    # in its replacement frame, or the expired frame's upvalues and globals.
+    def test_evaluation_writes_reject_replaced_frame(self):
+        self.check_evaluation_frame_identity([
+            ("evaluate", {"expression": "coroutine.resume(co); " + name + " = 99", "context": "repl"})
+            for name in ("x", "shared", "global_value")])
+
+    # setExpression must reject its binding write if evaluating the right-hand
+    # side replaces the selected frame, leaving the program's values intact.
+    def test_set_expression_rejects_replaced_frame(self):
+        self.check_evaluation_frame_identity([
+            ("setExpression", {"expression": name, "value": "(function() coroutine.resume(co); return 99 end)()"})
+            for name in ("x", "shared", "global_value")])
+
     # Copy enough varargs to grow the evaluation stack, including interior and
     # trailing nils, without changing the yielded coroutine's resume arguments.
     def test_evaluate_varargs_in_yielded_coroutine(self):

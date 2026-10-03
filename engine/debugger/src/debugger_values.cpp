@@ -370,6 +370,14 @@ namespace dmDebugger
             lua_pushvalue(L, LUA_GLOBALSINDEX);
     }
 
+    static bool EvaluationFrame(Evaluation* e, lua_Debug* frame)
+    {
+        int level = StackDepth(e->m_L) - e->m_Depth;
+        // Evaluation can resume this coroutine between binding accesses. A
+        // function at the same depth may have replaced the selected frame.
+        return MatchesFunction(e->m_L, level, e->m_FunctionRef) && lua_getstack(e->m_L, level, frame);
+    }
+
     static int EvaluationIndex(lua_State* L)
     {
         Evaluation* e = (Evaluation*)lua_touserdata(L, lua_upvalueindex(1));
@@ -384,7 +392,7 @@ namespace dmDebugger
         }
         const char* name = lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : 0;
         lua_Debug   frame;
-        if (!lua_getstack(e->m_L, StackDepth(e->m_L) - e->m_Depth, &frame))
+        if (!EvaluationFrame(e, &frame))
             return luaL_error(L, "Evaluation frame is no longer active");
         int local = name ? LocalIndex(e->m_L, &frame, name) : 0;
         if (local)
@@ -421,7 +429,7 @@ namespace dmDebugger
         }
         const char* name = lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : 0;
         lua_Debug   frame;
-        if (!lua_getstack(e->m_L, StackDepth(e->m_L) - e->m_Depth, &frame))
+        if (!EvaluationFrame(e, &frame))
             return luaL_error(L, "Evaluation frame is no longer active");
         int local = name ? LocalIndex(e->m_L, &frame, name) : 0;
         if (local)
