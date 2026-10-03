@@ -20,6 +20,7 @@
 #include "array.h"
 #include "dstrings.h"
 #include "webserver.h"
+#include "webserver_openapi.h"
 
 #include <dlib/http/http_server.h>
 
@@ -30,6 +31,7 @@ namespace dmWebServer
         void*   m_Userdata;
         Handler m_Handler;
         char    m_Prefix[64];
+        OpenAPI* m_OpenAPI;
     };
 
     struct Server;
@@ -123,14 +125,17 @@ namespace dmWebServer
         dmArray<HandlerData>& handlers = server->m_Handlers;
         uint32_t n = handlers.Size();
         HandlerData* handler = 0;
+        size_t longest_prefix_length = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
             HandlerData* h = &handlers[i];
+            size_t prefix_length = strlen(h->m_Prefix);
 
-            if (strncmp(request->m_Resource, h->m_Prefix, strlen(h->m_Prefix)) == 0)
+            // Registration and removal order must not let a fallback shadow a more specific handler.
+            if (prefix_length > longest_prefix_length && strncmp(request->m_Resource, h->m_Prefix, prefix_length) == 0)
             {
                 handler = h;
-                break;
+                longest_prefix_length = prefix_length;
             }
         }
 
@@ -189,6 +194,8 @@ namespace dmWebServer
     void Delete(HServer server)
     {
         dmHttpServer::Delete(server->m_HttpServer);
+        for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
+            delete server->m_Handlers[i].m_OpenAPI;
         delete server;
     }
 
@@ -210,19 +217,44 @@ namespace dmWebServer
 
     Result AddHandler(HServer server,
                       const char* prefix,
-                      const HandlerParams* handler_params)
+                      const HandlerParams* handler_params,
+                      const char* openapi_json)
     {
+        HandlerData handler;
+        if (!prefix || prefix[0] != '/' || strlen(prefix) >= sizeof(handler.m_Prefix))
+            return RESULT_ERROR_INVAL;
         if (GetHandler(server, prefix))
         {
             return RESULT_HANDLER_ALREADY_REGISTRED;
+        }
+        OpenAPI* openapi = new OpenAPI;
+        if (!ParseOpenAPI(prefix, openapi_json, openapi))
+        {
+            delete openapi;
+            return RESULT_ERROR_INVAL;
+        }
+        for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
+        {
+            const dmArray<dmhash_t>& paths = server->m_Handlers[i].m_OpenAPI->m_Paths;
+            for (uint32_t j = 0; j < paths.Size(); ++j)
+            {
+                for (uint32_t k = 0; k < openapi->m_Paths.Size(); ++k)
+                {
+                    if (paths[j] == openapi->m_Paths[k])
+                    {
+                        delete openapi;
+                        return RESULT_ERROR_INVAL;
+                    }
+                }
+            }
         }
         if (server->m_Handlers.Full())
         {
             server->m_Handlers.OffsetCapacity(16);
         }
-        HandlerData handler;
         handler.m_Userdata = handler_params->m_Userdata;
         handler.m_Handler = handler_params->m_Handler;
+        handler.m_OpenAPI = openapi;
         dmStrlCpy(handler.m_Prefix, prefix, sizeof(handler.m_Prefix));
         server->m_Handlers.Push(handler);
         return RESULT_OK;
@@ -237,12 +269,34 @@ namespace dmWebServer
             HandlerData* handler = &handlers[i];
             if (strcmp(prefix, handler->m_Prefix) == 0)
             {
+                delete handler->m_OpenAPI;
                 handlers.EraseSwap(i);
                 return RESULT_OK;
             }
         }
 
         return RESULT_HANDLER_NOT_REGISTRED;
+    }
+
+    void GetOpenAPIPaths(HServer server, dmArray<char>* paths)
+    {
+        uint32_t size = 3; // Braces and terminating zero.
+        for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
+            size += server->m_Handlers[i].m_OpenAPI->m_Length + (i != 0 ? 1 : 0);
+        paths->SetCapacity(size);
+        paths->SetSize(size);
+        char* out = paths->Begin();
+        *out++ = '{';
+        for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
+        {
+            const OpenAPI* openapi = server->m_Handlers[i].m_OpenAPI;
+            if (i != 0)
+                *out++ = ',';
+            memcpy(out, openapi->m_Json, openapi->m_Length);
+            out += openapi->m_Length;
+        }
+        *out++ = '}';
+        *out = 0;
     }
 
     Result SetStatusCode(Request* request, int status_code)
