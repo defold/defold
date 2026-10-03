@@ -456,6 +456,31 @@ jobs:
           errors: true
           payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}'
 
+  build-reports:
+    name: Build Reports
+    needs: [bld-eng]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - *step_checkout
+      - name: Summarize build reports
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const buildReportSummary = require('./ci/build_report_summary.cjs');
+            const {owner, repo} = context.repo;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner, repo, run_id: context.runId, per_page: 100
+            });
+            const summary = buildReportSummary(artifacts, {
+              serverUrl: context.serverUrl, owner, repo, runId: context.runId,
+              attempt: Number(process.env.GITHUB_RUN_ATTEMPT)
+            });
+            await core.summary.addRaw(summary).write();
+
   bld-eng-private:
     # Share one runner and one change check across all console dispatches.
     name: "Dispatch private console builds"

@@ -4,6 +4,9 @@ inputs:
   platform:
     description: Engine target platform
     required: true
+  build-variant:
+    description: Optional build variant, such as asan, ubsan, tsan, or valgrind
+    default: ''
   reports:
     description: Newline-separated repository-relative report file paths; paths and formats are preserved
     default: |
@@ -13,6 +16,7 @@ runs:
   steps:
     - name: Prepare report artifacts
       id: prepare
+      if: always()
       shell: bash
       env:
         REPORT_PATHS: ${{ inputs.reports }}
@@ -47,29 +51,10 @@ runs:
         printf 'path=%s\n' "$staging" >> "$GITHUB_OUTPUT"
     - name: Upload reports
       id: upload
+      if: always() && steps.prepare.outcome == 'success'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: build-reports-${{ inputs.platform }}-${{ github.run_attempt }}
+        name: build-reports-${{ inputs.platform }}${{ inputs.build-variant && format('-{0}', inputs.build-variant) || '' }}-${{ github.run_attempt }}
         path: ${{ steps.prepare.outputs.path }}
         if-no-files-found: error
         retention-days: 14
-    - name: Link report and download command
-      if: always()
-      shell: bash
-      env:
-        REPORT_ARTIFACT: build-reports-${{ inputs.platform }}-${{ github.run_attempt }}
-        REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
-        REPORT_REPOSITORY: ${{ github.repository }}
-        REPORT_RUN: ${{ github.run_id }}
-      run: |
-        {
-          printf '## Build Reports\n\n'
-          if [ -n "$REPORT_URL" ]; then
-            printf '[Download build reports: %s](%s)\n\n' "$REPORT_ARTIFACT" "$REPORT_URL"
-          else
-            printf 'Build reports upload failed. See the artifact-upload step.\n\n'
-          fi
-          printf 'Download the report files (open HTML reports in your browser):\n\n```sh\n'
-          printf 'gh run download %s --repo %s --name %s --dir build-reports/%s\n' "$REPORT_RUN" "$REPORT_REPOSITORY" "$REPORT_ARTIFACT" "$REPORT_ARTIFACT"
-          printf '```\n'
-        } | tee -a "$GITHUB_STEP_SUMMARY"
