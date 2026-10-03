@@ -21,16 +21,17 @@
             [cljfx.fx.tree-cell :as fx.tree-cell]
             [cljfx.fx.tree-view :as fx.tree-view]
             [clojure.java.io :as io]
-            [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as code.data]
             [editor.console :as console]
             [editor.core :as core]
-            [editor.debugging.mobdebug :as mobdebug]
+            [editor.debugging.dap :as dap]
+            [editor.debugging.variables :as debugger-variables]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
+            [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.localization :as localization]
@@ -42,13 +43,13 @@
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :as coll])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
-           [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
            [java.util Collection]
            [javafx.scene Parent]
-           [javafx.scene.control Button ListView TextField TreeItem TreeView]
+           [javafx.scene.control Button ListView TextField TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [org.apache.commons.io FilenameUtils]))
 
@@ -91,18 +92,16 @@
   ;; NOTE: This should only depend upon stuff that changes due to a state change
   ;; in the debugger, since selecting the top-frame below will open the suspended
   ;; file and line in the editor.
-  (when (some? debug-session)
-    (let [frames (:stack suspension-state)
-          suspended? (some? frames)
-          items (.getItems call-stack-view)]
-      (if suspended?
+  (when debug-session
+    (let [items (.getItems call-stack-view)]
+      (if-let [frames (:stack suspension-state)]
         (do
           (.setAll items ^Collection frames)
-          (when-some [top-frame (first frames)]
+          (when-let [top-frame (first frames)]
             (ui/select! call-stack-view top-frame)))
         (do
           (.clear items)
-          (.setRoot variables-view nil))))))
+          (debugger-variables/clear! variables-view))))))
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props fx.list-view/props))
@@ -182,6 +181,7 @@
   (property state-changed-fn g/Any)
 
   (property debug-session g/Any)
+  (property pending-debugger-start g/Any)
   (property suspension-state g/Any)
 
   (property console-grid-pane Parent)
@@ -200,7 +200,8 @@
 
 (defn- current-stack-frame
   [debug-view]
-  (-> ^ListView (g/node-value debug-view :call-stack-view) .getSelectionModel .getSelectedIndices first))
+  ;; Selection listeners run before JavaFX updates selectedItem.
+  (single (ui/selection (g/node-value debug-view :call-stack-view))))
 
 (defn- sanitize-eval-error [error-string]
   (let [error-line-pattern ":1: "
@@ -210,34 +211,20 @@
                           error-string)]
     (str "ERROR:EVAL: " displayed-error)))
 
-(defn- eval-result->lines [result]
-  (->> result
-       vals
-       (map mobdebug/lua-value->structure-string)
-       (string/join "\n")
-       string/split-lines))
-
 (defn- on-eval-input
   [debug-view code]
-  (when-some [debug-session (g/node-value debug-view :debug-session)]
+  (when-let [debug-session (g/node-value debug-view :debug-session)]
     (let [frame (current-stack-frame debug-view)]
-      (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
-      (future
-        (let [ret (mobdebug/exec debug-session code frame)]
-          (cond
-            (= :bad-request (:error ret))
-            (console/append-console-entry! :eval-error "Bad request")
-
-            (string? (:error ret))
-            (console/append-console-entry! :eval-error (sanitize-eval-error (:error ret)))
-
-            (:result ret)
-            (doseq [line (eval-result->lines (:result ret))]
-              (console/append-console-entry! :eval-result line))
-
-            :else
-            (console/append-console-entry! :eval-error (str ret))))))))
+      (future/io
+        (try
+          (let [snapshot (dap/suspension debug-session)
+                result (dap/evaluate! debug-session (:id frame) code)
+                output (dap/evaluation-result->string debug-session snapshot result)]
+            (doseq [line (string/split-lines output)]
+              (console/append-console-entry! :eval-result line)))
+          (catch Exception exception
+            (console/append-console-entry! :eval-error (sanitize-eval-error (ex-message exception)))))))))
 
 (defn- setup-tool-bar!
   [^Parent console-tool-bar localization]
@@ -258,28 +245,13 @@
     (ui/bind-action! step-over-debugger-button :debugger.step-over)
     (ui/bind-action! stop-debugger-button :debugger.stop)))
 
-(defn- make-variable-tree-item
-  [[name value]]
-  (let [variable {:name name
-                  :display-name (mobdebug/lua-value->identity-string name)
-                  :value value
-                  :display-value (mobdebug/lua-value->identity-string value)}
-        tree-item (TreeItem. variable)
-        children (.getChildren tree-item)]
-    (when (and (instance? LuaStructure value)
-               (pos? (count value)))
-      (.add children (TreeItem.))
-      (ui/observe-once (.expandedProperty tree-item)
-                       (fn [_ _ _]
-                         (.setAll children ^Collection (map make-variable-tree-item value)))))
-    tree-item))
-
-(defn- make-variables-tree-item
-  [locals upvalues]
-  (let [ret (TreeItem.)
-        children (.getChildren ret)]
-    (.setAll children ^Collection (map make-variable-tree-item (concat locals upvalues)))
-    ret))
+(defn- load-frame-variables!
+  [debug-view]
+  (let [debug-session (g/node-value debug-view :debug-session)
+        frame (current-stack-frame debug-view)
+        snapshot (when debug-session (dap/suspension debug-session))
+        variables-view (g/node-value debug-view :variables-view)]
+    (debugger-variables/show-frame! variables-view debug-session snapshot (:id frame))))
 
 (defn- switch-text! [^TextField text-field text]
   (doto text-field
@@ -380,15 +352,12 @@
     (setup-prompt-field! debug-view debugger-prompt-field))
 
   (ui/observe-selection call-stack-view
-                        (fn [node selected-frames]
-                          (let [selected-frame (single selected-frames)]
-                            (let [{:keys [file line]} selected-frame]
-                              (when (and file line)
-                                (let [open-resource-fn (g/node-value debug-view :open-resource-fn)]
-                                  (open-resource-fn file line))))
-                            (.setRoot variables-view (make-variables-tree-item
-                                                       (:locals selected-frame)
-                                                       (:upvalues selected-frame))))))
+                        (fn [_ selected-frames]
+                          (let [{:keys [file line]} (single selected-frames)]
+                            (when (and file line (pos? (long line)))
+                              (let [open-resource-fn (g/node-value debug-view :open-resource-fn)]
+                                (open-resource-fn file line)))
+                            (load-frame-variables! debug-view))))
 
   ;; expose to view node
   (g/transact
@@ -419,39 +388,38 @@
         (filter :enabled)
         (g/node-value project :breakpoints)))
 
-(defn- set-breakpoint!
-  [debug-session {:keys [resource row condition] :as _breakpoint}]
-  (when-some [path (resource/proj-path resource)]
-    (mobdebug/set-breakpoint! debug-session path (inc row) condition)))
-
-(defn- remove-breakpoint!
-  [debug-session {:keys [resource row] :as _breakpoint}]
-  (when-some [path (resource/proj-path resource)]
-    (mobdebug/remove-breakpoint! debug-session path (inc row))))
-
-(defn- update-breakpoints!
-  ([debug-session breakpoints]
-   (update-breakpoints! debug-session #{} breakpoints))
-  ([debug-session old new]
-   (let [added (set/difference new old)
-         removed (set/difference old new)]
-     (when (or (seq added) (seq removed))
-       (mobdebug/with-suspended-session debug-session
-         (fn [debug-session]
-           (run! #(remove-breakpoint! debug-session %) removed)
-           (run! #(set-breakpoint! debug-session %) added)))))))
+(defn- breakpoints-by-path [breakpoints]
+  (reduce (fn [result {:keys [resource row condition]}]
+            (let [path (resource/proj-path resource)]
+              (if-not path
+                result
+                (update result path (fnil conj [])
+                        (cond-> {:line (inc (long row))}
+                          (not (string/blank? condition))
+                          (assoc :condition condition))))))
+          {}
+          (sort-by (juxt #(resource/proj-path (:resource %)) :row) breakpoints)))
 
 (defn- make-update-timer
   [project debug-view]
-  (let [state   (volatile! {})
-        tick-fn (fn [timer _ _]
-                  (when-not (ui/ui-disabled?)
-                    ;; if we don't have a debug session going on, there is no point in pulling
-                    ;; project/breakpoints or updating the "last breakpoints" state.
-                    (when-some [debug-session (g/node-value debug-view :debug-session)]
-                      (let [breakpoints (collect-enabled-breakpoints project)]
-                        (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
-                        (vreset! state {:breakpoints breakpoints})))))]
+  (let [state (volatile! nil)
+        tick-fn
+        (fn [_timer _ _]
+          (let [{:keys [snapshot task]} @state]
+            ;; Serialize background updates so an older UI snapshot cannot
+            ;; overwrite newer breakpoints after waiting for the I/O thread.
+            (when (and (not (ui/ui-disabled?))
+                       (or (not task) (future/done? task)))
+              (when-let [debug-session (g/node-value debug-view :debug-session)]
+                (let [breakpoints (collect-enabled-breakpoints project)
+                      new-snapshot [debug-session breakpoints]]
+                  (when-not (= new-snapshot snapshot)
+                    (let [breakpoints (breakpoints-by-path breakpoints)]
+                      (vreset! state
+                               {:snapshot new-snapshot
+                                :task
+                                (future/io
+                                  (dap/set-breakpoints! debug-session breakpoints))}))))))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
 (defn- setup-view! [debug-view app-view]
@@ -466,10 +434,7 @@
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         call-stack-view (doto (ListView.)
                           (.setId "debugger-call-stack"))
-        variables-view (doto (TreeView.)
-                         (.setId "debugger-variables")
-                         (ui/customize-tree-view! {:double-click-expand true})
-                         (.setShowRoot false))
+        variables-view (debugger-variables/make-view!)
         view-id (first
                   (g/tx-nodes-added
                     (g/transact
@@ -490,25 +455,64 @@
 
 (defn- update-suspension-state!
   [debug-view debug-session]
-  (let [stack (mobdebug/stack debug-session)]
-    (g/transact
-      {:undoable false}
-      (g/set-property debug-view :suspension-state {:stack (:stack stack)}))))
+  (let [snapshot (dap/suspension debug-session)]
+    (future/io
+      (try
+        (let [stack (dap/stack debug-session snapshot)]
+          (ui/run-later
+            (when (and (identical? debug-session (g/node-value debug-view :debug-session))
+                       snapshot
+                       (= snapshot (dap/suspension debug-session)))
+              (g/transact
+                {:undoable false}
+                (g/set-property debug-view :suspension-state {:stack stack}))
+              (state-changed! debug-view true))))
+        (catch Exception exception
+          (when (= snapshot (dap/suspension debug-session))
+            (console/append-console-entry! :eval-error (ex-message exception))))))))
 
 (defn- make-debugger-callbacks
   [debug-view]
-  {:on-suspended (fn [debug-session _suspend-event]
-                   (ui/run-later
-                     (update-suspension-state! debug-view debug-session)
-                     (state-changed! debug-view true)))
-   :on-resumed   (fn [_debug-session]
-                   (ui/run-later
-                     (g/transact
-                       {:undoable false}
-                       (g/set-property debug-view :suspension-state nil))
-                     (state-changed! debug-view false)))})
+  {:on-connected
+   (fn [debug-session]
+     (ui/run-later
+       (when (identical? debug-session (g/node-value debug-view :debug-session))
+         (state-changed! debug-view true))))
 
-(def ^:private mobdebug-port 8172)
+   :on-suspended
+   (fn [debug-session _event]
+     (update-suspension-state! debug-view debug-session))
+
+   :on-resumed
+   (fn [debug-session]
+     (ui/run-later
+       (when (and (identical? debug-session (g/node-value debug-view :debug-session))
+                  (= :running (dap/status debug-session)))
+         (g/transact
+           {:undoable false}
+           (g/set-property debug-view :suspension-state nil))
+         (state-changed! debug-view false))))
+
+   :on-invalidated
+   (fn [debug-session _event]
+     (ui/run-later
+       (when (identical? debug-session (g/node-value debug-view :debug-session))
+         (load-frame-variables! debug-view))))
+
+   :on-output
+   (fn [_debug-session {:keys [output category]}]
+     (doseq [line (string/split-lines output)]
+       (console/append-console-entry! (if (= "stderr" category) :eval-error :eval-result) line)))
+
+   :on-closed
+   (fn [debug-session]
+     (ui/run-later
+       ;; A late close from an old connection must not clear a new one.
+       (when (identical? debug-session (g/node-value debug-view :debug-session))
+         (g/transact
+           {:undoable false}
+           (g/set-properties debug-view :debug-session nil :suspension-state nil))
+         (state-changed! debug-view false))))})
 
 (defn show-connect-failed-info! [^Exception exception workspace]
   (ui/run-later
@@ -521,32 +525,61 @@
          :id ::debugger-connection-error
          :message (localization/message "notification.debug-view.connect-failed.error" {"error" error-text})}))))
 
+(defn- latest-target [target]
+  (or (coll/first-where #(= (:id target) (:id %)) (targets/all-launched-targets))
+      target))
+
+(defn- connect-debugger!
+  [debug-view project target stop-on-entry]
+  (let [workspace (project/workspace project)
+        resolve-port
+        (fn []
+          (if-let [port (:debugger-port (latest-target target))]
+            (when (pos? (long port)) port)
+            (engine/debugger-port target)))
+
+        session
+        (dap/connect! (:address target "localhost") resolve-port
+                      {:target target
+                       :local-root (.getAbsolutePath (workspace/project-directory workspace))
+                       :stop-on-entry stop-on-entry
+                       :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
+                      (assoc (make-debugger-callbacks debug-view)
+                        :on-error
+                        (fn [_session exception]
+                          (show-connect-failed-info! exception workspace))))]
+    (g/transact
+      {:undoable false}
+      (g/set-properties debug-view
+        :debug-session session
+        :pending-debugger-start nil
+        :suspension-state nil))
+    (state-changed! debug-view false)))
+
 (defn start-debugger!
-  [debug-view project target-address instance-index]
-  (let [debugger-port (+ mobdebug-port instance-index)]
-    (mobdebug/connect! target-address debugger-port
-                       (fn [debug-session]
-                         (ui/run-now
-                           (g/transact
-                             {:undoable false}
-                             (g/update-property debug-view :debug-session
-                                                (fn [old new]
-                                                  (when old (mobdebug/close! old))
-                                                  new)
-                                                debug-session))
-                           (update-breakpoints! debug-session (collect-enabled-breakpoints project))
-                           (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
-                           (state-changed! debug-view true)))
-                       (fn [_debug-session]
-                         (ui/run-now
-                           (g/transact
-                             {:undoable false}
-                             (g/set-properties debug-view
-                               :debug-session nil
-                               :suspension-state nil))
-                           (state-changed! debug-view false)))
-                       (fn [exception]
-                         (show-connect-failed-info! exception (project/workspace project))))))
+  [debug-view project target stop-on-entry]
+  (ui/run-now
+    (let [old (g/node-value debug-view :debug-session)]
+      (if-not old
+        (connect-debugger! debug-view project target stop-on-entry)
+        (let [pending (Object.)]
+          (g/transact
+            {:undoable false}
+            (g/set-property debug-view :pending-debugger-start pending))
+          (future/io
+            (try
+              (dap/close! old)
+              (ui/run-now
+                ;; A newer start or a detach can supersede this delayed close.
+                (when (identical? pending (g/node-value debug-view :pending-debugger-start))
+                  (connect-debugger! debug-view project target stop-on-entry)))
+              (catch Exception exception
+                (ui/run-now
+                  (when (identical? pending (g/node-value debug-view :pending-debugger-start))
+                    (g/transact
+                      {:undoable false}
+                      (g/set-property debug-view :pending-debugger-start nil))
+                    (show-connect-failed-info! exception (project/workspace project))))))))))))
 
 (defn current-session
   ([debug-view]
@@ -573,17 +606,20 @@
     false))
 
 (def ^:private debugger-init-script "/_defold/debugger/start.lua")
+(def ^:private debugger-remote-init-script "/_defold/debugger/start_remote.lua")
 
 (defn build-targets
   [project evaluation-context]
-  (let [start-script (project/get-resource-node project debugger-init-script evaluation-context)]
-    (g/node-value start-script :build-targets evaluation-context)))
+  (into []
+        (mapcat (fn [path]
+                  (let [start-script (project/get-resource-node project path evaluation-context)]
+                    (g/node-value start-script :build-targets evaluation-context))))
+        [debugger-init-script debugger-remote-init-script]))
 
 (defn- built-lua-module
   [build-artifacts path]
-  (let [build-artifact (->> build-artifacts
-                            (filter #(= (some-> % :resource :resource resource/proj-path) path))
-                            (first))]
+  (let [build-artifact (coll/first-where #(= (some-> % :resource :resource resource/proj-path) path)
+                                         build-artifacts)]
     (some->> build-artifact
              :resource
              io/file
@@ -593,28 +629,55 @@
 
 (defn attach!
   [debug-view project target build-artifacts]
-  (let [target-address (:address target "localhost")
-        target-port (+ mobdebug-port (:instance-index target 0))
-        lua-module (built-lua-module build-artifacts debugger-init-script)]
+  (let [launched (targets/launched-target? target)
+        lua-module
+        (built-lua-module build-artifacts
+                          (if launched
+                            debugger-init-script
+                            debugger-remote-init-script))
+        previous-port (when launched (:debugger-port (latest-target target)))]
     (assert lua-module)
-    (let [attach-successful? (try
-                               (engine/run-script! target lua-module)
-                               true
-                               (catch Exception exception
-                                 (show-connect-failed-info! exception (project/workspace project))
-                                 false))]
-      (when attach-successful?
-        (start-debugger! debug-view project target-address (:instance-index target 0))))))
+    (when launched
+      ;; Keep the known port usable if log filtering suppresses the announcement.
+      (targets/update-launched-target! target
+                                       {:debugger-port (or previous-port 0)
+                                        :debugger-port-pending true}))
+    (let [attach-successful
+          (try
+            (engine/run-script! target lua-module)
+            true
+            (catch Exception exception
+              (when (and launched
+                         (:debugger-port-pending (latest-target target)))
+                (targets/update-launched-target! target
+                                                 {:debugger-port previous-port
+                                                  :debugger-port-pending false}))
+              (show-connect-failed-info! exception (project/workspace project))
+              false))]
+      (when attach-successful
+        (start-debugger! debug-view project target true)))))
 
 (defn detach!
   [debug-view]
-  (when-some [debug-session (current-session debug-view)]
-    (mobdebug/done! debug-session)))
+  (ui/run-now
+    (g/transact
+      {:undoable false}
+      (g/set-property debug-view :pending-debugger-start nil))
+    (when-let [debug-session (current-session debug-view)]
+      (future/io (dap/disconnect! debug-session)))))
+
+(defn- control-debugger! [debug-view command]
+  (let [session (current-session debug-view)]
+    (future/io
+      (try
+        (dap/control! session command)
+        (catch Exception exception
+          (console/append-console-entry! :eval-error (ex-message exception)))))))
 
 (handler/defhandler :debugger.break :global
   (enabled? [debug-view evaluation-context]
-    (= :running (some-> (current-session debug-view evaluation-context) mobdebug/state)))
-  (run [debug-view] (mobdebug/suspend! (current-session debug-view))))
+    (= :running (some-> (current-session debug-view evaluation-context) dap/status)))
+  (run [debug-view] (control-debugger! debug-view "pause")))
 
 (handler/defhandler :debugger.continue :global
   ;; NOTE: Shares a shortcut with :app-view/start-debugger.
@@ -623,37 +686,48 @@
   (active? [debug-view evaluation-context]
     (debugging? debug-view evaluation-context))
   (enabled? [debug-view evaluation-context]
-    (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
-  (run [debug-view] (mobdebug/run! (current-session debug-view)
-                                   (make-debugger-callbacks debug-view))))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
+  (run [debug-view] (control-debugger! debug-view "continue")))
 
 (handler/defhandler :debugger.step-over :global
   (enabled? [debug-view evaluation-context]
-    (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
-  (run [debug-view] (mobdebug/step-over! (current-session debug-view)
-                                         (make-debugger-callbacks debug-view))))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
+  (run [debug-view] (control-debugger! debug-view "next")))
 
 (handler/defhandler :debugger.step-into :global
   (enabled? [debug-view evaluation-context]
-    (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
-  (run [debug-view] (mobdebug/step-into! (current-session debug-view)
-                                         (make-debugger-callbacks debug-view))))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
+  (run [debug-view] (control-debugger! debug-view "stepIn")))
 
 (handler/defhandler :debugger.step-out :global
   (enabled? [debug-view evaluation-context]
-    (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
-  (run [debug-view] (mobdebug/step-out! (current-session debug-view)
-                                        (make-debugger-callbacks debug-view))))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/status)))
+  (run [debug-view] (control-debugger! debug-view "stepOut")))
 
 (handler/defhandler :debugger.detach :global
   (enabled? [debug-view evaluation-context]
     (current-session debug-view evaluation-context))
-  (run [debug-view] (mobdebug/done! (current-session debug-view))))
+  (run [debug-view]
+    (detach! debug-view)))
 
 (handler/defhandler :debugger.stop :global
   (enabled? [debug-view evaluation-context]
     (current-session debug-view evaluation-context))
-  (run [debug-view] (mobdebug/exit! (current-session debug-view))))
+  (run [debug-view]
+    (let [session (current-session debug-view)
+          target (latest-target (:target session))]
+      (g/transact
+        {:undoable false}
+        (g/set-property debug-view :pending-debugger-start nil))
+      (future/io
+        ;; The in-process adapter only detaches. Resume Lua before asking the
+        ;; engine service to exit so a paused engine can process the request.
+        (try
+          (dap/disconnect! session)
+          (finally
+            (if (targets/launched-target? target)
+              (targets/kill-launched-target! target)
+              (engine/exit! target 0))))))))
 
 (defn- simulate-rotated-device? [prefs]
   (prefs/get prefs [:run :simulate-rotated-device]))

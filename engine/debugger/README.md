@@ -6,17 +6,18 @@ Native debug and headless engines link the `LuaDebugger` extension. Release
 engines exclude the library and its registration symbol at link time, through
 the CMake targets and the Extender release manifest.
 
+The Defold editor now uses this server for Lua debugging. Its MobDebug client
+and bundled MobDebug Lua scripts have been removed.
+The editor can start a project for debugging or attach to a running local or
+remote engine; other DAP clients can also connect over TCP.
+
 ## Connecting
 
-Start a built project with a native debug engine and these arguments:
+Start a native debug engine with:
 
 ```sh
 dmengine --config=debugger.enabled=1 --config=debugger.port=8172 --config=debugger.wait=1
 ```
-
-When launching from the Defold editor, put each `--config` argument on its own
-line in **Preferences > General > Engine Arguments**, then use **Project > Build**.
-The editor's Debug action starts MobDebug on the same default port.
 
 The debugger listens on `debugger.address` (`127.0.0.1` by default). It is disabled
 by default. The default port is 8172; port 0 selects an available port and prints
@@ -33,10 +34,10 @@ To enable DAP in a native debug engine that was started without
 local port = debugger.start()
 ```
 
-The code can be sent through the engine's existing `run_script` service, the same
-mechanism the editor uses to start MobDebug when attaching. No restart or startup
-flag is required. `debugger.start([port [, address]])` returns the listening port
-immediately; it does not wait for a client or pause the project. An omitted port uses
+The code can be sent through the engine's existing `run_script` service, which
+the editor uses when attaching. No restart or startup flag is required.
+`debugger.start([port [, address]])` returns the listening port immediately;
+it does not wait for a client or pause the project. An omitted port uses
 `debugger.port` (8172 by default); pass 0 to select an available port. An omitted
 address uses `debugger.address`; pass `nil` as the port to override only the
 address. Repeated calls return the existing listener's port without changing its
@@ -56,7 +57,9 @@ The same setting applies to late activation. To enable remote attachment without
 changing startup configuration, send `debugger.start(8172, "0.0.0.0")` through
 the existing `run_script` service. The client connects to the device's actual IP
 address and listening port. `0.0.0.0` is only the bind address. The engine log
-reports the selected bind address and actual port.
+reports the selected bind address and actual port. The Defold editor currently
+uses port `8172 + project.instance_index` for remote targets because it cannot
+discover a dynamically selected remote listener port.
 
 The debugger can evaluate Lua and has no authentication. Enable a network
 listener only on a trusted development network.
@@ -98,8 +101,14 @@ Closing the client releases the paused engine after the evaluation times out.
 The limit is checked at Lua instructions, so it cannot interrupt a blocking
 native function or code that explicitly disables debug hooks.
 
-This module provides the DAP server. The editor's existing MobDebug client is
-unchanged; connect with a client that supports DAP TCP servers.
+For local debug launches, the Defold editor enables the listener with port 0 and
+reads the selected port from engine output. To attach to a running engine, it
+activates the listener through `run_script`. For a remote target, the script
+requests a `0.0.0.0` bind and the editor connects to the device's address. An
+existing listener keeps its original address and port, so a remote listener
+started on localhost or an unknown port must be restarted before editor
+attachment. The [editor integration notes](../../editor/README_DAP.md) cover the
+editor workflow, tests, and remote connection limits.
 
 ### VS Code
 
@@ -202,8 +211,8 @@ are offered as completion names.
 
 Table entry names preserve key types: `["name"]`, `[1]`, and `[false]` are
 different keys. Pass the displayed name back to `setVariable`. Inspection avoids
-calling Lua-defined metamethods. Like MobDebug's Defold serializer, the engine
-adapter expands game-object, GUI, and render script instances using their backing data
+calling Lua-defined metamethods. The engine adapter
+expands game-object, GUI, and render script instances using their backing data
 tables. Their `self` fields support expansion, hover, completion, and editing,
 including in suspended coroutines. Vectors, quaternions, matrices, hashes, and
 URLs show their engine values without invoking `__tostring`. Userdata table keys
@@ -326,6 +335,9 @@ tests, which verify lookup correctness and collection without speed assumptions.
 
 The engine script suite additionally checks that the generic `ScriptExtension`
 error callback sees the original error value and live locals before unwinding.
+
+See [ROADMAP.md](ROADMAP.md) for features requiring broader engine, editor, or
+Lua runtime integration.
 
 ## Embedding
 
