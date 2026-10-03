@@ -38,6 +38,7 @@ namespace dmDebugger
     {
         State*            m_State;
         uint32_t          m_Id;
+        uint64_t          m_ExecutionVersion;
         lua_Hook          m_OldHook;
         int               m_OldMask;
         int               m_OldCount;
@@ -90,6 +91,7 @@ namespace dmDebugger
         int        m_ThreadRef;
         int        m_FunctionRef;
         int        m_Line;
+        uint64_t   m_ExecutionVersion;
         bool       m_Valid;
     };
     enum ReferenceKind
