@@ -25,6 +25,8 @@ namespace dmGameSystem
 
     HFont GetFont(GlyphBankResource* resource);
 
+    void SetGlyphBankReferenceSize(GlyphBankResource* resource, float size);
+
     dmFontDDF::GlyphBank* GetGlyphBank(GlyphBankResource* resource);
 
     dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams* params);

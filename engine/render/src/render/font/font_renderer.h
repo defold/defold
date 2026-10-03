@@ -76,6 +76,8 @@ namespace dmRender
         float       m_Leading;
         /// Text letter spacing
         float       m_Tracking;
+        /// Per-instance font size. Zero uses the font map size.
+        float       m_FontSize;
         /// True for linebreak
         bool        m_LineBreak;
         /// Horizontal alignment

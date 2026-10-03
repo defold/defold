@@ -297,6 +297,16 @@ TEST_F(dmGuiTest, RecreateNodes)
     }
 }
 
+TEST_F(dmGuiTest, FontSize)
+{
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_TEXT, 0);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    ASSERT_EQ(16.0f, dmGui::GetNodeFontSize(m_Scene, node));
+
+    dmGui::SetNodeFontSize(m_Scene, node, 24.0f);
+    ASSERT_EQ(24.0f, dmGui::GetNodeFontSize(m_Scene, node));
+}
+
 TEST_F(dmGuiTest, Name)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);

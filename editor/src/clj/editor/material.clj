@@ -18,6 +18,7 @@
             [editor.code.data :as code.data]
             [editor.code.shader-compilation :as shader-compilation]
             [editor.defold-project :as project]
+            [editor.font-shader :as font-shader]
             [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
@@ -138,7 +139,10 @@
         (prop-resource-error _node-id :vertex-program vertex-program vertex-program-message "vp")
         (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100 glsl-es-default-precision-float glsl-es-default-precision-int)
+      (let [exclude-gles-sm100 (or exclude-gles-sm100
+                                   ;; Match Bob: numeric curve textures require texelFetch.
+                                   (coll/any? #(= "curve_texture" (:name %)) (:samplers base-pb-msg)))
+            shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100 glsl-es-default-precision-float glsl-es-default-precision-int)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
             build-target-attributes (build-target-attributes attribute-infos)
             build-target-pbr-params (build-target-pbr-params (:shader-reflection shader-desc-build-target))
@@ -209,13 +213,18 @@
 (g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
   (or (prop-resource-error _node-id :vertex-program vertex-program vertex-program-message "vp")
       (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
-      (let [augmented-shader-infos
-            (mapv (fn [{:keys [node-id resource shader-source]}]
-                    (transpile-shader-source node-id resource shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int))
-                  [vertex-shader-source-info
-                   fragment-shader-source-info])]
-        (g/precluding-errors augmented-shader-infos
-          (shader-gen/combined-shader-info augmented-shader-infos)))))
+      ;; The built-in Slug shader has a numeric-texture representation for the
+      ;; GL 2 preview. Its uint operations must not reach the GLSL 1.20 transpiler.
+      (if (and (= "/builtins/fonts/font-vector.vp" (resource/proj-path vertex-program))
+               (= "/builtins/fonts/font-vector.fp" (resource/proj-path fragment-program)))
+        (font-shader/preview-shader-info (:shader-source fragment-shader-source-info) false)
+        (let [augmented-shader-infos
+              (mapv (fn [{:keys [node-id resource shader-source]}]
+                      (transpile-shader-source node-id resource shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int))
+                    [vertex-shader-source-info
+                     fragment-shader-source-info])]
+          (g/precluding-errors augmented-shader-infos
+            (shader-gen/combined-shader-info augmented-shader-infos))))))
 
 (g/defnk produce-shader-request-data [combined-shader-info]
   (-> (shader/make-shader-request-data

@@ -22,7 +22,6 @@
 #include "dlib/profile/profile.h"
 #include "dlib/profile/profile_private.h"
 #include "dlib/thread.h"
-#include "dlib/time.h"
 
 #include "test_profiler_dummy.h"
 
@@ -37,8 +36,6 @@ TEST(dmProfile, SmallTest)
 
 TEST(dmProfile, Profile)
 {
-    const double tolerance_per_wait = 0.060; // 60 ms per busy wait, including waits in child scopes.
-
     DummyProfilerRegister();
     ProfileInitialize();
 
@@ -50,40 +47,38 @@ TEST(dmProfile, Profile)
             HProfile profile = ProfileFrameBegin();
             {
                 DM_PROFILE("a");
-                dmTime::BusyWait(100000);
+                ctx->m_Time += 100000;
                 {
                     {
                         DM_PROFILE("a_b1");
-                        dmTime::BusyWait(50000);
+                        ctx->m_Time += 50000;
                         {
                             DM_PROFILE("a_b1_c")
-                            dmTime::BusyWait(40000);
+                            ctx->m_Time += 40000;
                         }
                     }
                     {
                         DM_PROFILE("b2");
-                        dmTime::BusyWait(50000);
+                        ctx->m_Time += 50000;
                         {
                             DM_PROFILE("a_b2_c1");
-                            dmTime::BusyWait(40000);
+                            ctx->m_Time += 40000;
                         }
                         {
                             DM_PROFILE("a_b2_c2");
-                            dmTime::BusyWait(60000);
+                            ctx->m_Time += 60000;
                         }
                     }
                 }
             }
             {
                 DM_PROFILE("a_d");
-                dmTime::BusyWait(80000);
+                ctx->m_Time += 80000;
             }
 
 
             {
                 //DM_MUTEX_SCOPED_LOCK(ctx.m_Mutex);
-
-                double ticks_per_sec = 1000000.0;
 
                 ASSERT_EQ(8U, (uint32_t)ctx->m_NumSamples);
 
@@ -97,17 +92,17 @@ TEST(dmProfile, Profile)
                 ASSERT_STREQ("a_d", dmHashReverseSafe64(ctx->m_Samples[index++].m_NameHash));
 
                 index = 1;
-                ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, 6 * tolerance_per_wait);
-                ASSERT_NEAR((50000 + 40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, 2 * tolerance_per_wait);
-                ASSERT_NEAR((40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
-                ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, 3 * tolerance_per_wait);
-                ASSERT_NEAR((40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
-                ASSERT_NEAR((60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
-                ASSERT_NEAR((80000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
+                ASSERT_EQ((uint64_t)(100000 + 50000 + 40000 + 50000 + 40000 + 60000), ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)(50000 + 40000), ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)40000, ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)(50000 + 40000 + 60000), ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)40000, ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)60000, ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)80000, ctx->m_Samples[index++].m_Length);
             }
 
             ProfileFrameEnd(profile);
-            dmTime::BusyWait(80000);
+            ctx->m_Time += 80000;
         }
 
     }

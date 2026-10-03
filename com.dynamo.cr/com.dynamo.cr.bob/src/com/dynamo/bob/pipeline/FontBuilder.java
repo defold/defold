@@ -14,7 +14,10 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -23,36 +26,140 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.BMFont;
+import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.FontStyles;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontRenderMode;
 import com.dynamo.render.proto.Font.FontTextureFormat;
+import com.dynamo.render.proto.Font.VectorFontMode;
+import com.dynamo.render.proto.Material.MaterialDesc;
+import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = FontDesc.class, messageClass = FontMap.class)
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc", paramsForSignature = {"font-runtime-generation"})
 public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
-    private boolean useRuntimeGeneration(FontDesc fontDesc) {
-        boolean enabled = this.project.option("font-runtime-generation", "false").equals("true");
-        if (!enabled)
-            return false;
-
-        if (fontDesc.getOutputFormat() != FontTextureFormat.TYPE_DISTANCE_FIELD)
-            return false;
-
+    private static boolean isTrueTypeFont(FontDesc fontDesc) {
         String path = fontDesc.getFont().toLowerCase();
         return path.endsWith(".ttf") || path.endsWith(".otf");
+    }
+
+    private static boolean isBitmapFont(FontDesc fontDesc) {
+        return fontDesc.getFont().toLowerCase().endsWith(".fnt");
+    }
+
+    private static boolean isVectorFont(FontDesc fontDesc) {
+        return isTrueTypeFont(fontDesc) &&
+               fontDesc.getVectorFontMode() == VectorFontMode.VECTOR_FONT_MODE_VECTOR;
+    }
+
+    private static boolean hasOutline(FontDesc fontDesc) {
+        return fontDesc.getOutlineAlpha() > 0.0f &&
+               (isBitmapFont(fontDesc) || fontDesc.getOutlineWidth() > 0.0f);
+    }
+
+    private static boolean hasShadow(FontDesc fontDesc) {
+        return fontDesc.getShadowAlpha() > 0.0f &&
+               (isBitmapFont(fontDesc) || fontDesc.getShadowBlur() > 0 ||
+                fontDesc.getShadowX() != 0.0f || fontDesc.getShadowY() != 0.0f);
+    }
+
+    private boolean legacyRuntimeGeneration() {
+        return this.project.option("font-runtime-generation", "false").equals("true");
+    }
+
+    private static boolean useRuntimeGeneration(FontDesc fontDesc) {
+        return isTrueTypeFont(fontDesc) && fontDesc.getRuntime();
+    }
+
+    static FontDesc getEffectiveFontDesc(FontDesc fontDesc, boolean legacyRuntimeGeneration) {
+        FontDesc.Builder builder = fontDesc.toBuilder();
+        boolean hasEffects = hasOutline(fontDesc) || hasShadow(fontDesc);
+        if (isBitmapFont(fontDesc)) {
+            builder.setOutputFormat(FontTextureFormat.TYPE_BITMAP);
+            builder.setRenderMode(hasEffects ? FontRenderMode.MODE_MULTI_LAYER : FontRenderMode.MODE_SINGLE_LAYER);
+            builder.setRuntime(false);
+            builder.clearVectorFontMode();
+            if (fontDesc.getCharacters().isEmpty()) {
+                builder.setAllChars(true);
+            }
+        } else {
+            VectorFontMode mode = fontDesc.hasVectorFontMode() ? fontDesc.getVectorFontMode() :
+                fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP ?
+                    VectorFontMode.VECTOR_FONT_MODE_BITMAP : VectorFontMode.VECTOR_FONT_MODE_SDF;
+            boolean vector = mode == VectorFontMode.VECTOR_FONT_MODE_VECTOR;
+            boolean bitmap = mode == VectorFontMode.VECTOR_FONT_MODE_BITMAP;
+            boolean runtime = isTrueTypeFont(fontDesc) && !bitmap &&
+                (fontDesc.hasRuntime() ? fontDesc.getRuntime() : vector || legacyRuntimeGeneration);
+
+            builder.setVectorFontMode(mode);
+            builder.setOutputFormat(bitmap ? FontTextureFormat.TYPE_BITMAP : FontTextureFormat.TYPE_DISTANCE_FIELD);
+            if (!bitmap) {
+                builder.setRenderMode(vector || hasEffects ? FontRenderMode.MODE_MULTI_LAYER : FontRenderMode.MODE_SINGLE_LAYER);
+                builder.setAntialias(1);
+            }
+            builder.setRuntime(runtime);
+            if (runtime) {
+                builder.setAllChars(false);
+            }
+            if (vector && !hasEffects) {
+                builder.setSize(Fontc.VECTOR_REFERENCE_SIZE);
+            }
+        }
+        return builder.build();
+    }
+
+    private FontDesc getEffectiveFontDesc(FontDesc fontDesc) {
+        return getEffectiveFontDesc(fontDesc, legacyRuntimeGeneration());
+    }
+
+    private static void validateMaterialMode(IResource input, FontDesc fontDesc, IResource materialResource) throws IOException, CompileExceptionError {
+        MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
+        TextFormat.merge(new String(materialResource.getContent(), StandardCharsets.UTF_8), materialBuilder);
+        MaterialDesc materialDesc = materialBuilder.build();
+        boolean hasCurveSampler = materialDesc.getSamplersList().stream().anyMatch(sampler -> sampler.getName().equals("curve_texture"));
+        boolean hasBandSampler = materialDesc.getSamplersList().stream().anyMatch(sampler -> sampler.getName().equals("band_texture"));
+        if (isVectorFont(fontDesc) && (!hasCurveSampler || !hasBandSampler)) {
+            throw new CompileExceptionError(input, 0, "Vector font mode requires curve_texture and band_texture samplers");
+        }
+        if (!isVectorFont(fontDesc) && hasCurveSampler) {
+            throw new CompileExceptionError(input, 0, "Bitmap and SDF font modes do not support vector curve texture samplers");
+        }
+    }
+
+    static FontDesc withInferredBitmapSize(FontDesc fontDesc, IResource fontResource) throws IOException, CompileExceptionError {
+        if (!isBitmapFont(fontDesc)) {
+            return fontDesc;
+        }
+
+        BMFont bitmapFont = new BMFont();
+        try (BufferedInputStream stream = new BufferedInputStream(new ByteArrayInputStream(fontResource.getContent()))) {
+            bitmapFont.parse(stream);
+        } catch (BMFontFormatException e) {
+            throw new CompileExceptionError(fontResource, 0, e.getMessage());
+        }
+
+        int size = Math.round(bitmapFont.size);
+        if (size <= 0) {
+            throw new CompileExceptionError(fontResource, 0, "BMFont info.size must be positive");
+        }
+        return fontDesc.toBuilder().setSize(size).build();
     }
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         FontDesc.Builder builder = getSrcBuilder(input);
-        FontDesc fontDesc = builder.build();
-
+        FontDesc fontDesc = getEffectiveFontDesc(builder.build());
+        if (isVectorFont(fontDesc) && (hasOutline(fontDesc) || hasShadow(fontDesc)) && fontDesc.getSize() == 0) {
+            throw new CompileExceptionError(input, 0, "Vector fonts with outline or shadow effects require a positive Size in the .font resource.");
+        }
         IResource fontResource = input.getResource(fontDesc.getFont());
+        fontDesc = withInferredBitmapSize(fontDesc, fontResource);
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addOutput(input.changeExt(params.outExt()));
@@ -86,10 +193,13 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         FontDesc.Builder builder = getSrcBuilder(task.firstInput());
-        FontDesc fontDesc = builder.build();
+        FontDesc fontDesc = getEffectiveFontDesc(builder.build());
+        IResource fontResource = task.firstInput().getResource(fontDesc.getFont());
+        fontDesc = withInferredBitmapSize(fontDesc, fontResource);
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
 
         BuilderUtil.checkResource(this.project, task.input(1), "material", fontDesc.getMaterial());
+        validateMaterialMode(task.firstInput(), fontDesc, task.firstInput().getResource(fontDesc.getMaterial()));
         if (useRuntimeGeneration(fontDesc))
         {
             BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
@@ -103,14 +213,11 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         }
 
         fontMapBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
-
-        boolean allChars = fontDesc.getAllChars();
-
-        if (allChars)
+        if (fontDesc.getAllChars())
         {
-            fontMapBuilder.setAllChars(allChars); // 0x000000 - 0x10FFFF
+            fontMapBuilder.setAllChars(true); // 0x000000 - 0x10FFFF
         }
-        else
+        else if (useRuntimeGeneration(fontDesc))
         {
             fontMapBuilder.setCharacters(fontDesc.getCharacters());
         }
@@ -121,7 +228,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             throw new CompileExceptionError(task.firstInput(), 0, error.getMessage(), error);
         }
         fontMapBuilder.setSize(fontDesc.getSize());
-        fontMapBuilder.setAntialias(fontDesc.getAntialias());
+        if (fontDesc.getAntialias() != 1)
+            fontMapBuilder.setAntialias(fontDesc.getAntialias());
         fontMapBuilder.setShadowX(fontDesc.getShadowX());
         fontMapBuilder.setShadowY(fontDesc.getShadowY());
         fontMapBuilder.setShadowBlur(fontDesc.getShadowBlur());
@@ -140,6 +248,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setSdfShadow(Fontc.GetFontMapSdfShadow(fontDesc));
         }
 
+        fontMapBuilder.setVectorBitmapEffects(isVectorFont(fontDesc));
         fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
         fontMapBuilder.setRenderMode(fontDesc.getRenderMode());
 

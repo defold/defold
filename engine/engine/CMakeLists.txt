@@ -360,6 +360,7 @@ defold_feature_enabled(font_layout ENGINE_WITH_FONT_LAYOUT)
 defold_feature_enabled(simd ENGINE_WITH_SIMD)
 
 defold_get_gamesys_libraries(ENGINE_GAMESYS_LIBS)
+defold_get_font_gen_library(ENGINE_FONT_GEN_LIB)
 defold_get_font_libraries(ENGINE_FONT_LIBS)
 
 set(ENGINE_SOUND_LIBS sound decoder_wav decoder_ogg)
@@ -445,6 +446,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     ${profile_libs}
     ${ENGINE_EXECUTABLE_PREFIX_DEPENDENCIES}
     ${ENGINE_GAMESYS_LIBS}
+    ${ENGINE_FONT_GEN_LIB}
     ${ENGINE_EXECUTABLE_SUFFIX_DEPENDENCIES}
     ${ENGINE_EXTRA_LIBS})
   defold_get_physics_libraries(_engine_physics_libs)
@@ -535,6 +537,7 @@ defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 set(ENGINE_HEADLESS_SYMBOLS
   LiveUpdateExt
   ScriptTypesExt
+  ScriptFont
   ScriptLibParticleFX
   ScriptLibTileMap
   GraphicsAdapterNull
