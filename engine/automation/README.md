@@ -156,12 +156,20 @@ of scope.
 See [the validation record](VALIDATION.md) for completed checks and outstanding
 platform acceptance gates.
 
-Configure the normal engine build with `-DAUTOMATION_BUILD_TESTS=ON`, then run:
+Automation tests participate in the normal `build_tests` and `run_tests` targets
+when `AUTOMATION_BUILD_TESTS` is enabled (it defaults to `BUILD_TESTS`). Each check
+also has a focused `run_automation_*` target. To run the checks through CTest:
 
 ```sh
 cmake --build engine/build/arm64-macos --target dmengine automation_tests
 ctest --test-dir engine/build/arm64-macos -R '^automation_' --output-on-failure
 ```
+
+Native input checks use a graphical engine and require a display. They default
+to enabled on macOS; use `-DAUTOMATION_TEST_NATIVE_INPUT=ON` on other desktop
+hosts with a display, or `OFF` for a headless build host. These checks verify
+mouse holds and touch lifecycle through the game's input callbacks. The
+headless runtime suite always runs on supported host desktop builds.
 
 The fixtures use stock and unrelated-extension headless engines, real HTTP,
 completion polling, owner deletion/recreation, reboot, malformed input, FIFO

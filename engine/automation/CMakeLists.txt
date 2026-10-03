@@ -72,31 +72,80 @@ defold_install_targets(TARGETS automation automation_capture automation_capture_
 if(AUTOMATION_BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM AND
    TARGET_PLATFORM MATCHES "(macos|linux|win32)$" AND CMAKE_SOURCE_DIR STREQUAL DEFOLD_HOME)
   set(AUTOMATION_TEST_FIXTURE "${CMAKE_CURRENT_BINARY_DIR}/fixture")
-  set(AUTOMATION_TEST_BOB "${DEFOLD_SDK_ROOT}/share/java/bob.jar" CACHE FILEPATH "Bob jar for automation fixtures")
+  set(AUTOMATION_TEST_BOB "${DEFOLD_BOB_LIGHT_JAR}" CACHE FILEPATH "Bob jar for automation fixtures")
+  set(AUTOMATION_TEST_BUILTINS "${DEFOLD_HOME}/engine/engine/content")
   file(GLOB_RECURSE AUTOMATION_FIXTURE_SOURCES CONFIGURE_DEPENDS "src/test/fixture/*")
+  file(GLOB_RECURSE AUTOMATION_BUILTIN_SOURCES CONFIGURE_DEPENDS "${AUTOMATION_TEST_BUILTINS}/builtins/*")
   add_custom_command(OUTPUT "${AUTOMATION_TEST_FIXTURE}/.complete"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/src/test/build_test_content.py"
       --java "${Java_JAVA_EXECUTABLE}" --bob "${AUTOMATION_TEST_BOB}"
+      --builtins "${AUTOMATION_TEST_BUILTINS}"
       --platform "${TARGET_PLATFORM}" --output "${AUTOMATION_TEST_FIXTURE}"
-    DEPENDS ${AUTOMATION_FIXTURE_SOURCES} src/test/build_test_content.py "${AUTOMATION_TEST_BOB}"
+    DEPENDS ${AUTOMATION_FIXTURE_SOURCES} ${AUTOMATION_BUILTIN_SOURCES}
+      src/test/build_test_content.py "${AUTOMATION_TEST_BOB}"
     VERBATIM)
-  add_custom_target(automation_tests
-    DEPENDS "${AUTOMATION_TEST_FIXTURE}/.complete" dmengine_headless dmengine_release
-      dmengine_automation_unrelated dmengine_automation_legacy)
+  add_custom_target(automation_test_content DEPENDS "${AUTOMATION_TEST_FIXTURE}/.complete")
+  add_custom_target(automation_tests DEPENDS automation_test_content)
+  if(BUILD_TESTS)
+    add_dependencies(build_tests automation_tests)
+  endif()
+
+  # Keep CTest, focused targets, and both aggregate runners on the same commands.
+  # The tests share staged fixture content and logs, so serialize their resource group.
+  function(automation_add_test name engine)
+    set(command ${ARGN})
+    add_dependencies(automation_tests ${engine})
+    add_test(NAME ${name} COMMAND ${command})
+    set_tests_properties(${name} PROPERTIES TIMEOUT 60 RESOURCE_LOCK automation)
+    defold_test_run_settings(run_locked run_options automation)
+    add_custom_target(run_${name}
+      COMMAND ${run_locked} ${command}
+      DEPENDS ${engine} automation_test_content
+      WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+      COMMENT "Running ${name}"
+      VERBATIM ${run_options})
+    if(BUILD_TESTS)
+      defold_register_sequential_test_command(${name}
+        COMMAND ${command} DEPENDS ${engine} automation_test_content)
+      if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        if(NOT TARGET run_tests)
+          add_custom_target(run_tests)
+        endif()
+        defold_add_to_run_tests(run_${name}
+          RUN_GROUP automation COMMAND ${command}
+          DEPENDS ${engine} automation_test_content
+          WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+      endif()
+    endif()
+  endfunction()
+
   # Real HTTP against an extension-free project verifies ordering and lifecycle contracts.
-  add_test(NAME automation_runtime COMMAND "${Python3_EXECUTABLE}"
+  automation_add_test(automation_runtime dmengine_headless "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_runtime.py"
     --engine "$<TARGET_FILE:dmengine_headless>" --fixture "${AUTOMATION_TEST_FIXTURE}")
   # Inspection of the linked image guards against shipping debug code and capture dependencies.
-  add_test(NAME automation_release_exclusion COMMAND "${Python3_EXECUTABLE}"
+  automation_add_test(automation_release_exclusion dmengine_release "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_release.py" "$<TARGET_FILE:dmengine_release>")
-  # An unrelated native extension coexists; a legacy bridge is rejected before app initialization.
-  add_test(NAME automation_extension_coexistence COMMAND "${Python3_EXECUTABLE}"
+  # An unrelated native extension must coexist with the built-in automation implementation.
+  automation_add_test(automation_extension_coexistence dmengine_automation_unrelated "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_runtime.py" --extension
     --engine "$<TARGET_FILE:dmengine_automation_unrelated>" --fixture "${AUTOMATION_TEST_FIXTURE}")
-  add_test(NAME automation_legacy_rejection COMMAND "${Python3_EXECUTABLE}"
+  # A legacy bridge must be rejected before application initialization.
+  automation_add_test(automation_legacy_rejection dmengine_automation_legacy "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_legacy.py"
     "$<TARGET_FILE:dmengine_automation_legacy>" "${AUTOMATION_TEST_FIXTURE}")
-  set_tests_properties(automation_runtime automation_release_exclusion automation_extension_coexistence
-    automation_legacy_rejection PROPERTIES TIMEOUT 60)
+
+  set(native_input_default OFF)
+  if(TARGET_PLATFORM MATCHES "macos$")
+    set(native_input_default ON)
+  endif()
+  option(AUTOMATION_TEST_NATIVE_INPUT "Run automation input tests with a native window (requires a display)" ${native_input_default})
+  if(AUTOMATION_TEST_NATIVE_INPUT)
+    # Native HID polling must preserve holds and allow touch before physical device interaction.
+    automation_add_test(automation_native_input dmengine "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_runtime.py"
+      --engine "$<TARGET_FILE:dmengine>" --fixture "${AUTOMATION_TEST_FIXTURE}"
+      RuntimeTest.test_pointer_hold_and_move RuntimeTest.test_drag_holds
+      RuntimeTest.test_touch_taps RuntimeTest.test_touch_hold_and_move RuntimeTest.test_touch_cancellation)
+  endif()
 endif()

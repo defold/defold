@@ -404,7 +404,7 @@ class RuntimeTest(unittest.TestCase):
             self.assertTrue(all((event['x'], event['y']) == (samples[0]['x'], samples[0]['y']) for event in samples))
 
     # Repeated taps exceed packet capacity without retaining old touches or losing releases.
-    def test_touch_dispatch_in_headless(self):
+    def test_touch_taps(self):
         owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False}
         self.command('reset_input')
         for _ in range(16):
