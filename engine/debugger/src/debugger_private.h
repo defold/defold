@@ -179,7 +179,8 @@ namespace dmDebugger
     void       Event(Debugger* d, const char* event, const Buffer* body = 0);
     lua_State* GetThread(Thread* thread);
     Thread*    FindThread(Debugger* d, uint32_t id, bool include_exited = false);
-    Thread*    TrackThread(Debugger* d, lua_State* L);
+    Thread*    TrackThread(Debugger* d, lua_State* L, bool preserve_hook = false);
+    void       DiscoverThreads(Debugger* d, lua_State* L, lua_State* excluded = 0);
     void       ClearReferences(Debugger* d);
     void       CaptureFrames(Debugger* d);
     int        StackDepth(lua_State* L);
