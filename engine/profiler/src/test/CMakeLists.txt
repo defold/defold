@@ -18,6 +18,7 @@ endif()
 defold_target_link_libraries(test_profilerext_null "${TARGET_PLATFORM}"
   testmain
   dlib
+  profile_null
   profilerext_null)
 defold_register_test_target(test_profilerext_null OFF "${PROFILER_ROOT}")
 
