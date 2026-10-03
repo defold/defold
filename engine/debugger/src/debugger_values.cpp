@@ -113,7 +113,8 @@ namespace dmDebugger
             if (!L)
                 continue;
             lua_Debug ar;
-            for (int level = 0; lua_getstack(L, level, &ar); ++level)
+            int level = 0;
+            for (; lua_getstack(L, level, &ar); ++level)
             {
                 lua_getinfo(L, "Sl", &ar);
                 // C callbacks and Lua 5.1's eliminated tail-call placeholders
@@ -136,6 +137,7 @@ namespace dmDebugger
                                 ar.currentline, thread->m_ExecutionVersion, true };
                 Push(d->m_Frames, frame);
             }
+            thread->m_EvaluationDepth = level;
         }
         if (d->m_Frames.Size() > 1)
             qsort(d->m_Frames.Begin(), d->m_Frames.Size(), sizeof(Frame), CompareFrames);
@@ -674,7 +676,8 @@ namespace dmDebugger
         e->m_L = L;
         e->m_Thread = TrackThread(d, L);
         e->m_ExecutionVersion = e->m_Thread->m_ExecutionVersion;
-        e->m_Depth = level >= 0 ? StackDepth(L) - level : 0;
+        e->m_Thread->m_EvaluationDepth = StackDepth(L);
+        e->m_Depth = level >= 0 ? e->m_Thread->m_EvaluationDepth - level : 0;
         e->m_Active = true;
         e->m_Global = level < 0;
         int context = lua_gettop(evaluation_L);
