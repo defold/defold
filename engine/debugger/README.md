@@ -158,7 +158,12 @@ lines are known. It does not parse source files or guess locations. Locations ar
 line-based, and a column range must include the first column of a reported line.
 Executable lines are collected once per observed function during an attachment.
 The function cache uses weak keys, allowing closures to be collected and newly
-loaded functions to be discovered without rescanning every call.
+loaded functions to be discovered without rescanning every call. At each stop
+and source request, locations are refreshed from the still-live observed
+functions in all Lua states. Collected functions no longer contribute lines;
+breakpoints on removed lines return to pending and emit a `breakpoint` event.
+Live older closures continue to contribute their lines after a reload. A new
+attachment starts with no source knowledge, including when `localRoot` changes.
 
 Locals shadow upvalues and globals, including when the local is `nil`. Evaluation
 with a `frameId` uses the selected function's environment. Without `frameId`,

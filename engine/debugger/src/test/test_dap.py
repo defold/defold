@@ -1203,7 +1203,7 @@ class DAPTests(DAPTestCase):
         self.finished()
 
     # Source observation must not retain closures, skip a replacement function
-    # with the same filename, or report duplicate executable lines.
+    # with the same filename, or retain executable lines from collected code.
     def test_observed_functions_are_weak_and_reloads_are_discovered(self):
         c = self.start(r'''
             local weak = setmetatable({}, {__mode = "v"})
@@ -1229,7 +1229,106 @@ class DAPTests(DAPTestCase):
         frames = self.stopped()
         self.assertEqual((frames[0]["source"]["path"], frames[0]["line"]), ("/reload.lua", 4))
         locations = c.request("breakpointLocations", {"source": {"path": "/reload.lua"}, "line": 1, "endLine": 4})
-        self.assertEqual(locations["breakpoints"], [{"line": i} for i in range(1, 5)])
+        self.assertEqual(locations["breakpoints"], [{"line": 3}, {"line": 4}])
+        self.resume()
+        self.finished()
+
+    # A shorter reload keeps lines from live older closures, then removes them
+    # and revokes breakpoint verification once those closures are collected.
+    def test_reloaded_source_removes_collected_lines(self):
+        c = self.start(r'''
+            local old = assert(loadstring("local n = 1\nn = n + 1\nn = n + 1\nn = n + 1\nreturn n", "@/hot.lua"))
+            assert(old() == 4)
+            local marker = 0 -- original
+            local replacement = assert(loadstring("return 9", "@/hot.lua"))
+            assert(replacement() == 9)
+            marker = 1 -- retained
+            old = nil
+            collectgarbage('collect')
+            collectgarbage('collect')
+            marker = 2 -- collected
+            replacement = nil
+            collectgarbage('collect')
+            collectgarbage('collect')
+            marker = 3 -- empty
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints(*({"line": self.line(marker)} for marker in ("original", "retained", "collected", "empty")))
+        bp = self.breakpoints({"line": 4, "condition": "false"}, path="/hot.lua")[0]
+        c.configured()
+        for expected in ([1, 2, 3, 4, 5], [1, 2, 3, 4, 5], [1], []):
+            self.stopped()
+            locations = c.request("breakpointLocations", {"source": {"path": "/hot.lua"}, "line": 1, "endLine": 5})
+            self.assertEqual(locations["breakpoints"], [{"line": line} for line in expected])
+            if expected == [1]:
+                events = [m["body"]["breakpoint"] for m in c.pending if m.get("event") == "breakpoint"
+                          and m["body"]["breakpoint"]["id"] == bp["id"]]
+                self.assertEqual([event["verified"] for event in events], [True, False])
+                self.assertFalse(self.breakpoints({"line": 4}, path="/hot.lua")[0]["verified"])
+                self.evaluate("replacement = nil; collectgarbage('collect'); collectgarbage('collect')", context="repl")
+                self.assertEqual(c.request("breakpointLocations", {"source": {"path": "/hot.lua"}, "line": 1, "endLine": 5})["breakpoints"], [])
+            self.resume()
+        self.finished()
+
+    # Reattachment must not reuse the previous session's executable-line cache,
+    # even when localRoot changes and the old function remains alive.
+    def test_source_locations_reset_on_reattach(self):
+        c = self.start(r'''
+            local fn = assert(loadstring("local n = 1\nn = n + 1\nreturn n", "@/hot.lua"))
+            assert(fn() == 2)
+            ready = false
+            local marker = 0 -- before
+            while not ready do pump() end
+            assert(fn() == 2)
+            marker = 1 -- after
+        ''')
+        c.initialize()
+        c.attach(localRoot="/first-client")
+        self.breakpoints({"line": self.line("before")})
+        c.configured()
+        self.stopped()
+        self.assertTrue(self.breakpoints({"line": 2, "condition": "false"}, path="/first-client/hot.lua")[0]["verified"])
+        c.request("disconnect")
+        c.event("terminated")
+        c.close()
+        c = self.connect()
+        c.initialize()
+        c.attach(localRoot="/second-client", stopOnEntry=True)
+        path = "/second-client/hot.lua"
+        self.assertFalse(self.breakpoints({"line": 2, "condition": "false"}, path=path)[0]["verified"])
+        self.assertEqual(c.request("breakpointLocations", {"source": {"path": path}, "line": 1, "endLine": 3})["breakpoints"], [])
+        self.breakpoints({"line": self.line("after")})
+        c.configured()
+        self.stopped("entry")
+        self.evaluate("ready = true", context="repl")
+        self.resume()
+        self.stopped()
+        self.assertEqual(c.request("breakpointLocations", {"source": {"path": path}, "line": 1, "endLine": 3})["breakpoints"],
+                         [{"line": 1}, {"line": 2}, {"line": 3}])
+        self.resume()
+        self.finished()
+
+    # Source refresh must merge live functions from independent Lua states;
+    # a shorter version in one state cannot erase another state's locations.
+    def test_source_locations_include_other_lua_states(self):
+        c = self.start(r'''
+            retained = assert(loadstring("local n = 1\nn = n + 1\nreturn n", "@/shared.lua"))
+            assert(retained() == 2)
+        ''', second=r'''
+            local replacement = assert(loadstring("return 9", "@/shared.lua"))
+            assert(replacement() == 9)
+            collectgarbage('collect')
+            local marker = 0 -- inspect
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect", self.second_path.read_text())}, path=self.second_path)
+        c.configured()
+        self.stopped()
+        self.assertEqual(c.request("breakpointLocations", {"source": {"path": "/shared.lua"}, "line": 1, "endLine": 3})["breakpoints"],
+                         [{"line": 1}, {"line": 2}, {"line": 3}])
+        self.assertTrue(self.breakpoints({"line": 2}, path="/shared.lua")[0]["verified"])
         self.resume()
         self.finished()
 

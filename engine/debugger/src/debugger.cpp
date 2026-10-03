@@ -25,6 +25,7 @@ namespace dmDebugger
     static char g_StateKey;
     static void Disconnect(Debugger* d);
     static void SetHooks(Debugger* d, bool enable);
+    static void RefreshSources(Debugger* d);
 
     Debugger::Debugger()
         : m_Listener(dmSocket::INVALID_SOCKET_HANDLE)
@@ -648,6 +649,8 @@ namespace dmDebugger
             }
         free(state->m_Name);
         delete state;
+        if (d->m_Attached)
+            RefreshSources(d);
     }
 
     static void FreeBreakpoint(Breakpoint* bp)
@@ -679,6 +682,12 @@ namespace dmDebugger
         for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
             FreeBreakpoint(d->m_Breakpoints[i]);
         d->m_Breakpoints.SetSize(0);
+        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
+        {
+            free(d->m_Sources[i]->m_Path);
+            delete d->m_Sources[i];
+        }
+        d->m_Sources.SetSize(0);
     }
 
     HDebugger New(uint16_t port, const char* address)
@@ -722,11 +731,6 @@ namespace dmDebugger
         Disconnect(d);
         while (d->m_States.Size())
             RemoveLuaState(d, d->m_States[0]->m_L);
-        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
-        {
-            free(d->m_Sources[i]->m_Path);
-            delete d->m_Sources[i];
-        }
         if (d->m_Listener != dmSocket::INVALID_SOCKET_HANDLE)
             dmSocket::Delete(d->m_Listener);
         delete d;
@@ -819,16 +823,84 @@ namespace dmDebugger
             body.Add(",\"message\":\"Pending an executable Lua line\"");
         body.Add("}");
     }
-    static void VerifyBreakpoint(Debugger* d, Breakpoint* bp)
+    static void VerifyBreakpoint(Debugger* d, Breakpoint* bp, bool verified = true)
     {
-        if (bp->m_Verified)
+        if (bp->m_Verified == verified)
             return;
-        bp->m_Verified = true;
+        bp->m_Verified = verified;
         Buffer body;
         body.Add("{\"reason\":\"changed\",\"breakpoint\":");
         BreakpointBody(d, bp, body);
         body.Add("}");
         Event(d, "breakpoint", &body);
+    }
+    static Source* FindSource(Debugger* d, const char* path)
+    {
+        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
+            if (!strcmp(d->m_Sources[i]->m_Path, path))
+                return d->m_Sources[i];
+        return 0;
+    }
+    static void RefreshSources(Debugger* d)
+    {
+        // Rebuild the union at stops and source requests, not in the hot hook
+        // path. Weak function keys let collected code disappear, while live
+        // closures and other Lua states still contribute their executable lines.
+        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
+            d->m_Sources[i]->m_Lines.SetSize(0);
+        for (uint32_t i = 0; i < d->m_States.Size(); ++i)
+        {
+            State* state = d->m_States[i];
+            lua_State* L = state->m_L;
+            lua_rawgeti(L, LUA_REGISTRYINDEX, state->m_ObservedFunctionsRef);
+            lua_pushnil(L);
+            while (lua_next(L, -2))
+            {
+                lua_getfield(L, -1, "source");
+                const char* path = lua_tostring(L, -1);
+                Source* source = FindSource(d, path);
+                if (!source)
+                {
+                    source = new Source();
+                    source->m_Path = strdup(path);
+                    Push(d->m_Sources, source);
+                }
+                lua_pop(L, 1);
+                lua_pushnil(L);
+                while (lua_next(L, -2))
+                {
+                    if (lua_type(L, -2) == LUA_TNUMBER)
+                        Push(source->m_Lines, (int)lua_tointeger(L, -2));
+                    lua_pop(L, 1);
+                }
+                lua_pop(L, 1);
+            }
+            lua_pop(L, 1);
+        }
+        for (uint32_t i = 0; i < d->m_Sources.Size();)
+        {
+            Source* source = d->m_Sources[i];
+            if (!source->m_Lines.Size())
+            {
+                free(source->m_Path);
+                delete source;
+                d->m_Sources.EraseSwap(i);
+                continue;
+            }
+            qsort(source->m_Lines.Begin(), source->m_Lines.Size(), sizeof(int), CompareLines);
+            uint32_t count = 0;
+            for (uint32_t j = 0; j < source->m_Lines.Size(); ++j)
+                if (!count || source->m_Lines[j] != source->m_Lines[count - 1])
+                    source->m_Lines[count++] = source->m_Lines[j];
+            source->m_Lines.SetSize(count);
+            ++i;
+        }
+        for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
+        {
+            Breakpoint* bp = d->m_Breakpoints[i];
+            Source* source = FindSource(d, bp->m_Path);
+            VerifyBreakpoint(d, bp, source && HasLine(source, bp->m_Line));
+        }
     }
     static void ObserveSource(Debugger* d, lua_State* L, lua_Debug* ar)
     {
@@ -846,51 +918,31 @@ namespace dmDebugger
             lua_pop(L, 2);
             return;
         }
-        lua_pushboolean(L, true);
-        lua_rawset(L, -3);
-        lua_pop(L, 1);
         Buffer path;
         RuntimePath(d, ar->source, path);
-        Source* source = 0;
-        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
-            if (!strcmp(d->m_Sources[i]->m_Path, path.Data()))
-            {
-                source = d->m_Sources[i];
-                break;
-            }
-        if (!source)
-        {
-            source = new Source();
-            source->m_Path = strdup(path.Data());
-            Push(d->m_Sources, source);
-        }
         lua_getinfo(L, "L", ar);
-        if (lua_istable(L, -1))
+        if (!lua_istable(L, -1))
         {
-            lua_pushnil(L);
-            while (lua_next(L, -2))
-            {
-                int line = (int)lua_tointeger(L, -2);
-                Push(source->m_Lines, line);
-                lua_pop(L, 1);
-            }
+            lua_pop(L, 3);
+            return;
         }
-        lua_pop(L, 1);
-        if (source->m_Lines.Size() > 1)
-        {
-            qsort(source->m_Lines.Begin(), source->m_Lines.Size(), sizeof(int), CompareLines);
-            uint32_t count = 0;
-            for (uint32_t i = 0; i < source->m_Lines.Size(); ++i)
-                if (!count || source->m_Lines[i] != source->m_Lines[count - 1])
-                    source->m_Lines[count++] = source->m_Lines[i];
-            source->m_Lines.SetSize(count);
-        }
+        // Keep the line set as the weak cache value. It never references the
+        // function key, so recording source information cannot retain closures.
+        lua_pushstring(L, path.Data());
+        lua_setfield(L, -2, "source");
         for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
         {
             Breakpoint* bp = d->m_Breakpoints[i];
-            if (!strcmp(bp->m_Path, path.Data()) && HasLine(source, bp->m_Line))
-                VerifyBreakpoint(d, bp);
+            if (!strcmp(bp->m_Path, path.Data()))
+            {
+                lua_rawgeti(L, -1, bp->m_Line);
+                if (lua_toboolean(L, -1))
+                    VerifyBreakpoint(d, bp);
+                lua_pop(L, 1);
+            }
         }
+        lua_rawset(L, -3);
+        lua_pop(L, 1);
     }
 
     static void SetBreakpoints(Debugger* d, const Json& json, int seq, int args)
@@ -924,6 +976,7 @@ namespace dmDebugger
         }
         Buffer path;
         RuntimePath(d, source, path);
+        RefreshSources(d);
         for (uint32_t i = 0; i < d->m_Breakpoints.Size();)
         {
             if (!strcmp(d->m_Breakpoints[i]->m_Path, path.Data()))
@@ -986,6 +1039,7 @@ namespace dmDebugger
         }
         Buffer path;
         RuntimePath(d, source, path);
+        RefreshSources(d);
         dmArray<int> lines;
         for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
             if (!strcmp(d->m_Sources[i]->m_Path, path.Data()))
@@ -1383,6 +1437,7 @@ namespace dmDebugger
             if (lua_getstack(frame.m_L, frame.m_Level, &ar) && lua_getinfo(frame.m_L, "S", &ar))
                 ObserveSource(d, frame.m_L, &ar);
         }
+        RefreshSources(d);
         Buffer body;
         body.Format("{\"reason\":\"%s\",\"threadId\":%u,\"allThreadsStopped\":true", reason, thread->m_Id);
         if (breakpoint)
