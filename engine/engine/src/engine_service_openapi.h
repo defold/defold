@@ -17,580 +17,580 @@
 
 namespace dmEngineService
 {
-    static const char PING_OPENAPI[] =
-        "{"
-        "  \"/ping\": {"
-        "    \"get\": {"
-        "      \"summary\": \"Check that the engine is responding\","
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Check that the engine is responding\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              },"
-        "              \"example\": \"PONG\\n\""
-        "            }"
-        "          }"
-        "        }"
-        "      }"
-        "    }"
-        "  }"
-        "}";
+    static const char PING_OPENAPI[] = R"json(
+{
+  "/ping": {
+    "get": {
+      "summary": "Check that the engine is responding",
+      "responses": {
+        "200": {
+          "description": "OK",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "PONG\n"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+)json";
 
-    static const char INFO_OPENAPI[] =
-        "{"
-        "  \"/info\": {"
-        "    \"get\": {"
-        "      \"summary\": \"Get engine version, platform and log port\","
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Get engine version, platform and log port\","
-        "          \"content\": {"
-        "            \"application/json\": {"
-        "              \"schema\": {"
-        "                \"type\": \"object\","
-        "                \"required\": ["
-        "                  \"version\","
-        "                  \"platform\","
-        "                  \"sha1\","
-        "                  \"log_port\""
-        "                ],"
-        "                \"properties\": {"
-        "                  \"version\": {"
-        "                    \"type\": \"string\""
-        "                  },"
-        "                  \"platform\": {"
-        "                    \"type\": \"string\""
-        "                  },"
-        "                  \"sha1\": {"
-        "                    \"type\": \"string\""
-        "                  },"
-        "                  \"log_port\": {"
-        "                    \"type\": \"string\","
-        "                    \"description\": \"TCP log-service port, encoded as a string.\""
-        "                  }"
-        "                }"
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      }"
-        "    }"
-        "  }"
-        "}";
+    static const char INFO_OPENAPI[] = R"json(
+{
+  "/info": {
+    "get": {
+      "summary": "Get engine version, platform and log port",
+      "responses": {
+        "200": {
+          "description": "OK",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "version",
+                  "platform",
+                  "sha1",
+                  "log_port"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "string"
+                  },
+                  "platform": {
+                    "type": "string"
+                  },
+                  "sha1": {
+                    "type": "string"
+                  },
+                  "log_port": {
+                    "type": "string",
+                    "description": "Port used by the TCP log service."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+)json";
 
-    static const char STATE_OPENAPI[] =
-        "{"
-        "  \"/state\": {"
-        "    \"get\": {"
-        "      \"summary\": \"Get engine connection state\","
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Get engine connection state\","
-        "          \"content\": {"
-        "            \"application/json\": {"
-        "              \"schema\": {"
-        "                \"type\": \"object\","
-        "                \"required\": ["
-        "                  \"connection_mode\""
-        "                ],"
-        "                \"properties\": {"
-        "                  \"connection_mode\": {"
-        "                    \"type\": \"boolean\","
-        "                    \"description\": \"True when the engine is waiting for a project connection.\""
-        "                  }"
-        "                }"
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      }"
-        "    }"
-        "  }"
-        "}";
+    static const char STATE_OPENAPI[] = R"json(
+{
+  "/state": {
+    "get": {
+      "summary": "Get engine connection state",
+      "responses": {
+        "200": {
+          "description": "OK",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "connection_mode"
+                ],
+                "properties": {
+                  "connection_mode": {
+                    "type": "boolean",
+                    "description": "True when the engine is waiting for a project connection."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+)json";
 
-    static const char OPENAPI_OPENAPI[] =
-        "{"
-        "  \"/openapi.json\": {"
-        "    \"get\": {"
-        "      \"summary\": \"Discover the engine HTTP API\","
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Discover the engine HTTP API\","
-        "          \"content\": {"
-        "            \"application/json\": {"
-        "              \"schema\": {"
-        "                \"type\": \"object\""
-        "              }"
-        "            }"
-        "          }"
-        "        },"
-        "        \"405\": {"
-        "          \"description\": \"Only GET is supported\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"description\": \"OpenAPI 3.0.3 document describing the currently registered engine and native-extension handlers.\""
-        "    }"
-        "  }"
-        "}";
+    static const char OPENAPI_OPENAPI[] = R"json(
+{
+  "/openapi.json": {
+    "get": {
+      "summary": "Discover the engine HTTP API",
+      "responses": {
+        "200": {
+          "description": "Includes all currently registered handlers, including native extensions.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "405": {
+          "description": "Method Not Allowed",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+)json";
 
-    static const char PROFILE_OPENAPI[] =
-        "{"
-        "  \"/\": {"
-        "    \"get\": {"
-        "      \"summary\": \"Open the engine profiler\","
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Open the engine profiler\","
-        "          \"content\": {"
-        "            \"text/html\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      }"
-        "    }"
-        "  }"
-        "}";
+    static const char PROFILE_OPENAPI[] = R"json(
+{
+  "/": {
+    "get": {
+      "summary": "Open the engine profiler",
+      "responses": {
+        "200": {
+          "description": "OK",
+          "content": {
+            "text/html": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+)json";
 
-    static const char REDIRECT_OPENAPI[] =
-        "{"
-        "  \"/\": {"
-        "    \"get\": {"
-        "      \"summary\": \"Redirect to the engine service\","
-        "      \"description\": \"This server redirects request paths to the actual engine-service HTTP port.\","
-        "      \"responses\": {"
-        "        \"302\": {"
-        "          \"description\": \"The engine service URL for the requested path.\","
-        "          \"headers\": {"
-        "            \"Location\": {"
-        "              \"description\": \"HTTP URL on the engine service.\","
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      }"
-        "    }"
-        "  }"
-        "}";
+    static const char REDIRECT_OPENAPI[] = R"json(
+{
+  "/": {
+    "get": {
+      "summary": "Redirect to the engine service",
+      "responses": {
+        "302": {
+          "description": "Preserves the requested path.",
+          "headers": {
+            "Location": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+)json";
 
-    static const char RESOURCES_OPENAPI[] =
-        "{"
-        "  \"/resources_data\": {"
-        "    \"get\": {"
-        "      \"summary\": \"Get loaded resource statistics\","
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Get loaded resource statistics\","
-        "          \"content\": {"
-        "            \"application/octet-stream\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\","
-        "                \"format\": \"binary\""
-        "              }"
-        "            }"
-        "          }"
-        "        },"
-        "        \"500\": {"
-        "          \"description\": \"Profiler state is unavailable\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"description\": \"Binary resource-profiler stream in the engine platform byte order. Strings have a uint16 byte length followed by UTF-8 bytes. Starts with the string RESS, followed by records containing name, extension, uint32 memory size, uint32 disk size and uint32 reference count.\""
-        "    }"
-        "  }"
-        "}";
+    static const char RESOURCES_OPENAPI[] = R"json(
+{
+  "/resources_data": {
+    "get": {
+      "summary": "Get loaded resource statistics",
+      "responses": {
+        "200": {
+          "description": "Uses the engine platform byte order. Strings have a uint16 byte length followed by UTF-8 bytes. Starts with the string RESS, followed by records containing name, extension, uint32 memory size, uint32 disk size and uint32 reference count.",
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "500": {
+          "description": "Profiler state is unavailable",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+)json";
 
-    static const char GAMEOBJECTS_OPENAPI[] =
-        "{"
-        "  \"/gameobjects_data\": {"
-        "    \"get\": {"
-        "      \"summary\": \"Get the game-object hierarchy\","
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Get the game-object hierarchy\","
-        "          \"content\": {"
-        "            \"application/octet-stream\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\","
-        "                \"format\": \"binary\""
-        "              }"
-        "            }"
-        "          }"
-        "        },"
-        "        \"500\": {"
-        "          \"description\": \"Profiler state is unavailable\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"description\": \"Binary game-object-profiler stream in the engine platform byte order. Strings have a uint16 byte length followed by UTF-8 bytes. Starts with the string GOBJ, followed by records containing identifier, resource identifier, type, uint32 index and uint32 parent index.\""
-        "    }"
-        "  }"
-        "}";
+    static const char GAMEOBJECTS_OPENAPI[] = R"json(
+{
+  "/gameobjects_data": {
+    "get": {
+      "summary": "Get the game-object hierarchy",
+      "responses": {
+        "200": {
+          "description": "Uses the engine platform byte order. Strings have a uint16 byte length followed by UTF-8 bytes. Starts with the string GOBJ, followed by records containing identifier, resource identifier, type, uint32 index and uint32 parent index.",
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "500": {
+          "description": "Profiler state is unavailable",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+)json";
 
-    static const char SCENE_GRAPH_OPENAPI[] =
-        "{"
-        "  \"/scene_graph\": {"
-        "    \"get\": {"
-        "      \"summary\": \"Get the runtime scene graph\","
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Get the runtime scene graph\","
-        "          \"content\": {"
-        "            \"application/json\": {"
-        "              \"schema\": {"
-        "                \"type\": \"object\","
-        "                \"required\": ["
-        "                  \"children\""
-        "                ],"
-        "                \"properties\": {"
-        "                  \"children\": {"
-        "                    \"type\": \"array\","
-        "                    \"items\": {"
-        "                      \"$ref\": \"#/paths/~1scene_graph/get/responses/200/content/application~1json/schema\""
-        "                    }"
-        "                  }"
-        "                },"
-        "                \"additionalProperties\": true,"
-        "                \"description\": \"Node properties depend on the component type. Values may be strings, numbers or numeric arrays; boolean properties are encoded as 0 or 1. Children use this same node shape.\""
-        "              }"
-        "            }"
-        "          }"
-        "        },"
-        "        \"500\": {"
-        "          \"description\": \"Profiler state is unavailable\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      }"
-        "    }"
-        "  }"
-        "}";
+    static const char SCENE_GRAPH_OPENAPI[] = R"json(
+{
+  "/scene_graph": {
+    "get": {
+      "summary": "Get the runtime scene graph",
+      "responses": {
+        "200": {
+          "description": "OK",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "children"
+                ],
+                "properties": {
+                  "children": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/paths/~1scene_graph/get/responses/200/content/application~1json/schema"
+                    }
+                  }
+                },
+                "additionalProperties": true,
+                "description": "Node properties depend on the component type. Values may be strings, numbers or numeric arrays; boolean properties are encoded as 0 or 1."
+              }
+            }
+          }
+        },
+        "500": {
+          "description": "Profiler state is unavailable",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+)json";
 
-    static const char POST_OPENAPI[] =
-        "{"
-        "  \"/post/{socket}/{message_type}\": {"
-        "    \"post\": {"
-        "      \"summary\": \"Post an engine message\","
-        "      \"description\": \"The socket must exist and the message type must have a registered DDF descriptor. The receiving socket determines which messages it handles. Send a binary protobuf message to an engine message socket. The request body is limited to 1024 bytes. Delivery is asynchronous: the HTTP response is not the result of executing the command. The current implementation can also return OK when protobuf decoding or message posting fails.\","
-        "      \"requestBody\": {"
-        "        \"required\": true,"
-        "        \"content\": {"
-        "          \"application/octet-stream\": {"
-        "            \"schema\": {"
-        "              \"type\": \"string\","
-        "              \"format\": \"binary\","
-        "              \"maxLength\": 1024"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Request processing finished; this does not confirm command execution\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              },"
-        "              \"example\": \"OK\""
-        "            }"
-        "          }"
-        "        },"
-        "        \"400\": {"
-        "          \"description\": \"Invalid socket or message type, a body larger than 1024 bytes, or failure reading the body\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"parameters\": ["
-        "        {"
-        "          \"name\": \"socket\","
-        "          \"in\": \"path\","
-        "          \"required\": true,"
-        "          \"schema\": {"
-        "            \"type\": \"string\""
-        "          },"
-        "          \"example\": \"@system\""
-        "        },"
-        "        {"
-        "          \"name\": \"message_type\","
-        "          \"in\": \"path\","
-        "          \"required\": true,"
-        "          \"schema\": {"
-        "            \"type\": \"string\""
-        "          },"
-        "          \"example\": \"reboot\""
-        "        }"
-        "      ]"
-        "    }"
-        "  },"
-        "  \"/post/@system/reboot\": {"
-        "    \"post\": {"
-        "      \"summary\": \"Reboot the engine\","
-        "      \"description\": \"Optional string fields arg1 through arg6 supply startup arguments. Send a binary protobuf message to an engine message socket. The request body is limited to 1024 bytes. Delivery is asynchronous: the HTTP response is not the result of executing the command. The current implementation can also return OK when protobuf decoding or message posting fails.\","
-        "      \"requestBody\": {"
-        "        \"required\": true,"
-        "        \"content\": {"
-        "          \"application/octet-stream\": {"
-        "            \"schema\": {"
-        "              \"type\": \"string\","
-        "              \"format\": \"binary\","
-        "              \"maxLength\": 1024"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Request processing finished; this does not confirm command execution\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              },"
-        "              \"example\": \"OK\""
-        "            }"
-        "          }"
-        "        },"
-        "        \"400\": {"
-        "          \"description\": \"Invalid socket or message type, a body larger than 1024 bytes, or failure reading the body\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"x-defold-protobuf-message\": \"dmSystemDDF.Reboot\","
-        "      \"externalDocs\": {"
-        "        \"description\": \"Protobuf message definition\","
-        "        \"url\": \"https://github.com/defold/defold/blob/dev/engine/script/src/script/sys_ddf.proto\""
-        "      }"
-        "    }"
-        "  },"
-        "  \"/post/@system/exit\": {"
-        "    \"post\": {"
-        "      \"summary\": \"Exit the engine\","
-        "      \"description\": \"Required int32 field code supplies the exit code. Example protobuf bytes for code=0: 08 00. Send a binary protobuf message to an engine message socket. The request body is limited to 1024 bytes. Delivery is asynchronous: the HTTP response is not the result of executing the command. The current implementation can also return OK when protobuf decoding or message posting fails.\","
-        "      \"requestBody\": {"
-        "        \"required\": true,"
-        "        \"content\": {"
-        "          \"application/octet-stream\": {"
-        "            \"schema\": {"
-        "              \"type\": \"string\","
-        "              \"format\": \"binary\","
-        "              \"maxLength\": 1024"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Request processing finished; this does not confirm command execution\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              },"
-        "              \"example\": \"OK\""
-        "            }"
-        "          }"
-        "        },"
-        "        \"400\": {"
-        "          \"description\": \"Invalid socket or message type, a body larger than 1024 bytes, or failure reading the body\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"x-defold-protobuf-message\": \"dmSystemDDF.Exit\","
-        "      \"externalDocs\": {"
-        "        \"description\": \"Protobuf message definition\","
-        "        \"url\": \"https://github.com/defold/defold/blob/dev/engine/script/src/script/sys_ddf.proto\""
-        "      }"
-        "    }"
-        "  },"
-        "  \"/post/@system/run_script\": {"
-        "    \"post\": {"
-        "      \"summary\": \"Run a compiled Lua module\","
-        "      \"description\": \"Required field module is a dmLuaDDF.LuaModule; the payload is a compiled module, not Lua source text. Send a binary protobuf message to an engine message socket. The request body is limited to 1024 bytes. Delivery is asynchronous: the HTTP response is not the result of executing the command. The current implementation can also return OK when protobuf decoding or message posting fails.\","
-        "      \"requestBody\": {"
-        "        \"required\": true,"
-        "        \"content\": {"
-        "          \"application/octet-stream\": {"
-        "            \"schema\": {"
-        "              \"type\": \"string\","
-        "              \"format\": \"binary\","
-        "              \"maxLength\": 1024"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Request processing finished; this does not confirm command execution\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              },"
-        "              \"example\": \"OK\""
-        "            }"
-        "          }"
-        "        },"
-        "        \"400\": {"
-        "          \"description\": \"Invalid socket or message type, a body larger than 1024 bytes, or failure reading the body\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"x-defold-protobuf-message\": \"dmEngineDDF.RunScript\","
-        "      \"externalDocs\": {"
-        "        \"description\": \"Protobuf message definition\","
-        "        \"url\": \"https://github.com/defold/defold/blob/dev/engine/engine/proto/engine/engine_ddf.proto\""
-        "      }"
-        "    }"
-        "  },"
-        "  \"/post/@render/resize\": {"
-        "    \"post\": {"
-        "      \"summary\": \"Resize the engine window\","
-        "      \"description\": \"Required uint32 fields width and height specify the window size in pixels. Send a binary protobuf message to an engine message socket. The request body is limited to 1024 bytes. Delivery is asynchronous: the HTTP response is not the result of executing the command. The current implementation can also return OK when protobuf decoding or message posting fails.\","
-        "      \"requestBody\": {"
-        "        \"required\": true,"
-        "        \"content\": {"
-        "          \"application/octet-stream\": {"
-        "            \"schema\": {"
-        "              \"type\": \"string\","
-        "              \"format\": \"binary\","
-        "              \"maxLength\": 1024"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Request processing finished; this does not confirm command execution\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              },"
-        "              \"example\": \"OK\""
-        "            }"
-        "          }"
-        "        },"
-        "        \"400\": {"
-        "          \"description\": \"Invalid socket or message type, a body larger than 1024 bytes, or failure reading the body\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"x-defold-protobuf-message\": \"dmRenderDDF.Resize\","
-        "      \"externalDocs\": {"
-        "        \"description\": \"Protobuf message definition\","
-        "        \"url\": \"https://github.com/defold/defold/blob/dev/engine/render/proto/render/render_ddf.proto\""
-        "      }"
-        "    }"
-        "  },"
-        "  \"/post/@resource/reload\": {"
-        "    \"post\": {"
-        "      \"summary\": \"Reload engine resources\","
-        "      \"description\": \"Repeated string field resources supplies project resource paths, for example /main/main.scriptc. Send a binary protobuf message to an engine message socket. The request body is limited to 1024 bytes. Delivery is asynchronous: the HTTP response is not the result of executing the command. The current implementation can also return OK when protobuf decoding or message posting fails.\","
-        "      \"requestBody\": {"
-        "        \"required\": true,"
-        "        \"content\": {"
-        "          \"application/octet-stream\": {"
-        "            \"schema\": {"
-        "              \"type\": \"string\","
-        "              \"format\": \"binary\","
-        "              \"maxLength\": 1024"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"responses\": {"
-        "        \"200\": {"
-        "          \"description\": \"Request processing finished; this does not confirm command execution\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              },"
-        "              \"example\": \"OK\""
-        "            }"
-        "          }"
-        "        },"
-        "        \"400\": {"
-        "          \"description\": \"Invalid socket or message type, a body larger than 1024 bytes, or failure reading the body\","
-        "          \"content\": {"
-        "            \"text/plain\": {"
-        "              \"schema\": {"
-        "                \"type\": \"string\""
-        "              }"
-        "            }"
-        "          }"
-        "        }"
-        "      },"
-        "      \"x-defold-protobuf-message\": \"dmResourceDDF.Reload\","
-        "      \"externalDocs\": {"
-        "        \"description\": \"Protobuf message definition\","
-        "        \"url\": \"https://github.com/defold/defold/blob/dev/engine/resource/proto/resource/resource_ddf.proto\""
-        "      }"
-        "    }"
-        "  }"
-        "}";
+    static const char POST_OPENAPI[] = R"json(
+{
+  "/post/{socket}/{message_type}": {
+    "post": {
+      "summary": "Post an engine message",
+      "description": "Encode the payload as protobuf using the registered DDF descriptor. The receiving socket determines which message types it handles.",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/octet-stream": {
+            "schema": {
+              "type": "string",
+              "format": "binary",
+              "maxLength": 1024
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "OK"
+            }
+          }
+        },
+        "400": {
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "socket",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "example": "@system"
+        },
+        {
+          "name": "message_type",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "example": "reboot"
+        }
+      ]
+    }
+  },
+  "/post/@system/reboot": {
+    "post": {
+      "summary": "Reboot the engine",
+      "description": "Optional string fields arg1 through arg6 supply startup arguments.",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/octet-stream": {
+            "schema": {
+              "type": "string",
+              "format": "binary",
+              "maxLength": 1024
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "OK"
+            }
+          }
+        },
+        "400": {
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "x-defold-protobuf-message": "dmSystemDDF.Reboot",
+      "externalDocs": {
+        "url": "https://github.com/defold/defold/blob/dev/engine/script/src/script/sys_ddf.proto"
+      }
+    }
+  },
+  "/post/@system/exit": {
+    "post": {
+      "summary": "Exit the engine",
+      "description": "Required int32 field code supplies the exit code. Example protobuf bytes for code=0: 08 00.",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/octet-stream": {
+            "schema": {
+              "type": "string",
+              "format": "binary",
+              "maxLength": 1024
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "OK"
+            }
+          }
+        },
+        "400": {
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "x-defold-protobuf-message": "dmSystemDDF.Exit",
+      "externalDocs": {
+        "url": "https://github.com/defold/defold/blob/dev/engine/script/src/script/sys_ddf.proto"
+      }
+    }
+  },
+  "/post/@system/run_script": {
+    "post": {
+      "summary": "Run a compiled Lua module",
+      "description": "Required field module is a dmLuaDDF.LuaModule.",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/octet-stream": {
+            "schema": {
+              "type": "string",
+              "format": "binary",
+              "maxLength": 1024
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "OK"
+            }
+          }
+        },
+        "400": {
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "x-defold-protobuf-message": "dmEngineDDF.RunScript",
+      "externalDocs": {
+        "url": "https://github.com/defold/defold/blob/dev/engine/engine/proto/engine/engine_ddf.proto"
+      }
+    }
+  },
+  "/post/@render/resize": {
+    "post": {
+      "summary": "Resize the engine window",
+      "description": "Required uint32 fields width and height specify the window size in pixels.",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/octet-stream": {
+            "schema": {
+              "type": "string",
+              "format": "binary",
+              "maxLength": 1024
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "OK"
+            }
+          }
+        },
+        "400": {
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "x-defold-protobuf-message": "dmRenderDDF.Resize",
+      "externalDocs": {
+        "url": "https://github.com/defold/defold/blob/dev/engine/render/proto/render/render_ddf.proto"
+      }
+    }
+  },
+  "/post/@resource/reload": {
+    "post": {
+      "summary": "Reload engine resources",
+      "description": "Repeated string field resources supplies project resource paths, for example /main/main.scriptc.",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/octet-stream": {
+            "schema": {
+              "type": "string",
+              "format": "binary",
+              "maxLength": 1024
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "OK"
+            }
+          }
+        },
+        "400": {
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "x-defold-protobuf-message": "dmResourceDDF.Reload",
+      "externalDocs": {
+        "url": "https://github.com/defold/defold/blob/dev/engine/resource/proto/resource/resource_ddf.proto"
+      }
+    }
+  }
+}
+)json";
 
 }
 

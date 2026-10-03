@@ -492,6 +492,7 @@ namespace dmEngineService
              * corresponding changes in engine.clj
              */
             dmLogInfo("Engine service started on port %u", (unsigned int) GetPort(service));
+            dmLogInfo("OpenAPI: http://%s:%u/openapi.json", service->m_LocalAddress, (unsigned int) GetPort(service));
             return service;
         }
         else

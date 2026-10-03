@@ -33,6 +33,7 @@ OpenAPI 3.0.3 document with `Content-Type: application/json`. It describes the
 currently registered engine and native-extension HTTP handlers, including their
 methods, parameters, request bodies and responses. The document uses a relative
 server URL, so it also works with a dynamically assigned service port.
+The engine logs the full OpenAPI URL when the service starts.
 
 The endpoint is available wherever the debug engine service is available. Other
 methods return `405` with `Allow: GET`. The document is assembled on request, so
@@ -48,11 +49,25 @@ For example, a handler registered at `/example` can describe both `/example` and
 `/example/{id}`.
 
 ```cpp
-static const char EXAMPLE_OPENAPI[] =
-    "{\"/example\":{\"get\":{"
-    "\"summary\":\"Get extension status\","
-    "\"responses\":{\"200\":{\"description\":\"Extension status\","
-    "\"content\":{\"text/plain\":{\"schema\":{\"type\":\"string\"}}}}}}}}";
+static const char EXAMPLE_OPENAPI[] = R"json(
+{
+  "/example": {
+    "get": {
+      "summary": "Get extension status",
+      "responses": {
+        "200": {
+          "description": "OK",
+          "content": {
+            "text/plain": {
+              "schema": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+)json";
 
 dmWebServer::HandlerParams handler_params;
 handler_params.m_Handler = MyHandler;
