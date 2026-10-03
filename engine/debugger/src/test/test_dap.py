@@ -619,6 +619,84 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    def check_coroutine_discovery_through_varargs(self, from_evaluation=False):
+        creation = '''
+            local function make(id)
+                local co = original_create(function()
+                    local x = id
+                    coroutine.yield()
+                    assert(x == id + 100)
+                end)
+                assert(original_resume(co))
+                return co
+            end
+            outer = original_create(function(named, ...)
+                coroutine.yield()
+                assert(named == 'named' and select('#', ...) == 80)
+                assert(select(2, ...) == nil and select(80, ...) == nil)
+                local first, last = select(1, ...), select(79, ...)
+                released[1], released[2] = first, last
+                assert(original_resume(first))
+                assert(original_resume(last))
+            end)
+            local args = {[1] = make(1), [79] = make(2)}
+            assert(original_resume(outer, 'named', unpack(args, 1, 80)))
+        '''
+        prelude = '''
+            original_create, original_resume = coroutine.create, coroutine.resume
+            has_varargs = jit ~= nil
+            released = setmetatable({}, {__mode = 'v'})
+        '''
+        c = self.start('''
+            local marker = 1 -- inspect
+            released[3] = outer
+            assert(original_resume(outer))
+            outer = nil
+            collectgarbage('collect')
+            collectgarbage('collect')
+            assert(next(released) == nil)
+            marker = 2 -- collected
+        ''', prelude=prelude + ('' if from_evaluation else creation))
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")}, {"line": self.line("collected")})
+        c.configured()
+        self.stopped()
+        if self.evaluate("has_varargs", context="hover")["result"] != "true":
+            self.skipTest("Lua 5.1 does not expose varargs through the debug API")
+        if from_evaluation:
+            self.evaluate(creation, context="repl")
+        threads = c.request("threads")["threads"]
+        self.assertEqual(len(threads), 4)
+        inspected = set()
+        for thread in threads:
+            if thread["id"] == self.thread:
+                continue
+            self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+            locals_ref = self.scopes()["Locals"]
+            x = next((v for v in self.variables(locals_ref) if v["name"] == "x"), None)
+            if x:
+                value = int(x["value"])
+                inspected.add(value)
+                c.request("setVariable", {"variablesReference": locals_ref, "name": "x", "value": str(value + 100)})
+        self.assertEqual(inspected, {1, 2})
+        self.resume()
+        self.assertEqual(self.stopped()[0]["line"], self.line("collected"))
+        self.assertEqual([t["id"] for t in c.request("threads")["threads"]], [self.thread])
+        self.resume()
+        self.finished()
+
+    # Attach must find LuaJIT coroutines retained only in another coroutine's
+    # varargs, including slots after nils. Inspecting and editing their locals
+    # must preserve the parent's arguments and allow all threads to be collected.
+    def test_attach_discovers_coroutines_in_varargs(self):
+        self.check_coroutine_discovery_through_varargs()
+
+    # Cached APIs used during evaluation can also leave coroutines reachable
+    # only through varargs; the post-evaluation walk must expose their frames.
+    def test_evaluation_discovers_coroutines_in_varargs(self):
+        self.check_coroutine_discovery_through_varargs(from_evaluation=True)
+
     # Enables DAP in one of two already initialized contexts, detaches, and
     # reconnects to the same listener. Both contexts must remain debuggable,
     # including the second context's uncaught error before stack unwinding.
