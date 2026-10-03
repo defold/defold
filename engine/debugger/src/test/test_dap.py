@@ -1787,6 +1787,132 @@ class DAPTests(DAPTestCase):
         self.assertEqual(outputs[-1], "i=5 sum=15 {done}\n")
         self.finished()
 
+    def check_breakpoint_evaluation_allocations(self, breakpoint):
+        c = self.start('''
+            local unrelated = {}
+            for i = 1, 5000 do unrelated[i] = {} end
+            collectgarbage('collect')
+            collectgarbage('stop')
+            local before = collectgarbage('count')
+            local total = 0
+            for i = 1, 20 do
+                total = total + i -- evaluated
+            end
+            local allocated = collectgarbage('count') - before
+            collectgarbage('restart')
+            assert(#unrelated == 5000 and total == 210) -- inspect
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("evaluated"), **breakpoint},
+                         {"line": self.line("inspect")})
+        c.configured()
+        if "logMessage" in breakpoint:
+            for _ in range(20):
+                self.assertEqual(c.event("output")["output"], "false\n")
+        self.stopped()
+        self.assertLess(float(self.evaluate("allocated", context="hover")["result"]), 1024)
+        self.resume()
+        self.finished()
+
+    # False conditions must not allocate traversal tables for the entire Lua
+    # heap on every hit. Stop GC to measure allocations independently of timing.
+    def test_condition_evaluation_allocations_ignore_unrelated_objects(self):
+        self.check_breakpoint_evaluation_allocations({"condition": "false"})
+
+    # Logpoint interpolation shares the evaluation path and must also avoid
+    # allocations proportional to unrelated Lua objects on every hit.
+    def test_logpoint_evaluation_allocations_ignore_unrelated_objects(self):
+        self.check_breakpoint_evaluation_allocations({"logMessage": "{false}"})
+
+    # A condition that never stops can still persist a suspended coroutine.
+    # Deferred discovery must report it at the next stop and preserve hooks
+    # explicitly installed or disabled during the evaluation.
+    def test_condition_created_coroutines_are_discovered_at_next_stop(self):
+        c = self.start('''
+            local function create()
+                created = original_create(function()
+                    local x = 42
+                    coroutine.yield()
+                    assert(x == 99)
+                end)
+                assert(original_resume(created))
+                custom = original_create(function() end)
+                disabled = original_create(function() end)
+                if not jit then
+                    custom_hook = function() end
+                    debug.sethook(custom, custom_hook, 'l', 7)
+                    debug.sethook(disabled)
+                end
+                return false
+            end
+            local marker = 1 -- condition
+            marker = 2 -- inspect
+            if not jit then
+                local hook, mask, count = debug.gethook(custom)
+                assert(hook == custom_hook and mask == 'l' and count == 7)
+                assert(debug.gethook(disabled) == nil)
+            end
+            assert(coroutine.resume(created))
+        ''', prelude='''
+            original_create, original_resume = coroutine.create, coroutine.resume
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("condition"), "condition": "create()"},
+                         {"line": self.line("inspect")})
+        c.configured()
+        self.assertEqual(self.stopped()[0]["line"], self.line("inspect"))
+        coroutines = [t for t in c.request("threads")["threads"] if t["id"] != self.thread]
+        self.assertEqual(len(coroutines), 3)
+        suspended = 0
+        for thread in coroutines:
+            frames = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"]
+            if frames:
+                suspended += 1
+                self.frame = frames[0]["id"]
+                self.assertEqual(self.evaluate("x", context="hover")["result"], "42")
+                c.request("setVariable", {"variablesReference": self.scopes()["Locals"], "name": "x", "value": "99"})
+        self.assertEqual(suspended, 1)
+        self.resume()
+        self.finished()
+
+    # A running client can request threads before the next stop. A logpoint's
+    # persisted coroutine must be discovered then, without exposing evaluation
+    # temporaries or requiring the coroutine to resume first.
+    def test_logpoint_created_coroutine_is_discovered_by_running_threads_request(self):
+        c = self.start('''
+            local function create()
+                created = original_create(function()
+                    local x = 42
+                    coroutine.yield()
+                    assert(x == 42)
+                end)
+                assert(original_resume(created))
+                return 'ready'
+            end
+            local marker = 1 -- log
+            finish = false
+            while not finish do pump() end
+            assert(coroutine.resume(created))
+        ''', prelude='''
+            original_create, original_resume = coroutine.create, coroutine.resume
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("log"), "logMessage": "{create()}"})
+        c.configured()
+        self.assertEqual(c.event("output")["output"], "ready\n")
+        threads = c.request("threads")["threads"]
+        self.assertEqual(len(threads), 2)
+        main = next(t["id"] for t in threads if "/ coroutine" not in t["name"])
+        c.request("pause", {"threadId": main})
+        self.stopped("pause")
+        self.assertEqual(c.request("threads")["threads"], threads)
+        self.evaluate("finish = true", context="repl")
+        self.resume()
+        self.finished()
+
     # Checks replacement/removal of a source's breakpoints and verification once
     # its lines are known. Invalid breakpoint data, IDs, stack ranges, and a pause
     # request while already stopped must return unsuccessful responses.
