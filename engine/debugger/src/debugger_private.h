@@ -139,6 +139,7 @@ namespace dmDebugger
         uint32_t              m_StepThread;
         int32_t               m_StepDepth; // Signed for Lua stack levels and tail-call stepping.
         uint32_t              m_Connections;
+        uint32_t              m_EvaluationTimeout;
         Step                  m_Step;
         uint16_t              m_Port;
         uint16_t              m_StepNativeTailCall : 1;
@@ -180,6 +181,8 @@ namespace dmDebugger
     void       FormatValue(Debugger* d, lua_State* L, int index, Buffer& value);
     void       QuoteLuaString(const char* text, uint32_t size, Buffer& value);
     void       Output(Debugger* d, const char* text);
+    void       Hook(lua_State* L, lua_Debug* ar);
+    void       CheckEvaluation(lua_State* L);
     // Evaluation leaves exactly one result (or error string) on the stack.
     // A negative level selects the Lua thread's global environment.
     bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment = 0);

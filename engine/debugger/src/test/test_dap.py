@@ -2518,6 +2518,89 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    # A runaway REPL, watch, assignment, or resumed coroutine must time out and
+    # leave the stopped frame editable, with hooks working on the next stop.
+    def test_evaluation_timeout_preserves_session(self):
+        c = self.start('''
+            local x = 1
+            local function spin() while true do end end
+            co = coroutine.create(spin)
+            x = x + 1 -- inspect
+            x = x + 1 -- again
+            assert(x == 4)
+        ''')
+        c.initialize()
+        for timeout in (0, -1, 60001, "20", 1.5):
+            c.request("attach", {"evaluationTimeout": timeout}, success=False)
+        c.attach(evaluationTimeout=20)
+        self.breakpoints({"line": self.line("inspect")}, {"line": self.line("again")})
+        c.configured()
+        self.stopped()
+        for expression, context in (("while true do end", "repl"), ("spin()", "watch"),
+                                    ("while true do pcall(spin) end", "repl"),
+                                    ("coroutine.wrap(spin)()", "repl"),
+                                    ("coroutine.resume(co)", "repl")):
+            seq = c.send("evaluate", {"frameId": self.frame, "expression": expression, "context": context})
+            response = c.wait(lambda message: message.get("request_seq") == seq)
+            self.assertFalse(response["success"], response)
+            self.assertIn("timed out", response["message"])
+        reference = self.scopes()["Locals"]
+        c.request("setVariable", {"variablesReference": reference, "name": "x", "value": "spin()"}, success=False)
+        c.request("setExpression", {"frameId": self.frame, "expression": "x", "value": "spin()"}, success=False)
+        self.assertEqual(self.evaluate("x")["result"], "1")
+        self.evaluate("x = 2", context="repl")
+        self.resume()
+        self.stopped()
+        self.assertEqual(self.evaluate("x")["result"], "3")
+        self.resume()
+        self.finished()
+
+    # Conditions and logpoints run inside stop hooks too; runaway expressions
+    # must report their timeout and let later breakpoints remain usable.
+    def test_breakpoint_expressions_time_out(self):
+        c = self.start('''
+            local x = 0
+            x = x + 1 -- condition
+            x = x + 1 -- log
+            x = x + 1 -- inspect
+            assert(x == 3)
+        ''')
+        c.initialize()
+        c.attach(evaluationTimeout=20)
+        spin = "(function() while true do end end)()"
+        self.breakpoints({"line": self.line("condition"), "condition": spin},
+                         {"line": self.line("log"), "logMessage": "{" + spin + "}"},
+                         {"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        for _ in range(2):
+            self.assertIn("timed out", c.event("output")["output"])
+        self.assertEqual(self.evaluate("x")["result"], "2")
+        self.resume()
+        self.finished()
+
+    # Closing the client during a confirmed running evaluation must release the
+    # debuggee once its evaluation budget expires, without an external kill.
+    def test_disconnect_during_evaluation_timeout(self):
+        c = self.start("local x = 1\nx = x + 1 -- inspect\nassert(x == 2)\n")
+        c.initialize()
+        c.attach(evaluationTimeout=100)
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        c.send("evaluate", {"frameId": self.frame, "context": "repl",
+                            "expression": "print('EVALUATING'); io.stdout:flush(); while true do end"})
+        self.assertTrue(self.lines.get(timeout=5).strip().endswith("EVALUATING"))
+        c.close()
+        self.assertEqual(self.process.wait(timeout=5), 0, self.process.stderr.read())
+        output = []
+        while True:
+            line = self.lines.get(timeout=5)
+            if line is None:
+                break
+            output.append(line)
+        self.assertIn("RESULT 0", "".join(output))
+
     # Oversized values and aggregate variable responses must fail the request
     # while preserving the paused session for smaller evaluations and paging.
     def test_oversized_responses_preserve_paused_session(self):

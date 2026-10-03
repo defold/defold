@@ -15,6 +15,7 @@
 #if !defined(DM_RELEASE)
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
+#include <dlib/time.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -531,6 +532,65 @@ namespace dmDebugger
         lua_settop(L, top);
     }
 
+    struct EvaluationCall
+    {
+        uint64_t m_Deadline;
+        int      m_Result;
+    };
+
+    static char g_EvaluationKey;
+
+    void CheckEvaluation(lua_State* L)
+    {
+        lua_pushlightuserdata(L, &g_EvaluationKey);
+        lua_rawget(L, LUA_REGISTRYINDEX);
+        EvaluationCall* call = (EvaluationCall*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        if (call && dmTime::GetTime() >= call->m_Deadline)
+        {
+            // If application pcall catches this error, interrupt its caller's
+            // next instruction instead of spending another full interval in
+            // the same protected infinite loop.
+            lua_sethook(L, Hook, LUA_MASKCOUNT, 1);
+            luaL_error(L, "Debugger evaluation timed out");
+        }
+    }
+
+    static int EndHookSuppression(lua_State* L)
+    {
+        lua_pushnil(L);
+        return lua_error(L);
+    }
+
+    static int CallEvaluation(lua_State* L)
+    {
+        EvaluationCall* call = (EvaluationCall*)lua_touserdata(L, lua_upvalueindex(1));
+        lua_Hook old_hook = lua_gethook(L);
+        int old_mask = lua_gethookmask(L);
+        int old_count = lua_gethookcount(L);
+        // LuaJIT suppresses hooks across its entire VM while stopped in a hook.
+        // Unwinding a fresh coroutine clears that suppression. The enclosing
+        // lua_pcall saves the original hook state and restores it on our final
+        // lua_error, including when evaluation succeeds. No application frame
+        // is unwound by either operation. Lua 5.1 uses the fresh thread's hooks.
+        lua_State* probe = lua_newthread(L);
+        lua_pushcfunction(probe, EndHookSuppression);
+        lua_resume(probe, 0);
+        lua_pop(L, 1);
+        // Lua 5.1 children inherit this hook. Keep the normal event mask so
+        // coroutines created by evaluation can hit breakpoints after it ends.
+        lua_sethook(L, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
+        call->m_Result = lua_pcall(L, lua_gettop(L) - 1, 1, 0);
+        lua_sethook(L, old_hook, old_mask, old_count);
+        if (dmTime::GetTime() >= call->m_Deadline)
+        {
+            lua_pop(L, 1);
+            lua_pushliteral(L, "Debugger evaluation timed out");
+            call->m_Result = LUA_ERRRUN;
+        }
+        return lua_error(L);
+    }
+
     bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment)
     {
         lua_Debug frame;
@@ -539,16 +599,10 @@ namespace dmDebugger
             lua_pushliteral(L, "Invalid frame");
             return false;
         }
-        // A yielded Lua 5.1 thread cannot execute a protected call without
-        // disturbing its suspended VM state. Run the expression on a temporary
-        // thread while the environment continues to read/write the selected frame.
-        lua_State* evaluation_L = L;
-        int        thread_ref = LUA_NOREF;
-        if (lua_status(L) == LUA_YIELD)
-        {
-            evaluation_L = lua_newthread(L);
-            thread_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        }
+        // A separate thread permits instruction hooks while the original Lua
+        // frame is inside its stop hook, and preserves yielded VM stacks.
+        lua_State* evaluation_L = lua_newthread(L);
+        int        thread_ref = luaL_ref(L, LUA_REGISTRYINDEX);
         Buffer source;
         if (assignment)
         {
@@ -660,7 +714,20 @@ namespace dmDebugger
         }
         d->m_Evaluating = true;
         if (!result)
-            result = lua_pcall(evaluation_L, arguments, 1, 0);
+        {
+            EvaluationCall call = { dmTime::GetTime() + (uint64_t)d->m_EvaluationTimeout * 1000, LUA_ERRRUN };
+            lua_pushlightuserdata(L, &g_EvaluationKey);
+            lua_pushlightuserdata(L, &call);
+            lua_rawset(L, LUA_REGISTRYINDEX);
+            lua_pushlightuserdata(evaluation_L, &call);
+            lua_pushcclosure(evaluation_L, CallEvaluation, 1);
+            lua_insert(evaluation_L, lua_gettop(evaluation_L) - arguments - 1);
+            lua_pcall(evaluation_L, arguments + 1, 1, 0);
+            result = call.m_Result;
+            lua_pushlightuserdata(L, &g_EvaluationKey);
+            lua_pushnil(L);
+            lua_rawset(L, LUA_REGISTRYINDEX);
+        }
         lua_xmove(evaluation_L, L, 1);
         SnapshotEnvironment(L, e, level, environment_ref);
         d->m_Evaluating = false;

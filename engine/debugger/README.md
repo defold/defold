@@ -79,7 +79,8 @@ The attach arguments are:
 ```json
 {
   "localRoot": "/absolute/path/to/the/game/project",
-  "stopOnEntry": true
+  "stopOnEntry": true,
+  "evaluationTimeout": 1000
 }
 ```
 
@@ -87,6 +88,14 @@ The attach arguments are:
 optional when client and runtime use the same paths. Native path strings are
 supported, including Windows separators. URI paths are rejected. Client line and
 column bases are negotiated by `initialize`.
+
+`evaluationTimeout` limits Lua evaluation to 1000 milliseconds by default. It
+accepts an integer from 1 to 60000 and applies to evaluations, assignments,
+breakpoint conditions, and logpoint expressions. A timeout reports an error and
+keeps the session usable; side effects performed before the timeout remain.
+Closing the client releases the paused engine after the evaluation times out.
+The limit is checked at Lua instructions, so it cannot interrupt a blocking
+native function or code that explicitly disables debug hooks.
 
 This module provides the DAP server. The editor's existing MobDebug client is
 unchanged; connect with a client that supports DAP TCP servers.
@@ -156,9 +165,9 @@ with a `frameId` uses the selected function's environment. Without `frameId`,
 evaluation and expression assignment use the stopped Lua thread's global
 environment. `context: "repl"` also accepts Lua
 statements and assignments. Functions created by evaluation retain a snapshot of
-the frame's bindings after the request completes. Evaluation runs on the stopped
-Lua thread, using a temporary thread for yielded coroutines to preserve their
-suspended state. In either case it reads and writes the selected frame's bindings
+the frame's bindings after the request completes. Evaluation runs on a temporary
+Lua thread so it can enforce its instruction-hook timeout without disturbing the
+stopped thread's VM state. It reads and writes the selected frame's bindings
 and has the same side effects as executing that Lua code normally.
 On LuaJIT, frame evaluation also receives the function's varargs (`...`),
 including nil arguments. Lua 5.1 does not expose varargs through its debug API,
