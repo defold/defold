@@ -257,11 +257,57 @@ namespace dmHID
         }
     }
 
+    static bool CanAppendSyntheticTouch(HTouchDevice device, int16_t id)
+    {
+        if (device->m_Packet.m_TouchCount == MAX_TOUCH_COUNT) return false;
+        for (uint32_t i = 0; i < device->m_Packet.m_TouchCount; ++i)
+        {
+            if (device->m_Packet.m_Touches[i].m_Id == id) return false;
+        }
+        return true;
+    }
+
+    bool SetSyntheticTouch(HContext context, int32_t x, int32_t y, uint32_t id, Phase phase)
+    {
+        TouchDevice* device = &context->m_TouchDevices[0];
+        if (!device->m_Connected || context->m_IgnoreTouchDevice || !CanAppendSyntheticTouch(device, (int16_t)id)) return false;
+        Touch& touch = device->m_SyntheticTouch;
+        int32_t dx = phase == PHASE_BEGAN ? 0 : x - touch.m_X;
+        int32_t dy = phase == PHASE_BEGAN ? 0 : y - touch.m_Y;
+        if (device->m_HasSyntheticTouch && phase != PHASE_BEGAN && touch.m_Id == (int16_t)id)
+        {
+            dx += touch.m_DX;
+            dy += touch.m_DY;
+        }
+        memset(&touch, 0, sizeof(touch));
+        touch.m_Id = id;
+        touch.m_X = x;
+        touch.m_Y = y;
+        touch.m_DX = dx;
+        touch.m_DY = dy;
+        touch.m_TapCount = 1;
+        touch.m_Phase = phase == PHASE_MOVED && dx == 0 && dy == 0 ? PHASE_STATIONARY : phase;
+        device->m_HasSyntheticTouch = true;
+        return true;
+    }
+
+    bool HasSyntheticTouch(HContext context)
+    {
+        return context->m_TouchDevices[0].m_HasSyntheticTouch;
+    }
+
+    void ClearSyntheticTouch(HContext context)
+    {
+        context->m_TouchDevices[0].m_HasSyntheticTouch = false;
+    }
+
     bool GetTouchDevicePacket(HTouchDevice device, TouchDevicePacket* out_packet)
     {
         if (out_packet != 0x0 && device != 0x0 && device->m_Connected)
         {
             *out_packet = device->m_Packet;
+            if (device->m_HasSyntheticTouch && CanAppendSyntheticTouch(device, device->m_SyntheticTouch.m_Id))
+                out_packet->m_Touches[out_packet->m_TouchCount++] = device->m_SyntheticTouch;
             return true;
         }
         else

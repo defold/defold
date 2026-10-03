@@ -309,6 +309,13 @@ namespace dmHID
      */
     bool GetTouchDevicePacket(HTouchDevice device, TouchDevicePacket* out_packet);
 
+    // Stage one synthetic sample on the primary touch device without modifying physical
+    // touches. Replace earlier synthetic samples, then clear after all input bindings read it.
+    // Return false if the device is unavailable, full, or has a physical touch with this ID.
+    bool SetSyntheticTouch(HContext context, int32_t x, int32_t y, uint32_t id, Phase phase);
+    bool HasSyntheticTouch(HContext context);
+    void ClearSyntheticTouch(HContext context);
+
     bool GetAccelerationPacket(HContext context, AccelerationPacket* out_packet);
 
     /**

@@ -262,6 +262,51 @@ TEST_F(HIDTest, TouchDevice)
     ASSERT_EQ(0u, packet.m_TouchCount);
 }
 
+// Synthetic samples replace their previous phase, survive polling, and leave physical touches intact.
+TEST_F(HIDTest, SyntheticTouchLifecycle)
+{
+    dmHID::Update(m_Context);
+    dmHID::AddTouch(m_TouchDevice, 1, 2, 99, dmHID::PHASE_STATIONARY);
+    dmHID::TouchDevicePacket packet;
+    for (uint32_t i = 0; i < dmHID::MAX_TOUCH_COUNT + 1; ++i)
+    {
+        ASSERT_TRUE(dmHID::SetSyntheticTouch(m_Context, 10, 20, 1, dmHID::PHASE_BEGAN));
+        dmHID::Update(m_Context);
+        ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_TouchDevice, &packet));
+        ASSERT_EQ(2u, packet.m_TouchCount);
+        ASSERT_EQ(dmHID::PHASE_BEGAN, packet.m_Touches[1].m_Phase);
+        ASSERT_TRUE(dmHID::SetSyntheticTouch(m_Context, 11, 22, 1, dmHID::PHASE_MOVED));
+        ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_TouchDevice, &packet));
+        ASSERT_EQ(2u, packet.m_TouchCount);
+        ASSERT_EQ(1, packet.m_Touches[1].m_DX);
+        ASSERT_EQ(2, packet.m_Touches[1].m_DY);
+        ASSERT_TRUE(dmHID::SetSyntheticTouch(m_Context, 11, 22, 1, dmHID::PHASE_ENDED));
+        ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_TouchDevice, &packet));
+        ASSERT_EQ(2u, packet.m_TouchCount);
+        ASSERT_EQ(dmHID::PHASE_ENDED, packet.m_Touches[1].m_Phase);
+        ASSERT_EQ(1, packet.m_Touches[1].m_DX);
+        ASSERT_EQ(2, packet.m_Touches[1].m_DY);
+        ASSERT_TRUE(dmHID::HasSyntheticTouch(m_Context));
+        dmHID::ClearSyntheticTouch(m_Context);
+        ASSERT_FALSE(dmHID::HasSyntheticTouch(m_Context));
+        ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_TouchDevice, &packet));
+        ASSERT_EQ(1u, packet.m_TouchCount);
+        ASSERT_EQ(99, packet.m_Touches[0].m_Id);
+    }
+}
+
+// A synthetic touch must not evict a physical contact when its ID or packet capacity is occupied.
+TEST_F(HIDTest, SyntheticTouchPhysicalConflicts)
+{
+    dmHID::Update(m_Context);
+    dmHID::AddTouch(m_TouchDevice, 1, 2, 7, dmHID::PHASE_BEGAN);
+    ASSERT_FALSE(dmHID::SetSyntheticTouch(m_Context, 10, 20, 7, dmHID::PHASE_BEGAN));
+    for (uint32_t i = 1; i < dmHID::MAX_TOUCH_COUNT; ++i)
+        dmHID::AddTouch(m_TouchDevice, 1, 2, 7 + i, dmHID::PHASE_BEGAN);
+    ASSERT_FALSE(dmHID::SetSyntheticTouch(m_Context, 10, 20, 0, dmHID::PHASE_BEGAN));
+    ASSERT_FALSE(dmHID::HasSyntheticTouch(m_Context));
+}
+
 TEST_F(HIDTest, OnlyPrimaryTouchDeviceConnected)
 {
     dmHID::Update(m_Context);

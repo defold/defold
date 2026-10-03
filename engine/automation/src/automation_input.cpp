@@ -765,8 +765,7 @@ namespace dmAutomation
             dmHID::Phase phase = pressed ? dmHID::PHASE_BEGAN : dmHID::PHASE_MOVED;
             if (released) phase = dmHID::PHASE_ENDED;
             if (cancelled) phase = dmHID::PHASE_CANCELLED;
-            dmHID::AddTouch(touch, (int32_t)x, (int32_t)y, event->m_Receipt.m_PointerId, phase);
-            return true;
+            return dmHID::SetSyntheticTouch(g_AutomationBridge.m_HidContext, (int32_t)x, (int32_t)y, event->m_Receipt.m_PointerId, phase);
         }
         return false;
     }
@@ -784,6 +783,13 @@ namespace dmAutomation
         receipt->m_ReleaseFrame = g_AutomationBridge.m_Frame;
         receipt->m_ReleaseTime = dmTime::GetMonotonicTime();
         ReceiptSetReason(receipt, reason);
+    }
+
+    static bool InjectPointerOrFail(InputEvent* event, float x, float y, bool pressed, bool released, bool cancelled)
+    {
+        if (InjectPointer(event, x, y, pressed, released, cancelled)) return true;
+        FinishReceipt(&event->m_Receipt, INPUT_STATE_FAILED, "input_device_unavailable");
+        return false;
     }
 
     // Re-assert an event's chord modifiers for this update. The engine's HID update
@@ -833,9 +839,8 @@ namespace dmAutomation
         }
         if (!event->m_Pressed)
         {
-            if (!InjectPointer(event, first->m_X, first->m_Y, true, false, false))
+            if (!InjectPointerOrFail(event, first->m_X, first->m_Y, true, false, false))
             {
-                FinishReceipt(&event->m_Receipt, INPUT_STATE_FAILED, "input_device_unavailable");
                 return true;
             }
             event->m_Pressed = true;
@@ -849,7 +854,7 @@ namespace dmAutomation
         InputPoint* last = &event->m_Points.Begin()[event->m_Points.Size() - 1];
         if (event->m_CancelRequested)
         {
-            if (event->m_ReleaseOnCancel) InjectPointer(event, last->m_X, last->m_Y, false, false, true);
+            if (event->m_ReleaseOnCancel && !InjectPointerOrFail(event, last->m_X, last->m_Y, false, false, true)) return true;
             FinishReceipt(&event->m_Receipt, INPUT_STATE_CANCELLED, event->m_Receipt.m_Reason);
             return true;
         }
@@ -859,7 +864,7 @@ namespace dmAutomation
             event->m_Elapsed += dt;
             if (event->m_Elapsed < event->m_HoldBefore)
             {
-                InjectPointer(event, first->m_X, first->m_Y, false, false, false);
+                if (!InjectPointerOrFail(event, first->m_X, first->m_Y, false, false, false)) return true;
                 return false;
             }
             event->m_Elapsed = 0.0f;
@@ -878,7 +883,7 @@ namespace dmAutomation
             float x = 0.0f;
             float y = 0.0f;
             SamplePath(event, t, &x, &y);
-            InjectPointer(event, x, y, false, false, false);
+            if (!InjectPointerOrFail(event, x, y, false, false, false)) return true;
             if (event->m_Visualize) AddVisualizationPoint(x, y, false);
             if (!segment_done) return false;
             event->m_Elapsed = 0.0f;
@@ -894,7 +899,7 @@ namespace dmAutomation
         // Reassert the held pointer even while no path segment is advancing.
         if (event->m_Phase == 4 && !event->m_ReleaseRequested)
         {
-            InjectPointer(event, last->m_X, last->m_Y, false, false, false);
+            if (!InjectPointerOrFail(event, last->m_X, last->m_Y, false, false, false)) return true;
             return false;
         }
         if (event->m_Phase == 3 && event->m_HoldAfter > 0.0f)
@@ -902,13 +907,13 @@ namespace dmAutomation
             event->m_Elapsed += dt;
             if (event->m_Elapsed < event->m_HoldAfter)
             {
-                InjectPointer(event, last->m_X, last->m_Y, false, false, false);
+                if (!InjectPointerOrFail(event, last->m_X, last->m_Y, false, false, false)) return true;
                 return false;
             }
         }
         if (event->m_PointerOpen && !event->m_ReleaseRequested) return false;
 
-        InjectPointer(event, last->m_X, last->m_Y, false, true, false);
+        if (!InjectPointerOrFail(event, last->m_X, last->m_Y, false, true, false)) return true;
         FinishReceipt(&event->m_Receipt, INPUT_STATE_RELEASED, 0);
         return true;
     }
@@ -1057,6 +1062,9 @@ namespace dmAutomation
             RefreshKeyCompletionDeadline(&g_AutomationBridge.m_InputEvents.Begin()[0], now);
         }
         MaintainInput();
+        // A service-tick cancellation may have staged a release before HID polling.
+        // Dispatch it before starting another queued touch with the same pointer ID.
+        if (dmHID::HasSyntheticTouch(g_AutomationBridge.m_HidContext)) return;
         if (g_AutomationBridge.m_InputEvents.Size() == 0) return;
 
         InputEvent* event = &g_AutomationBridge.m_InputEvents.Begin()[0];

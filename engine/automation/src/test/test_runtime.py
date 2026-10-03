@@ -298,16 +298,15 @@ class RuntimeTest(unittest.TestCase):
         self.assertLessEqual(delivered[0]['delivered_frame'], delivered[1]['start_frame'])
         self.assertEqual(200, self.request('/input/flush', 'POST', dict(owner, release=True))[0])
 
-    # Open pointers retain position and button state across HID polls, moves, and idle frames.
-    def test_pointer_hold_and_move(self):
-        owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False}
+    def check_pointer_hold_and_move(self, device, action):
+        owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False, 'device': device}
         self.command('reset_input')
         status, response = self.request('/input/pointer/open', 'POST', dict(owner, x=20, y=20, pointer_lease=5))
         self.assertEqual(202, status)
         input_id = response['data']['input_id']
         try:
             self.advance_frames(4)
-            events = self.input_events('pointer')
+            events = self.input_events(action)
             self.assertGreaterEqual(len(events), 4)
             self.assertEqual(1, sum(event['pressed'] for event in events))
             self.assertFalse(any(event['released'] for event in events))
@@ -316,7 +315,7 @@ class RuntimeTest(unittest.TestCase):
             status, _ = self.request('/input/pointer/move', 'POST', dict(owner, input_id=input_id, x=40, y=40, duration=0))
             self.assertEqual(200, status)
             self.advance_frames(4)
-            events = self.input_events('pointer')
+            events = self.input_events(action)
             self.assertNotEqual(position, (events[-1]['x'], events[-1]['y']))
             self.assertTrue(all((event['x'], event['y']) == (events[-1]['x'], events[-1]['y']) for event in events[-4:]))
             self.assertEqual(1, sum(event['pressed'] for event in events))
@@ -324,9 +323,17 @@ class RuntimeTest(unittest.TestCase):
             self.assertEqual(200, self.request('/input/pointer/up', 'POST', dict(owner, input_id=input_id))[0])
             self.delivered_input(input_id)
             self.advance_frames(3)
-            self.assertEqual(1, sum(event['released'] for event in self.input_events('pointer')))
+            self.assertEqual(1, sum(event['released'] for event in self.input_events(action)))
         finally:
             self.request('/input/flush', 'POST', dict(owner, release=True))
+
+    # Open pointers retain position and button state across HID polls, moves, and idle frames.
+    def test_pointer_hold_and_move(self):
+        self.check_pointer_hold_and_move('mouse', 'pointer')
+
+    # A held touch is replaced each frame without duplicating contacts or losing the release.
+    def test_touch_hold_and_move(self):
+        self.check_pointer_hold_and_move('touch', 'touch')
 
     # Holds surrounding a drag must not introduce intermediate releases or repeated presses.
     def test_drag_holds(self):
@@ -345,19 +352,41 @@ class RuntimeTest(unittest.TestCase):
         for samples in (events[:3], events[-3:]):
             self.assertTrue(all((event['x'], event['y']) == (samples[0]['x'], samples[0]['y']) for event in samples))
 
-    # The null HID backend must dispatch touch bindings, not merely complete input receipts.
+    # Repeated taps exceed packet capacity without retaining old touches or losing releases.
     def test_touch_dispatch_in_headless(self):
-        owner = {'client_id': 'runtime-test', 'session_id': 'fixture'}
-        cursor = self.request('/events/cursor')[1]['data']['cursor']
-        status, response = self.request('/input/click', 'POST', dict(owner, x=20, y=20, device='touch'))
+        owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False}
+        self.command('reset_input')
+        for _ in range(16):
+            status, response = self.request('/input/click', 'POST', dict(owner, x=20, y=20, device='touch'))
+            self.assertEqual(202, status)
+            self.delivered_input(response['data']['input_id'])
+        events = self.input_events('touch')
+        self.assertEqual(16, sum(event['pressed'] for event in events))
+        self.assertEqual(16, sum(event['released'] for event in events))
+        self.assertTrue(events[-1]['released'])
+        self.advance_frames(3)
+        self.assertEqual(events, self.input_events('touch'))
+
+    # Cancellation must dispatch exactly one release even when another touch is queued behind it.
+    def test_touch_cancellation(self):
+        owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False, 'device': 'touch'}
+        self.command('reset_input')
+        status, response = self.request('/input/pointer/open', 'POST', dict(owner, x=20, y=20, pointer_lease=5))
         self.assertEqual(202, status)
         input_id = response['data']['input_id']
-        def dispatched():
-            events = self.request('/events?cursor=' + str(cursor))[1]['data']['events']
-            return any(event['data'].get('action') == 'touch' for event in events)
         try:
-            self.until(dispatched)
-            self.until(lambda: self.request('/input/status?input_id=' + str(input_id))[1]['data'].get('delivered_frame'))
+            self.advance_frames(3)
+            status, queued = self.request('/input/click', 'POST', dict(owner, x=40, y=40))
+            self.assertEqual(202, status)
+            self.assertEqual(200, self.request('/input/cancel', 'POST', dict(owner, input_id=input_id))[0])
+            self.assertEqual('cancelled', self.delivered_input(input_id)['state'])
+            self.delivered_input(queued['data']['input_id'])
+            events = self.input_events('touch')
+            self.assertEqual(2, sum(event['pressed'] for event in events))
+            self.assertEqual(2, sum(event['released'] for event in events))
+            self.assertTrue(events[-1]['released'])
+            self.advance_frames(3)
+            self.assertEqual(events, self.input_events('touch'))
         finally:
             self.request('/input/flush', 'POST', dict(owner, release=True))
 

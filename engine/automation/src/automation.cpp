@@ -214,7 +214,12 @@ namespace dmAutomation
         return false;
     }
 
-    bool HasPendingInput() { return g_AutomationBridge.m_Initialized && !g_AutomationBridge.m_InputEvents.Empty(); }
+    bool HasPendingInput()
+    {
+        return g_AutomationBridge.m_Initialized &&
+               (!g_AutomationBridge.m_InputEvents.Empty() ||
+                (g_AutomationBridge.m_HidContext && dmHID::HasSyntheticTouch(g_AutomationBridge.m_HidContext)));
+    }
 
     void BeforeInput(float dt, uint64_t frame)
     {
@@ -225,6 +230,7 @@ namespace dmAutomation
 
     void AfterInput()
     {
+        if (g_AutomationBridge.m_HidContext) dmHID::ClearSyntheticTouch(g_AutomationBridge.m_HidContext);
         g_AutomationBridge.m_DispatchedFrame = g_AutomationBridge.m_Frame;
         for (uint32_t i = 0; i < g_AutomationBridge.m_InputHistory.Size(); ++i)
         {
@@ -281,6 +287,7 @@ namespace dmAutomation
         EngineAccessFinalize();
         FlushInput(0, 0, true, "engine_deleted");
         while (g_AutomationBridge.m_InputEvents.Size()) UpdateInput(0.0f);
+        if (g_AutomationBridge.m_HidContext) dmHID::ClearSyntheticTouch(g_AutomationBridge.m_HidContext);
         StopMetalCapture();
         FinalizeRecording();
         g_AutomationBridge.m_Initialized = false;

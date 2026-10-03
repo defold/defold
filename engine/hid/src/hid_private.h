@@ -64,6 +64,8 @@ namespace dmHID
     struct TouchDevice
     {
         TouchDevicePacket   m_Packet;
+        Touch               m_SyntheticTouch;
+        bool                m_HasSyntheticTouch;
         uint32_t            m_Index : 31;
         uint32_t            m_Connected : 1;
     };
