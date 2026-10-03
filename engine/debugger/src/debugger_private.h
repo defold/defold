@@ -86,6 +86,9 @@ namespace dmDebugger
         int        m_Level;
         uint32_t   m_ThreadId;
         int        m_ThreadRef;
+        int        m_FunctionRef;
+        int        m_Line;
+        bool       m_Valid;
     };
     enum ReferenceKind
     {
@@ -102,6 +105,7 @@ namespace dmDebugger
         int           m_LuaRef;
         ReferenceKind m_Kind;
         char*         m_EvaluateName;
+        uint32_t      m_FrameId;
     };
     enum Step
     {

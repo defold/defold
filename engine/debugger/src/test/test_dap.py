@@ -2316,6 +2316,85 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    # Completing a coroutine through a cached resume during evaluation must
+    # reject its old frame and variable IDs, not inspect an unwound Lua stack.
+    def test_evaluation_expires_completed_coroutine_references(self):
+        c = self.start('''
+            co = coroutine.create(function()
+                local x = 42
+                local t = {value=1}
+                coroutine.yield()
+                return x + t.value
+            end)
+            assert(original_resume(co))
+            local marker = 1 -- inspect
+            assert(coroutine.status(co) == 'dead')
+        ''', prelude="original_resume = coroutine.resume")
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        main_frame = self.frame
+        thread = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
+        self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+        old_frame = self.frame
+        references = list(self.scopes().values())
+        references.append(self.evaluate("t")["variablesReference"])
+        # Evaluating on the yielded frame also exercises its environment snapshot
+        # after the very frame supplying its locals has finished executing.
+        self.assertEqual(self.evaluate("original_resume(co)", context="repl")["result"], "true")
+        for reference in references:
+            c.request("variables", {"variablesReference": reference}, success=False)
+            c.request("setVariable", {"variablesReference": reference, "name": "x", "value": "9"}, success=False)
+        c.request("scopes", {"frameId": old_frame}, success=False)
+        c.request("evaluate", {"frameId": old_frame, "expression": "x"}, success=False)
+        c.request("completions", {"frameId": old_frame, "text": "x", "column": 2}, success=False)
+        self.frame = main_frame
+        self.assertEqual(self.evaluate("marker", context="hover")["result"], "nil")
+        self.resume()
+        self.finished()
+
+    # A new function at the same coroutine stack depth must get fresh IDs;
+    # assigning through an old scope must not edit the replacement frame.
+    def test_evaluation_replaces_coroutine_frames(self):
+        c = self.start('''
+            local function first()
+                local x = 1
+                coroutine.yield()
+            end
+            local function second()
+                local x = 2
+                coroutine.yield()
+                assert(x == 2)
+            end
+            co = coroutine.create(function() first(); second() end)
+            assert(coroutine.resume(co))
+            local marker = 1 -- inspect
+            assert(coroutine.resume(co))
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        main_frame = self.frame
+        thread = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
+        self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+        old_frame = self.frame
+        reference = self.scopes()["Locals"]
+        # The setVariable RHS itself replaces the selected frame.
+        c.request("setVariable", {"variablesReference": reference, "name": "x",
+                                  "value": "(function() coroutine.resume(co); return 99 end)()"}, success=False)
+        c.request("scopes", {"frameId": old_frame}, success=False)
+        c.request("variables", {"variablesReference": reference}, success=False)
+        self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+        self.assertNotEqual(self.frame, old_frame)
+        self.assertEqual(self.evaluate("x")["result"], "2")
+        self.frame = main_frame
+        self.resume()
+        self.finished()
+
     # Copy enough varargs to grow the evaluation stack, including interior and
     # trailing nils, without changing the yielded coroutine's resume arguments.
     def test_evaluate_varargs_in_yielded_coroutine(self):
