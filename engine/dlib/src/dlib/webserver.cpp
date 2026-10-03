@@ -125,14 +125,17 @@ namespace dmWebServer
         dmArray<HandlerData>& handlers = server->m_Handlers;
         uint32_t n = handlers.Size();
         HandlerData* handler = 0;
+        size_t longest_prefix_length = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
             HandlerData* h = &handlers[i];
+            size_t prefix_length = strlen(h->m_Prefix);
 
-            if (strncmp(request->m_Resource, h->m_Prefix, strlen(h->m_Prefix)) == 0)
+            // Registration and removal order must not let a fallback shadow a more specific handler.
+            if (prefix_length > longest_prefix_length && strncmp(request->m_Resource, h->m_Prefix, prefix_length) == 0)
             {
                 handler = h;
-                break;
+                longest_prefix_length = prefix_length;
             }
         }
 

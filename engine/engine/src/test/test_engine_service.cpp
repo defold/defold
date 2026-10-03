@@ -105,7 +105,7 @@ TEST_F(EngineTest, DiscoveryRetryDelayBackoffCapsAtThirtySeconds)
 
 #if !defined(__EMSCRIPTEN__)
 
-class EngineServiceOpenAPITest : public jc_test_base_class
+class EngineServiceOpenAPITest : public jc_test_params_class<bool>
 {
 public:
     dmEngineService::HEngineService m_Service;
@@ -195,9 +195,12 @@ public:
         m_Body.Push(0);
     }
 
-    static void ExtensionHandler(void*, dmWebServer::Request* request)
+    static void ExtensionHandler(void* context, dmWebServer::Request* request)
     {
-        dmWebServer::SetStatusCode(request, 204);
+        const char* body = (const char*)context;
+        dmWebServer::SetStatusCode(request, 200);
+        dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
+        dmWebServer::Send(request, body, strlen(body));
     }
 };
 
@@ -227,23 +230,108 @@ TEST_F(EngineServiceOpenAPITest, BuiltinDocument)
     ASSERT_STREQ("text/html", m_ContentType);
 }
 
-// Native-extension metadata must appear and disappear with its handler, including after the profiler is initialized.
-TEST_F(EngineServiceOpenAPITest, ExtensionLifecycle)
+// Extension requests and metadata must survive either profiler initialization order and removal/re-registration.
+TEST_P(EngineServiceOpenAPITest, ExtensionLifecycle)
 {
-    static const char json[] = "{\"/extension/test\":{\"get\":{\"responses\":{\"204\":{\"description\":\"Extension response\"}}}}}";
+    static const char json[] = "{\"/extension/test\":{\"get\":{\"responses\":{\"200\":{\"description\":\"Extension response\"}}}}}";
+    static const char response[] = "Extension response";
     dmWebServer::HandlerParams params;
     params.m_Handler = ExtensionHandler;
-    params.m_Userdata = 0;
+    params.m_Userdata = (void*)response;
     dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
+    if (GetParam())
+        dmEngineService::InitProfiler(m_Service, 0, 0);
     ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/extension", &params, json));
+
+    Fetch("GET", "/extension/test");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("text/plain", m_ContentType);
+    ASSERT_STREQ(response, m_Body.Begin());
+
     dmEngineService::InitProfiler(m_Service, 0, 0);
-    Fetch("GET", "/openapi.json");
+    for (uint32_t registration = 0; registration < 2; ++registration)
+    {
+        if (registration != 0)
+            ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/extension", &params, json));
+
+        Fetch("GET", "/openapi.json");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("application/json", m_ContentType);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"/extension/test\""));
+
+        Fetch("GET", "/extension/test");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("text/plain", m_ContentType);
+        ASSERT_STREQ(response, m_Body.Begin());
+
+        ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(server, "/extension"));
+        Fetch("GET", "/openapi.json");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("application/json", m_ContentType);
+        ASSERT_EQ((const char*)0, strstr(m_Body.Begin(), "\"/extension/test\""));
+
+        Fetch("GET", "/extension/test");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("text/html", m_ContentType);
+
+        // Removing an extension may move the root fallback ahead of the other profiler handlers.
+        Fetch("GET", "/scene_graph");
+        ASSERT_EQ(500, m_Status);
+        ASSERT_STREQ("text/plain", m_ContentType);
+        ASSERT_STREQ("Profiler state is not initialized", m_Body.Begin());
+
+        dmEngineService::InitProfiler(m_Service, 0, 0); // Reboot reuses the service.
+    }
+
+    Fetch("GET", "/");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
     ASSERT_EQ(200, m_Status);
-    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"/extension/test\""));
+    ASSERT_STREQ("text/html", m_ContentType);
+}
+
+static const bool profiler_initialization_orders[] = {false, true};
+INSTANTIATE_TEST_CASE_P(ProfilerInitializationOrder, EngineServiceOpenAPITest, jc_test_values_in(profiler_initialization_orders));
+
+// Overlapping extension prefixes must select the most specific handler regardless of registration and removal order.
+TEST_F(EngineServiceOpenAPITest, MostSpecificHandler)
+{
+    static const char parent_json[] = "{\"/extension\":{\"get\":{\"responses\":{\"200\":{\"description\":\"Parent response\"}}}}}";
+    static const char child_json[] = "{\"/extension/child\":{\"get\":{\"responses\":{\"200\":{\"description\":\"Child response\"}}}}}";
+    static const char parent_response[] = "Parent response";
+    static const char child_response[] = "Child response";
+    dmWebServer::HandlerParams params;
+    params.m_Handler = ExtensionHandler;
+    params.m_Userdata = (void*)parent_response;
+    dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/extension", &params, parent_json));
+    params.m_Userdata = (void*)child_response;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/extension/child", &params, child_json));
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+
+    Fetch("GET", "/extension/child");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+    ASSERT_STREQ(child_response, m_Body.Begin());
+
     ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(server, "/extension"));
-    Fetch("GET", "/openapi.json");
-    ASSERT_EQ(200, m_Status);
-    ASSERT_EQ((const char*)0, strstr(m_Body.Begin(), "\"/extension/test\""));
+    Fetch("GET", "/extension/child");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+    ASSERT_STREQ(child_response, m_Body.Begin());
+
+    params.m_Userdata = (void*)parent_response;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/extension", &params, parent_json));
+    Fetch("GET", "/extension/child");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+    ASSERT_STREQ(child_response, m_Body.Begin());
+
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(server, "/extension/child"));
+    Fetch("GET", "/extension/child");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+    ASSERT_STREQ(parent_response, m_Body.Begin());
 }
 
 // Discovery must reject unsupported methods and avoid serving its JSON for unrelated prefix matches.

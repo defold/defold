@@ -107,6 +107,8 @@ namespace dmWebServer
     };
 
     /*# Add a new handler
+     * Requests use the handler with the longest matching prefix, regardless of
+     * registration order. A handler registered at "/" serves as a fallback.
      * The OpenAPI JSON is a non-empty Paths Object describing the paths and methods
      * served by this handler. Each path must start with the handler's prefix and
      * must not already be documented by another handler. Schemas should be inline
