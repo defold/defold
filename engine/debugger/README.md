@@ -237,6 +237,12 @@ limited to 1 MiB, headers to 4 KiB, and queues to 4 MiB. Invalid framing or JSON
 closes the session and resumes Lua. Invalid requests get unsuccessful DAP
 responses. Disconnect never terminates the engine.
 
+An inspection or evaluation response exceeding 1 MiB fails that request while
+keeping the session paused. Retry table inspection with `start` and `count`, or
+evaluate a smaller string slice, such as `value:sub(1, 1000)`. The limit applies
+to the encoded JSON, including escaped binary bytes, and does not truncate or
+modify application values.
+
 Launch, reverse execution, instruction/function/data breakpoints, source-content
 fetching, and native stack inspection are not implemented or advertised. Console
 output from the engine keeps its existing destination; DAP output is used for
