@@ -3323,6 +3323,62 @@ class EngineDAPTests(DAPTestCase):
             output.append(line)
         self.assertEqual(code, expected, "".join(output))
 
+    def check_native_callbacks(self, shared_state=False, yielded=False):
+        c = self.start_engine("go", yielded=yielded, case="native_callbacks", shared_state=shared_state)
+        c.initialize()
+        c.attach(localRoot=str(ENGINE_SOURCE_ROOT))
+        self.breakpoints({"line": self.line("callback-suspended" if yielded else "callback-inspect")})
+        c.configured()
+        main_frames = self.stopped()
+        frames = main_frames
+        selected_thread = self.thread
+        if yielded:
+            selected_thread = next(t["id"] for t in c.request("threads")["threads"] if " / coroutine " in t["name"])
+            frames = c.request("stackTrace", {"threadId": selected_thread})["stackFrames"]
+            self.frame = frames[0]["id"]
+        scopes = self.scopes()
+        original_self = self.evaluate("self", context="hover")
+        self.assertIn("hash:", self.evaluate('factory.create("#factory")', context="repl")["result"])
+        self.assertEqual(self.evaluate("self", context="hover"), original_self)
+        self.evaluate('''
+            callback_observer = function() x = x + 1 end
+            created = factory.create("#factory")
+            callback_observer = nil
+            saved = function() return x end
+        ''', context="repl")
+        self.assertEqual(self.evaluate("x", context="hover")["result"], "2")
+        value = '(function() factory.create("#factory"); return x + 1 end)()'
+        self.assertEqual(c.request("setVariable", {"variablesReference": scopes["Locals"], "name": "x", "value": value})["value"], "3")
+        self.assertEqual(c.request("setExpression", {"frameId": self.frame, "expression": "x", "value": value})["value"], "4")
+        c.request("setExpression", {"frameId": self.frame, "expression": "self.score",
+                                   "value": '(function() factory.create("#factory"); return 99 end)()'})
+        self.assertEqual(self.evaluate("saved()")["result"], "2")
+        self.assertEqual(self.scopes(), scopes)
+        self.assertEqual(c.request("stackTrace", {"threadId": selected_thread})["stackFrames"], frames)
+        self.assertEqual(c.request("stackTrace", {"threadId": self.thread})["stackFrames"], main_frames)
+        self.resume()
+        self.finished()
+
+    # factory.create runs init callbacks on the paused engine thread. Its frame
+    # and bindings must survive reads and assignments that enter those callbacks.
+    def test_native_callbacks_preserve_paused_frames(self):
+        self.check_native_callbacks()
+
+    # Shared script contexts must preserve paused frames too, including a tail
+    # call from the spawned instance into a closure made by the current REPL.
+    def test_native_callbacks_preserve_paused_frames_with_shared_state(self):
+        self.check_native_callbacks(shared_state=True)
+
+    # Evaluating a yielded coroutine can invoke callbacks on its paused resumer;
+    # preserve both stacks and allow access to the selected coroutine's locals.
+    def test_native_callbacks_preserve_yielded_frames(self):
+        self.check_native_callbacks(yielded=True)
+
+    # The yielded-coroutine case must preserve both stacks with a shared VM as
+    # well as separate game-object, GUI, and render script contexts.
+    def test_native_callbacks_preserve_yielded_frames_with_shared_state(self):
+        self.check_native_callbacks(shared_state=True, yielded=True)
+
     def check_instance(self, kind, yielded=False):
         c = self.start_engine(kind, yielded)
         c.initialize()

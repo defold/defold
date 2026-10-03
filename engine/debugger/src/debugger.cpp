@@ -1593,13 +1593,14 @@ namespace dmDebugger
             return;
         if (d->m_Evaluating)
         {
-            // Resumed application threads invalidate their captured bindings,
-            // even if another invocation yields in the same function and line.
-            // Observe hooks so cached resume/wrap APIs are covered too; the
-            // debugger's temporary evaluation threads remain untracked.
+            // Native callbacks run above the paused stack without resuming it.
+            // Invalidate only once execution reaches that stack (or unwinds
+            // past it), including resumes through cached coroutine APIs.
+            // The debugger's temporary evaluation threads remain untracked.
             State*  state = (State*)GetPointer(L, &g_StateKey);
             Thread* thread = LookupThread(state, L);
-            if (thread)
+            lua_Debug caller;
+            if (thread && !lua_getstack(L, thread->m_EvaluationDepth, &caller))
                 ++thread->m_ExecutionVersion;
             if (ar->event == LUA_HOOKCOUNT)
                 CheckEvaluation(L);
