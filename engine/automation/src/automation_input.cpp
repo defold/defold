@@ -839,7 +839,7 @@ namespace dmAutomation
                 return true;
             }
             event->m_Pressed = true;
-            event->m_Phase = event->m_HoldBefore > 0.0f ? 1 : (event->m_Points.Size() > 1 ? 2 : 3);
+            event->m_Phase = event->m_HoldBefore > 0.0f ? 1 : (event->m_Points.Size() > 1 ? 2 : (event->m_PointerOpen ? 4 : 3));
             event->m_Elapsed = 0.0f;
             StartReceipt(&event->m_Receipt);
             if (event->m_Visualize) AddVisualizationPoint(first->m_X, first->m_Y, true);
@@ -857,9 +857,13 @@ namespace dmAutomation
         if (event->m_Phase == 1)
         {
             event->m_Elapsed += dt;
-            if (event->m_Elapsed < event->m_HoldBefore) return false;
+            if (event->m_Elapsed < event->m_HoldBefore)
+            {
+                InjectPointer(event, first->m_X, first->m_Y, false, false, false);
+                return false;
+            }
             event->m_Elapsed = 0.0f;
-            event->m_Phase = event->m_Points.Size() > 1 ? 2 : 3;
+            event->m_Phase = event->m_Points.Size() > 1 ? 2 : (event->m_PointerOpen ? 4 : 3);
         }
 
         if (event->m_Phase == 2)
@@ -886,11 +890,21 @@ namespace dmAutomation
             event->m_Phase = event->m_PointerOpen ? 4 : 3;
         }
 
-        if (event->m_Phase == 4 && !event->m_ReleaseRequested) return false;
+        // Native HID polling replaces injected position and button state each frame.
+        // Reassert the held pointer even while no path segment is advancing.
+        if (event->m_Phase == 4 && !event->m_ReleaseRequested)
+        {
+            InjectPointer(event, last->m_X, last->m_Y, false, false, false);
+            return false;
+        }
         if (event->m_Phase == 3 && event->m_HoldAfter > 0.0f)
         {
             event->m_Elapsed += dt;
-            if (event->m_Elapsed < event->m_HoldAfter) return false;
+            if (event->m_Elapsed < event->m_HoldAfter)
+            {
+                InjectPointer(event, last->m_X, last->m_Y, false, false, false);
+                return false;
+            }
         }
         if (event->m_PointerOpen && !event->m_ReleaseRequested) return false;
 

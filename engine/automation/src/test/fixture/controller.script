@@ -7,6 +7,12 @@ function init(self)
         assert(automation_bridge.ack == nil)
     end
     if not automation_bridge then return end
+    self.inputs = {}
+    automation_bridge.command("reset_input", function()
+        self.inputs = {}
+        return true
+    end)
+    automation_bridge.command("input_events", function() return self.inputs end)
     automation_bridge.command("echo", function(data) return data end)
     automation_bridge.command("publish", function(data)
         automation_bridge.publish("fixture.value", data)
@@ -44,13 +50,18 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
-    if not automation_bridge then return end
-    automation_bridge.emit("fixture.input", {
+    if not automation_bridge or not action_id then return end
+    local input = {
         action = action_id == hash("space") and "space" or (action_id == hash("touch") and "touch" or "pointer"),
         pressed = action.pressed,
         released = action.released,
         frame = self.frame,
-    })
+        x = action.x,
+        y = action.y,
+    }
+    if #self.inputs == 256 then table.remove(self.inputs, 1) end
+    table.insert(self.inputs, input)
+    automation_bridge.emit("fixture.input", input)
 end
 
 function on_message(self, message_id, message, sender)

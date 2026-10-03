@@ -96,6 +96,19 @@ class RuntimeTest(unittest.TestCase):
         with urllib.request.urlopen(request, timeout=2) as response:
             self.assertEqual(200, response.status)
 
+    def input_events(self, action):
+        return [event for event in self.command('input_events') if event['action'] == action]
+
+    def delivered_input(self, input_id):
+        def delivered():
+            value = self.request('/input/status?input_id=' + str(input_id))[1]['data']
+            return value if value.get('delivered_frame') else None
+        return self.until(delivered)
+
+    def advance_frames(self, count):
+        frame = self.request('/frame')[1]['data']['engine_frame']
+        self.until(lambda: self.request('/frame')[1]['data']['engine_frame'] >= frame + count)
+
     # Reload notifications invalidate only affected lifetimes without per-instance version storage.
     def test_hot_reload_identity_and_owner_cleanup(self):
         def element_ids():
@@ -284,6 +297,53 @@ class RuntimeTest(unittest.TestCase):
             delivered.append(self.until(complete))
         self.assertLessEqual(delivered[0]['delivered_frame'], delivered[1]['start_frame'])
         self.assertEqual(200, self.request('/input/flush', 'POST', dict(owner, release=True))[0])
+
+    # Open pointers retain position and button state across HID polls, moves, and idle frames.
+    def test_pointer_hold_and_move(self):
+        owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False}
+        self.command('reset_input')
+        status, response = self.request('/input/pointer/open', 'POST', dict(owner, x=20, y=20, pointer_lease=5))
+        self.assertEqual(202, status)
+        input_id = response['data']['input_id']
+        try:
+            self.advance_frames(4)
+            events = self.input_events('pointer')
+            self.assertGreaterEqual(len(events), 4)
+            self.assertEqual(1, sum(event['pressed'] for event in events))
+            self.assertFalse(any(event['released'] for event in events))
+            position = (events[0]['x'], events[0]['y'])
+            self.assertTrue(all((event['x'], event['y']) == position for event in events))
+            status, _ = self.request('/input/pointer/move', 'POST', dict(owner, input_id=input_id, x=40, y=40, duration=0))
+            self.assertEqual(200, status)
+            self.advance_frames(4)
+            events = self.input_events('pointer')
+            self.assertNotEqual(position, (events[-1]['x'], events[-1]['y']))
+            self.assertTrue(all((event['x'], event['y']) == (events[-1]['x'], events[-1]['y']) for event in events[-4:]))
+            self.assertEqual(1, sum(event['pressed'] for event in events))
+            self.assertFalse(any(event['released'] for event in events))
+            self.assertEqual(200, self.request('/input/pointer/up', 'POST', dict(owner, input_id=input_id))[0])
+            self.delivered_input(input_id)
+            self.advance_frames(3)
+            self.assertEqual(1, sum(event['released'] for event in self.input_events('pointer')))
+        finally:
+            self.request('/input/flush', 'POST', dict(owner, release=True))
+
+    # Holds surrounding a drag must not introduce intermediate releases or repeated presses.
+    def test_drag_holds(self):
+        owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False}
+        self.command('reset_input')
+        status, response = self.request('/input/drag', 'POST', dict(owner, x1=20, y1=20, x2=40, y2=40,
+                                                                 duration=0.1, hold_before=0.1, hold_after=0.1))
+        self.assertEqual(202, status)
+        self.delivered_input(response['data']['input_id'])
+        events = self.input_events('pointer')
+        self.assertEqual(1, sum(event['pressed'] for event in events))
+        self.assertEqual(1, sum(event['released'] for event in events))
+        self.assertTrue(events[0]['pressed'])
+        self.assertTrue(events[-1]['released'])
+        self.assertGreater(events[-1]['frame'] - events[0]['frame'], 6)
+        for samples in (events[:3], events[-3:]):
+            self.assertTrue(all((event['x'], event['y']) == (samples[0]['x'], samples[0]['y']) for event in samples))
 
     # The null HID backend must dispatch touch bindings, not merely complete input receipts.
     def test_touch_dispatch_in_headless(self):
