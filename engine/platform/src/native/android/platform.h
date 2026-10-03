@@ -164,6 +164,7 @@ NativeGLOBAL struct {
 
     // Mouse status
     int  MousePosX, MousePosY;
+    int  MouseLeftButtonFromTouch, MousePositionFromTouch;
     int  WheelPos;
     char MouseButton[ NATIVE_MOUSE_BUTTON_LAST+1 ];
 

@@ -593,10 +593,11 @@ void *pointerIdToRef(int32_t id)
     return (void*)(uintptr_t)(0x1 + id);
 }
 
-static void updateGlfwMousePos(int32_t x, int32_t y)
+static void updateGlfwMousePos(int32_t x, int32_t y, int from_touch)
 {
     dmNativeInput.MousePosX = x;
     dmNativeInput.MousePosY = y;
+    dmNativeInput.MousePositionFromTouch = from_touch;
 }
 
 
@@ -617,6 +618,8 @@ int32_t dmNativeAndroidDispatchInput(struct android_app* app, JNIEnv* env, struc
 
         int32_t x = event->m_X;
         int32_t y = event->m_Y;
+        int from_touch = (event->m_Source & AINPUT_SOURCE_TOUCHSCREEN) == AINPUT_SOURCE_TOUCHSCREEN ||
+                         (event->m_Source & AINPUT_SOURCE_STYLUS) == AINPUT_SOURCE_STYLUS;
 
         int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
 
@@ -624,31 +627,31 @@ int32_t dmNativeAndroidDispatchInput(struct android_app* app, JNIEnv* env, struc
         {
             case AMOTION_EVENT_ACTION_DOWN:
                 if (touchStart(pointer_ref, x, y) == g_MouseEmulationTouch) {
-                    updateGlfwMousePos(x,y);
+                    updateGlfwMousePos(x, y, from_touch);
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS );
                 }
                 break;
             case AMOTION_EVENT_ACTION_UP:
                 if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
-                    updateGlfwMousePos(x,y);
+                    updateGlfwMousePos(x, y, from_touch);
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 }
                 break;;
             case AMOTION_EVENT_ACTION_POINTER_DOWN:
                 if (touchStart(pointer_ref, x, y) == g_MouseEmulationTouch) {
-                    updateGlfwMousePos(x,y);
+                    updateGlfwMousePos(x, y, from_touch);
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS );
                 }
                 break;
             case AMOTION_EVENT_ACTION_POINTER_UP:
                 if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
-                    updateGlfwMousePos(x,y);
+                    updateGlfwMousePos(x, y, from_touch);
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 }
                 break;
             case AMOTION_EVENT_ACTION_CANCEL:
                 if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_CANCELLED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
-                    updateGlfwMousePos(x,y);
+                    updateGlfwMousePos(x, y, from_touch);
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 }
                 break;
@@ -656,7 +659,7 @@ int32_t dmNativeAndroidDispatchInput(struct android_app* app, JNIEnv* env, struc
                 {
                     if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_MOVED) == g_MouseEmulationTouch)
                     {
-                        updateGlfwMousePos(x,y);
+                        updateGlfwMousePos(x, y, from_touch);
                         if (dmNativeWin.mousePosCallback) {
                             dmNativeWin.mousePosCallback(x, y);
                         }
@@ -890,6 +893,7 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
             case AMOTION_EVENT_ACTION_POINTER_UP:
             case AMOTION_EVENT_ACTION_CANCEL:
                 out->m_Action = action;
+                out->m_Source = AInputEvent_getSource(event);
                 out->m_Ref = pointerIdToRef(pointer_id);
                 out->m_X = AMotionEvent_getX(event, pointer_index);
                 out->m_Y = AMotionEvent_getY(event, pointer_index);
@@ -905,6 +909,7 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
                         if ((*out_count) < max_out_count)
                         {
                             out->m_Action = action;
+                            out->m_Source = AInputEvent_getSource(event);
                             out->m_X = AMotionEvent_getX(event, i);
                             out->m_Y = AMotionEvent_getY(event, i);
                             out->m_Ref = pointerIdToRef(AMotionEvent_getPointerId(event, i));
