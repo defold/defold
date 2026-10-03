@@ -18,6 +18,7 @@
 #include "debugger.h"
 #include "dap.h"
 #include <dlib/socket.h>
+#include <dlib/hashtable.h>
 extern "C"
 {
 #include <lua/lua.h>
@@ -51,6 +52,7 @@ namespace dmDebugger
         lua_State* m_L;
         char*      m_Name;
         int        m_ThreadsRef;
+        int        m_ThreadLookupRef;
         int        m_ObservedFunctionsRef;
         int        m_CreateRef;
         int        m_ResumeRef;
@@ -123,6 +125,7 @@ namespace dmDebugger
         Buffer                m_Output;
         dmArray<State*>       m_States;
         dmArray<Thread*>      m_Threads;
+        dmHashTable32<Thread*> m_ThreadIds;
         dmArray<Breakpoint*>  m_Breakpoints;
         dmArray<Source*>      m_Sources;
         dmArray<Frame>        m_Frames;

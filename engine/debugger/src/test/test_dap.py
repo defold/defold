@@ -2316,6 +2316,56 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    # Thread lookups must retain stable IDs for hundreds of live coroutines,
+    # then discard collected entries even when Lua reuses their addresses.
+    def test_many_coroutine_lookups_and_collection(self):
+        c = self.start('''
+            local function create_threads()
+                local held = {}
+                for i = 1, 512 do
+                    held[i] = coroutine.create(function()
+                        local value = i
+                        coroutine.yield()
+                        return value
+                    end)
+                    assert(coroutine.resume(held[i]))
+                end
+                return held
+            end
+            local held = create_threads()
+            local marker = 1 -- before
+            held = nil
+            collectgarbage('collect')
+            pump()
+            held = create_threads()
+            marker = 2 -- after
+            assert(#held == 512)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("before")}, {"line": self.line("after")})
+        c.configured()
+        old_ids = set()
+        for _ in range(2):
+            self.stopped()
+            main_frame = self.frame
+            threads = c.request("threads")["threads"]
+            coroutines = [t for t in threads if "/ coroutine" in t["name"]]
+            self.assertEqual(len(coroutines), 512)
+            ids = {t["id"] for t in coroutines}
+            self.assertEqual(len(ids), 512)
+            self.assertFalse(ids & old_ids)
+            for old_id in sorted(old_ids)[:3]:
+                c.request("stackTrace", {"threadId": old_id}, success=False)
+            thread = max(coroutines, key=lambda t: t["id"])
+            self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+            self.assertEqual(self.evaluate("value", context="hover")["result"], "512")
+            self.assertEqual(c.request("threads")["threads"], threads)
+            self.frame = main_frame
+            old_ids = ids
+            self.resume()
+        self.finished()
+
     # Completing a coroutine through a cached resume during evaluation must
     # reject its old frame and variable IDs, not inspect an unwound Lua stack.
     def test_evaluation_expires_completed_coroutine_references(self):
