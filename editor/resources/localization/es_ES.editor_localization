@@ -70,15 +70,19 @@ welcome.new-project.side-scroller-tutorial.description = En este tutorial para p
 welcome.new-project.walking-astronaut-tutorial.title = Tutorial de movimiento de vista superior
 welcome.new-project.walking-astronaut-tutorial.description = En este tutorial para principiantes aprendes cómo capturar pulsaciones del jugador y hacer que el personaje se mueva y anime. También aprenderás sobre los bloques de construcción principales\: objetos del juego, componentes y colecciones.
 welcome.new-project.movement-tutorial.title = Tutorial de movimiento
+welcome.new-project.movement-tutorial.description = En este tutorial para principiantes aprendes cómo hacer un movimiento realista usando vectores y un simple álgebra vectorial.
 welcome.new-project.war-battles-tutorial.title = Tutorial de batallas de guerra
 welcome.new-project.war-battles-tutorial.description = En este tutorial de dificultad media se construyen los cimientos para un juego de disparo de vista superior basado en el paquete de recursos RTS "War Battles".
 welcome.new-project.colorslide-tutorial.title = Tutorial de deslizador de color
+welcome.new-project.colorslide-tutorial.description = En este tutorial de dificultad media construyes un GUI en el juego, una pantalla GUI para selección de nivel y una pantalla de inicio para un simple juego multi nivel para móviles.
 
 # Welcome -> New Project -> From Sample
 welcome.new-project.sample-3d-platformer.title = Kit de inicio 3D de plataformas
 welcome.new-project.sample-3d-platformer.description = Esto es un ejemplo de plataforma 3D con movimiento de personaje fluido, salto, una cámara de órbita, coleccionables, personajes animados, iluminación y sombras.
 welcome.new-project.sample-3d-third-person-playground.title = Entorno de pruebas 3D en tercera persona
+welcome.new-project.sample-3d-third-person-playground.description = Se trata de un juego de ejemplo 3D en tercera persona en el que puedes mover un personaje 3D con teclado o interacción de ratón/dactilar. Muestra cómo hacer una configuración básica 3D con sombras.
 welcome.new-project.linker-sample-game.title = Ejemplo de juego de conectar
+welcome.new-project.linker-sample-game.description = Este es un juego de muestra completo donde haces clic y arrastras para enlazar peces del mismo color para eliminarlos del tablero. Largas cadenas de peces produce potenciadores.
 welcome.new-project.roids-sample-game.title = Ejemplo de juego de asteroides
 welcome.new-project.roids-sample-game.description = Esto es un ejemplo completo de juego donde diriges una nave espacial y te abres camino disparando a través de una tormenta de meteoros.
 welcome.new-project.pixel-line-platformer.title = Juego de plataformas pixel
@@ -100,6 +104,7 @@ welcome.new-project.3d-treasure-scene.description = Este ejemplo muestra una esc
 welcome.new-project.perspective-parallax.title = Perspectiva en paralaje (Parallax en inglés)
 welcome.new-project.perspective-parallax.description = Este ejemplo muestra un efecto de paralaje con la cámara de perspectiva.
 welcome.new-project.lightning-vfx.title = Efectos visuales de relámpagos
+welcome.new-project.lightning-vfx.description = El ejemplo muestra un efecto de relámpago en un juego de disparos 2D y cómo el componente de malla se configura para ser manipulado durante el juego.
 
 # Updater
 updater.button.update-available = Actualización disponible
@@ -136,6 +141,7 @@ updater.download-in-progress-dialog.header = Defold ya está descargando una act
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
 release-notes-tab.title = Notas de lanzamiento
+release-notes-tab.tooltip = Resumen de lanzamiento de Defold - Novedades en {version}
 
 # Time
 time.vague.unknown = Desconocido
@@ -179,14 +185,20 @@ dialog.build-error.cycle.detail.generic = Esto es causado por dos o más recurso
 
 # Clean Build Dialog
 
+dialog.clean-build.title = ¿Realizar compilación limpia de proyecto?
+dialog.clean-build.header = ¿Confirmas que quieres realizar una compilación limpia de proyecto?
+dialog.clean-build.button.clean = Compilación limpia
 
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = Revisar patrones .defunload
+dialog.defunload-issues.header = Se encontraron referencias inseguras a recursos liberados.
+dialog.defunload-issues.summary = Uno o más recursos tienen referencias inseguras a los recursos liberados por patrones `.defunload`.
 dialog.defunload-issues.advice = Por favor, corrija los patrones en el archivo `.defunload` para evitar cargar recursos no deseados.
 dialog.defunload-issues.report-path = El informe completo ha sido escrito a\:
 dialog.defunload-issues.button.ignore = Ignorar
 dialog.defunload-issues.button.open-report = Abrir informe
+dialog.defunload-issues.report-line = {resource} - se refiere a los recursos liberados\:
 dialog.defunload-issues.report.section-loading-resources = \#\#\# Cargando Recursos \#\#\#
 dialog.defunload-issues.report.loaded-undesired = Los siguientes recursos que coinciden con los patrones `.defunload` fueron cargados por necesidad\:
 
@@ -195,11 +207,13 @@ notification.defunload-issues.action.show-details = Mostrar detalles…
 # Launch Failed Dialog
 
 dialog.launch-failed.title = Inicio fallido
+dialog.launch-failed.header = Iniciando {engine} falló
 dialog.launch-failed.detail = Si el motor ya está ejecutándose, cierra el proceso manualmente y reinténtalo
 dialog.launch-failed.target.new-local-engine = Nuevo motor local
 
 # Hot Reload Failed Dialog
 
+dialog.hot-reload-failed.title = Falló la recarga
 dialog.hot-reload-failed.header = Falló la recarga de recursos en el motor "{engine}"
 
 # GL support error dialog
@@ -220,8 +234,10 @@ dialog.new-folder.button.create-folder = Crear carpeta
 
 # Target IP dialog
 
+dialog.target-ip.title = Introduce el IP del objetivo
 dialog.target-ip.header = Introduce la dirección IP de destino
 dialog.target-ip.label.ip = Dirección IP de destino
+dialog.target-ip.button.add = Añadir IP de destino
 
 # Search in Files Dialogs
 
@@ -262,6 +278,7 @@ dialog.tracked-internal-files.content = Parece que los archivos internos como la
 # Quit Defold dialog
 
 dialog.quit-defold.title = ¿Salir de Defold?
+dialog.quit-defold.header = Existen cambios sin guardar ¿Confirma que quieres salir?
 dialog.quit-defold.button.cancel = Cancelar y seguir trabajando
 dialog.quit-defold.button.quit = Salir sin guardar
 
@@ -308,6 +325,7 @@ dialog.desktop-entry.created.title = Acceso directo creado
 dialog.desktop-entry.created.header = ¡El acceso directo ha sido creado\!
 dialog.desktop-entry.created.content = Ahora puede iniciar el editor Defold desde el menú del sistema.
 dialog.desktop-entry.creation-failed.title = La creación del acceso directo falló
+dialog.desktop-entry.creation-failed.header = ¡No pudo crearse el acceso directo\!
 dialog.desktop-entry.creation-failed.content = Ocurrió un error creando el acceso directo\: {error}
 
 # Texture compressor error dialog
@@ -372,10 +390,12 @@ notification.reload-editor-scripts.action.reload = Recargar scripts del editor
 
 # Reload plugins notification
 
+notification.reload-plugins-failed = No se pudieron recargar las extensiones nativas. Reinicie Defold para recargarlas.\n\nArchivo\: {file}\n\nError subyacente del SO\:\n{error}
 notification.reload-plugins-failed.action.restart = Reiniciar Defold
 
 # Disabled functionality notification
 
+notification.disabled-functionality = Un error causó que algunas funcionalidades del editor se desactivaran. Puede volver a activarlo ahora o reiniciar el editor.
 notification.disabled-functionality.action.enable = Reactivar
 notification.disabled-functionality.action.restart = Reiniciar
 
@@ -434,6 +454,7 @@ dialog.form-view.file-not-in-project.header = El archivo debe residir dentro del
 # Shared editor settings load error dialog
 
 dialog.shared-editor-settings.load-error.title = Error al cargar la configuración compartida del editor
+dialog.shared-editor-settings.load-error.header = No se pudo cargar el archivo de configuración del editor compartido.
 dialog.shared-editor-settings.load-error.detail = Volviendo a los valores predeterminados. Tu experiencia de usuario puede verse afectada.
 dialog.shared-editor-settings.load-error.content = Archivo\: {file}\n\n{error}
 
@@ -546,6 +567,7 @@ dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bits
 dialog.bundle.option.identity.none = Ninguna
 dialog.bundle.label.architectures = Arquitecturas
+dialog.bundle.label.ios-simulator = Simulador
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (Wasm)
@@ -581,6 +603,7 @@ dialog.bundle.option.texture-compression.editor = Usar preferencia del editor
 dialog.bundle.label.with-symbols = Generar símbolos de depuración
 dialog.bundle.label.build-report = Generar informe de compilación
 dialog.bundle.label.liveupdate = Publicar contenido Live Update
+dialog.bundle.label.contentless = Paquete sin contenido
 dialog.bundle.failed.title = Falló empaquetado
 dialog.bundle.failed.header = Empaquetar el proyecto falló
 dialog.bundle.failed.hint = Por favor, arregla los errores de compilación e inténtalo de nuevo
@@ -605,6 +628,7 @@ dialog.bundle.error.keystore.required-with-pass = El almacén de clave debe esta
 dialog.bundle.error.keystore-pass.not-found = El archivo de la contraseña del almacén de clave no encontrado.
 dialog.bundle.error.keystore-pass.invalid = Archivo de contraseña del almacén de clave inválido.
 dialog.bundle.error.keystore-pass.required-with-keystore = La contraseña del almacén de clave debe estar establecida si el almacén de clave está especificado.
+dialog.bundle.error.key-pass.not-found = No se encontró el archivo de contraseña de clave.
 dialog.bundle.error.key-pass.invalid = Archivo de contraseña de clave no válido.
 dialog.bundle.error.key-pass.required-with-keystore = Almacén de clave debe estar establecido si la contraseña de clave está especificada.
 dialog.bundle.error.bundle-format.required = Ningún formato de paquete seleccionado.
@@ -698,6 +722,10 @@ prefs.label.code.format-on-save = Formatear al guardar
 prefs.help.code.format-on-save = Ejecutar el servidor de formateo de lenguaje en archivos abiertos al guardar
 
 # Extensions tab
+prefs.label.extensions.build-server = Servidor de compilación
+prefs.label.extensions.build-server-username = Nombre de usuario del servidor de compilación
+prefs.label.extensions.build-server-password = Contraseña del servidor de compilación
+prefs.label.extensions.build-server-headers = Cabeceras (Headers) del servidor de compilación
 
 # Tools
 prefs.label.tools.adb-path = Ruta ADB
@@ -724,6 +752,7 @@ prefs.keymap.new-shortcut.commit = Pulsa {enter} para confirmar
 prefs.keymap.new-shortcut.commit-or-cancel = Pulsa {enter} para confirmar, {escape} de nuevo para cancelar
 prefs.keymap.warnings = Avisos\:{warnings}
 prefs.keymap.warning = \n• {warning}
+prefs.keymap.warning.typable = Escribible (puede interferir con la introducción de texto)
 prefs.keymap.warning.conflicts = Conflictos con {shortcuts}
 prefs.keymap.warning.duplicate = La asignación ya existe, será ignorada
 prefs.keymap.mouse-binding.button.left = Izquierdo
@@ -745,6 +774,7 @@ progress.fetching-engine = Obteniendo motor…
 progress.executing-pre-build-hooks = Ejecutando scripts de precompilación…
 progress.executing-post-build-hooks = Ejecutando scripts de post-compilación…
 progress.executing-bundle-hook = Ejecutando script de empaquetado…
+progress.building-project = Compilando proyecto…
 progress.installing-updated-libraries = Instalando bibliotecas actualizadas…
 progress.initializing-editor = Inicializando editor {lib}
 progress.loading-editor = Cargando editor
@@ -765,11 +795,14 @@ progress.editor-scripts-reloaded = Scripts del editor recargados a las {time}
 progress.writing-files = Escribiendo archivos…
 progress.caching-save-results = Guardando en caché los resultados…
 progress.reading-timestamps = Leyendo registro de tiempo…
+progress.building = Compilando…
+progress.building-resource = Compilando {resource}
 progress.fetching = Obteniendo {uri}
 progress.downloading-update = Descargando actualización
 progress.extracting-update = Extrayendo actualización
 progress.waiting = Esperando
 progress.bundling = Empaquetando…
+progress.building-engine = Compilando motor…
 progress.cleaning-engine = Limpiando motor…
 progress.downloading-symbols = Descargando símbolos…
 progress.transpiling-to-lua = Convirtiendo a Lua…
@@ -812,6 +845,7 @@ menu.edit = Editar
 menu.debug = Depurar
 menu.view = Ver
 menu.help = Ayuda
+menu.dock.new-window = Nueva Ventana
 
 # Commands
 
@@ -852,6 +886,7 @@ command.run.select-target.option.new-local-engine = Nuevo motor local
 command.run.stop = Cerrar motor
 command.run.set-instance-count = Cuenta de instancias iniciada
 command.run.set-instance-count.option.count = {count, plural, one {\# instancia} other {\# instancias}}
+command.run.set-target-ip = Introduce IP objetivo
 command.run.show-target-log = Registro de detección de destino
 command.run.open-profiler = Abrir analizador web
 command.run.open-resource-profiler = Abrir analizador de recursos
@@ -894,7 +929,12 @@ command.edit.add-embedded-component.variant.collection = Añadir objeto del jueg
 command.edit.add-embedded-component.variant.collision-object = Añadir forma
 command.edit.add-embedded-component.variant.collision-object.option.box = Caja
 command.edit.add-embedded-component.variant.collision-object.option.capsule = Cápsula
+command.edit.add-embedded-component.variant.collision-object.option.circle = Círculo
+command.edit.add-embedded-component.variant.collision-object.option.hull = Envoltura
+command.edit.add-embedded-component.variant.collision-object.option.mesh = Malla
+command.edit.add-embedded-component.variant.collision-object.option.rectangle = Rectángulo
 command.edit.add-embedded-component.variant.collision-object.option.sphere = Esfera
+command.edit.add-embedded-component.variant.font = Añadir estilo
 command.edit.add-embedded-component.variant.game-object = Añadir componente
 command.edit.add-embedded-component.variant.gui.option.textures = Texturas…
 command.edit.add-embedded-component.variant.gui.option.materials = Materiales…
@@ -1000,6 +1040,7 @@ command.scene.visibility.show-last-hidden = Mostrar últimos objetos ocultos
 command.scene.visibility.show-all = Mostrar todos los objetos ocultos
 command.scene.play = Reproducir
 command.scene.stop = Parar
+command.scene.frame-selection = Selección de encuadre
 command.scene.realign-camera = Realinear cámara
 command.scene.toggle-tile-palette = Seleccionar celda (tile)…
 command.scene.select-erase-tool = Seleccionar borrador
@@ -1035,6 +1076,7 @@ command.vcs.revert = Revertir
 
 code.find.word = Palabra
 code.find.case = Mayúscula/minúscula
+code.find.wrap = Circular
 code.find.prev = Anterior
 code.find.next = Siguiente
 code.replace.next = Reemplazar
@@ -1076,6 +1118,7 @@ operation.atlas.move-pivot-point = Mover punto de pivote
 operation.collision-object.add-shape = Añadir forma
 operation.collection.add-collection = Añadir colección
 operation.collection.add-game-object = Añadir objeto del juego
+operation.font.add-style = Añade estilo de fuente
 operation.game-object.add-component = Añadir componente
 operation.gui.add-gui-node = Añadir nodo GUI
 operation.gui.add-layer = Agregar capa
@@ -1097,6 +1140,8 @@ operation.tile-map.add-layer = Agregar capa
 
 # Font Styles
 
+font.style.default = (predeterminado)
+scene.font.style = Estilo\: {style}
 
 # Scene View Popups
 
@@ -1135,6 +1180,7 @@ property.tooltip = {help, select, none {} other {{help}\n\n}}Disponible como `{i
 # Properties: universal
 
 property.blend-mode = Modo de fusión
+property.blend-mode.tooltip = Controla cómo se combinan los píxeles de este elemento con gráficos detrás de él. **Alfa** da transparencia normal, **Añadir** abrillanta, **Multiplicar** oscurece y **Pantalla** produce un efecto brillante más suave; los modos disponibles dependen del tipo de elemento.
 property.id = Id
 property.id.tooltip = El identificador utilizado para dirigirse a esta instancia de colección, objeto del juego, o componente en tiempo de ejecución. Debe ser único entre sus hermanos; junto con la jerarquía, forma la URL del elemento.
 property.image = Imagen
@@ -1211,9 +1257,50 @@ property.appmanifest.use-rich-text.tooltip = Incluye análisis de texto enriquec
 
 # Properties: atlas
 
+property.atlas.animation.id.tooltip = El identificador utilizado para seleccionar esta animación de flip-book en componentes y API de animación en tiempo de ejecución. Debe ser único dentro del atlas.
+property.atlas.animation.fps = FPS
+property.atlas.animation.fps.tooltip = La velocidad de reproducción de la animación en fotogramas por segundo. Valores más altos muestran los fotogramas más rápidamente.
+property.atlas.animation.flip-horizontal = Voltear horizontalmente
+property.atlas.animation.flip-horizontal.tooltip = Refleja cada fotograma de la animación horizontalmente durante la reproducción.
+property.atlas.animation.flip-vertical = Voltear verticalmente
+property.atlas.animation.flip-vertical.tooltip = Refleja cada fotograma de la animación verticalmente durante la reproducción.
+property.atlas.animation.playback = Reproducir
+property.atlas.animation.playback.tooltip = Elije si la animación permanece en su primer fotograma, se reproduce una vez o en bucles, y si los fotogramas corren hacia delante, hacia atrás o en ping-pong. **Una vez ping-pong** se detiene después de regresar al segundo fotograma para evitar repetir el primer fotograma cuando las animaciones están encadenadas.
+property.atlas.image.id.tooltip = El identificador de solo lectura derivado del nombre base de la imagen de origen después de aplicar **Patrones de renombrado**. Se utiliza para seleccionar la imagen y para hacer coincidir los fotogramas correspondientes a través de los atlas.
+property.atlas.image.pivot = Pivote
+property.atlas.image.pivot.tooltip = El punto alineado con la posición del componente cuando se muestra esta imagen. `(0, 0)` está arriba a la izquierda, `(1, 1)` abajo a la derecha y `(0.5, 0.5)` en el centro; los valores fuera de este rango están permitidos.
+property.atlas.image.sprite-trim-mode = Modo de recorte de Sprite
+property.atlas.image.sprite-trim-mode.tooltip = Aproxima el área no transparente de la imagen con el número seleccionado de vértices en lugar de renderizar su rectángulo completo. Esto puede reducir la superposición transparente, pero no se puede utilizar con sprites de 9 sectores (slice-9).
+property.atlas.margin = Margen
+property.atlas.margin.tooltip = El número de píxeles insertados entre las imágenes empaquetadas en la textura del atlas.
+property.atlas.inner-padding = Relleno interno
+property.atlas.inner-padding.tooltip = El número de píxeles vacíos que se añaden alrededor de cada imagen antes de que se empaque en el atlas.
+property.atlas.extrude-borders = Expansión de bordes
+property.atlas.extrude-borders.tooltip = El número de veces que los píxeles de borde de cada imagen se copian hacia afuera. Esto evita que las imágenes vecinas sangren en la imagen cuando un shader muestrea cerca de su borde.
+property.atlas.max-page-width = Ancho de página máximo
+property.atlas.max-page-height = Alto de página máximo
+property.atlas.max-page-size = Tamaño de página
+property.atlas.max-page-size.tooltip = La anchura y altura máximas de cada página en un atlas de varias páginas. Establece ambos valores por encima de cero para habilitar la paginación; los componentes que usan el atlas deben usar un material de atlas paginado.
+property.atlas.rename-patterns = Renombrar patrones
+property.atlas.rename-patterns.tooltip = Patrones `search\=replace` separados por comas aplicados a cada nombre base de imagen. Por ejemplo, `hat\=cat,_normal\=` cambia `hat_normal` a `cat`; los nombres coincidentes son útiles cuando los fotogramas corresponden a múltiples atlas.
 
 # Properties: camera
 
+property.camera.aspect-ratio = Relación de aspecto
+property.camera.aspect-ratio.tooltip = **Solo perspectiva.** La relación del ancho del frustum a su alto. Usa `1.0` para un cuadrado, alrededor de `1.33` para 4\:3, o alrededor de `1.78` para 16\:9; es ignorado cuando **Auto Aspecto** está habilitado.
+property.camera.fov = Campo de visión
+property.camera.fov.tooltip = **Solo perspectiva.** El campo de vista vertical en radianes. Los valores más altos muestran más de la escena; por ejemplo, 60° es alrededor de `1.047` radianes.
+property.camera.near-z = Cerca de Z
+property.camera.near-z.tooltip = Profundidad de espacio de vista firmado del plano de recorte cercano. La geometría fuera del intervalo entre **Cerca de Z** y **Lejos de Z** está recortada.
+property.camera.far-z = Lejos de Z
+property.camera.far-z.tooltip = Profundidad de espacio de vista firmado del plano de recorte lejano. Un menor intervalo entre **Cerca de Z** y **Lejos de Z** mejora la precisión de profundidad del búfer pero puede recortar la geometría.
+property.camera.auto-aspect-ratio = Relación de aspecto automática
+property.camera.auto-aspect-ratio.tooltip = **Solo perspectiva.** Calcula la relación de aspecto del ancho y alto de la ventana actual en vez de usar **Relación de aspecto**.
+property.camera.orthographic-projection = Proyección ortográfica
+property.camera.orthographic-projection.tooltip = Utiliza una proyección ortográfica, donde los objetos permanecen del mismo tamaño aparente independientemente de su distancia de la cámara. Comúnmente se utiliza para escenas 2D.
+property.camera.orthographic-zoom = Zoom ortográfico
+property.camera.orthographic-zoom.tooltip = **Solo ortográfico.** Multiplicador de zoom positivo\: valores por encima de `1` hace zoom y valores por debajo de `1` aleja el zoom. En **Ajuste automático** y **Cobertura automática**, multiplica el zoom calculado automáticamente.
+property.camera.orthographic-mode = Modo de zoom ortográfico
 
 # Properties: collection proxy
 
