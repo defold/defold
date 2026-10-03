@@ -3218,6 +3218,93 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    def check_evaluation_timeout_coroutine_hooks(self, context="repl", cached=False, resume_existing=False):
+        c = self.start('''
+            local function worker()
+                local x = 1
+                x = x + 1 -- child
+                assert(x == 2)
+            end
+            local function spin() while true do end end
+            local function timeout()
+                xpcall(spin, function(err)
+                    co = CREATE(worker)
+                    custom = CREATE(function() end)
+                    disabled = CREATE(function() end)
+                    if not jit then
+                        custom_hook = function() end
+                        debug.sethook(custom, custom_hook, 'l', 7)
+                        debug.sethook(disabled)
+                    end
+                    return err
+                end)
+            end
+            existing = coroutine.create(timeout)
+            local marker = 0 -- inspect
+            marker = 1 -- evaluated
+            -- Capture settings before resuming the child or stopping again,
+            -- so deferred discovery cannot hide incomplete timeout cleanup.
+            local _, mask, count = debug.gethook(co)
+            observed_mask, observed_count = mask, count
+            local _, parent_mask, parent_count = debug.gethook(existing)
+            observed_parent_mask, observed_parent_count = parent_mask, parent_count
+            if not jit then
+                local hook, custom_mask, custom_count = debug.gethook(custom)
+                assert(hook == custom_hook and custom_mask == 'l' and custom_count == 7)
+                assert(debug.gethook(disabled) == nil)
+            end
+            assert(coroutine.resume(co))
+            marker = 2 -- after
+        '''.replace("CREATE", "original_create" if cached else "coroutine.create"), prelude='''
+            original_create = coroutine.create
+        ''')
+        c.initialize()
+        c.attach(evaluationTimeout=20)
+        expression = "coroutine.resume(existing)" if resume_existing else "timeout()"
+        breakpoints = [{"line": self.line("child")}, {"line": self.line("after")}]
+        if context == "repl":
+            breakpoints.append({"line": self.line("inspect")})
+        elif context == "condition":
+            breakpoints.append({"line": self.line("evaluated"), "condition": expression})
+        else:
+            breakpoints.append({"line": self.line("evaluated"), "logMessage": "{" + expression + "}"})
+        self.breakpoints(*breakpoints)
+        c.configured()
+        if context == "repl":
+            self.stopped()
+            sequence = c.send("evaluate", {"frameId": self.frame, "expression": expression, "context": "repl"})
+            response = c.wait(lambda message: message.get("request_seq") == sequence)
+            self.assertFalse(response["success"], response)
+            self.assertIn("timed out", response["message"])
+            self.resume()
+        else:
+            self.assertIn("timed out", c.event("output")["output"])
+        self.assertEqual(self.stopped()[0]["line"], self.line("child"))
+        self.assertEqual(self.evaluate("x", context="hover")["result"], "1")
+        for name in ("observed_mask", "observed_parent_mask"):
+            self.assertEqual(self.evaluate(name, context="hover")["result"], '"crl"')
+        for name in ("observed_count", "observed_parent_count"):
+            self.assertEqual(self.evaluate(name, context="hover")["result"], "1000")
+        self.resume()
+        self.assertEqual(self.stopped()[0]["line"], self.line("after"))
+        self.resume()
+        self.finished()
+
+    # A coroutine created by an xpcall handler after timeout must regain line
+    # hooks and hit breakpoints, without replacing custom or disabled hooks.
+    def test_evaluation_timeout_restores_inherited_coroutine_hooks(self):
+        self.check_evaluation_timeout_coroutine_hooks()
+
+    # Timed-out conditions need immediate hook cleanup even though normal
+    # discovery is deferred, including children created through cached APIs.
+    def test_condition_timeout_restores_inherited_coroutine_hooks(self):
+        self.check_evaluation_timeout_coroutine_hooks(context="condition", cached=True)
+
+    # A logpoint can time out inside an already tracked coroutine. Restore its
+    # timeout hook as well as the hook inherited by its error handler's child.
+    def test_logpoint_timeout_restores_existing_and_inherited_coroutine_hooks(self):
+        self.check_evaluation_timeout_coroutine_hooks(context="logpoint", cached=True, resume_existing=True)
+
     # Conditions and logpoints run inside stop hooks too; runaway expressions
     # must report their timeout and let later breakpoints remain usable.
     def test_breakpoint_expressions_time_out(self):

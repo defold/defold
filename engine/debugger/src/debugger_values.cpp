@@ -554,6 +554,7 @@ namespace dmDebugger
     {
         uint64_t m_Deadline;
         int      m_Result;
+        bool     m_TimedOut;
     };
 
     static char g_EvaluationKey;
@@ -566,6 +567,7 @@ namespace dmDebugger
         lua_pop(L, 1);
         if (call && dmTime::GetTime() >= call->m_Deadline)
         {
+            call->m_TimedOut = true;
             // If application pcall catches this error, interrupt its caller's
             // next instruction instead of spending another full interval in
             // the same protected infinite loop.
@@ -605,6 +607,7 @@ namespace dmDebugger
             lua_pop(L, 1);
             lua_pushliteral(L, "Debugger evaluation timed out");
             call->m_Result = LUA_ERRRUN;
+            call->m_TimedOut = true;
         }
         return lua_error(L);
     }
@@ -734,9 +737,10 @@ namespace dmDebugger
             }
         }
         d->m_Evaluating = true;
+        bool timed_out = false;
         if (!result)
         {
-            EvaluationCall call = { dmTime::GetTime() + (uint64_t)d->m_EvaluationTimeout * 1000, LUA_ERRRUN };
+            EvaluationCall call = { dmTime::GetTime() + (uint64_t)d->m_EvaluationTimeout * 1000, LUA_ERRRUN, false };
             lua_pushlightuserdata(L, &g_EvaluationKey);
             lua_pushlightuserdata(L, &call);
             lua_rawset(L, LUA_REGISTRYINDEX);
@@ -745,6 +749,7 @@ namespace dmDebugger
             lua_insert(evaluation_L, lua_gettop(evaluation_L) - arguments - 1);
             lua_pcall(evaluation_L, arguments + 1, 1, 0);
             result = call.m_Result;
+            timed_out = call.m_TimedOut;
             lua_pushlightuserdata(L, &g_EvaluationKey);
             lua_pushnil(L);
             lua_rawset(L, LUA_REGISTRYINDEX);
@@ -762,7 +767,10 @@ namespace dmDebugger
         // walk the whole Lua heap on every hit. Paused evaluations report new
         // threads immediately, excluding our still-pinned temporary thread.
         d->m_ThreadDiscoveryPending = true;
-        if (d->m_Paused)
+        // A timeout can leave its count-only hook on application coroutines.
+        // Restore those hooks before running any more application code, even
+        // when evaluating a condition or logpoint that does not stop.
+        if (d->m_Paused || timed_out)
             DiscoverEvaluationThreads(d, evaluation_L);
         d->m_Evaluating = false;
         luaL_unref(L, LUA_REGISTRYINDEX, thread_ref);

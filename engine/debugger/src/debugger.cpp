@@ -350,6 +350,11 @@ namespace dmDebugger
                 if (lua_checkstack(thread, 8))
                 {
                     TrackThread(d, thread, preserve_hook);
+                    // Lua 5.1 children can inherit the count-only hook used to
+                    // abort a timed-out evaluation. Repair our hook on both new
+                    // and previously tracked threads, preserving custom hooks.
+                    if (preserve_hook && lua_gethook(thread) == Hook && lua_gethookmask(thread) == LUA_MASKCOUNT && lua_gethookcount(thread) == 1)
+                        lua_sethook(thread, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
                     int thread_top = thread == L ? top : lua_gettop(thread);
                     for (int slot = 1; slot <= thread_top; ++slot)
                     {
