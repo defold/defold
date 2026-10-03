@@ -171,10 +171,14 @@ namespace dmDebugger
         return thread && (include_exited || (!thread->m_Exited && GetThread(thread))) ? thread : 0;
     }
 
-    static void InstallHook(Thread* thread)
+    static void InstallHook(Thread* thread, bool preserve_hook = false)
     {
         lua_State* L = GetThread(thread);
         if (!L || thread->m_Hooked)
+            return;
+        // Post-evaluation discovery records ownership of inherited hooks but
+        // preserves any hook the application installed or disabled meanwhile.
+        if (preserve_hook && lua_gethook(L) != Hook)
             return;
         thread->m_OldHook = lua_gethook(L);
         thread->m_OldMask = lua_gethookmask(L);
@@ -189,7 +193,8 @@ namespace dmDebugger
             thread->m_OldCount = main->m_OldCount;
         }
         thread->m_Hooked = true;
-        lua_sethook(L, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
+        if (!preserve_hook)
+            lua_sethook(L, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
     }
 
     static void ThreadEvent(Debugger* d, Thread* thread, const char* reason)
@@ -214,7 +219,7 @@ namespace dmDebugger
         return thread;
     }
 
-    Thread* TrackThread(Debugger* d, lua_State* L)
+    Thread* TrackThread(Debugger* d, lua_State* L, bool preserve_hook)
     {
         State* state = (State*)GetPointer(L, &g_StateKey);
         if (!state)
@@ -242,7 +247,7 @@ namespace dmDebugger
         d->m_ThreadIds.Put(thread->m_Id, thread);
         Push(d->m_Threads, thread);
         if (d->m_Attached)
-            InstallHook(thread);
+            InstallHook(thread, preserve_hook);
         ThreadEvent(d, thread, "started");
         return thread;
     }
@@ -250,12 +255,14 @@ namespace dmDebugger
     struct ThreadDiscovery
     {
         lua_State* m_L;
+        lua_State* m_Excluded;
         int        m_Seen;
         int        m_Queue;
         int        m_Count;
 
-        ThreadDiscovery(lua_State* L)
+        ThreadDiscovery(lua_State* L, lua_State* excluded)
             : m_L(L)
+            , m_Excluded(excluded)
             , m_Count(0)
         {
             lua_newtable(L);
@@ -276,6 +283,8 @@ namespace dmDebugger
         {
             int type = lua_type(m_L, index);
             if (type != LUA_TTABLE && type != LUA_TFUNCTION && type != LUA_TTHREAD && type != LUA_TUSERDATA)
+                return;
+            if (type == LUA_TTHREAD && lua_tothread(m_L, index) == m_Excluded)
                 return;
             if (index < 0 && index > LUA_REGISTRYINDEX)
                 index += lua_gettop(m_L) + 1;
@@ -300,16 +309,16 @@ namespace dmDebugger
         }
     };
 
-    static void DiscoverThreads(Debugger* d, lua_State* L)
+    void DiscoverThreads(Debugger* d, lua_State* L, lua_State* excluded)
     {
         int             top = lua_gettop(L);
-        ThreadDiscovery discovery(L);
+        ThreadDiscovery discovery(L, excluded);
         discovery.Add(LUA_REGISTRYINDEX);
         discovery.Add(LUA_GLOBALSINDEX);
         lua_pushthread(L);
         discovery.PopFrom(L);
 
-        // Scan reachable Lua objects at activation, attachment, and detachment.
+        // Scan reachable Lua objects at activation, attach/detach, and after evaluation.
         // Raw inspection avoids invoking application code, and a queue handles
         // cycles without growing the native call stack. The temporary tables pin
         // objects only for this scan; TrackThread retains them through weak values.
@@ -338,7 +347,7 @@ namespace dmDebugger
                 lua_State* thread = lua_tothread(L, object);
                 if (lua_checkstack(thread, 8))
                 {
-                    TrackThread(d, thread);
+                    TrackThread(d, thread, excluded != 0);
                     int thread_top = thread == L ? top : lua_gettop(thread);
                     for (int slot = 1; slot <= thread_top; ++slot)
                     {

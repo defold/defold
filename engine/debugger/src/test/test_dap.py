@@ -2008,7 +2008,8 @@ class DAPTests(DAPTestCase):
         self.stopped()
         if from_evaluation:
             self.evaluate(creation, context="repl")
-        self.assertFalse(any("/ coroutine" in t["name"] for t in c.request("threads")["threads"]))
+        coroutines = [t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"]]
+        self.assertEqual(len(coroutines), 3 if from_evaluation else 0)
         if abrupt:
             c.close()
             self.assertEqual(self.process.wait(timeout=5), 0, self.process.stderr.read())
@@ -2028,8 +2029,8 @@ class DAPTests(DAPTestCase):
     def test_detach_restores_hooks_on_untracked_coroutines(self):
         self.check_detach_restores_untracked_hooks(from_evaluation=False)
 
-    # Coroutines created in the REPL are not tracked either. Their inherited
-    # debugger hooks must be restored when disconnecting before they run.
+    # Discovering REPL-created coroutines must preserve application hooks and
+    # restore inherited debugger hooks when disconnecting before they run.
     def test_detach_restores_hooks_on_evaluated_coroutines(self):
         self.check_detach_restores_untracked_hooks(from_evaluation=True)
 
@@ -2042,6 +2043,86 @@ class DAPTests(DAPTestCase):
     # coroutines rather than leave evaluation's debugger hook installed.
     def test_abrupt_detach_restores_hooks_on_evaluated_coroutines(self):
         self.check_detach_restores_untracked_hooks(from_evaluation=True, abrupt=True)
+
+    def check_evaluation_created_coroutines(self, cached=False, fail=False):
+        c = self.start('''
+            local marker = 1 -- inspect
+            assert(coroutine.resume(created))
+            assert(wrapped() == 99)
+            assert(coroutine.resume(unstarted))
+            created, wrapped, unstarted = nil, nil, nil
+            collectgarbage('collect')
+            marker = 2 -- collected
+        ''', prelude='''
+            original_create, original_resume, original_wrap = coroutine.create, coroutine.resume, coroutine.wrap
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")}, {"line": self.line("collected")})
+        c.configured()
+        main_frames = self.stopped()
+        main_frame = self.frame
+        before = c.request("threads")["threads"]
+        expression = '''
+            local function worker()
+                local x = 42
+                coroutine.yield()
+                assert(x == 99)
+                return x
+            end
+            created = CREATE(worker)
+            wrapped = WRAP(worker)
+            unstarted = CREATE(function() return 1 end)
+            assert(RESUME(created))
+            wrapped()
+        '''.replace("CREATE", "original_create" if cached else "coroutine.create")
+        expression = expression.replace("WRAP", "original_wrap" if cached else "coroutine.wrap")
+        expression = expression.replace("RESUME", "original_resume" if cached else "coroutine.resume")
+        if fail:
+            expression += "error('after creating coroutines')"
+        c.request("evaluate", {"frameId": self.frame, "expression": expression, "context": "repl"}, success=not fail)
+        threads = c.request("threads")["threads"]
+        coroutines = [t for t in threads if t not in before]
+        self.assertEqual(len(coroutines), 3, threads)
+        started = [c.event("thread") for _ in coroutines]
+        self.assertEqual({e["threadId"] for e in started}, {t["id"] for t in coroutines})
+        self.assertTrue(all(e["reason"] == "started" for e in started))
+        suspended = 0
+        for thread in coroutines:
+            frames = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"]
+            if not frames:
+                continue
+            suspended += 1
+            self.frame = frames[0]["id"]
+            self.assertEqual(self.evaluate("x", context="hover")["result"], "42")
+            c.request("setVariable", {"variablesReference": self.scopes()["Locals"], "name": "x", "value": "99"})
+        self.assertEqual(suspended, 2)
+        self.frame = main_frame
+        # Repeated evaluations must not expose their internal temporary threads.
+        for _ in range(3):
+            self.assertEqual(self.evaluate("1 + 1")["result"], "2")
+            self.assertEqual(c.request("threads")["threads"], threads)
+        self.assertEqual(c.request("stackTrace", {"threadId": self.thread})["stackFrames"], main_frames)
+        self.resume()
+        self.stopped()
+        self.assertEqual(c.request("threads")["threads"], before)
+        self.resume()
+        self.finished()
+
+    # Persisted created and wrapped coroutines must become inspectable after
+    # REPL evaluation, while debugger temporaries stay hidden and GC still works.
+    def test_evaluation_created_coroutines_are_inspectable(self):
+        self.check_evaluation_created_coroutines()
+
+    # Cached original coroutine APIs bypass the wrappers, including an unstarted
+    # coroutine that emits no hooks. Discover all of them after evaluation.
+    def test_evaluation_created_coroutines_using_cached_apis_are_inspectable(self):
+        self.check_evaluation_created_coroutines(cached=True)
+
+    # A failed evaluation can still persist application coroutines; report them
+    # and expose their suspended locals after the error response.
+    def test_failed_evaluation_created_coroutines_are_inspectable(self):
+        self.check_evaluation_created_coroutines(cached=True, fail=True)
 
     # Checks that caught pcall errors are ignored and an uncaught error stops
     # before unwinding, with its message and live local available for inspection.
