@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_RELEASE) && !defined(__EMSCRIPTEN__)
+#if !defined(__EMSCRIPTEN__)
 #include "debugger.h"
 #include <dlib/array.h>
 #include <dlib/log.h>

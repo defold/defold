@@ -3,7 +3,8 @@
 `debugger` is a separate C++ library for debugging Lua 5.1 and LuaJIT through the
 [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/overview).
 Native debug and headless engines link the `LuaDebugger` extension. Release
-engines do not link it, and defining `DM_RELEASE` compiles out the implementation.
+engines exclude the library and its registration symbol at link time, through
+the CMake targets and the Extender release manifest.
 
 ## Connecting
 
@@ -273,11 +274,12 @@ cmake --build <build-directory> --target test_debugger_dap_instances
 ```
 
 The extension integration target is available when `script` and `extension` are
-configured. The script-instance target is part of the full native engine build;
-it runs `dap_debuggee_instances`, a headless engine test host with physics
-bindings, using the `engine_test_content` target's compiled project. All targets
-are also registered with the repository's
-`run_tests` sequence.
+configured. The release check and script-instance targets are part of the full
+native engine build. The release check builds and inspects `dmengine_release`,
+using `dmengine_headless` to verify that it detects DAP code and registration.
+The script-instance target runs `dap_debuggee_instances`, a headless engine test
+host with physics bindings, using the `engine_test_content` target's compiled
+project. All targets are also registered with the repository's `run_tests` sequence.
 
 `src/test/test_dap.py` uses Python's standard library and a real TCP connection.
 The same suite exercises the standalone C++ host with LuaJIT, the bundled Lua
@@ -285,8 +287,7 @@ The same suite exercises the standalone C++ host with LuaJIT, the bundled Lua
 every supported request, emitted events, mutation effects asserted by the
 debuggee, recursion and coroutines, stale references, reconnects, malformed
 messages, Unicode/binary/large values, and preservation of Lua stacks. The host
-also checks restored hooks after detach. A separate compiled-artifact check
-ensures `DM_RELEASE` contains neither debugger code nor extension registration.
+also checks restored hooks after detach.
 The engine host additionally tests runtime activation after scripts and
 coroutines have run, activation across existing contexts, reconnecting, and
 retrying failed starts. Listener tests verify the loopback default, startup and

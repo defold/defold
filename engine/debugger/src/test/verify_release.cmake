@@ -12,10 +12,16 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-# Checks that the DM_RELEASE archive contains no debugger names, extension
-# registration symbol, or characteristic DAP protocol strings.
-file(STRINGS "${ARCHIVE}" DEBUGGER_STRINGS REGEX "LuaDebugger|dmDebugger|Content-Length:|supportsConfigurationDoneRequest")
-if(DEBUGGER_STRINGS)
-  message(FATAL_ERROR "Debugger implementation leaked into a DM_RELEASE artifact: ${DEBUGGER_STRINGS}")
+# Use DAP-specific markers; Content-Length also appears in ordinary HTTP code.
+# Registration and protocol strings survive symbol stripping, so verify both
+# in the headless engine before checking their absence from the release engine.
+set(DEBUGGER_PATTERN "LuaDebugger|dmDebugger|supportsConfigurationDoneRequest")
+file(STRINGS "${DEBUG_ENGINE}" DEBUGGER_STRINGS REGEX "${DEBUGGER_PATTERN}")
+if(NOT DEBUGGER_STRINGS MATCHES "LuaDebugger" OR NOT DEBUGGER_STRINGS MATCHES "supportsConfigurationDoneRequest")
+  message(FATAL_ERROR "Debug engine is missing DAP implementation or registration: ${DEBUG_ENGINE}")
 endif()
-message(STATUS "DM_RELEASE archive contains no debugger implementation or registration")
+file(STRINGS "${RELEASE_ENGINE}" DEBUGGER_STRINGS LIMIT_COUNT 1 REGEX "${DEBUGGER_PATTERN}")
+if(DEBUGGER_STRINGS)
+  message(FATAL_ERROR "Debugger implementation or registration leaked into the release engine: ${DEBUGGER_STRINGS}")
+endif()
+message(STATUS "Release engine contains no debugger implementation or registration; headless engine contains both")

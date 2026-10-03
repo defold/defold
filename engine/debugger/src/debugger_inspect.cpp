@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_RELEASE)
 #include "debugger_private.h"
 #include <float.h>
 #include <stdlib.h>
@@ -486,4 +485,3 @@ namespace dmDebugger
         return true;
     }
 } // namespace dmDebugger
-#endif

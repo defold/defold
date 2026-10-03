@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_RELEASE)
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
@@ -1704,4 +1703,3 @@ namespace dmDebugger
         Stop(d, L, "exception");
     }
 } // namespace dmDebugger
-#endif
