@@ -2943,6 +2943,7 @@ namespace dmAutomation
         {"/recording/stop", "POST", HandleRecordingStop, RECORDING_STOP_FIELDS, 0},
         {"/events/cursor", "GET", HandleEventCursor},
         {"/events", "GET", HandleEvents},
+        {"/events/wait", "GET", HandleEvents},
         {"/state", "GET", HandleState},
         {"/application/catalog", "GET", HandleApplicationCatalog},
         {"/state/wait", "GET", HandleStateWait},

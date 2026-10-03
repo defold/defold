@@ -330,6 +330,20 @@ class RuntimeTest(unittest.TestCase):
         self.until(lambda: self.request('/frame')[1]['data']['engine_frame'] > before)
         self.assertIsInstance(states[0]['revision'], int)
 
+    # The documented event-wait route shares cursor polling and validation with /events.
+    def test_event_wait_route(self):
+        cursor = self.request('/events/cursor')[1]['data']['cursor']
+        path = '/events/wait?cursor=' + str(cursor) + '&timeout_ms=30000'
+        status, response = self.request(path)
+        self.assertEqual(200, status)
+        self.assertFalse(any(event['name'] == 'fixture.event_wait' for event in response['data']['events']))
+        self.assertEqual(200, self.request('/markers', 'POST', {'name': 'fixture.event_wait'})[0])
+        status, response = self.request(path)
+        self.assertEqual(200, status)
+        self.assertTrue(any(event['name'] == 'fixture.event_wait' for event in response['data']['events']))
+        self.assertEqual(400, self.request('/events/wait?timeout_ms=30001')[0])
+        self.assertEqual(405, self.request('/events/wait', 'POST', {})[0])
+
     # FIFO delivery and competing controller rejection are observable after real engine input dispatch.
     def test_input_receipts_and_ownership(self):
         owner = {'client_id': 'runtime-test', 'session_id': 'fixture'}

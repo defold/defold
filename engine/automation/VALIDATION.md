@@ -93,6 +93,30 @@ Checks after this change:
   Android, web, Windows, and Linux. They select the same real/null implementations
   as CMake. No Extender service build or mobile/web runtime test was performed.
 
+### Review regression fixes
+
+The subsequent review corrections on 2026-10-03 validate raw UTF-8 and mutation
+field types, preserve native pointer holds, give synthetic touches their own
+per-frame HID sample, and allow touch injection before physical device input.
+The documented `/events/wait` route now shares the immediate event polling
+handler with `/events`.
+
+- All five automation checks pass: 22 runtime cases each for stock headless and
+  unrelated-extension engines, five graphical native input cases, release
+  exclusion, and legacy-extension rejection. Input cases assert the game's
+  actual press/release transitions, held positions, repeated taps, and cancellation.
+- All 14 HID tests (1,737 assertions) and 18 input tests (286 assertions) pass.
+  HID coverage includes fresh devices, disabled touch input, packet capacity,
+  and preservation of physical touches.
+- Automation commands are registered in both aggregate test runners and the
+  `build_tests` dependency graph. All five checks passed through the normal
+  resource-group scheduler; the focused native CMake target also passed.
+- The fixture builds with Bob Light and repository built-ins. Its full runtime
+  suite passed independently of the fixture built with full Bob.
+- The automation and HID libraries cross-compile for arm64 Android and iOS.
+  These are compilation checks; no physical mobile device was exercised.
+- Diff whitespace checks pass. The platform acceptance gates below remain open.
+
 ## Outstanding acceptance gates
 
 - Windows compilation and runtime, including Windows Graphics Capture and its
