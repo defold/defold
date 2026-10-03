@@ -121,6 +121,21 @@ if(TARGET shaderc_jar)
 endif()
 
 if(TARGET debugger AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
+  set(ENGINE_DAP_RELEASE_CHECK_COMMAND
+    "${CMAKE_COMMAND}"
+    "-DRELEASE_ENGINE=$<TARGET_FILE:dmengine_release>"
+    "-DDEBUG_ENGINE=$<TARGET_FILE:dmengine_headless>"
+    -P "${DEFOLD_HOME}/engine/debugger/src/test/verify_release.cmake")
+  # Check the linked release engine for DAP leaks, with the headless engine
+  # proving that the same check detects the implementation and registration.
+  add_custom_target(test_debugger_release
+    COMMAND ${ENGINE_DAP_RELEASE_CHECK_COMMAND}
+    DEPENDS dmengine_release dmengine_headless VERBATIM)
+  # Include release exclusion in the repository's sequential test run.
+  defold_register_sequential_test_command(test_debugger_release
+    COMMAND ${ENGINE_DAP_RELEASE_CHECK_COMMAND}
+    DEPENDS dmengine_release dmengine_headless)
+
   # Exercise custom GUI and native physics userdata as well as the headless APIs.
   set(ENGINE_DAP_EXPORTS_CPP "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dap_debuggee_instances.cpp")
   defold_create_exported_symbols_file("${ENGINE_DAP_EXPORTS_CPP}" "${ENGINE_HEADLESS_SYMBOLS};ScriptBox2DExt;ScriptBullet3DExt;DAPGuiNode")

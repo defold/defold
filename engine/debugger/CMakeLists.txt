@@ -19,7 +19,7 @@ include(defold)
 project(defold_debugger LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
 # TCP and blocking Lua stops require a native runtime. Only debug/headless
-# engine targets link this library; DM_RELEASE also compiles empty objects.
+# engine targets link this library and register its extension.
 if(TARGET_PLATFORM MATCHES "web$")
   return()
 endif()
