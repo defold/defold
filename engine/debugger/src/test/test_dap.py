@@ -1966,6 +1966,83 @@ class DAPTests(DAPTestCase):
         c.close()
         self.assertEqual(self.process.wait(timeout=5), 0, self.process.stderr.read())
 
+    def check_detach_restores_untracked_hooks(self, from_evaluation, abrupt=False):
+        creation = '''
+            child = %s(function() coroutine.yield(); return 1 end)
+            custom_child = %s(function() return 2 end)
+            disabled_child = %s(function() return 3 end)
+            if not jit then
+                hook_calls = 0
+                custom_hook = function() hook_calls = hook_calls + 1 end
+                debug.sethook(custom_child, custom_hook, "l", 7)
+                debug.sethook(disabled_child)
+            end
+        ''' % (("coroutine.create" if from_evaluation else "original_create",) * 3)
+        c = self.start(("" if from_evaluation else creation) + '''
+            local marker = 1 -- inspect
+            local function check_hooks()
+                local hook, mask, count = debug.gethook(child)
+                assert(hook == original_hook and mask == original_mask and count == original_count)
+                if not jit then
+                    hook, mask, count = debug.gethook(custom_child)
+                    assert(hook == custom_hook and mask == "l" and count == 7)
+                    hook, mask, count = debug.gethook(disabled_child)
+                    assert(hook == nil and mask == "" and count == 0)
+                end
+            end
+            check_hooks()
+            assert(coroutine.resume(child))
+            assert(coroutine.resume(child))
+            assert(coroutine.resume(custom_child))
+            assert(coroutine.resume(disabled_child))
+            check_hooks()
+            if not jit then assert(hook_calls > 0) end
+        ''', prelude='''
+            original_create = coroutine.create
+            original_hook, original_mask, original_count = debug.gethook()
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        if from_evaluation:
+            self.evaluate(creation, context="repl")
+        self.assertFalse(any("/ coroutine" in t["name"] for t in c.request("threads")["threads"]))
+        if abrupt:
+            c.close()
+            self.assertEqual(self.process.wait(timeout=5), 0, self.process.stderr.read())
+            output = []
+            while True:
+                line = self.lines.get(timeout=5)
+                if line is None:
+                    break
+                output.append(line)
+            self.assertIn("RESULT 0", "".join(output))
+        else:
+            c.request("disconnect")
+            self.finished()
+
+    # Cached coroutine.create bypasses tracking. Detach must restore inherited
+    # hooks before first execution while preserving replaced or disabled hooks.
+    def test_detach_restores_hooks_on_untracked_coroutines(self):
+        self.check_detach_restores_untracked_hooks(from_evaluation=False)
+
+    # Coroutines created in the REPL are not tracked either. Their inherited
+    # debugger hooks must be restored when disconnecting before they run.
+    def test_detach_restores_hooks_on_evaluated_coroutines(self):
+        self.check_detach_restores_untracked_hooks(from_evaluation=True)
+
+    # Losing the TCP client must perform the same hook cleanup as disconnect,
+    # including coroutines that bypassed the create wrapper.
+    def test_abrupt_detach_restores_hooks_on_untracked_coroutines(self):
+        self.check_detach_restores_untracked_hooks(from_evaluation=False, abrupt=True)
+
+    # Abrupt disconnect must also restore hooks inherited by REPL-created
+    # coroutines rather than leave evaluation's debugger hook installed.
+    def test_abrupt_detach_restores_hooks_on_evaluated_coroutines(self):
+        self.check_detach_restores_untracked_hooks(from_evaluation=True, abrupt=True)
+
     # Checks that caught pcall errors are ignored and an uncaught error stops
     # before unwinding, with its message and live local available for inspection.
     # Continuing then propagates the original Lua error to the host.

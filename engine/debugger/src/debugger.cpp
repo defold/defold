@@ -303,10 +303,10 @@ namespace dmDebugger
         lua_pushthread(L);
         discovery.PopFrom(L);
 
-        // Scan reachable Lua objects at activation and attachment. Raw inspection
-        // avoids invoking application code, and a queue handles cycles without
-        // growing the native call stack. The temporary tables pin objects only
-        // for this scan; TrackThread retains coroutines through weak values.
+        // Scan reachable Lua objects at activation, attachment, and detachment.
+        // Raw inspection avoids invoking application code, and a queue handles
+        // cycles without growing the native call stack. The temporary tables pin
+        // objects only for this scan; TrackThread retains them through weak values.
         for (int i = 1; i <= discovery.m_Count; ++i)
         {
             lua_rawgeti(L, discovery.m_Queue, i);
@@ -530,10 +530,14 @@ namespace dmDebugger
                 // weak so observing a closure never extends its lifetime.
                 luaL_unref(state->m_L, LUA_REGISTRYINDEX, state->m_ObservedFunctionsRef);
                 state->m_ObservedFunctionsRef = NewWeakTable(state->m_L, "k");
-                // Cached coroutine APIs can bypass our wrappers while detached.
-                // Discover their suspended threads before installing Lua 5.1's
-                // per-thread hooks, including on subsequent attachments.
+            }
+            // Cached coroutine APIs and evaluation can bypass tracking. Discover
+            // these threads both before installing hooks and before restoring
+            // hooks inherited from the debugger in Lua 5.1.
+            if (enable || state->m_Main->m_Hooked)
                 DiscoverThreads(d, state->m_L);
+            if (enable)
+            {
                 state->m_JitEnabled = JitEnabled(state->m_L, &state->m_JitAvailable);
                 Jit(state->m_L, "off");
                 Jit(state->m_L, "flush");
@@ -545,10 +549,15 @@ namespace dmDebugger
             lua_State* L = GetThread(thread);
             if (enable)
                 InstallHook(thread);
-            else if (thread->m_Hooked)
+            else
             {
                 if (L && lua_gethook(L) == Hook)
-                    lua_sethook(L, thread->m_OldHook, thread->m_OldMask, thread->m_OldCount);
+                {
+                    // Newly discovered threads inherited our hook without
+                    // saving its previous owner. Match InstallHook's fallback.
+                    Thread* original = thread->m_Hooked ? thread : thread->m_State->m_Main;
+                    lua_sethook(L, original->m_OldHook, original->m_OldMask, original->m_OldCount);
+                }
                 thread->m_Hooked = false;
             }
         }
@@ -664,6 +673,8 @@ namespace dmDebugger
         if (d->m_Client != dmSocket::INVALID_SOCKET_HANDLE)
             dmSocket::Delete(d->m_Client);
         d->m_Client = dmSocket::INVALID_SOCKET_HANDLE;
+        // Detach discovery must not install hooks or emit thread-start events.
+        d->m_Attached = false;
         SetHooks(d, false);
         for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
             d->m_Threads[i]->m_CallSites.SetSize(0);
@@ -671,7 +682,7 @@ namespace dmDebugger
         d->m_Input.Clear();
         d->m_Output.Clear();
         d->m_Exception.Clear();
-        d->m_Initialized = d->m_Attached = d->m_Configured = d->m_Paused = false;
+        d->m_Initialized = d->m_Configured = d->m_Paused = false;
         d->m_PauseRequested = d->m_ClosePending = d->m_BreakOnError = d->m_StopOnEntry = false;
         d->m_Step = STEP_NONE;
         d->m_AttachSeq = 0;
