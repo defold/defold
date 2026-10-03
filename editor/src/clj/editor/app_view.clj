@@ -1252,8 +1252,25 @@
         ;; engine build in the final phase.
         engine-build-future-atom (atom nil)
 
+        ;; The engine build reports progress concurrently with the project build
+        ;; phases, so its progress is only rendered once we are waiting for it.
+        ;; The lock keeps the engine thread and the UI thread from rendering
+        ;; each other's stale progress.
+        engine-progress-lock (Object.)
+        engine-progress-atom (atom nil)
+        engine-progress-visible-atom (atom false)
+
+        render-engine-progress!
+        (fn render-engine-progress! [progress]
+          (let [progress (when-not (= progress/done progress) progress)]
+            (locking engine-progress-lock
+              (reset! engine-progress-atom progress)
+              (when (and progress @engine-progress-visible-atom)
+                (render-progress! progress)))))
+
         cancel-engine-build!
         (fn cancel-engine-build! []
+          (reset! engine-progress-visible-atom false)
           (when-some [engine-build-future (thread-util/preset! engine-build-future-atom nil)]
             (future-cancel engine-build-future)
             nil))
@@ -1268,7 +1285,7 @@
               (reset! engine-build-future-atom
                       (future
                         (try
-                          (let [engine (engine/get-engine project evaluation-context prefs platform)]
+                          (let [engine (engine/get-engine project evaluation-context prefs platform (bob/->progress render-engine-progress! task-cancelled?))]
                             (ui/run-later
                               ;; This potentially saves us from having to
                               ;; re-calculate native extension file hashes the
@@ -1362,7 +1379,10 @@
             (if (nil? engine-build-future)
               (phase-7-await-lint! project-build-results)
               (do
-                (render-progress! (progress/make-indeterminate (localization/message "progress.fetching-engine")))
+                (locking engine-progress-lock
+                  (reset! engine-progress-visible-atom true)
+                  (render-progress! (or @engine-progress-atom
+                                        (progress/make-indeterminate (localization/message "progress.fetching-engine")))))
                 (run-on-background-thread!
                   (fn run-engine-build-on-background-thread! []
                     (deref engine-build-future))
