@@ -60,13 +60,48 @@ namespace dmDebugger
         }
         d->m_References.SetSize(0);
         for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
+        {
+            luaL_unref(d->m_Frames[i].m_L, LUA_REGISTRYINDEX, d->m_Frames[i].m_FunctionRef);
             luaL_unref(d->m_Frames[i].m_L, LUA_REGISTRYINDEX, d->m_Frames[i].m_ThreadRef);
+        }
         d->m_Frames.SetSize(0);
     }
 
-    void CaptureFrames(Debugger* d)
+    static bool MatchesFunction(lua_State* L, int level, int function_ref, int* line = 0)
     {
-        ClearReferences(d);
+        lua_Debug ar;
+        if (!lua_getstack(L, level, &ar))
+            return false;
+        lua_getinfo(L, "fl", &ar);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
+        bool same = lua_rawequal(L, -1, -2) != 0;
+        lua_pop(L, 2);
+        if (line)
+            *line = ar.currentline;
+        return same;
+    }
+
+    static int CompareFrames(const void* a, const void* b)
+    {
+        const Frame* left = (const Frame*)a;
+        const Frame* right = (const Frame*)b;
+        if (left->m_ThreadId != right->m_ThreadId)
+            return left->m_ThreadId < right->m_ThreadId ? -1 : 1;
+        return (left->m_Level > right->m_Level) - (left->m_Level < right->m_Level);
+    }
+
+    static void RefreshFrames(Debugger* d)
+    {
+        // Evaluation can resume a suspended coroutine, replacing or removing
+        // its frames without a DAP continue. Keep expired frames pinned until
+        // resume so their variable references never contain a dangling state.
+        for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
+        {
+            Frame& frame = d->m_Frames[i];
+            int line = 0;
+            if (frame.m_Valid)
+                frame.m_Valid = MatchesFunction(frame.m_L, frame.m_Level, frame.m_FunctionRef, &line) && line == frame.m_Line;
+        }
         for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
         {
             Thread*    thread = d->m_Threads[i];
@@ -76,16 +111,35 @@ namespace dmDebugger
             lua_Debug ar;
             for (int level = 0; lua_getstack(L, level, &ar); ++level)
             {
-                lua_getinfo(L, "S", &ar);
+                lua_getinfo(L, "Sl", &ar);
                 // C callbacks and Lua 5.1's eliminated tail-call placeholders
                 // have no inspectable Lua function or environment.
                 if (strcmp(ar.what, "Lua") && strcmp(ar.what, "main"))
                     continue;
+                bool captured = false;
+                for (uint32_t j = 0; j < d->m_Frames.Size(); ++j)
+                    if (d->m_Frames[j].m_Valid && d->m_Frames[j].m_L == L && d->m_Frames[j].m_Level == level)
+                    {
+                        captured = true;
+                        break;
+                    }
+                if (captured)
+                    continue;
+                lua_getinfo(L, "f", &ar);
+                int function_ref = luaL_ref(L, LUA_REGISTRYINDEX);
                 lua_pushthread(L);
-                Frame frame = { d->m_NextId++, L, level, thread->m_Id, luaL_ref(L, LUA_REGISTRYINDEX) };
+                Frame frame = { d->m_NextId++, L, level, thread->m_Id, luaL_ref(L, LUA_REGISTRYINDEX), function_ref, ar.currentline, true };
                 Push(d->m_Frames, frame);
             }
         }
+        if (d->m_Frames.Size() > 1)
+            qsort(d->m_Frames.Begin(), d->m_Frames.Size(), sizeof(Frame), CompareFrames);
+    }
+
+    void CaptureFrames(Debugger* d)
+    {
+        ClearReferences(d);
+        RefreshFrames(d);
     }
 
     static Frame* FindFrame(Debugger* d, int id)
@@ -93,17 +147,24 @@ namespace dmDebugger
         if (id <= 0)
             return 0;
         for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
-            if (d->m_Frames[i].m_Id == (uint32_t)id)
+            if (d->m_Frames[i].m_Id == (uint32_t)id && d->m_Frames[i].m_Valid)
                 return &d->m_Frames[i];
         return 0;
     }
 
     static uint32_t AddReference(Debugger* d, lua_State* L, ReferenceKind kind, int level, int index = 0, const char* evaluate_name = 0)
     {
+        uint32_t frame_id = 0;
+        for (uint32_t i = 0; level >= 0 && i < d->m_Frames.Size(); ++i)
+            if (d->m_Frames[i].m_Valid && d->m_Frames[i].m_L == L && d->m_Frames[i].m_Level == level)
+            {
+                frame_id = d->m_Frames[i].m_Id;
+                break;
+            }
         for (uint32_t i = 0; i < d->m_References.Size(); ++i)
         {
             Reference& r = d->m_References[i];
-            if (r.m_L != L || r.m_Kind != kind || r.m_Level != level)
+            if (r.m_L != L || r.m_Kind != kind || r.m_Level != level || r.m_FrameId != frame_id)
                 continue;
             if (kind != REFERENCE_VALUE)
                 return r.m_Id;
@@ -121,7 +182,7 @@ namespace dmDebugger
                 }
             }
         }
-        Reference r = { d->m_NextId++, L, level, LUA_NOREF, kind, evaluate_name ? strdup(evaluate_name) : 0 };
+        Reference r = { d->m_NextId++, L, level, LUA_NOREF, kind, evaluate_name ? strdup(evaluate_name) : 0, frame_id };
         if (kind == REFERENCE_VALUE)
         {
             lua_pushvalue(L, index);
@@ -442,8 +503,8 @@ namespace dmDebugger
                 SnapshotValue(L, names, values, name);
             }
             lua_Debug frame;
-            lua_getstack(L, level, &frame);
-            for (int i = 1;; ++i)
+            bool active = MatchesFunction(L, level, e->m_FunctionRef) && lua_getstack(L, level, &frame);
+            for (int i = 1; active; ++i)
             {
                 const char* name = lua_getlocal(L, &frame, i);
                 if (!name)
@@ -748,6 +809,13 @@ namespace dmDebugger
             lua_settop(L, top);
             return false;
         }
+        RefreshFrames(d);
+        if (r.m_FrameId && !FindFrame(d, r.m_FrameId))
+        {
+            body.Add("Evaluation frame is no longer active");
+            lua_settop(L, top);
+            return false;
+        }
         int       value = lua_gettop(L);
         bool      found = false;
         lua_Debug ar;
@@ -829,6 +897,7 @@ namespace dmDebugger
             Respond(d, seq, command, 0, "Lua is running");
             return true;
         }
+        RefreshFrames(d);
         Buffer      body;
         const char* error = 0;
         bool        invalidate = false;
@@ -846,7 +915,7 @@ namespace dmDebugger
                 for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
                 {
                     Frame& frame = d->m_Frames[i];
-                    if (frame.m_ThreadId != (uint32_t)thread)
+                    if (!frame.m_Valid || frame.m_ThreadId != (uint32_t)thread)
                         continue;
                     if (!Page(ordinal++, start, count))
                         continue;
@@ -899,6 +968,7 @@ namespace dmDebugger
             bool        global = request.Field(args, "frameId") < 0;
             lua_State*  L = global ? (thread ? GetThread(thread) : 0) : (frame ? frame->m_L : 0);
             int         level = global ? -1 : (frame ? frame->m_Level : -1);
+            uint32_t    frame_id = frame ? frame->m_Id : 0;
             bool        assignment = !strcmp(command, "setExpression");
             const char* expression = request.String(request.Field(args, "expression"));
             const char* value = assignment ? request.String(request.Field(args, "value")) : expression;
@@ -920,6 +990,9 @@ namespace dmDebugger
                 invalidate = assignment || !strcmp(context, "repl");
                 bool ok = hover ? Inspect(d, L, level, expression) :
                                   Evaluate(d, L, level, value, !assignment && !strcmp(context, "repl"), assignment ? expression : 0);
+                RefreshFrames(d);
+                if (frame_id && !FindFrame(d, frame_id))
+                    level = -1;
                 if (ok)
                 {
                     body.Add("{");
@@ -959,7 +1032,7 @@ namespace dmDebugger
                     found = true;
                     break;
                 }
-            if (!found)
+            if (!found || (r.m_FrameId && !FindFrame(d, r.m_FrameId)))
                 error = "Invalid variablesReference";
             else if (!strcmp(command, "variables"))
             {
