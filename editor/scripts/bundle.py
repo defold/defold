@@ -593,12 +593,7 @@ def create_dmg(bundle_dir, options, platform):
 
     # sign the dmg
     if options.codesign:
-        certificate = codesigning.mac_certificate(options.codesigning_identity)
-        if certificate is None:
-            error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
-            sys.exit(1)
-
-        run.command(['codesign', '-s', certificate, dmg_file])
+        codesigning.sign_macos_dmg(options, dmg_file)
         notarize_dmg(dmg_file, options)
 
 def notarization_status(uuid, notarization_username, notarization_password, notarization_team_id = None):
