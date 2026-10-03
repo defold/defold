@@ -337,7 +337,7 @@ namespace dmAutomation
 
         char* end = 0;
         double parsed = strtod(text, &end);
-        if (!end || *end != 0 || !IsFiniteDouble(parsed))
+        if (end == text || *end != 0 || !IsFiniteDouble(parsed) || !IsFiniteFloat((float)parsed))
         {
             return false;
         }

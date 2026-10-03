@@ -71,7 +71,10 @@ Success responses have `{"ok":true,"data":...}`; errors have
 `{"ok":false,"error":{"code":...,"message":...,"status":...}}` with the
 matching HTTP status. There is no v2 route. GET uses query filters; mutations use
 typed JSON objects with `Content-Type: application/json`. Mutation query strings,
-duplicate JSON keys, incorrect types, and malformed JSON are rejected.
+duplicate JSON keys, unknown mutation fields, incorrect types, out-of-range
+numbers, and malformed JSON are rejected. Each mutation route declares its field
+schema; optional defaults apply only when a field is omitted. Command and marker
+`data` remain arbitrary valid JSON.
 
 | Methods and paths (relative to `/automation-bridge/v3`) | Purpose |
 | --- | --- |

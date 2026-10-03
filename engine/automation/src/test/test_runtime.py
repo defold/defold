@@ -197,6 +197,57 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(405, self.request('/health', 'POST', {})[0])
         self.assertEqual(400, self.request('/input/click?x=1', 'POST', {})[0])
 
+    # Route schemas reject coerced strings, mixed-type IDs, invalid selectors, and misspelled options.
+    def test_request_field_types(self):
+        cases = [('POST', '/input/key', {'text': value}) for value in (123, [1, 2], {}, True, None)]
+        cases += [('POST', '/input/key', {'keys': ['KEY_SPACE']}),
+                  ('POST', '/input/key', {'text': 'a', 'client_id': 123}),
+                  ('POST', '/input/click', {'id': 123}),
+                  ('POST', '/input/click', {'x': 1, 'y': 2, 'device': []}),
+                  ('POST', '/input/drag', {'x1': 1, 'y1': 1, 'x2': 2, 'y2': 2, 'duraiton': 1}),
+                  ('DELETE', '/commands', {'id': '1'}),
+                  ('POST', '/coordinates/convert', {'point': [1, 2], 'from_space': 'window', 'to_space': 'window'}),
+                  ('POST', '/observations', {'ids': [123]}),
+                  ('POST', '/observations', {'visible': 'false'})]
+        for method, path, body in cases:
+            with self.subTest(path=path, body=body):
+                self.assertEqual(400, self.request(path, method, body)[0])
+        data = {'text': [1, 2], 'duration': 'application-owned', 'id': False}
+        self.assertEqual(data, self.command('echo', data))
+
+    # Explicit invalid optional numbers must fail instead of taking the omitted-value default.
+    def test_invalid_optional_numbers(self):
+        drag = b'{"x1":1,"y1":1,"x2":2,"y2":2,'
+        cases = [('/input/drag', drag, field) for field in ('duration', 'hold_before', 'hold_after', 'lease')]
+        cases += [('/input/pointer/open', b'{"x":1,"y":2,', 'pointer_lease'),
+                  ('/input/key', b'{"keys":"{KEY_SPACE}",', 'hold')]
+        for path, prefix, field in cases:
+            for value in (b'null', b'"0.1"', b'[]', b'{}', b'true', b'1e400', b'-1e400', b'1e40'):
+                with self.subTest(path=path, field=field, value=value):
+                    raw = prefix + json.dumps(field).encode() + b':' + value + b'}'
+                    self.assertEqual(400, self.request(path, 'POST', raw=raw)[0])
+        self.assertEqual(400, self.request('/observations', 'POST', raw=b'{"frame":18446744073709551616}')[0])
+        self.assertEqual(400, self.request('/coordinates/convert', 'POST', raw=b'{"point":{"x":1e400,"y":2},"x":1,"from_space":"window","to_space":"window"}')[0])
+
+    # Omitted durations keep their defaults, explicit zero remains zero, and missing holds return an error.
+    def test_optional_input_defaults(self):
+        owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False}
+        for duration in (None, 0):
+            body = dict(owner, x1=20, y1=20, x2=40, y2=40)
+            if duration is not None: body['duration'] = duration
+            status, response = self.request('/input/drag', 'POST', body)
+            self.assertEqual(202, status)
+            self.assertAlmostEqual(0.35 if duration is None else duration, response['data']['requested_duration'])
+            self.delivered_input(response['data']['input_id'])
+        status, response = self.request('/input/pointer/open', 'POST', dict(owner, x=20, y=20))
+        self.assertEqual(202, status)
+        input_id = response['data']['input_id']
+        try:
+            self.assertEqual(400, self.request('/input/pointer/hold', 'POST', dict(owner, input_id=input_id))[0])
+        finally:
+            self.request('/input/pointer/up', 'POST', dict(owner, input_id=input_id))
+            self.delivered_input(input_id)
+
     # Reject malformed raw UTF-8 before key decoding or retained application JSON can consume it.
     def test_utf8_validation(self):
         invalid = (b'\x80' * 7, b'\xc0\x80', b'\xc1\xbf', b'\xc2', b'\xc2A',

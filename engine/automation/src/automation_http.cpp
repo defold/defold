@@ -42,11 +42,31 @@ namespace dmAutomation
 
     typedef void (*RouteHandler)(RequestContext* ctx);
 
+    enum JsonFieldType
+    {
+        JSON_FIELD_STRING,
+        JSON_FIELD_FLOAT,
+        JSON_FIELD_UINT,
+        JSON_FIELD_BOOL,
+        JSON_FIELD_ARRAY,
+        JSON_FIELD_STRING_ARRAY,
+        JSON_FIELD_OBJECT,
+        JSON_FIELD_ANY
+    };
+
+    struct JsonFieldRule
+    {
+        const char*   m_Name;
+        JsonFieldType m_Type;
+    };
+
     struct RouteDefinition
     {
         const char*  m_Route;
         const char*  m_Method;
         RouteHandler m_Handler;
+        const JsonFieldRule* m_Fields;
+        const JsonFieldRule* m_CommonFields;
     };
 
     static void SendResponse(dmWebServer::Request* request, int status_code, const char* content_type, const StringBuffer* response, const char* allow = 0)
@@ -163,6 +183,15 @@ namespace dmAutomation
         return GetParam(&ctx->m_Query, key) != 0 || GetParam(&ctx->m_JsonFields, key) != 0;
     }
 
+    static bool RequestGetOptionalFloatParam(RequestContext* ctx, const char* key, float* value)
+    {
+        if (!RequestHasParam(ctx, key) || RequestGetFloatParam(ctx, key, value)) return true;
+        char message[128];
+        dmSnPrintf(message, sizeof(message), "%s must be a finite number", key);
+        RequestSendError(ctx, 400, "bad_request", message);
+        return false;
+    }
+
     static bool RequestGetBoolParam(const RequestContext* ctx, const char* key, bool* value)
     {
         return GetBoolParam(&ctx->m_Query, key, value);
@@ -232,6 +261,69 @@ namespace dmAutomation
     static const char* RequestGetParam(const RequestContext* ctx, const char* key)
     {
         return GetParam(&ctx->m_Query, key);
+    }
+
+    static const JsonFieldRule* FindJsonFieldRule(const JsonFieldRule* rules, const char* name)
+    {
+        if (!rules) return 0;
+        for (; rules->m_Name; ++rules)
+            if (StringsEqual(rules->m_Name, name)) return rules;
+        return 0;
+    }
+
+    static bool IsJsonStringArray(const char* value)
+    {
+        if (*value++ != '[') return false;
+        JsonSkipWhitespace(&value);
+        if (*value == ']') return true;
+        while (*value)
+        {
+            char* string = 0;
+            if (!JsonParseString(&value, &string)) return false;
+            free(string);
+            JsonSkipWhitespace(&value);
+            if (*value == ']') return true;
+            if (*value++ != ',') return false;
+            JsonSkipWhitespace(&value);
+        }
+        return false;
+    }
+
+    static bool ValidateRequestFields(RequestContext* ctx, const JsonFieldRule* rules, const JsonFieldRule* common_rules)
+    {
+        for (uint32_t i = 0; i < ctx->m_JsonFields.Size(); ++i)
+        {
+            const QueryParam& field = ctx->m_JsonFields[i];
+            const JsonFieldRule* rule = FindJsonFieldRule(rules, field.m_Key);
+            if (!rule) rule = FindJsonFieldRule(common_rules, field.m_Key);
+            bool valid = false;
+            float number;
+            uint64_t integer;
+            if (rule)
+            {
+                switch (rule->m_Type)
+                {
+                case JSON_FIELD_STRING: valid = field.m_Value[0] == '"'; break;
+                case JSON_FIELD_FLOAT: valid = GetFloatParam(&ctx->m_JsonFields, field.m_Key, &number); break;
+                case JSON_FIELD_UINT:
+                    valid = isdigit((unsigned char)field.m_Value[0]) && RequestGetUInt64Param(ctx, field.m_Key, &integer);
+                    break;
+                case JSON_FIELD_BOOL: valid = StringsEqual(field.m_Value, "true") || StringsEqual(field.m_Value, "false"); break;
+                case JSON_FIELD_ARRAY: valid = field.m_Value[0] == '['; break;
+                case JSON_FIELD_STRING_ARRAY: valid = IsJsonStringArray(field.m_Value); break;
+                case JSON_FIELD_OBJECT: valid = field.m_Value[0] == '{'; break;
+                case JSON_FIELD_ANY: valid = true; break;
+                }
+            }
+            if (!valid)
+            {
+                char message[160];
+                dmSnPrintf(message, sizeof(message), "%s: %s", field.m_Key, rule ? "incorrect JSON type or numeric range" : "unknown field for this endpoint");
+                RequestSendError(ctx, 400, "bad_request", message);
+                return false;
+            }
+        }
+        return true;
     }
 
     static bool IncludeHasToken(const char* include, const char* token)
@@ -1476,7 +1568,7 @@ namespace dmAutomation
         if (!ValidateExpectedScene(ctx)) return;
         float x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f;
         float duration = 0.35f;
-        RequestGetFloatParam(ctx, "duration", &duration);
+        if (!RequestGetOptionalFloatParam(ctx, "duration", &duration)) return;
         if (!ValidateDuration(ctx, duration, "duration")) return;
         const char* from_id = RequestGetParam(ctx, "from_id");
         const char* to_id = RequestGetParam(ctx, "to_id");
@@ -1505,8 +1597,8 @@ namespace dmAutomation
             return;
         }
         float hold_before = 0.0f, hold_after = 0.0f;
-        RequestGetFloatParam(ctx, "hold_before", &hold_before);
-        RequestGetFloatParam(ctx, "hold_after", &hold_after);
+        if (!RequestGetOptionalFloatParam(ctx, "hold_before", &hold_before) ||
+            !RequestGetOptionalFloatParam(ctx, "hold_after", &hold_after)) return;
         if (!ValidateDuration(ctx, hold_before, "hold_before")) return;
         if (!ValidateDuration(ctx, hold_after, "hold_after")) return;
         if (duration + hold_before + hold_after > MAX_INPUT_DURATION)
@@ -1570,8 +1662,12 @@ namespace dmAutomation
             points.Begin()[point_index].m_Easing = easing[i];
         }
         float hold_before = 0.0f, hold_after = 0.0f;
-        RequestGetFloatParam(ctx, "hold_before", &hold_before);
-        RequestGetFloatParam(ctx, "hold_after", &hold_after);
+        if (!RequestGetOptionalFloatParam(ctx, "hold_before", &hold_before) ||
+            !RequestGetOptionalFloatParam(ctx, "hold_after", &hold_after))
+        {
+            ArrayFree(&points);
+            return;
+        }
         if (!ValidateDuration(ctx, hold_before, "hold_before") || !ValidateDuration(ctx, hold_after, "hold_after"))
         {
             ArrayFree(&points);
@@ -1944,7 +2040,7 @@ namespace dmAutomation
             return;
         }
         float pointer_lease = 2.0f;
-        RequestGetFloatParam(ctx, "pointer_lease", &pointer_lease);
+        if (!RequestGetOptionalFloatParam(ctx, "pointer_lease", &pointer_lease)) return;
         if (!ValidateDuration(ctx, pointer_lease, "pointer_lease")) return;
         if (pointer_lease <= 0.0f)
         {
@@ -1980,7 +2076,7 @@ namespace dmAutomation
         }
         if (!VerifyReceiptOwner(ctx, receipt, *client_id, *session_id)) return false;
         *pointer_lease = 2.0f;
-        RequestGetFloatParam(ctx, "pointer_lease", pointer_lease);
+        if (!RequestGetOptionalFloatParam(ctx, "pointer_lease", pointer_lease)) return false;
         if (!ValidateDuration(ctx, *pointer_lease, "pointer_lease")) return false;
         if (*pointer_lease <= 0.0f)
         {
@@ -2026,7 +2122,12 @@ namespace dmAutomation
         const char* client_id = 0, *session_id = 0;
         if (!PreparePointerCommand(ctx, &input_id, &pointer_lease, &client_id, &session_id)) return;
         float duration = 0.0f;
-        if (!RequestGetFloatParam(ctx, "duration", &duration) || !ValidateDuration(ctx, duration, "duration")) return;
+        if (!RequestGetFloatParam(ctx, "duration", &duration))
+        {
+            RequestSendError(ctx, 400, "bad_request", "pointer hold requires a finite duration");
+            return;
+        }
+        if (!ValidateDuration(ctx, duration, "duration")) return;
         const char* error = 0;
         if (!AppendPointerHold(input_id, duration, pointer_lease, &error))
         {
@@ -2061,7 +2162,11 @@ namespace dmAutomation
         }
 
         uint32_t after_frames = 0;
-        RequestGetUIntParamAllowZero(ctx, "after_frames", &after_frames, 600);
+        if (RequestHasParam(ctx, "after_frames") && !RequestGetUIntParamAllowZero(ctx, "after_frames", &after_frames, 600))
+        {
+            RequestSendError(ctx, 400, "bad_request", "after_frames must be between 0 and 600");
+            return;
+        }
         ScreenshotCapture capture;
         if (!ScheduleScreenshot(after_frames, &capture))
         {
@@ -2649,46 +2754,205 @@ namespace dmAutomation
         StringBufferAppend(methods, method);
     }
 
+    // Validate mutation fields before handlers acquire a controller or queue work.
+    // Handlers check required fields and domain bounds; application data stays arbitrary JSON.
+    static const JsonFieldRule INPUT_FIELDS[] = {
+        {"client_id", JSON_FIELD_STRING},
+        {"session_id", JSON_FIELD_STRING},
+        {"request_id", JSON_FIELD_STRING},
+        {"device", JSON_FIELD_STRING},
+        {"expected_logical_id", JSON_FIELD_STRING},
+        {"expected_from_logical_id", JSON_FIELD_STRING},
+        {"expected_to_logical_id", JSON_FIELD_STRING},
+        {"lease", JSON_FIELD_FLOAT},
+        {"pointer_lease", JSON_FIELD_FLOAT},
+        {"input_id", JSON_FIELD_UINT},
+        {"pointer_id", JSON_FIELD_UINT},
+        {"expected_scene_sequence", JSON_FIELD_UINT},
+        {"visualize", JSON_FIELD_BOOL},
+        {"modifiers", JSON_FIELD_ARRAY},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule CLICK_FIELDS[] = {
+        {"id", JSON_FIELD_STRING},
+        {"x", JSON_FIELD_FLOAT},
+        {"y", JSON_FIELD_FLOAT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule DRAG_FIELDS[] = {
+        {"from_id", JSON_FIELD_STRING},
+        {"to_id", JSON_FIELD_STRING},
+        {"easing", JSON_FIELD_STRING},
+        {"x1", JSON_FIELD_FLOAT},
+        {"y1", JSON_FIELD_FLOAT},
+        {"x2", JSON_FIELD_FLOAT},
+        {"y2", JSON_FIELD_FLOAT},
+        {"duration", JSON_FIELD_FLOAT},
+        {"hold_before", JSON_FIELD_FLOAT},
+        {"hold_after", JSON_FIELD_FLOAT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule DRAG_PATH_FIELDS[] = {
+        {"path", JSON_FIELD_STRING},
+        {"points", JSON_FIELD_ARRAY},
+        {"durations", JSON_FIELD_ARRAY},
+        {"easing", JSON_FIELD_ARRAY},
+        {"hold_before", JSON_FIELD_FLOAT},
+        {"hold_after", JSON_FIELD_FLOAT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule KEY_FIELDS[] = {
+        {"keys", JSON_FIELD_STRING},
+        {"text", JSON_FIELD_STRING},
+        {"hold", JSON_FIELD_FLOAT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule RELEASE_FIELDS[] = {
+        {"release", JSON_FIELD_BOOL},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule POINTER_FIELDS[] = {
+        {"x", JSON_FIELD_FLOAT},
+        {"y", JSON_FIELD_FLOAT},
+        {"duration", JSON_FIELD_FLOAT},
+        {"easing", JSON_FIELD_STRING},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule SCREEN_FIELDS[] = {
+        {"width", JSON_FIELD_UINT},
+        {"height", JSON_FIELD_UINT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule COORDINATE_FIELDS[] = {
+        {"x", JSON_FIELD_FLOAT},
+        {"y", JSON_FIELD_FLOAT},
+        {"point", JSON_FIELD_OBJECT},
+        {"from_space", JSON_FIELD_STRING},
+        {"to_space", JSON_FIELD_STRING},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule SCREENSHOT_FIELDS[] = {
+        {"after_frames", JSON_FIELD_UINT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule RECORDING_START_FIELDS[] = {
+        {"width", JSON_FIELD_UINT},
+        {"height", JSON_FIELD_UINT},
+        {"fps", JSON_FIELD_UINT},
+        {"audio", JSON_FIELD_BOOL},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule RECORDING_STOP_FIELDS[] = {
+        {"operation_id", JSON_FIELD_UINT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule COMMAND_FIELDS[] = {
+        {"name", JSON_FIELD_STRING},
+        {"data", JSON_FIELD_ANY},
+        {"timeout_ms", JSON_FIELD_UINT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule COMMAND_CANCEL_FIELDS[] = {
+        {"id", JSON_FIELD_UINT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule MARKER_FIELDS[] = {
+        {"name", JSON_FIELD_STRING},
+        {"data", JSON_FIELD_ANY},
+        {"recording_timestamp_us", JSON_FIELD_UINT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule METAL_FIELDS[] = {
+        {"frames", JSON_FIELD_UINT},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule OBSERVATION_FIELDS[] = {
+        {"id", JSON_FIELD_STRING},
+        {"type", JSON_FIELD_STRING},
+        {"type_exact", JSON_FIELD_STRING},
+        {"name", JSON_FIELD_STRING},
+        {"name_exact", JSON_FIELD_STRING},
+        {"text", JSON_FIELD_STRING},
+        {"text_exact", JSON_FIELD_STRING},
+        {"url", JSON_FIELD_STRING},
+        {"url_exact", JSON_FIELD_STRING},
+        {"automation_id", JSON_FIELD_STRING},
+        {"localization_key", JSON_FIELD_STRING},
+        {"role", JSON_FIELD_STRING},
+        {"path", JSON_FIELD_STRING},
+        {"kind", JSON_FIELD_STRING},
+        {"instance_id", JSON_FIELD_STRING},
+        {"logical_id", JSON_FIELD_STRING},
+        {"include", JSON_FIELD_STRING},
+        {"case_sensitive", JSON_FIELD_BOOL},
+        {"visible", JSON_FIELD_BOOL},
+        {"enabled", JSON_FIELD_BOOL},
+        {"has_bounds", JSON_FIELD_BOOL},
+        {"visible_and_enabled", JSON_FIELD_BOOL},
+        {"screenshot", JSON_FIELD_BOOL},
+        {"frame", JSON_FIELD_UINT},
+        {"limit", JSON_FIELD_UINT},
+        {"ids", JSON_FIELD_STRING_ARRAY},
+        {0, JSON_FIELD_ANY}
+    };
+
     static const RouteDefinition ROUTES[] = {
         {"/health", "GET", HandleHealth},
         {"/lifecycle", "GET", HandleLifecycle},
         {"/screen", "GET", HandleScreen},
-        {"/screen", "PUT", HandleScreenPut},
-        {"/coordinates/convert", "POST", HandleCoordinateConvert},
+        {"/screen", "PUT", HandleScreenPut, SCREEN_FIELDS, 0},
+        {"/coordinates/convert", "POST", HandleCoordinateConvert, COORDINATE_FIELDS, 0},
         {"/frame", "GET", HandleFrame},
         {"/scene", "GET", HandleScene},
         {"/elements", "GET", HandleElements},
+        {"/observations", "POST", HandleObservationPost, OBSERVATION_FIELDS, 0},
         {"/element", "GET", HandleElement},
-        {"/input/click", "POST", HandleClick},
-        {"/input/drag", "POST", HandleDrag},
-        {"/input/drag_path", "POST", HandleDragPath},
-        {"/input/key", "POST", HandleKey},
+        {"/input/click", "POST", HandleClick, CLICK_FIELDS, INPUT_FIELDS},
+        {"/input/drag", "POST", HandleDrag, DRAG_FIELDS, INPUT_FIELDS},
+        {"/input/drag_path", "POST", HandleDragPath, DRAG_PATH_FIELDS, INPUT_FIELDS},
+        {"/input/key", "POST", HandleKey, KEY_FIELDS, INPUT_FIELDS},
         {"/input/status", "GET", HandleInputStatus},
         {"/input/pending", "GET", HandleInputPending},
-        {"/input/cancel", "POST", HandleInputCancel},
-        {"/input/flush", "POST", HandleInputFlush},
-        {"/input/configure", "PUT", HandleInputConfigure},
-        {"/input/pointer/open", "POST", HandlePointerOpen},
-        {"/input/pointer/move", "POST", HandlePointerMove},
-        {"/input/pointer/hold", "POST", HandlePointerHold},
-        {"/input/pointer/up", "POST", HandlePointerUp},
-        {"/screenshot", "POST", HandleScreenshot},
+        {"/input/cancel", "POST", HandleInputCancel, RELEASE_FIELDS, INPUT_FIELDS},
+        {"/input/flush", "POST", HandleInputFlush, RELEASE_FIELDS, INPUT_FIELDS},
+        {"/input/configure", "PUT", HandleInputConfigure, 0, INPUT_FIELDS},
+        {"/input/pointer/open", "POST", HandlePointerOpen, POINTER_FIELDS, INPUT_FIELDS},
+        {"/input/pointer/move", "POST", HandlePointerMove, POINTER_FIELDS, INPUT_FIELDS},
+        {"/input/pointer/hold", "POST", HandlePointerHold, POINTER_FIELDS, INPUT_FIELDS},
+        {"/input/pointer/up", "POST", HandlePointerUp, 0, INPUT_FIELDS},
+        {"/screenshot", "POST", HandleScreenshot, SCREENSHOT_FIELDS, 0},
         {"/recording/capabilities", "GET", HandleRecordingCapabilities},
         {"/recording/status", "GET", HandleRecordingStatus},
-        {"/recording/start", "POST", HandleRecordingStart},
-        {"/recording/stop", "POST", HandleRecordingStop},
+        {"/recording/start", "POST", HandleRecordingStart, RECORDING_START_FIELDS, 0},
+        {"/recording/stop", "POST", HandleRecordingStop, RECORDING_STOP_FIELDS, 0},
         {"/events/cursor", "GET", HandleEventCursor},
         {"/events", "GET", HandleEvents},
         {"/state", "GET", HandleState},
         {"/application/catalog", "GET", HandleApplicationCatalog},
         {"/state/wait", "GET", HandleStateWait},
-        {"/commands", "POST", HandleCommandSubmit},
+        {"/commands", "POST", HandleCommandSubmit, COMMAND_FIELDS, 0},
         {"/commands", "GET", HandleCommandStatus},
-        {"/commands", "DELETE", HandleCommandCancel},
-        {"/markers", "POST", HandleMarker},
+        {"/commands", "DELETE", HandleCommandCancel, COMMAND_CANCEL_FIELDS, 0},
+        {"/markers", "POST", HandleMarker, MARKER_FIELDS, 0},
         {"/screenshot/status", "GET", HandleScreenshotStatus},
         {"/metal", "GET", HandleMetalGet},
-        {"/metal", "POST", HandleMetalPost},
+        {"/metal", "POST", HandleMetalPost, METAL_FIELDS, 0},
         {"/metal", "DELETE", HandleMetalDelete}
     };
 
@@ -2770,12 +3034,6 @@ namespace dmAutomation
             return;
         }
 
-        if (StringsEqual(ctx.m_Route, "/observations") && RequestIsMethod(&ctx, "POST"))
-        {
-            HandleObservationPost(&ctx);
-            FreeRequestContext(&ctx);
-            return;
-        }
         if (StartsWith(ctx.m_Route, "/observations/") && RequestIsMethod(&ctx, "GET"))
         {
             HandleObservationGet(&ctx, ctx.m_Route + strlen("/observations/"));
@@ -2798,7 +3056,8 @@ namespace dmAutomation
                 continue;
             }
             StringBufferFree(&allowed_methods);
-            route->m_Handler(&ctx);
+            if (ValidateRequestFields(&ctx, route->m_Fields, route->m_CommonFields))
+                route->m_Handler(&ctx);
             FreeRequestContext(&ctx);
             return;
         }

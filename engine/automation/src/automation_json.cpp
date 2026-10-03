@@ -349,6 +349,8 @@ namespace dmAutomation
                     if (!JsonSkipValue(cursor, 2)) { free(key); return false; }
                     value = DuplicateStringN(start, (uint32_t)(*cursor - start));
                 }
+                double number = strtod(value, 0);
+                if (!IsFiniteDouble(number) || !IsFiniteFloat((float)number)) { free(value); free(key); return false; }
                 char flattened_key[16];
                 dmSnPrintf(flattened_key, sizeof(flattened_key), "point.%s", key);
                 if (GetParam(params, flattened_key)) { free(value); free(key); return false; }
@@ -438,24 +440,6 @@ namespace dmAutomation
         return false;
     }
 
-    static bool ValidateJsonTypes(const dmArray<QueryParam>* fields)
-    {
-        static const char* numbers[] = {"x", "y", "x1", "y1", "x2", "y2", "expected_scene_sequence", "limit", "offset", "from_x", "from_y", "to_x", "to_y", "duration", "hold_before", "hold_after", "hold", "lease", "pointer_lease", "width", "height", "fps", "frames", "after_frames", "timeout_ms", "pointer_id", "input_id", "capture_id", "operation_id", "command_id", "frame", "after_revision", "scene_sequence"};
-        static const char* booleans[] = {"audio", "visualize", "release", "all", "screenshot"};
-        static const char* arrays[] = {"points", "durations", "modifiers", "ids"};
-        for (uint32_t i = 0; i < fields->Size(); ++i)
-        {
-            const QueryParam& field = fields->Begin()[i];
-            for (uint32_t j = 0; j < DM_ARRAY_SIZE(numbers); ++j)
-                if (StringsEqual(field.m_Key, numbers[j]) && !(field.m_Value[0] == '-' || isdigit((unsigned char)field.m_Value[0]))) return false;
-            for (uint32_t j = 0; j < DM_ARRAY_SIZE(booleans); ++j)
-                if (StringsEqual(field.m_Key, booleans[j]) && !StringsEqual(field.m_Value, "true") && !StringsEqual(field.m_Value, "false")) return false;
-            for (uint32_t j = 0; j < DM_ARRAY_SIZE(arrays); ++j)
-                if (StringsEqual(field.m_Key, arrays[j]) && field.m_Value[0] != '[') return false;
-        }
-        return true;
-    }
-
     bool JsonValidate(const char* json, uint32_t max_bytes)
     {
         if (!json || !*json || strlen(json) > max_bytes) return false;
@@ -467,7 +451,6 @@ namespace dmAutomation
 
     bool JsonParseRequest(const char* body, dmArray<QueryParam>* params, dmArray<QueryParam>* fields)
     {
-        return JsonValidate(body, MAX_JSON_REQUEST_BYTES) &&
-               JsonParseRootObject(body, params, fields) && ValidateJsonTypes(fields);
+        return JsonValidate(body, MAX_JSON_REQUEST_BYTES) && JsonParseRootObject(body, params, fields);
     }
 }
