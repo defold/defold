@@ -476,8 +476,7 @@ jobs:
               owner, repo, run_id: context.runId, per_page: 100
             });
             const summary = buildReportSummary(artifacts, {
-              serverUrl: context.serverUrl, owner, repo, runId: context.runId,
-              attempt: Number(process.env.GITHUB_RUN_ATTEMPT)
+              serverUrl: context.serverUrl, owner, repo, runId: context.runId
             });
             await core.summary.addRaw(summary).write();
 

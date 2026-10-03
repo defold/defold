@@ -23,6 +23,7 @@ runs:
       run: |
         staging=$(mktemp -d "$RUNNER_TEMP/build-reports.XXXXXX")
         count=0
+        available=0
         while IFS= read -r report; do
           [ -n "$report" ] || continue
           case "$report" in
@@ -38,6 +39,7 @@ runs:
           mkdir -p "$(dirname "$staging/$report")"
           if [ -f "$report" ]; then
             cp "$report" "$staging/$report"
+            available=$((available + 1))
           else
             # An earlier build failure may prevent this report from being produced.
             printf 'Build report unavailable: %s. See the engine job log. No tests are claimed to have passed.\n' "$report" > "$staging/$report.unavailable.txt"
@@ -49,12 +51,20 @@ runs:
           exit 1
         fi
         printf 'path=%s\n' "$staging" >> "$GITHUB_OUTPUT"
+        if [ "$available" -eq "$count" ]; then
+          status=available
+        elif [ "$available" -eq 0 ]; then
+          status=unavailable
+        else
+          status=partial
+        fi
+        printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
     - name: Upload reports
       id: upload
       if: always() && steps.prepare.outcome == 'success'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: build-reports-${{ inputs.platform }}${{ inputs.build-variant && format('-{0}', inputs.build-variant) || '' }}-${{ github.run_attempt }}
+        name: build-reports-${{ inputs.platform }}${{ inputs.build-variant && format('-{0}', inputs.build-variant) || '' }}-${{ steps.prepare.outputs.status }}-${{ github.run_attempt }}
         path: ${{ steps.prepare.outputs.path }}
         if-no-files-found: error
         retention-days: 14
