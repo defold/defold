@@ -105,7 +105,8 @@ namespace dmDebugger
     void Respond(Debugger* d, uint32_t seq, const char* command, const Buffer* body, const char* error)
     {
         Buffer message;
-        message.Format("{\"seq\":%u,\"type\":\"response\",\"request_seq\":%u,\"command\":", d->m_Sequence++, seq);
+        uint32_t response_seq = d->m_Sequence++;
+        message.Format("{\"seq\":%u,\"type\":\"response\",\"request_seq\":%u,\"command\":", response_seq, seq);
         message.String(command);
         message.Add(error ? ",\"success\":false,\"message\":" : ",\"success\":true");
         if (error)
@@ -118,6 +119,16 @@ namespace dmDebugger
                 message.m_Valid = false;
         }
         message.Add("}");
+        if (!message.m_Valid || message.Size() > MAX_MESSAGE_SIZE)
+        {
+            // A valid inspection request can produce more data than one DAP
+            // message allows. Fail that request without detaching and resuming
+            // the application; the client can retry with paging or a slice.
+            message.Clear();
+            message.Format("{\"seq\":%u,\"type\":\"response\",\"request_seq\":%u,\"command\":", response_seq, seq);
+            message.String(command);
+            message.Add(",\"success\":false,\"message\":\"Response exceeds 1 MiB; request fewer variables or evaluate a smaller value\"}");
+        }
         Queue(d, message);
     }
     void Event(Debugger* d, const char* event, const Buffer* body)

@@ -2518,6 +2518,35 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    # Oversized values and aggregate variable responses must fail the request
+    # while preserving the paused session for smaller evaluations and paging.
+    def test_oversized_responses_preserve_paused_session(self):
+        c = self.start('''
+            local big = string.rep('x', 1048576)
+            local binary = string.rep(string.char(0), 300000)
+            local items = {}
+            for i = 1, 1500 do items[i] = string.rep('y', 1024) end
+            local marker = 1 -- inspect
+            assert(#big == 1048576 and #binary == 300000 and #items == 1500)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        reference = self.scopes()["Locals"]
+        c.request("variables", {"variablesReference": reference}, success=False)
+        for expression in ("big", "binary", "error(big)", "string.rep('z', 5 * 1048576)"):
+            c.request("evaluate", {"frameId": self.frame, "expression": expression}, success=False)
+        self.assertEqual(self.evaluate("#big")["result"], "1048576")
+        self.assertEqual(self.evaluate("big:sub(1, 10)")["result"], '"xxxxxxxxxx"')
+        items = self.evaluate("items")["variablesReference"]
+        c.request("variables", {"variablesReference": items}, success=False)
+        self.assertEqual(len(self.variables(items, filter="indexed", start=0, count=10)), 10)
+        self.assertEqual(self.evaluate("#items")["result"], "1500")
+        self.resume()
+        self.finished()
+
     # Checks that failed logpoint and condition expressions emit diagnostics
     # while Lua continues and completes its expected variable updates.
     def test_logpoint_and_condition_errors_preserve_execution(self):
