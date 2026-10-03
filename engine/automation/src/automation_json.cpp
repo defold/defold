@@ -65,6 +65,45 @@ namespace dmAutomation
         return !out->m_Failed;
     }
 
+    static bool JsonParseUtf8Codepoint(unsigned char first, const char** cursor, uint32_t* value)
+    {
+        uint32_t length;
+        uint32_t minimum;
+        uint32_t codepoint;
+        if (first >= 0xc2 && first <= 0xdf)
+        {
+            length = 2;
+            minimum = 0x80;
+            codepoint = first & 0x1f;
+        }
+        else if (first >= 0xe0 && first <= 0xef)
+        {
+            length = 3;
+            minimum = 0x800;
+            codepoint = first & 0x0f;
+        }
+        else if (first >= 0xf0 && first <= 0xf4)
+        {
+            length = 4;
+            minimum = 0x10000;
+            codepoint = first & 0x07;
+        }
+        else
+        {
+            return false;
+        }
+        for (uint32_t i = 1; i < length; ++i)
+        {
+            unsigned char next = (unsigned char)**cursor;
+            if ((next & 0xc0) != 0x80) return false;
+            ++*cursor;
+            codepoint = (codepoint << 6) | (next & 0x3f);
+        }
+        if (codepoint < minimum || codepoint > 0x10ffff || (codepoint >= 0xd800 && codepoint <= 0xdfff)) return false;
+        *value = codepoint;
+        return true;
+    }
+
     bool JsonParseString(const char** cursor, char** value)
     {
         if (**cursor != '"') return false;
@@ -81,7 +120,13 @@ namespace dmAutomation
             }
             if (c != '\\')
             {
-                StringBufferAppendChar(&decoded, (char)c);
+                uint32_t codepoint = c;
+                if ((c >= 0x80 && !JsonParseUtf8Codepoint(c, cursor, &codepoint)) ||
+                    !JsonAppendCodepoint(&decoded, codepoint))
+                {
+                    StringBufferFree(&decoded);
+                    return false;
+                }
                 continue;
             }
             char escaped = *(*cursor)++;

@@ -184,6 +184,27 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(405, self.request('/health', 'POST', {})[0])
         self.assertEqual(400, self.request('/input/click?x=1', 'POST', {})[0])
 
+    # Reject malformed raw UTF-8 before key decoding or retained application JSON can consume it.
+    def test_utf8_validation(self):
+        invalid = (b'\x80' * 7, b'\xc0\x80', b'\xc1\xbf', b'\xc2', b'\xc2A',
+                   b'\xe0\x80\x80', b'\xed\xa0\x80', b'\xf0\x80\x80\x80',
+                   b'\xf4\x90\x80\x80', b'\xf5\x80\x80\x80', b'\xff')
+        for text in invalid:
+            for path, prefix in (('/input/key', b'{"text":"'), ('/markers', b'{"name":"utf8","data":"')):
+                with self.subTest(path=path, text=text):
+                    self.assertEqual(400, self.request(path, 'POST', raw=prefix + text + b'"}')[0])
+        # Raw multi-byte characters and escaped surrogate pairs must decode identically.
+        text = '\u0080\u07ff\u0800\ud7ff\ue000\uffff\U00010000\U0010ffff'
+        for ensure_ascii in (False, True):
+            raw = json.dumps({'name': 'echo', 'data': text}, ensure_ascii=ensure_ascii).encode('utf-8')
+            status, response = self.request('/commands', 'POST', raw=raw)
+            self.assertEqual(202, status)
+            command_id = response['data']['command_id']
+            def completed():
+                value = self.request('/commands?id=' + str(command_id))[1]['data']
+                return value if value['state'] == 'completed' else None
+            self.assertEqual(text, self.until(completed)['result'])
+
     # Invalid final array members must not silently become unmodified input.
     def test_invalid_modifier_arrays(self):
         for modifiers in ([], ['KEY_BOGUS'], ['KEY_LSHIFT', 'KEY_BOGUS'], ['KEY_LSHIFT,KEY_LCTRL']):
