@@ -363,6 +363,21 @@ namespace dmDebugger
                         discovery.PopFrom(thread);
                         for (int local = 1; lua_getlocal(thread, &frame, local); ++local)
                             discovery.PopFrom(thread);
+                        // LuaJIT stores varargs outside the positive local
+                        // slots. Lua 5.1 exposes none; older LuaJIT versions
+                        // can return temporaries, so check the reported name.
+                        for (int vararg = 1;; ++vararg)
+                        {
+                            const char* name = lua_getlocal(thread, &frame, -vararg);
+                            if (!name)
+                                break;
+                            if (strcmp(name, "(*vararg)"))
+                            {
+                                lua_pop(thread, 1);
+                                break;
+                            }
+                            discovery.PopFrom(thread);
+                        }
                     }
                 }
             }
