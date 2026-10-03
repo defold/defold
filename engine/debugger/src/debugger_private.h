@@ -18,6 +18,7 @@
 #include "debugger.h"
 #include "dap.h"
 #include <dlib/socket.h>
+#include <dlib/hashtable.h>
 extern "C"
 {
 #include <lua/lua.h>
@@ -37,6 +38,8 @@ namespace dmDebugger
     {
         State*            m_State;
         uint32_t          m_Id;
+        uint64_t          m_ExecutionVersion;
+        int               m_EvaluationDepth;
         lua_Hook          m_OldHook;
         int               m_OldMask;
         int               m_OldCount;
@@ -51,6 +54,7 @@ namespace dmDebugger
         lua_State* m_L;
         char*      m_Name;
         int        m_ThreadsRef;
+        int        m_ThreadLookupRef;
         int        m_ObservedFunctionsRef;
         int        m_CreateRef;
         int        m_ResumeRef;
@@ -86,6 +90,10 @@ namespace dmDebugger
         int        m_Level;
         uint32_t   m_ThreadId;
         int        m_ThreadRef;
+        int        m_FunctionRef;
+        int        m_Line;
+        uint64_t   m_ExecutionVersion;
+        bool       m_Valid;
     };
     enum ReferenceKind
     {
@@ -102,6 +110,7 @@ namespace dmDebugger
         int           m_LuaRef;
         ReferenceKind m_Kind;
         char*         m_EvaluateName;
+        uint32_t      m_FrameId;
     };
     enum Step
     {
@@ -119,6 +128,7 @@ namespace dmDebugger
         Buffer                m_Output;
         dmArray<State*>       m_States;
         dmArray<Thread*>      m_Threads;
+        dmHashTable32<Thread*> m_ThreadIds;
         dmArray<Breakpoint*>  m_Breakpoints;
         dmArray<Source*>      m_Sources;
         dmArray<Frame>        m_Frames;
@@ -135,7 +145,9 @@ namespace dmDebugger
         uint32_t              m_StepThread;
         int32_t               m_StepDepth; // Signed for Lua stack levels and tail-call stepping.
         uint32_t              m_Connections;
+        uint32_t              m_EvaluationTimeout;
         Step                  m_Step;
+        bool                  m_ThreadDiscoveryPending;
         uint16_t              m_Port;
         uint16_t              m_StepNativeTailCall : 1;
         uint16_t              m_Initialized : 1;
@@ -168,7 +180,8 @@ namespace dmDebugger
     void       Event(Debugger* d, const char* event, const Buffer* body = 0);
     lua_State* GetThread(Thread* thread);
     Thread*    FindThread(Debugger* d, uint32_t id, bool include_exited = false);
-    Thread*    TrackThread(Debugger* d, lua_State* L);
+    Thread*    TrackThread(Debugger* d, lua_State* L, bool preserve_hook = false);
+    void       DiscoverEvaluationThreads(Debugger* d, lua_State* excluded = 0);
     void       ClearReferences(Debugger* d);
     void       CaptureFrames(Debugger* d);
     int        StackDepth(lua_State* L);
@@ -176,6 +189,8 @@ namespace dmDebugger
     void       FormatValue(Debugger* d, lua_State* L, int index, Buffer& value);
     void       QuoteLuaString(const char* text, uint32_t size, Buffer& value);
     void       Output(Debugger* d, const char* text);
+    void       Hook(lua_State* L, lua_Debug* ar);
+    void       CheckEvaluation(lua_State* L);
     // Evaluation leaves exactly one result (or error string) on the stack.
     // A negative level selects the Lua thread's global environment.
     bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment = 0);

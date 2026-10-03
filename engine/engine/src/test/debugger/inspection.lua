@@ -163,6 +163,31 @@ local function native_types(self)
     end
 end
 
+-- Native calls made by evaluation can run Lua above a paused caller. Its
+-- bindings must survive these callbacks, including tail calls into the REPL.
+local function native_callbacks(self)
+    self.score = 41
+    callback_count = 0
+    callback_observer = nil
+    local yielded = sys.get_config_int("test.debugger_yielded", 0) == 1
+    local function run()
+        local x = 1
+        if yielded then coroutine.yield() end
+        local marker = 1 -- callback-inspect
+        assert(marker == 1 and x == 4 and self.score == 99)
+        assert(callback_count == 5 and callback_observer == nil)
+        assert(saved() == 2 and go.exists(created))
+    end
+    if yielded then
+        local co = coroutine.create(run)
+        assert(coroutine.resume(co))
+        local marker = 1 -- callback-suspended
+        assert(coroutine.resume(co))
+    else
+        run()
+    end
+end
+
 -- Issue #7750 needs a real engine reboot, not just a DAP disconnect/reconnect.
 -- Keep updating while detached so the client can attach to each fresh runtime.
 local function reboot(self)
@@ -197,6 +222,8 @@ function M.run(self, kind)
         test = gui_nodes
     elseif case == "native_types" then
         test = native_types
+    elseif case == "native_callbacks" then
+        test = native_callbacks
     elseif case == "reboot" then
         test = reboot
     end

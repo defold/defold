@@ -45,17 +45,6 @@ if(TARGET lua)
     DEPENDS dap_debuggee_lua)
 endif()
 
-defold_add_library(debugger_release_check STATIC ../dap.cpp ../debugger.cpp ../debugger_values.cpp ../debugger_inspect.cpp ../debugger_extension.cpp)
-target_compile_definitions(debugger_release_check PRIVATE DM_RELEASE=1)
-set_target_properties(debugger_release_check PROPERTIES EXCLUDE_FROM_ALL TRUE)
-add_dependencies(build_tests debugger_release_check)
-add_custom_target(test_debugger_release
-  COMMAND "${CMAKE_COMMAND}" "-DARCHIVE=$<TARGET_FILE:debugger_release_check>" -P "${CMAKE_CURRENT_LIST_DIR}/verify_release.cmake"
-  DEPENDS debugger_release_check VERBATIM)
-defold_register_sequential_test_command(test_debugger_release
-  COMMAND "${CMAKE_COMMAND}" "-DARCHIVE=$<TARGET_FILE:debugger_release_check>" -P "${CMAKE_CURRENT_LIST_DIR}/verify_release.cmake"
-  DEPENDS debugger_release_check)
-
 if(TARGET script AND TARGET extension)
   defold_add_executable(dap_debuggee_engine test_debugger_engine.cpp)
   target_compile_definitions(dap_debuggee_engine PRIVATE DLIB_LOG_DOMAIN="DEBUGGER_TEST")

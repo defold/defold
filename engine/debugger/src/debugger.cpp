@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_RELEASE)
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
@@ -23,9 +22,9 @@ namespace dmDebugger
 {
     static char g_DebuggerKey;
     static char g_StateKey;
-    static void Hook(lua_State* L, lua_Debug* ar);
     static void Disconnect(Debugger* d);
     static void SetHooks(Debugger* d, bool enable);
+    static void RefreshSources(Debugger* d);
 
     Debugger::Debugger()
         : m_Listener(dmSocket::INVALID_SOCKET_HANDLE)
@@ -41,7 +40,9 @@ namespace dmDebugger
         , m_StepThread(0)
         , m_StepDepth(0)
         , m_Connections(0)
+        , m_EvaluationTimeout(1000)
         , m_Step(STEP_NONE)
+        , m_ThreadDiscoveryPending(false)
         , m_Port(0)
         , m_StepNativeTailCall(false)
         , m_Initialized(false)
@@ -105,7 +106,8 @@ namespace dmDebugger
     void Respond(Debugger* d, uint32_t seq, const char* command, const Buffer* body, const char* error)
     {
         Buffer message;
-        message.Format("{\"seq\":%u,\"type\":\"response\",\"request_seq\":%u,\"command\":", d->m_Sequence++, seq);
+        uint32_t response_seq = d->m_Sequence++;
+        message.Format("{\"seq\":%u,\"type\":\"response\",\"request_seq\":%u,\"command\":", response_seq, seq);
         message.String(command);
         message.Add(error ? ",\"success\":false,\"message\":" : ",\"success\":true");
         if (error)
@@ -118,6 +120,16 @@ namespace dmDebugger
                 message.m_Valid = false;
         }
         message.Add("}");
+        if (!message.m_Valid || message.Size() > MAX_MESSAGE_SIZE)
+        {
+            // A valid inspection request can produce more data than one DAP
+            // message allows. Fail that request without detaching and resuming
+            // the application; the client can retry with paging or a slice.
+            message.Clear();
+            message.Format("{\"seq\":%u,\"type\":\"response\",\"request_seq\":%u,\"command\":", response_seq, seq);
+            message.String(command);
+            message.Add(",\"success\":false,\"message\":\"Response exceeds 1 MiB; request fewer variables or evaluate a smaller value\"}");
+        }
         Queue(d, message);
     }
     void Event(Debugger* d, const char* event, const Buffer* body)
@@ -155,16 +167,19 @@ namespace dmDebugger
     }
     Thread* FindThread(Debugger* d, uint32_t id, bool include_exited)
     {
-        for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
-            if (d->m_Threads[i]->m_Id == id && (include_exited || (!d->m_Threads[i]->m_Exited && GetThread(d->m_Threads[i]))))
-                return d->m_Threads[i];
-        return 0;
+        Thread** entry = d->m_ThreadIds.Get(id);
+        Thread* thread = entry ? *entry : 0;
+        return thread && (include_exited || (!thread->m_Exited && GetThread(thread))) ? thread : 0;
     }
 
-    static void InstallHook(Thread* thread)
+    static void InstallHook(Thread* thread, bool preserve_hook = false)
     {
         lua_State* L = GetThread(thread);
         if (!L || thread->m_Hooked)
+            return;
+        // Post-evaluation discovery records ownership of inherited hooks but
+        // preserves any hook the application installed or disabled meanwhile.
+        if (preserve_hook && lua_gethook(L) != Hook)
             return;
         thread->m_OldHook = lua_gethook(L);
         thread->m_OldMask = lua_gethookmask(L);
@@ -179,7 +194,8 @@ namespace dmDebugger
             thread->m_OldCount = main->m_OldCount;
         }
         thread->m_Hooked = true;
-        lua_sethook(L, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
+        if (!preserve_hook)
+            lua_sethook(L, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
     }
 
     static void ThreadEvent(Debugger* d, Thread* thread, const char* reason)
@@ -191,15 +207,28 @@ namespace dmDebugger
         Event(d, "thread", &body);
     }
 
-    Thread* TrackThread(Debugger* d, lua_State* L)
+    static Thread* LookupThread(State* state, lua_State* L)
+    {
+        // Weak thread keys preserve Lua's object identity without keeping
+        // coroutines alive or confusing a reused lua_State address with its
+        // previous occupant. Hook lookups do not scan other live threads.
+        lua_rawgeti(L, LUA_REGISTRYINDEX, state->m_ThreadLookupRef);
+        lua_pushthread(L);
+        lua_rawget(L, -2);
+        Thread* thread = (Thread*)lua_touserdata(L, -1);
+        lua_pop(L, 2);
+        return thread;
+    }
+
+    Thread* TrackThread(Debugger* d, lua_State* L, bool preserve_hook)
     {
         State* state = (State*)GetPointer(L, &g_StateKey);
         if (!state)
             return 0;
-        for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
-            if (d->m_Threads[i]->m_State == state && GetThread(d->m_Threads[i]) == L)
-                return d->m_Threads[i];
-        Thread* thread = new Thread();
+        Thread* thread = LookupThread(state, L);
+        if (thread)
+            return thread;
+        thread = new Thread();
         thread->m_State = state;
         thread->m_Id = d->m_NextId++;
         thread->m_Main = state->m_L == L;
@@ -209,9 +238,17 @@ namespace dmDebugger
         lua_pushthread(L);
         lua_rawseti(L, -2, thread->m_Id);
         lua_pop(L, 1);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, state->m_ThreadLookupRef);
+        lua_pushthread(L);
+        lua_pushlightuserdata(L, thread);
+        lua_rawset(L, -3);
+        lua_pop(L, 1);
+        if (d->m_ThreadIds.Full())
+            d->m_ThreadIds.SetCapacity(d->m_ThreadIds.Capacity() ? d->m_ThreadIds.Capacity() * 2 : 16);
+        d->m_ThreadIds.Put(thread->m_Id, thread);
         Push(d->m_Threads, thread);
         if (d->m_Attached)
-            InstallHook(thread);
+            InstallHook(thread, preserve_hook);
         ThreadEvent(d, thread, "started");
         return thread;
     }
@@ -219,12 +256,14 @@ namespace dmDebugger
     struct ThreadDiscovery
     {
         lua_State* m_L;
+        lua_State* m_Excluded;
         int        m_Seen;
         int        m_Queue;
         int        m_Count;
 
-        ThreadDiscovery(lua_State* L)
+        ThreadDiscovery(lua_State* L, lua_State* excluded)
             : m_L(L)
+            , m_Excluded(excluded)
             , m_Count(0)
         {
             lua_newtable(L);
@@ -245,6 +284,8 @@ namespace dmDebugger
         {
             int type = lua_type(m_L, index);
             if (type != LUA_TTABLE && type != LUA_TFUNCTION && type != LUA_TTHREAD && type != LUA_TUSERDATA)
+                return;
+            if (type == LUA_TTHREAD && lua_tothread(m_L, index) == m_Excluded)
                 return;
             if (index < 0 && index > LUA_REGISTRYINDEX)
                 index += lua_gettop(m_L) + 1;
@@ -269,19 +310,20 @@ namespace dmDebugger
         }
     };
 
-    static void DiscoverThreads(Debugger* d, lua_State* L)
+    static void DiscoverThreads(Debugger* d, lua_State* L, bool preserve_hook = false, lua_State* excluded = 0)
     {
         int             top = lua_gettop(L);
-        ThreadDiscovery discovery(L);
+        ThreadDiscovery discovery(L, excluded);
         discovery.Add(LUA_REGISTRYINDEX);
         discovery.Add(LUA_GLOBALSINDEX);
         lua_pushthread(L);
         discovery.PopFrom(L);
 
-        // Scan reachable Lua objects at activation and attachment. Raw inspection
-        // avoids invoking application code, and a queue handles cycles without
-        // growing the native call stack. The temporary tables pin objects only
-        // for this scan; TrackThread retains coroutines through weak values.
+        // Scan reachable Lua objects at activation, attach/detach, and when
+        // inspecting coroutines that may have been created by evaluation.
+        // Raw inspection avoids invoking application code, and a queue handles
+        // cycles without growing the native call stack. The temporary tables pin
+        // objects only for this scan; TrackThread retains them through weak values.
         for (int i = 1; i <= discovery.m_Count; ++i)
         {
             lua_rawgeti(L, discovery.m_Queue, i);
@@ -307,7 +349,12 @@ namespace dmDebugger
                 lua_State* thread = lua_tothread(L, object);
                 if (lua_checkstack(thread, 8))
                 {
-                    TrackThread(d, thread);
+                    TrackThread(d, thread, preserve_hook);
+                    // Lua 5.1 children can inherit the count-only hook used to
+                    // abort a timed-out evaluation. Repair our hook on both new
+                    // and previously tracked threads, preserving custom hooks.
+                    if (preserve_hook && lua_gethook(thread) == Hook && lua_gethookmask(thread) == LUA_MASKCOUNT && lua_gethookcount(thread) == 1)
+                        lua_sethook(thread, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
                     int thread_top = thread == L ? top : lua_gettop(thread);
                     for (int slot = 1; slot <= thread_top; ++slot)
                     {
@@ -321,6 +368,21 @@ namespace dmDebugger
                         discovery.PopFrom(thread);
                         for (int local = 1; lua_getlocal(thread, &frame, local); ++local)
                             discovery.PopFrom(thread);
+                        // LuaJIT stores varargs outside the positive local
+                        // slots. Lua 5.1 exposes none; older LuaJIT versions
+                        // can return temporaries, so check the reported name.
+                        for (int vararg = 1;; ++vararg)
+                        {
+                            const char* name = lua_getlocal(thread, &frame, -vararg);
+                            if (!name)
+                                break;
+                            if (strcmp(name, "(*vararg)"))
+                            {
+                                lua_pop(thread, 1);
+                                break;
+                            }
+                            discovery.PopFrom(thread);
+                        }
                     }
                 }
             }
@@ -334,6 +396,15 @@ namespace dmDebugger
             lua_pop(L, 1);
         }
         lua_settop(L, top);
+    }
+
+    void DiscoverEvaluationThreads(Debugger* d, lua_State* excluded)
+    {
+        if (!d->m_ThreadDiscoveryPending)
+            return;
+        for (uint32_t i = 0; i < d->m_States.Size(); ++i)
+            DiscoverThreads(d, d->m_States[i]->m_L, true, excluded);
+        d->m_ThreadDiscoveryPending = false;
     }
 
     static void Track(lua_State* L, lua_State* coroutine)
@@ -505,10 +576,14 @@ namespace dmDebugger
                 // weak so observing a closure never extends its lifetime.
                 luaL_unref(state->m_L, LUA_REGISTRYINDEX, state->m_ObservedFunctionsRef);
                 state->m_ObservedFunctionsRef = NewWeakTable(state->m_L, "k");
-                // Cached coroutine APIs can bypass our wrappers while detached.
-                // Discover their suspended threads before installing Lua 5.1's
-                // per-thread hooks, including on subsequent attachments.
+            }
+            // Cached coroutine APIs and evaluation can bypass tracking. Discover
+            // these threads both before installing hooks and before restoring
+            // hooks inherited from the debugger in Lua 5.1.
+            if (enable || state->m_Main->m_Hooked)
                 DiscoverThreads(d, state->m_L);
+            if (enable)
+            {
                 state->m_JitEnabled = JitEnabled(state->m_L, &state->m_JitAvailable);
                 Jit(state->m_L, "off");
                 Jit(state->m_L, "flush");
@@ -520,10 +595,15 @@ namespace dmDebugger
             lua_State* L = GetThread(thread);
             if (enable)
                 InstallHook(thread);
-            else if (thread->m_Hooked)
+            else
             {
                 if (L && lua_gethook(L) == Hook)
-                    lua_sethook(L, thread->m_OldHook, thread->m_OldMask, thread->m_OldCount);
+                {
+                    // Newly discovered threads inherited our hook without
+                    // saving its previous owner. Match InstallHook's fallback.
+                    Thread* original = thread->m_Hooked ? thread : thread->m_State->m_Main;
+                    lua_sethook(L, original->m_OldHook, original->m_OldMask, original->m_OldCount);
+                }
                 thread->m_Hooked = false;
             }
         }
@@ -545,6 +625,7 @@ namespace dmDebugger
         state->m_L = L;
         state->m_Name = strdup(name);
         state->m_ThreadsRef = NewWeakTable(L, "v");
+        state->m_ThreadLookupRef = NewWeakTable(L, "k");
         state->m_ObservedFunctionsRef = NewWeakTable(L, "k");
         SetPointer(L, &g_DebuggerKey, d);
         SetPointer(L, &g_StateKey, state);
@@ -589,6 +670,7 @@ namespace dmDebugger
                 lua_sethook(T, thread->m_OldHook, thread->m_OldMask, thread->m_OldCount);
             if (!thread->m_Exited)
                 ThreadEvent(d, thread, "exited");
+            d->m_ThreadIds.Erase(thread->m_Id);
             delete thread;
             d->m_Threads.EraseSwap(i);
         }
@@ -609,6 +691,7 @@ namespace dmDebugger
         }
         lua_pop(L, 1);
         luaL_unref(L, LUA_REGISTRYINDEX, state->m_ThreadsRef);
+        luaL_unref(L, LUA_REGISTRYINDEX, state->m_ThreadLookupRef);
         luaL_unref(L, LUA_REGISTRYINDEX, state->m_ObservedFunctionsRef);
         SetPointer(L, &g_DebuggerKey, 0);
         SetPointer(L, &g_StateKey, 0);
@@ -620,6 +703,8 @@ namespace dmDebugger
             }
         free(state->m_Name);
         delete state;
+        if (d->m_Attached)
+            RefreshSources(d);
     }
 
     static void FreeBreakpoint(Breakpoint* bp)
@@ -634,6 +719,8 @@ namespace dmDebugger
         if (d->m_Client != dmSocket::INVALID_SOCKET_HANDLE)
             dmSocket::Delete(d->m_Client);
         d->m_Client = dmSocket::INVALID_SOCKET_HANDLE;
+        // Detach discovery must not install hooks or emit thread-start events.
+        d->m_Attached = false;
         SetHooks(d, false);
         for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
             d->m_Threads[i]->m_CallSites.SetSize(0);
@@ -641,7 +728,8 @@ namespace dmDebugger
         d->m_Input.Clear();
         d->m_Output.Clear();
         d->m_Exception.Clear();
-        d->m_Initialized = d->m_Attached = d->m_Configured = d->m_Paused = false;
+        d->m_Initialized = d->m_Configured = d->m_Paused = false;
+        d->m_ThreadDiscoveryPending = false;
         d->m_PauseRequested = d->m_ClosePending = d->m_BreakOnError = d->m_StopOnEntry = false;
         d->m_Step = STEP_NONE;
         d->m_AttachSeq = 0;
@@ -651,6 +739,12 @@ namespace dmDebugger
         for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
             FreeBreakpoint(d->m_Breakpoints[i]);
         d->m_Breakpoints.SetSize(0);
+        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
+        {
+            free(d->m_Sources[i]->m_Path);
+            delete d->m_Sources[i];
+        }
+        d->m_Sources.SetSize(0);
     }
 
     HDebugger New(uint16_t port, const char* address)
@@ -694,11 +788,6 @@ namespace dmDebugger
         Disconnect(d);
         while (d->m_States.Size())
             RemoveLuaState(d, d->m_States[0]->m_L);
-        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
-        {
-            free(d->m_Sources[i]->m_Path);
-            delete d->m_Sources[i];
-        }
         if (d->m_Listener != dmSocket::INVALID_SOCKET_HANDLE)
             dmSocket::Delete(d->m_Listener);
         delete d;
@@ -791,16 +880,84 @@ namespace dmDebugger
             body.Add(",\"message\":\"Pending an executable Lua line\"");
         body.Add("}");
     }
-    static void VerifyBreakpoint(Debugger* d, Breakpoint* bp)
+    static void VerifyBreakpoint(Debugger* d, Breakpoint* bp, bool verified = true)
     {
-        if (bp->m_Verified)
+        if (bp->m_Verified == verified)
             return;
-        bp->m_Verified = true;
+        bp->m_Verified = verified;
         Buffer body;
         body.Add("{\"reason\":\"changed\",\"breakpoint\":");
         BreakpointBody(d, bp, body);
         body.Add("}");
         Event(d, "breakpoint", &body);
+    }
+    static Source* FindSource(Debugger* d, const char* path)
+    {
+        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
+            if (!strcmp(d->m_Sources[i]->m_Path, path))
+                return d->m_Sources[i];
+        return 0;
+    }
+    static void RefreshSources(Debugger* d)
+    {
+        // Rebuild the union at stops and source requests, not in the hot hook
+        // path. Weak function keys let collected code disappear, while live
+        // closures and other Lua states still contribute their executable lines.
+        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
+            d->m_Sources[i]->m_Lines.SetSize(0);
+        for (uint32_t i = 0; i < d->m_States.Size(); ++i)
+        {
+            State* state = d->m_States[i];
+            lua_State* L = state->m_L;
+            lua_rawgeti(L, LUA_REGISTRYINDEX, state->m_ObservedFunctionsRef);
+            lua_pushnil(L);
+            while (lua_next(L, -2))
+            {
+                lua_getfield(L, -1, "source");
+                const char* path = lua_tostring(L, -1);
+                Source* source = FindSource(d, path);
+                if (!source)
+                {
+                    source = new Source();
+                    source->m_Path = strdup(path);
+                    Push(d->m_Sources, source);
+                }
+                lua_pop(L, 1);
+                lua_pushnil(L);
+                while (lua_next(L, -2))
+                {
+                    if (lua_type(L, -2) == LUA_TNUMBER)
+                        Push(source->m_Lines, (int)lua_tointeger(L, -2));
+                    lua_pop(L, 1);
+                }
+                lua_pop(L, 1);
+            }
+            lua_pop(L, 1);
+        }
+        for (uint32_t i = 0; i < d->m_Sources.Size();)
+        {
+            Source* source = d->m_Sources[i];
+            if (!source->m_Lines.Size())
+            {
+                free(source->m_Path);
+                delete source;
+                d->m_Sources.EraseSwap(i);
+                continue;
+            }
+            qsort(source->m_Lines.Begin(), source->m_Lines.Size(), sizeof(int), CompareLines);
+            uint32_t count = 0;
+            for (uint32_t j = 0; j < source->m_Lines.Size(); ++j)
+                if (!count || source->m_Lines[j] != source->m_Lines[count - 1])
+                    source->m_Lines[count++] = source->m_Lines[j];
+            source->m_Lines.SetSize(count);
+            ++i;
+        }
+        for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
+        {
+            Breakpoint* bp = d->m_Breakpoints[i];
+            Source* source = FindSource(d, bp->m_Path);
+            VerifyBreakpoint(d, bp, source && HasLine(source, bp->m_Line));
+        }
     }
     static void ObserveSource(Debugger* d, lua_State* L, lua_Debug* ar)
     {
@@ -818,51 +975,31 @@ namespace dmDebugger
             lua_pop(L, 2);
             return;
         }
-        lua_pushboolean(L, true);
-        lua_rawset(L, -3);
-        lua_pop(L, 1);
         Buffer path;
         RuntimePath(d, ar->source, path);
-        Source* source = 0;
-        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
-            if (!strcmp(d->m_Sources[i]->m_Path, path.Data()))
-            {
-                source = d->m_Sources[i];
-                break;
-            }
-        if (!source)
-        {
-            source = new Source();
-            source->m_Path = strdup(path.Data());
-            Push(d->m_Sources, source);
-        }
         lua_getinfo(L, "L", ar);
-        if (lua_istable(L, -1))
+        if (!lua_istable(L, -1))
         {
-            lua_pushnil(L);
-            while (lua_next(L, -2))
-            {
-                int line = (int)lua_tointeger(L, -2);
-                Push(source->m_Lines, line);
-                lua_pop(L, 1);
-            }
+            lua_pop(L, 3);
+            return;
         }
-        lua_pop(L, 1);
-        if (source->m_Lines.Size() > 1)
-        {
-            qsort(source->m_Lines.Begin(), source->m_Lines.Size(), sizeof(int), CompareLines);
-            uint32_t count = 0;
-            for (uint32_t i = 0; i < source->m_Lines.Size(); ++i)
-                if (!count || source->m_Lines[i] != source->m_Lines[count - 1])
-                    source->m_Lines[count++] = source->m_Lines[i];
-            source->m_Lines.SetSize(count);
-        }
+        // Keep the line set as the weak cache value. It never references the
+        // function key, so recording source information cannot retain closures.
+        lua_pushstring(L, path.Data());
+        lua_setfield(L, -2, "source");
         for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
         {
             Breakpoint* bp = d->m_Breakpoints[i];
-            if (!strcmp(bp->m_Path, path.Data()) && HasLine(source, bp->m_Line))
-                VerifyBreakpoint(d, bp);
+            if (!strcmp(bp->m_Path, path.Data()))
+            {
+                lua_rawgeti(L, -1, bp->m_Line);
+                if (lua_toboolean(L, -1))
+                    VerifyBreakpoint(d, bp);
+                lua_pop(L, 1);
+            }
         }
+        lua_rawset(L, -3);
+        lua_pop(L, 1);
     }
 
     static void SetBreakpoints(Debugger* d, const Json& json, int seq, int args)
@@ -896,6 +1033,7 @@ namespace dmDebugger
         }
         Buffer path;
         RuntimePath(d, source, path);
+        RefreshSources(d);
         for (uint32_t i = 0; i < d->m_Breakpoints.Size();)
         {
             if (!strcmp(d->m_Breakpoints[i]->m_Path, path.Data()))
@@ -958,6 +1096,7 @@ namespace dmDebugger
         }
         Buffer path;
         RuntimePath(d, source, path);
+        RefreshSources(d);
         dmArray<int> lines;
         for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
             if (!strcmp(d->m_Sources[i]->m_Path, path.Data()))
@@ -1064,6 +1203,14 @@ namespace dmDebugger
                 Respond(d, seq, command, 0, "Already attached");
                 return;
             }
+            int timeout_arg = json.Field(args, "evaluationTimeout");
+            int timeout = timeout_arg < 0 ? 1000 : json.Integer(timeout_arg);
+            if (timeout < 1 || timeout > 60000)
+            {
+                Respond(d, seq, command, 0, "evaluationTimeout must be between 1 and 60000 milliseconds");
+                return;
+            }
+            d->m_EvaluationTimeout = timeout;
             const char* root = json.String(json.Field(args, "localRoot"));
             if (root)
             {
@@ -1129,6 +1276,7 @@ namespace dmDebugger
         }
         if (!strcmp(command, "threads"))
         {
+            DiscoverEvaluationThreads(d);
             Buffer body;
             body.Add("{\"threads\":[");
             int count = 0;
@@ -1218,7 +1366,7 @@ namespace dmDebugger
 
     void Update(HDebugger d)
     {
-        if (!d || d->m_Updating)
+        if (!d || d->m_Updating || d->m_Evaluating)
             return;
         UpdateGuard guard(d);
         for (uint32_t i = 0; i < d->m_Threads.Size();)
@@ -1237,6 +1385,7 @@ namespace dmDebugger
                 ++i;
                 continue;
             }
+            d->m_ThreadIds.Erase(thread->m_Id);
             delete thread;
             d->m_Threads.EraseSwap(i);
         }
@@ -1336,6 +1485,7 @@ namespace dmDebugger
         d->m_StopOnEntry = false;
         d->m_Step = STEP_NONE;
         d->m_StoppedThread = thread->m_Id;
+        DiscoverEvaluationThreads(d);
         CaptureFrames(d);
         // A late attachment can stop inside functions whose call hooks were
         // never observed. Their debug information still supplies executable lines.
@@ -1346,6 +1496,7 @@ namespace dmDebugger
             if (lua_getstack(frame.m_L, frame.m_Level, &ar) && lua_getinfo(frame.m_L, "S", &ar))
                 ObserveSource(d, frame.m_L, &ar);
         }
+        RefreshSources(d);
         Buffer body;
         body.Format("{\"reason\":\"%s\",\"threadId\":%u,\"allThreadsStopped\":true", reason, thread->m_Id);
         if (breakpoint)
@@ -1478,13 +1629,26 @@ namespace dmDebugger
         return false;
     }
 
-    static void Hook(lua_State* L, lua_Debug* ar)
+    void Hook(lua_State* L, lua_Debug* ar)
     {
         Debugger* d = (Debugger*)GetPointer(L, &g_DebuggerKey);
         if (!d)
             return;
         if (d->m_Evaluating)
+        {
+            // Native callbacks run above the paused stack without resuming it.
+            // Invalidate only once execution reaches that stack (or unwinds
+            // past it), including resumes through cached coroutine APIs.
+            // The debugger's temporary evaluation threads remain untracked.
+            State*  state = (State*)GetPointer(L, &g_StateKey);
+            Thread* thread = LookupThread(state, L);
+            lua_Debug caller;
+            if (thread && !lua_getstack(L, thread->m_EvaluationDepth, &caller))
+                ++thread->m_ExecutionVersion;
+            if (ar->event == LUA_HOOKCOUNT)
+                CheckEvaluation(L);
             return;
+        }
         if (ar->event == LUA_HOOKCOUNT)
             Update(d);
         if (!d->m_Attached)
@@ -1585,8 +1749,10 @@ namespace dmDebugger
             Stop(d, L, "breakpoint", bp->m_Id);
             return;
         }
+        if (d->m_Step == STEP_NONE)
+            return;
         Thread* step_thread = FindThread(d, d->m_StepThread);
-        if (d->m_Step != STEP_NONE && (thread->m_Id == d->m_StepThread || (d->m_Step == STEP_IN && step_thread && step_thread->m_State == thread->m_State)))
+        if (thread->m_Id == d->m_StepThread || (d->m_Step == STEP_IN && step_thread && step_thread->m_State == thread->m_State))
         {
             int depth = StackDepth(L);
             if (d->m_Step == STEP_IN || (d->m_Step == STEP_OVER && depth <= d->m_StepDepth) || (d->m_Step == STEP_OUT && depth < d->m_StepDepth))
@@ -1606,4 +1772,3 @@ namespace dmDebugger
         Stop(d, L, "exception");
     }
 } // namespace dmDebugger
-#endif

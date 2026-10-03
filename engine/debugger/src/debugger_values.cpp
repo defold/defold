@@ -12,9 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_RELEASE)
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
+#include <dlib/time.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -60,13 +60,52 @@ namespace dmDebugger
         }
         d->m_References.SetSize(0);
         for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
+        {
+            luaL_unref(d->m_Frames[i].m_L, LUA_REGISTRYINDEX, d->m_Frames[i].m_FunctionRef);
             luaL_unref(d->m_Frames[i].m_L, LUA_REGISTRYINDEX, d->m_Frames[i].m_ThreadRef);
+        }
         d->m_Frames.SetSize(0);
     }
 
-    void CaptureFrames(Debugger* d)
+    static bool MatchesFunction(lua_State* L, int level, int function_ref, int* line = 0)
     {
-        ClearReferences(d);
+        lua_Debug ar;
+        if (!lua_getstack(L, level, &ar))
+            return false;
+        lua_getinfo(L, "fl", &ar);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
+        bool same = lua_rawequal(L, -1, -2) != 0;
+        lua_pop(L, 2);
+        if (line)
+            *line = ar.currentline;
+        return same;
+    }
+
+    static int CompareFrames(const void* a, const void* b)
+    {
+        const Frame* left = (const Frame*)a;
+        const Frame* right = (const Frame*)b;
+        if (left->m_ThreadId != right->m_ThreadId)
+            return left->m_ThreadId < right->m_ThreadId ? -1 : 1;
+        return (left->m_Level > right->m_Level) - (left->m_Level < right->m_Level);
+    }
+
+    static void RefreshFrames(Debugger* d)
+    {
+        // Evaluation can resume a suspended coroutine, replacing or removing
+        // its frames without a DAP continue. Keep expired frames pinned until
+        // resume so their variable references never contain a dangling state.
+        for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
+        {
+            Frame& frame = d->m_Frames[i];
+            int line = 0;
+            if (frame.m_Valid)
+            {
+                Thread* thread = FindThread(d, frame.m_ThreadId, true);
+                frame.m_Valid = thread && frame.m_ExecutionVersion == thread->m_ExecutionVersion &&
+                                MatchesFunction(frame.m_L, frame.m_Level, frame.m_FunctionRef, &line) && line == frame.m_Line;
+            }
+        }
         for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
         {
             Thread*    thread = d->m_Threads[i];
@@ -74,18 +113,40 @@ namespace dmDebugger
             if (!L)
                 continue;
             lua_Debug ar;
-            for (int level = 0; lua_getstack(L, level, &ar); ++level)
+            int level = 0;
+            for (; lua_getstack(L, level, &ar); ++level)
             {
-                lua_getinfo(L, "S", &ar);
+                lua_getinfo(L, "Sl", &ar);
                 // C callbacks and Lua 5.1's eliminated tail-call placeholders
                 // have no inspectable Lua function or environment.
                 if (strcmp(ar.what, "Lua") && strcmp(ar.what, "main"))
                     continue;
+                bool captured = false;
+                for (uint32_t j = 0; j < d->m_Frames.Size(); ++j)
+                    if (d->m_Frames[j].m_Valid && d->m_Frames[j].m_L == L && d->m_Frames[j].m_Level == level)
+                    {
+                        captured = true;
+                        break;
+                    }
+                if (captured)
+                    continue;
+                lua_getinfo(L, "f", &ar);
+                int function_ref = luaL_ref(L, LUA_REGISTRYINDEX);
                 lua_pushthread(L);
-                Frame frame = { d->m_NextId++, L, level, thread->m_Id, luaL_ref(L, LUA_REGISTRYINDEX) };
+                Frame frame = { d->m_NextId++, L, level, thread->m_Id, luaL_ref(L, LUA_REGISTRYINDEX), function_ref,
+                                ar.currentline, thread->m_ExecutionVersion, true };
                 Push(d->m_Frames, frame);
             }
+            thread->m_EvaluationDepth = level;
         }
+        if (d->m_Frames.Size() > 1)
+            qsort(d->m_Frames.Begin(), d->m_Frames.Size(), sizeof(Frame), CompareFrames);
+    }
+
+    void CaptureFrames(Debugger* d)
+    {
+        ClearReferences(d);
+        RefreshFrames(d);
     }
 
     static Frame* FindFrame(Debugger* d, int id)
@@ -93,17 +154,24 @@ namespace dmDebugger
         if (id <= 0)
             return 0;
         for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
-            if (d->m_Frames[i].m_Id == (uint32_t)id)
+            if (d->m_Frames[i].m_Id == (uint32_t)id && d->m_Frames[i].m_Valid)
                 return &d->m_Frames[i];
         return 0;
     }
 
     static uint32_t AddReference(Debugger* d, lua_State* L, ReferenceKind kind, int level, int index = 0, const char* evaluate_name = 0)
     {
+        uint32_t frame_id = 0;
+        for (uint32_t i = 0; level >= 0 && i < d->m_Frames.Size(); ++i)
+            if (d->m_Frames[i].m_Valid && d->m_Frames[i].m_L == L && d->m_Frames[i].m_Level == level)
+            {
+                frame_id = d->m_Frames[i].m_Id;
+                break;
+            }
         for (uint32_t i = 0; i < d->m_References.Size(); ++i)
         {
             Reference& r = d->m_References[i];
-            if (r.m_L != L || r.m_Kind != kind || r.m_Level != level)
+            if (r.m_L != L || r.m_Kind != kind || r.m_Level != level || r.m_FrameId != frame_id)
                 continue;
             if (kind != REFERENCE_VALUE)
                 return r.m_Id;
@@ -121,7 +189,7 @@ namespace dmDebugger
                 }
             }
         }
-        Reference r = { d->m_NextId++, L, level, LUA_NOREF, kind, evaluate_name ? strdup(evaluate_name) : 0 };
+        Reference r = { d->m_NextId++, L, level, LUA_NOREF, kind, evaluate_name ? strdup(evaluate_name) : 0, frame_id };
         if (kind == REFERENCE_VALUE)
         {
             lua_pushvalue(L, index);
@@ -258,6 +326,8 @@ namespace dmDebugger
     struct Evaluation
     {
         lua_State* m_L;
+        Thread*    m_Thread;
+        uint64_t   m_ExecutionVersion;
         int        m_FunctionRef;
         int        m_EnvironmentRef;
         int        m_Depth;
@@ -309,6 +379,16 @@ namespace dmDebugger
             lua_pushvalue(L, LUA_GLOBALSINDEX);
     }
 
+    static bool EvaluationFrame(Evaluation* e, lua_Debug* frame)
+    {
+        if (e->m_ExecutionVersion != e->m_Thread->m_ExecutionVersion)
+            return false;
+        int level = StackDepth(e->m_L) - e->m_Depth;
+        // Evaluation can resume this coroutine between binding accesses. A
+        // function at the same depth may have replaced the selected frame.
+        return MatchesFunction(e->m_L, level, e->m_FunctionRef) && lua_getstack(e->m_L, level, frame);
+    }
+
     static int EvaluationIndex(lua_State* L)
     {
         Evaluation* e = (Evaluation*)lua_touserdata(L, lua_upvalueindex(1));
@@ -323,7 +403,7 @@ namespace dmDebugger
         }
         const char* name = lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : 0;
         lua_Debug   frame;
-        if (!lua_getstack(e->m_L, StackDepth(e->m_L) - e->m_Depth, &frame))
+        if (!EvaluationFrame(e, &frame))
             return luaL_error(L, "Evaluation frame is no longer active");
         int local = name ? LocalIndex(e->m_L, &frame, name) : 0;
         if (local)
@@ -360,7 +440,7 @@ namespace dmDebugger
         }
         const char* name = lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : 0;
         lua_Debug   frame;
-        if (!lua_getstack(e->m_L, StackDepth(e->m_L) - e->m_Depth, &frame))
+        if (!EvaluationFrame(e, &frame))
             return luaL_error(L, "Evaluation frame is no longer active");
         int local = name ? LocalIndex(e->m_L, &frame, name) : 0;
         if (local)
@@ -423,7 +503,7 @@ namespace dmDebugger
 
     // Evaluated closures can escape to the program. Retain a snapshot of the
     // visible bindings for them, rather than a pointer into a suspended frame.
-    static void SnapshotEnvironment(lua_State* L, Evaluation* e, int level, int environment)
+    static void SnapshotEnvironment(lua_State* L, Evaluation* e, int environment)
     {
         int top = lua_gettop(L);
         lua_newtable(L);
@@ -442,8 +522,8 @@ namespace dmDebugger
                 SnapshotValue(L, names, values, name);
             }
             lua_Debug frame;
-            lua_getstack(L, level, &frame);
-            for (int i = 1;; ++i)
+            bool active = EvaluationFrame(e, &frame);
+            for (int i = 1; active; ++i)
             {
                 const char* name = lua_getlocal(L, &frame, i);
                 if (!name)
@@ -470,6 +550,68 @@ namespace dmDebugger
         lua_settop(L, top);
     }
 
+    struct EvaluationCall
+    {
+        uint64_t m_Deadline;
+        int      m_Result;
+        bool     m_TimedOut;
+    };
+
+    static char g_EvaluationKey;
+
+    void CheckEvaluation(lua_State* L)
+    {
+        lua_pushlightuserdata(L, &g_EvaluationKey);
+        lua_rawget(L, LUA_REGISTRYINDEX);
+        EvaluationCall* call = (EvaluationCall*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        if (call && dmTime::GetTime() >= call->m_Deadline)
+        {
+            call->m_TimedOut = true;
+            // If application pcall catches this error, interrupt its caller's
+            // next instruction instead of spending another full interval in
+            // the same protected infinite loop.
+            lua_sethook(L, Hook, LUA_MASKCOUNT, 1);
+            luaL_error(L, "Debugger evaluation timed out");
+        }
+    }
+
+    static int EndHookSuppression(lua_State* L)
+    {
+        lua_pushnil(L);
+        return lua_error(L);
+    }
+
+    static int CallEvaluation(lua_State* L)
+    {
+        EvaluationCall* call = (EvaluationCall*)lua_touserdata(L, lua_upvalueindex(1));
+        lua_Hook old_hook = lua_gethook(L);
+        int old_mask = lua_gethookmask(L);
+        int old_count = lua_gethookcount(L);
+        // LuaJIT suppresses hooks across its entire VM while stopped in a hook.
+        // Unwinding a fresh coroutine clears that suppression. The enclosing
+        // lua_pcall saves the original hook state and restores it on our final
+        // lua_error, including when evaluation succeeds. No application frame
+        // is unwound by either operation. Lua 5.1 uses the fresh thread's hooks.
+        lua_State* probe = lua_newthread(L);
+        lua_pushcfunction(probe, EndHookSuppression);
+        lua_resume(probe, 0);
+        lua_pop(L, 1);
+        // Lua 5.1 children inherit this hook. Keep the normal event mask so
+        // coroutines created by evaluation can hit breakpoints after it ends.
+        lua_sethook(L, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
+        call->m_Result = lua_pcall(L, lua_gettop(L) - 1, 1, 0);
+        lua_sethook(L, old_hook, old_mask, old_count);
+        if (dmTime::GetTime() >= call->m_Deadline)
+        {
+            lua_pop(L, 1);
+            lua_pushliteral(L, "Debugger evaluation timed out");
+            call->m_Result = LUA_ERRRUN;
+            call->m_TimedOut = true;
+        }
+        return lua_error(L);
+    }
+
     bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment)
     {
         lua_Debug frame;
@@ -478,16 +620,10 @@ namespace dmDebugger
             lua_pushliteral(L, "Invalid frame");
             return false;
         }
-        // A yielded Lua 5.1 thread cannot execute a protected call without
-        // disturbing its suspended VM state. Run the expression on a temporary
-        // thread while the environment continues to read/write the selected frame.
-        lua_State* evaluation_L = L;
-        int        thread_ref = LUA_NOREF;
-        if (lua_status(L) == LUA_YIELD)
-        {
-            evaluation_L = lua_newthread(L);
-            thread_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        }
+        // A separate thread permits instruction hooks while the original Lua
+        // frame is inside its stop hook, and preserves yielded VM stacks.
+        lua_State* evaluation_L = lua_newthread(L);
+        int        thread_ref = luaL_ref(L, LUA_REGISTRYINDEX);
         Buffer source;
         if (assignment)
         {
@@ -541,7 +677,10 @@ namespace dmDebugger
 
         Evaluation* e = (Evaluation*)lua_newuserdata(evaluation_L, sizeof(Evaluation));
         e->m_L = L;
-        e->m_Depth = level >= 0 ? StackDepth(L) - level : 0;
+        e->m_Thread = TrackThread(d, L);
+        e->m_ExecutionVersion = e->m_Thread->m_ExecutionVersion;
+        e->m_Thread->m_EvaluationDepth = StackDepth(L);
+        e->m_Depth = level >= 0 ? e->m_Thread->m_EvaluationDepth - level : 0;
         e->m_Active = true;
         e->m_Global = level < 0;
         int context = lua_gettop(evaluation_L);
@@ -598,16 +737,42 @@ namespace dmDebugger
             }
         }
         d->m_Evaluating = true;
+        bool timed_out = false;
         if (!result)
-            result = lua_pcall(evaluation_L, arguments, 1, 0);
+        {
+            EvaluationCall call = { dmTime::GetTime() + (uint64_t)d->m_EvaluationTimeout * 1000, LUA_ERRRUN, false };
+            lua_pushlightuserdata(L, &g_EvaluationKey);
+            lua_pushlightuserdata(L, &call);
+            lua_rawset(L, LUA_REGISTRYINDEX);
+            lua_pushlightuserdata(evaluation_L, &call);
+            lua_pushcclosure(evaluation_L, CallEvaluation, 1);
+            lua_insert(evaluation_L, lua_gettop(evaluation_L) - arguments - 1);
+            lua_pcall(evaluation_L, arguments + 1, 1, 0);
+            result = call.m_Result;
+            timed_out = call.m_TimedOut;
+            lua_pushlightuserdata(L, &g_EvaluationKey);
+            lua_pushnil(L);
+            lua_rawset(L, LUA_REGISTRYINDEX);
+        }
         lua_xmove(evaluation_L, L, 1);
-        SnapshotEnvironment(L, e, level, environment_ref);
-        d->m_Evaluating = false;
+        SnapshotEnvironment(L, e, environment_ref);
         e->m_Active = false;
         luaL_unref(L, LUA_REGISTRYINDEX, e->m_FunctionRef);
         luaL_unref(L, LUA_REGISTRYINDEX, e->m_EnvironmentRef);
         luaL_unref(L, LUA_REGISTRYINDEX, context_ref);
         luaL_unref(L, LUA_REGISTRYINDEX, environment_ref);
+        // Cached coroutine APIs and native callbacks can persist new threads in
+        // any context, even after an error. While running, coalesce discovery
+        // until a stop or threads request: conditions and logpoints must not
+        // walk the whole Lua heap on every hit. Paused evaluations report new
+        // threads immediately, excluding our still-pinned temporary thread.
+        d->m_ThreadDiscoveryPending = true;
+        // A timeout can leave its count-only hook on application coroutines.
+        // Restore those hooks before running any more application code, even
+        // when evaluating a condition or logpoint that does not stop.
+        if (d->m_Paused || timed_out)
+            DiscoverEvaluationThreads(d, evaluation_L);
+        d->m_Evaluating = false;
         luaL_unref(L, LUA_REGISTRYINDEX, thread_ref);
         return result == 0;
     }
@@ -748,6 +913,13 @@ namespace dmDebugger
             lua_settop(L, top);
             return false;
         }
+        RefreshFrames(d);
+        if (r.m_FrameId && !FindFrame(d, r.m_FrameId))
+        {
+            body.Add("Evaluation frame is no longer active");
+            lua_settop(L, top);
+            return false;
+        }
         int       value = lua_gettop(L);
         bool      found = false;
         lua_Debug ar;
@@ -829,6 +1001,7 @@ namespace dmDebugger
             Respond(d, seq, command, 0, "Lua is running");
             return true;
         }
+        RefreshFrames(d);
         Buffer      body;
         const char* error = 0;
         bool        invalidate = false;
@@ -846,7 +1019,7 @@ namespace dmDebugger
                 for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
                 {
                     Frame& frame = d->m_Frames[i];
-                    if (frame.m_ThreadId != (uint32_t)thread)
+                    if (!frame.m_Valid || frame.m_ThreadId != (uint32_t)thread)
                         continue;
                     if (!Page(ordinal++, start, count))
                         continue;
@@ -899,6 +1072,7 @@ namespace dmDebugger
             bool        global = request.Field(args, "frameId") < 0;
             lua_State*  L = global ? (thread ? GetThread(thread) : 0) : (frame ? frame->m_L : 0);
             int         level = global ? -1 : (frame ? frame->m_Level : -1);
+            uint32_t    frame_id = frame ? frame->m_Id : 0;
             bool        assignment = !strcmp(command, "setExpression");
             const char* expression = request.String(request.Field(args, "expression"));
             const char* value = assignment ? request.String(request.Field(args, "value")) : expression;
@@ -920,6 +1094,9 @@ namespace dmDebugger
                 invalidate = assignment || !strcmp(context, "repl");
                 bool ok = hover ? Inspect(d, L, level, expression) :
                                   Evaluate(d, L, level, value, !assignment && !strcmp(context, "repl"), assignment ? expression : 0);
+                RefreshFrames(d);
+                if (frame_id && !FindFrame(d, frame_id))
+                    level = -1;
                 if (ok)
                 {
                     body.Add("{");
@@ -959,7 +1136,7 @@ namespace dmDebugger
                     found = true;
                     break;
                 }
-            if (!found)
+            if (!found || (r.m_FrameId && !FindFrame(d, r.m_FrameId)))
                 error = "Invalid variablesReference";
             else if (!strcmp(command, "variables"))
             {
@@ -995,4 +1172,3 @@ namespace dmDebugger
         return true;
     }
 } // namespace dmDebugger
-#endif

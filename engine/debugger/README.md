@@ -2,9 +2,9 @@
 
 `debugger` is a separate C++ library for debugging Lua 5.1 and LuaJIT through the
 [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/overview).
-Debug and headless engines link the `LuaDebugger` extension. Release engines and
-Extender release variants exclude the library and its registration symbol. The
-implementation also compiles out when `DM_RELEASE` is defined.
+Native debug and headless engines link the `LuaDebugger` extension. Release
+engines exclude the library and its registration symbol at link time, through
+the CMake targets and the Extender release manifest.
 
 The Defold editor now uses this server for Lua debugging. Its MobDebug client
 and bundled MobDebug Lua scripts have been removed.
@@ -83,7 +83,8 @@ The attach arguments are:
 ```json
 {
   "localRoot": "/absolute/path/to/the/game/project",
-  "stopOnEntry": true
+  "stopOnEntry": true,
+  "evaluationTimeout": 1000
 }
 ```
 
@@ -91,6 +92,14 @@ The attach arguments are:
 optional when client and runtime use the same paths. Native path strings are
 supported, including Windows separators. URI paths are rejected. Client line and
 column bases are negotiated by `initialize`.
+
+`evaluationTimeout` limits Lua evaluation to 1000 milliseconds by default. It
+accepts an integer from 1 to 60000 and applies to evaluations, assignments,
+breakpoint conditions, and logpoint expressions. A timeout reports an error and
+keeps the session usable; side effects performed before the timeout remain.
+Closing the client releases the paused engine after the evaluation times out.
+The limit is checked at Lua instructions, so it cannot interrupt a blocking
+native function or code that explicitly disables debug hooks.
 
 For local debug launches, the Defold editor enables the listener with port 0 and
 reads the selected port from engine output. To attach to a running engine, it
@@ -159,16 +168,21 @@ lines are known. It does not parse source files or guess locations. Locations ar
 line-based, and a column range must include the first column of a reported line.
 Executable lines are collected once per observed function during an attachment.
 The function cache uses weak keys, allowing closures to be collected and newly
-loaded functions to be discovered without rescanning every call.
+loaded functions to be discovered without rescanning every call. At each stop
+and source request, locations are refreshed from the still-live observed
+functions in all Lua states. Collected functions no longer contribute lines;
+breakpoints on removed lines return to pending and emit a `breakpoint` event.
+Live older closures continue to contribute their lines after a reload. A new
+attachment starts with no source knowledge, including when `localRoot` changes.
 
 Locals shadow upvalues and globals, including when the local is `nil`. Evaluation
 with a `frameId` uses the selected function's environment. Without `frameId`,
 evaluation and expression assignment use the stopped Lua thread's global
 environment. `context: "repl"` also accepts Lua
 statements and assignments. Functions created by evaluation retain a snapshot of
-the frame's bindings after the request completes. Evaluation runs on the stopped
-Lua thread, using a temporary thread for yielded coroutines to preserve their
-suspended state. In either case it reads and writes the selected frame's bindings
+the frame's bindings after the request completes. Evaluation runs on a temporary
+Lua thread so it can enforce its instruction-hook timeout without disturbing the
+stopped thread's VM state. It reads and writes the selected frame's bindings
 and has the same side effects as executing that Lua code normally.
 On LuaJIT, frame evaluation also receives the function's varargs (`...`),
 including nil arguments. Lua 5.1 does not expose varargs through its debug API,
@@ -247,6 +261,12 @@ limited to 1 MiB, headers to 4 KiB, and queues to 4 MiB. Invalid framing or JSON
 closes the session and resumes Lua. Invalid requests get unsuccessful DAP
 responses. Disconnect never terminates the engine.
 
+An inspection or evaluation response exceeding 1 MiB fails that request while
+keeping the session paused. Retry table inspection with `start` and `count`, or
+evaluate a smaller string slice, such as `value:sub(1, 1000)`. The limit applies
+to the encoded JSON, including escaped binary bytes, and does not truncate or
+modify application values.
+
 Launch, reverse execution, instruction/function/data breakpoints, source-content
 fetching, and native stack inspection are not implemented or advertised. Console
 output from the engine keeps its existing destination; DAP output is used for
@@ -263,11 +283,12 @@ cmake --build <build-directory> --target test_debugger_dap_instances
 ```
 
 The extension integration target is available when `script` and `extension` are
-configured. The script-instance target is part of the full native engine build;
-it runs `dap_debuggee_instances`, a headless engine test host with physics
-bindings, using the `engine_test_content` target's compiled project. All targets
-are also registered with the repository's
-`run_tests` sequence.
+configured. The release check and script-instance targets are part of the full
+native engine build. The release check builds and inspects `dmengine_release`,
+using `dmengine_headless` to verify that it detects DAP code and registration.
+The script-instance target runs `dap_debuggee_instances`, a headless engine test
+host with physics bindings, using the `engine_test_content` target's compiled
+project. All targets are also registered with the repository's `run_tests` sequence.
 
 `src/test/test_dap.py` uses Python's standard library and a real TCP connection.
 The same suite exercises the standalone C++ host with LuaJIT, the bundled Lua
@@ -275,8 +296,7 @@ The same suite exercises the standalone C++ host with LuaJIT, the bundled Lua
 every supported request, emitted events, mutation effects asserted by the
 debuggee, recursion and coroutines, stale references, reconnects, malformed
 messages, Unicode/binary/large values, and preservation of Lua stacks. The host
-also checks restored hooks after detach. A separate compiled-artifact check
-ensures `DM_RELEASE` contains neither debugger code nor extension registration.
+also checks restored hooks after detach.
 The engine host additionally tests runtime activation after scripts and
 coroutines have run, activation across existing contexts, reconnecting, and
 retrying failed starts. Listener tests verify the loopback default, startup and
@@ -301,6 +321,17 @@ To run individual wire tests:
 python3 engine/debugger/src/test/test_dap.py --debuggee <path-to-dap_debuggee> DAPTests.test_variables_evaluate_and_mutation
 python3 engine/debugger/src/test/test_dap.py --engine <path-to-dmengine_headless> --engine-content engine/engine/build/src/test/build/default EngineDAPTests
 ```
+
+To compare attached hook overhead with different numbers of idle coroutines:
+
+```sh
+python3 engine/debugger/src/test/benchmark_dap.py --debuggee <path-to-dap_debuggee> --coroutines 0 500 --samples 5
+```
+
+The benchmark measures CPU time inside the active coroutine, excluding startup
+and creation of the idle coroutines. Compare the same host, runtime, and build
+configuration. Timing thresholds are deliberately separate from the functional
+tests, which verify lookup correctness and collection without speed assumptions.
 
 The engine script suite additionally checks that the generic `ScriptExtension`
 error callback sees the original error value and live locals before unwinding.

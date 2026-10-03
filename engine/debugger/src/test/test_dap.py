@@ -619,6 +619,84 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    def check_coroutine_discovery_through_varargs(self, from_evaluation=False):
+        creation = '''
+            local function make(id)
+                local co = original_create(function()
+                    local x = id
+                    coroutine.yield()
+                    assert(x == id + 100)
+                end)
+                assert(original_resume(co))
+                return co
+            end
+            outer = original_create(function(named, ...)
+                coroutine.yield()
+                assert(named == 'named' and select('#', ...) == 80)
+                assert(select(2, ...) == nil and select(80, ...) == nil)
+                local first, last = select(1, ...), select(79, ...)
+                released[1], released[2] = first, last
+                assert(original_resume(first))
+                assert(original_resume(last))
+            end)
+            local args = {[1] = make(1), [79] = make(2)}
+            assert(original_resume(outer, 'named', unpack(args, 1, 80)))
+        '''
+        prelude = '''
+            original_create, original_resume = coroutine.create, coroutine.resume
+            has_varargs = jit ~= nil
+            released = setmetatable({}, {__mode = 'v'})
+        '''
+        c = self.start('''
+            local marker = 1 -- inspect
+            released[3] = outer
+            assert(original_resume(outer))
+            outer = nil
+            collectgarbage('collect')
+            collectgarbage('collect')
+            assert(next(released) == nil)
+            marker = 2 -- collected
+        ''', prelude=prelude + ('' if from_evaluation else creation))
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")}, {"line": self.line("collected")})
+        c.configured()
+        self.stopped()
+        if self.evaluate("has_varargs", context="hover")["result"] != "true":
+            self.skipTest("Lua 5.1 does not expose varargs through the debug API")
+        if from_evaluation:
+            self.evaluate(creation, context="repl")
+        threads = c.request("threads")["threads"]
+        self.assertEqual(len(threads), 4)
+        inspected = set()
+        for thread in threads:
+            if thread["id"] == self.thread:
+                continue
+            self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+            locals_ref = self.scopes()["Locals"]
+            x = next((v for v in self.variables(locals_ref) if v["name"] == "x"), None)
+            if x:
+                value = int(x["value"])
+                inspected.add(value)
+                c.request("setVariable", {"variablesReference": locals_ref, "name": "x", "value": str(value + 100)})
+        self.assertEqual(inspected, {1, 2})
+        self.resume()
+        self.assertEqual(self.stopped()[0]["line"], self.line("collected"))
+        self.assertEqual([t["id"] for t in c.request("threads")["threads"]], [self.thread])
+        self.resume()
+        self.finished()
+
+    # Attach must find LuaJIT coroutines retained only in another coroutine's
+    # varargs, including slots after nils. Inspecting and editing their locals
+    # must preserve the parent's arguments and allow all threads to be collected.
+    def test_attach_discovers_coroutines_in_varargs(self):
+        self.check_coroutine_discovery_through_varargs()
+
+    # Cached APIs used during evaluation can also leave coroutines reachable
+    # only through varargs; the post-evaluation walk must expose their frames.
+    def test_evaluation_discovers_coroutines_in_varargs(self):
+        self.check_coroutine_discovery_through_varargs(from_evaluation=True)
+
     # Enables DAP in one of two already initialized contexts, detaches, and
     # reconnects to the same listener. Both contexts must remain debuggable,
     # including the second context's uncaught error before stack unwinding.
@@ -1203,7 +1281,7 @@ class DAPTests(DAPTestCase):
         self.finished()
 
     # Source observation must not retain closures, skip a replacement function
-    # with the same filename, or report duplicate executable lines.
+    # with the same filename, or retain executable lines from collected code.
     def test_observed_functions_are_weak_and_reloads_are_discovered(self):
         c = self.start(r'''
             local weak = setmetatable({}, {__mode = "v"})
@@ -1229,7 +1307,106 @@ class DAPTests(DAPTestCase):
         frames = self.stopped()
         self.assertEqual((frames[0]["source"]["path"], frames[0]["line"]), ("/reload.lua", 4))
         locations = c.request("breakpointLocations", {"source": {"path": "/reload.lua"}, "line": 1, "endLine": 4})
-        self.assertEqual(locations["breakpoints"], [{"line": i} for i in range(1, 5)])
+        self.assertEqual(locations["breakpoints"], [{"line": 3}, {"line": 4}])
+        self.resume()
+        self.finished()
+
+    # A shorter reload keeps lines from live older closures, then removes them
+    # and revokes breakpoint verification once those closures are collected.
+    def test_reloaded_source_removes_collected_lines(self):
+        c = self.start(r'''
+            local old = assert(loadstring("local n = 1\nn = n + 1\nn = n + 1\nn = n + 1\nreturn n", "@/hot.lua"))
+            assert(old() == 4)
+            local marker = 0 -- original
+            local replacement = assert(loadstring("return 9", "@/hot.lua"))
+            assert(replacement() == 9)
+            marker = 1 -- retained
+            old = nil
+            collectgarbage('collect')
+            collectgarbage('collect')
+            marker = 2 -- collected
+            replacement = nil
+            collectgarbage('collect')
+            collectgarbage('collect')
+            marker = 3 -- empty
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints(*({"line": self.line(marker)} for marker in ("original", "retained", "collected", "empty")))
+        bp = self.breakpoints({"line": 4, "condition": "false"}, path="/hot.lua")[0]
+        c.configured()
+        for expected in ([1, 2, 3, 4, 5], [1, 2, 3, 4, 5], [1], []):
+            self.stopped()
+            locations = c.request("breakpointLocations", {"source": {"path": "/hot.lua"}, "line": 1, "endLine": 5})
+            self.assertEqual(locations["breakpoints"], [{"line": line} for line in expected])
+            if expected == [1]:
+                events = [m["body"]["breakpoint"] for m in c.pending if m.get("event") == "breakpoint"
+                          and m["body"]["breakpoint"]["id"] == bp["id"]]
+                self.assertEqual([event["verified"] for event in events], [True, False])
+                self.assertFalse(self.breakpoints({"line": 4}, path="/hot.lua")[0]["verified"])
+                self.evaluate("replacement = nil; collectgarbage('collect'); collectgarbage('collect')", context="repl")
+                self.assertEqual(c.request("breakpointLocations", {"source": {"path": "/hot.lua"}, "line": 1, "endLine": 5})["breakpoints"], [])
+            self.resume()
+        self.finished()
+
+    # Reattachment must not reuse the previous session's executable-line cache,
+    # even when localRoot changes and the old function remains alive.
+    def test_source_locations_reset_on_reattach(self):
+        c = self.start(r'''
+            local fn = assert(loadstring("local n = 1\nn = n + 1\nreturn n", "@/hot.lua"))
+            assert(fn() == 2)
+            ready = false
+            local marker = 0 -- before
+            while not ready do pump() end
+            assert(fn() == 2)
+            marker = 1 -- after
+        ''')
+        c.initialize()
+        c.attach(localRoot="/first-client")
+        self.breakpoints({"line": self.line("before")})
+        c.configured()
+        self.stopped()
+        self.assertTrue(self.breakpoints({"line": 2, "condition": "false"}, path="/first-client/hot.lua")[0]["verified"])
+        c.request("disconnect")
+        c.event("terminated")
+        c.close()
+        c = self.connect()
+        c.initialize()
+        c.attach(localRoot="/second-client", stopOnEntry=True)
+        path = "/second-client/hot.lua"
+        self.assertFalse(self.breakpoints({"line": 2, "condition": "false"}, path=path)[0]["verified"])
+        self.assertEqual(c.request("breakpointLocations", {"source": {"path": path}, "line": 1, "endLine": 3})["breakpoints"], [])
+        self.breakpoints({"line": self.line("after")})
+        c.configured()
+        self.stopped("entry")
+        self.evaluate("ready = true", context="repl")
+        self.resume()
+        self.stopped()
+        self.assertEqual(c.request("breakpointLocations", {"source": {"path": path}, "line": 1, "endLine": 3})["breakpoints"],
+                         [{"line": 1}, {"line": 2}, {"line": 3}])
+        self.resume()
+        self.finished()
+
+    # Source refresh must merge live functions from independent Lua states;
+    # a shorter version in one state cannot erase another state's locations.
+    def test_source_locations_include_other_lua_states(self):
+        c = self.start(r'''
+            retained = assert(loadstring("local n = 1\nn = n + 1\nreturn n", "@/shared.lua"))
+            assert(retained() == 2)
+        ''', second=r'''
+            local replacement = assert(loadstring("return 9", "@/shared.lua"))
+            assert(replacement() == 9)
+            collectgarbage('collect')
+            local marker = 0 -- inspect
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect", self.second_path.read_text())}, path=self.second_path)
+        c.configured()
+        self.stopped()
+        self.assertEqual(c.request("breakpointLocations", {"source": {"path": "/shared.lua"}, "line": 1, "endLine": 3})["breakpoints"],
+                         [{"line": 1}, {"line": 2}, {"line": 3}])
+        self.assertTrue(self.breakpoints({"line": 2}, path="/shared.lua")[0]["verified"])
         self.resume()
         self.finished()
 
@@ -1688,6 +1865,132 @@ class DAPTests(DAPTestCase):
         self.assertEqual(outputs[-1], "i=5 sum=15 {done}\n")
         self.finished()
 
+    def check_breakpoint_evaluation_allocations(self, breakpoint):
+        c = self.start('''
+            local unrelated = {}
+            for i = 1, 5000 do unrelated[i] = {} end
+            collectgarbage('collect')
+            collectgarbage('stop')
+            local before = collectgarbage('count')
+            local total = 0
+            for i = 1, 20 do
+                total = total + i -- evaluated
+            end
+            local allocated = collectgarbage('count') - before
+            collectgarbage('restart')
+            assert(#unrelated == 5000 and total == 210) -- inspect
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("evaluated"), **breakpoint},
+                         {"line": self.line("inspect")})
+        c.configured()
+        if "logMessage" in breakpoint:
+            for _ in range(20):
+                self.assertEqual(c.event("output")["output"], "false\n")
+        self.stopped()
+        self.assertLess(float(self.evaluate("allocated", context="hover")["result"]), 1024)
+        self.resume()
+        self.finished()
+
+    # False conditions must not allocate traversal tables for the entire Lua
+    # heap on every hit. Stop GC to measure allocations independently of timing.
+    def test_condition_evaluation_allocations_ignore_unrelated_objects(self):
+        self.check_breakpoint_evaluation_allocations({"condition": "false"})
+
+    # Logpoint interpolation shares the evaluation path and must also avoid
+    # allocations proportional to unrelated Lua objects on every hit.
+    def test_logpoint_evaluation_allocations_ignore_unrelated_objects(self):
+        self.check_breakpoint_evaluation_allocations({"logMessage": "{false}"})
+
+    # A condition that never stops can still persist a suspended coroutine.
+    # Deferred discovery must report it at the next stop and preserve hooks
+    # explicitly installed or disabled during the evaluation.
+    def test_condition_created_coroutines_are_discovered_at_next_stop(self):
+        c = self.start('''
+            local function create()
+                created = original_create(function()
+                    local x = 42
+                    coroutine.yield()
+                    assert(x == 99)
+                end)
+                assert(original_resume(created))
+                custom = original_create(function() end)
+                disabled = original_create(function() end)
+                if not jit then
+                    custom_hook = function() end
+                    debug.sethook(custom, custom_hook, 'l', 7)
+                    debug.sethook(disabled)
+                end
+                return false
+            end
+            local marker = 1 -- condition
+            marker = 2 -- inspect
+            if not jit then
+                local hook, mask, count = debug.gethook(custom)
+                assert(hook == custom_hook and mask == 'l' and count == 7)
+                assert(debug.gethook(disabled) == nil)
+            end
+            assert(coroutine.resume(created))
+        ''', prelude='''
+            original_create, original_resume = coroutine.create, coroutine.resume
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("condition"), "condition": "create()"},
+                         {"line": self.line("inspect")})
+        c.configured()
+        self.assertEqual(self.stopped()[0]["line"], self.line("inspect"))
+        coroutines = [t for t in c.request("threads")["threads"] if t["id"] != self.thread]
+        self.assertEqual(len(coroutines), 3)
+        suspended = 0
+        for thread in coroutines:
+            frames = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"]
+            if frames:
+                suspended += 1
+                self.frame = frames[0]["id"]
+                self.assertEqual(self.evaluate("x", context="hover")["result"], "42")
+                c.request("setVariable", {"variablesReference": self.scopes()["Locals"], "name": "x", "value": "99"})
+        self.assertEqual(suspended, 1)
+        self.resume()
+        self.finished()
+
+    # A running client can request threads before the next stop. A logpoint's
+    # persisted coroutine must be discovered then, without exposing evaluation
+    # temporaries or requiring the coroutine to resume first.
+    def test_logpoint_created_coroutine_is_discovered_by_running_threads_request(self):
+        c = self.start('''
+            local function create()
+                created = original_create(function()
+                    local x = 42
+                    coroutine.yield()
+                    assert(x == 42)
+                end)
+                assert(original_resume(created))
+                return 'ready'
+            end
+            local marker = 1 -- log
+            finish = false
+            while not finish do pump() end
+            assert(coroutine.resume(created))
+        ''', prelude='''
+            original_create, original_resume = coroutine.create, coroutine.resume
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("log"), "logMessage": "{create()}"})
+        c.configured()
+        self.assertEqual(c.event("output")["output"], "ready\n")
+        threads = c.request("threads")["threads"]
+        self.assertEqual(len(threads), 2)
+        main = next(t["id"] for t in threads if "/ coroutine" not in t["name"])
+        c.request("pause", {"threadId": main})
+        self.stopped("pause")
+        self.assertEqual(c.request("threads")["threads"], threads)
+        self.evaluate("finish = true", context="repl")
+        self.resume()
+        self.finished()
+
     # Checks replacement/removal of a source's breakpoints and verification once
     # its lines are known. Invalid breakpoint data, IDs, stack ranges, and a pause
     # request while already stopped must return unsuccessful responses.
@@ -1866,6 +2169,164 @@ class DAPTests(DAPTestCase):
         self.stopped("entry")
         c.close()
         self.assertEqual(self.process.wait(timeout=5), 0, self.process.stderr.read())
+
+    def check_detach_restores_untracked_hooks(self, from_evaluation, abrupt=False):
+        creation = '''
+            child = %s(function() coroutine.yield(); return 1 end)
+            custom_child = %s(function() return 2 end)
+            disabled_child = %s(function() return 3 end)
+            if not jit then
+                hook_calls = 0
+                custom_hook = function() hook_calls = hook_calls + 1 end
+                debug.sethook(custom_child, custom_hook, "l", 7)
+                debug.sethook(disabled_child)
+            end
+        ''' % (("coroutine.create" if from_evaluation else "original_create",) * 3)
+        c = self.start(("" if from_evaluation else creation) + '''
+            local marker = 1 -- inspect
+            local function check_hooks()
+                local hook, mask, count = debug.gethook(child)
+                assert(hook == original_hook and mask == original_mask and count == original_count)
+                if not jit then
+                    hook, mask, count = debug.gethook(custom_child)
+                    assert(hook == custom_hook and mask == "l" and count == 7)
+                    hook, mask, count = debug.gethook(disabled_child)
+                    assert(hook == nil and mask == "" and count == 0)
+                end
+            end
+            check_hooks()
+            assert(coroutine.resume(child))
+            assert(coroutine.resume(child))
+            assert(coroutine.resume(custom_child))
+            assert(coroutine.resume(disabled_child))
+            check_hooks()
+            if not jit then assert(hook_calls > 0) end
+        ''', prelude='''
+            original_create = coroutine.create
+            original_hook, original_mask, original_count = debug.gethook()
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        if from_evaluation:
+            self.evaluate(creation, context="repl")
+        coroutines = [t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"]]
+        self.assertEqual(len(coroutines), 3 if from_evaluation else 0)
+        if abrupt:
+            c.close()
+            self.assertEqual(self.process.wait(timeout=5), 0, self.process.stderr.read())
+            output = []
+            while True:
+                line = self.lines.get(timeout=5)
+                if line is None:
+                    break
+                output.append(line)
+            self.assertIn("RESULT 0", "".join(output))
+        else:
+            c.request("disconnect")
+            self.finished()
+
+    # Cached coroutine.create bypasses tracking. Detach must restore inherited
+    # hooks before first execution while preserving replaced or disabled hooks.
+    def test_detach_restores_hooks_on_untracked_coroutines(self):
+        self.check_detach_restores_untracked_hooks(from_evaluation=False)
+
+    # Discovering REPL-created coroutines must preserve application hooks and
+    # restore inherited debugger hooks when disconnecting before they run.
+    def test_detach_restores_hooks_on_evaluated_coroutines(self):
+        self.check_detach_restores_untracked_hooks(from_evaluation=True)
+
+    # Losing the TCP client must perform the same hook cleanup as disconnect,
+    # including coroutines that bypassed the create wrapper.
+    def test_abrupt_detach_restores_hooks_on_untracked_coroutines(self):
+        self.check_detach_restores_untracked_hooks(from_evaluation=False, abrupt=True)
+
+    # Abrupt disconnect must also restore hooks inherited by REPL-created
+    # coroutines rather than leave evaluation's debugger hook installed.
+    def test_abrupt_detach_restores_hooks_on_evaluated_coroutines(self):
+        self.check_detach_restores_untracked_hooks(from_evaluation=True, abrupt=True)
+
+    def check_evaluation_created_coroutines(self, cached=False, fail=False):
+        c = self.start('''
+            local marker = 1 -- inspect
+            assert(coroutine.resume(created))
+            assert(wrapped() == 99)
+            assert(coroutine.resume(unstarted))
+            created, wrapped, unstarted = nil, nil, nil
+            collectgarbage('collect')
+            marker = 2 -- collected
+        ''', prelude='''
+            original_create, original_resume, original_wrap = coroutine.create, coroutine.resume, coroutine.wrap
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")}, {"line": self.line("collected")})
+        c.configured()
+        main_frames = self.stopped()
+        main_frame = self.frame
+        before = c.request("threads")["threads"]
+        expression = '''
+            local function worker()
+                local x = 42
+                coroutine.yield()
+                assert(x == 99)
+                return x
+            end
+            created = CREATE(worker)
+            wrapped = WRAP(worker)
+            unstarted = CREATE(function() return 1 end)
+            assert(RESUME(created))
+            wrapped()
+        '''.replace("CREATE", "original_create" if cached else "coroutine.create")
+        expression = expression.replace("WRAP", "original_wrap" if cached else "coroutine.wrap")
+        expression = expression.replace("RESUME", "original_resume" if cached else "coroutine.resume")
+        if fail:
+            expression += "error('after creating coroutines')"
+        c.request("evaluate", {"frameId": self.frame, "expression": expression, "context": "repl"}, success=not fail)
+        threads = c.request("threads")["threads"]
+        coroutines = [t for t in threads if t not in before]
+        self.assertEqual(len(coroutines), 3, threads)
+        started = [c.event("thread") for _ in coroutines]
+        self.assertEqual({e["threadId"] for e in started}, {t["id"] for t in coroutines})
+        self.assertTrue(all(e["reason"] == "started" for e in started))
+        suspended = 0
+        for thread in coroutines:
+            frames = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"]
+            if not frames:
+                continue
+            suspended += 1
+            self.frame = frames[0]["id"]
+            self.assertEqual(self.evaluate("x", context="hover")["result"], "42")
+            c.request("setVariable", {"variablesReference": self.scopes()["Locals"], "name": "x", "value": "99"})
+        self.assertEqual(suspended, 2)
+        self.frame = main_frame
+        # Repeated evaluations must not expose their internal temporary threads.
+        for _ in range(3):
+            self.assertEqual(self.evaluate("1 + 1")["result"], "2")
+            self.assertEqual(c.request("threads")["threads"], threads)
+        self.assertEqual(c.request("stackTrace", {"threadId": self.thread})["stackFrames"], main_frames)
+        self.resume()
+        self.stopped()
+        self.assertEqual(c.request("threads")["threads"], before)
+        self.resume()
+        self.finished()
+
+    # Persisted created and wrapped coroutines must become inspectable after
+    # REPL evaluation, while debugger temporaries stay hidden and GC still works.
+    def test_evaluation_created_coroutines_are_inspectable(self):
+        self.check_evaluation_created_coroutines()
+
+    # Cached original coroutine APIs bypass the wrappers, including an unstarted
+    # coroutine that emits no hooks. Discover all of them after evaluation.
+    def test_evaluation_created_coroutines_using_cached_apis_are_inspectable(self):
+        self.check_evaluation_created_coroutines(cached=True)
+
+    # A failed evaluation can still persist application coroutines; report them
+    # and expose their suspended locals after the error response.
+    def test_failed_evaluation_created_coroutines_are_inspectable(self):
+        self.check_evaluation_created_coroutines(cached=True, fail=True)
 
     # Checks that caught pcall errors are ignored and an uncaught error stops
     # before unwinding, with its message and live local available for inspection.
@@ -2316,6 +2777,287 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    # Thread lookups must retain stable IDs for hundreds of live coroutines,
+    # then discard collected entries even when Lua reuses their addresses.
+    def test_many_coroutine_lookups_and_collection(self):
+        c = self.start('''
+            local function create_threads()
+                local held = {}
+                for i = 1, 512 do
+                    held[i] = coroutine.create(function()
+                        local value = i
+                        coroutine.yield()
+                        return value
+                    end)
+                    assert(coroutine.resume(held[i]))
+                end
+                return held
+            end
+            local held = create_threads()
+            local marker = 1 -- before
+            held = nil
+            collectgarbage('collect')
+            pump()
+            held = create_threads()
+            marker = 2 -- after
+            assert(#held == 512)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("before")}, {"line": self.line("after")})
+        c.configured()
+        old_ids = set()
+        for _ in range(2):
+            self.stopped()
+            main_frame = self.frame
+            threads = c.request("threads")["threads"]
+            coroutines = [t for t in threads if "/ coroutine" in t["name"]]
+            self.assertEqual(len(coroutines), 512)
+            ids = {t["id"] for t in coroutines}
+            self.assertEqual(len(ids), 512)
+            self.assertFalse(ids & old_ids)
+            for old_id in sorted(old_ids)[:3]:
+                c.request("stackTrace", {"threadId": old_id}, success=False)
+            thread = max(coroutines, key=lambda t: t["id"])
+            self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+            self.assertEqual(self.evaluate("value", context="hover")["result"], "512")
+            self.assertEqual(c.request("threads")["threads"], threads)
+            self.frame = main_frame
+            old_ids = ids
+            self.resume()
+        self.finished()
+
+    # Completing a coroutine through a cached resume during evaluation must
+    # reject its old frame and variable IDs, not inspect an unwound Lua stack.
+    def test_evaluation_expires_completed_coroutine_references(self):
+        c = self.start('''
+            co = coroutine.create(function()
+                local x = 42
+                local t = {value=1}
+                coroutine.yield()
+                return x + t.value
+            end)
+            assert(original_resume(co))
+            local marker = 1 -- inspect
+            assert(coroutine.status(co) == 'dead')
+        ''', prelude="original_resume = coroutine.resume")
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        main_frame = self.frame
+        thread = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
+        self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+        old_frame = self.frame
+        references = list(self.scopes().values())
+        references.append(self.evaluate("t")["variablesReference"])
+        # Evaluating on the yielded frame also exercises its environment snapshot
+        # after the very frame supplying its locals has finished executing.
+        self.assertEqual(self.evaluate("original_resume(co)", context="repl")["result"], "true")
+        for reference in references:
+            c.request("variables", {"variablesReference": reference}, success=False)
+            c.request("setVariable", {"variablesReference": reference, "name": "x", "value": "9"}, success=False)
+        c.request("scopes", {"frameId": old_frame}, success=False)
+        c.request("evaluate", {"frameId": old_frame, "expression": "x"}, success=False)
+        c.request("completions", {"frameId": old_frame, "text": "x", "column": 2}, success=False)
+        self.frame = main_frame
+        self.assertEqual(self.evaluate("marker", context="hover")["result"], "nil")
+        self.resume()
+        self.finished()
+
+    # A new function at the same coroutine stack depth must get fresh IDs;
+    # assigning through an old scope must not edit the replacement frame.
+    def test_evaluation_replaces_coroutine_frames(self):
+        c = self.start('''
+            local function first()
+                local x = 1
+                coroutine.yield()
+            end
+            local function second()
+                local x = 2
+                coroutine.yield()
+                assert(x == 2)
+            end
+            co = coroutine.create(function() first(); second() end)
+            assert(coroutine.resume(co))
+            local marker = 1 -- inspect
+            assert(coroutine.resume(co))
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        main_frame = self.frame
+        thread = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
+        self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+        old_frame = self.frame
+        reference = self.scopes()["Locals"]
+        # The setVariable RHS itself replaces the selected frame.
+        c.request("setVariable", {"variablesReference": reference, "name": "x",
+                                  "value": "(function() coroutine.resume(co); return 99 end)()"}, success=False)
+        c.request("scopes", {"frameId": old_frame}, success=False)
+        c.request("variables", {"variablesReference": reference}, success=False)
+        self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+        self.assertNotEqual(self.frame, old_frame)
+        self.assertEqual(self.evaluate("x")["result"], "2")
+        self.frame = main_frame
+        self.resume()
+        self.finished()
+
+    def check_successive_coroutine_references(self, evaluate_on_coroutine=False):
+        c = self.start('''
+            local function work(value)
+                local x = value
+                local t = {value=value}
+                coroutine.yield()
+                assert(x == value and t.value == value)
+            end
+            co = coroutine.create(function() work(1); work(2) end)
+            assert(coroutine.resume(co))
+            local marker = 1 -- inspect
+            assert(coroutine.resume(co))
+        ''', prelude="original_resume = coroutine.resume")
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        main_frames = self.stopped()
+        main_frame = self.frame
+        main_thread = self.thread
+        thread = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
+        old_frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]
+        self.frame = old_frame["id"]
+        references = list(self.scopes().values())
+        references.append(self.evaluate("t")["variablesReference"])
+        if evaluate_on_coroutine:
+            self.evaluate("saved = function() return x end; original_resume(co)", context="repl")
+            self.frame = main_frame
+            self.assertEqual(self.evaluate("saved()")["result"], "nil")
+        else:
+            self.frame = main_frame
+            self.evaluate("original_resume(co)", context="repl")
+        for reference in references:
+            c.request("setVariable", {"variablesReference": reference, "name": "x", "value": "99"}, success=False)
+            c.request("variables", {"variablesReference": reference}, success=False)
+        c.request("scopes", {"frameId": old_frame["id"]}, success=False)
+        c.request("evaluate", {"frameId": old_frame["id"], "expression": "x"}, success=False)
+        c.request("completions", {"frameId": old_frame["id"], "text": "x", "column": 2}, success=False)
+        new_frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]
+        self.assertEqual(new_frame["line"], old_frame["line"])
+        self.assertNotEqual(new_frame["id"], old_frame["id"])
+        self.frame = new_frame["id"]
+        self.assertEqual(self.evaluate("x", context="hover")["result"], "2")
+        self.assertEqual(c.request("stackTrace", {"threadId": main_thread})["stackFrames"], main_frames)
+        self.frame = main_frame
+        self.resume()
+        self.finished()
+
+    # Resuming another coroutine through a cached API must expire its old IDs,
+    # even when the same function yields at the same line in its next invocation.
+    def test_evaluation_expires_successive_coroutine_invocations(self):
+        self.check_successive_coroutine_references()
+
+    # Escaped evaluation closures must not snapshot locals from a replacement
+    # invocation, and the expired frame's DAP references must remain invalid.
+    def test_evaluation_snapshot_excludes_successive_invocation(self):
+        self.check_successive_coroutine_references(evaluate_on_coroutine=True)
+
+    def check_evaluation_frame_identity(self, requests, same_function=False):
+        c = self.start('''
+            global_value = 30
+            local shared = 10
+            local function first(value)
+                local x = value
+                coroutine.yield()
+                assert(x == value and shared == 10 and global_value == 30)
+            end
+            local function second()
+                local x = 2
+                coroutine.yield()
+                assert(x == 2 and shared == 10 and global_value == 30)
+            end
+            for i = 1, %d do
+                co = coroutine.create(function() first(1); %s end)
+                assert(coroutine.resume(co))
+                local marker = 1 -- inspect
+                assert(coroutine.resume(co))
+            end
+        ''' % (len(requests), "first(2)" if same_function else "second()"),
+            prelude="original_resume = coroutine.resume")
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        for command, arguments in requests:
+            self.stopped()
+            main_frame = self.frame
+            thread = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
+            old_frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+            self.frame = old_frame
+            target = {"variablesReference": self.scopes()["Locals"]} if command == "setVariable" else {"frameId": old_frame}
+            sequence = c.send(command, {**target, **arguments})
+            response = c.wait(lambda m: m["type"] == "response" and m["request_seq"] == sequence)
+            self.assertFalse(response["success"], (command, arguments, response))
+            self.assertIn("Evaluation frame is no longer active", response["message"])
+            self.frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+            self.assertNotEqual(self.frame, old_frame)
+            for binding, value in (("x", "2"), ("shared", "10"), ("global_value", "30")):
+                self.assertEqual(self.evaluate(binding, context="hover")["result"], value)
+            self.frame = main_frame
+            self.resume()
+        self.finished()
+
+    # Reads within a single evaluation must reject a replaced coroutine frame,
+    # including upvalue and global lookups through that frame's environment.
+    def test_evaluation_reads_reject_replaced_frame(self):
+        self.check_evaluation_frame_identity([
+            ("evaluate", {"expression": "coroutine.resume(co); return " + name, "context": "repl"})
+            for name in ("x", "shared", "global_value")])
+
+    # REPL writes after resuming the selected coroutine must not mutate locals
+    # in its replacement frame, or the expired frame's upvalues and globals.
+    def test_evaluation_writes_reject_replaced_frame(self):
+        self.check_evaluation_frame_identity([
+            ("evaluate", {"expression": "coroutine.resume(co); " + name + " = 99", "context": "repl"})
+            for name in ("x", "shared", "global_value")])
+
+    # setExpression must reject its binding write if evaluating the right-hand
+    # side replaces the selected frame, leaving the program's values intact.
+    def test_set_expression_rejects_replaced_frame(self):
+        self.check_evaluation_frame_identity([
+            ("setExpression", {"expression": name, "value": "(function() coroutine.resume(co); return 99 end)()"})
+            for name in ("x", "shared", "global_value")])
+
+    # A cached resume can replace the invocation without changing its function
+    # or source line. Reads later in that evaluation must reject the old binding.
+    def test_evaluation_reads_reject_successive_invocations(self):
+        self.check_evaluation_frame_identity([
+            ("evaluate", {"expression": "original_resume(co); return " + name, "context": "repl"})
+            for name in ("x", "shared", "global_value")], same_function=True)
+
+    # Writes within a REPL evaluation must not reach a later invocation of the
+    # same function after resuming the selected coroutine through a cached API.
+    def test_evaluation_writes_reject_successive_invocations(self):
+        self.check_evaluation_frame_identity([
+            ("evaluate", {"expression": "original_resume(co); " + name + " = 99", "context": "repl"})
+            for name in ("x", "shared", "global_value")], same_function=True)
+
+    # setExpression must reject a write when its RHS advances to the next
+    # invocation, despite identical function, stack depth, and source line.
+    def test_set_expression_rejects_successive_invocations(self):
+        self.check_evaluation_frame_identity([
+            ("setExpression", {"expression": name, "value": "(function() original_resume(co); return 99 end)()"})
+            for name in ("x", "shared", "global_value")], same_function=True)
+
+    # setVariable must revalidate its scope after evaluating an RHS that resumes
+    # the coroutine into the next invocation of the same function.
+    def test_set_variable_rejects_successive_invocations(self):
+        self.check_evaluation_frame_identity([
+            ("setVariable", {"name": "x", "value": "(function() original_resume(co); return 99 end)()"})],
+            same_function=True)
+
     # Copy enough varargs to grow the evaluation stack, including interior and
     # trailing nils, without changing the yielded coroutine's resume arguments.
     def test_evaluate_varargs_in_yielded_coroutine(self):
@@ -2436,6 +3178,205 @@ class DAPTests(DAPTestCase):
         self.assertEqual(self.evaluate("pump()")["result"], "nil")
         self.assertEqual(self.evaluate("collectgarbage('collect')")["result"], "0")
         self.assertEqual(self.evaluate("x")["result"], "1")
+        self.resume()
+        self.finished()
+
+    # A runaway REPL, watch, assignment, or resumed coroutine must time out and
+    # leave the stopped frame editable, with hooks working on the next stop.
+    def test_evaluation_timeout_preserves_session(self):
+        c = self.start('''
+            local x = 1
+            local function spin() while true do end end
+            co = coroutine.create(spin)
+            x = x + 1 -- inspect
+            x = x + 1 -- again
+            assert(x == 4)
+        ''')
+        c.initialize()
+        for timeout in (0, -1, 60001, "20", 1.5):
+            c.request("attach", {"evaluationTimeout": timeout}, success=False)
+        c.attach(evaluationTimeout=20)
+        self.breakpoints({"line": self.line("inspect")}, {"line": self.line("again")})
+        c.configured()
+        self.stopped()
+        for expression, context in (("while true do end", "repl"), ("spin()", "watch"),
+                                    ("while true do pcall(spin) end", "repl"),
+                                    ("coroutine.wrap(spin)()", "repl"),
+                                    ("coroutine.resume(co)", "repl")):
+            seq = c.send("evaluate", {"frameId": self.frame, "expression": expression, "context": context})
+            response = c.wait(lambda message: message.get("request_seq") == seq)
+            self.assertFalse(response["success"], response)
+            self.assertIn("timed out", response["message"])
+        reference = self.scopes()["Locals"]
+        c.request("setVariable", {"variablesReference": reference, "name": "x", "value": "spin()"}, success=False)
+        c.request("setExpression", {"frameId": self.frame, "expression": "x", "value": "spin()"}, success=False)
+        self.assertEqual(self.evaluate("x")["result"], "1")
+        self.evaluate("x = 2", context="repl")
+        self.resume()
+        self.stopped()
+        self.assertEqual(self.evaluate("x")["result"], "3")
+        self.resume()
+        self.finished()
+
+    def check_evaluation_timeout_coroutine_hooks(self, context="repl", cached=False, resume_existing=False):
+        c = self.start('''
+            local function worker()
+                local x = 1
+                x = x + 1 -- child
+                assert(x == 2)
+            end
+            local function spin() while true do end end
+            local function timeout()
+                xpcall(spin, function(err)
+                    co = CREATE(worker)
+                    custom = CREATE(function() end)
+                    disabled = CREATE(function() end)
+                    if not jit then
+                        custom_hook = function() end
+                        debug.sethook(custom, custom_hook, 'l', 7)
+                        debug.sethook(disabled)
+                    end
+                    return err
+                end)
+            end
+            existing = coroutine.create(timeout)
+            local marker = 0 -- inspect
+            marker = 1 -- evaluated
+            -- Capture settings before resuming the child or stopping again,
+            -- so deferred discovery cannot hide incomplete timeout cleanup.
+            local _, mask, count = debug.gethook(co)
+            observed_mask, observed_count = mask, count
+            local _, parent_mask, parent_count = debug.gethook(existing)
+            observed_parent_mask, observed_parent_count = parent_mask, parent_count
+            if not jit then
+                local hook, custom_mask, custom_count = debug.gethook(custom)
+                assert(hook == custom_hook and custom_mask == 'l' and custom_count == 7)
+                assert(debug.gethook(disabled) == nil)
+            end
+            assert(coroutine.resume(co))
+            marker = 2 -- after
+        '''.replace("CREATE", "original_create" if cached else "coroutine.create"), prelude='''
+            original_create = coroutine.create
+        ''')
+        c.initialize()
+        c.attach(evaluationTimeout=20)
+        expression = "coroutine.resume(existing)" if resume_existing else "timeout()"
+        breakpoints = [{"line": self.line("child")}, {"line": self.line("after")}]
+        if context == "repl":
+            breakpoints.append({"line": self.line("inspect")})
+        elif context == "condition":
+            breakpoints.append({"line": self.line("evaluated"), "condition": expression})
+        else:
+            breakpoints.append({"line": self.line("evaluated"), "logMessage": "{" + expression + "}"})
+        self.breakpoints(*breakpoints)
+        c.configured()
+        if context == "repl":
+            self.stopped()
+            sequence = c.send("evaluate", {"frameId": self.frame, "expression": expression, "context": "repl"})
+            response = c.wait(lambda message: message.get("request_seq") == sequence)
+            self.assertFalse(response["success"], response)
+            self.assertIn("timed out", response["message"])
+            self.resume()
+        else:
+            self.assertIn("timed out", c.event("output")["output"])
+        self.assertEqual(self.stopped()[0]["line"], self.line("child"))
+        self.assertEqual(self.evaluate("x", context="hover")["result"], "1")
+        for name in ("observed_mask", "observed_parent_mask"):
+            self.assertEqual(self.evaluate(name, context="hover")["result"], '"crl"')
+        for name in ("observed_count", "observed_parent_count"):
+            self.assertEqual(self.evaluate(name, context="hover")["result"], "1000")
+        self.resume()
+        self.assertEqual(self.stopped()[0]["line"], self.line("after"))
+        self.resume()
+        self.finished()
+
+    # A coroutine created by an xpcall handler after timeout must regain line
+    # hooks and hit breakpoints, without replacing custom or disabled hooks.
+    def test_evaluation_timeout_restores_inherited_coroutine_hooks(self):
+        self.check_evaluation_timeout_coroutine_hooks()
+
+    # Timed-out conditions need immediate hook cleanup even though normal
+    # discovery is deferred, including children created through cached APIs.
+    def test_condition_timeout_restores_inherited_coroutine_hooks(self):
+        self.check_evaluation_timeout_coroutine_hooks(context="condition", cached=True)
+
+    # A logpoint can time out inside an already tracked coroutine. Restore its
+    # timeout hook as well as the hook inherited by its error handler's child.
+    def test_logpoint_timeout_restores_existing_and_inherited_coroutine_hooks(self):
+        self.check_evaluation_timeout_coroutine_hooks(context="logpoint", cached=True, resume_existing=True)
+
+    # Conditions and logpoints run inside stop hooks too; runaway expressions
+    # must report their timeout and let later breakpoints remain usable.
+    def test_breakpoint_expressions_time_out(self):
+        c = self.start('''
+            local x = 0
+            x = x + 1 -- condition
+            x = x + 1 -- log
+            x = x + 1 -- inspect
+            assert(x == 3)
+        ''')
+        c.initialize()
+        c.attach(evaluationTimeout=20)
+        spin = "(function() while true do end end)()"
+        self.breakpoints({"line": self.line("condition"), "condition": spin},
+                         {"line": self.line("log"), "logMessage": "{" + spin + "}"},
+                         {"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        for _ in range(2):
+            self.assertIn("timed out", c.event("output")["output"])
+        self.assertEqual(self.evaluate("x")["result"], "2")
+        self.resume()
+        self.finished()
+
+    # Closing the client during a confirmed running evaluation must release the
+    # debuggee once its evaluation budget expires, without an external kill.
+    def test_disconnect_during_evaluation_timeout(self):
+        c = self.start("local x = 1\nx = x + 1 -- inspect\nassert(x == 2)\n")
+        c.initialize()
+        c.attach(evaluationTimeout=100)
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        c.send("evaluate", {"frameId": self.frame, "context": "repl",
+                            "expression": "print('EVALUATING'); io.stdout:flush(); while true do end"})
+        self.assertTrue(self.lines.get(timeout=5).strip().endswith("EVALUATING"))
+        c.close()
+        self.assertEqual(self.process.wait(timeout=5), 0, self.process.stderr.read())
+        output = []
+        while True:
+            line = self.lines.get(timeout=5)
+            if line is None:
+                break
+            output.append(line)
+        self.assertIn("RESULT 0", "".join(output))
+
+    # Oversized values and aggregate variable responses must fail the request
+    # while preserving the paused session for smaller evaluations and paging.
+    def test_oversized_responses_preserve_paused_session(self):
+        c = self.start('''
+            local big = string.rep('x', 1048576)
+            local binary = string.rep(string.char(0), 300000)
+            local items = {}
+            for i = 1, 1500 do items[i] = string.rep('y', 1024) end
+            local marker = 1 -- inspect
+            assert(#big == 1048576 and #binary == 300000 and #items == 1500)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        reference = self.scopes()["Locals"]
+        c.request("variables", {"variablesReference": reference}, success=False)
+        for expression in ("big", "binary", "error(big)", "string.rep('z', 5 * 1048576)"):
+            c.request("evaluate", {"frameId": self.frame, "expression": expression}, success=False)
+        self.assertEqual(self.evaluate("#big")["result"], "1048576")
+        self.assertEqual(self.evaluate("big:sub(1, 10)")["result"], '"xxxxxxxxxx"')
+        items = self.evaluate("items")["variablesReference"]
+        c.request("variables", {"variablesReference": items}, success=False)
+        self.assertEqual(len(self.variables(items, filter="indexed", start=0, count=10)), 10)
+        self.assertEqual(self.evaluate("#items")["result"], "1500")
         self.resume()
         self.finished()
 
@@ -2753,6 +3694,62 @@ class EngineDAPTests(DAPTestCase):
                 break
             output.append(line)
         self.assertEqual(code, expected, "".join(output))
+
+    def check_native_callbacks(self, shared_state=False, yielded=False):
+        c = self.start_engine("go", yielded=yielded, case="native_callbacks", shared_state=shared_state)
+        c.initialize()
+        c.attach(localRoot=str(ENGINE_SOURCE_ROOT))
+        self.breakpoints({"line": self.line("callback-suspended" if yielded else "callback-inspect")})
+        c.configured()
+        main_frames = self.stopped()
+        frames = main_frames
+        selected_thread = self.thread
+        if yielded:
+            selected_thread = next(t["id"] for t in c.request("threads")["threads"] if " / coroutine " in t["name"])
+            frames = c.request("stackTrace", {"threadId": selected_thread})["stackFrames"]
+            self.frame = frames[0]["id"]
+        scopes = self.scopes()
+        original_self = self.evaluate("self", context="hover")
+        self.assertIn("hash:", self.evaluate('factory.create("#factory")', context="repl")["result"])
+        self.assertEqual(self.evaluate("self", context="hover"), original_self)
+        self.evaluate('''
+            callback_observer = function() x = x + 1 end
+            created = factory.create("#factory")
+            callback_observer = nil
+            saved = function() return x end
+        ''', context="repl")
+        self.assertEqual(self.evaluate("x", context="hover")["result"], "2")
+        value = '(function() factory.create("#factory"); return x + 1 end)()'
+        self.assertEqual(c.request("setVariable", {"variablesReference": scopes["Locals"], "name": "x", "value": value})["value"], "3")
+        self.assertEqual(c.request("setExpression", {"frameId": self.frame, "expression": "x", "value": value})["value"], "4")
+        c.request("setExpression", {"frameId": self.frame, "expression": "self.score",
+                                   "value": '(function() factory.create("#factory"); return 99 end)()'})
+        self.assertEqual(self.evaluate("saved()")["result"], "2")
+        self.assertEqual(self.scopes(), scopes)
+        self.assertEqual(c.request("stackTrace", {"threadId": selected_thread})["stackFrames"], frames)
+        self.assertEqual(c.request("stackTrace", {"threadId": self.thread})["stackFrames"], main_frames)
+        self.resume()
+        self.finished()
+
+    # factory.create runs init callbacks on the paused engine thread. Its frame
+    # and bindings must survive reads and assignments that enter those callbacks.
+    def test_native_callbacks_preserve_paused_frames(self):
+        self.check_native_callbacks()
+
+    # Shared script contexts must preserve paused frames too, including a tail
+    # call from the spawned instance into a closure made by the current REPL.
+    def test_native_callbacks_preserve_paused_frames_with_shared_state(self):
+        self.check_native_callbacks(shared_state=True)
+
+    # Evaluating a yielded coroutine can invoke callbacks on its paused resumer;
+    # preserve both stacks and allow access to the selected coroutine's locals.
+    def test_native_callbacks_preserve_yielded_frames(self):
+        self.check_native_callbacks(yielded=True)
+
+    # The yielded-coroutine case must preserve both stacks with a shared VM as
+    # well as separate game-object, GUI, and render script contexts.
+    def test_native_callbacks_preserve_yielded_frames_with_shared_state(self):
+        self.check_native_callbacks(shared_state=True, yielded=True)
 
     def check_instance(self, kind, yielded=False):
         c = self.start_engine(kind, yielded)

@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_RELEASE)
 #include "dap.h"
 #include <dlib/dstrings.h>
 #include <stdarg.h>
@@ -482,4 +481,3 @@ namespace dmDebugger
         return input.Size() - *offset >= length ? 1 : 0;
     }
 } // namespace dmDebugger
-#endif

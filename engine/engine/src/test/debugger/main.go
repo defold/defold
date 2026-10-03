@@ -14,3 +14,8 @@ components {
   id: "gui"
   component: "/debugger/main.gui"
 }
+embedded_components {
+  id: "factory"
+  type: "factory"
+  data: "prototype: \"/debugger/callback.go\""
+}
