@@ -114,6 +114,31 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    @GuiCustomNode(type = "LayoutValidated")
+    private static class TestLayoutValidatedGuiNode implements IGuiCustomNode {
+        public static void registerProperties(IGuiCustomType type) {
+            type.addProperty("selection", "valid", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
+        }
+
+        public static void validateNodes(Project project, IResource resource, List<NodeDesc> nodes, Map<String, IResource> resources) {
+            Assert.fail("The layout overload must take precedence over the legacy list overload");
+        }
+
+        public static void validateNodes(Project project, IResource resource, Map<String, List<NodeDesc>> nodesByLayout, Map<String, IResource> resources) throws CompileExceptionError {
+            project.setOption("gui-layout-validation-calls", Integer.toString(Integer.parseInt(project.option("gui-layout-validation-calls", "0")) + 1));
+            project.setOption("gui-validated-layouts", String.join(",", nodesByLayout.keySet()));
+            for (Map.Entry<String, List<NodeDesc>> layout : nodesByLayout.entrySet()) {
+                for (NodeDesc node : layout.getValue()) {
+                    Assert.assertEquals(MurmurHash.hash32("LayoutValidated"), node.getCustomType());
+                    if (!findCustomProperty(node, "selection").getString().equals("valid")) {
+                        throw new CompileExceptionError(resource, 17,
+                                "GUI node '" + node.getId() + "' in layout '" + layout.getKey() + "': invalid selection");
+                    }
+                }
+            }
+        }
+    }
+
     @GuiCustomNode(type = "Typed")
     private static class TestTypedGuiNode implements IGuiCustomNode {
         public static void registerProperties(IGuiCustomType type) {
@@ -134,6 +159,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         getProject().getGuiCustomTypeRegistry().register(TestOptionalResourceGuiNode.class);
         getProject().getGuiCustomTypeRegistry().register(TestTypedGuiNode.class);
         getProject().getGuiCustomTypeRegistry().register(TestValidatedGuiNode.class);
+        getProject().getGuiCustomTypeRegistry().register(TestLayoutValidatedGuiNode.class);
     }
 
     private boolean nodeExists(Gui.SceneDesc scene, String nodeId)
@@ -626,6 +652,47 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Preserves layout names and invokes only the preferred callback once when both overloads exist.
+    @Test
+    public void testCustomNodeValidatorReceivesLayoutNames() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "validated", "LayoutValidated");
+        finishNode(src);
+        addBoxNode(src, "box", "");
+        startLayout(src, "Landscape");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "validated", "", false, List.of());
+        src.append("  custom_properties { id: \"selection\" type: TYPE_STRING string: \"valid\" }\n");
+        finishNode(src);
+        finishLayout(src);
+
+        buildGui(src, "/test.gui");
+
+        Assert.assertEquals("1", getProject().option("gui-layout-validation-calls", "0"));
+        Assert.assertEquals(",Landscape", getProject().option("gui-validated-layouts", "missing"));
+    }
+
+    // Lets plugins identify the invalid layout without losing the source GUI or exception line.
+    @Test
+    public void testCustomNodeValidatorReportsInvalidLayoutName() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "validated", "LayoutValidated");
+        finishNode(src);
+        startLayout(src, "Landscape");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "validated", "", false, List.of());
+        src.append("  custom_properties { id: \"selection\" type: TYPE_STRING string: \"invalid\" }\n");
+        finishNode(src);
+        finishLayout(src);
+
+        try {
+            buildGui(src, "/test.gui");
+            Assert.fail("Expected the layout-specific selection to fail validation");
+        } catch (CompileExceptionError e) {
+            Assert.assertEquals("GUI node 'validated' in layout 'Landscape': invalid selection", e.getMessage());
+            Assert.assertEquals("test.gui", e.getResource().getPath());
+            Assert.assertEquals(17, e.getLineNumber());
+        }
+    }
+
     // Invokes extension validation after template overrides and imports the template's resources.
     @Test
     public void testCustomNodeValidatorChecksTemplateOverrides() throws Exception {
@@ -879,7 +946,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         finishNode(src);
         finishLayout(src);
 
-        assertGuiBuildError(src, "GUI node 'typed': custom property 'boolean' must have type TYPE_BOOLEAN, got TYPE_NUMBER");
+        assertGuiBuildError(src, "GUI node 'typed' in layout 'Landscape': custom property 'boolean' must have type TYPE_BOOLEAN, got TYPE_NUMBER");
     }
 
     // Checks types after a template child overrides a valid custom property.
@@ -958,7 +1025,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         finishNode(src);
         finishLayout(src);
 
-        assertMissingSpineScene(src, "spine");
+        assertGuiBuildError(src, "GUI node 'spine' in layout 'Landscape' must specify a resource for custom property 'spine_scene'");
     }
 
     // Rejects a template override that clears a required resource after template expansion.

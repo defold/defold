@@ -83,6 +83,7 @@ public class GuiCustomTypeRegistry {
         private final Map<Long, Property> propertiesByHash = new LinkedHashMap<Long, Property>();
         private Method migratePropertiesMethod;
         private Method validateNodesMethod;
+        private Method validateNodesByLayoutMethod;
         private String signature;
 
         private Type(String name) {
@@ -122,7 +123,7 @@ public class GuiCustomTypeRegistry {
         }
 
         public boolean hasValidator() {
-            return validateNodesMethod != null;
+            return validateNodesByLayoutMethod != null || validateNodesMethod != null;
         }
 
         public void migrateProperties(Map<String, Object> properties) {
@@ -136,12 +137,15 @@ public class GuiCustomTypeRegistry {
             }
         }
 
-        public void validateNodes(Project project, IResource resource, List<NodeDesc> nodes, Map<String, IResource> resources) throws CompileExceptionError {
-            if (validateNodesMethod == null) {
+        public void validateNodes(Project project, IResource resource, Map<String, List<NodeDesc>> nodesByLayout, Map<String, IResource> resources) throws CompileExceptionError {
+            if (!hasValidator()) {
                 return;
             }
+            Method method = validateNodesByLayoutMethod != null ? validateNodesByLayoutMethod : validateNodesMethod;
+            Object nodes = validateNodesByLayoutMethod != null ? nodesByLayout
+                    : nodesByLayout.values().stream().flatMap(Collection::stream).toList();
             try {
-                validateNodesMethod.invoke(null, project, resource, nodes, resources);
+                method.invoke(null, project, resource, nodes, resources);
             } catch (InvocationTargetException e) {
                 Throwable cause = e.getCause();
                 if (cause instanceof CompileExceptionError compileError) {
@@ -170,6 +174,7 @@ public class GuiCustomTypeRegistry {
         invokeRegisterProperties(klass, type);
         type.migratePropertiesMethod = findStaticMethod(klass, "migrateProperties", Map.class);
         type.validateNodesMethod = findStaticMethod(klass, "validateNodes", Project.class, IResource.class, List.class, Map.class);
+        type.validateNodesByLayoutMethod = findStaticMethod(klass, "validateNodes", Project.class, IResource.class, Map.class, Map.class);
         type.signature = calculateSignature(klass, type);
 
         typesByHash.put(type.getNameHash(), type);

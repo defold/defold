@@ -18,14 +18,18 @@ package com.dynamo.bob.pipeline;
  * Marker for GUI custom node build plugins. Plugins may provide static
  * {@code registerProperties(IGuiCustomType)} and {@code migrateProperties(Map)} methods.
  *
- * An optional static {@code validateNodes(Project, IResource, List<NodeDesc>, Map<String, IResource>)}
+ * An optional static {@code validateNodes(Project, IResource, Map<String, List<NodeDesc>>, Map<String, IResource>)}
  * method validates the final nodes. Bob calls it once per node type and GUI build, after
- * migration, template and layout overrides, and generic property validation. The list contains
- * only nodes of this type from the default layout and all other layouts. The resource argument
- * is the source GUI for diagnostics; the map associates GUI resource aliases with their compiled
+ * migration, template and layout overrides, and generic property validation. The first map groups
+ * nodes of this type by layout name, with an empty string for the default layout. Only layouts
+ * containing nodes of this type are included; nodes omitted from a layout inherit the default layout.
+ * Maps and node lists are immutable. The resource argument is the source GUI for diagnostics;
+ * the last map associates GUI resource aliases with their compiled
  * output resources. Referenced resources have already been built. Throw CompileExceptionError
  * to report a build error. Plugins without this method retain their existing behavior.
  * GUI task signatures include the used plugin JARs and registered property definitions.
+ * The older overload taking {@code List<NodeDesc>} instead of the layout map remains supported.
+ * If both overloads are present, Bob calls only the one taking a layout map.
  */
 public interface IGuiCustomNode {
 }
