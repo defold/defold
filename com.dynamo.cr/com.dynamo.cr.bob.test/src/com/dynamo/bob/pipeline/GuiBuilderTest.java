@@ -937,6 +937,53 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         assertMissingSpineScene(src, "template/spine");
     }
 
+    // Rejects a nonexistent required alias introduced after the template's resource checks.
+    @Test
+    public void testTemplateCannotSelectMissingRequiredResource() throws Exception {
+        assertTemplateCannotSelectMissingResource("Spine", "spine_scene");
+    }
+
+    // Optional resources may be empty, but template overrides must still name an existing alias.
+    @Test
+    public void testTemplateCannotSelectMissingOptionalResource() throws Exception {
+        assertTemplateCannotSelectMissingResource("OptionalResource", "resource");
+    }
+
+    private void assertTemplateCannotSelectMissingResource(String type, String property) throws Exception {
+        StringBuilder templateSrc = createGui();
+        startCustomNode(templateSrc, "node", type);
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "template/node", "template", true, List.of());
+        src.append("  custom_properties { id: \"").append(property).append("\" type: TYPE_STRING string: \"missing\" }\n");
+        finishNode(src);
+
+        assertGuiBuildError(src, "GUI node 'template/node': custom property '" + property + "' refers to missing resource 'missing'");
+    }
+
+    // Defers alias validation so a parent can correct an unresolved resource in a reusable template.
+    @Test
+    public void testTemplateCanCorrectMissingResourceAlias() throws Exception {
+        StringBuilder templateSrc = createGui();
+        startSpineCustomNode(templateSrc, "spine");
+        templateSrc.append("  custom_properties { id: \"spine_scene\" type: TYPE_STRING string: \"missing\" }\n");
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder src = createGui();
+        addSpineResource(src, "spineboy");
+        addTemplateNode(src, "template", "", "/template.gui");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "template/spine", "template", true, List.of());
+        src.append("  custom_properties { id: \"spine_scene\" type: TYPE_STRING string: \"spineboy\" }\n");
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        Assert.assertEquals("spineboy", findCustomProperty(findNode(gui, "", "template/spine"), "spine_scene").getString());
+    }
+
     // Allows the parent GUI to supply a required resource that is omitted in a reusable template.
     @Test
     public void testTemplateOverridesMissingRequiredSpineScene() throws Exception {

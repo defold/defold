@@ -303,21 +303,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             nodeResources.add(n.getSpineScene());
         }
 
-        if (n.getType() == Type.TYPE_CUSTOM) {
-            GuiCustomTypeRegistry.Type customType = builder.project.getGuiCustomTypeRegistry().getByHash(n.getCustomType());
-            if (customType != null) {
-                for (Property property : n.getCustomPropertiesList()) {
-                    GuiCustomTypeRegistry.Property propertyDefinition = property.hasId() && !property.getId().isEmpty()
-                            ? customType.getProperty(property.getId())
-                            : customType.getProperty(property.getIdHash());
-
-                    if (propertyDefinition != null && propertyDefinition.isResource() && property.hasString() && !property.getString().isEmpty()) {
-                        nodeResources.add(property.getString());
-                    }
-                }
-            }
-        }
-
         for (String resource : nodeResources) {
             if (!resourceNames.contains(resource)) {
                 throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_MISSING_RESOURCE, resource));
@@ -354,7 +339,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static void validateCustomNodeProperties(NodeDesc node, GuiBuilder builder, String input) throws CompileExceptionError {
+    private static void validateCustomNodeProperties(NodeDesc node, GuiBuilder builder, String input, Set<String> resourceNames) throws CompileExceptionError {
         if (node.getType() != Type.TYPE_CUSTOM) {
             return;
         }
@@ -387,6 +372,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     && (!property.hasString() || property.getString().isEmpty())) {
                 throw new CompileExceptionError(builder.project.getResource(input), 0,
                         "GUI node '" + node.getId() + "' must specify a resource for custom property '" + propertyDefinition.getName() + "'");
+            }
+            if (propertyDefinition.isResource() && property.hasString() && !property.getString().isEmpty()
+                    && !resourceNames.contains(property.getString())) {
+                throw new CompileExceptionError(builder.project.getResource(input), 0,
+                        propertyDescription + " refers to missing resource '" + property.getString() + "'");
             }
         }
     }
@@ -1025,7 +1015,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
             Map<Integer, List<NodeDesc>> nodesByType = new LinkedHashMap<>();
             for (NodeDesc node : nodes) {
-                validateCustomNodeProperties(node, builder, input);
+                validateCustomNodeProperties(node, builder, input, resourceNames);
                 if (node.getType() == Type.TYPE_CUSTOM) {
                     nodesByType.computeIfAbsent(node.getCustomType(), key -> new ArrayList<>()).add(node);
                 }
