@@ -67,8 +67,8 @@ import org.apache.commons.io.FilenameUtils;
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private final Map<String, Set<String>> fontStyleNames = new HashMap<>();
-    private final Set<IResource> templateResources = new HashSet<>();
-    private final Set<IResource> templateStack = new LinkedHashSet<>();
+    private final Set<String> templatePaths = new HashSet<>();
+    private final Set<String> templateStack = new LinkedHashSet<>();
     private final Set<Task> validationResourceTasks = new LinkedHashSet<>();
 
     @Override
@@ -77,13 +77,13 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
-        templateStack.add(input);
+        templateStack.add(FilenameUtils.normalize(input.getPath(), true));
         try {
             createSubTasks(getSrcBuilder(input), taskBuilder);
             addValidationResourceInputs(taskBuilder);
             return taskBuilder.build();
         } finally {
-            templateResources.clear();
+            templatePaths.clear();
             templateStack.clear();
             validationResourceTasks.clear();
         }
@@ -101,20 +101,22 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         NodeDesc.Builder nodeBuilder = message instanceof NodeDesc desc ? desc.toBuilder() : ((NodeDesc.Builder) message).clone();
         super.createSubTasks(nodeBuilder.clearTemplate(), taskBuilder);
         IResource template = BuilderUtil.checkResource(project, taskBuilder.firstInput(), "template", node.getTemplate());
-        if (!templateStack.add(template)) {
-            String chain = templateStack.stream().map(IResource::getPath).collect(Collectors.joining(" -> "));
+        // Mounted resources may return a distinct wrapper for every lookup of the same path.
+        String templatePath = FilenameUtils.normalize(template.getPath(), true);
+        if (!templateStack.add(templatePath)) {
+            String chain = String.join(" -> ", templateStack);
             throw new CompileExceptionError(taskBuilder.firstInput(), 0,
-                    "Circular dependency detected in GUI templates: " + chain + " -> " + template.getPath());
+                    "Circular dependency detected in GUI templates: " + chain + " -> " + templatePath);
         }
         try {
-            if (templateResources.add(template)) {
+            if (templatePaths.add(templatePath)) {
                 taskBuilder.addInput(template);
                 createSubTasks(getSrcBuilder(template), taskBuilder);
             }
         } catch (IOException e) {
             throw new CompileExceptionError(template, 0, "Unable to read GUI template", e);
         } finally {
-            templateStack.remove(template);
+            templateStack.remove(templatePath);
         }
     }
 

@@ -35,8 +35,10 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.FileSystemMountPoint;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.test.util.MockFileSystem;
 import com.dynamo.bob.util.MurmurHash;
 
 public class GuiBuilderTest extends AbstractProtoBuilderTest {
@@ -690,6 +692,51 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
             Assert.assertTrue(e.getMessage().contains("Circular dependency detected"));
             Assert.assertEquals("test.gui", e.getResource().getPath());
         }
+    }
+
+    // Detects cycles across fresh mounted-resource wrappers instead of overflowing the stack.
+    @Test
+    public void testCircularMountedTemplateDependencyFailsBuild() throws Exception {
+        StringBuilder templateSrc = createGui();
+        addTemplateNode(templateSrc, "child", "", "/library/./template.gui");
+        MockFileSystem mountedFileSystem = new MockFileSystem();
+        mountedFileSystem.addFile("/library/template.gui", templateSrc.toString().getBytes());
+        getFileSystem().addMountPoint(new FileSystemMountPoint(getFileSystem(), mountedFileSystem));
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/library/template.gui");
+        addFile("/test.gui", src.toString());
+        try {
+            getProject().createTask(getProject().getResource("/test.gui"));
+            Assert.fail("Expected circular mounted template dependencies to fail");
+        } catch (CompileExceptionError e) {
+            Assert.assertEquals("Circular dependency detected in GUI templates: test.gui -> library/template.gui -> library/template.gui", e.getMessage());
+            Assert.assertEquals("test.gui", e.getResource().getPath());
+        }
+    }
+
+    // Tracks a shared mounted template once while preserving each instantiated node hierarchy.
+    @Test
+    public void testSharedMountedTemplateHasOneSourceDependency() throws Exception {
+        StringBuilder templateSrc = createGui();
+        addBoxNode(templateSrc, "box", "");
+        MockFileSystem mountedFileSystem = new MockFileSystem();
+        mountedFileSystem.addFile("/library/template.gui", templateSrc.toString().getBytes());
+        getFileSystem().addMountPoint(new FileSystemMountPoint(getFileSystem(), mountedFileSystem));
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "first", "", "/library/template.gui");
+        addTemplateNode(src, "second", "", "/library/./template.gui");
+        addFile("/test.gui", src.toString());
+        Task task = getProject().createTask(getProject().getResource("/test.gui"));
+        Assert.assertEquals(1L, task.getInputs().stream()
+                .filter(resource -> resource.getPath().equals("library/template.gui"))
+                .count());
+
+        task.getBuilder().build(task);
+        Gui.SceneDesc gui = Gui.SceneDesc.parseFrom(task.output(0).getContent());
+        Assert.assertTrue(nodeExists(gui, "first/box"));
+        Assert.assertTrue(nodeExists(gui, "second/box"));
     }
 
     // Attributes unexpected plugin exceptions to the source GUI instead of exposing reflection errors.
