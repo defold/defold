@@ -58,6 +58,10 @@ public class GuiCustomTypeRegistry {
         public boolean isResource() {
             return (editTypeFlags & IGuiCustomType.EDIT_TYPE_RESOURCE) != 0;
         }
+
+        public boolean isRequiredResource() {
+            return (editTypeFlags & IGuiCustomType.EDIT_TYPE_RESOURCE_REQUIRED) == IGuiCustomType.EDIT_TYPE_RESOURCE_REQUIRED;
+        }
     }
 
     public static class Type implements IGuiCustomType {

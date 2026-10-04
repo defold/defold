@@ -261,6 +261,22 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
+    private static void validateRequiredCustomNodeResources(NodeDesc node, GuiBuilder builder, String input) throws CompileExceptionError {
+        if (node.getType() != Type.TYPE_CUSTOM) {
+            return;
+        }
+
+        GuiCustomTypeRegistry.Type customType = builder.project.getGuiCustomTypeRegistry().getByHash(node.getCustomType());
+        for (Property property : node.getCustomPropertiesList()) {
+            GuiCustomTypeRegistry.Property propertyDefinition = customType.getProperty(property.getIdHash());
+            if (propertyDefinition != null && propertyDefinition.isRequiredResource()
+                    && (!property.hasString() || property.getString().isEmpty())) {
+                throw new CompileExceptionError(builder.project.getResource(input), 0,
+                        "GUI node '" + node.getId() + "' must specify a resource for custom property '" + propertyDefinition.getName() + "'");
+            }
+        }
+    }
+
     private static String replaceTextureName(String str) throws CompileExceptionError {
         String out = str;
         String ext = "." + FilenameUtils.getExtension(str);
@@ -885,6 +901,18 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         sceneBuilder.addAllResources(newResourcesList);
 
         clearEditorOnlyCustomNodeFields(sceneBuilder);
+
+        // Validate the effective values after template and layout overrides have been applied.
+        if (flattenTemplates) {
+            for (NodeDesc node : sceneBuilder.getNodesList()) {
+                validateRequiredCustomNodeResources(node, builder, input);
+            }
+            for (LayoutDesc layout : sceneBuilder.getLayoutsList()) {
+                for (NodeDesc node : layout.getNodesList()) {
+                    validateRequiredCustomNodeResources(node, builder, input);
+                }
+            }
+        }
 
         if (builder != null) {
             Map<String, Set<String>> styles = new HashMap<>();

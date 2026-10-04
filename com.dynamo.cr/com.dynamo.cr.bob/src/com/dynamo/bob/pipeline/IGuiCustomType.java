@@ -19,6 +19,8 @@ import com.dynamo.gamesys.proto.Gui.Property.PropertyType;
 public interface IGuiCustomType {
     int EDIT_TYPE_DEFAULT  = 0;
     int EDIT_TYPE_RESOURCE = 1;
+    // A resource property that must name a resource in the GUI scene.
+    int EDIT_TYPE_RESOURCE_REQUIRED = EDIT_TYPE_RESOURCE | 2;
 
     void addProperty(String name, Object defaultValue, PropertyType propertyType, int editTypeFlags);
 }

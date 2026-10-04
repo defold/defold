@@ -44,7 +44,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     @GuiCustomNode(type = "Spine")
     private static class TestSpineGuiNode implements IGuiCustomNode {
         public static void registerProperties(IGuiCustomType type) {
-            type.addProperty("spine_scene", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_RESOURCE);
+            type.addProperty("spine_scene", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_RESOURCE_REQUIRED);
             type.addProperty("spine_default_animation", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
             type.addProperty("spine_skin", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
             type.addProperty("spine_create_bones", false, PropertyType.TYPE_BOOLEAN, IGuiCustomType.EDIT_TYPE_DEFAULT);
@@ -52,6 +52,13 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
         public static void migrateProperties(Map<String, Object> properties) {
             properties.remove("spine_node_child");
+        }
+    }
+
+    @GuiCustomNode(type = "OptionalResource")
+    private static class TestOptionalResourceGuiNode implements IGuiCustomNode {
+        public static void registerProperties(IGuiCustomType type) {
+            type.addProperty("resource", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_RESOURCE);
         }
     }
 
@@ -72,6 +79,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         this.scanner = new ClassLoaderScanner(this.getClass().getClassLoader());
         registerProtoBuilderNames();
         getProject().getGuiCustomTypeRegistry().register(TestSpineGuiNode.class);
+        getProject().getGuiCustomTypeRegistry().register(TestOptionalResourceGuiNode.class);
         getProject().getGuiCustomTypeRegistry().register(TestTypedGuiNode.class);
     }
 
@@ -415,6 +423,118 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         finishNode(src);
 
         buildGui(src, "/test.gui");
+    }
+
+    private void assertMissingSpineScene(StringBuilder src, String nodeId) throws Exception {
+        try {
+            buildGui(src, "/test.gui");
+            Assert.fail("Expected a missing Spine scene to fail the GUI build");
+        } catch (CompileExceptionError e) {
+            Assert.assertEquals("GUI node '" + nodeId + "' must specify a resource for custom property 'spine_scene'", e.getMessage());
+            Assert.assertEquals("test.gui", e.getResource().getPath());
+        }
+    }
+
+    // Rejects an omitted Spine scene before an uninitialized node can reach runtime cloning.
+    @Test
+    public void testMissingRequiredCustomResourceFailsBuild() throws Exception {
+        StringBuilder src = createGui();
+        startSpineCustomNode(src, "spine");
+        finishNode(src);
+
+        assertMissingSpineScene(src, "spine");
+    }
+
+    // Rejects an explicitly empty legacy scene after it migrates to custom properties.
+    @Test
+    public void testEmptyLegacySpineSceneFailsBuild() throws Exception {
+        StringBuilder src = createGui();
+        startLegacySpineNode(src, "spine");
+        src.append("  spine_scene: \"\"\n");
+        finishNode(src);
+
+        assertMissingSpineScene(src, "spine");
+    }
+
+    // Rejects an empty custom scene even when the legacy field contains a valid fallback.
+    @Test
+    public void testEmptyCustomSpineSceneFailsBuild() throws Exception {
+        StringBuilder src = createGui();
+        addSpineResource(src, "spineboy");
+        startSpineCustomNode(src, "spine");
+        addLegacySpineProperties(src);
+        src.append("  custom_properties { id: \"spine_scene\" type: TYPE_STRING string: \"\" }\n");
+        finishNode(src);
+
+        assertMissingSpineScene(src, "spine");
+    }
+
+    // Keeps empty resource properties valid unless the extension explicitly marks them required.
+    @Test
+    public void testOptionalCustomResourceMayBeEmpty() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "optional", "OptionalResource");
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        Assert.assertEquals("", findCustomProperty(findNode(gui, "", "optional"), "resource").getString());
+    }
+
+    // Rejects a layout override that clears an otherwise valid required Spine scene.
+    @Test
+    public void testLayoutCannotClearRequiredSpineScene() throws Exception {
+        StringBuilder src = createGui();
+        addSpineResource(src, "spineboy");
+        startSpineCustomNode(src, "spine");
+        src.append("  custom_properties { id: \"spine_scene\" type: TYPE_STRING string: \"spineboy\" }\n");
+        finishNode(src);
+        startLayout(src, "Landscape");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "spine", "", false, List.of());
+        src.append("  custom_properties { id: \"spine_scene\" type: TYPE_STRING string: \"\" }\n");
+        finishNode(src);
+        finishLayout(src);
+
+        assertMissingSpineScene(src, "spine");
+    }
+
+    // Rejects a template override that clears a required resource after template expansion.
+    @Test
+    public void testTemplateCannotClearRequiredSpineScene() throws Exception {
+        StringBuilder templateSrc = createGui();
+        addSpineResource(templateSrc, "spineboy");
+        startSpineCustomNode(templateSrc, "spine");
+        addLegacySpineProperties(templateSrc);
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "template/spine", "template", true, List.of());
+        src.append("  custom_properties { id: \"spine_scene\" type: TYPE_STRING string: \"\" }\n");
+        finishNode(src);
+
+        assertMissingSpineScene(src, "template/spine");
+    }
+
+    // Keeps an inherited required scene valid when a template overrides another custom property.
+    @Test
+    public void testTemplateInheritsRequiredSpineScene() throws Exception {
+        StringBuilder templateSrc = createGui();
+        addSpineResource(templateSrc, "spineboy");
+        startSpineCustomNode(templateSrc, "spine");
+        templateSrc.append("  custom_properties { id: \"spine_scene\" type: TYPE_STRING string: \"spineboy\" }\n");
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "template/spine", "template", true, List.of());
+        src.append("  custom_properties { id: \"spine_default_animation\" type: TYPE_STRING string: \"run\" }\n");
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        Assert.assertEquals("spineboy", findCustomProperty(findNode(gui, "", "template/spine"), "spine_scene").getString());
+        Assert.assertEquals("run", findCustomProperty(findNode(gui, "", "template/spine"), "spine_default_animation").getString());
     }
 
     @Test
