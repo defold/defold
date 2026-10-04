@@ -503,6 +503,49 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals("2", getProject().option("gui-validation-node-count", "0"));
     }
 
+    // Tracks transitive inputs without scanning unrelated tasks in the project for every GUI.
+    @Test
+    public void testCustomNodeValidationDoesNotScanProjectTasks() throws Exception {
+        MockFileSystem fs = new MockFileSystem();
+        try (Project project = new Project(fs) {
+            @Override
+            public List<Task> getTasks() {
+                throw new AssertionError("GUI dependency discovery must not scan the whole project");
+            }
+        }) {
+            project.scan(scanner, "com.dynamo.bob.pipeline");
+            project.getGuiCustomTypeRegistry().register(TestValidatedGuiNode.class);
+            fs.addFile("/names.gui", createGui().toString().getBytes());
+            fs.addFile("/asset.guiresource", "material: \"\" resources { name: \"data\" path: \"/names.gui\" }".getBytes());
+            for (int i = 0; i < 20; ++i) {
+                String path = "/unrelated" + i + ".gui";
+                fs.addFile(path, createGui().toString().getBytes());
+                project.createTask(project.getResource(path));
+            }
+            StringBuilder src = createGui();
+            src.append(" resources { name: \"asset\" path: \"/asset.guiresource\" }");
+            startCustomNode(src, "validated", "Validated");
+            finishNode(src);
+            fs.addFile("/test.gui", src.toString().getBytes());
+            Task task = project.createTask(project.getResource("/test.gui"));
+            Assert.assertTrue(task.getInputs().contains(project.getResource("/names.gui")));
+            Assert.assertTrue(task.getInputs().contains(project.getResource("/names.gui").changeExt(".guic")));
+        }
+    }
+
+    // Avoids pulling transitive validation inputs into GUIs whose custom types have no validator.
+    @Test
+    public void testCustomNodeWithoutValidatorKeepsDirectResourceDependencies() throws Exception {
+        StringBuilder src = createGui();
+        addGuiResource(src, "asset", "guiresource");
+        startCustomNode(src, "optional", "OptionalResource");
+        finishNode(src);
+        addFile("/test.gui", src.toString());
+        Task task = getProject().createTask(getProject().getResource("/test.gui"));
+        Assert.assertEquals(List.of(getProject().getResource("/test.gui"),
+                getProject().getResource("/assets/asset.guic").output()), task.getInputs());
+    }
+
     // Revalidates an unchanged GUI when resource data changes but its compiled descriptor does not.
     @Test
     public void testCustomNodeValidatorChecksChangedResourceData() throws Exception {

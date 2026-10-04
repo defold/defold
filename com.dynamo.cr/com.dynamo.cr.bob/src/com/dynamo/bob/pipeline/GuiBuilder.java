@@ -147,14 +147,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     private void addValidationResourceInputs(Task.TaskBuilder taskBuilder) {
-        if (validationResourceTasks.isEmpty()) {
+        if (validationResourceTasks.isEmpty() || customTypes.stream().noneMatch(GuiCustomTypeRegistry.Type::hasValidator)) {
             return;
-        }
-        Map<IResource, Task> tasksByOutput = new HashMap<>();
-        for (Task task : project.getTasks()) {
-            for (IResource output : task.getOutputs()) {
-                tasksByOutput.put(output, task);
-            }
         }
 
         // Validators may read data behind several descriptors whose compiled contents stay unchanged.
@@ -168,7 +162,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             }
             for (IResource input : task.getInputs()) {
                 taskBuilder.addInput(input);
-                Task dependency = tasksByOutput.get(input);
+                Task dependency = project.getTaskForOutput(input);
                 if (dependency != null) {
                     pendingTasks.addLast(dependency);
                 }

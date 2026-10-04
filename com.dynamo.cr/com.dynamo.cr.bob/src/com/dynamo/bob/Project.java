@@ -137,6 +137,7 @@ public class Project implements AutoCloseable {
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
     private HashMap<String, Task> tasks = new HashMap<String, Task>();
+    private final Map<IResource, Task> tasksByOutput = new HashMap<>();
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
     private volatile BobTempDirectory tempDirectory;
@@ -561,7 +562,7 @@ public class Project implements AutoCloseable {
             if (task != null) {
                 TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
                 TimeProfiler.addData("name", task.getName());
-                tasks.put(key, task);
+                registerTask(key, task);
             }
             circularDependencyChecker.remove(key);
             return task;
@@ -623,7 +624,7 @@ public class Project implements AutoCloseable {
             if (task != null) {
                 TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
                 TimeProfiler.addData("name", task.getName());
-                tasks.put(key, task);
+                registerTask(key, task);
             }
             circularDependencyChecker.remove(key);
             return task;
@@ -634,9 +635,22 @@ public class Project implements AutoCloseable {
         }
     }
 
+    private void registerTask(String key, Task task) {
+        tasks.put(key, task);
+        for (IResource output : task.getOutputs()) {
+            tasksByOutput.put(output, task);
+        }
+    }
+
+    /** Returns the task producing an output during task creation, or null for source resources. */
+    public Task getTaskForOutput(IResource output) {
+        return tasksByOutput.get(output);
+    }
+
     private void createTasks() throws CompileExceptionError {
         circularDependencyChecker = new LinkedHashSet<>();
         tasks = new HashMap<String, Task>();
+        tasksByOutput.clear();
         if(this.inputs == null || this.inputs.isEmpty()) {
             createTask(getGameProjectResource());
         }
@@ -2173,6 +2187,7 @@ public class Project implements AutoCloseable {
 
             // build all tasks and make sure no new tasks were created while building
             tasks.clear();
+            tasksByOutput.clear();
             List<TaskResult> result = taskBuilder.build(progress, remoteBuildFailed);
             if (!tasks.isEmpty()) {
                 throw new CompileExceptionError("New tasks were created while tasks were building");

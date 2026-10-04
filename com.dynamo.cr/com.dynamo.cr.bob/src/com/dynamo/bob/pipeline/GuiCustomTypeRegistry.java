@@ -121,6 +121,10 @@ public class GuiCustomTypeRegistry {
             return signature;
         }
 
+        public boolean hasValidator() {
+            return validateNodesMethod != null;
+        }
+
         public void migrateProperties(Map<String, Object> properties) {
             if (migratePropertiesMethod == null) {
                 return;
