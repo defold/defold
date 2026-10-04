@@ -215,6 +215,11 @@ namespace dmWebServer
         return 0;
     }
 
+    Result AddHandler(HServer server, const char* prefix, const HandlerParams* handler_params)
+    {
+        return AddHandler(server, prefix, handler_params, 0);
+    }
+
     Result AddHandler(HServer server,
                       const char* prefix,
                       const HandlerParams* handler_params,
@@ -227,23 +232,30 @@ namespace dmWebServer
         {
             return RESULT_HANDLER_ALREADY_REGISTRED;
         }
-        OpenAPI* openapi = new OpenAPI;
-        if (!ParseOpenAPI(prefix, openapi_json, openapi))
+        OpenAPI* openapi = 0;
+        if (openapi_json)
         {
-            delete openapi;
-            return RESULT_ERROR_INVAL;
-        }
-        for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
-        {
-            const dmArray<dmhash_t>& paths = server->m_Handlers[i].m_OpenAPI->m_Paths;
-            for (uint32_t j = 0; j < paths.Size(); ++j)
+            openapi = new OpenAPI;
+            if (!ParseOpenAPI(prefix, openapi_json, openapi))
             {
-                for (uint32_t k = 0; k < openapi->m_Paths.Size(); ++k)
+                delete openapi;
+                return RESULT_ERROR_INVAL;
+            }
+            for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
+            {
+                const OpenAPI* existing = server->m_Handlers[i].m_OpenAPI;
+                if (!existing)
+                    continue;
+                const dmArray<dmhash_t>& paths = existing->m_Paths;
+                for (uint32_t j = 0; j < paths.Size(); ++j)
                 {
-                    if (paths[j] == openapi->m_Paths[k])
+                    for (uint32_t k = 0; k < openapi->m_Paths.Size(); ++k)
                     {
-                        delete openapi;
-                        return RESULT_ERROR_INVAL;
+                        if (paths[j] == openapi->m_Paths[k])
+                        {
+                            delete openapi;
+                            return RESULT_ERROR_INVAL;
+                        }
                     }
                 }
             }
@@ -281,19 +293,30 @@ namespace dmWebServer
     void GetOpenAPIPaths(HServer server, dmArray<char>* paths)
     {
         uint32_t size = 3; // Braces and terminating zero.
+        bool first = true;
         for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
-            size += server->m_Handlers[i].m_OpenAPI->m_Length + (i != 0 ? 1 : 0);
+        {
+            const OpenAPI* openapi = server->m_Handlers[i].m_OpenAPI;
+            if (!openapi)
+                continue;
+            size += openapi->m_Length + (first ? 0 : 1);
+            first = false;
+        }
         paths->SetCapacity(size);
         paths->SetSize(size);
         char* out = paths->Begin();
         *out++ = '{';
+        first = true;
         for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
         {
             const OpenAPI* openapi = server->m_Handlers[i].m_OpenAPI;
-            if (i != 0)
+            if (!openapi)
+                continue;
+            if (!first)
                 *out++ = ',';
             memcpy(out, openapi->m_Json, openapi->m_Length);
             out += openapi->m_Length;
+            first = false;
         }
         *out++ = '}';
         *out = 0;

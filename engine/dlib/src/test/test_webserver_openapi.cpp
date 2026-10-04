@@ -66,6 +66,42 @@ TEST_F(WebServerOpenAPITest, RegisterAndRemovePaths)
     ASSERT_STREQ(first, paths.Begin());
 }
 
+// Both APIs must allow undocumented handlers without adding empty fragments or stray commas to discovery.
+TEST_F(WebServerOpenAPITest, OptionalMetadataLifecycle)
+{
+    static const char first[] = "{\"/first\":{" GET_OPERATION "}}";
+    static const char second[] = "{\"/second\":{" GET_OPERATION "}}";
+    dmArray<char> paths;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/legacy", &m_Params));
+    ASSERT_EQ(dmWebServer::RESULT_HANDLER_ALREADY_REGISTRED, dmWebServer::AddHandler(m_Server, "/legacy", &m_Params, 0));
+    dmWebServer::GetOpenAPIPaths(m_Server, &paths);
+    ASSERT_STREQ("{}", paths.Begin());
+    ASSERT_EQ(3U, paths.Size());
+
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/first", &m_Params, first));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/middle", &m_Params, 0));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/second", &m_Params, second));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/last", &m_Params));
+    dmWebServer::GetOpenAPIPaths(m_Server, &paths);
+    ASSERT_STREQ("{\"/first\":{" GET_OPERATION "},\"/second\":{" GET_OPERATION "}}", paths.Begin());
+    ASSERT_EQ(strlen(paths.Begin()) + 1, paths.Size());
+    ASSERT_EQ(dmWebServer::RESULT_ERROR_INVAL, dmWebServer::AddHandler(m_Server, "/", &m_Params, first));
+
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(m_Server, "/middle"));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(m_Server, "/first"));
+    dmWebServer::GetOpenAPIPaths(m_Server, &paths);
+    ASSERT_STREQ(second, paths.Begin());
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/first", &m_Params));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(m_Server, "/second"));
+    dmWebServer::GetOpenAPIPaths(m_Server, &paths);
+    ASSERT_STREQ("{}", paths.Begin());
+
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(m_Server, "/first"));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/first", &m_Params, first));
+    dmWebServer::GetOpenAPIPaths(m_Server, &paths);
+    ASSERT_STREQ(first, paths.Begin());
+}
+
 // A routing prefix may describe several concrete paths and several methods on one path.
 TEST_F(WebServerOpenAPITest, MultiplePathsAndMethods)
 {
@@ -89,7 +125,7 @@ TEST_F(WebServerOpenAPITest, RejectInvalidMetadata)
     static const char valid[] = "{\"/valid\":{" GET_OPERATION "}}";
     ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/valid", &m_Params, valid));
     const char* invalid[] = {
-        0, "", "{}", "[]", "null", "{", "{\"/bad\":", "{\"/bad\":{}}", "{\"/bad\":[]}",
+        "", "{}", "[]", "null", "{", "{\"/bad\":", "{\"/bad\":{}}", "{\"/bad\":[]}",
         "{\"/other\":{" GET_OPERATION "}}",
         "{\"/bad\":{\"get\":{}}}",
         "{\"/bad\":{\"get\":{\"responses\":{}}}}",

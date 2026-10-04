@@ -297,6 +297,45 @@ TEST_P(EngineServiceOpenAPITest, ExtensionLifecycle)
 static const bool profiler_initialization_orders[] = {false, true};
 INSTANTIATE_TEST_CASE_P(ProfilerInitializationOrder, EngineServiceOpenAPITest, jc_test_values_in(profiler_initialization_orders));
 
+// Both registration APIs must serve undocumented extensions through HTTP without changing discovery.
+TEST_F(EngineServiceOpenAPITest, UndocumentedExtensionLifecycle)
+{
+    static const char response[] = "Undocumented extension response";
+    dmWebServer::HandlerParams params;
+    params.m_Handler = ExtensionHandler;
+    params.m_Userdata = (void*)response;
+    dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    Fetch("GET", "/openapi.json");
+    ASSERT_EQ(200, m_Status);
+    dmArray<char> original;
+    original.SetCapacity(m_Body.Size());
+    original.PushArray(m_Body.Begin(), m_Body.Size());
+
+    for (uint32_t registration = 0; registration < 2; ++registration)
+    {
+        dmWebServer::Result result = registration == 0
+            ? dmWebServer::AddHandler(server, "/undocumented", &params)
+            : dmWebServer::AddHandler(server, "/undocumented", &params, 0);
+        ASSERT_EQ(dmWebServer::RESULT_OK, result);
+        Fetch("GET", "/undocumented");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ(response, m_Body.Begin());
+        Fetch("GET", "/openapi.json");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ(original.Begin(), m_Body.Begin());
+
+        ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(server, "/undocumented"));
+        Fetch("GET", "/undocumented");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("text/html", m_ContentType);
+        Fetch("GET", "/openapi.json");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ(original.Begin(), m_Body.Begin());
+    }
+}
+
 // Overlapping extension prefixes must select the most specific handler regardless of registration and removal order.
 TEST_F(EngineServiceOpenAPITest, MostSpecificHandler)
 {

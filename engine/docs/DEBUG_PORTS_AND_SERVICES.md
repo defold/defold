@@ -30,7 +30,8 @@ The engine service is implemented as a small web server running within the engin
 
 `GET http://<engine-address>:<engine-service-port>/openapi.json` returns an
 OpenAPI 3.0.3 document with `Content-Type: application/json`. It describes the
-currently registered engine and native-extension HTTP handlers, including their
+currently registered engine and native-extension HTTP handlers that provide
+OpenAPI metadata, including their
 methods, parameters, request bodies and responses. The document uses a relative
 server URL, so it also works with a dynamically assigned service port.
 The engine logs the full OpenAPI URL when the service starts.
@@ -42,8 +43,12 @@ available at `/`.
 
 #### Native-extension handlers
 
-`dmWebServer::AddHandler` requires an OpenAPI JSON string as its fourth argument.
-The string contains a non-empty OpenAPI **Paths Object**, including the endpoint
+`dmWebServer::AddHandler` accepts an OpenAPI JSON string as its fourth argument.
+The original three-argument overload remains available and registers a handler
+without metadata, as does passing `0` as the fourth argument. These handlers
+serve requests normally but do not contribute to `/openapi.json`.
+
+A non-null string contains a non-empty OpenAPI **Paths Object**, including the endpoint
 paths and their methods. One routing prefix can describe several endpoint paths.
 For example, a handler registered at `/example` can describe both `/example` and
 `/example/{id}`.
