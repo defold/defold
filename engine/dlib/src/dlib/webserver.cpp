@@ -310,8 +310,7 @@ namespace dmWebServer
             size += openapi->m_Length + (first ? 0 : 1);
             first = false;
         }
-        paths->SetCapacity(size);
-        paths->SetSize(size);
+        paths->EnsureSize(size);
         char* out = paths->Begin();
         *out++ = '{';
         first = true;
