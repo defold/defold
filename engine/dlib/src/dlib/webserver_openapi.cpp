@@ -306,28 +306,66 @@ namespace dmWebServer
         return !parameter;
     }
 
-    bool ParseOpenAPI(const char* prefix, const char* json, OpenAPI* openapi)
+    static bool ParseError(const char* json, const char* p, const char* message, OpenAPIError* error)
+    {
+        if (error)
+        {
+            error->m_Message = message;
+            error->m_Offset = json ? (uint32_t)(p - json) : 0;
+        }
+        return false;
+    }
+
+    bool ParseOpenAPI(const char* prefix, const char* json, OpenAPI* openapi, OpenAPIError* error)
     {
         if (!json)
-            return false;
+            return ParseError(0, 0, "Expected a non-empty Paths Object", error);
         const char* p = json;
         if (!Consume(p, '{') || *p == '}')
-            return false;
+            return ParseError(json, p, "Expected a non-empty Paths Object", error);
         openapi->m_Json = p;
         dmArray<char> path;
         do
         {
-            if (!ReadString(p, &path) || path[0] != '/' || strncmp(path.Begin(), prefix, strlen(prefix)) != 0
-                || !NormalizePath(&path) || !AddUniqueHash(&openapi->m_Paths, dmHashString64(path.Begin()))
-                || !Consume(p, ':') || !ReadValue(p, 1, OBJECT_PATH_ITEM))
-                return false;
+            const char* key = p;
+            if (!ReadString(p, &path))
+                return ParseError(json, p, "Expected a JSON path string", error);
+            if (path[0] != '/' || strncmp(path.Begin(), prefix, strlen(prefix)) != 0)
+                return ParseError(json, key, "Path must start with the handler prefix", error);
+            if (!NormalizePath(&path))
+                return ParseError(json, key, "Invalid path or path parameter", error);
+            dmhash_t hash = dmHashString64(path.Begin());
+            if (!AddUniqueHash(&openapi->m_Paths, hash))
+                return ParseError(json, key, "Duplicate path (including renamed path parameters)", error);
+            OpenAPIPath info;
+            info.m_Hash = hash;
+            info.m_Offset = (uint32_t)(key + 1 - openapi->m_Json);
+            info.m_Length = (uint32_t)(p - key - 2);
+            if (openapi->m_PathInfo.Full())
+                openapi->m_PathInfo.OffsetCapacity(8);
+            openapi->m_PathInfo.Push(info);
+            if (!Consume(p, ':'))
+                return ParseError(json, p, "Expected ':' after path", error);
+            if (!ReadValue(p, 1, OBJECT_PATH_ITEM))
+                return ParseError(json, p, "Invalid JSON or Path Item; operations require non-empty responses", error);
             SkipSpace(p);
             if (*p == '}')
             {
                 openapi->m_Length = (uint32_t)(p - openapi->m_Json);
-                return Consume(p, '}') && *p == 0;
+                Consume(p, '}');
+                if (*p != 0)
+                    return ParseError(json, p, "Unexpected data after Paths Object", error);
+                return true;
             }
         } while (Consume(p, ','));
-        return false;
+        return ParseError(json, p, "Expected ',' or '}' after Path Item", error);
+    }
+
+    const OpenAPIPath* FindOpenAPIPath(const OpenAPI* openapi, dmhash_t hash)
+    {
+        for (uint32_t i = 0; i < openapi->m_PathInfo.Size(); ++i)
+            if (openapi->m_PathInfo[i].m_Hash == hash)
+                return &openapi->m_PathInfo[i];
+        return 0;
     }
 }

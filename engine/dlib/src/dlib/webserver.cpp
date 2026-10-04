@@ -227,7 +227,11 @@ namespace dmWebServer
     {
         HandlerData handler;
         if (!prefix || prefix[0] != '/' || strlen(prefix) >= sizeof(handler.m_Prefix))
+        {
+            dmLogError("Invalid webserver handler prefix '%s': expected '/' and fewer than %u bytes",
+                prefix ? prefix : "<null>", (uint32_t)sizeof(handler.m_Prefix));
             return RESULT_ERROR_INVAL;
+        }
         if (GetHandler(server, prefix))
         {
             return RESULT_HANDLER_ALREADY_REGISTRED;
@@ -236,8 +240,10 @@ namespace dmWebServer
         if (openapi_json)
         {
             openapi = new OpenAPI;
-            if (!ParseOpenAPI(prefix, openapi_json, openapi))
+            OpenAPIError error;
+            if (!ParseOpenAPI(prefix, openapi_json, openapi, &error))
             {
+                dmLogError("Invalid OpenAPI metadata for handler '%s' at byte %u: %s", prefix, error.m_Offset, error.m_Message);
                 delete openapi;
                 return RESULT_ERROR_INVAL;
             }
@@ -253,6 +259,11 @@ namespace dmWebServer
                     {
                         if (paths[j] == openapi->m_Paths[k])
                         {
+                            const OpenAPIPath* old_path = FindOpenAPIPath(existing, paths[j]);
+                            const OpenAPIPath* new_path = FindOpenAPIPath(openapi, paths[j]);
+                            dmLogError("OpenAPI path '%.*s' from handler '%s' conflicts with path '%.*s' from handler '%s'",
+                                (int)new_path->m_Length, openapi->m_Json + new_path->m_Offset, prefix,
+                                (int)old_path->m_Length, existing->m_Json + old_path->m_Offset, server->m_Handlers[i].m_Prefix);
                             delete openapi;
                             return RESULT_ERROR_INVAL;
                         }

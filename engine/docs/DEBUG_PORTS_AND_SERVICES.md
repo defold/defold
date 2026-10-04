@@ -92,6 +92,8 @@ describes all of its methods. Duplicate paths, including templates that differ
 only in parameter names, are rejected. Invalid or conflicting metadata returns
 `RESULT_ERROR_INVAL` without registering the handler. A duplicate routing prefix
 returns `RESULT_HANDLER_ALREADY_REGISTRED`.
+Invalid metadata is logged with the handler prefix, a byte offset, and a reason.
+Path conflicts identify both handlers and their original documented paths.
 
 Keep schemas inline or reference schemas under paths in the assembled document;
 the registration argument does not add top-level `components`. Metadata describes

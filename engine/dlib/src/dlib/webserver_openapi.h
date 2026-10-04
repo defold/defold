@@ -20,16 +20,33 @@
 
 namespace dmWebServer
 {
+    struct OpenAPIPath
+    {
+        dmhash_t m_Hash;
+        uint32_t m_Offset;
+        uint32_t m_Length;
+    };
+
     struct OpenAPI
     {
-        const char*      m_Json;
-        uint32_t         m_Length;
-        dmArray<dmhash_t> m_Paths;
+        const char*          m_Json;
+        uint32_t             m_Length;
+        dmArray<dmhash_t>     m_Paths;
+        dmArray<OpenAPIPath> m_PathInfo;
+    };
+
+    struct OpenAPIError
+    {
+        const char* m_Message;
+        uint32_t    m_Offset;
     };
 
     // Validate JSON and the Paths/Path Item/Operation structure. Full schema
     // validation belongs in tooling, rather than in the engine's HTTP server.
-    bool ParseOpenAPI(const char* prefix, const char* json, OpenAPI* openapi);
+    bool ParseOpenAPI(const char* prefix, const char* json, OpenAPI* openapi, OpenAPIError* error = 0);
+
+    // Look up the original JSON key only when reporting a conflicting path.
+    const OpenAPIPath* FindOpenAPIPath(const OpenAPI* openapi, dmhash_t hash);
 }
 
 #endif

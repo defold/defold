@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include <string.h>
+#include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dlib/socket.h>
 #include <dlib/webserver.h>
 #include <dlib/webserver_openapi.h>
@@ -175,6 +177,66 @@ TEST_F(WebServerOpenAPITest, RejectConflictingPaths)
         "{\"/items/\\u007bid\\u007d\":{" GET_OPERATION "}}"));
     ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(m_Server, "/items/"));
     ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/items", &m_Params, json));
+}
+
+// Parser diagnostics must identify the failing source location for syntax and registration errors.
+TEST_F(WebServerOpenAPITest, MetadataErrorLocations)
+{
+    static const char trailing[] = "{\"/trailing\":{" GET_OPERATION "}} trailing";
+    static const char wrong_prefix[] = "{\"/other\":{" GET_OPERATION "}}";
+    static const char duplicate[] = "{\"/items/{id}\":{" GET_OPERATION "},\"/items/{name}\":{" GET_OPERATION "}}";
+    const char* json[] = {0, "{}", trailing, wrong_prefix, duplicate};
+    const char* messages[] = {
+        "Expected a non-empty Paths Object", "Expected a non-empty Paths Object",
+        "Unexpected data after Paths Object", "Path must start with the handler prefix",
+        "Duplicate path (including renamed path parameters)"
+    };
+    const char* prefixes[] = {"/", "/", "/trailing", "/expected", "/items"};
+    uint32_t offsets[] = {0, 1, (uint32_t)(strstr(trailing, " trailing") + 1 - trailing), 1,
+        (uint32_t)(strstr(duplicate, "\"/items/{name}\"") - duplicate)};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(json); ++i)
+    {
+        dmWebServer::OpenAPI parsed;
+        dmWebServer::OpenAPIError error;
+        ASSERT_FALSE(dmWebServer::ParseOpenAPI(prefixes[i], json[i], &parsed, &error));
+        ASSERT_STREQ(messages[i], error.m_Message);
+        ASSERT_EQ(offsets[i], error.m_Offset);
+    }
+}
+
+static char g_RegistrationErrors[4096];
+
+static void CaptureRegistrationError(LogSeverity severity, const char*, const char* message)
+{
+    if (severity == LOG_SEVERITY_ERROR)
+        dmStrlCat(g_RegistrationErrors, message, sizeof(g_RegistrationErrors));
+}
+
+// Registration failures must name both conflicting providers and original paths, plus invalid metadata locations.
+TEST_F(WebServerOpenAPITest, RegistrationErrorMessages)
+{
+    static const char existing[] = "{\"/items/{id}\":{" GET_OPERATION "}}";
+    static const char conflicting[] = "{\"/items/{name}\":{" GET_OPERATION "}}";
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/items/", &m_Params, existing));
+    g_RegistrationErrors[0] = 0;
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    dmLogRegisterListener(CaptureRegistrationError);
+    dmWebServer::Result conflict = dmWebServer::AddHandler(m_Server, "/items", &m_Params, conflicting);
+    dmWebServer::Result invalid = dmWebServer::AddHandler(m_Server, "/invalid", &m_Params, "{}");
+    // Joining the log thread drains pending messages before the output is inspected.
+    dmLog::LogFinalize();
+    dmLogUnregisterListener(CaptureRegistrationError);
+
+    ASSERT_EQ(dmWebServer::RESULT_ERROR_INVAL, conflict);
+    ASSERT_EQ(dmWebServer::RESULT_ERROR_INVAL, invalid);
+    ASSERT_NE((const char*)0, strstr(g_RegistrationErrors,
+        "OpenAPI path '/items/{name}' from handler '/items' conflicts with path '/items/{id}' from handler '/items/'"));
+    ASSERT_NE((const char*)0, strstr(g_RegistrationErrors,
+        "Invalid OpenAPI metadata for handler '/invalid' at byte 1: Expected a non-empty Paths Object"));
+    dmArray<char> paths;
+    dmWebServer::GetOpenAPIPaths(m_Server, &paths);
+    ASSERT_STREQ(existing, paths.Begin());
 }
 
 // JSON escapes, UTF-8, nested values and numeric formats must survive document assembly unchanged.
