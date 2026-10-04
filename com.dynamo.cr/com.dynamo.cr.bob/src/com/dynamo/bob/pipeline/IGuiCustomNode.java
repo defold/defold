@@ -25,6 +25,7 @@ package com.dynamo.bob.pipeline;
  * is the source GUI for diagnostics; the map associates GUI resource aliases with their compiled
  * output resources. Referenced resources have already been built. Throw CompileExceptionError
  * to report a build error. Plugins without this method retain their existing behavior.
+ * GUI task signatures include the used plugin JARs and registered property definitions.
  */
 public interface IGuiCustomNode {
 }

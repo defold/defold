@@ -14,10 +14,16 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
 import java.util.Collection;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +83,7 @@ public class GuiCustomTypeRegistry {
         private final Map<Long, Property> propertiesByHash = new LinkedHashMap<Long, Property>();
         private Method migratePropertiesMethod;
         private Method validateNodesMethod;
+        private String signature;
 
         private Type(String name) {
             this.name = name;
@@ -108,6 +115,10 @@ public class GuiCustomTypeRegistry {
 
         public Property getProperty(long nameHash) {
             return propertiesByHash.get(nameHash);
+        }
+
+        public String getSignature() {
+            return signature;
         }
 
         public void migrateProperties(Map<String, Object> properties) {
@@ -155,6 +166,7 @@ public class GuiCustomTypeRegistry {
         invokeRegisterProperties(klass, type);
         type.migratePropertiesMethod = findStaticMethod(klass, "migrateProperties", Map.class);
         type.validateNodesMethod = findStaticMethod(klass, "validateNodes", Project.class, IResource.class, List.class, Map.class);
+        type.signature = calculateSignature(klass, type);
 
         typesByHash.put(type.getNameHash(), type);
         typesByName.put(type.getName(), type);
@@ -166,6 +178,35 @@ public class GuiCustomTypeRegistry {
 
     public Type getByName(String name) {
         return typesByName.get(name);
+    }
+
+    private static String calculateSignature(Class<?> klass, Type type) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            URL location = klass.getProtectionDomain().getCodeSource() == null
+                    ? null : klass.getProtectionDomain().getCodeSource().getLocation();
+            // Hash the whole plugin JAR, including helpers used by its validator and registration.
+            // Exploded development classes have no JAR; use the registration class in that case.
+            URL implementation = location != null && location.getPath().endsWith(".jar")
+                    ? location : klass.getResource("/" + klass.getName().replace('.', '/') + ".class");
+            if (implementation == null) {
+                throw new IllegalStateException("Unable to locate class bytes");
+            }
+            var connection = implementation.openConnection();
+            connection.setUseCaches(false);
+            try (InputStream stream = new DigestInputStream(connection.getInputStream(), digest)) {
+                stream.transferTo(java.io.OutputStream.nullOutputStream());
+            }
+            digest.update(klass.getName().getBytes(StandardCharsets.UTF_8));
+            for (Property property : type.getProperties()) {
+                String definition = "\0" + property.name + "\0" + property.propertyType + "\0"
+                        + property.editTypeFlags + "\0" + property.defaultValue;
+                digest.update(definition.getBytes(StandardCharsets.UTF_8));
+            }
+            return "gui-custom-type:" + type.name + ":" + HexFormat.of().formatHex(digest.digest());
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to calculate GUI custom node signature for class " + klass.getName(), e);
+        }
     }
 
     private static void invokeRegisterProperties(Class<?> klass, Type type) {

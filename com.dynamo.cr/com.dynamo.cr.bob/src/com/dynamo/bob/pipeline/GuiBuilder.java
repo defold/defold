@@ -70,6 +70,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private final Set<String> templatePaths = new HashSet<>();
     private final Set<String> templateStack = new LinkedHashSet<>();
     private final Set<Task> validationResourceTasks = new LinkedHashSet<>();
+    private final Set<GuiCustomTypeRegistry.Type> customTypes = new LinkedHashSet<>();
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
@@ -81,16 +82,32 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         try {
             createSubTasks(getSrcBuilder(input), taskBuilder);
             addValidationResourceInputs(taskBuilder);
+            for (GuiCustomTypeRegistry.Type type : customTypes) {
+                taskBuilder.addExtraCacheKey(type.getSignature());
+            }
             return taskBuilder.build();
         } finally {
             templatePaths.clear();
             templateStack.clear();
             validationResourceTasks.clear();
+            customTypes.clear();
         }
     }
 
     @Override
     protected void createSubTasks(MessageOrBuilder message, Task.TaskBuilder taskBuilder) throws CompileExceptionError {
+        if (message instanceof NodeDescOrBuilder node) {
+            GuiCustomTypeRegistry registry = project.getGuiCustomTypeRegistry();
+            GuiCustomTypeRegistry.Type type = switch (node.getType()) {
+                case TYPE_SPINE -> registry.getByName("Spine");
+                case TYPE_CUSTOM -> node.getCustomTypeName().isEmpty()
+                        ? registry.getByHash(node.getCustomType()) : registry.getByName(node.getCustomTypeName());
+                default -> null;
+            };
+            if (type != null) {
+                customTypes.add(type);
+            }
+        }
         if (!(message instanceof NodeDescOrBuilder node) || node.getTemplate().isEmpty()) {
             super.createSubTasks(message, taskBuilder);
             return;
