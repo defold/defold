@@ -149,15 +149,11 @@ namespace dmWebServer
         return true;
     }
 
-    static bool AddUniqueHash(dmArray<dmhash_t>* hashes, dmhash_t hash)
+    static bool AddUniqueHash(dmSet<dmhash_t>* hashes, dmhash_t hash)
     {
-        for (uint32_t i = 0; i < hashes->Size(); ++i)
-            if ((*hashes)[i] == hash)
-                return false;
         if (hashes->Full())
             hashes->OffsetCapacity(8);
-        hashes->Push(hash);
-        return true;
+        return hashes->Add(hash);
     }
 
     static bool IsMethod(const char* key)
@@ -174,7 +170,7 @@ namespace dmWebServer
         if (!Consume(p, '{'))
             return false;
         dmArray<char> key;
-        dmArray<dmhash_t> keys;
+        dmSet<dmhash_t> keys;
         bool has_operation = false;
         bool has_responses = false;
         while (*p != '}')

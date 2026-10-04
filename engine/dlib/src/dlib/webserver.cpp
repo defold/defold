@@ -252,21 +252,18 @@ namespace dmWebServer
                 const OpenAPI* existing = server->m_Handlers[i].m_OpenAPI;
                 if (!existing)
                     continue;
-                const dmArray<dmhash_t>& paths = existing->m_Paths;
+                const dmSet<dmhash_t>& paths = existing->m_Paths;
                 for (uint32_t j = 0; j < paths.Size(); ++j)
                 {
-                    for (uint32_t k = 0; k < openapi->m_Paths.Size(); ++k)
+                    if (openapi->m_Paths.Contains(paths[j]))
                     {
-                        if (paths[j] == openapi->m_Paths[k])
-                        {
-                            const OpenAPIPath* old_path = FindOpenAPIPath(existing, paths[j]);
-                            const OpenAPIPath* new_path = FindOpenAPIPath(openapi, paths[j]);
-                            dmLogError("OpenAPI path '%.*s' from handler '%s' conflicts with path '%.*s' from handler '%s'",
-                                (int)new_path->m_Length, openapi->m_Json + new_path->m_Offset, prefix,
-                                (int)old_path->m_Length, existing->m_Json + old_path->m_Offset, server->m_Handlers[i].m_Prefix);
-                            delete openapi;
-                            return RESULT_ERROR_INVAL;
-                        }
+                        const OpenAPIPath* old_path = FindOpenAPIPath(existing, paths[j]);
+                        const OpenAPIPath* new_path = FindOpenAPIPath(openapi, paths[j]);
+                        dmLogError("OpenAPI path '%.*s' from handler '%s' conflicts with path '%.*s' from handler '%s'",
+                            (int)new_path->m_Length, openapi->m_Json + new_path->m_Offset, prefix,
+                            (int)old_path->m_Length, existing->m_Json + old_path->m_Offset, server->m_Handlers[i].m_Prefix);
+                        delete openapi;
+                        return RESULT_ERROR_INVAL;
                     }
                 }
             }

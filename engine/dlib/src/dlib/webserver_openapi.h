@@ -17,6 +17,7 @@
 
 #include "array.h"
 #include "hash.h"
+#include "set.h"
 
 namespace dmWebServer
 {
@@ -31,7 +32,7 @@ namespace dmWebServer
     {
         const char*          m_Json;
         uint32_t             m_Length;
-        dmArray<dmhash_t>     m_Paths;
+        dmSet<dmhash_t>       m_Paths;
         dmArray<OpenAPIPath> m_PathInfo;
     };
 

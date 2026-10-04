@@ -215,8 +215,8 @@ static void CaptureRegistrationError(LogSeverity severity, const char*, const ch
 // Registration failures must name both conflicting providers and original paths, plus invalid metadata locations.
 TEST_F(WebServerOpenAPITest, RegistrationErrorMessages)
 {
-    static const char existing[] = "{\"/items/{id}\":{" GET_OPERATION "}}";
-    static const char conflicting[] = "{\"/items/{name}\":{" GET_OPERATION "}}";
+    static const char existing[] = "{\"/items/other\":{" GET_OPERATION "},\"/items/{id}\":{" GET_OPERATION "}}";
+    static const char conflicting[] = "{\"/items/another\":{" GET_OPERATION "},\"/items/{name}\":{" GET_OPERATION "}}";
     ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/items/", &m_Params, existing));
     g_RegistrationErrors[0] = 0;
     dmLog::LogParams params;
