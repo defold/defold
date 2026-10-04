@@ -14,14 +14,20 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gamesys.proto.Gui.Property.PropertyType;
+import com.dynamo.gamesys.proto.Gui.NodeDesc;
 
 public class GuiCustomTypeRegistry {
     public static class Property {
@@ -70,6 +76,7 @@ public class GuiCustomTypeRegistry {
         private final LinkedHashMap<String, Property> properties = new LinkedHashMap<String, Property>();
         private final Map<Long, Property> propertiesByHash = new LinkedHashMap<Long, Property>();
         private Method migratePropertiesMethod;
+        private Method validateNodesMethod;
 
         private Type(String name) {
             this.name = name;
@@ -113,6 +120,23 @@ public class GuiCustomTypeRegistry {
                 throw new RuntimeException("Unable to migrate gui custom node properties for type '" + name + "'", e);
             }
         }
+
+        public void validateNodes(Project project, IResource resource, List<NodeDesc> nodes, Map<String, IResource> resources) throws CompileExceptionError {
+            if (validateNodesMethod == null) {
+                return;
+            }
+            try {
+                validateNodesMethod.invoke(null, project, resource, nodes, resources);
+            } catch (InvocationTargetException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof CompileExceptionError compileError) {
+                    throw compileError;
+                }
+                throw new CompileExceptionError(resource, 0, "Unable to validate GUI custom nodes of type '" + name + "': " + cause.getMessage(), cause);
+            } catch (IllegalAccessException e) {
+                throw new CompileExceptionError(resource, 0, "Unable to validate GUI custom nodes of type '" + name + "'", e);
+            }
+        }
     }
 
     private final Map<Integer, Type> typesByHash = new LinkedHashMap<Integer, Type>();
@@ -130,6 +154,7 @@ public class GuiCustomTypeRegistry {
         Type type = new Type(annotation.type());
         invokeRegisterProperties(klass, type);
         type.migratePropertiesMethod = findStaticMethod(klass, "migrateProperties", Map.class);
+        type.validateNodesMethod = findStaticMethod(klass, "validateNodes", Project.class, IResource.class, List.class, Map.class);
 
         typesByHash.put(type.getNameHash(), type);
         typesByName.put(type.getName(), type);
@@ -155,9 +180,9 @@ public class GuiCustomTypeRegistry {
         }
     }
 
-    private static Method findStaticMethod(Class<?> klass, String name, Class<?> parameterType) {
+    private static Method findStaticMethod(Class<?> klass, String name, Class<?>... parameterTypes) {
         try {
-            Method method = klass.getMethod(name, parameterType);
+            Method method = klass.getMethod(name, parameterTypes);
             if (!Modifier.isStatic(method.getModifiers())) {
                 throw new RuntimeException("Method " + klass.getName() + "." + name + " must be static");
             }

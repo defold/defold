@@ -66,6 +66,19 @@ import org.apache.commons.io.FilenameUtils;
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private final Map<String, Set<String>> fontStyleNames = new HashMap<>();
 
+    @Override
+    protected Task createSubTask(String inputPath, String field, Task.TaskBuilder taskBuilder) throws CompileExceptionError {
+        Task task = super.createSubTask(inputPath, field, taskBuilder);
+        if (field.equals("path") || field.equals("spine_scene") || field.equals("template")) {
+            // Selection validation can read resource data even when the compiled descriptor is unchanged.
+            // Template tasks carry these dependencies too, including those of nested templates.
+            for (IResource input : task.getInputs()) {
+                taskBuilder.addInput(input);
+            }
+        }
+        return task;
+    }
+
     private void validateStyleSelection(String input, NodeDesc node, Map<String, Set<String>> styles) throws CompileExceptionError {
         if (node.getType() == Type.TYPE_TEXT && styles.containsKey(node.getFont()) && !styles.get(node.getFont()).contains(node.getStyle()))
             throw new CompileExceptionError(project.getResource(input), 0, "Node '" + node.getId() + "': font style '" + node.getStyle() + "' does not exist");
@@ -925,12 +938,27 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         // Validate the effective values after template and layout overrides have been applied.
         if (flattenTemplates) {
-            for (NodeDesc node : sceneBuilder.getNodesList()) {
-                validateCustomNodeProperties(node, builder, input);
-            }
+            List<NodeDesc> nodes = new ArrayList<>(sceneBuilder.getNodesList());
             for (LayoutDesc layout : sceneBuilder.getLayoutsList()) {
-                for (NodeDesc node : layout.getNodesList()) {
-                    validateCustomNodeProperties(node, builder, input);
+                nodes.addAll(layout.getNodesList());
+            }
+
+            Map<Integer, List<NodeDesc>> nodesByType = new LinkedHashMap<>();
+            for (NodeDesc node : nodes) {
+                validateCustomNodeProperties(node, builder, input);
+                if (node.getType() == Type.TYPE_CUSTOM) {
+                    nodesByType.computeIfAbsent(node.getCustomType(), key -> new ArrayList<>()).add(node);
+                }
+            }
+
+            if (!nodesByType.isEmpty()) {
+                Map<String, IResource> resources = new HashMap<>();
+                for (ResourceDesc resource : sceneBuilder.getResourcesList()) {
+                    resources.put(resource.getName(), builder.project.getResource(resource.getPath()).output());
+                }
+                for (Map.Entry<Integer, List<NodeDesc>> entry : nodesByType.entrySet()) {
+                    builder.project.getGuiCustomTypeRegistry().getByHash(entry.getKey()).validateNodes(
+                            builder.project, builder.project.getResource(input), List.copyOf(entry.getValue()), Collections.unmodifiableMap(resources));
                 }
             }
         }

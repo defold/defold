@@ -14,5 +14,17 @@
 
 package com.dynamo.bob.pipeline;
 
+/**
+ * Marker for GUI custom node build plugins. Plugins may provide static
+ * {@code registerProperties(IGuiCustomType)} and {@code migrateProperties(Map)} methods.
+ *
+ * An optional static {@code validateNodes(Project, IResource, List<NodeDesc>, Map<String, IResource>)}
+ * method validates the final nodes. Bob calls it once per node type and GUI build, after
+ * migration, template and layout overrides, and generic property validation. The list contains
+ * only nodes of this type from the default layout and all other layouts. The resource argument
+ * is the source GUI for diagnostics; the map associates GUI resource aliases with their compiled
+ * output resources. Referenced resources have already been built. Throw CompileExceptionError
+ * to report a build error. Plugins without this method retain their existing behavior.
+ */
 public interface IGuiCustomNode {
 }

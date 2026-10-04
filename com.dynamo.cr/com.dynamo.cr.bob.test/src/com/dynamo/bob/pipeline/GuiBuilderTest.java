@@ -34,6 +34,7 @@ import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
 
 public class GuiBuilderTest extends AbstractProtoBuilderTest {
@@ -62,6 +63,37 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    @GuiCustomNode(type = "Validated")
+    private static class TestValidatedGuiNode implements IGuiCustomNode {
+        public static void registerProperties(IGuiCustomType type) {
+            type.addProperty("selection", "valid", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
+        }
+
+        public static void validateNodes(Project project, IResource resource, List<NodeDesc> nodes, Map<String, IResource> resources) throws Exception {
+            project.setOption("gui-validation-calls", Integer.toString(Integer.parseInt(project.option("gui-validation-calls", "0")) + 1));
+            project.setOption("gui-validation-node-count", Integer.toString(nodes.size()));
+            IResource asset = resources.get("asset");
+            Assert.assertNotNull(asset);
+            Assert.assertTrue(asset.isOutput());
+            Gui.SceneDesc assetScene = Gui.SceneDesc.parseFrom(asset.getContent());
+            String validSelection = "valid";
+            if (assetScene.getResourcesCount() != 0) {
+                IResource data = project.getResource(assetScene.getResources(0).getPath()).output();
+                validSelection = Gui.SceneDesc.parseFrom(data.getContent()).getNodes(0).getText();
+            }
+            for (NodeDesc node : nodes) {
+                Assert.assertEquals(MurmurHash.hash32("Validated"), node.getCustomType());
+                String selection = findCustomProperty(node, "selection").getString();
+                if (selection.equals("exception")) {
+                    throw new IllegalArgumentException("Invalid plugin input");
+                }
+                if (!selection.equals(validSelection)) {
+                    throw new CompileExceptionError(resource, 17, "GUI node '" + node.getId() + "': invalid selection");
+                }
+            }
+        }
+    }
+
     @GuiCustomNode(type = "Typed")
     private static class TestTypedGuiNode implements IGuiCustomNode {
         public static void registerProperties(IGuiCustomType type) {
@@ -81,6 +113,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         getProject().getGuiCustomTypeRegistry().register(TestSpineGuiNode.class);
         getProject().getGuiCustomTypeRegistry().register(TestOptionalResourceGuiNode.class);
         getProject().getGuiCustomTypeRegistry().register(TestTypedGuiNode.class);
+        getProject().getGuiCustomTypeRegistry().register(TestValidatedGuiNode.class);
     }
 
     private boolean nodeExists(Gui.SceneDesc scene, String nodeId)
@@ -427,6 +460,113 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     private void assertMissingSpineScene(StringBuilder src, String nodeId) throws Exception {
         assertGuiBuildError(src, "GUI node '" + nodeId + "' must specify a resource for custom property 'spine_scene'");
+    }
+
+    // Supplies compiled resources and groups only matching nodes into one validation call per GUI.
+    @Test
+    public void testCustomNodeValidatorReceivesCompiledResources() throws Exception {
+        StringBuilder src = createGui();
+        addGuiResource(src, "asset");
+        startCustomNode(src, "first", "Validated");
+        finishNode(src);
+        startCustomNode(src, "second", "Validated");
+        finishNode(src);
+        addBoxNode(src, "box", "");
+
+        buildGui(src, "/test.gui");
+
+        Assert.assertEquals("1", getProject().option("gui-validation-calls", "0"));
+        Assert.assertEquals("2", getProject().option("gui-validation-node-count", "0"));
+    }
+
+    // Revalidates an unchanged GUI when resource data changes but its compiled descriptor does not.
+    @Test
+    public void testCustomNodeValidatorChecksChangedResourceData() throws Exception {
+        assertCustomNodeValidatorChecksChangedResourceData(false);
+    }
+
+    // Keeps resource-data dependencies when a validated custom node is imported through a template.
+    @Test
+    public void testCustomNodeValidatorChecksChangedTemplateResourceData() throws Exception {
+        assertCustomNodeValidatorChecksChangedResourceData(true);
+    }
+
+    private void assertCustomNodeValidatorChecksChangedResourceData(boolean throughTemplate) throws Exception {
+        StringBuilder src = createGui();
+        addGuiResource(src, "asset");
+        startCustomNode(src, "validated", "Validated");
+        finishNode(src);
+
+        StringBuilder asset = createGui();
+        addGuiResource(asset, "data");
+        addFile("/assets/asset.gui", asset.toString());
+        StringBuilder data = createGui();
+        addTextNode(data, "name", "", "valid");
+        addFile("/assets/data.gui", data.toString());
+        if (throughTemplate) {
+            addFile("/template.gui", src.toString());
+            src = createGui();
+            addTemplateNode(src, "template", "", "/template.gui");
+        }
+        buildGui(src, "/test.gui");
+
+        data = createGui();
+        addTextNode(data, "name", "", "renamed");
+        addFile("/assets/data.gui", data.toString());
+        assertGuiBuildError(src, "GUI node 'validated': invalid selection");
+    }
+
+    // Preserves the plugin's GUI file and line information when a final layout value is invalid.
+    @Test
+    public void testCustomNodeValidatorChecksLayoutOverrides() throws Exception {
+        StringBuilder src = createGui();
+        addGuiResource(src, "asset");
+        startCustomNode(src, "validated", "Validated");
+        finishNode(src);
+        startLayout(src, "Landscape");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "validated", "", false, List.of());
+        src.append("  custom_properties { id: \"selection\" type: TYPE_STRING string: \"invalid\" }\n");
+        finishNode(src);
+        finishLayout(src);
+
+        try {
+            buildGui(src, "/test.gui");
+            Assert.fail("Expected validation of the layout override to fail");
+        } catch (CompileExceptionError e) {
+            Assert.assertEquals("GUI node 'validated': invalid selection", e.getMessage());
+            Assert.assertEquals("test.gui", e.getResource().getPath());
+            Assert.assertEquals(17, e.getLineNumber());
+        }
+    }
+
+    // Invokes extension validation after template overrides and imports the template's resources.
+    @Test
+    public void testCustomNodeValidatorChecksTemplateOverrides() throws Exception {
+        StringBuilder templateSrc = createGui();
+        addGuiResource(templateSrc, "asset");
+        startCustomNode(templateSrc, "validated", "Validated");
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "template/validated", "template", true, List.of());
+        src.append("  custom_properties { id: \"selection\" type: TYPE_STRING string: \"invalid\" }\n");
+        finishNode(src);
+
+        assertGuiBuildError(src, "GUI node 'template/validated': invalid selection");
+    }
+
+    // Attributes unexpected plugin exceptions to the source GUI instead of exposing reflection errors.
+    @Test
+    public void testCustomNodeValidatorExceptionReportsGuiResource() throws Exception {
+        StringBuilder src = createGui();
+        addGuiResource(src, "asset");
+        startCustomNode(src, "validated", "Validated");
+        src.append("  custom_properties { id: \"selection\" type: TYPE_STRING string: \"exception\" }\n");
+        finishNode(src);
+
+        assertGuiBuildError(src, "Unable to validate GUI custom nodes of type 'Validated': Invalid plugin input");
     }
 
     private void assertGuiBuildError(StringBuilder src, String message) throws Exception {
