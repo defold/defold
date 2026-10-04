@@ -45,6 +45,7 @@ import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
+import com.dynamo.gamesys.proto.Gui.NodeDescOrBuilder;
 import com.dynamo.gamesys.proto.Gui.NodeDesc.Type;
 import com.dynamo.gamesys.proto.Gui.SceneDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.FontDesc;
@@ -58,6 +59,7 @@ import com.dynamo.gamesys.proto.Gui.SceneDesc.ResourceDesc;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.TextFormat;
+import com.google.protobuf.MessageOrBuilder;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -65,18 +67,94 @@ import org.apache.commons.io.FilenameUtils;
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private final Map<String, Set<String>> fontStyleNames = new HashMap<>();
+    private final Set<IResource> templateResources = new HashSet<>();
+    private final Set<IResource> templateStack = new LinkedHashSet<>();
+    private final Set<Task> validationResourceTasks = new LinkedHashSet<>();
+
+    @Override
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+        templateStack.add(input);
+        try {
+            createSubTasks(getSrcBuilder(input), taskBuilder);
+            addValidationResourceInputs(taskBuilder);
+            return taskBuilder.build();
+        } finally {
+            templateResources.clear();
+            templateStack.clear();
+            validationResourceTasks.clear();
+        }
+    }
+
+    @Override
+    protected void createSubTasks(MessageOrBuilder message, Task.TaskBuilder taskBuilder) throws CompileExceptionError {
+        if (!(message instanceof NodeDescOrBuilder node) || node.getTemplate().isEmpty()) {
+            super.createSubTasks(message, taskBuilder);
+            return;
+        }
+
+        // Templates are read as source when instantiated. Compiling them independently would
+        // validate their custom properties before the containing GUI can override them.
+        NodeDesc.Builder nodeBuilder = message instanceof NodeDesc desc ? desc.toBuilder() : ((NodeDesc.Builder) message).clone();
+        super.createSubTasks(nodeBuilder.clearTemplate(), taskBuilder);
+        IResource template = BuilderUtil.checkResource(project, taskBuilder.firstInput(), "template", node.getTemplate());
+        if (!templateStack.add(template)) {
+            String chain = templateStack.stream().map(IResource::getPath).collect(Collectors.joining(" -> "));
+            throw new CompileExceptionError(taskBuilder.firstInput(), 0,
+                    "Circular dependency detected in GUI templates: " + chain + " -> " + template.getPath());
+        }
+        try {
+            if (templateResources.add(template)) {
+                taskBuilder.addInput(template);
+                createSubTasks(getSrcBuilder(template), taskBuilder);
+            }
+        } catch (IOException e) {
+            throw new CompileExceptionError(template, 0, "Unable to read GUI template", e);
+        } finally {
+            templateStack.remove(template);
+        }
+    }
 
     @Override
     protected Task createSubTask(String inputPath, String field, Task.TaskBuilder taskBuilder) throws CompileExceptionError {
         Task task = super.createSubTask(inputPath, field, taskBuilder);
-        if (field.equals("path") || field.equals("spine_scene") || field.equals("template")) {
-            // Selection validation can read resource data even when the compiled descriptor is unchanged.
-            // Template tasks carry these dependencies too, including those of nested templates.
-            for (IResource input : task.getInputs()) {
-                taskBuilder.addInput(input);
-            }
+        if (field.equals("path") || field.equals("spine_scene")) {
+            validationResourceTasks.add(task);
         }
         return task;
+    }
+
+    private void addValidationResourceInputs(Task.TaskBuilder taskBuilder) {
+        if (validationResourceTasks.isEmpty()) {
+            return;
+        }
+        Map<IResource, Task> tasksByOutput = new HashMap<>();
+        for (Task task : project.getTasks()) {
+            for (IResource output : task.getOutputs()) {
+                tasksByOutput.put(output, task);
+            }
+        }
+
+        // Validators may read data behind several descriptors whose compiled contents stay unchanged.
+        // Include every input in the resource task graph so those changes invalidate the GUI as well.
+        Deque<Task> pendingTasks = new ArrayDeque<>(validationResourceTasks);
+        Set<Task> visitedTasks = new HashSet<>();
+        while (!pendingTasks.isEmpty()) {
+            Task task = pendingTasks.removeFirst();
+            if (!visitedTasks.add(task)) {
+                continue;
+            }
+            for (IResource input : task.getInputs()) {
+                taskBuilder.addInput(input);
+                Task dependency = tasksByOutput.get(input);
+                if (dependency != null) {
+                    pendingTasks.addLast(dependency);
+                }
+            }
+        }
     }
 
     private void validateStyleSelection(String input, NodeDesc node, Map<String, Set<String>> styles) throws CompileExceptionError {

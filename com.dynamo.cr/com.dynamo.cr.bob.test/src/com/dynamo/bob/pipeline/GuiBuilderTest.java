@@ -33,14 +33,29 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 
 public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     private static final float EPSILON = 0.00001f;
     private ClassLoaderScanner scanner = null;
+
+    @ProtoParams(srcClass = Gui.SceneDesc.class, messageClass = Gui.SceneDesc.class)
+    @BuilderParams(name = "GuiTestResource", inExts = ".guiresource", outExt = ".guic")
+    public static class TestGuiResourceBuilder extends ProtoBuilder<Gui.SceneDesc.Builder> {
+        @Override
+        protected Gui.SceneDesc.Builder transform(Task task, IResource input, Gui.SceneDesc.Builder scene) {
+            for (Gui.SceneDesc.ResourceDesc.Builder resource : scene.getResourcesBuilderList()) {
+                String suffix = ResourceUtil.getSuffix(resource.getPath());
+                resource.setPath(ResourceUtil.minifyPathAndReplaceExt(resource.getPath(), suffix, ResourceUtil.getOutputExt(suffix)));
+            }
+            return scene;
+        }
+    }
 
     @GuiCustomNode(type = "Spine")
     private static class TestSpineGuiNode implements IGuiCustomNode {
@@ -78,8 +93,11 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
             Gui.SceneDesc assetScene = Gui.SceneDesc.parseFrom(asset.getContent());
             String validSelection = "valid";
             if (assetScene.getResourcesCount() != 0) {
-                IResource data = project.getResource(assetScene.getResources(0).getPath()).output();
-                validSelection = Gui.SceneDesc.parseFrom(data.getContent()).getNodes(0).getText();
+                do {
+                    IResource data = project.getResource(assetScene.getResources(0).getPath()).output();
+                    assetScene = Gui.SceneDesc.parseFrom(data.getContent());
+                } while (assetScene.getResourcesCount() != 0);
+                validSelection = assetScene.getNodes(0).getText();
             }
             for (NodeDesc node : nodes) {
                 Assert.assertEquals(MurmurHash.hash32("Validated"), node.getCustomType());
@@ -199,11 +217,15 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void addGuiResource(StringBuilder src, String name) {
+        addGuiResource(src, name, "gui");
+    }
+
+    private void addGuiResource(StringBuilder src, String name, String extension) {
         src.append("\nresources {\n");
         src.append("  name: \"").append(name).append("\"\n");
-        src.append("  path: \"/assets/").append(name).append(".gui\"\n");
+        src.append("  path: \"/assets/").append(name).append(".").append(extension).append("\"\n");
         src.append("}\n");
-        addFile("/assets/"+name+".gui", createGui().toString());
+        addFile("/assets/" + name + "." + extension, createGui().toString());
     }
 
     private static void startSpineCustomNode(StringBuilder src, String id) {
@@ -482,38 +504,58 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     // Revalidates an unchanged GUI when resource data changes but its compiled descriptor does not.
     @Test
     public void testCustomNodeValidatorChecksChangedResourceData() throws Exception {
-        assertCustomNodeValidatorChecksChangedResourceData(false);
+        assertCustomNodeValidatorChecksChangedResourceData(false, "gui");
     }
 
     // Keeps resource-data dependencies when a validated custom node is imported through a template.
     @Test
     public void testCustomNodeValidatorChecksChangedTemplateResourceData() throws Exception {
-        assertCustomNodeValidatorChecksChangedResourceData(true);
+        assertCustomNodeValidatorChecksChangedResourceData(true, "gui");
     }
 
-    private void assertCustomNodeValidatorChecksChangedResourceData(boolean throughTemplate) throws Exception {
+    // Revalidates resource data behind multiple unchanged descriptors built by ordinary ProtoBuilders.
+    @Test
+    public void testCustomNodeValidatorChecksChangedTransitiveResourceData() throws Exception {
+        assertCustomNodeValidatorChecksChangedResourceData(false, "guiresource");
+    }
+
+    // Carries transitive resource data dependencies through a template into its containing GUI.
+    @Test
+    public void testCustomNodeValidatorChecksChangedTransitiveTemplateResourceData() throws Exception {
+        assertCustomNodeValidatorChecksChangedResourceData(true, "guiresource");
+    }
+
+    private void assertCustomNodeValidatorChecksChangedResourceData(boolean throughTemplate, String descriptorExtension) throws Exception {
         StringBuilder src = createGui();
-        addGuiResource(src, "asset");
+        addGuiResource(src, "asset", descriptorExtension);
         startCustomNode(src, "validated", "Validated");
         finishNode(src);
 
         StringBuilder asset = createGui();
-        addGuiResource(asset, "data");
-        addFile("/assets/asset.gui", asset.toString());
+        addGuiResource(asset, "data", descriptorExtension);
+        addFile("/assets/asset." + descriptorExtension, asset.toString());
         StringBuilder data = createGui();
-        addTextNode(data, "name", "", "valid");
-        addFile("/assets/data.gui", data.toString());
+        addGuiResource(data, "names");
+        addFile("/assets/data." + descriptorExtension, data.toString());
+        StringBuilder names = createGui();
+        addTextNode(names, "name", "", "valid");
+        addFile("/assets/names.gui", names.toString());
         if (throughTemplate) {
             addFile("/template.gui", src.toString());
             src = createGui();
             addTemplateNode(src, "template", "", "/template.gui");
         }
         buildGui(src, "/test.gui");
+        byte[] compiledAsset = getProject().getResource("/assets/asset.guic").output().getContent();
+        byte[] compiledData = getProject().getResource("/assets/data.guic").output().getContent();
 
-        data = createGui();
-        addTextNode(data, "name", "", "renamed");
-        addFile("/assets/data.gui", data.toString());
-        assertGuiBuildError(src, "GUI node 'validated': invalid selection");
+        names = createGui();
+        addTextNode(names, "name", "", "renamed");
+        addFile("/assets/names.gui", names.toString());
+        String nodeId = throughTemplate ? "template/validated" : "validated";
+        assertGuiBuildError(src, "GUI node '" + nodeId + "': invalid selection");
+        Assert.assertArrayEquals(compiledAsset, getProject().getResource("/assets/asset.guic").output().getContent());
+        Assert.assertArrayEquals(compiledData, getProject().getResource("/assets/data.guic").output().getContent());
     }
 
     // Preserves the plugin's GUI file and line information when a final layout value is invalid.
@@ -555,6 +597,99 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         finishNode(src);
 
         assertGuiBuildError(src, "GUI node 'template/validated': invalid selection");
+    }
+
+    // Accepts a parent override that corrects an invalid template selection before final validation.
+    @Test
+    public void testCustomNodeValidatorAcceptsCorrectedTemplateSelection() throws Exception {
+        StringBuilder templateSrc = createGui();
+        addGuiResource(templateSrc, "asset");
+        startCustomNode(templateSrc, "validated", "Validated");
+        templateSrc.append("  custom_properties { id: \"selection\" type: TYPE_STRING string: \"invalid\" }\n");
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "template/validated", "template", true, List.of());
+        src.append("  custom_properties { id: \"selection\" type: TYPE_STRING string: \"valid\" }\n");
+        finishNode(src);
+        addTemplateNode(src, "second", "", "/template.gui");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "second/validated", "second", true, List.of());
+        src.append("  custom_properties { id: \"selection\" type: TYPE_STRING string: \"valid\" }\n");
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        Assert.assertEquals("valid", findCustomProperty(findNode(gui, "", "template/validated"), "selection").getString());
+        Assert.assertEquals("valid", findCustomProperty(findNode(gui, "", "second/validated"), "selection").getString());
+        Assert.assertEquals("1", getProject().option("gui-validation-calls", "0"));
+        Assert.assertEquals("2", getProject().option("gui-validation-node-count", "0"));
+
+        // The same source still needs validation when compiled as a standalone GUI.
+        try {
+            buildGui(templateSrc, "/template.gui");
+            Assert.fail("Expected the standalone GUI's invalid selection to fail");
+        } catch (CompileExceptionError e) {
+            Assert.assertEquals("GUI node 'validated': invalid selection", e.getMessage());
+            Assert.assertEquals("template.gui", e.getResource().getPath());
+        }
+    }
+
+    // Validates an uncorrected template selection in the containing GUI, using its instantiated node ID.
+    @Test
+    public void testCustomNodeValidatorRejectsUncorrectedTemplateSelection() throws Exception {
+        StringBuilder templateSrc = createGui();
+        addGuiResource(templateSrc, "asset");
+        startCustomNode(templateSrc, "validated", "Validated");
+        templateSrc.append("  custom_properties { id: \"selection\" type: TYPE_STRING string: \"invalid\" }\n");
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        assertGuiBuildError(src, "GUI node 'template/validated': invalid selection");
+    }
+
+    // Invalidates the parent GUI when template source changes without a separate compiled template task.
+    @Test
+    public void testCustomNodeValidatorChecksChangedTemplateSource() throws Exception {
+        StringBuilder templateSrc = createGui();
+        addGuiResource(templateSrc, "asset");
+        startCustomNode(templateSrc, "validated", "Validated");
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        buildGui(src, "/test.gui");
+        Assert.assertEquals("1", getProject().option("gui-validation-calls", "0"));
+
+        templateSrc = createGui();
+        addGuiResource(templateSrc, "asset");
+        startCustomNode(templateSrc, "validated", "Validated");
+        templateSrc.append("  custom_properties { id: \"selection\" type: TYPE_STRING string: \"invalid\" }\n");
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+        assertGuiBuildError(src, "GUI node 'template/validated': invalid selection");
+        Assert.assertEquals("2", getProject().option("gui-validation-calls", "0"));
+    }
+
+    // Reports circular template source dependencies instead of recursing indefinitely during task creation.
+    @Test
+    public void testCircularTemplateDependencyFailsBuild() throws Exception {
+        StringBuilder templateSrc = createGui();
+        addTemplateNode(templateSrc, "child", "", "/test.gui");
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        try {
+            buildGui(src, "/test.gui");
+            Assert.fail("Expected circular template dependencies to fail");
+        } catch (CompileExceptionError e) {
+            Assert.assertTrue(e.getMessage().contains("Circular dependency detected"));
+            Assert.assertEquals("test.gui", e.getResource().getPath());
+        }
     }
 
     // Attributes unexpected plugin exceptions to the source GUI instead of exposing reflection errors.
@@ -753,6 +888,42 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         finishNode(src);
 
         assertMissingSpineScene(src, "template/spine");
+    }
+
+    // Allows the parent GUI to supply a required resource that is omitted in a reusable template.
+    @Test
+    public void testTemplateOverridesMissingRequiredSpineScene() throws Exception {
+        assertTemplateOverridesMissingRequiredSpineScene(false);
+    }
+
+    // Defers required resource checks until overrides have passed through every nested template.
+    @Test
+    public void testNestedTemplateOverridesMissingRequiredSpineScene() throws Exception {
+        assertTemplateOverridesMissingRequiredSpineScene(true);
+    }
+
+    private void assertTemplateOverridesMissingRequiredSpineScene(boolean nested) throws Exception {
+        StringBuilder templateSrc = createGui();
+        startSpineCustomNode(templateSrc, "spine");
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+        String nodeId = "template/spine";
+        if (nested) {
+            StringBuilder outerTemplate = createGui();
+            addTemplateNode(outerTemplate, "inner", "", "/template.gui");
+            addFile("/outer.gui", outerTemplate.toString());
+            nodeId = "template/inner/spine";
+        }
+
+        StringBuilder src = createGui();
+        addSpineResource(src, "spineboy");
+        addTemplateNode(src, "template", "", nested ? "/outer.gui" : "/template.gui");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, nodeId, nested ? "template/inner" : "template", true, List.of());
+        src.append("  custom_properties { id: \"spine_scene\" type: TYPE_STRING string: \"spineboy\" }\n");
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        Assert.assertEquals("spineboy", findCustomProperty(findNode(gui, "", nodeId), "spine_scene").getString());
     }
 
     // Keeps an inherited required scene valid when a template overrides another custom property.
