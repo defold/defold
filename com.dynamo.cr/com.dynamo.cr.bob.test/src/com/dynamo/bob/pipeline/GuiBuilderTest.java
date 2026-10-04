@@ -426,13 +426,112 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void assertMissingSpineScene(StringBuilder src, String nodeId) throws Exception {
+        assertGuiBuildError(src, "GUI node '" + nodeId + "' must specify a resource for custom property 'spine_scene'");
+    }
+
+    private void assertGuiBuildError(StringBuilder src, String message) throws Exception {
         try {
             buildGui(src, "/test.gui");
-            Assert.fail("Expected a missing Spine scene to fail the GUI build");
+            Assert.fail("Expected the GUI build to fail: " + message);
         } catch (CompileExceptionError e) {
-            Assert.assertEquals("GUI node '" + nodeId + "' must specify a resource for custom property 'spine_scene'", e.getMessage());
+            Assert.assertEquals(message, e.getMessage());
             Assert.assertEquals("test.gui", e.getResource().getPath());
         }
+    }
+
+    // Rejects a string in place of the Boolean Spine property that runtime initialization expects.
+    @Test
+    public void testSpineCreateBonesMustBeBoolean() throws Exception {
+        StringBuilder src = createGui();
+        addSpineResource(src, "spineboy");
+        startSpineCustomNode(src, "spine");
+        addLegacySpineProperties(src);
+        src.append("  custom_properties { id: \"spine_create_bones\" type: TYPE_STRING string: \"false\" }\n");
+        finishNode(src);
+
+        assertGuiBuildError(src, "GUI node 'spine': custom property 'spine_create_bones' must have type TYPE_BOOLEAN, got TYPE_STRING");
+    }
+
+    // Checks explicit properties addressed by hash against the extension's registered type.
+    @Test
+    public void testCustomPropertyTypeIsCheckedByHash() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "typed", "Typed");
+        src.append("  custom_properties { id_hash: ").append(Long.toUnsignedString(MurmurHash.hash64("string")))
+                .append(" type: TYPE_NUMBER number: 1 }\n");
+        finishNode(src);
+
+        assertGuiBuildError(src, "GUI node 'typed': custom property 'string' must have type TYPE_STRING, got TYPE_NUMBER");
+    }
+
+    // Rejects a payload whose field disagrees with its declared type, avoiding runtime union misreads.
+    @Test
+    public void testCustomPropertyValueMustMatchType() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "typed", "Typed");
+        src.append("  custom_properties { id: \"boolean\" type: TYPE_BOOLEAN string: \"false\" }\n");
+        finishNode(src);
+
+        assertGuiBuildError(src, "GUI node 'typed': custom property 'boolean' must have a value matching TYPE_BOOLEAN");
+    }
+
+    // Rejects an explicitly supplied property without a value instead of emitting uninitialized data.
+    @Test
+    public void testCustomPropertyMustHaveValue() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "typed", "Typed");
+        src.append("  custom_properties { id: \"vector3\" type: TYPE_VECTOR3 }\n");
+        finishNode(src);
+
+        assertGuiBuildError(src, "GUI node 'typed': custom property 'vector3' must have a value matching TYPE_VECTOR3");
+    }
+
+    // Accepts explicitly supplied zero, false, and empty string values as correctly typed values.
+    @Test
+    public void testCustomPropertyDefaultValuesAreValid() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "typed", "Typed");
+        src.append("  custom_properties { id: \"number\" type: TYPE_NUMBER number: 0 }\n");
+        src.append("  custom_properties { id: \"boolean\" type: TYPE_BOOLEAN boolean: false }\n");
+        src.append("  custom_properties { id: \"string\" type: TYPE_STRING string: \"\" }\n");
+        finishNode(src);
+
+        NodeDesc node = findNode(buildGui(src, "/test.gui"), "", "typed");
+        Assert.assertEquals(0.0f, findCustomProperty(node, "number").getNumber(), EPSILON);
+        Assert.assertFalse(findCustomProperty(node, "boolean").getBoolean());
+        Assert.assertEquals("", findCustomProperty(node, "string").getString());
+    }
+
+    // Checks types after a layout overrides a valid custom property.
+    @Test
+    public void testLayoutCustomPropertyTypeIsValidated() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "typed", "Typed");
+        finishNode(src);
+        startLayout(src, "Landscape");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "typed", "", false, List.of());
+        src.append("  custom_properties { id: \"boolean\" type: TYPE_NUMBER number: 1 }\n");
+        finishNode(src);
+        finishLayout(src);
+
+        assertGuiBuildError(src, "GUI node 'typed': custom property 'boolean' must have type TYPE_BOOLEAN, got TYPE_NUMBER");
+    }
+
+    // Checks types after a template child overrides a valid custom property.
+    @Test
+    public void testTemplateCustomPropertyTypeIsValidated() throws Exception {
+        StringBuilder templateSrc = createGui();
+        startCustomNode(templateSrc, "typed", "Typed");
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "template/typed", "template", true, List.of());
+        src.append("  custom_properties { id: \"boolean\" type: TYPE_NUMBER number: 1 }\n");
+        finishNode(src);
+
+        assertGuiBuildError(src, "GUI node 'template/typed': custom property 'boolean' must have type TYPE_BOOLEAN, got TYPE_NUMBER");
     }
 
     // Rejects an omitted Spine scene before an uninitialized node can reach runtime cloning.

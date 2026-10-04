@@ -261,7 +261,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static void validateRequiredCustomNodeResources(NodeDesc node, GuiBuilder builder, String input) throws CompileExceptionError {
+    private static void validateCustomNodeProperties(NodeDesc node, GuiBuilder builder, String input) throws CompileExceptionError {
         if (node.getType() != Type.TYPE_CUSTOM) {
             return;
         }
@@ -269,7 +269,28 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         GuiCustomTypeRegistry.Type customType = builder.project.getGuiCustomTypeRegistry().getByHash(node.getCustomType());
         for (Property property : node.getCustomPropertiesList()) {
             GuiCustomTypeRegistry.Property propertyDefinition = customType.getProperty(property.getIdHash());
-            if (propertyDefinition != null && propertyDefinition.isRequiredResource()
+            if (propertyDefinition == null) {
+                continue;
+            }
+            String propertyDescription = "GUI node '" + node.getId() + "': custom property '" + propertyDefinition.getName() + "'";
+            if (property.getType() != propertyDefinition.getPropertyType()) {
+                throw new CompileExceptionError(builder.project.getResource(input), 0,
+                        propertyDescription + " must have type " + propertyDefinition.getPropertyType() + ", got " + property.getType());
+            }
+            boolean hasMatchingValue = switch (property.getType()) {
+                case TYPE_BOOLEAN -> property.hasBoolean();
+                case TYPE_NUMBER -> property.hasNumber();
+                case TYPE_HASH -> property.hasHash();
+                case TYPE_STRING -> property.hasString();
+                case TYPE_VECTOR3 -> property.hasVector3();
+                case TYPE_VECTOR4 -> property.hasVector4();
+                case TYPE_QUAT -> property.hasQuat();
+            };
+            if (!hasMatchingValue) {
+                throw new CompileExceptionError(builder.project.getResource(input), 0,
+                        propertyDescription + " must have a value matching " + property.getType());
+            }
+            if (propertyDefinition.isRequiredResource()
                     && (!property.hasString() || property.getString().isEmpty())) {
                 throw new CompileExceptionError(builder.project.getResource(input), 0,
                         "GUI node '" + node.getId() + "' must specify a resource for custom property '" + propertyDefinition.getName() + "'");
@@ -905,11 +926,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         // Validate the effective values after template and layout overrides have been applied.
         if (flattenTemplates) {
             for (NodeDesc node : sceneBuilder.getNodesList()) {
-                validateRequiredCustomNodeResources(node, builder, input);
+                validateCustomNodeProperties(node, builder, input);
             }
             for (LayoutDesc layout : sceneBuilder.getLayoutsList()) {
                 for (NodeDesc node : layout.getNodesList()) {
-                    validateRequiredCustomNodeResources(node, builder, input);
+                    validateCustomNodeProperties(node, builder, input);
                 }
             }
         }
