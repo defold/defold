@@ -206,7 +206,7 @@ namespace dmWebServer
         for (uint32_t i = 0; i < n; ++i)
         {
             HandlerData* handler = &handlers[i];
-            if (strcmp(prefix, handler->m_Prefix) == 0)
+            if (dmStrEq(prefix, handler->m_Prefix))
             {
                 return handler;
             }
@@ -287,7 +287,7 @@ namespace dmWebServer
         for (uint32_t i = 0; i < n; ++i)
         {
             HandlerData* handler = &handlers[i];
-            if (strcmp(prefix, handler->m_Prefix) == 0)
+            if (dmStrEq(prefix, handler->m_Prefix))
             {
                 delete handler->m_OpenAPI;
                 handlers.EraseSwap(i);

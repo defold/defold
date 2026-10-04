@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <string.h>
+#include "dstrings.h"
 #include "webserver_openapi.h"
 
 namespace dmWebServer
@@ -158,9 +159,9 @@ namespace dmWebServer
 
     static bool IsMethod(const char* key)
     {
-        return strcmp(key, "get") == 0 || strcmp(key, "put") == 0 || strcmp(key, "post") == 0
-            || strcmp(key, "delete") == 0 || strcmp(key, "options") == 0 || strcmp(key, "head") == 0
-            || strcmp(key, "patch") == 0 || strcmp(key, "trace") == 0;
+        return dmStrEq(key, "get") || dmStrEq(key, "put") || dmStrEq(key, "post")
+            || dmStrEq(key, "delete") || dmStrEq(key, "options") || dmStrEq(key, "head")
+            || dmStrEq(key, "patch") || dmStrEq(key, "trace");
     }
 
     static bool ReadValue(const char*& p, uint32_t depth, ObjectType type);
@@ -188,14 +189,14 @@ namespace dmWebServer
                     has_operation = true;
                     child_type = OBJECT_OPERATION;
                 }
-                else if (strcmp(key.Begin(), "$ref") == 0)
+                else if (dmStrEq(key.Begin(), "$ref"))
                     has_operation = *p == '"';
-                else if (strcmp(key.Begin(), "summary") != 0 && strcmp(key.Begin(), "description") != 0
-                    && strcmp(key.Begin(), "parameters") != 0 && strcmp(key.Begin(), "servers") != 0
+                else if (!dmStrEq(key.Begin(), "summary") && !dmStrEq(key.Begin(), "description")
+                    && !dmStrEq(key.Begin(), "parameters") && !dmStrEq(key.Begin(), "servers")
                     && strncmp(key.Begin(), "x-", 2) != 0)
                     return false;
             }
-            else if (type == OBJECT_OPERATION && strcmp(key.Begin(), "responses") == 0)
+            else if (type == OBJECT_OPERATION && dmStrEq(key.Begin(), "responses"))
             {
                 has_responses = true;
                 child_type = OBJECT_RESPONSES;

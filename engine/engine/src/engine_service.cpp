@@ -210,12 +210,12 @@ namespace dmEngineService
         static void OpenAPIHandler(void* user_data, dmWebServer::Request* request)
         {
             SlurpHttpContent(request);
-            if (strcmp(request->m_Resource, "/openapi.json") != 0)
+            if (!dmStrEq(request->m_Resource, "/openapi.json"))
             {
                 dmWebServer::SetStatusCode(request, 404);
                 return;
             }
-            if (strcmp(request->m_Method, "GET") != 0)
+            if (!dmStrEq(request->m_Method, "GET"))
             {
                 dmWebServer::SetStatusCode(request, 405);
                 dmWebServer::SendAttribute(request, "Allow", "GET");
