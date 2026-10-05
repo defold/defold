@@ -24,6 +24,7 @@ namespace dmDebugger
     // stops reading. No unbounded allocations are driven by Content-Length.
     const uint32_t MAX_MESSAGE_SIZE = 1024 * 1024;
     const uint32_t MAX_QUEUE_SIZE = 4 * MAX_MESSAGE_SIZE;
+    const uint32_t MAX_JSON_NODES = 65536;
 
     uint32_t       Utf8Bytes(const char* text, uint32_t size);
 

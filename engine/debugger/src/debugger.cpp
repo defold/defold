@@ -14,6 +14,7 @@
 
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
+#include <dlib/hash.h>
 #include <dlib/time.h>
 #include <stdlib.h>
 #include <string.h>
@@ -736,6 +737,7 @@ namespace dmDebugger
         d->m_CloseDeadline = 0;
         free(d->m_LocalRoot);
         d->m_LocalRoot = 0;
+        d->m_BreakpointLookup.Clear();
         for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
             FreeBreakpoint(d->m_Breakpoints[i]);
         d->m_Breakpoints.SetSize(0);
@@ -1002,6 +1004,33 @@ namespace dmDebugger
         lua_pop(L, 1);
     }
 
+    static uint64_t BreakpointKey(const char* path, int line)
+    {
+        HashState64 hash;
+        dmHashInit64(&hash, false);
+        dmHashUpdateBuffer64(&hash, path, (uint32_t)strlen(path));
+        dmHashUpdateBuffer64(&hash, &line, sizeof(line));
+        return dmHashFinal64(&hash);
+    }
+    static void IndexBreakpoints(Debugger* d)
+    {
+        d->m_BreakpointLookup.Clear();
+        if (d->m_BreakpointLookup.Capacity() < d->m_Breakpoints.Size())
+            d->m_BreakpointLookup.SetCapacity(d->m_Breakpoints.Size());
+        // Prepend in reverse order so conditions, logpoints, and hit counts at
+        // the same location still run in the original breakpoint-list order.
+        for (uint32_t i = d->m_Breakpoints.Size(); i > 0; --i)
+        {
+            Breakpoint* bp = d->m_Breakpoints[i - 1];
+            uint64_t key = BreakpointKey(bp->m_Path, bp->m_Line);
+            Breakpoint** first = d->m_BreakpointLookup.Get(key);
+            bp->m_Next = first ? *first : 0;
+            if (first)
+                *first = bp;
+            else
+                d->m_BreakpointLookup.Put(key, bp);
+        }
+    }
     static void SetBreakpoints(Debugger* d, const Json& json, int seq, int args)
     {
         const char* source = json.String(json.Field(json.Field(args, "source"), "path"));
@@ -1077,6 +1106,7 @@ namespace dmDebugger
             BreakpointBody(d, bp, body);
         }
         body.Add("]}");
+        IndexBreakpoints(d);
         Respond(d, seq, "setBreakpoints", &body);
     }
 
@@ -1720,10 +1750,14 @@ namespace dmDebugger
         if (ar->event != LUA_HOOKLINE || skip_line)
             return;
         Buffer path;
-        RuntimePath(d, ar->source ? ar->source : "", path);
-        for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
+        Breakpoint** first = 0;
+        if (d->m_Breakpoints.Size())
         {
-            Breakpoint* bp = d->m_Breakpoints[i];
+            RuntimePath(d, ar->source ? ar->source : "", path);
+            first = d->m_BreakpointLookup.Get(BreakpointKey(path.Data(), ar->currentline));
+        }
+        for (Breakpoint* bp = first ? *first : 0; bp; bp = bp->m_Next)
+        {
             if (ar->currentline != bp->m_Line || !dmStrEq(path.Data(), bp->m_Path))
                 continue;
             VerifyBreakpoint(d, bp);

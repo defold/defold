@@ -66,15 +66,16 @@ namespace dmDebugger
 
     struct Breakpoint
     {
-        uint32_t m_Id;
-        char*    m_Path;
-        char*    m_Condition;
-        char*    m_LogMessage;
-        int      m_Line;
-        uint32_t m_Hits;
-        uint32_t m_HitTarget;
-        uint8_t  m_Verified : 1;
-        uint8_t  m_LogPoint : 1;
+        Breakpoint* m_Next;
+        uint32_t    m_Id;
+        char*       m_Path;
+        char*       m_Condition;
+        char*       m_LogMessage;
+        int         m_Line;
+        uint32_t    m_Hits;
+        uint32_t    m_HitTarget;
+        uint8_t     m_Verified : 1;
+        uint8_t     m_LogPoint : 1;
     };
 
     struct Source
@@ -130,6 +131,7 @@ namespace dmDebugger
         dmArray<Thread*>      m_Threads;
         dmHashTable32<Thread*> m_ThreadIds;
         dmArray<Breakpoint*>  m_Breakpoints;
+        dmHashTable64<Breakpoint*> m_BreakpointLookup;
         dmArray<Source*>      m_Sources;
         dmArray<Frame>        m_Frames;
         dmArray<Reference>    m_References;

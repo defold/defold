@@ -2029,6 +2029,69 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    # Indexed breakpoints at the same location must retain condition/logpoint
+    # order and independent hit counts when a later breakpoint pauses execution.
+    def test_breakpoint_index_preserves_same_location_order(self):
+        c = self.start('''
+            visits = 0
+            local sum = 0
+            for i = 1, 3 do
+                sum = sum + i -- shared
+            end
+            assert(sum == 6 and visits == 3)
+        ''')
+        c.initialize()
+        c.attach()
+        line = self.line("shared")
+        points = self.breakpoints(
+            {"line": line, "condition": "(function() visits = visits + 1; return false end)()"},
+            {"line": line, "logMessage": "first {visits}"},
+            {"line": line, "logMessage": "second {visits}"},
+            {"line": line, "hitCondition": "2"})
+        c.configured()
+        stopped = c.event("stopped")
+        self.assertEqual(stopped["reason"], "breakpoint")
+        self.assertEqual(stopped["hitBreakpointIds"], [points[-1]["id"]])
+        self.thread = stopped["threadId"]
+        self.frame = c.request("stackTrace", {"threadId": self.thread})["stackFrames"][0]["id"]
+        self.assertEqual(self.evaluate("visits")["result"], "2")
+        self.assertEqual([c.event("output")["output"] for _ in range(4)],
+                         ["first 1\n", "second 1\n", "first 2\n", "second 2\n"])
+        self.resume()
+        self.assertEqual([c.event("output")["output"] for _ in range(2)], ["first 3\n", "second 3\n"])
+        self.finished()
+
+    # Replacing or clearing one source's indexed breakpoints must retain other
+    # sources at the same line; rejected replacements must leave the index intact.
+    def test_breakpoint_index_replaces_one_source(self):
+        c = self.start('''
+            local source = "local n = 0\\nn = n + 1\\nn = n + 2\\nassert(n == 3)\\n"
+            local first = assert(loadstring(source, "@/index-first.lua"))
+            local second = assert(loadstring(source, "@/index-second.lua"))
+            first()
+            second()
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": 2}, path="/index-first.lua")
+        self.breakpoints({"line": 2}, path="/index-second.lua")
+        self.breakpoints({"line": 3}, path="/index-first.lua")
+        c.request("setBreakpoints", {"source": {"path": "/index-first.lua"},
+                                     "breakpoints": [{"line": -1}]}, success=False)
+        c.configured()
+        frame = self.stopped()[0]
+        self.assertEqual(frame["source"]["path"], "/index-first.lua")
+        self.assertEqual(frame["line"], 3)
+        self.assertEqual(self.breakpoints(path="/index-first.lua"), [])
+        self.resume()
+        frame = self.stopped()[0]
+        self.assertEqual(frame["source"]["path"], "/index-second.lua")
+        self.assertEqual(frame["line"], 2)
+        self.assertEqual(self.evaluate("n")["result"], "0")
+        self.assertEqual(self.breakpoints(path="/index-second.lua"), [])
+        self.resume()
+        self.finished()
+
     # Checks that native calls, nested Lua calls, and multiple calls on one line
     # emit exactly one log message per source-line visit across loop iterations.
     def test_logpoints_ignore_call_return_events(self):

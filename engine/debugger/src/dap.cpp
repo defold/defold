@@ -14,6 +14,8 @@
 
 #include "dap.h"
 #include <dlib/dstrings.h>
+#include <dlib/hash.h>
+#include <dlib/hashtable.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -140,6 +142,7 @@ namespace dmDebugger
         , m_End(0)
         , m_Valid(true)
     {
+        m_Nodes.SetCapacity(512);
     }
     Json::~Json()
     {
@@ -257,7 +260,7 @@ namespace dmDebugger
     int Json::Value(int depth)
     {
         Space();
-        if (depth > 64 || m_Cursor == m_End || m_Nodes.Size() >= 65536)
+        if (depth > 64 || m_Cursor == m_End || m_Nodes.Size() >= MAX_JSON_NODES)
         {
             m_Valid = false;
             return -1;
@@ -265,7 +268,7 @@ namespace dmDebugger
         JsonNode node = {};
         node.m_First = node.m_Next = -1;
         if (m_Nodes.Full())
-            m_Nodes.OffsetCapacity(64);
+            m_Nodes.SetCapacity(m_Nodes.Capacity() * 2);
         int id = m_Nodes.Size();
         m_Nodes.Push(node);
         char c = *m_Cursor;
@@ -275,7 +278,9 @@ namespace dmDebugger
             char end = c == '{' ? '}' : ']';
             ++m_Cursor;
             Space();
-            int previous = -1;
+            int                previous = -1;
+            uint32_t           field_count = 0;
+            dmHashTable64<int> fields;
             if (m_Cursor < m_End && *m_Cursor == end)
             {
                 ++m_Cursor;
@@ -284,13 +289,45 @@ namespace dmDebugger
             while (m_Valid && m_Cursor < m_End)
             {
                 const char* name = 0;
+                uint64_t    name_hash = 0;
                 if (c == '{')
                 {
                     name = ReadString();
                     Space();
                     if (!m_Valid || m_Cursor == m_End || *m_Cursor++ != ':')
                         break;
-                    if (Field(id, name) != -1)
+                    // Most DAP objects are small. Index wider objects to avoid
+                    // scanning all previous fields for every decoded key.
+                    if (field_count == 16)
+                    {
+                        fields.SetCapacity(32);
+                        for (int field = m_Nodes[id].m_First; field >= 0; field = m_Nodes[field].m_Next)
+                        {
+                            const char* key = m_Nodes[field].m_Name;
+                            uint64_t    hash = dmHashBufferNoReverse64(key, (uint32_t)strlen(key));
+                            if (!fields.Get(hash))
+                                fields.Put(hash, field);
+                        }
+                    }
+                    if (fields.Capacity())
+                    {
+                        name_hash = dmHashBufferNoReverse64(name, (uint32_t)strlen(name));
+                        int* first = fields.Get(name_hash);
+                        // A hash collision must not reject a different key.
+                        // The first indexed field precedes every later key
+                        // with that hash in this object's sibling list.
+                        for (int field = first ? *first : -1; field >= 0; field = m_Nodes[field].m_Next)
+                        {
+                            if (dmStrEq(m_Nodes[field].m_Name, name))
+                            {
+                                m_Valid = false;
+                                break;
+                            }
+                        }
+                        if (!m_Valid)
+                            break;
+                    }
+                    else if (Field(id, name) != -1)
                         break;
                 }
                 int child = Value(depth + 1);
@@ -302,6 +339,13 @@ namespace dmDebugger
                 else
                     m_Nodes[previous].m_Next = child;
                 previous = child;
+                if (fields.Capacity() && !fields.Get(name_hash))
+                {
+                    if (fields.Full())
+                        fields.SetCapacity(fields.Capacity() * 2);
+                    fields.Put(name_hash, child);
+                }
+                ++field_count;
                 Space();
                 if (m_Cursor == m_End)
                     break;

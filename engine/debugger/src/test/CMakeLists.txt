@@ -14,6 +14,12 @@
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
+defold_add_executable(test_dap_json test_dap_json.cpp)
+target_include_directories(test_dap_json PRIVATE ..)
+target_link_libraries(test_dap_json PRIVATE debugger)
+defold_target_link_libraries(test_dap_json "${TARGET_PLATFORM}" profile_null)
+defold_register_test_target(test_dap_json ON)
+
 defold_add_executable(dap_debuggee test_debugger.cpp)
 target_include_directories(dap_debuggee PRIVATE ..)
 target_link_libraries(dap_debuggee PRIVATE debugger)
