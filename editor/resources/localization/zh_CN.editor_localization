@@ -1103,7 +1103,6 @@ property.appmanifest.exclude-image = 排除图像
 property.appmanifest.exclude-types = 排除类型
 property.appmanifest.exclude-basis-transcoder = 排除Basis转码器
 property.appmanifest.use-android-support-lib = 使用 Android 支持库
-property.appmanifest.graphics = 绘图
 property.appmanifest.graphics-osx = 绘图(macOS)
 property.appmanifest.graphics-web = 绘图(HTML5)
 property.appmanifest.use-font-layout = 使用完整文本布局系统
