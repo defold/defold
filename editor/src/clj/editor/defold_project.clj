@@ -1084,17 +1084,9 @@
                            (get-in @(:tx-data-context evaluation-context) [::node-load-infos node-id])))
         node-load-infos [node-load-info]
         {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state node-load-infos)]
-    (g/merge-evaluation-user-data!
-      evaluation-context
-      (coll/into-> node-id+source-value-pairs {}
-        (map (fn [[node-id source-value]]
-               (pair node-id {:source-value source-value})))))
     (e/concat
-      ;; TODO(partial-project-loading): We don't need this anymore after the source-value refactor.
-      (e/mapcat (fn [[node-id _source-value]]
-                  (g/invalidate-output node-id :source-value))
-                node-id+source-value-pairs)
       (resource-node/merge-disk-sha256s disk-sha256s-by-node-id)
+      (resource-node/merge-source-values node-id+source-value-pairs)
       (load-nodes-tx-data load-opts transpiler-tx-data-fn node-load-infos progress/null-render-progress! progress/null-render-progress! nil))))
 
 (defn make-resource-node-tx-data [project node-type node-id resource]

@@ -226,6 +226,8 @@
                   (is (coll/every? #(identical? (ffirst @loaded) (first %)) @loaded)))))))))))
 
 (deftest materialization-follows-only-prerequisites
+  ;; Verifies prerequisite-only loading and transactional disk state, guarding
+  ;; against materialization retaining the old graph user-data storage.
   (doseq [follow-prerequisites [false true]]
     (testing (str "follow prerequisites: " follow-prerequisites)
       (with-clean-system
@@ -272,7 +274,7 @@
               (is (= follow-prerequisites (resource-node/loaded? (g/ec-basis evaluation-context) b)))
               (is (not (resource-node/loaded? (g/ec-basis evaluation-context) a2)))
               (is (not (resource-node/loaded? (g/now) a1)))
-              (is (nil? (g/user-data a1 :source-value)))
+              (is (nil? (g/node-value a1 :source-value)))
               (is (= {:b "/b.type_b"} (g/node-value a1 :source-value evaluation-context)))
               (is (= [] (g/node-value project :save-data)))
               (g/materialize-node! (if follow-prerequisites b a1) competing-context)
@@ -281,5 +283,51 @@
               (g/update-system-from-evaluation-context! evaluation-context)
               (is (= (count @loaded) (count (g/node-value project :save-data))))
               (is (resource-node/loaded? (g/now) a1))
-              (is (= {:b "/b.type_b"} (g/user-data a1 :source-value)))
-              (is (string? (get (g/node-value workspace :disk-sha256s-by-node-id) a1))))))))))
+              (is (= {:b "/b.type_b"} (g/node-value a1 :source-value)))
+              (is (string? (g/node-value a1 :disk-sha256))))))))))
+
+(deftest materialized-disk-state-is-transactional
+  ;; Verifies that materialized disk state is isolated during a dry run and
+  ;; survives undo, guarding against storing it outside node properties.
+  (with-clean-system
+    (test-util/with-ui-run-later-rebound
+      (let [workspace (workspace/make-workspace (.getAbsolutePath (io/file "test/resources/load_project")) {} {} test-util/localization)]
+        (g/transact
+          [(placeholder-resource/register-resource-types workspace)
+           (workspace/register-resource-type workspace
+             :ext "type_a"
+             :node-type BNode
+             :read-fn (fn [_read-opts _resource readable] (slurp readable))
+             :write-fn identity
+             :load-fn (fn [_load-opts {:keys [node-id source-value]}]
+                        (g/set-property node-id :value source-value)))])
+        (workspace/resource-sync! workspace)
+        (let [project (test-util/setup-project! workspace)
+              node-id (project/get-resource-node project "/a1.type_a")
+              resource (resource-node/resource node-id)
+              source-value (slurp resource)
+              disk-sha256 (resource/resource->sha256-hex resource)
+              initial-basis (g/now)]
+          (g/reset-undo! :undo/global)
+          (let [{:keys [basis]}
+                (g/transact {:dry-run true}
+                  (g/set-property node-id :value "edited"))]
+            (is (= source-value (g/raw-property-value basis node-id :source-value)))
+            (is (= disk-sha256 (g/raw-property-value basis node-id :disk-sha256)))
+            (is (not (resource-node/loaded? node-id)))
+            (is (nil? (g/node-value node-id :source-value)))
+            (is (nil? (g/node-value node-id :disk-sha256)))
+            (is (nil? (g/user-data node-id :source-value)))
+            (is (zero? (g/undo-stack-count :undo/global))))
+
+          (g/set-property! node-id :value "edited")
+          (is (true? (g/node-value node-id :dirty)))
+          (is (nil? (g/raw-property-value initial-basis node-id :source-value)))
+          (is (nil? (g/raw-property-value initial-basis node-id :disk-sha256)))
+          (is (nil? (g/user-data node-id :source-value)))
+
+          (g/undo! :undo/global)
+          (is (= source-value (g/node-value node-id :save-value)))
+          (is (= source-value (g/node-value node-id :source-value)))
+          (is (= disk-sha256 (g/node-value node-id :disk-sha256)))
+          (is (false? (g/node-value node-id :dirty))))))))
