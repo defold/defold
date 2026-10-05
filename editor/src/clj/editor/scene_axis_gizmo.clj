@@ -94,8 +94,9 @@
   In picking passes, render-args contains a :picking-matrix that was used to
   zoom the scene's projection into the tool picking rect. Since the gizmo
   completely replaces the projection with its own, we re-apply the
-  picking-matrix on top; otherwise the gizmo ends up drawn across the whole
-  picking buffer and every click in the scene view is intercepted by it."
+  picking-matrix on top; otherwise the whole viewport is squeezed into the
+  picking buffer, the gizmo lands in it wherever the click was, and it
+  intercepts every click in the scene view."
   ^Matrix4d [render-args ^Region viewport]
   (let [base ^Matrix4d (c/region-orthographic-projection-matrix viewport (- gizmo-depth) gizmo-depth)]
     (if-let [^Matrix4d picking-matrix (:picking-matrix render-args)]
@@ -195,7 +196,7 @@
     (cond-> (sphere-quads center ball-radius)
       (positive-axis? axis) (into (line-quads axis)))))
 
-(def ^:private pick-shader shaders/selection-color-local-space)
+(def ^:private pick-shader shaders/uniform-color-local-space)
 
 (defn- make-pick-vertex-buffer [quads]
   (let [vertex-buffer (vtx/make-vertex-buffer (shaders/vertex-description pick-shader) :static (* 6 (count quads)))
@@ -393,9 +394,10 @@
   (let [vertex-buffers @pick-vertex-buffers
         pick! (fn [selection-data]
                 (let [vertex-buffer (vertex-buffers selection-data)
-                      args (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (renderable-by-selection-data selection-data)))
+                      id-color (scene-picking/renderable-picking-id-uniform (renderable-by-selection-data selection-data))
                       vertex-binding (vtx/use-with [::pick selection-data (buffer-key vertex-buffer)] vertex-buffer pick-shader)]
-                  (gl/with-gl-bindings gl args [pick-shader vertex-binding]
+                  (gl/with-gl-bindings gl render-args [pick-shader vertex-binding]
+                    (shader/set-uniform pick-shader gl "color" id-color)
                     (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vertex-buffer)))))]
     (.glEnable gl GL2/GL_DEPTH_TEST)
     (.glDepthMask gl false)
@@ -436,7 +438,6 @@
 (defn- frame-to-axis! [self axis]
   (g/with-auto-evaluation-context evaluation-context
     (let [camera-node-id (g/node-value self :camera-node-id evaluation-context)
-          viewport (g/node-value self :viewport evaluation-context)
           scene-aabb (g/node-value self :scene-aabb evaluation-context)
           current-camera (g/node-value camera-node-id :local-camera evaluation-context)
           ;; If the camera is already aligned with the clicked axis, flip to
@@ -445,7 +446,7 @@
                         (opposite-axis axis)
                         axis)]
       (when-not (geom/predefined-aabb? scene-aabb)
-        (c/frame-camera-to-axis! camera-node-id viewport scene-aabb target-axis true)))))
+        (c/frame-camera-to-axis! camera-node-id target-axis true)))))
 
 (defn- tumble-camera! [self ^double dx ^double dy]
   (let [camera-node-id (g/node-value self :camera-node-id)
@@ -522,7 +523,6 @@
 
   (input camera-node-id g/NodeID)
   (input scene-aabb AABB)
-  (input viewport Region)
 
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output update-tick-handler Runnable :cached (g/constantly handle-update-tick))

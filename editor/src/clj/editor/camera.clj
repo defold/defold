@@ -49,7 +49,7 @@
 
 (def vector3-up (Vector3d. 0.0 1.0 0.0))
 
-(declare camera-frame-aabb set-camera!)
+(declare interpolate-orbit set-camera!)
 
 (defn camera-forward-vector
   ^Vector3d [^Camera camera]
@@ -99,9 +99,7 @@
     :-z [(Vector3d. 0.0 0.0 1.0) vector3-up]))
 
 (defn frame-camera-to-axis
-  ^Camera [^Camera camera ^Region viewport ^AABB aabb axis]
-  ;; TODO(axis-gizmo): temporarily keeps the current zoom instead of framing the
-  ;; aabb; viewport and aabb are unused for now.
+  ^Camera [^Camera camera axis]
   (let [[^Vector3d forward up] (view-axis->forward+up axis)
         rotation (camera-rotation-from-forward+up forward up)
         ^Vector4d fp (:focus-point camera)
@@ -112,12 +110,12 @@
     (assoc camera :rotation rotation :position position)))
 
 (defn frame-camera-to-axis!
-  [camera-node ^Region viewport ^AABB aabb axis animate]
+  [camera-node axis animate]
   (let [start-camera (g/node-value camera-node :local-camera)
-        end-camera (frame-camera-to-axis start-camera viewport aabb axis)]
+        end-camera (frame-camera-to-axis start-camera axis)]
     (when (not= (:type end-camera) :orthographic)
       (g/set-property! camera-node :cached-3d-camera end-camera))
-    (set-camera! camera-node start-camera end-camera animate)))
+    (set-camera! camera-node start-camera end-camera animate nil {:interpolate-fn interpolate-orbit :duration 0.25})))
 
 (defn camera-focus-point
   ^Point3d [^Camera camera]
@@ -845,12 +843,42 @@
              (.distance p (Point3d. (.x fp) (.y fp) (.z fp)))
              filter-fn)))
 
+(defn- interpolate-orbit
+  "Like `interpolate`, but turns around the focus point at a steady distance
+  instead of moving in a straight line, so snapping to the opposite side
+  doesn't fly through the focus point."
+  ^Camera [^Camera from ^Camera to ^double t]
+  (let [filter-fn (or (:filter-fn from) identity)
+        ^Camera to (filter-fn to)
+        ;; Copies, since Quat4d.interpolate may negate its first argument.
+        rotation (doto (Quat4d.)
+                   (.interpolate (Quat4d. ^Quat4d (:rotation from)) (Quat4d. ^Quat4d (:rotation to)) t))
+        fp (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
+        focus (Point3d. (.x fp) (.y fp) (.z fp))
+        distance (lerp (.distance (camera-focus-point from) (types/position from))
+                       (.distance (camera-focus-point to) (types/position to))
+                       t)
+        position (doto (Point3d.)
+                   (.scaleAdd distance (math/rotate rotation (Vector3d. 0.0 0.0 1.0)) focus))]
+    (Camera. (:type to) position rotation
+             (lerp (:z-near from) (:z-near to) t)
+             (lerp (:z-far from) (:z-far to) t)
+             (lerp (:fov-x from) (:fov-x to) t)
+             (lerp (:fov-y from) (:fov-y to) t)
+             fp
+             distance
+             filter-fn)))
+
 (defn set-camera!
   ([camera-node start-camera end-camera animate]
    (set-camera! camera-node start-camera end-camera animate nil))
   ([camera-node start-camera end-camera animate on-animation-end]
+   (set-camera! camera-node start-camera end-camera animate on-animation-end nil))
+  ([camera-node start-camera end-camera animate on-animation-end
+    {:keys [interpolate-fn duration]
+     :or {interpolate-fn interpolate duration 0.5}}]
    (if animate
-     (let [duration 0.5]
+     (let [duration (double duration)]
        (g/transact
          {:undoable false}
          (g/set-property camera-node :animating true))
@@ -860,7 +888,7 @@
        (ui/anim! duration
                  (fn [^double t]
                    (let [t (- (* t t 3) (* t t t 2))
-                         cam (interpolate start-camera end-camera t)]
+                         cam (interpolate-fn start-camera end-camera t)]
                      (g/transact
                        {:undoable false}
                        (g/set-property camera-node :local-camera cam))))
