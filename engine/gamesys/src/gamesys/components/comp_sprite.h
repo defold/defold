@@ -57,6 +57,7 @@ namespace dmGameSystem
     void RenderSpriteThreadFrame(void* world, SpriteContext* context, uint32_t slot);
     void ReleaseSpriteThreadFrames(void* world, SpriteContext* context);
     void GetSpriteSnapshotStats(void* sprite_world, SpriteSnapshotStats* stats);
+    uint32_t GetSpriteContextSnapshotStats(SpriteContext* context, SpriteSnapshotStats* stats);
 
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 

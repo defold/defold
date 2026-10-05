@@ -4791,6 +4791,13 @@ TEST_F(dmRenderTest, ComponentFrameOwnsPassData)
     ASSERT_TRUE(dmRender::EndComponentFrameCapture(m_Context));
     ASSERT_EQ(1U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
     ASSERT_TRUE(dmRender::GetComponentFrameUsedBytes(frame) <= dmRender::GetComponentFrameCapacity(frame));
+    // Upload and constant capacities are disjoint subsets of the total, retained
+    // across consumption rather than additional allocations to add to it.
+    uint64_t uploads = dmRender::GetComponentFrameUploadCapacity(frame);
+    uint64_t constants_capacity = dmRender::GetComponentFrameConstantCapacity(frame);
+    ASSERT_TRUE(uploads >= sizeof(bytes));
+    ASSERT_TRUE(constants_capacity > 0);
+    ASSERT_TRUE(uploads + constants_capacity <= dmRender::GetComponentFrameCapacity(frame));
     dmRender::DeleteNamedConstantBuffer(constants);
     object.m_VertexCount = 0;
     memset(bytes, 255, sizeof(bytes));
@@ -4817,6 +4824,77 @@ TEST_F(dmRenderTest, ComponentFrameOwnsPassData)
         dmRender::DeleteMaterial(m_Context, materials[i]);
         dmGraphics::DeleteProgram(m_GraphicsContext, programs[i]);
     }
+}
+
+struct DeferredDrawProbe
+{
+    dmRender::RenderObject m_Object;
+    uint32_t m_Calls;
+    uint32_t m_Preceding[2];
+    float m_ViewX[2];
+};
+
+static void ProbeDeferredDraw(void* data, dmRender::HRenderContext context)
+{
+    DeferredDrawProbe* probe = (DeferredDrawProbe*)data;
+    uint32_t call = probe->m_Calls++;
+    probe->m_Preceding[call] = context->m_RenderObjects.Size();
+    probe->m_ViewX[call] = context->m_View.getCol3().getX();
+    dmRender::AddToRender(context, &probe->m_Object);
+}
+
+// Deferred draws preserve mixed object ordering and pass state after producer
+// placeholders change, and run only on consumption rather than capture.
+TEST_F(dmRenderTest, ComponentFrameDeferredDrawOrdering)
+{
+    m_Context->m_RenderObjects.SetCapacity(3);
+    dmGraphics::ShaderDescBuilder builder;
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmRender::HComponentFrame frame = dmRender::NewComponentFrame();
+    dmRender::HRenderContext consumer = dmRender::NewComponentFrameConsumer(m_Context);
+    DeferredDrawProbe probes[2];
+    dmRender::RenderObject placeholders[2], ordinary;
+    ordinary.m_Material = material;
+    ordinary.m_VertexCount = 1;
+    dmRender::BeginComponentFrameCapture(m_Context, frame);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        probes[i].m_Calls = 0;
+        placeholders[i].m_Material = material;
+        placeholders[i].m_VertexCount = 1;
+        ASSERT_TRUE(dmRender::AddComponentDeferredDraw(m_Context, &placeholders[i], ProbeDeferredDraw, &probes[i]));
+        if (i == 0) dmRender::AddToRender(m_Context, &ordinary);
+    }
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+        view.setCol3(dmVMath::Vector4((float)i + 7, 0, 0, 1));
+        dmRender::SetViewMatrix(m_Context, view);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+    }
+    ASSERT_TRUE(dmRender::EndComponentFrameCapture(m_Context));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_EQ(0U, probes[i].m_Calls);
+        placeholders[i].m_VertexCount = 0;
+    }
+    dmRender::ConsumeComponentFrame(consumer, frame);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_EQ(2U, probes[i].m_Calls);
+        for (uint32_t pass = 0; pass < 2; ++pass)
+        {
+            ASSERT_EQ(i * 2, probes[i].m_Preceding[pass]);
+            ASSERT_EQ((float)pass + 7, probes[i].m_ViewX[pass]);
+        }
+    }
+    dmRender::DeleteComponentFrameConsumer(consumer);
+    dmRender::DeleteComponentFrame(frame);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
 // Reject unsupported compute, excessive pass counts and resource invalidation;
@@ -4885,6 +4963,7 @@ TEST(dmRenderThreadTest, ComponentFrameSimulationOverlap)
     uint64_t begin = dmTime::GetMonotonicTime();
     dmTime::Sleep(1000);
     dmRender::MarkRenderThreadSimulationComplete(thread, begin);
+    dmRender::MarkRenderThreadPreparationComplete(thread, begin);
     dmMutex::Lock(probe.m_Mutex);
     probe.m_Release = true;
     dmConditionVariable::Broadcast(probe.m_Changed);
@@ -4894,6 +4973,8 @@ TEST(dmRenderThreadTest, ComponentFrameSimulationOverlap)
     dmRender::RenderThreadStats stats;
     dmRender::GetRenderThreadStats(thread, &stats);
     ASSERT_EQ(1ULL, stats.m_SimulationsDuringRender);
+    ASSERT_EQ(1ULL, stats.m_PreparationsDuringRender);
+    ASSERT_GE(stats.m_PreparationOverlapUs, 1000ULL);
     ASSERT_GE(stats.m_SimulationOverlapUs, 1000ULL);
     dmRender::DeleteRenderThread(thread);
     dmConditionVariable::Delete(probe.m_Changed);
@@ -4928,4 +5009,232 @@ TEST_F(dmRenderTest, ComponentFrameOwnsLightsAndShaderCapacity)
     ASSERT_EQ(9.0f, consumer->m_LightBufferUploadScratch[0].m_Position.getZ());
     dmRender::DeleteComponentFrameConsumer(consumer);
     dmRender::DeleteComponentFrame(frame);
+}
+
+
+// A consumer may replay one slot while another thread records the next slot.
+// Upload bytes, pose texture dimensions and viewport state must remain independent.
+TEST_F(dmRenderTest, ComponentFrameConcurrentPreparationUploads)
+{
+    dmGraphics::TextureCreationParams create;
+    create.m_Width = create.m_Height = 1;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_GraphicsContext, create);
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::VertexUploadBatch first, second;
+    uint8_t bytes[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    dmGraphics::TextureParams params;
+    params.m_Width = params.m_Height = params.m_Depth = 1;
+    params.m_Data = bytes; params.m_DataSize = 4;
+    dmGraphics::BeginVertexUploadCapture(&first, true, true);
+    dmGraphics::SetCapturedViewport(0, 0, 100, 100);
+    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
+    dmGraphics::SetVertexBufferData(buffer, 4, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
+    dmGraphics::BeginVertexUploadCapture(&second, true, true);
+    dmGraphics::SetCapturedViewport(0, 0, 200, 200);
+    params.m_Width = 2; params.m_DataSize = 8;
+    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
+    dmGraphics::SetVertexBufferData(buffer, 8, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    memset(bytes, 255, sizeof(bytes));
+    dmRender::HRenderThread worker = dmRender::NewRenderThread(ReplayPreparedProbeUploads, &first);
+    dmRender::PublishRenderThreadFrame(worker, dmRender::BeginRenderThreadFrame(worker));
+    dmRender::DeleteRenderThread(worker);
+    // The backend saw frame 1; the recording thread still sees frame 2 metadata.
+    ASSERT_EQ(4U, dmGraphics::GetVertexBufferSize(buffer));
+    ASSERT_EQ(1U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
+    ASSERT_EQ(2U, dmGraphics::GetTextureWidth(m_GraphicsContext, texture));
+    int32_t x, y; uint32_t width, height;
+    dmGraphics::GetViewport(m_GraphicsContext, &x, &y, &width, &height);
+    ASSERT_EQ(200U, width);
+    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
+    ASSERT_EQ(1U, dmGraphics::GetTextureWidth(m_GraphicsContext, texture));
+    dmGraphics::ReplayVertexUploads(&second);
+    ASSERT_EQ(2U, dmGraphics::GetTextureWidth(m_GraphicsContext, texture));
+    ASSERT_EQ(8U, dmGraphics::GetVertexBufferSize(buffer));
+    ASSERT_EQ(8U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[7]);
+    void* pixels = 0;
+    dmGraphics::GetTextureHandle(texture, &pixels);
+    ASSERT_EQ(1U, ((uint8_t*)pixels)[0]);
+    ASSERT_EQ(8U, ((uint8_t*)pixels)[7]);
+    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
+    dmGraphics::DeleteVertexBuffer(buffer);
+}
+
+// Odd-sized uploads must not misalign a following pose texture's floating-point
+// payload: WebGL uses a typed heap view and would otherwise read preceding bytes.
+TEST_F(dmRenderTest, ComponentFrameTexturePayloadAlignment)
+{
+    dmGraphics::TextureCreationParams create;
+    create.m_Width = create.m_Height = 1;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_GraphicsContext, create);
+    dmGraphics::VertexUploadBatch batch;
+    uint8_t glyph = 255;
+    float pose[] = {1, 2, 3, 4};
+    dmGraphics::TextureParams params;
+    params.m_Width = params.m_Height = params.m_Depth = 1;
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params.m_Data = &glyph; params.m_DataSize = 1;
+    dmGraphics::BeginVertexUploadCapture(&batch, true, true);
+    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA32F;
+    params.m_Data = pose; params.m_DataSize = sizeof(pose);
+    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
+    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
+    ASSERT_EQ(4U, batch.m_Uploads[1].m_DataOffset);
+    ASSERT_EQ(20U, batch.m_Data.Size());
+    memset(pose, 0, sizeof(pose));
+    dmGraphics::ReplayVertexUploads(&batch);
+    void* pixels = 0;
+    dmGraphics::GetTextureHandle(texture, &pixels);
+    ASSERT_EQ(1.0f, ((float*)pixels)[0]);
+    ASSERT_EQ(4.0f, ((float*)pixels)[3]);
+    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
+}
+
+// Text preparation must use producer-owned atlas dimensions, even when the
+// backend still describes another frame. This guards against concurrent atlas resets.
+TEST_F(dmRenderTest, ComponentFrameFontDimensionsAreProducerOwned)
+{
+    dmGraphics::ShaderDescBuilder shaders;
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shaders.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmRender::SetFontMapMaterial(m_SystemFontMap, material);
+    dmRender::DrawTextParams params;
+    params.m_Text = "Hello";
+    dmArray<uint8_t> expected, prepared;
+    uint32_t count = QueueTextAndCopyVertices(m_Context, m_SystemFontMap, params, expected, 0, 0);
+    ASSERT_GT(count, 0U);
+    dmRender::ClearRenderObjects(m_Context);
+    dmGraphics::TextureParams texture;
+    texture.m_Width = m_SystemFontMap->m_CacheWidth / 2;
+    texture.m_Height = m_SystemFontMap->m_CacheHeight / 2;
+    dmGraphics::SetTexture(m_GraphicsContext, m_SystemFontMap->m_Texture, texture);
+    dmRender::EnableComponentFrames(m_Context, true);
+    ASSERT_EQ(count, QueueTextAndCopyVertices(m_Context, m_SystemFontMap, params, prepared, 0, 0));
+    ASSERT_EQ(expected.Size(), prepared.Size());
+    ASSERT_EQ(0, memcmp(expected.Begin(), prepared.Begin(), expected.Size()));
+    dmRender::EnableComponentFrames(m_Context, false);
+    dmRender::ClearRenderObjects(m_Context);
+    dmRender::SetFontMapMaterial(m_SystemFontMap, 0);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Oversized and unsupported texture payloads must fail before reading input.
+TEST_F(dmRenderTest, ComponentFrameTextureAdmission)
+{
+    dmGraphics::TextureCreationParams create;
+    create.m_Width = create.m_Height = 1;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_GraphicsContext, create);
+    dmGraphics::VertexUploadBatch batch;
+    dmGraphics::TextureParams params;
+    uint8_t byte = 1;
+    params.m_Data = &byte; params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA32F;
+    params.m_Width = params.m_Height = 65535;
+    dmGraphics::BeginVertexUploadCapture(&batch, true, true);
+    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
+    ASSERT_FALSE(dmGraphics::EndVertexUploadCapture());
+    ASSERT_EQ(0U, batch.m_Data.Capacity());
+    params.m_Width = params.m_Height = 1; params.m_LayerCount = 2;
+    dmGraphics::BeginVertexUploadCapture(&batch, true, true);
+    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
+    ASSERT_FALSE(dmGraphics::EndVertexUploadCapture());
+    ASSERT_EQ(0U, batch.m_Data.Capacity());
+    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
+}
+
+// Owned geometry must survive producer scratch reuse and retain pass upload order
+// without copying payloads into the general arena or aliasing the next frame.
+TEST_F(dmRenderTest, ComponentOwnedVertexStorage)
+{
+    uint8_t initial = 0;
+    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 1, &initial, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::VertexUploadBatch frames[2];
+    frames[0].m_OwnedEnabled = frames[1].m_OwnedEnabled = true;
+    dmArray<uint8_t> scratch;
+    uint8_t* first_storage = 0;
+    for (uint32_t frame = 0; frame < 2; ++frame)
+    {
+        dmGraphics::BeginVertexUploadCapture(&frames[frame]);
+        for (uint32_t pass = 0; pass < 2; ++pass)
+        {
+            uint32_t token = dmGraphics::BeginOwnedVertexUpload(scratch);
+            scratch.SetCapacity(4);
+            scratch.Push((uint8_t)(10 * frame + pass + 1));
+            if (frame == 0 && pass == 0) first_storage = scratch.Begin();
+            void* data = dmGraphics::EndOwnedVertexUpload(token, scratch);
+            ASSERT_EQ(0U, scratch.Capacity());
+            dmGraphics::SetVertexBufferData(buffer, 1, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        }
+        ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
+        ASSERT_TRUE(frames[frame].m_Data.Empty());
+        ASSERT_EQ(2U, frames[frame].m_OwnedBytes);
+        ASSERT_EQ(0U, frames[frame].m_Uploads[0].m_OwnedIndex);
+        ASSERT_EQ(1U, frames[frame].m_Uploads[1].m_OwnedIndex);
+    }
+    dmGraphics::ReplayVertexUploads(&frames[0], 0, 1);
+    ASSERT_EQ(1U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
+    dmGraphics::ReplayVertexUploads(&frames[0], 1, 2);
+    ASSERT_EQ(2U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
+    dmGraphics::ReplayVertexUploads(&frames[1]);
+    ASSERT_EQ(12U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
+    uint64_t capacity = dmGraphics::GetVertexUploadCapacity(&frames[0]);
+    dmGraphics::BeginVertexUploadCapture(&frames[0]);
+    uint32_t token = dmGraphics::BeginOwnedVertexUpload(scratch);
+    ASSERT_EQ(first_storage, scratch.Begin());
+    ASSERT_TRUE(scratch.Empty());
+    scratch.Push(99);
+    void* data = dmGraphics::EndOwnedVertexUpload(token, scratch);
+    dmGraphics::SetVertexBufferData(buffer, 1, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
+    ASSERT_EQ(capacity, dmGraphics::GetVertexUploadCapacity(&frames[0]));
+    dmGraphics::ReplayVertexUploads(&frames[0]);
+    ASSERT_EQ(99U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
+    dmGraphics::DeleteVertexBuffer(buffer);
+}
+
+// Default capture must keep copying live component memory; an empty owned batch
+// must return its storage too, and the bounded slot pool must reject overflow.
+TEST_F(dmRenderTest, ComponentOwnedVertexAdmission)
+{
+    dmArray<uint8_t> scratch;
+    scratch.SetCapacity(4);
+    ASSERT_EQ(UINT32_MAX, dmGraphics::BeginOwnedVertexUpload(scratch));
+    ASSERT_EQ(4U, scratch.Capacity());
+    dmGraphics::VertexUploadBatch batch;
+    dmGraphics::BeginVertexUploadCapture(&batch);
+    ASSERT_EQ(UINT32_MAX, dmGraphics::BeginOwnedVertexUpload(scratch));
+    ASSERT_EQ((void*)scratch.Begin(), dmGraphics::EndOwnedVertexUpload(UINT32_MAX, scratch));
+    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
+    batch.m_OwnedEnabled = true;
+    dmGraphics::BeginVertexUploadCapture(&batch);
+    for (uint32_t i = 0; i < dmGraphics::VertexUploadBatch::MAX_UPLOADS; ++i)
+    {
+        uint32_t token = dmGraphics::BeginOwnedVertexUpload(scratch);
+        ASSERT_EQ(i, token);
+        dmGraphics::EndOwnedVertexUpload(token, scratch);
+    }
+    ASSERT_EQ(UINT32_MAX, dmGraphics::BeginOwnedVertexUpload(scratch));
+    ASSERT_FALSE(dmGraphics::EndVertexUploadCapture());
+    ASSERT_EQ((uint32_t)dmGraphics::VertexUploadBatch::MAX_UPLOADS, batch.m_Owned.Size());
+}
+
+// Owned data and copied uploads share one payload limit, so ownership cannot
+// bypass frame admission when individually small buffers exceed the total cap.
+TEST_F(dmRenderTest, ComponentOwnedVertexPayloadLimit)
+{
+    dmGraphics::VertexUploadBatch batch;
+    batch.m_OwnedEnabled = true;
+    dmArray<uint8_t> scratch;
+    dmGraphics::BeginVertexUploadCapture(&batch);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        uint32_t token = dmGraphics::BeginOwnedVertexUpload(scratch);
+        scratch.SetCapacity(dmGraphics::VertexUploadBatch::MAX_PAYLOAD / 2);
+        scratch.SetSize(scratch.Capacity());
+        dmGraphics::EndOwnedVertexUpload(token, scratch);
+    }
+    ASSERT_FALSE(dmGraphics::EndVertexUploadCapture());
 }

@@ -1,0 +1,90 @@
+{
+  "status": "NOT_READY",
+  "reason": "Local gates failed; production evidence remains incomplete",
+  "provisional_gates": {
+    "schema_version": 1,
+    "name": "Broad web component candidate 1",
+    "status": "provisional evaluation gates, not a production recommendation",
+    "candidate_mode": "overlap_completion",
+    "control_mode": "direct",
+    "configuration": {
+      "render.poc_pipeline": "component",
+      "render.poc_threaded": 1,
+      "render.poc_web_components": 1,
+      "render.poc_web_overlap": 1,
+      "render.poc_web_prepare_overlap": 1,
+      "render.poc_web_schedule": 1,
+      "render.poc_web_stack_kb": 5120,
+      "sound.use_thread": 0,
+      "render.poc_web_cache_window": 1
+    },
+    "minimum_repeats": 3,
+    "minimum_measurement_seconds": 120,
+    "target_throughput_gain_percent": 10,
+    "maximum_p99_regression_percent": 5,
+    "maximum_live_memory_increase_percent": 20,
+    "steady_state_growth_tolerance_mib": 0.5,
+    "target_workloads": [
+      "geometry1000"
+    ],
+    "required_external_evidence": [
+      "clean vanilla web comparison",
+      "representative animated model/mesh game replay",
+      "lower-powered target device",
+      "physical input-to-display latency",
+      "energy and sustained thermal behavior"
+    ]
+  },
+  "duration_comparison_precision_seconds": 0.01,
+  "workloads": [
+    {
+      "case": "bunny30k",
+      "throughput_change_percent": 3.3752066883373733,
+      "p99_change_percent": -4.166666666666674,
+      "live_memory_change_percent": 27.124320486212383,
+      "checks": {
+        "duration": true,
+        "repeats": true,
+        "throughput": true,
+        "p99": true,
+        "live_memory": false,
+        "steady_state_memory": true
+      }
+    },
+    {
+      "case": "gameplay_long",
+      "throughput_change_percent": -0.02665575475419013,
+      "p99_change_percent": 16.4591977869986,
+      "live_memory_change_percent": 33.924678575639724,
+      "checks": {
+        "duration": true,
+        "repeats": true,
+        "throughput": true,
+        "p99": false,
+        "live_memory": false,
+        "steady_state_memory": null
+      }
+    },
+    {
+      "case": "geometry1000",
+      "throughput_change_percent": 23.235882240881665,
+      "p99_change_percent": -5.1724137931034475,
+      "live_memory_change_percent": 34.7048324441481,
+      "checks": {
+        "duration": true,
+        "repeats": true,
+        "throughput": true,
+        "p99": true,
+        "live_memory": false,
+        "steady_state_memory": false
+      }
+    }
+  ],
+  "missing": [
+    "clean vanilla web comparison",
+    "representative animated model/mesh game replay",
+    "lower-powered target device",
+    "physical input-to-display latency",
+    "energy and sustained thermal behavior"
+  ]
+}

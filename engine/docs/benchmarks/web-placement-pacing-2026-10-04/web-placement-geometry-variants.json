@@ -1,0 +1,12 @@
+{
+  "direct": {
+    "mode": "direct"
+  },
+  "current": {
+    "mode": "overlap_completion"
+  },
+  "combined": {
+    "mode": "overlap_paced",
+    "deferredSprites": true
+  }
+}

@@ -32,6 +32,7 @@
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
+#include "../engine_web.h"
 #include "../engine_private.h"
 
 #if defined(DM_PLATFORM_IOS)
@@ -1526,4 +1527,83 @@ int main(int argc, char **argv)
     int ret = jc_test_run_all();
     ProfileFinalize();
     return ret;
+}
+
+// Fast completions get at most one admission per visible browser tick; a worker
+// still busy at the tick may consume that credit immediately when it completes.
+TEST(EngineTest, WebPacedCompletionAdmission)
+{
+    dmEngine::WebFrameAdmission admission;
+    admission.m_Paced = true;
+    ASSERT_FALSE(admission.Admit(true, true, false));
+    admission.BrowserTick(true);
+    ASSERT_TRUE(admission.Admit(true, true, false));
+    ASSERT_FALSE(admission.Admit(true, true, false));
+    admission.BrowserTick(true);
+    ASSERT_FALSE(admission.Admit(false, true, false));
+    ASSERT_TRUE(admission.Admit(true, true, false));
+    admission.BrowserTick(true);
+    admission.BrowserTick(true);
+    ASSERT_TRUE(admission.Admit(true, true, false));
+    ASSERT_FALSE(admission.Admit(true, true, false));
+}
+
+// Hidden tabs discard pacing credit, but shutdown must wake a waiting worker;
+// uncapped completion retains the existing immediate-dispatch behavior.
+TEST(EngineTest, WebPacedHiddenAndStopAdmission)
+{
+    dmEngine::WebFrameAdmission admission;
+    admission.m_Paced = true;
+    admission.BrowserTick(true);
+    admission.BrowserTick(false);
+    ASSERT_FALSE(admission.Admit(true, false, false));
+    ASSERT_FALSE(admission.Admit(true, true, false));
+    ASSERT_TRUE(admission.Admit(true, false, true));
+    ASSERT_FALSE(admission.Admit(false, false, true));
+    admission.m_Paced = false;
+    ASSERT_TRUE(admission.Admit(true, true, false));
+    ASSERT_TRUE(admission.Admit(true, true, false));
+}
+
+// Graphics rendezvous accounting separates owner queueing, execution and worker
+// resumption; repeated calls must accumulate without losing the longest queue.
+TEST(EngineTest, WebGraphicsRendezvousAccounting)
+{
+    dmEngine::WebUpdateDiagnostic diagnostic = {};
+    diagnostic.RecordGraphicsCall(1, 4, 6, 8);
+    diagnostic.RecordGraphicsCall(10, 11, 12, 14);
+    ASSERT_EQ(2U, diagnostic.m_GraphicsCalls);
+    ASSERT_EQ(4.0, diagnostic.m_OwnerQueue);
+    ASSERT_EQ(3.0, diagnostic.m_OwnerExecute);
+    ASSERT_EQ(4.0, diagnostic.m_OwnerReturn);
+    ASSERT_EQ(3.0, diagnostic.m_MaxOwnerQueue);
+}
+
+// Readiness may fill a missed presentation opportunity, but repeated callbacks
+// cannot consume multiple frames using one browser tick's credit.
+TEST(EngineTest, WebRenderReadyAdmission)
+{
+    dmEngine::WebRenderAdmission admission;
+    ASSERT_FALSE(admission.CanConsume(true, false));
+    admission.BrowserTick(true);
+    ASSERT_TRUE(admission.CanConsume(true, false));
+    ASSERT_TRUE(admission.CanConsume(true, false)); // An empty pump spends no credit.
+    admission.Consumed();
+    ASSERT_FALSE(admission.CanConsume(true, false));
+    admission.BrowserTick(true);
+    admission.BrowserTick(true); // Credits never accumulate.
+    admission.Consumed();
+    ASSERT_FALSE(admission.CanConsume(true, false));
+}
+
+// Hidden ticks discard presentation credit; stopping may retire accepted work
+// without waiting for another visible browser callback.
+TEST(EngineTest, WebRenderHiddenAndStopAdmission)
+{
+    dmEngine::WebRenderAdmission admission;
+    admission.BrowserTick(true);
+    ASSERT_FALSE(admission.CanConsume(false, false));
+    admission.BrowserTick(false);
+    ASSERT_FALSE(admission.CanConsume(true, false));
+    ASSERT_TRUE(admission.CanConsume(false, true));
 }

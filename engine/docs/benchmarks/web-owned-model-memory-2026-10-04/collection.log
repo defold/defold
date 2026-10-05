@@ -1,0 +1,67 @@
+Starting geometry1000-direct-1
+geometry1000-direct-1: 30s sampled
+geometry1000-direct-1: 60s sampled
+geometry1000-direct-1: 90s sampled
+geometry1000-direct-1: 120s sampled
+1/3 geometry1000-direct-1: 66.13 updates/s
+Starting geometry1000-copied-1
+geometry1000-copied-1: 30s sampled
+geometry1000-copied-1: 60s sampled
+geometry1000-copied-1: 90s sampled
+geometry1000-copied-1: 120s sampled
+2/3 geometry1000-copied-1: 83.39 updates/s
+Starting geometry1000-owned-1
+geometry1000-owned-1: 30s sampled
+geometry1000-owned-1: 60s sampled
+geometry1000-owned-1: 90s sampled
+geometry1000-owned-1: 120s sampled
+3/3 geometry1000-owned-1: 82.15 updates/s
+Starting geometry1000-direct-1
+geometry1000-direct-1: 30s sampled
+geometry1000-direct-1: 60s sampled
+1/3 geometry1000-direct-1: 68.65 updates/s
+Starting geometry1000-copied-1
+geometry1000-copied-1: 30s sampled
+geometry1000-copied-1: 60s sampled
+2/3 geometry1000-copied-1: 83.64 updates/s
+Starting geometry1000-owned-1
+geometry1000-owned-1: 30s sampled
+geometry1000-owned-1: 60s sampled
+3/3 geometry1000-owned-1: 84.77 updates/s
+Starting geometry1000-direct-1
+geometry1000-direct-1: 30s sampled
+geometry1000-direct-1: 60s sampled
+1/9 geometry1000-direct-1: 66.65 updates/s
+Starting geometry1000-copied-1
+geometry1000-copied-1: 30s sampled
+geometry1000-copied-1: 60s sampled
+2/9 geometry1000-copied-1: 84.75 updates/s
+Starting geometry1000-owned-1
+geometry1000-owned-1: 30s sampled
+geometry1000-owned-1: 60s sampled
+3/9 geometry1000-owned-1: 84.66 updates/s
+Starting geometry1000-copied-2
+geometry1000-copied-2: 30s sampled
+geometry1000-copied-2: 60s sampled
+4/9 geometry1000-copied-2: 83.72 updates/s
+Starting geometry1000-owned-2
+geometry1000-owned-2: 30s sampled
+geometry1000-owned-2: 60s sampled
+5/9 geometry1000-owned-2: 84.34 updates/s
+Starting geometry1000-direct-2
+geometry1000-direct-2: 30s sampled
+geometry1000-direct-2: 60s sampled
+6/9 geometry1000-direct-2: 68.01 updates/s
+Starting geometry1000-owned-3
+geometry1000-owned-3: 30s sampled
+geometry1000-owned-3: 60s sampled
+7/9 geometry1000-owned-3: 85.07 updates/s
+Starting geometry1000-direct-3
+geometry1000-direct-3: 30s sampled
+geometry1000-direct-3: 60s sampled
+8/9 geometry1000-direct-3: 67.32 updates/s
+Starting geometry1000-copied-3
+geometry1000-copied-3: 30s sampled
+geometry1000-copied-3: 60s sampled
+9/9 geometry1000-copied-3: 84.06 updates/s
+Original screen-saver timeout restored.

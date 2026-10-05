@@ -1,0 +1,888 @@
+[0/2] Re-checking globbed directories...
+[1/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/render/build/wasm_pthread-web/CMakeFiles/render.dir/src/render/render_command.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render_command.cpp:20:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render_command.h:20:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[2/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/render/build/wasm_pthread-web/CMakeFiles/render.dir/src/render/component_frame.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/component_frame.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/component_frame.h:17:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[3/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/render/build/wasm_pthread-web/CMakeFiles/render.dir/src/render/render.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.cpp:29:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render_private.h:29:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[4/77] Linking CXX static library /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/render/build/wasm_pthread-web/librender.a
+[5/77] Generating /Users/jhonny/dev/defold/tmp/dynamo_home/include/render/display_profiles.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/render/render.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/render/render_thread.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/render/render_frame.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/render/render_command.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/render/component_frame.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/render/font/fontmap.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/render/font/font_renderer.h
+[6/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_compute.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_compute.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/../gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+/Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_compute.cpp:31:36: warning: unused function 'NormalizeBindableTextureType' [-Wunused-function]
+   31 |     static dmGraphics::TextureType NormalizeBindableTextureType(dmGraphics::TextureType texture_type)
+      |                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 warnings generated.
+[7/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_factory.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_factory.cpp:23:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/dmsdk/gamesys/script.h:20:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[8/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_collection_factory.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_collection_factory.cpp:23:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject_props_lua.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject_props.h:24:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[9/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/gamesys_resource.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys_resource.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[10/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_collectionproxy.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_collectionproxy.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_collectionproxy.h:20:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/lua/lua.h:5:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[11/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/gamesys_script.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys_script.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[12/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/gamesys.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[13/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_buffer.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_buffer.cpp:24:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_buffer.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/dmsdk/gamesys/script.h:20:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[14/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_image.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_image.cpp:22:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/extension/extension.hpp:18:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.hpp:22:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension_gen.hpp:40:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.h:31:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[15/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_http_js.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_http_js.cpp:24:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/dmsdk/gameobject/script.h:20:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[16/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_label.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_label.cpp:17:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/../gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[17/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_material.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_material.cpp:17:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/extension/extension.hpp:18:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.hpp:22:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension_gen.hpp:40:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.h:31:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[18/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_sound.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_sound.cpp:25:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[19/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_sprite.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_sprite.cpp:27:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[20/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_physics.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_physics.cpp:23:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/script.h:22:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[21/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_resource.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_resource.cpp:22:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[22/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_window.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_window.cpp:17:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/../gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[23/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_tilemap.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_tilemap.cpp:19:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/extension/extension.hpp:18:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.hpp:22:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension_gen.hpp:40:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.h:31:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[24/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/resources/box2d/res_collision_object_box2d.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/box2d/res_collision_object_box2d.cpp:22:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/box2d/../../gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[25/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/scripts/script_sys_gamesys.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_sys_gamesys.cpp:21:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/../gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[26/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/resources/box2d/res_convex_shape_box2d.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/box2d/res_convex_shape_box2d.cpp:19:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[27/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/resources/bullet3d/res_collision_object_bullet3d.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/bullet3d/res_collision_object_bullet3d.cpp:22:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/bullet3d/../../gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[28/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/resources/bullet3d/res_convex_shape_bullet3d.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/bullet3d/res_convex_shape_bullet3d.cpp:19:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[29/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/resources/res_collision_object.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_collision_object.cpp:23:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/../gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[30/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/resources/res_convex_shape.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_convex_shape.cpp:20:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[31/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/resources/res_mesh.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_mesh.cpp:24:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[32/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/resources/res_tilegrid.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_tilegrid.cpp:21:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[33/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/resources/res_render_prototype.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_render_prototype.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_render_prototype.h:20:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[34/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/resources/res_textureset.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_textureset.cpp:22:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/../gamesys.h:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[35/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/bullet3d/comp_collision_object_bullet3d.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/bullet3d/comp_collision_object_bullet3d.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/bullet3d/../comp_collision_object.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[36/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/box2d/comp_collision_object_box2d.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/box2d/comp_collision_object_box2d.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/box2d/../comp_collision_object.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[37/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/comp_collection_factory.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_collection_factory.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_collection_factory.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[38/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/comp_collection_proxy.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_collection_proxy.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_collection_proxy.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[39/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/comp_light.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_light.cpp:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[40/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/comp_factory.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_factory.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_factory.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[41/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/comp_collision_object.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_collision_object.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_collision_object.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[42/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/comp_sound.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_sound.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_sound.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[43/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/comp_mesh.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_mesh.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_mesh.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[44/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/comp_label.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_label.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_label.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[45/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys_model.dir/src/gamesys/scripts/script_model.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_model.cpp:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/script.h:22:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[46/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/comp_tilegrid.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_tilegrid.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_tilegrid.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[47/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys_model.dir/src/gamesys/resources/res_model.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_model.cpp:22:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/gamesys_private.h:22:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[48/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys_gui.dir/src/gamesys/resources/res_gui.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_gui.cpp:17:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_gui.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/dmsdk/gamesys/resources/res_gui.h:20:
+In file included from /Users/jhonny/dev/defold/engine/gui/src/dmsdk/gui/gui.h:21:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[49/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys_gui.dir/src/gamesys/resources/res_gui_script.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_gui_script.cpp:17:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/resources/res_gui.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/dmsdk/gamesys/resources/res_gui.h:20:
+In file included from /Users/jhonny/dev/defold/engine/gui/src/dmsdk/gui/gui.h:21:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[50/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys_particle.dir/src/gamesys/scripts/script_particlefx.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/script_particlefx.cpp:23:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/extension/extension.hpp:18:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.hpp:22:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension_gen.hpp:40:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.h:31:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[51/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys_model.dir/src/gamesys/components/comp_model.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_model.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_model.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[52/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/script_box2d_defold.dir/src/gamesys/scripts/box2d/script_box2d.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/box2d/script_box2d.cpp:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/script.h:22:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[53/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys_particle.dir/src/gamesys/components/comp_particlefx.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_particlefx.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/prepared_render_list.h:18:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[54/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys.dir/src/gamesys/components/comp_sprite.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_sprite.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_sprite.h:18:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/component.h:19:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[55/77] Linking CXX static library /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/libgamesys_model.a
+[56/77] Linking CXX static library /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/libgamesys.a
+[57/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/script_box2d_defold.dir/src/gamesys/scripts/box2d/v2/script_box2d_body_v2.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/box2d/v2/script_box2d_body_v2.cpp:23:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/script.h:22:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[58/77] Generating /Users/jhonny/dev/defold/tmp/dynamo_home/include/gamesys/gamesys.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/gamesys/components/comp_gui.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/gamesys/fontgen/fontgen.h
+[59/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/gamesys_gui.dir/src/gamesys/components/comp_gui.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/components/comp_gui.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render_frame.h:21:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[60/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/script_box2d_defold.dir/src/gamesys/scripts/box2d/v2/script_box2d_joint_v2.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/box2d/v2/script_box2d_joint_v2.cpp:31:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/script.h:22:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[61/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/script_box2d_defold.dir/src/gamesys/scripts/box2d/v2/script_box2d_world_v2.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/box2d/v2/script_box2d_world_v2.cpp:24:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[62/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/script_bullet3d.dir/src/gamesys/scripts/bullet3d/script_bullet3d.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/bullet3d/script_bullet3d.cpp:20:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/extension/extension.hpp:18:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.hpp:22:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension_gen.hpp:40:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.h:31:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[63/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/engine_main.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_main.cpp:27:
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_private.h:29:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[64/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/engine_loop.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_loop.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_private.h:29:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[65/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/script/script_engine.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/script/script_engine.cpp:16:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[66/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/script_bullet3d.dir/src/gamesys/scripts/bullet3d/script_bullet3d_shape.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/bullet3d/script_bullet3d_shape.cpp:20:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[67/77] Linking CXX static library /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/libgamesys_gui.a
+[68/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/script_bullet3d.dir/src/gamesys/scripts/bullet3d/script_bullet3d_constraint.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/bullet3d/script_bullet3d_constraint.cpp:21:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[69/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/engine.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render_frame.h:21:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[70/77] Linking CXX static library /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/libgamesys_particle.a
+[71/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/engine_web.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_web.cpp:20:
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_private.h:29:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[72/77] Linking CXX static library /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/libscript_box2d_defold.a
+[73/77] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/CMakeFiles/script_bullet3d.dir/src/gamesys/scripts/bullet3d/script_bullet3d_world.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/gamesys/src/gamesys/scripts/bullet3d/script_bullet3d_world.cpp:23:
+In file included from /Users/jhonny/dev/defold/engine/gameobject/src/gameobject/gameobject.h:30:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:19:9: note: previous definition is here
+   19 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[74/77] Linking CXX static library /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/libengine_release.a
+[75/77] Linking CXX static library /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/gamesys/build/wasm_pthread-web/libscript_bullet3d.a
+[76/77] Linking CXX executable /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/dmengine_release.js
+em++: warning: -pthread + ALLOW_MEMORY_GROWTH may run non-wasm code slowly, see https://github.com/WebAssembly/design/issues/1271 [-Wpthreads-mem-growth]
+warning: no output file specified, not emitting output

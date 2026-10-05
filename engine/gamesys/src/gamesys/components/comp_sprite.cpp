@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "comp_sprite.h"
+#include <render/component_frame.h>
 #include <render/render_frame.h>
 
 #include <string.h>
@@ -236,9 +237,30 @@ namespace dmGameSystem
         SpriteFrameBlock m_Values;
     };
 
+    struct SpriteRenderFrame;
+    struct SpriteRendererState;
+    struct DeferredSpriteBatch
+    {
+        SpriteRenderFrame* m_Frame;
+        SpriteRendererState* m_Renderer;
+        dmArray<uint32_t> m_Indices;
+        dmRender::RenderObject m_Placeholder;
+        bool m_First, m_Last, m_Prepare;
+    };
+
+    struct SpriteRendererMemory
+    {
+        uint64_t m_CpuBytes, m_ConstantBytes, m_GpuLogicalBytes;
+    };
+    static void GetSpriteRendererMemory(const SpriteRendererState& renderer, SpriteRendererMemory* memory);
+
     struct SpriteRenderFrame
     {
-        SpriteRenderFrame() : m_CapacityBytes(sizeof(SpriteRenderFrame)), m_GrowthPeakBytes(sizeof(SpriteRenderFrame)), m_ResourceBytes(0), m_CapacityLimit(0), m_Overflow(false), m_Builder(0), m_CentralDependencies(false) {}
+        SpriteRenderFrame() : m_CapacityBytes(sizeof(SpriteRenderFrame)), m_GrowthPeakBytes(sizeof(SpriteRenderFrame)), m_ResourceBytes(0), m_CapacityLimit(0), m_Overflow(false), m_Builder(0), m_CentralDependencies(false), m_DeferredCursor(0), m_DeferredPassBegin(0), m_DeferredRenderer(0) { memset(&m_RetiredRendererMemory, 0, sizeof(m_RetiredRendererMemory)); }
+        ~SpriteRenderFrame()
+        {
+            for (uint32_t i = 0; i < m_DeferredBatches.Size(); ++i) delete m_DeferredBatches[i];
+        }
         uint64_t m_CapacityBytes;
         uint64_t m_GrowthPeakBytes;
         uint64_t m_ResourceBytes;
@@ -261,6 +283,10 @@ namespace dmGameSystem
         uint32_t m_VertexCount;
         uint32_t m_IndexCount;
         uint32_t m_VertexMemorySize;
+        dmArray<DeferredSpriteBatch*> m_DeferredBatches;
+        uint32_t m_DeferredCursor, m_DeferredPassBegin;
+        SpriteRendererMemory m_RetiredRendererMemory; // Consumer-written, read only when this slot is retired.
+        SpriteRendererState* m_DeferredRenderer; // Render-owner scratch, never used by capture.
         // Capture-only indices. Consumers never look up a live component/cache key.
         dmHashTable64<uint32_t> m_ResourceSizes; // Unique direct resource descriptors.
         dmHashTable64<uint32_t> m_BindingMap;
@@ -301,6 +327,7 @@ namespace dmGameSystem
 
     struct SpriteWorld
     {
+        SpriteWorld* m_NextWorld;
         AnimationDataCache m_AnimationDataCache;
         dmObjectPool<SpriteComponent> m_Components;
         DynamicAttributePool m_DynamicVertexAttributePool;
@@ -373,6 +400,8 @@ namespace dmGameSystem
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         SpriteWorld* sprite_world = new SpriteWorld();
+        sprite_world->m_NextWorld = (SpriteWorld*)sprite_context->m_SnapshotWorlds;
+        sprite_context->m_SnapshotWorlds = sprite_world;
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
         sprite_world->m_Components.SetCapacity(comp_count);
         sprite_world->m_CullingInfo.SetCapacity(comp_count);
@@ -398,7 +427,7 @@ namespace dmGameSystem
         sprite_world->m_Renderer.m_LegacyWorld = sprite_world;
         sprite_world->m_ThreadFrames[0] = 0;
         sprite_world->m_ThreadFrames[1] = 0;
-        sprite_world->m_Threaded = sprite_context->m_SnapshotThreaded;
+        sprite_world->m_Threaded = sprite_context->m_SnapshotThreaded || sprite_context->m_ComponentDeferredSprites;
         memset(&sprite_world->m_ThreadStats, 0, sizeof(sprite_world->m_ThreadStats));
         sprite_world->m_ThreadStats.m_Threaded = sprite_world->m_Threaded;
         sprite_world->m_Renderer.m_Frame = 0;
@@ -421,6 +450,9 @@ namespace dmGameSystem
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
 
+        SpriteContext* lifetime_context = (SpriteContext*)params.m_Context;
+        if (lifetime_context->m_ComponentFrameBarrier)
+            lifetime_context->m_ComponentFrameBarrier(lifetime_context->m_SnapshotContext);
         DestroyMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool);
 
         for (uint32_t i = 0; i < sprite_world->m_Renderer.m_RenderObjects.Size(); ++i)
@@ -429,6 +461,11 @@ namespace dmGameSystem
         }
 
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
+        SpriteWorld* previous = 0;
+        SpriteWorld* current = (SpriteWorld*)sprite_context->m_SnapshotWorlds;
+        while (current != sprite_world) { previous = current; current = current->m_NextWorld; }
+        if (previous) previous->m_NextWorld = current->m_NextWorld;
+        else sprite_context->m_SnapshotWorlds = current->m_NextWorld;
         dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_Renderer.m_VertexBuffer);
         free(sprite_world->m_Renderer.m_VertexBufferData);
         dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_Renderer.m_IndexBuffer);
@@ -1739,6 +1776,7 @@ namespace dmGameSystem
             dmResource::Release(factory, binding.m_Resolved.m_Material);
             dmResource::Release(factory, binding.m_Source);
         }
+        frame->m_DeferredCursor = 0;
         frame->m_Sprites.SetSize(0);
         frame->m_Bounds.SetSize(0);
         frame->m_Slice9.SetSize(0);
@@ -2068,7 +2106,7 @@ namespace dmGameSystem
 
         for (uint32_t* i = begin; i != end; ++i)
         {
-            uint32_t component_index         = (uint32_t)buf[*i].m_UserData;
+            uint32_t component_index         = (buf ? (uint32_t)buf[*i].m_UserData : *i);
             SpriteComponent view;
             const SpriteComponent* component = GetRenderSprite(sprite_world, component_index, &view);
             const Matrix4& world_matrix      = component->m_World;
@@ -2343,7 +2381,7 @@ namespace dmGameSystem
 
         for (uint32_t* i = begin; i != end; ++i)
         {
-            uint32_t component_index = (uint32_t) buf[*i].m_UserData;
+            uint32_t component_index = (buf ? (uint32_t)buf[*i].m_UserData : *i);
             uint32_t vertex_count = sprite_world->m_Frame ? sprite_world->m_Frame->m_Sprites[component_index].m_VertexCount :
                 sprite_world->m_LegacyWorld->m_Components.GetRawObjects()[component_index].m_VertexCount;
             uint32_t remainder = required_size % vertex_stride;
@@ -2368,7 +2406,7 @@ namespace dmGameSystem
     {
         DM_PROFILE("SpriteRenderBatch");
 
-        uint32_t component_index = (uint32_t)buf[*begin].m_UserData;
+        uint32_t component_index = (buf ? (uint32_t)buf[*begin].m_UserData : *begin);
         SpriteComponent view;
         const SpriteComponent* first = GetRenderSprite(sprite_world, component_index, &view);
         assert(first->m_Enabled);
@@ -2810,15 +2848,9 @@ namespace dmGameSystem
         }
     }
 
-    static dmGameObject::UpdateResult SubmitSpriteFrame(SpriteRendererState* renderer, dmRender::HRenderContext render_context,
-                                                       uint32_t vertex_count, uint32_t index_count, uint32_t vertex_memory_size,
-                                                       const dmRender::RenderFrame* global_frame = 0)
+    static void PrepareSpriteRenderer(SpriteRendererState* renderer, dmRender::HRenderContext render_context,
+                                      uint32_t vertex_count, uint32_t index_count, uint32_t vertex_memory_size)
     {
-        uint32_t sprite_count = renderer->m_Frame ? renderer->m_Frame->m_Sprites.Size() : renderer->m_LegacyWorld->m_Components.GetRawObjects().Size();
-        // Even an empty capture must release the previous frame's retained resources.
-        if (!sprite_count)
-            return dmGameObject::UPDATE_RESULT_OK;
-
         renderer->m_ReallocBuffers |= vertex_memory_size > renderer->m_VertexMemorySize || index_count > renderer->m_IndexCount;
         renderer->m_VertexMemorySize = dmMath::Max(renderer->m_VertexMemorySize, vertex_memory_size);
         renderer->m_VertexCount = vertex_count;
@@ -2832,6 +2864,19 @@ namespace dmGameSystem
         renderer->m_DispatchCount = 0;
         renderer->m_VerticesWritten = 0;
         PrepareSpriteConstants(renderer);
+
+    }
+
+    static dmGameObject::UpdateResult SubmitSpriteFrame(SpriteRendererState* renderer, dmRender::HRenderContext render_context,
+                                                       uint32_t vertex_count, uint32_t index_count, uint32_t vertex_memory_size,
+                                                       const dmRender::RenderFrame* global_frame = 0)
+    {
+        uint32_t sprite_count = renderer->m_Frame ? renderer->m_Frame->m_Sprites.Size() : renderer->m_LegacyWorld->m_Components.GetRawObjects().Size();
+        // Even an empty capture must release the previous frame's retained resources.
+        if (!sprite_count)
+            return dmGameObject::UPDATE_RESULT_OK;
+
+        PrepareSpriteRenderer(renderer, render_context, vertex_count, index_count, vertex_memory_size);
 
         dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(render_context, sprite_count);
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, renderer);
@@ -2883,10 +2928,105 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static void ConsumeDeferredSpriteBatch(void* data, dmRender::HRenderContext context)
+    {
+        DeferredSpriteBatch* batch = (DeferredSpriteBatch*)data;
+        SpriteRendererState* renderer = batch->m_Renderer;
+        SpriteRenderFrame* frame = batch->m_Frame;
+        if (batch->m_First)
+        {
+            renderer->m_Frame = frame;
+            renderer->m_LegacyWorld = 0;
+            if (batch->m_Prepare) PrepareSpriteRenderer(renderer, context, frame->m_VertexCount, frame->m_IndexCount, frame->m_VertexMemorySize);
+            dmRender::RenderListDispatchParams begin = {};
+            begin.m_UserData = renderer; begin.m_Context = context; begin.m_Operation = dmRender::RENDER_LIST_OPERATION_BEGIN;
+            RenderListDispatch(begin);
+        }
+        RenderBatch(renderer, context, 0, batch->m_Indices.Begin(), batch->m_Indices.End());
+        if (batch->m_Last)
+        {
+            dmRender::RenderListDispatchParams end = {};
+            end.m_UserData = renderer; end.m_Context = context; end.m_Operation = dmRender::RENDER_LIST_OPERATION_END;
+            RenderListDispatch(end);
+            GetSpriteRendererMemory(*renderer, &frame->m_RetiredRendererMemory);
+        }
+    }
+
+    static void CullDeferredSprites(const dmRender::RenderListVisibilityParams& params)
+    {
+        const SpriteRenderFrame* frame = (const SpriteRenderFrame*)params.m_UserData;
+        for (uint32_t i = 0; i < params.m_NumEntries; ++i)
+        {
+            dmRender::RenderListEntry& entry = params.m_Entries[i];
+            const SpriteCullingInfo& info = frame->m_Bounds[entry.m_UserData];
+            entry.m_Visibility = dmIntersection::TestFrustumSphereSq(*params.m_Frustum,
+                Vector4(info.m_Position[0], info.m_Position[1], info.m_Position[2], 1), info.m_Radius) ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+        }
+    }
+
+    static void CaptureDeferredSpriteBatch(const dmRender::RenderListDispatchParams& params)
+    {
+        SpriteRenderFrame* frame = (SpriteRenderFrame*)params.m_UserData;
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BEGIN)
+        { frame->m_DeferredPassBegin = frame->m_DeferredCursor; return; }
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_END)
+        {
+            if (frame->m_DeferredCursor > frame->m_DeferredPassBegin)
+                frame->m_DeferredBatches[frame->m_DeferredCursor - 1]->m_Last = true;
+            return;
+        }
+        if (frame->m_DeferredCursor == frame->m_DeferredBatches.Size())
+        {
+            if (!ReserveSpriteFrame(frame, frame->m_DeferredBatches, frame->m_DeferredCursor + 1) ||
+                !GrowSpriteFrame(frame, sizeof(DeferredSpriteBatch), 0))
+            { dmRender::RejectComponentFrame(params.m_Context); return; }
+            frame->m_DeferredBatches.Push(new DeferredSpriteBatch);
+        }
+        DeferredSpriteBatch* batch = frame->m_DeferredBatches[frame->m_DeferredCursor++];
+        uint32_t count = params.m_End - params.m_Begin;
+        if (!ReserveSpriteFrame(frame, batch->m_Indices, count))
+        { dmRender::RejectComponentFrame(params.m_Context); return; }
+        batch->m_Indices.SetSize(0);
+        for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
+            batch->m_Indices.Push(params.m_Buf[*i].m_UserData);
+        batch->m_Frame = frame; batch->m_Renderer = frame->m_DeferredRenderer;
+        batch->m_First = frame->m_DeferredCursor == frame->m_DeferredPassBegin + 1;
+        batch->m_Last = false;
+        batch->m_Prepare = frame->m_DeferredCursor == 1;
+        batch->m_Placeholder.Init();
+        batch->m_Placeholder.m_VertexCount = 1;
+        batch->m_Placeholder.m_Material = frame->m_Bindings[frame->m_Sprites[batch->m_Indices[0]].m_Binding].m_Resolved.m_Material->m_Material;
+        dmRender::AddComponentDeferredDraw(params.m_Context, &batch->m_Placeholder, ConsumeDeferredSpriteBatch, batch);
+    }
+
+    static dmGameObject::UpdateResult SubmitDeferredSprites(SpriteWorld* world, SpriteContext* context)
+    {
+        if (!CaptureSpriteThreadFrame(world, context, context->m_ComponentFrameSlot)) return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        SpriteRenderFrame* frame = world->m_ThreadFrames[context->m_ComponentFrameSlot];
+        frame->m_DeferredRenderer = &world->m_Renderer;
+        dmGraphics::ProtectCapturedGraphicsResources();
+        uint32_t count = frame->m_Sprites.Size();
+        if (!count) return dmGameObject::UPDATE_RESULT_OK;
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(context->m_RenderContext, count);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(context->m_RenderContext, CaptureDeferredSpriteBatch, CullDeferredSprites, frame);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const SpriteRenderData& data = frame->m_Sprites[i];
+            entries[i].m_WorldPosition = Point3(data.m_World[9], data.m_World[10], data.m_World[11]);
+            entries[i].m_BatchKey = data.m_BatchKey;
+            entries[i].m_TagListKey = frame->m_Bindings[data.m_Binding].m_TagListKey;
+            entries[i].m_UserData = i; entries[i].m_Dispatch = dispatch;
+            entries[i].m_MinorOrder = 0; entries[i].m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+        }
+        dmRender::RenderListSubmit(context->m_RenderContext, entries, entries + count);
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompSpriteRender(const dmGameObject::ComponentsRenderParams& params)
     {
         SpriteContext* context = (SpriteContext*)params.m_Context;
         SpriteWorld* world = (SpriteWorld*)params.m_World;
+        if (context->m_ComponentDeferredSprites) return SubmitDeferredSprites(world, context);
         SpriteRendererState* renderer = &world->m_Renderer;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         if (context->m_SnapshotInline)
@@ -3409,6 +3549,23 @@ namespace dmGameSystem
         return map.Capacity() ? sizeof(uint32_t) * dmMath::Max(1U, map.Capacity() * 2 / 3) + sizeof(typename dmHashTable<K, uint32_t>::Entry) * map.Capacity() : 0;
     }
 
+    static void GetSpriteRendererMemory(const SpriteRendererState& renderer, SpriteRendererMemory* memory)
+    {
+        memset(memory, 0, sizeof(*memory));
+        memory->m_CpuBytes = renderer.m_VertexMemorySize + renderer.m_IndexCapacityBytes +
+            renderer.m_AttributeScratch.Capacity() * sizeof(dmGraphics::VertexAttributeInfo) +
+            renderer.m_ConstantBuffers.Capacity() * sizeof(dmRender::HNamedConstantBuffer) +
+            renderer.m_RenderObjects.Capacity() * sizeof(dmRender::RenderObject*) +
+            renderer.m_RenderObjects.Size() * sizeof(dmRender::RenderObject) +
+            (renderer.m_ScratchPositionWorld.Capacity() + renderer.m_ScratchPositionLocal.Capacity()) * sizeof(Vector4);
+        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
+            memory->m_CpuBytes += renderer.m_ScratchUVs[i].Capacity() * sizeof(float);
+        for (uint32_t i = 0; i < renderer.m_ConstantBuffers.Size(); ++i)
+            memory->m_ConstantBytes += dmRender::GetNamedConstantBufferCapacity(renderer.m_ConstantBuffers[i]);
+        memory->m_CpuBytes += memory->m_ConstantBytes;
+        memory->m_GpuLogicalBytes = dmRender::GetBufferedRenderBufferDataSize(renderer.m_VertexBuffer) + dmRender::GetBufferedRenderBufferDataSize(renderer.m_IndexBuffer);
+    }
+
     static void ComputeSpriteSnapshotStats(SpriteWorld* world, const SpriteRenderFrame* frame, SpriteSnapshotStats* stats, bool renderer_idle = true)
     {
         memset(stats, 0, sizeof(*stats));
@@ -3420,18 +3577,11 @@ namespace dmGameSystem
         stats->m_CaptureTotalUs = renderer.m_CaptureTotalUs;
         if (renderer_idle)
         {
-            stats->m_RendererCpuCapacityBytes = renderer.m_VertexMemorySize + renderer.m_IndexCapacityBytes +
-                renderer.m_AttributeScratch.Capacity() * sizeof(dmGraphics::VertexAttributeInfo) +
-                renderer.m_ConstantBuffers.Capacity() * sizeof(dmRender::HNamedConstantBuffer) +
-                renderer.m_RenderObjects.Capacity() * sizeof(dmRender::RenderObject*) +
-                renderer.m_RenderObjects.Size() * sizeof(dmRender::RenderObject) +
-                (renderer.m_ScratchPositionWorld.Capacity() + renderer.m_ScratchPositionLocal.Capacity()) * sizeof(Vector4);
-            for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
-                stats->m_RendererCpuCapacityBytes += renderer.m_ScratchUVs[i].Capacity() * sizeof(float);
-            for (uint32_t i = 0; i < renderer.m_ConstantBuffers.Size(); ++i)
-                stats->m_ConstantBufferCapacityBytes += dmRender::GetNamedConstantBufferCapacity(renderer.m_ConstantBuffers[i]);
-            stats->m_RendererCpuCapacityBytes += stats->m_ConstantBufferCapacityBytes;
-            stats->m_RendererGpuLogicalBytes = dmRender::GetBufferedRenderBufferDataSize(renderer.m_VertexBuffer) + dmRender::GetBufferedRenderBufferDataSize(renderer.m_IndexBuffer);
+            SpriteRendererMemory memory;
+            GetSpriteRendererMemory(renderer, &memory);
+            stats->m_RendererCpuCapacityBytes = memory.m_CpuBytes;
+            stats->m_ConstantBufferCapacityBytes = memory.m_ConstantBytes;
+            stats->m_RendererGpuLogicalBytes = memory.m_GpuLogicalBytes;
         }
         if (!frame)
             return;
@@ -3451,6 +3601,12 @@ namespace dmGameSystem
         CountFrameArray(frame->m_ConstantNext, stats);
         CountFrameArray(frame->m_ConstantDescriptors, stats);
         CountFrameArray(frame->m_ConstantValues, stats);
+        CountFrameArray(frame->m_DeferredBatches, stats);
+        for (uint32_t i = 0; i < frame->m_DeferredBatches.Size(); ++i)
+        {
+            stats->m_FrameCapacityBytes += sizeof(DeferredSpriteBatch) + frame->m_DeferredBatches[i]->m_Indices.Capacity() * sizeof(uint32_t);
+            if (i < frame->m_DeferredCursor) stats->m_PayloadUsedBytes += sizeof(DeferredSpriteBatch) + frame->m_DeferredBatches[i]->m_Indices.Size() * sizeof(uint32_t);
+        }
         CountFrameArray(frame->m_Attributes, stats);
         CountFrameArray(frame->m_AttributeValues, stats);
         stats->m_FrameCapacityBytes += FrameMapCapacity(frame->m_ResourceSizes) + FrameMapCapacity(frame->m_BindingMap) + FrameMapCapacity(frame->m_GeometryMap) + FrameMapCapacity(frame->m_ConstantMap);
@@ -3469,6 +3625,23 @@ namespace dmGameSystem
             ComputeSpriteSnapshotStats(world, world->m_Renderer.m_Frame, stats);
     }
 
+    uint32_t GetSpriteContextSnapshotStats(SpriteContext* context, SpriteSnapshotStats* total)
+    {
+        memset(total, 0, sizeof(*total));
+        uint32_t worlds = 0;
+        for (SpriteWorld* world = (SpriteWorld*)context->m_SnapshotWorlds; world; world = world->m_NextWorld)
+        {
+            SpriteSnapshotStats stats;
+            GetSpriteSnapshotStats(world, &stats);
+            total->m_FrameCapacityBytes += stats.m_FrameCapacityBytes;
+            total->m_RendererCpuCapacityBytes += stats.m_RendererCpuCapacityBytes;
+            total->m_ConstantBufferCapacityBytes += stats.m_ConstantBufferCapacityBytes;
+            total->m_RendererGpuLogicalBytes += stats.m_RendererGpuLogicalBytes;
+            ++worlds;
+        }
+        return worlds;
+    }
+
     void ReleaseSpriteThreadFrames(void* sprite_world, SpriteContext* context)
     {
         SpriteWorld* world = (SpriteWorld*)sprite_world;
@@ -3480,7 +3653,7 @@ namespace dmGameSystem
     bool CaptureSpriteThreadFrame(void* sprite_world, SpriteContext* context, uint32_t slot, uint32_t capacity_limit)
     {
         SpriteWorld* world = (SpriteWorld*)sprite_world;
-        assert(slot < 2 && context->m_SnapshotThreaded);
+        assert(slot < 2 && (context->m_SnapshotThreaded || context->m_ComponentDeferredSprites));
         assert(world->m_Threaded || !world->m_Renderer.m_Frame);
         world->m_Threaded = true;
         // Only this reserved slot is free. Never release the other reader slot.
@@ -3498,6 +3671,15 @@ namespace dmGameSystem
         world->m_ThreadStats.m_FrameCapacityBytes += other.m_FrameCapacityBytes;
         world->m_ThreadStats.m_SlotsPayloadUsedBytes += other.m_PayloadUsedBytes;
         world->m_ThreadStats.m_FrameGrowthPeakBytes += other.m_FrameGrowthPeakBytes;
+        if (context->m_ComponentDeferredSprites)
+        {
+            // BeginRenderThreadFrame reserved a retired slot. Its consumer's
+            // scratch sample is immutable here; never inspect the live renderer.
+            const SpriteRendererMemory& memory = world->m_ThreadFrames[slot]->m_RetiredRendererMemory;
+            world->m_ThreadStats.m_RendererCpuCapacityBytes = memory.m_CpuBytes;
+            world->m_ThreadStats.m_ConstantBufferCapacityBytes = memory.m_ConstantBytes;
+            world->m_ThreadStats.m_RendererGpuLogicalBytes = memory.m_GpuLogicalBytes;
+        }
         world->m_ThreadStats.m_Threaded = 1;
         // Hard admission budget, including both slot capacities and capture maps.
         if (world->m_ThreadFrames[slot]->m_Overflow || world->m_ThreadFrames[slot]->m_CapacityBytes > capacity_limit || world->m_ThreadStats.m_FrameCapacityBytes > 64 * 1024 * 1024)

@@ -1,0 +1,12 @@
+%c    %c    Made with Defold    %c    %c    https://www.defold.com background: #fd6623; padding:5px 0; border: 5px; background: #272c31; color: #fafafa; padding:5px 0; background: #39a3e4; padding:5px 0; background: #ffffff; color: #000000; padding:5px 0;
+PoC replay timestep: enabled (hz=60)
+WEB_COMPONENT_PREPARATION overlap=1
+WEB_POC_ACTIVE component-web-snapshots: simulation=pthread graphics=browser-main slots=2
+WEB_POC_SCHEDULE completion_dispatch=0 metrics=0
+WEB_POC_OPTIONS schedule=0 cache_window=1
+WEB_GEOMETRY_MOTION
+WEB_GEOMETRY_CHECK animations=4 created=2 deleted=2 buffer_offset=16
+WEB_OVERLAP simulations=133 us=14864 preparations=3 prepare_us=455 capacity=191424
+WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1
+WEB_2D_PASS
+WEB_POC_DONE code=0 mode=component-web-snapshots updates=220 input_snapshots=232

@@ -290,6 +290,17 @@ namespace dmRender
             t->m_Stats.m_SimulationOverlapUs += end - begin;
         }
     }
+    void MarkRenderThreadPreparationComplete(HRenderThread t, uint64_t begin)
+    {
+        uint64_t end = dmTime::GetMonotonicTime();
+        DM_MUTEX_SCOPED_LOCK(t->m_Mutex);
+        uint32_t slot = (uint32_t)(t->m_Stats.m_Completed % 2);
+        if (t->m_Slots[slot] == SLOT_READING && dmAtomicGet32(&t->m_ConsumerActive) && begin >= t->m_ConsumerBegin)
+        {
+            ++t->m_Stats.m_PreparationsDuringRender;
+            t->m_Stats.m_PreparationOverlapUs += end - begin;
+        }
+    }
 
     void PublishRenderThreadFrame(HRenderThread t, uint32_t slot, FrameTraceRecord* trace)
     {

@@ -26,6 +26,8 @@ function update(self, dt)
         window.set_size(680, 400)
         local area = window.get_safe_area()
         assert(area.width > 0 and window.get_display_scale() > 0)
+    elseif self.tick == 35 then
+        self.loaded_worlds = sprite._get_snapshot_stats().all_sprite_worlds
     elseif self.tick == 40 then
         go.delete(self.spawned)
         go.delete(self.geometry)
@@ -45,7 +47,15 @@ function update(self, dt)
         assert(label.get_text("#label") == "Label updated")
         assert(tilemap.get_tile("#map", "tiles", 3, 3) == 0)
         local stats = sprite._get_snapshot_stats()
-        report("WEB_OVERLAP simulations=" .. (stats.thread_simulations_during_render or 0) .. " us=" .. (stats.thread_simulation_overlap_us or 0) .. " capacity=" .. (stats.component_frame_capacity_bytes or 0))
+        assert(stats.all_sprite_worlds > 0 and stats.all_sprite_worlds < self.loaded_worlds, "unloaded proxy sprite world must leave accounting")
+        assert(stats.all_sprite_renderer_cpu_capacity_bytes >= stats.renderer_cpu_capacity_bytes, "aggregate scratch must include current world")
+        assert(stats.all_sprite_frame_capacity_bytes >= stats.frame_capacity_bytes, "aggregate frames must include current world")
+        assert(stats.component_upload_capacity_bytes + stats.component_constant_capacity_bytes <= (stats.component_frame_capacity_bytes or 0), "frame subsets must not double count")
+        if sys.get_config_int("render.poc_web_deferred_sprites", 0) ~= 0 then
+            assert(stats.renderer_cpu_capacity_bytes > 0 and stats.renderer_gpu_logical_bytes > 0, "retired deferred scratch must be counted")
+        end
+        report("WEB_MEMORY_CHECK " .. json.encode(stats))
+        report("WEB_OVERLAP simulations=" .. (stats.thread_simulations_during_render or 0) .. " us=" .. (stats.thread_simulation_overlap_us or 0) .. " preparations=" .. (stats.thread_preparations_during_render or 0) .. " prepare_us=" .. (stats.thread_preparation_overlap_us or 0) .. " capacity=" .. (stats.component_frame_capacity_bytes or 0))
         report("WEB_2D_CHECK mode=" .. stats.mode .. " inputs=" .. self.inputs .. " sound_done=" .. self.sound_done)
     elseif self.tick == 220 then
         assert(self.inputs > 0 and self.sound_done > 0, "input/sound lifecycle incomplete")

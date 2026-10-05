@@ -1,0 +1,6 @@
+[0/2] Re-checking globbed directories...
+[1/4] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/dmengine_release.dir/__exported_symbols_dmengine_release.cpp.o
+[2/4] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/dmengine_release.dir/src/common/main.cpp.o
+[3/4] Linking CXX executable /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/dmengine_release.js
+em++: warning: -pthread + ALLOW_MEMORY_GROWTH may run non-wasm code slowly, see https://github.com/WebAssembly/design/issues/1271 [-Wpthreads-mem-growth]
+warning: no output file specified, not emitting output

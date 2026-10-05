@@ -1,0 +1,181 @@
+Starting bunny30k-direct-1
+bunny30k-direct-1: 30s sampled
+1/15 bunny30k-direct-1: 80.43 updates/s
+Starting bunny30k-current-1
+bunny30k-current-1: 30s sampled
+2/15 bunny30k-current-1: 82.37 updates/s
+Starting bunny30k-deferred-1
+bunny30k-deferred-1: 30s sampled
+3/15 bunny30k-deferred-1: 119.67 updates/s
+Starting bunny30k-paced-1
+bunny30k-paced-1: 30s sampled
+4/15 bunny30k-paced-1: 83.02 updates/s
+Starting bunny30k-combined-1
+bunny30k-combined-1: 30s sampled
+5/15 bunny30k-combined-1: 117.90 updates/s
+Starting bunny30k-current-2
+bunny30k-current-2: 30s sampled
+6/15 bunny30k-current-2: 82.93 updates/s
+Starting bunny30k-deferred-2
+bunny30k-deferred-2: 30s sampled
+7/15 bunny30k-deferred-2: 119.10 updates/s
+Starting bunny30k-paced-2
+bunny30k-paced-2: 30s sampled
+8/15 bunny30k-paced-2: 82.91 updates/s
+Starting bunny30k-combined-2
+bunny30k-combined-2: 30s sampled
+9/15 bunny30k-combined-2: 118.04 updates/s
+Starting bunny30k-direct-2
+bunny30k-direct-2: 30s sampled
+10/15 bunny30k-direct-2: 80.29 updates/s
+Starting bunny30k-deferred-3
+bunny30k-deferred-3: 30s sampled
+11/15 bunny30k-deferred-3: 119.23 updates/s
+Starting bunny30k-paced-3
+bunny30k-paced-3: 30s sampled
+12/15 bunny30k-paced-3: 82.96 updates/s
+Starting bunny30k-combined-3
+bunny30k-combined-3: 30s sampled
+13/15 bunny30k-combined-3: 119.66 updates/s
+Starting bunny30k-direct-3
+bunny30k-direct-3: 30s sampled
+14/15 bunny30k-direct-3: 80.22 updates/s
+Starting bunny30k-current-3
+bunny30k-current-3: 30s sampled
+15/15 bunny30k-current-3: 82.57 updates/s
+Starting geometry1000-direct-1
+geometry1000-direct-1: 30s sampled
+1/9 geometry1000-direct-1: 66.40 updates/s
+Starting geometry1000-current-1
+geometry1000-current-1: 30s sampled
+2/9 geometry1000-current-1: 83.89 updates/s
+Starting geometry1000-combined-1
+geometry1000-combined-1: 30s sampled
+3/9 geometry1000-combined-1: 84.71 updates/s
+Starting geometry1000-current-2
+geometry1000-current-2: 30s sampled
+4/9 geometry1000-current-2: 82.88 updates/s
+Starting geometry1000-combined-2
+geometry1000-combined-2: 30s sampled
+5/9 geometry1000-combined-2: 84.67 updates/s
+Starting geometry1000-direct-2
+geometry1000-direct-2: 30s sampled
+6/9 geometry1000-direct-2: 68.48 updates/s
+Starting geometry1000-combined-3
+geometry1000-combined-3: 30s sampled
+7/9 geometry1000-combined-3: 83.77 updates/s
+Starting geometry1000-direct-3
+geometry1000-direct-3: 30s sampled
+8/9 geometry1000-direct-3: 67.50 updates/s
+Starting geometry1000-current-3
+geometry1000-current-3: 30s sampled
+9/9 geometry1000-current-3: 84.79 updates/s
+Starting gameplay_long-direct-1
+gameplay_long-direct-1: 30s sampled
+gameplay_long-direct-1: 60s sampled
+gameplay_long-direct-1: 90s sampled
+gameplay_long-direct-1: 120s sampled
+1/15 gameplay_long-direct-1: 120.00 updates/s
+Starting gameplay_long-current-1
+gameplay_long-current-1: 30s sampled
+gameplay_long-current-1: 60s sampled
+gameplay_long-current-1: 90s sampled
+gameplay_long-current-1: 120s sampled
+2/15 gameplay_long-current-1: 120.00 updates/s
+Starting gameplay_long-deferred-1
+gameplay_long-deferred-1: 30s sampled
+gameplay_long-deferred-1: 60s sampled
+gameplay_long-deferred-1: 90s sampled
+gameplay_long-deferred-1: 120s sampled
+3/15 gameplay_long-deferred-1: 119.99 updates/s
+Starting gameplay_long-paced-1
+gameplay_long-paced-1: 30s sampled
+gameplay_long-paced-1: 60s sampled
+gameplay_long-paced-1: 90s sampled
+gameplay_long-paced-1: 120s sampled
+4/15 gameplay_long-paced-1: 119.97 updates/s
+Starting gameplay_long-combined-1
+gameplay_long-combined-1: 30s sampled
+gameplay_long-combined-1: 60s sampled
+gameplay_long-combined-1: 90s sampled
+gameplay_long-combined-1: 120s sampled
+5/15 gameplay_long-combined-1: 120.00 updates/s
+Starting gameplay_long-current-2
+gameplay_long-current-2: 30s sampled
+gameplay_long-current-2: 60s sampled
+gameplay_long-current-2: 90s sampled
+gameplay_long-current-2: 120s sampled
+6/15 gameplay_long-current-2: 120.00 updates/s
+Starting gameplay_long-deferred-2
+gameplay_long-deferred-2: 30s sampled
+gameplay_long-deferred-2: 60s sampled
+gameplay_long-deferred-2: 90s sampled
+gameplay_long-deferred-2: 120s sampled
+7/15 gameplay_long-deferred-2: 120.00 updates/s
+Starting gameplay_long-paced-2
+gameplay_long-paced-2: 30s sampled
+gameplay_long-paced-2: 60s sampled
+gameplay_long-paced-2: 90s sampled
+gameplay_long-paced-2: 120s sampled
+8/15 gameplay_long-paced-2: 119.95 updates/s
+Starting gameplay_long-combined-2
+gameplay_long-combined-2: 30s sampled
+gameplay_long-combined-2: 60s sampled
+gameplay_long-combined-2: 90s sampled
+gameplay_long-combined-2: 120s sampled
+9/15 gameplay_long-combined-2: 120.00 updates/s
+Starting gameplay_long-direct-2
+gameplay_long-direct-2: 30s sampled
+gameplay_long-direct-2: 60s sampled
+gameplay_long-direct-2: 90s sampled
+gameplay_long-direct-2: 120s sampled
+10/15 gameplay_long-direct-2: 120.00 updates/s
+Starting gameplay_long-deferred-3
+gameplay_long-deferred-3: 30s sampled
+gameplay_long-deferred-3: 60s sampled
+gameplay_long-deferred-3: 90s sampled
+gameplay_long-deferred-3: 120s sampled
+11/15 gameplay_long-deferred-3: 119.99 updates/s
+Starting gameplay_long-paced-3
+gameplay_long-paced-3: 30s sampled
+gameplay_long-paced-3: 60s sampled
+gameplay_long-paced-3: 90s sampled
+gameplay_long-paced-3: 120s sampled
+12/15 gameplay_long-paced-3: 119.97 updates/s
+Starting gameplay_long-combined-3
+gameplay_long-combined-3: 30s sampled
+gameplay_long-combined-3: 60s sampled
+gameplay_long-combined-3: 90s sampled
+gameplay_long-combined-3: 120s sampled
+13/15 gameplay_long-combined-3: 120.00 updates/s
+Starting gameplay_long-direct-3
+gameplay_long-direct-3: 30s sampled
+gameplay_long-direct-3: 60s sampled
+gameplay_long-direct-3: 90s sampled
+gameplay_long-direct-3: 120s sampled
+14/15 gameplay_long-direct-3: 119.99 updates/s
+Starting gameplay_long-current-3
+execution error: Error: TypeError: app.activateWithOptions is not a function. (In 'app.activateWithOptions(2)', 'app.activateWithOptions' is undefined) (-2700)
+Error: Command failed: /usr/bin/osascript -l JavaScript -e ObjC.import('AppKit'); const app=$.NSRunningApplication.runningApplicationWithProcessIdentifier(57611); app.activateWithOptions(2); JSON.stringify({pid:57611,active:Boolean(app.active),frontmost:$.NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier});
+execution error: Error: TypeError: app.activateWithOptions is not a function. (In 'app.activateWithOptions(2)', 'app.activateWithOptions' is undefined) (-2700)
+
+    at genericNodeError (node:internal/errors:984:15)
+    at wrappedFn (node:internal/errors:538:14)
+    at checkExecSyncError (node:child_process:889:11)
+    at execFileSync (node:child_process:925:15)
+    at /Users/jhonny/dev/defold/scripts/web/benchmark/run.cjs:106:21
+    at runNextTicks (node:internal/process/task_queues:60:5)
+    at process.processImmediate (node:internal/timers:449:9)
+    at process.callbackTrampoline (node:internal/async_hooks:130:17) {
+  status: 1,
+  signal: null,
+  output: [
+    null,
+    '',
+    "execution error: Error: TypeError: app.activateWithOptions is not a function. (In 'app.activateWithOptions(2)', 'app.activateWithOptions' is undefined) (-2700)\n"
+  ],
+  pid: 57644,
+  stdout: '',
+  stderr: "execution error: Error: TypeError: app.activateWithOptions is not a function. (In 'app.activateWithOptions(2)', 'app.activateWithOptions' is undefined) (-2700)\n"
+}
+Original screen-saver timeout restored.

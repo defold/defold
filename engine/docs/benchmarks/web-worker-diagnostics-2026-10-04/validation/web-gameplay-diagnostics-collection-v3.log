@@ -1,0 +1,13 @@
+Starting gameplay_long-deferred_5m-1
+gameplay_long-deferred_5m-1: 30s sampled
+gameplay_long-deferred_5m-1: 60s sampled
+gameplay_long-deferred_5m-1: 90s sampled
+gameplay_long-deferred_5m-1: 120s sampled
+1/2 gameplay_long-deferred_5m-1: 120.00 updates/s
+Starting gameplay_long-deferred_2m-1
+gameplay_long-deferred_2m-1: 30s sampled
+gameplay_long-deferred_2m-1: 60s sampled
+gameplay_long-deferred_2m-1: 90s sampled
+gameplay_long-deferred_2m-1: 120s sampled
+2/2 gameplay_long-deferred_2m-1: 120.01 updates/s
+Original screen-saver timeout restored.

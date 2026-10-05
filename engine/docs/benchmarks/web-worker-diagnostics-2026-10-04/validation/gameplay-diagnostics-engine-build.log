@@ -1,0 +1,14 @@
+[0/2] Re-checking globbed directories...
+[1/10] Generating /Users/jhonny/dev/defold/tmp/dynamo_home/include/gamesys/gamesys.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/gamesys/components/comp_gui.h, /Users/jhonny/dev/defold/tmp/dynamo_home/include/gamesys/fontgen/fontgen.h
+[2/10] Building CXX object /Users/jhonny/dev/defold/tmp/render-poc-build/engine/engine/build/arm64-macos/CMakeFiles/engine.dir/src/engine_main.cpp.o
+[3/10] Building CXX object /Users/jhonny/dev/defold/tmp/render-poc-build/engine/engine/build/arm64-macos/CMakeFiles/engine.dir/src/script/script_engine.cpp.o
+[4/10] Building CXX object /Users/jhonny/dev/defold/tmp/render-poc-build/engine/engine/build/arm64-macos/CMakeFiles/engine.dir/src/engine_loop.cpp.o
+[5/10] Building CXX object /Users/jhonny/dev/defold/tmp/render-poc-build/engine/engine/build/arm64-macos/CMakeFiles/engine.dir/src/engine.cpp.o
+[6/10] Linking CXX static library /Users/jhonny/dev/defold/tmp/render-poc-build/engine/engine/build/arm64-macos/libengine.a
+[7/10] Building CXX object /Users/jhonny/dev/defold/tmp/render-poc-build/engine/engine/build/arm64-macos/src/test/CMakeFiles/test_engine.dir/test_engine_service.cpp.o
+[8/10] Building CXX object /Users/jhonny/dev/defold/tmp/render-poc-build/engine/engine/build/arm64-macos/src/test/CMakeFiles/test_engine.dir/test_engine.cpp.o
+/Users/jhonny/dev/defold/engine/engine/src/test/test_engine.cpp:261:13: warning: unused function 'PostRunGetStats' [-Wunused-function]
+  261 | static void PostRunGetStats(dmEngine::HEngine engine, void* stats)
+      |             ^~~~~~~~~~~~~~~
+1 warning generated.
+[9/10] Linking CXX executable /Users/jhonny/dev/defold/tmp/render-poc-build/engine/engine/build/arm64-macos/src/test/test_engine

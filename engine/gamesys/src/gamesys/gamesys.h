@@ -249,8 +249,15 @@ namespace dmGameSystem
         uint32_t                    m_SnapshotInline : 1;
         uint32_t                    m_SnapshotThreaded : 1;
         uint32_t                    m_ComponentFrames : 1;
+        uint32_t                    m_ComponentPreparationOverlap : 1;
+        uint32_t                    m_ComponentDeferredSprites : 1;
+        void*                       m_SnapshotWorlds; // Producer-owned sprite-world registry for aggregate diagnostics.
+        uint64_t                    m_ComponentUploadCapacityBytes, m_ComponentConstantCapacityBytes;
+        uint32_t                    m_ComponentFrameSlot;
+        void (*m_ComponentFrameBarrier)(void* context);
         dmRender::HRenderThread      m_RenderThread;
         uint32_t                    m_SnapshotCommandBytes;
+        uint64_t                    m_ComponentOwnedUploadBytes;
         uint64_t                    m_RenderFrameUsedBytes;
         uint64_t                    m_RenderFrameCapacityBytes;
         uint64_t                    m_RenderFrameGrowthPeakBytes;

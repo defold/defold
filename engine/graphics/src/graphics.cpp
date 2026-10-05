@@ -48,52 +48,137 @@ namespace dmGraphics
     static void (*g_RenderMutationBarrier)(void*) = 0;
     static void* g_RenderMutationContext = 0;
     static dmThread::ThreadId g_RenderProducerThread;
-    static VertexUploadBatch* g_VertexUploadCapture = 0;
+    struct UploadCaptureTls
+    {
+        dmThread::TlsKey m_Key;
+        UploadCaptureTls() : m_Key(dmThread::AllocTls()) {}
+        ~UploadCaptureTls() { dmThread::FreeTls(m_Key); }
+    };
+    static UploadCaptureTls g_UploadCaptureTls;
+    static VertexUploadBatch* GetVertexUploadCapture()
+    {
+        return (VertexUploadBatch*)dmThread::GetTlsValue(g_UploadCaptureTls.m_Key);
+    }
+
+    VertexUploadBatch::~VertexUploadBatch()
+    {
+        for (uint32_t i = 0; i < m_Owned.Size(); ++i)
+        {
+            assert(!m_Owned[i]->m_Open);
+            delete m_Owned[i];
+        }
+    }
+
+    uint64_t GetOwnedVertexUploadUsedBytes(const VertexUploadBatch* batch)
+    {
+        uint64_t bytes = 0;
+        for (uint32_t i = 0; i < batch->m_OwnedCursor; ++i)
+            bytes += sizeof(OwnedVertexUpload) + sizeof(OwnedVertexUpload*) + batch->m_Owned[i]->m_Data.Size();
+        return bytes;
+    }
+
+    uint32_t BeginOwnedVertexUpload(dmArray<uint8_t>& scratch)
+    {
+        VertexUploadBatch* batch = GetVertexUploadCapture();
+        if (!batch || !batch->m_OwnedEnabled || batch->m_Failed) return UINT32_MAX;
+        if (batch->m_OwnedCursor == VertexUploadBatch::MAX_UPLOADS)
+        { batch->m_Failed = true; return UINT32_MAX; }
+        if (batch->m_OwnedCursor == batch->m_Owned.Size())
+        {
+            if (batch->m_Owned.Full()) batch->m_Owned.OffsetCapacity(16);
+            batch->m_Owned.Push(new OwnedVertexUpload);
+        }
+        uint32_t token = batch->m_OwnedCursor++;
+        OwnedVertexUpload* owned = batch->m_Owned[token];
+        assert(!owned->m_Open && scratch.Empty());
+        // Drop legacy scratch once when entering this opt-in path. Subsequent
+        // captures leave the component empty and reuse only the retired slot.
+        scratch.SetCapacity(0);
+        owned->m_Data.SetSize(0);
+        scratch.Swap(owned->m_Data);
+        owned->m_Open = true;
+        return token;
+    }
+
+    void* EndOwnedVertexUpload(uint32_t token, dmArray<uint8_t>& scratch)
+    {
+        if (token == UINT32_MAX) return scratch.Begin();
+        VertexUploadBatch* batch = GetVertexUploadCapture();
+        assert(batch && token < batch->m_OwnedCursor);
+        OwnedVertexUpload* owned = batch->m_Owned[token];
+        assert(owned->m_Open && owned->m_Data.Capacity() == 0);
+        scratch.Swap(owned->m_Data);
+        owned->m_Open = false;
+        if (batch->m_Data.Size() + GetOwnedVertexUploadUsedBytes(batch) > VertexUploadBatch::MAX_PAYLOAD || GetVertexUploadCapacity(batch) > VertexUploadBatch::MAX_GROWTH_BYTES)
+            batch->m_Failed = true;
+        batch->m_GrowthPeak = dmMath::Max(batch->m_GrowthPeak, GetVertexUploadCapacity(batch));
+        return owned->m_Data.Begin();
+    }
 
     uint64_t GetVertexUploadCapacity(const VertexUploadBatch* batch)
     {
-        return sizeof(*batch) + batch->m_Data.Capacity() + batch->m_Uploads.Capacity() * sizeof(VertexUpload);
+        uint64_t owned = batch->m_Owned.Capacity() * sizeof(OwnedVertexUpload*);
+        for (uint32_t i = 0; i < batch->m_Owned.Size(); ++i)
+            owned += sizeof(OwnedVertexUpload) + batch->m_Owned[i]->m_Data.Capacity();
+        return sizeof(*batch) + owned + batch->m_Data.Capacity() + batch->m_Uploads.Capacity() * sizeof(VertexUpload) + batch->m_Textures.Capacity() * sizeof(CapturedTextureUpload);
     }
 
-    void BeginVertexUploadCapture(VertexUploadBatch* batch, bool capture_indices)
+    void BeginVertexUploadCapture(VertexUploadBatch* batch, bool capture_indices, bool capture_textures)
     {
-        assert(!g_VertexUploadCapture);
+        assert(!GetVertexUploadCapture());
+        batch->m_OwnedCursor = 0;
+        batch->m_OwnedBytes = 0;
         batch->m_Uploads.SetSize(0);
         batch->m_Data.SetSize(0);
+        batch->m_Textures.SetSize(0);
+        batch->m_CaptureTextures = capture_textures;
         batch->m_Failed = false;
         batch->m_CaptureIndexUploads = capture_indices;
         batch->m_ProtectResources = false;
-        g_VertexUploadCapture = batch;
+        dmThread::SetTlsValue(g_UploadCaptureTls.m_Key, batch);
     }
 
     bool EndVertexUploadCapture()
     {
-        assert(g_VertexUploadCapture);
-        bool ok = !g_VertexUploadCapture->m_Failed;
-        g_VertexUploadCapture = 0;
+        assert(GetVertexUploadCapture());
+        VertexUploadBatch* batch = GetVertexUploadCapture();
+        for (uint32_t i = 0; i < batch->m_OwnedCursor; ++i) assert(!batch->m_Owned[i]->m_Open);
+        bool ok = !batch->m_Failed;
+        dmThread::SetTlsValue(g_UploadCaptureTls.m_Key, 0);
         if (!ok) dmLogError("Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation");
         return ok;
     }
 
     void ProtectCapturedGraphicsResources()
     {
-        assert(g_VertexUploadCapture);
-        g_VertexUploadCapture->m_ProtectResources = true;
+        assert(GetVertexUploadCapture());
+        GetVertexUploadCapture()->m_ProtectResources = true;
     }
 
     void InvalidateCapturedGraphicsResources()
     {
-        if (g_VertexUploadCapture && g_VertexUploadCapture->m_ProtectResources)
-            g_VertexUploadCapture->m_Failed = true;
+        if (GetVertexUploadCapture() && GetVertexUploadCapture()->m_ProtectResources)
+            GetVertexUploadCapture()->m_Failed = true;
     }
 
     static void CaptureVertexUpload(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data, BufferUsage usage, bool sub_data, bool index_buffer = false)
     {
-        VertexUploadBatch* batch = g_VertexUploadCapture;
+        VertexUploadBatch* batch = GetVertexUploadCapture();
         if (batch->m_Failed) return;
-        uint32_t bytes = data ? size : 0;
-        uint64_t needed = (uint64_t)batch->m_Data.Size() + bytes;
-        if (size > VertexUploadBatch::MAX_PAYLOAD || needed > VertexUploadBatch::MAX_PAYLOAD || batch->m_Uploads.Size() == VertexUploadBatch::MAX_UPLOADS)
+        uint32_t owned_index = UINT32_MAX;
+        if (data && buffer && !sub_data && !index_buffer)
+            for (uint32_t i = 0; i < batch->m_OwnedCursor; ++i)
+            {
+                const OwnedVertexUpload* owned = batch->m_Owned[i];
+                if (!owned->m_Open && data == owned->m_Data.Begin() && size == owned->m_Data.Size())
+                { owned_index = i; break; }
+            }
+        uint32_t bytes = data && owned_index == UINT32_MAX ? size : 0;
+        // WebGL reads float/half-float textures through typed WASM views. Keep
+        // every payload aligned even after an odd-sized glyph or buffer upload.
+        uint32_t data_offset = bytes ? (batch->m_Data.Size() + 3) & ~3U : batch->m_Data.Size();
+        uint64_t needed = (uint64_t)data_offset + bytes;
+        if (size > VertexUploadBatch::MAX_PAYLOAD || needed + GetOwnedVertexUploadUsedBytes(batch) > VertexUploadBatch::MAX_PAYLOAD || batch->m_Uploads.Size() == VertexUploadBatch::MAX_UPLOADS)
         {
             batch->m_Failed = true;
             return;
@@ -119,12 +204,74 @@ namespace dmGraphics
         upload.m_Buffer = buffer;
         upload.m_Offset = offset;
         upload.m_Size = size;
-        upload.m_DataOffset = data ? batch->m_Data.Size() : UINT32_MAX;
+        upload.m_DataOffset = data ? data_offset : UINT32_MAX;
+        upload.m_OwnedIndex = owned_index;
+        if (owned_index != UINT32_MAX) batch->m_OwnedBytes += size;
         upload.m_Usage = usage;
         upload.m_SubData = sub_data;
         upload.m_IndexBuffer = index_buffer;
-        if (bytes) batch->m_Data.PushArray((const uint8_t*)data, bytes);
+        upload.m_TextureIndex = UINT32_MAX;
+        if (!sub_data) RememberCapturedGraphicsBuffer(buffer, size);
+        if (bytes)
+        {
+            while (batch->m_Data.Size() < data_offset) batch->m_Data.Push(0);
+            batch->m_Data.PushArray((const uint8_t*)data, bytes);
+        }
         batch->m_Uploads.Push(upload);
+    }
+
+    void SetCapturedViewport(int32_t x, int32_t y, uint32_t width, uint32_t height)
+    {
+        VertexUploadBatch* batch = GetVertexUploadCapture();
+        assert(batch && batch->m_CaptureTextures);
+        batch->m_ViewportX = x; batch->m_ViewportY = y;
+        batch->m_ViewportWidth = width; batch->m_ViewportHeight = height;
+        RememberCapturedGraphicsViewport(x, y, width, height);
+    }
+
+    static void CaptureTextureUpload(HContext context, HTexture texture, const TextureParams& params)
+    {
+        VertexUploadBatch* batch = GetVertexUploadCapture();
+        // Built-in pose textures and font atlases are 2D. Unsupported targets
+        // fail admission instead of dereferencing a wrongly sized payload.
+        if (GetTextureType(context, texture) != TEXTURE_TYPE_2D || params.m_Depth > 1 || params.m_LayerCount > 1)
+        { batch->m_Failed = true; return; }
+        TextureFormatCompressedBlockSize block;
+        uint64_t bytes = GetTextureFormatCompressedBlockSize(params.m_Format, &block) ? params.m_DataSize :
+            (uint64_t)params.m_Width * params.m_Height * GetTextureFormatBitsPerPixel(params.m_Format) / 8;
+        if (bytes > VertexUploadBatch::MAX_PAYLOAD || batch->m_Textures.Size() == VertexUploadBatch::MAX_UPLOADS)
+        { batch->m_Failed = true; return; }
+        uint32_t capacity = batch->m_Textures.Capacity();
+        if (batch->m_Textures.Full())
+        {
+            capacity = dmMath::Min<uint32_t>(VertexUploadBatch::MAX_UPLOADS, dmMath::Max<uint32_t>(16, capacity * 2));
+            uint64_t growth = GetVertexUploadCapacity(batch) + capacity * sizeof(CapturedTextureUpload);
+            if (growth > VertexUploadBatch::MAX_GROWTH_BYTES) { batch->m_Failed = true; return; }
+            batch->m_GrowthPeak = dmMath::Max(batch->m_GrowthPeak, growth);
+            batch->m_Textures.SetCapacity(capacity);
+        }
+        // Reuse the common owned byte stream and command budget. Textures have
+        // an explicit command discriminator and never update buffer metadata.
+        CaptureVertexUpload(0, 0, (uint32_t)bytes, params.m_Data, BUFFER_USAGE_STREAM_DRAW, true);
+        if (batch->m_Failed) return;
+        CapturedTextureUpload upload;
+        upload.m_Context = context; upload.m_Texture = texture; upload.m_Params = params;
+        upload.m_Params.m_Data = 0;
+        batch->m_Uploads.Back().m_TextureIndex = batch->m_Textures.Size();
+        batch->m_Textures.Push(upload);
+    }
+
+    static const TextureParams* FindCapturedTexture(HTexture texture)
+    {
+        VertexUploadBatch* batch = GetVertexUploadCapture();
+        if (!batch || !batch->m_CaptureTextures) return 0;
+        for (uint32_t i = batch->m_Textures.Size(); i > 0; --i)
+        {
+            const CapturedTextureUpload& upload = batch->m_Textures[i - 1];
+            if (upload.m_Texture == texture && !upload.m_Params.m_SubUpdate && !upload.m_Params.m_MipMap)
+                return &upload.m_Params;
+        }
+        return 0;
     }
 
     void ReplayVertexUploads(const VertexUploadBatch* batch)
@@ -134,13 +281,21 @@ namespace dmGraphics
 
     void ReplayVertexUploads(const VertexUploadBatch* batch, uint32_t begin, uint32_t end)
     {
-        assert(!g_VertexUploadCapture && !batch->m_Failed);
+        assert(!GetVertexUploadCapture() && !batch->m_Failed);
         assert(begin <= end && end <= batch->m_Uploads.Size());
         for (uint32_t i = begin; i < end; ++i)
         {
             const VertexUpload& upload = batch->m_Uploads[i];
-            const void* data = upload.m_DataOffset == UINT32_MAX ? 0 : batch->m_Data.Begin() + upload.m_DataOffset;
-            if (upload.m_IndexBuffer)
+            const void* data = upload.m_OwnedIndex != UINT32_MAX ? batch->m_Owned[upload.m_OwnedIndex]->m_Data.Begin() :
+                upload.m_DataOffset == UINT32_MAX ? 0 : batch->m_Data.Begin() + upload.m_DataOffset;
+            if (upload.m_TextureIndex != UINT32_MAX)
+            {
+                const CapturedTextureUpload& texture = batch->m_Textures[upload.m_TextureIndex];
+                TextureParams params = texture.m_Params;
+                params.m_Data = data;
+                SetTexture(texture.m_Context, texture.m_Texture, params);
+            }
+            else if (upload.m_IndexBuffer)
             {
                 if (upload.m_SubData) SetIndexBufferSubData(upload.m_Buffer, upload.m_Offset, upload.m_Size, data);
                 else SetIndexBufferData(upload.m_Buffer, upload.m_Size, data, upload.m_Usage);
@@ -2274,6 +2429,8 @@ namespace dmGraphics
     }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
+        const TextureParams* captured = FindCapturedTexture(texture);
+        if (captured) return captured->m_Width;
         GraphicsContext* gc = (GraphicsContext*)context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
         const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
@@ -2281,6 +2438,8 @@ namespace dmGraphics
     }
     uint16_t GetTextureHeight(HContext context, HTexture texture)
     {
+        const TextureParams* captured = FindCapturedTexture(texture);
+        if (captured) return captured->m_Height;
         GraphicsContext* gc = (GraphicsContext*)context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
         const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
@@ -2288,6 +2447,8 @@ namespace dmGraphics
     }
     uint16_t GetTextureDepth(HContext context, HTexture texture)
     {
+        const TextureParams* captured = FindCapturedTexture(texture);
+        if (captured) return captured->m_Depth;
         GraphicsContext* gc = (GraphicsContext*)context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
         const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
@@ -2420,7 +2581,7 @@ namespace dmGraphics
     }
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        if (g_VertexUploadCapture)
+        if (GetVertexUploadCapture())
         {
             CaptureVertexUpload(buffer, 0, size, data, buffer_usage, false);
             return;
@@ -2430,7 +2591,7 @@ namespace dmGraphics
     }
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        if (g_VertexUploadCapture)
+        if (GetVertexUploadCapture())
         {
             CaptureVertexUpload(buffer, offset, size, data, BUFFER_USAGE_STREAM_DRAW, true);
             return;
@@ -2462,7 +2623,7 @@ namespace dmGraphics
     }
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        if (g_VertexUploadCapture && g_VertexUploadCapture->m_CaptureIndexUploads)
+        if (GetVertexUploadCapture() && GetVertexUploadCapture()->m_CaptureIndexUploads)
         {
             CaptureVertexUpload(buffer, 0, size, data, buffer_usage, false, true);
             return;
@@ -2472,7 +2633,7 @@ namespace dmGraphics
     }
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        if (g_VertexUploadCapture && g_VertexUploadCapture->m_CaptureIndexUploads)
+        if (GetVertexUploadCapture() && GetVertexUploadCapture()->m_CaptureIndexUploads)
         {
             CaptureVertexUpload(buffer, offset, size, data, BUFFER_USAGE_STREAM_DRAW, true, true);
             return;
@@ -2617,6 +2778,9 @@ namespace dmGraphics
     }
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
+        VertexUploadBatch* capture = GetVertexUploadCapture();
+        if (capture && capture->m_CaptureTextures)
+        { SetCapturedViewport(x, y, width, height); return; }
         RenderMutationBarrier();
         g_functions.m_SetViewport(context, x, y, width, height);
     }
@@ -2815,6 +2979,9 @@ namespace dmGraphics
     }
     void SetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
+        VertexUploadBatch* capture = GetVertexUploadCapture();
+        if (capture && capture->m_CaptureTextures)
+        { CaptureTextureUpload(context, texture, params); return; }
         // Font atlas sub-updates preserve glyphs referenced in this frame. A
         // complete replacement may invalidate already captured passes.
         if (!params.m_SubUpdate) InvalidateCapturedGraphicsResources();
@@ -2938,6 +3105,13 @@ namespace dmGraphics
     }
     void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
+        VertexUploadBatch* capture = GetVertexUploadCapture();
+        if (capture && capture->m_CaptureTextures)
+        {
+            *x = capture->m_ViewportX; *y = capture->m_ViewportY;
+            *width = capture->m_ViewportWidth; *height = capture->m_ViewportHeight;
+            return;
+        }
         g_functions.m_GetViewport(context, x, y, width, height);
     }
     HUniformBuffer NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size)

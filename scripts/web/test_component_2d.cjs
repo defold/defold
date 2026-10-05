@@ -41,7 +41,7 @@ async function main() {
     try {
         // The legacy flag must select the same handoff path; explicit new=0 in
         // direct mode must override the project file's old flag.
-        const modes = process.env.POC_TEST_MODES ? process.env.POC_TEST_MODES.split(',') : ['overlap', 'overlap-slow', 'overlap-completion', 'overlap-retry', 'threaded', 'direct', 'inline', 'alias', 'context-loss', 'overlap-context-loss'];
+        const modes = process.env.POC_TEST_MODES ? process.env.POC_TEST_MODES.split(',') : ['overlap', 'overlap-deferred', 'overlap-deferred-slow', 'overlap-paced', 'overlap-deferred-paced', 'overlap-owned', 'overlap-owned-slow', 'overlap-slow', 'overlap-barrier', 'overlap-barrier-slow', 'overlap-completion', 'overlap-retry', 'threaded', 'direct', 'inline', 'alias', 'context-loss', 'overlap-context-loss', 'overlap-paced-context-loss', 'overlap-deferred-paced-context-loss'];
         for (const mode of modes) {
             const overlap = mode.startsWith('overlap');
             const threaded = mode === 'threaded' || mode === 'alias' || overlap;
@@ -62,7 +62,7 @@ async function main() {
                         return original.apply(this, args);
                     };
                 }
-            }, mode === 'overlap-slow');
+            }, mode.endsWith('-slow'));
             const log = [], errors = [];
             page.on('console', message => {
                 log.push(message.text());
@@ -70,10 +70,14 @@ async function main() {
             });
             page.on('pageerror', error => errors.push(String(error)));
             try {
-                await page.goto(`${base}?mode=${contextLoss ? (overlap ? 'overlap' : 'threaded') : mode}&stack_kb=${process.env.STACK_KB||5120}&stack_measure=${process.env.STACK_MEASURE==='1'?1:0}`);
+                await page.goto(`${base}?mode=${contextLoss ? (mode === 'context-loss' ? 'threaded' : mode.slice(0, -'-context-loss'.length)) : mode}&stack_kb=${process.env.STACK_KB||5120}&stack_measure=${process.env.STACK_MEASURE==='1'?1:0}`);
                 assert(await page.evaluate(() => crossOriginIsolated));
                 if (contextLoss) {
                     await page.waitForFunction(() => (window.lines || []).some(s => s.includes('WEB_POC_ACTIVE')));
+                    // Exercise stop wakeup under the selected policy, including
+                    // paced admission with no remaining browser credit.
+                    if (mode.includes('paced')) assert(log.some(s=>s.includes('WEB_POC_OPTIONS schedule=3')));
+                    if (mode.includes('deferred')) assert(log.some(s=>s.includes('WEB_COMPONENT_SPRITES deferred_geometry=1')));
                     assert(await page.evaluate(() => {
                         const extension = Module.ctx.getExtension('WEBGL_lose_context');
                         if (!extension) return false;
@@ -108,10 +112,16 @@ async function main() {
                     const checkpoint = log.find(s => s.includes('WEB_2D_CHECK'));
                     assert(checkpoint.includes(overlap ? 'component-web-snapshots' : threaded ? 'component-web-serialized' : 'mode=existing'));
                     assert(checkpoint.includes('inputs=1 sound_done=1'));
+                    if (mode.includes('deferred')) assert(log.some(s=>s.includes('WEB_COMPONENT_SPRITES deferred_geometry=1')));
+                    if (mode.includes('paced')) assert(log.some(s=>s.includes('WEB_POC_OPTIONS schedule=3')));
+                    if (mode.includes('owned')) assert(log.some(s=>s.includes('WEB_COMPONENT_BUFFERS owned_models=1')));
                     assert(log.some(s => s.includes('WEB_GEOMETRY_CHECK animations=4 created=2 deleted=2 buffer_offset=16')));
                     const overlapLine = log.find(s => s.includes('WEB_OVERLAP'));
                     const simulationsDuringRender = Number(/simulations=(\d+)/.exec(overlapLine)[1]);
-                    if (mode === 'overlap-slow') assert(simulationsDuringRender > 0, 'Simulation must complete during active consumption');
+                    if (mode.endsWith('-slow')) assert(simulationsDuringRender > 0, 'Simulation must complete during active consumption');
+                    const preparationsDuringRender = Number(/preparations=(\d+)/.exec(overlapLine)[1]);
+                    if (mode === 'overlap-slow' || mode === 'overlap-owned-slow' || mode === 'overlap-deferred-slow' || mode === 'overlap-deferred-ready-slow') assert(preparationsDuringRender > 0, 'Preparation must complete during active consumption');
+                    if (mode.includes('barrier')) assert.equal(preparationsDuringRender, 0, 'Barrier control must serialize preparation');
                     const png = await page.locator('canvas').screenshot({path: path.join(output, mode + '.png')});
                     checkGeometry(png);
                     const geometryDraws = await page.evaluate(() => window.webGeometryDraws);
@@ -120,13 +130,18 @@ async function main() {
                     if (threaded) {
                         await page.waitForFunction(() => Module.webPocResult !== undefined);
                         assert.equal(await page.evaluate(() => Module.webPocResult), 0);
+                        if (mode.includes('ready')) {
+                            const admission = await page.evaluate(() => Module.webRenderAdmission);
+                            assert(log.some(s=>s.includes('WEB_POC_OPTIONS schedule=4')));
+                            assert(admission.retired <= admission.browserTicks + 1, 'Readiness must not consume ahead of browser ticks');
+                        }
                     }
                     const stack = threaded ? await page.evaluate(() => Module.webStack) : undefined;
                     if (threaded && process.env.STACK_MEASURE === '1') {
                         assert.equal(stack.reserved, Number(process.env.STACK_KB||5120)*1024);
                         assert(stack.measured && stack.touched > 0 && stack.touched < stack.reserved);
                     }
-                    results.push({mode, checkpoint, stack, geometryDraws, simulationsDuringRender, artificialDrawDelayMs: mode === 'overlap-slow' ? 2 : 0, pixelSha256: crypto.createHash('sha256').update(png).digest('hex')});
+                    results.push({mode, checkpoint, stack, geometryDraws, simulationsDuringRender, preparationsDuringRender, artificialDrawDelayMs: mode.endsWith('-slow') ? 2 : 0, pixelSha256: crypto.createHash('sha256').update(png).digest('hex')});
                 }
                 assert.deepEqual(errors, []);
             } finally {

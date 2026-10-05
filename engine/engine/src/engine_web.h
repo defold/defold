@@ -16,6 +16,53 @@
 #define DM_ENGINE_WEB_H
 #include <stdint.h>
 
+namespace dmEngine
+{
+    // Diagnostic record for one admitted update. Main publishes the prefix
+    // before waking the worker; worker completes it before publishing WAITING.
+    struct WebUpdateDiagnostic
+    {
+        uint32_t m_Id, m_BrowserTick, m_Source, m_GraphicsCalls;
+        double m_DispatchBegin, m_DispatchEnd, m_Wake, m_EventsEnd, m_UpdateEnd;
+        double m_OwnerQueue, m_OwnerExecute, m_OwnerReturn, m_MaxOwnerQueue;
+        void RecordGraphicsCall(double begin, double owner_begin, double owner_end, double end)
+        {
+            ++m_GraphicsCalls;
+            m_OwnerQueue += owner_begin - begin;
+            m_OwnerExecute += owner_end - owner_begin;
+            m_OwnerReturn += end - owner_end;
+            if (owner_begin - begin > m_MaxOwnerQueue) m_MaxOwnerQueue = owner_begin - begin;
+        }
+    };
+
+    // Main-thread admission credit: completion can fill a missed browser tick,
+    // but fast workers cannot run ahead or accumulate hidden-tab catch-up ticks.
+    struct WebFrameAdmission
+    {
+        bool m_Paced, m_Credit;
+        WebFrameAdmission() : m_Paced(false), m_Credit(false) {}
+        void BrowserTick(bool visible) { m_Credit = visible; }
+        bool Admit(bool ready, bool visible, bool stopping)
+        {
+            if (!ready || (!visible && !stopping)) return false;
+            if (m_Paced && !stopping && !m_Credit) return false;
+            m_Credit = false;
+            return true;
+        }
+    };
+
+    // One successful consumption per visible browser tick. A readiness callback
+    // may fill an empty tick, but cannot create an unbounded presentation loop.
+    struct WebRenderAdmission
+    {
+        bool m_Credit;
+        WebRenderAdmission() : m_Credit(false) {}
+        void BrowserTick(bool visible) { m_Credit = visible; }
+        bool CanConsume(bool visible, bool stopping) const { return stopping || (visible && m_Credit); }
+        void Consumed() { m_Credit = false; }
+    };
+}
+
 #if defined(__EMSCRIPTEN_PTHREADS__)
 namespace dmEngine
 {

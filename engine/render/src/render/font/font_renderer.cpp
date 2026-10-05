@@ -548,8 +548,15 @@ namespace dmRender
         if (font_map->m_Texture)
         {
             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-            float cache_width  = (float) dmGraphics::GetTextureWidth(graphics_context, font_map->m_Texture);
-            float cache_height = (float) dmGraphics::GetTextureHeight(graphics_context, font_map->m_Texture);
+            // Owned-frame preparation can run while the previous atlas upload
+            // writes backend metadata. The live font map belongs to this producer.
+            float cache_width  = (float) font_map->m_CacheWidth;
+            float cache_height = (float) font_map->m_CacheHeight;
+            if (!render_context->m_ComponentFramesEnabled)
+            {
+                cache_width = (float) dmGraphics::GetTextureWidth(graphics_context, font_map->m_Texture);
+                cache_height = (float) dmGraphics::GetTextureHeight(graphics_context, font_map->m_Texture);
+            }
 
             im_recip /= cache_width;
             ih_recip /= cache_height;

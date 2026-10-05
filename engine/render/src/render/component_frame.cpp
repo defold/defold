@@ -32,6 +32,12 @@ namespace dmRender
         uint32_t m_TextureBegin, m_TextureCount, m_LightBegin, m_LightCount, m_LightCapacity;
     };
 
+    struct DeferredDraw
+    {
+        ComponentDeferredDraw m_Draw;
+        void* m_Data;
+    };
+
     struct ComponentFrame
     {
         enum { MAX_COMMANDS = 256, MAX_PASSES = 64, MAX_OBJECTS = 16384,
@@ -39,6 +45,9 @@ namespace dmRender
         dmArray<Command> m_Commands;
         dmArray<ComponentPass> m_Passes;
         dmArray<RenderObject> m_Objects;
+        dmArray<uint32_t> m_ObjectDeferred;
+        dmArray<DeferredDraw> m_Deferred;
+        dmHashTable64<uint32_t> m_DeferredSources;
         dmArray<TextureBinding> m_Textures;
         dmArray<LightSTD140> m_Lights;
         dmArray<HNamedConstantBuffer> m_Constants;
@@ -62,7 +71,37 @@ namespace dmRender
         return true;
     }
 
-    HComponentFrame NewComponentFrame() { return new ComponentFrame; }
+    void RejectComponentFrame(HRenderContext context)
+    {
+        assert(context->m_ComponentFrameCapture);
+        context->m_ComponentFrameCapture->m_Failed = true;
+    }
+
+    bool AddComponentDeferredDraw(HRenderContext context, RenderObject* placeholder, ComponentDeferredDraw draw, void* data)
+    {
+        ComponentFrame* frame = context->m_ComponentFrameCapture;
+        assert(frame && draw && placeholder->m_VertexCount);
+        if (frame->m_Failed || !Reserve(frame->m_Deferred, frame->m_Deferred.Size() + 1, ComponentFrame::MAX_OBJECTS))
+        { frame->m_Failed = true; return false; }
+        if (frame->m_DeferredSources.Full())
+        {
+            uint32_t capacity = dmMath::Min<uint32_t>(ComponentFrame::MAX_OBJECTS, dmMath::Max<uint32_t>(16, frame->m_DeferredSources.Capacity() * 2));
+            frame->m_DeferredSources.SetCapacity(capacity * 2, capacity);
+        }
+        frame->m_DeferredSources.Put((uintptr_t)placeholder, frame->m_Deferred.Size());
+        DeferredDraw deferred = { draw, data };
+        frame->m_Deferred.Push(deferred);
+        if (AddToRender(context, placeholder) != RESULT_OK) frame->m_Failed = true;
+        return !frame->m_Failed;
+    }
+
+    HComponentFrame NewComponentFrame(bool owned_model_buffers)
+    {
+        ComponentFrame* frame = new ComponentFrame;
+        frame->m_Uploads.m_OwnedEnabled = owned_model_buffers;
+        return frame;
+    }
+    uint64_t GetComponentFrameOwnedUploadBytes(HComponentFrame frame) { return frame->m_Uploads.m_OwnedBytes; }
     void DeleteComponentFrame(HComponentFrame frame) { delete frame; }
     void EnableComponentFrames(HRenderContext context, bool enabled) { context->m_ComponentFramesEnabled = enabled; }
     bool AreComponentFramesEnabled(HRenderContext context) { return context->m_ComponentFramesEnabled; }
@@ -101,6 +140,7 @@ namespace dmRender
         assert(!context->m_ComponentFrameCapture);
         frame->m_Commands.SetSize(0); frame->m_Passes.SetSize(0); frame->m_Objects.SetSize(0);
         frame->m_Textures.SetSize(0); frame->m_Lights.SetSize(0);
+        frame->m_ObjectDeferred.SetSize(0); frame->m_Deferred.SetSize(0); frame->m_DeferredSources.Clear();
         frame->m_ConstantCursor = 0;
         frame->m_Failed = false;
         frame->m_Time = context->m_Time; frame->m_Dt = context->m_Dt;
@@ -108,7 +148,8 @@ namespace dmRender
         int32_t x, y; uint32_t w, h;
         dmGraphics::GetViewport(context->m_GraphicsContext, &x, &y, &w, &h);
         AppendCommand(frame, Command(COMMAND_TYPE_SET_VIEWPORT, x, y, w, h));
-        dmGraphics::BeginVertexUploadCapture(&frame->m_Uploads, true);
+        dmGraphics::BeginVertexUploadCapture(&frame->m_Uploads, true, true);
+        dmGraphics::SetCapturedViewport(x, y, w, h);
     }
 
     bool EndComponentFrameCapture(HRenderContext context)
@@ -132,6 +173,7 @@ namespace dmRender
         GetComponentFrameLights(context, &lights, &light_count, &ambient);
         if (!Reserve(frame->m_Passes, frame->m_Passes.Size() + 1, ComponentFrame::MAX_PASSES) ||
             !Reserve(frame->m_Objects, frame->m_Objects.Size() + context->m_RenderObjects.Size(), ComponentFrame::MAX_OBJECTS) ||
+            !Reserve(frame->m_ObjectDeferred, frame->m_Objects.Size() + context->m_RenderObjects.Size(), ComponentFrame::MAX_OBJECTS) ||
             !Reserve(frame->m_Textures, frame->m_Textures.Size() + context->m_TextureBindTable.Size(), ComponentFrame::MAX_BINDINGS) ||
             !Reserve(frame->m_Lights, frame->m_Lights.Size() + light_count, ComponentFrame::MAX_LIGHTS))
         { frame->m_Failed = true; return RESULT_OUT_OF_RESOURCES; }
@@ -150,6 +192,8 @@ namespace dmRender
                 if (!MatchMaterialTags(tags.m_Count, tags.m_Tags, predicate->m_TagCount, predicate->m_Tags)) continue;
             }
             object.m_ConstantBuffer = CopyConstants(frame, object.m_ConstantBuffer);
+            uint32_t* deferred = frame->m_DeferredSources.Get((uintptr_t)context->m_RenderObjects[i]);
+            frame->m_ObjectDeferred.Push(deferred ? *deferred : UINT32_MAX);
             frame->m_Objects.Push(object);
         }
         pass.m_ObjectCount = frame->m_Objects.Size() - pass.m_ObjectBegin;
@@ -232,6 +276,7 @@ namespace dmRender
         RenderContext* context = new RenderContext;
         context->m_GraphicsContext = source->m_GraphicsContext;
         context->m_UseAdjustedNDC = source->m_UseAdjustedNDC;
+        context->m_MultiBufferingRequired = source->m_MultiBufferingRequired;
         context->m_View = dmVMath::Matrix4::identity();
         context->m_Projection = dmVMath::Matrix4::identity();
         context->m_ComponentFrameCapture = 0;
@@ -279,25 +324,36 @@ namespace dmRender
             context->m_RenderObjects.SetSize(0);
             Reserve(context->m_RenderObjects, pass.m_ObjectCount, ComponentFrame::MAX_OBJECTS);
             for (uint32_t j = 0; j < pass.m_ObjectCount; ++j)
-                context->m_RenderObjects.Push(&frame->m_Objects[pass.m_ObjectBegin + j]);
+            {
+                uint32_t object = pass.m_ObjectBegin + j;
+                uint32_t deferred = frame->m_ObjectDeferred[object];
+                if (deferred == UINT32_MAX) context->m_RenderObjects.Push(&frame->m_Objects[object]);
+                else frame->m_Deferred[deferred].m_Draw(frame->m_Deferred[deferred].m_Data, context);
+            }
             Draw(context, 0, pass.m_Constants);
         }
         dmGraphics::ReplayVertexUploads(&frame->m_Uploads, upload_begin, frame->m_Uploads.m_Uploads.Size());
         context->m_RenderObjects.SetSize(0);
     }
 
+    uint64_t GetComponentFrameUploadCapacity(HComponentFrame f)
+    { return dmGraphics::GetVertexUploadCapacity(&f->m_Uploads) - sizeof(f->m_Uploads); }
+    uint64_t GetComponentFrameConstantCapacity(HComponentFrame f) { return f->m_ConstantCapacity; }
+
     uint64_t GetComponentFrameCapacity(HComponentFrame f)
     {
-        return sizeof(*f) + f->m_Commands.Capacity() * sizeof(Command) + f->m_Passes.Capacity() * sizeof(ComponentPass) +
+        return sizeof(*f) + f->m_ObjectDeferred.Capacity() * sizeof(uint32_t) + f->m_Deferred.Capacity() * sizeof(DeferredDraw) +
+            dmHashTable64<uint32_t>::GetMemorySize(f->m_DeferredSources.Capacity() * 2, f->m_DeferredSources.Capacity()) + f->m_Commands.Capacity() * sizeof(Command) + f->m_Passes.Capacity() * sizeof(ComponentPass) +
             f->m_Objects.Capacity() * sizeof(RenderObject) + f->m_Textures.Capacity() * sizeof(TextureBinding) +
             f->m_Lights.Capacity() * sizeof(LightSTD140) + f->m_Constants.Capacity() * sizeof(HNamedConstantBuffer) +
             f->m_ConstantCapacity + dmGraphics::GetVertexUploadCapacity(&f->m_Uploads) - sizeof(f->m_Uploads);
     }
     uint64_t GetComponentFrameUsedBytes(HComponentFrame f)
     {
-        return sizeof(*f) + f->m_Commands.Size() * sizeof(Command) + f->m_Passes.Size() * sizeof(ComponentPass) +
+        return sizeof(*f) + f->m_ObjectDeferred.Size() * sizeof(uint32_t) + f->m_Deferred.Size() * sizeof(DeferredDraw) + f->m_Commands.Size() * sizeof(Command) + f->m_Passes.Size() * sizeof(ComponentPass) +
             f->m_Objects.Size() * sizeof(RenderObject) + f->m_Textures.Size() * sizeof(TextureBinding) +
-            f->m_Lights.Size() * sizeof(LightSTD140) + f->m_ConstantCapacity + f->m_Uploads.m_Data.Size() +
-            f->m_Uploads.m_Uploads.Size() * sizeof(dmGraphics::VertexUpload);
+            f->m_Lights.Size() * sizeof(LightSTD140) + f->m_ConstantCapacity + f->m_Uploads.m_Data.Size() + dmGraphics::GetOwnedVertexUploadUsedBytes(&f->m_Uploads) +
+            f->m_Uploads.m_Uploads.Size() * sizeof(dmGraphics::VertexUpload) +
+            f->m_Uploads.m_Textures.Size() * sizeof(dmGraphics::CapturedTextureUpload);
     }
 }

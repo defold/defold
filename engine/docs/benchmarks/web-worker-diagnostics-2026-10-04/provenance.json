@@ -1,0 +1,17 @@
+{
+  "engine_head": "bed9d48fb4fa47e242bab74748688b6e4190268a",
+  "engine_variant": "dmengine_release",
+  "cmake_configuration": "RelWithDebInfo",
+  "platform": "wasm_pthread-web",
+  "emscripten": "4.0.6",
+  "assertions": 1,
+  "stack_overflow_check": 1,
+  "performance_runs": 27,
+  "diagnostic_runs": 2,
+  "default_stack_changed": false,
+  "original_screen_saver_idle_seconds": 1200,
+  "fixture_sources": {
+    "engine/engine/src/test/web_component_2d/main.script": "f368fab55b49d2fc8fed5553b9a1b53a437a365369cac141f256c2e36f22b7c2",
+    "scripts/web/test_component_2d.cjs": "8921bada92b4025a8b53667379063c377791fcfc1b8ba3bb7f637d680e0ff33a"
+  }
+}

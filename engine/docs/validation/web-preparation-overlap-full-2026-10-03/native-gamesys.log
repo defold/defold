@@ -1,0 +1,2508 @@
+ERROR:DLIB: Unable to bind to log socket (-1): ACCES
+INFO:DLIB: Log server started on port 0
+[36mTileGrid3DResourceTest[0m
+[33mLoadTileGrid[0m
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+INFO:PHYSICS: Created physics context: Bullet v3.25
+[33mLoadTileGrid[0m [32mPASS[0m (1558 µs)
+[36mTileGrid3DResourceTest[0m took 3847 µs
+[36mRenderTargetResourceTest[0m
+[33mInvalidCubemapFailsToLoad[0m
+ERROR:GRAPHICS: Cubemap render target attachments must be non-zero, square, and equally sized.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:DDF: Invalid message type. Required field (width) in an optional message.
+WARNING:DDF: Invalid message type. Required field (height) in an optional message.
+WARNING:DDF: Invalid message type. Required field (width) in an optional message.
+WARNING:DDF: Invalid message type. Required field (height) in an optional message.
+WARNING:RESOURCE: Unable to create resource: /render_target/invalid_cubemap.render_targetc: FORMAT_ERROR
+[33mInvalidCubemapFailsToLoad[0m [32mPASS[0m (145 µs)
+[33mInvalidCubemapFailsToReload[0m
+ERROR:GRAPHICS: Cubemap render target attachments must be non-zero, square, and equally sized.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:DDF: Invalid message type. Required field (width) in an optional message.
+WARNING:DDF: Invalid message type. Required field (height) in an optional message.
+WARNING:DDF: Invalid message type. Required field (width) in an optional message.
+WARNING:DDF: Invalid message type. Required field (height) in an optional message.
+[33mInvalidCubemapFailsToReload[0m [32mPASS[0m (151 µs)
+[36mRenderTargetResourceTest[0m took 1499 µs
+[36mTextureSetResourceTest[0m
+[33mTestReloadTextureSet[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /textureset/valid_a.t.texturesetc was successfully reloaded.
+[33mTestReloadTextureSet[0m [32mPASS[0m (1619 µs)
+[36mTextureSetResourceTest[0m took 2253 µs
+[36mRenderResourceTest[0m
+[33mTestRenderPrototypeResources[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestRenderPrototypeResources[0m [32mPASS[0m (928 µs)
+[36mRenderResourceTest[0m took 1668 µs
+[36mDataResourceTest[0m
+[33mDataResourceContents[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDataResourceContents[0m [32mPASS[0m (218 µs)
+[33mPrebuiltData[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPrebuiltData[0m [32mPASS[0m (195 µs)
+[36mDataResourceTest[0m took 1459 µs
+[36mLightResourceTest[0m
+[33mLightResourcePrototype[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLightResourcePrototype[0m [32mPASS[0m (835 µs)
+[33mLightComponentUpdatesLightBuffer[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLightComponentUpdatesLightBuffer[0m [32mPASS[0m (1137 µs)
+[33mAmbientLightsAreCompactedIntoLightInfo[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mAmbientLightsAreCompactedIntoLightInfo[0m [32mPASS[0m (525 µs)
+[33mLightComponentUsesWorldTransform[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLightComponentUsesWorldTransform[0m [32mPASS[0m (142 µs)
+[33mReloadLightResourceTest[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /light/valid_point.point_light.lightc was successfully reloaded.
+[33mReloadLightResourceTest[0m [32mPASS[0m (1087 µs)
+[36mLightResourceTest[0m took 6.775 ms
+[36mResourceFolderTest[0m
+[33mTestCreateTextureFromScript[0m
+ERROR:GRAPHICS: Failed to validate header (Basis) for file '/test_compressed_fail.texturec'
+ERROR:GAMESYS: Failed to transcode /test_compressed_fail.texturec
+ERROR:GAMESYS: No matching texture format found for /test_compressed_fail.texturec. Using blank texture.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+DEBUG:SCRIPT: TEST 1: test_simple
+DEBUG:SCRIPT: TEST 2: test_release
+DEBUG:SCRIPT: TEST 3: test_wrong_ext
+DEBUG:SCRIPT: resource/create_texture.script:90: Unable to create resource, path 'no_ext' must have any of the following extensions: texturec
+DEBUG:SCRIPT: TEST 4: test_already_exist
+DEBUG:SCRIPT: resource/create_texture.script:97: Unable to create resource, a resource is already registered at path '/test_exists.texturec'
+DEBUG:SCRIPT: TEST 5: test_release_not_found
+DEBUG:SCRIPT: resource/create_texture.script:103: Could not release resource: /not_found
+DEBUG:SCRIPT: TEST 6: test_compressed
+INFO:GRAPHICS: Transcoding: /test_compressed.texturec from 12 to 0 (TEXTURE_FORMAT_RGB_ETC1 -> cTFETC1_RGB)
+DEBUG:SCRIPT: TEST 7: test_compressed_fail
+INFO:GRAPHICS: Transcoding: /test_compressed_fail.texturec from 12 to 0 (TEXTURE_FORMAT_RGB_ETC1 -> cTFETC1_RGB)
+DEBUG:SCRIPT: TEST 8: test_get_texture_info
+DEBUG:SCRIPT: resource/create_texture.script:291: bad argument #1 to 'get_texture_info' (hash or string expected expected, got nil)
+DEBUG:SCRIPT: resource/create_texture.script:292: bad argument #1 to 'get_texture_info' (hash or string expected expected, got boolean)
+DEBUG:SCRIPT: resource/create_texture.script:293: Could not get texturec type resource: invalid_type
+DEBUG:SCRIPT: resource/create_texture.script:294: Texture handle is not valid.
+DEBUG:SCRIPT: resource/create_texture.script:297: Could not get texturec type resource: /test_get_texture_info.texturec
+DEBUG:SCRIPT: TEST 9: test_invalid
+DEBUG:SCRIPT: resource/create_texture.script:73: Unable to create texture, width, height, depth and page count must be larger than 0
+DEBUG:SCRIPT: TEST 10: test_3d_textures
+DEBUG:SCRIPT: resource/create_texture.script:325: Wrong type for table attribute 'format'. Expected integer, got nil
+DEBUG:SCRIPT: TEST 11: Not found
+DEBUG:SCRIPT: resource/create_texture.script:348: Unable to create texture, width, height, depth and page count must be larger than 0
+DEBUG:SCRIPT: TEST 12: test_async_simple
+DEBUG:SCRIPT: TEST 13: test_async_basis
+INFO:GRAPHICS: Transcoding: /test_async_basis.texturec from 12 to 0 (TEXTURE_FORMAT_RGB_ETC1 -> cTFETC1_RGB)
+[33mTestCreateTextureFromScript[0m [32mPASS[0m (97.74 ms)
+[33mTestCreateTextureAsyncFromCoroutine[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestCreateTextureAsyncFromCoroutine[0m [32mPASS[0m (36.972 ms)
+[33mTestCreateSoundDataFromScript[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestCreateSoundDataFromScript[0m [32mPASS[0m (4978 µs)
+[33mTestResourceScriptBuffer[0m
+ERROR:DLIB: Invalid buffer when freeing buffer
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+DEBUG:SCRIPT: resource/script_buffer.script:36: Could not get bufferc type resource: /my_buffer.bufferc
+DEBUG:SCRIPT: resource/script_buffer.script:52: Could not get bufferc type resource: /my_buffer.bufferc
+DEBUG:SCRIPT: resource/script_buffer.script:69: Could not get bufferc type resource: /my_buffer.bufferc
+DEBUG:SCRIPT: resource/script_buffer.script:81: The buffer handle is invalid
+[33mTestResourceScriptBuffer[0m [32mPASS[0m (990 µs)
+[33mTestResourceScriptRenderTarget[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:DDF: Invalid message type. Required field (width) in an optional message.
+WARNING:DDF: Invalid message type. Required field (height) in an optional message.
+WARNING:DDF: Invalid message type. Required field (width) in an optional message.
+WARNING:DDF: Invalid message type. Required field (height) in an optional message.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mTestResourceScriptRenderTarget[0m [32mPASS[0m (1582 µs)
+[33mTestResourceScriptAtlas[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: resource/script_atlas.script:44: Could not get texturesetc type resource: /test_release.texturesetc
+DEBUG:SCRIPT: resource/script_atlas.script:134: Could not get texturesetc type resource: /missing-path
+DEBUG:SCRIPT: resource/script_atlas.script:139: Could not get texturesetc type resource: /missing-path
+DEBUG:SCRIPT: resource/script_atlas.script:142: Could not get texturec type resource: wrong-path
+DEBUG:SCRIPT: resource/script_atlas.script:146: Atlas requires at least one entry in the 'geometries' table
+DEBUG:SCRIPT: resource/script_atlas.script:150: Invalid 'id' in animations table at index [1], either missing or wrong type
+DEBUG:SCRIPT: resource/script_atlas.script:154: bad argument #8 to 'fn' (table expected, got nil)
+DEBUG:SCRIPT: resource/script_atlas.script:158: Atlas requires at least one entry in the 'geometries' table
+DEBUG:SCRIPT: resource/script_atlas.script:162: Invalid frame_start in animation [1], index 0 is outside of geometry bounds 1..1
+DEBUG:SCRIPT: resource/script_atlas.script:166: Invalid frame in animation [1], index 0 is outside of geometry bounds 1..1
+DEBUG:SCRIPT: resource/script_atlas.script:170: Uneven number of entries in vertices table for geometry [1]
+DEBUG:SCRIPT: resource/script_atlas.script:139: Unable to create resource, path '/missing-path' must have any of the following extensions: texturesetc
+DEBUG:SCRIPT: resource/script_atlas.script:142: Unable to create resource, a resource is already registered at path '/resource/tile_valid.t.texturesetc'
+DEBUG:SCRIPT: resource/script_atlas.script:146: Unable to create resource, a resource is already registered at path '/resource/tile_valid.t.texturesetc'
+DEBUG:SCRIPT: resource/script_atlas.script:150: Unable to create resource, a resource is already registered at path '/resource/tile_valid.t.texturesetc'
+DEBUG:SCRIPT: resource/script_atlas.script:154: Unable to create resource, a resource is already registered at path '/resource/tile_valid.t.texturesetc'
+DEBUG:SCRIPT: resource/script_atlas.script:158: Unable to create resource, a resource is already registered at path '/resource/tile_valid.t.texturesetc'
+DEBUG:SCRIPT: resource/script_atlas.script:162: Unable to create resource, a resource is already registered at path '/resource/tile_valid.t.texturesetc'
+DEBUG:SCRIPT: resource/script_atlas.script:166: Unable to create resource, a resource is already registered at path '/resource/tile_valid.t.texturesetc'
+DEBUG:SCRIPT: resource/script_atlas.script:170: Unable to create resource, a resource is already registered at path '/resource/tile_valid.t.texturesetc'
+DEBUG:SCRIPT: resource/script_atlas.script:176: Unable to create resource, a resource is already registered at path '/resource/tile_valid.t.texturesetc'
+[33mTestResourceScriptAtlas[0m [32mPASS[0m (5.441 ms)
+[33mTestSetTextureFromScript[0m
+ERROR:GAMESYS: Texture size 32x32 at offset 256,256 exceeds maximum texture size (256x256) for mipmap level 0.
+ERROR:SCRIPT: resource/set_texture.script:53: The resource was not updated (-1): 42c0d6718c6ef3f3, /resource/__tile_valid_tilesource.texturec
+stack traceback:
+  [C]:-1: in function set_texture
+  resource/set_texture.script:53: in function <resource/set_texture.script:38>
+  resource/set_texture.script:176: in function <resource/set_texture.script:162>
+
+ERROR:GAMESYS: Texture mipmap level 31 exceeds maximum mipmap level 9.
+ERROR:SCRIPT: resource/set_texture.script:68: The resource was not updated (-1): 42c0d6718c6ef3f3, /resource/__tile_valid_tilesource.texturec
+stack traceback:
+  [C]:-1: in function set_texture
+  resource/set_texture.script:68: in function <resource/set_texture.script:56>
+  resource/set_texture.script:176: in function <resource/set_texture.script:162>
+
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:GRAPHICS: Transcoding: (null) from 12 to 0 (TEXTURE_FORMAT_RGB_ETC1 -> cTFETC1_RGB)
+[33mTestSetTextureFromScript[0m [32mPASS[0m (990 µs)
+[36mResourceFolderTest[0m took 153.445 ms
+[36mCameraComponentTest[0m
+[33mCameraTest[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: Initial aspect ratio:	1
+DEBUG:SCRIPT: Auto aspect ratio:	1.3333333730698
+DEBUG:SCRIPT: All auto aspect ratio tests passed!
+[33mCameraTest[0m [32mPASS[0m (706 µs)
+[36mCameraComponentTest[0m took 1472 µs
+[36mMaterialComponentTest[0m
+[33mReloadInvalidMaterial[0m
+ERROR:GAMESYS: Failed to reload shader program '/shader_9039087117284553317.spc': No error information was provided by the graphics backend.
+ERROR:RESOURCE: /shader_9039087117284553317.spc has invalid format and could not be reloaded.
+ERROR:GAMESYS: Failed to reload shader program '/shader_9039087117284553317.spc': No error information was provided by the graphics backend.
+ERROR:RESOURCE: /shader_9039087117284553317.spc has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /shader_9039087117284553317.spc was successfully reloaded.
+INFO:RESOURCE: /shader_9039087117284553317.spc was successfully reloaded.
+[33mReloadInvalidMaterial[0m [32mPASS[0m (861 µs)
+[33mTextureTransformVertexBuffer[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTextureTransformVertexBuffer[0m [32mPASS[0m (2625 µs)
+[33mSpriteTextureTransformMultiAtlasVertexBuffer[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSpriteTextureTransformMultiAtlasVertexBuffer[0m [32mPASS[0m (1535 µs)
+[36mMaterialComponentTest[0m took 7.046 ms
+[36mCollectionProxyComponentTest[0m
+[33mConsumeInputInCollectionProxy[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mConsumeInputInCollectionProxy[0m [32mPASS[0m (1283 µs)
+[33mCollectionProxySetCollectionLoadInitialize[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: collectionproxy single root init
+DEBUG:SCRIPT: collectionproxy single root set_collection /collection_proxy/set_collection_single_target.collectionc
+DEBUG:SCRIPT: collectionproxy single root proxy_loaded
+DEBUG:SCRIPT: collectionproxy single target init
+DEBUG:SCRIPT: collectionproxy single root final
+DEBUG:SCRIPT: collectionproxy single target final
+[33mCollectionProxySetCollectionLoadInitialize[0m [32mPASS[0m (698 µs)
+[33mAmbientLightAccumulatesAcrossCollectionProxy[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mAmbientLightAccumulatesAcrossCollectionProxy[0m [32mPASS[0m (991 µs)
+[33mReleaseDynamicResourceFromAnotherCollection[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mReleaseDynamicResourceFromAnotherCollection[0m [32mPASS[0m (576 µs)
+[33mCollectionProxyScriptLoadApi[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCollectionProxyScriptLoadApi[0m [32mPASS[0m (1876 µs)
+[33mCollectionProxyScriptLoadDeleteProxyWhileLoading[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCollectionProxyScriptLoadDeleteProxyWhileLoading[0m [32mPASS[0m (2017 µs)
+[33mCollectionProxySetCollectionRecursiveLoadInitialize[0m
+ERROR:GAMESYS: Collection proxy already loaded: '/collection_proxy/set_collection_cpp_cycle_level1.collectionc'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:GAMESYS: collectionproxy cpp cycle root spawned
+INFO:GAMESYS: collectionproxy cpp cycle root set_collection /collection_proxy/set_collection_cpp_cycle_level1.collectionc
+INFO:GAMESYS: collectionproxy cpp cycle level1 loaded and initialized
+INFO:GAMESYS: collectionproxy cpp cycle level1 set_collection /collection_proxy/set_collection_cpp_cycle_level2.collectionc
+INFO:GAMESYS: collectionproxy cpp cycle level2 loaded and initialized
+INFO:GAMESYS: collectionproxy cpp cycle level2 set_collection /collection_proxy/set_collection_cpp_cycle_level3.collectionc
+INFO:GAMESYS: collectionproxy cpp cycle level3 loaded and initialized
+INFO:GAMESYS: collectionproxy cpp cycle level3 set_collection /collection_proxy/set_collection_cpp_cycle_level1.collectionc
+[33mCollectionProxySetCollectionRecursiveLoadInitialize[0m [32mPASS[0m (437 µs)
+[36mCollectionProxyComponentTest[0m took 11.808 ms
+[36mCamera/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /camera/valid.camerac was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (67 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1533 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1540 µs)
+[36mCamera/ResourceTest[0m took 9.098 ms
+[36mCamera/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /camera/missing.camerac could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (389 µs)
+[36mCamera/ResourceFailTest[0m took 1836 µs
+[36mCamera/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /camera/valid.camerac was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (356 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /camera/valid.camerac could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (572 µs)
+[36mCamera/ComponentTest[0m took 4448 µs
+[36mCamera/ComponentFailTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (11 µs)
+[36mCamera/ComponentFailTest[0m took 1172 µs
+[36mCollectionProxy/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /collection_proxy/valid.collectionproxyc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (334 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1542 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1540 µs)
+[36mCollectionProxy/ResourceTest[0m took 10.076 ms
+[36mCollectionProxy/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /collection_proxy/valid.collectionproxyc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (237 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /collection_proxy/valid.collectionproxyc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (904 µs)
+[36mCollectionProxy/ComponentTest[0m took 4982 µs
+[36mCollisionObject/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /collision_object/valid.collisionobjectc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (222 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1560 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1573 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /collision_object/valid_tilegrid.collisionobjectc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (1483 µs)
+[33mTestPreload[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/1  [32mPASS[0m (1839 µs)
+[33mTestPreloadAsync[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/1  [32mPASS[0m (3397 µs)
+[33mTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /collision_object/embedded_shapes.collisionobjectc was successfully reloaded.
+[33mTest[0m/2  [32mPASS[0m (307 µs)
+[33mTestPreload[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/2  [32mPASS[0m (1548 µs)
+[33mTestPreloadAsync[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/2  [32mPASS[0m (1539 µs)
+[36mCollisionObject/ResourceTest[0m took 23.977 ms
+[36mCollisionObject/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /collision_object/missing.collisionobjectc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (518 µs)
+[33mTest[0m/1 
+ERROR:GAMESYS: Index out of range to shape data for shape index 1
+ERROR:GAMESYS: Index out of range to shape data for shape index 1
+ERROR:RESOURCE: /collision_object/invalid_embedded_shapes.collisionobjectc has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /collision_object/invalid_embedded_shapes.collisionobjectc: FORMAT_ERROR
+[33mTest[0m/1  [32mPASS[0m (898 µs)
+[36mCollisionObject/ResourceFailTest[0m took 3380 µs
+[36mCollisionObject/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /collision_object/valid.collisionobjectc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (358 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /collision_object/valid.collisionobjectc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (383 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /collision_object/valid_tilegrid.collisionobjectc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (600 µs)
+[33mTestReloadFail[0m/1 
+ERROR:RESOURCE: /collision_object/valid_tilegrid.collisionobjectc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/1  [32mPASS[0m (626 µs)
+[36mCollisionObject/ComponentTest[0m took 6.009 ms
+[36mCollisionObject/ComponentFailTest[0m
+[33mTest[0m/0 
+ERROR:GAMESYS: Index out of range to shape data for shape index 0
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /collision_object/invalid_shape.collisionobjectc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /collision_object/invalid_shape.goc: FORMAT_ERROR
+[33mTest[0m/0  [32mPASS[0m (457 µs)
+[36mCollisionObject/ComponentFailTest[0m took 1830 µs
+[36mConvexShape/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /convex_shape/box.convexshapec was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (301 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1580 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1536 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /convex_shape/hull.convexshapec was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (164 µs)
+[33mTestPreload[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/1  [32mPASS[0m (1562 µs)
+[33mTestPreloadAsync[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/1  [32mPASS[0m (1539 µs)
+[33mTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /convex_shape/sphere.convexshapec was successfully reloaded.
+[33mTest[0m/2  [32mPASS[0m (138 µs)
+[33mTestPreload[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/2  [32mPASS[0m (1560 µs)
+[33mTestPreloadAsync[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/2  [32mPASS[0m (1571 µs)
+[36mConvexShape/ResourceTest[0m took 20.173 ms
+[36mConvexShape/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:GAMESYS: Invalid box shape
+ERROR:GAMESYS: Invalid box shape
+ERROR:RESOURCE: /convex_shape/invalid_box.convexshapec has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /convex_shape/invalid_box.convexshapec: FORMAT_ERROR
+[33mTest[0m/0  [32mPASS[0m (897 µs)
+[33mTest[0m/1 
+ERROR:GAMESYS: Invalid hull shape
+ERROR:GAMESYS: Invalid hull shape
+ERROR:RESOURCE: /convex_shape/invalid_hull.convexshapec has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /convex_shape/invalid_hull.convexshapec: FORMAT_ERROR
+[33mTest[0m/1  [32mPASS[0m (590 µs)
+[33mTest[0m/2 
+ERROR:GAMESYS: Invalid sphere shape
+ERROR:GAMESYS: Invalid sphere shape
+ERROR:RESOURCE: /convex_shape/invalid_sphere.convexshapec has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /convex_shape/invalid_sphere.convexshapec: FORMAT_ERROR
+[33mTest[0m/2  [32mPASS[0m (445 µs)
+[36mConvexShape/ResourceFailTest[0m took 4808 µs
+[36mFontMap/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /font/valid_font.fontc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (892 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (7.726 ms)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (7.873 ms)
+[36mFontMap/ResourceTest[0m took 36.45 ms
+[36mFontMap/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /font/missing.fontc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (508 µs)
+[33mTest[0m/1 
+ERROR:RESOURCE: /font/invalid_material.fontc has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /font/material_missing_name.materialc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /font/invalid_material.fontc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /font/material_missing_name.materialc: FORMAT_ERROR
+[33mTest[0m/1  [32mPASS[0m (1320 µs)
+[36mFontMap/ResourceFailTest[0m took 4129 µs
+[36mGuiScript/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /gui/valid.gui_scriptc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (525 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (4641 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (4644 µs)
+[36mGuiScript/ResourceTest[0m took 23.304 ms
+[36mGuiScript/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /gui/missing.gui_scriptc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (417 µs)
+[33mTest[0m/1 
+ERROR:RESOURCE: /gui/missing_module.gui_scriptc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/1  [32mPASS[0m (535 µs)
+[36mGuiScript/ResourceFailTest[0m took 2947 µs
+[36mGui/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /gui/valid.guic was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (1781 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (8.9 ms)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (9.479 ms)
+[36mGui/ResourceTest[0m took 43.508 ms
+[36mGui/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /gui/missing.guic could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (890 µs)
+[33mTest[0m/1 
+ERROR:RESOURCE: /gui/invalid_font.guic has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /gui/font_material_missing_name.materialc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /gui/font_invalid_material.fontc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /gui/invalid_font.guic: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /gui/font_material_missing_name.materialc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /gui/font_invalid_material.fontc: FORMAT_ERROR
+[33mTest[0m/1  [32mPASS[0m (1791 µs)
+[36mGui/ResourceFailTest[0m took 5.492 ms
+[36mGui/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /gui/valid.guic was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (869 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /gui/valid.guic could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (885 µs)
+[36mGui/ComponentTest[0m took 6.378 ms
+[36mGui/ComponentFailTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /gui/font_material_missing_name.materialc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /gui/font_invalid_material.fontc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /gui/invalid_font.guic: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /gui/invalid_font.goc: FORMAT_ERROR
+[33mTest[0m/0  [32mPASS[0m (539 µs)
+[36mGui/ComponentFailTest[0m took 2278 µs
+[36mInputBinding/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /input/valid.input_bindingc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (247 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1579 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1550 µs)
+[36mInputBinding/ResourceTest[0m took 9.97 ms
+[36mInputBinding/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /input/missing.input_bindingc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (303 µs)
+[36mInputBinding/ResourceFailTest[0m took 1528 µs
+[36mMaterial/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /material/valid.materialc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (124 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (4590 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (4618 µs)
+[36mMaterial/ResourceTest[0m took 21.92 ms
+[36mMaterial/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /material/missing.materialc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (466 µs)
+[33mTest[0m/1 
+ERROR:RESOURCE: /material/missing_name.materialc has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /material/missing_name.materialc: FORMAT_ERROR
+[33mTest[0m/1  [32mPASS[0m (940 µs)
+[36mMaterial/ResourceFailTest[0m took 3611 µs
+[36mBuffer/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /mesh/no_data.bufferc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (293 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1440 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1539 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /mesh/triangle.bufferc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (151 µs)
+[33mTestPreload[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/1  [32mPASS[0m (1826 µs)
+[33mTestPreloadAsync[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/1  [32mPASS[0m (1546 µs)
+[36mBuffer/ResourceTest[0m took 16.934 ms
+[36mMesh/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /mesh/no_data.meshc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (1043 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (7.59 ms)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (6.983 ms)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /mesh/triangle.meshc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (504 µs)
+[33mTestPreload[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/1  [32mPASS[0m (7.16 ms)
+[33mTestPreloadAsync[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/1  [32mPASS[0m (7.656 ms)
+[36mMesh/ResourceTest[0m took 51.777 ms
+[36mMeshSet/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /meshset/valid_gltf.meshsetc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (300 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1544 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1546 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /meshset/valid_gltf.skeletonc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (38 µs)
+[33mTestPreload[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/1  [32mPASS[0m (1539 µs)
+[33mTestPreloadAsync[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/1  [32mPASS[0m (1562 µs)
+[33mTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /meshset/valid_gltf_generated_0.animationsetc was successfully reloaded.
+[33mTest[0m/2  [32mPASS[0m (48 µs)
+[33mTestPreload[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/2  [32mPASS[0m (1539 µs)
+[33mTestPreloadAsync[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/2  [32mPASS[0m (1565 µs)
+[36mMeshSet/ResourceTest[0m took 20.593 ms
+[36mMeshSet/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /meshset/missing.meshsetc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (397 µs)
+[33mTest[0m/1 
+ERROR:RESOURCE: /meshset/missing.skeletonc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/1  [32mPASS[0m (123 µs)
+[33mTest[0m/2 
+ERROR:RESOURCE: /meshset/missing.animationsetc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/2  [32mPASS[0m (108 µs)
+[36mMeshSet/ResourceFailTest[0m took 2974 µs
+[36mModel/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /model/valid.modelc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (1795 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (7.654 ms)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (7.713 ms)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /model/empty_texture.modelc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (900 µs)
+[33mTestPreload[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/1  [32mPASS[0m (7.586 ms)
+[33mTestPreloadAsync[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/1  [32mPASS[0m (7.65 ms)
+[36mModel/ResourceTest[0m took 56.723 ms
+[36mModel/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /model/missing.modelc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (753 µs)
+[33mTest[0m/1 
+ERROR:RESOURCE: /model/invalid_material.modelc has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /model/material_missing_name.materialc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /model/invalid_material.modelc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /model/material_missing_name.materialc: FORMAT_ERROR
+[33mTest[0m/1  [32mPASS[0m (1394 µs)
+[36mModel/ResourceFailTest[0m took 4600 µs
+[36mModel/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+INFO:RESOURCE: /model/valid.modelc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (583 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /model/valid.modelc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mTestReloadFail[0m/0  [32mPASS[0m (549 µs)
+[36mModel/ComponentTest[0m took 4302 µs
+[36mModel/ComponentFailTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (7 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/1  [32mPASS[0m (5 µs)
+[36mModel/ComponentFailTest[0m took 1276 µs
+[36mAnimationSet/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /animationset/valid.animationsetc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (26 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1539 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1537 µs)
+[36mAnimationSet/ResourceTest[0m took 9.546 ms
+[36mAnimationSet/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /animationset/missing.animationsetc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (168 µs)
+[33mTest[0m/1 
+ERROR:RESOURCE: /animationset/invalid_animationset.animationsetc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/1  [32mPASS[0m (154 µs)
+[36mAnimationSet/ResourceFailTest[0m took 1987 µs
+[36mParticleFX/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /particlefx/valid.particlefxc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (1197 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (7.174 ms)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (7.55 ms)
+[36mParticleFX/ResourceTest[0m took 35.252 ms
+[36mParticleFX/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:GAMESYS: Could not load material "/particlefx/material_missing_name.materialc" for particle fx "/particlefx/invalid_material.particlefxc".
+ERROR:GAMESYS: Could not load material "/particlefx/material_missing_name.materialc" for particle fx "/particlefx/invalid_material.particlefxc".
+ERROR:RESOURCE: /particlefx/invalid_material.particlefxc has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /particlefx/material_missing_name.materialc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /particlefx/invalid_material.particlefxc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /particlefx/material_missing_name.materialc: FORMAT_ERROR
+[33mTest[0m/0  [32mPASS[0m (4267 µs)
+[36mParticleFX/ResourceFailTest[0m took 9.632 ms
+[36mParticleFX/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /particlefx/valid.particlefxc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (689 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /particlefx/valid.particlefxc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (579 µs)
+[36mParticleFX/ComponentTest[0m took 4736 µs
+[36mParticleFX/ComponentFailTest[0m
+[33mTest[0m/0 
+ERROR:GAMESYS: Could not load material "/particlefx/material_missing_name.materialc" for particle fx "/particlefx/invalid_material.particlefxc".
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /particlefx/material_missing_name.materialc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /particlefx/invalid_material.particlefxc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /particlefx/invalid_material.goc: FORMAT_ERROR
+[33mTest[0m/0  [32mPASS[0m (281 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/1  [32mPASS[0m (5 µs)
+[36mParticleFX/ComponentFailTest[0m took 1839 µs
+[36mRender/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /render/valid.renderc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (414 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1670 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1764 µs)
+[36mRender/ResourceTest[0m took 10.464 ms
+[36mRender/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /render/missing.renderc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (407 µs)
+[33mTest[0m/1 
+ERROR:RESOURCE: /render/invalid_material.renderc has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /render/material_missing_name.materialc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /render/invalid_material.renderc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /render/material_missing_name.materialc: FORMAT_ERROR
+[33mTest[0m/1  [32mPASS[0m (1087 µs)
+[36mRender/ResourceFailTest[0m took 3406 µs
+[36mRenderScript/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /render_script/valid.render_scriptc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (286 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1566 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1602 µs)
+[36mRenderScript/ResourceTest[0m took 10.842 ms
+[36mRenderScript/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /render_script/missing.render_scriptc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (271 µs)
+[36mRenderScript/ResourceFailTest[0m took 1462 µs
+[36mDisplayProfiles/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /display_profiles/valid.display_profilesc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (203 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1559 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1535 µs)
+[36mDisplayProfiles/ResourceTest[0m took 9.59 ms
+[36mDisplayProfiles/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /display_profiles/missing.display_profilesc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (262 µs)
+[36mDisplayProfiles/ResourceFailTest[0m took 1532 µs
+[36mData/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /data/valid.datac was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (69 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1540 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1532 µs)
+[36mData/ResourceTest[0m took 9.106 ms
+[36mData/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /data/missing.datac could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (317 µs)
+[36mData/ResourceFailTest[0m took 1754 µs
+[36mLight/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /light/valid_point.point_light.lightc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (84 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1559 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1574 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /light/valid_directional_light.directional_light.lightc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (79 µs)
+[33mTestPreload[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/1  [32mPASS[0m (1547 µs)
+[33mTestPreloadAsync[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/1  [32mPASS[0m (1544 µs)
+[33mTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /light/valid_spot_light.spot_light.lightc was successfully reloaded.
+[33mTest[0m/2  [32mPASS[0m (80 µs)
+[33mTestPreload[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/2  [32mPASS[0m (1578 µs)
+[33mTestPreloadAsync[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/2  [32mPASS[0m (1557 µs)
+[33mTest[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /light/valid_ambient_light.ambient_light.lightc was successfully reloaded.
+[33mTest[0m/3  [32mPASS[0m (73 µs)
+[33mTestPreload[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/3  [32mPASS[0m (1556 µs)
+[33mTestPreloadAsync[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/3  [32mPASS[0m (1576 µs)
+[36mLight/ResourceTest[0m took 24.219 ms
+[36mLight/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /light/invalid_point_missing_range.point_light.lightc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (552 µs)
+[33mTest[0m/1 
+ERROR:RESOURCE: /light/invalid_directional_missing_intensity.directional_light.lightc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/1  [32mPASS[0m (261 µs)
+[33mTest[0m/2 
+ERROR:RESOURCE: /light/invalid_spot_missing_outer_cone_angle.spot_light.lightc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/2  [32mPASS[0m (211 µs)
+[33mTest[0m/3 
+ERROR:RESOURCE: /light/invalid_ambient_missing_intensity.ambient_light.lightc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/3  [32mPASS[0m (179 µs)
+[36mLight/ResourceFailTest[0m took 4338 µs
+[36mLight/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /light/valid_point.point_light.lightc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (158 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /light/valid_point.point_light.lightc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (393 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /light/valid_directional_light.directional_light.lightc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (155 µs)
+[33mTestReloadFail[0m/1 
+ERROR:RESOURCE: /light/valid_directional_light.directional_light.lightc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/1  [32mPASS[0m (349 µs)
+[33mTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /light/valid_spot_light.spot_light.lightc was successfully reloaded.
+[33mTest[0m/2  [32mPASS[0m (137 µs)
+[33mTestReloadFail[0m/2 
+ERROR:RESOURCE: /light/valid_spot_light.spot_light.lightc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/2  [32mPASS[0m (368 µs)
+[33mTest[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /light/valid_ambient_light.ambient_light.lightc was successfully reloaded.
+[33mTest[0m/3  [32mPASS[0m (142 µs)
+[33mTestReloadFail[0m/3 
+ERROR:RESOURCE: /light/valid_ambient_light.ambient_light.lightc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/3  [32mPASS[0m (337 µs)
+[36mLight/ComponentTest[0m took 7.947 ms
+[36mLight/ComponentFailTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /light/invalid_point_light.goc: RESOURCE_NOT_FOUND
+[33mTest[0m/0  [32mPASS[0m (220 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /light/invalid_directional_light.goc: RESOURCE_NOT_FOUND
+[33mTest[0m/1  [32mPASS[0m (206 µs)
+[33mTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /light/invalid_spot_light.goc: RESOURCE_NOT_FOUND
+[33mTest[0m/2  [32mPASS[0m (110 µs)
+[36mLight/ComponentFailTest[0m took 2915 µs
+[36mScript/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /script/valid.scriptc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (310 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1597 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1651 µs)
+[36mScript/ResourceTest[0m took 12.454 ms
+[36mScript/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /script/missing.scriptc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (357 µs)
+[36mScript/ResourceFailTest[0m took 2354 µs
+[36mScript/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /script/valid.scriptc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (319 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /script/valid.scriptc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (340 µs)
+[36mScript/ComponentTest[0m took 3412 µs
+[36mScript/ComponentFailTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (7 µs)
+[33mTest[0m/1 
+ERROR:GAMEOBJECT: The global name 'update' in '@script/invalid_type.script' must be a function.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /script/invalid_type.scriptc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /script/invalid_script.goc: FORMAT_ERROR
+[33mTest[0m/1  [32mPASS[0m (535 µs)
+[36mScript/ComponentFailTest[0m took 2322 µs
+[36mSound/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /sound/valid.soundc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (419 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (4584 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (4625 µs)
+[36mSound/ResourceTest[0m took 23.934 ms
+[36mSound/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /sound/missing.soundc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (393 µs)
+[36mSound/ResourceFailTest[0m took 2046 µs
+[36mSound/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /sound/valid.soundc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (349 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /sound/valid.soundc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (2389 µs)
+[36mSound/ComponentTest[0m took 7.804 ms
+[36mSound/ComponentFailTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (10 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/1  [32mPASS[0m (5 µs)
+[36mSound/ComponentFailTest[0m took 1499 µs
+[36mFactory/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /factory/valid.factoryc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (754 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (10.672 ms)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (10.642 ms)
+[36mFactory/ResourceTest[0m took 47.856 ms
+[36mFactory/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /factory/missing.factoryc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (470 µs)
+[36mFactory/ResourceFailTest[0m took 2010 µs
+[36mFactory/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /factory/valid.factoryc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (409 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /factory/valid.factoryc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (605 µs)
+[36mFactory/ComponentTest[0m took 4050 µs
+[36mFactory/ComponentFailTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (7 µs)
+[36mFactory/ComponentFailTest[0m took 874 µs
+[36mCollectionFactory/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /collection_factory/valid.collectionfactoryc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (438 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1532 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (1584 µs)
+[36mCollectionFactory/ResourceTest[0m took 10.38 ms
+[36mCollectionFactory/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /collection_factory/missing.collectionfactoryc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (409 µs)
+[36mCollectionFactory/ResourceFailTest[0m took 1746 µs
+[36mCollectionFactory/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /collection_factory/valid.collectionfactoryc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (370 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /collection_factory/valid.collectionfactoryc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (463 µs)
+[36mCollectionFactory/ComponentTest[0m took 3716 µs
+[36mCollectionFactory/ComponentFailTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (11 µs)
+[36mCollectionFactory/ComponentFailTest[0m took 1006 µs
+[36mSprite/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /sprite/valid.spritec was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (1127 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (7.595 ms)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (8.953 ms)
+[36mSprite/ResourceTest[0m took 39.172 ms
+[36mSprite/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:GAMESYS: Default animation 'missing' not found
+ERROR:GAMESYS: Default animation 'missing' not found
+ERROR:RESOURCE: /sprite/invalid_animation.spritec has invalid format and could not be reloaded.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /sprite/invalid_animation.spritec: FORMAT_ERROR
+[33mTest[0m/0  [32mPASS[0m (1212 µs)
+[36mSprite/ResourceFailTest[0m took 3654 µs
+[36mSprite/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /sprite/valid.spritec was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (569 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /sprite/valid.spritec could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (682 µs)
+[36mSprite/ComponentTest[0m took 4938 µs
+[36mSprite/ComponentFailTest[0m
+[33mTest[0m/0 
+ERROR:GAMESYS: Default animation 'missing' not found
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /sprite/invalid_animation.spritec: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /sprite/invalid_sprite.goc: FORMAT_ERROR
+[33mTest[0m/0  [32mPASS[0m (452 µs)
+[36mSprite/ComponentFailTest[0m took 1966 µs
+[36mTileSet/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /tile/valid.t.texturesetc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (188 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (4558 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (4355 µs)
+[36mTileSet/ResourceTest[0m took 21.296 ms
+[36mTileGrid/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /tile/valid.t.texturesetc was successfully reloaded.
+INFO:RESOURCE: /tile/valid.tilemapc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (414 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (7.402 ms)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (7.612 ms)
+[36mTileGrid/ResourceTest[0m took 34.078 ms
+[36mTileSet/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /tile/valid.t.texturesetc was successfully reloaded.
+INFO:RESOURCE: /tile/valid.tilemapc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (595 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /tile/valid.tilemapc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (594 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /tile/valid.t.texturesetc was successfully reloaded.
+INFO:RESOURCE: /tile/valid.tilemapc was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (1859 µs)
+[33mTestReloadFail[0m/1 
+ERROR:RESOURCE: /tile/valid.tilemapc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/1  [32mPASS[0m (849 µs)
+[36mTileSet/ComponentTest[0m took 8.47 ms
+[36mTexture/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /texture/valid_png.texturec was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (173 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (1533 µs)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (3053 µs)
+[33mTest[0m/1 
+ERROR:GAMESYS: Texture size 4096x4096 exceeds maximum supported texture size (1024x1024). Using blank texture.
+ERROR:GAMESYS: Texture size 4096x4096 exceeds maximum supported texture size (1024x1024). Using blank texture.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /texture/blank_4096_png.texturec was successfully reloaded.
+[33mTest[0m/1  [32mPASS[0m (5.029 ms)
+[33mTestPreload[0m/1 
+ERROR:GAMESYS: Texture size 4096x4096 exceeds maximum supported texture size (1024x1024). Using blank texture.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/1  [32mPASS[0m (3084 µs)
+[33mTestPreloadAsync[0m/1 
+ERROR:GAMESYS: Texture size 4096x4096 exceeds maximum supported texture size (1024x1024). Using blank texture.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/1  [32mPASS[0m (4588 µs)
+[36mTexture/ResourceTest[0m took 27.383 ms
+[36mTexture/ResourceFailTest[0m
+[33mTest[0m/0 
+ERROR:RESOURCE: /texture/missing.texturec could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (358 µs)
+[36mTexture/ResourceFailTest[0m took 1734 µs
+[36mInvalidVertexSpace/InvalidVertexSpaceTest[0m
+[33mInvalidVertexSpace[0m/0 
+ERROR:GAMESYS: Failed to create Sprite component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /sprite/invalid_vertexspace.spritec: NOT_SUPPORTED
+[33mInvalidVertexSpace[0m/0  [32mPASS[0m (790 µs)
+[33mInvalidVertexSpace[0m/1 
+ERROR:RESOURCE: Unknown resource type: tilegridc
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mInvalidVertexSpace[0m/1  [32mPASS[0m (6 µs)
+[33mInvalidVertexSpace[0m/2 
+ERROR:GAMESYS: Failed to create ParticleFX component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /particlefx/invalid_vertexspace.particlefxc: NOT_SUPPORTED
+[33mInvalidVertexSpace[0m/2  [32mPASS[0m (601 µs)
+[33mInvalidVertexSpace[0m/3 
+ERROR:GAMESYS: Failed to create Gui component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /gui/invalid_vertexspace.guic: NOT_SUPPORTED
+[33mInvalidVertexSpace[0m/3  [32mPASS[0m (550 µs)
+[33mInvalidVertexSpace[0m/4 
+ERROR:GAMESYS: Failed to create Label component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /label/invalid_vertexspace.labelc: NOT_SUPPORTED
+[33mInvalidVertexSpace[0m/4  [32mPASS[0m (500 µs)
+[36mInvalidVertexSpace/InvalidVertexSpaceTest[0m took 6.507 ms
+[36mResourceProperty/ResourcePropTest[0m
+[33mResourceRefCounting[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mResourceRefCounting[0m/0  [32mPASS[0m (7.001 ms)
+[33mResourceRefCounting[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mResourceRefCounting[0m/1  [32mPASS[0m (2467 µs)
+[33mResourceRefCounting[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mResourceRefCounting[0m/2  [32mPASS[0m (2156 µs)
+[33mResourceRefCounting[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mResourceRefCounting[0m/3  [32mPASS[0m (1757 µs)
+[33mResourceRefCounting[0m/4 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mResourceRefCounting[0m/4  [32mPASS[0m (1464 µs)
+[33mResourceRefCounting[0m/5 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mResourceRefCounting[0m/5  [32mPASS[0m (1559 µs)
+[36mResourceProperty/ResourcePropTest[0m took 28.365 ms
+[36mFactory/FactoryTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (26.363 ms)
+[33mIdHashTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/0  [32mPASS[0m (935 µs)
+[33mCreate[0m/0 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/0  [32mPASS[0m (2162 µs)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/1  [32mPASS[0m (20.643 ms)
+[33mIdHashTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/1  [32mPASS[0m (504 µs)
+[33mCreate[0m/1 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/1  [32mPASS[0m (1862 µs)
+[33mTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/2  [32mPASS[0m (15.297 ms)
+[33mIdHashTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/2  [32mPASS[0m (521 µs)
+[33mCreate[0m/2 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/2  [32mPASS[0m (1981 µs)
+[33mTest[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/3  [32mPASS[0m (567 µs)
+[33mIdHashTest[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/3  [32mPASS[0m (760 µs)
+[33mCreate[0m/3 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/3  [32mPASS[0m (2166 µs)
+[33mTest[0m/4 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/4  [32mPASS[0m (28.374 ms)
+[33mIdHashTest[0m/4 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/4  [32mPASS[0m (513 µs)
+[33mCreate[0m/4 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/4  [32mPASS[0m (1833 µs)
+[33mTest[0m/5 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/5  [32mPASS[0m (23.843 ms)
+[33mIdHashTest[0m/5 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/5  [32mPASS[0m (503 µs)
+[33mCreate[0m/5 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/5  [32mPASS[0m (1956 µs)
+[33mTest[0m/6 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/6  [32mPASS[0m (16.896 ms)
+[33mIdHashTest[0m/6 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/6  [32mPASS[0m (452 µs)
+[33mCreate[0m/6 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/6  [32mPASS[0m (2094 µs)
+[33mTest[0m/7 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/7  [32mPASS[0m (2154 µs)
+[33mIdHashTest[0m/7 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/7  [32mPASS[0m (559 µs)
+[33mCreate[0m/7 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/7  [32mPASS[0m (2051 µs)
+[33mTest[0m/8 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/8  [32mPASS[0m (37.329 ms)
+[33mIdHashTest[0m/8 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/8  [32mPASS[0m (456 µs)
+[33mCreate[0m/8 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/8  [32mPASS[0m (1855 µs)
+[33mTest[0m/9 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/9  [32mPASS[0m (31.989 ms)
+[33mIdHashTest[0m/9 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/9  [32mPASS[0m (469 µs)
+[33mCreate[0m/9 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/9  [32mPASS[0m (1713 µs)
+[33mTest[0m/10 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/10  [32mPASS[0m (18.542 ms)
+[33mIdHashTest[0m/10 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/10  [32mPASS[0m (487 µs)
+[33mCreate[0m/10 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/10  [32mPASS[0m (2048 µs)
+[33mTest[0m/11 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/11  [32mPASS[0m (3379 µs)
+[33mIdHashTest[0m/11 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mIdHashTest[0m/11  [32mPASS[0m (466 µs)
+[33mCreate[0m/11 
+ERROR:GAMEOBJECT: The game object instance could not be created since the buffer is full (1024). Increase the capacity with collection.max_instances
+ERROR:GAMESYS: Could not spawn an instance of prototype /factory/empty.goc.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreate[0m/11  [32mPASS[0m (1983 µs)
+[36mFactory/FactoryTest[0m took 313.739 ms
+[36mFactoryRecursivePrototype/FactoryRecursivePrototypeTest[0m
+[33mRecursivePrototype[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototype[0m/0  [32mPASS[0m (26.545 ms)
+[33mRecursivePrototypeCppCleanup[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototypeCppCleanup[0m/0  [32mPASS[0m (26.379 ms)
+[33mRecursivePrototype[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototype[0m/1  [32mPASS[0m (21.183 ms)
+[33mRecursivePrototypeCppCleanup[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototypeCppCleanup[0m/1  [32mPASS[0m (21.981 ms)
+[33mRecursivePrototype[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototype[0m/2  [32mPASS[0m (15.32 ms)
+[33mRecursivePrototypeCppCleanup[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototypeCppCleanup[0m/2  [32mPASS[0m (15.491 ms)
+[33mRecursivePrototype[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototype[0m/3  [32mPASS[0m (569 µs)
+[33mRecursivePrototypeCppCleanup[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototypeCppCleanup[0m/3  [32mPASS[0m (506 µs)
+[36mFactoryRecursivePrototype/FactoryRecursivePrototypeTest[0m took 187.027 ms
+[36mCollectionFactory/CollectionFactoryTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/0  [32mPASS[0m (26.515 ms)
+[33mTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/1  [32mPASS[0m (22.146 ms)
+[33mTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/2  [32mPASS[0m (14.218 ms)
+[33mTest[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/3  [32mPASS[0m (597 µs)
+[33mTest[0m/4 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/4  [32mPASS[0m (31.237 ms)
+[33mTest[0m/5 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/5  [32mPASS[0m (26.071 ms)
+[33mTest[0m/6 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/6  [32mPASS[0m (20.061 ms)
+[33mTest[0m/7 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTest[0m/7  [32mPASS[0m (5.304 ms)
+[36mCollectionFactory/CollectionFactoryTest[0m took 178.693 ms
+[36mCollectionFactoryRecursivePrototype/CollectionFactoryRecursivePrototypeTest[0m
+[33mRecursivePrototype[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototype[0m/0  [32mPASS[0m (28.134 ms)
+[33mRecursivePrototypeCppCleanup[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototypeCppCleanup[0m/0  [32mPASS[0m (27.974 ms)
+[33mRecursivePrototype[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototype[0m/1  [32mPASS[0m (23.772 ms)
+[33mRecursivePrototypeCppCleanup[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototypeCppCleanup[0m/1  [32mPASS[0m (23.439 ms)
+[33mRecursivePrototype[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototype[0m/2  [32mPASS[0m (17.251 ms)
+[33mRecursivePrototypeCppCleanup[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototypeCppCleanup[0m/2  [32mPASS[0m (17.113 ms)
+[33mRecursivePrototype[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototype[0m/3  [32mPASS[0m (2289 µs)
+[33mRecursivePrototypeCppCleanup[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRecursivePrototypeCppCleanup[0m/3  [32mPASS[0m (2283 µs)
+[36mCollectionFactoryRecursivePrototype/CollectionFactoryRecursivePrototypeTest[0m took 205.466 ms
+[36mDrawCount/DrawCountTest[0m
+[33mDrawCount[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDrawCount[0m/0  [32mPASS[0m (720 µs)
+[33mDrawCount[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDrawCount[0m/1  [32mPASS[0m (595 µs)
+[33mDrawCount[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDrawCount[0m/2  [32mPASS[0m (861 µs)
+[36mDrawCount/DrawCountTest[0m took 5.255 ms
+[36mSoundTest[0m
+[33mUpdateSoundResource[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:GAMESYS: Original size: 42302
+INFO:GAMESYS: New size: 98542
+[33mUpdateSoundResource[0m [32mPASS[0m (1007 µs)
+[33mLuaCallback[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: update
+DEBUG:SCRIPT: update
+DEBUG:SCRIPT: sound done!	2
+DEBUG:SCRIPT: update
+[33mLuaCallback[0m [32mPASS[0m (323 µs)
+[33mDelayedSoundStoppedBeforePlay[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDelayedSoundStoppedBeforePlay[0m [32mPASS[0m (356 µs)
+[33mLuaSetSpeedToZero[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLuaSetSpeedToZero[0m [32mPASS[0m (37.615 ms)
+[36mSoundTest[0m took 41.358 ms
+[36mResourceComponentTest[0m
+[33mModelTexturePropertyAllTextureSlots[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mModelTexturePropertyAllTextureSlots[0m [32mPASS[0m (1532 µs)
+[36mResourceComponentTest[0m took 2205 µs
+[36mSpriteTest[0m
+[33mTexturelessMaterial[0m
+ERROR:GAMESYS: Unable to play animation 'anim' since the sprite has no texture.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTexturelessMaterial[0m [32mPASS[0m (886 µs)
+[33mGoDeletion[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGoDeletion[0m [32mPASS[0m (728 µs)
+[33mFlipbookAnim[0m
+ERROR:GAMESYS: Unable to play animation 'does_not_exist' from texture '/sprite/__tile_flipbook_tilesource.texturec' since it could not be found.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mFlipbookAnim[0m [32mPASS[0m (2487 µs)
+[33mFrameCount[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mFrameCount[0m [32mPASS[0m (739 µs)
+[33mGetSetSliceProperty[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGetSetSliceProperty[0m [32mPASS[0m (838 µs)
+[33mSlice9FlipGeometry[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSlice9FlipGeometry[0m [32mPASS[0m (328 µs)
+[33mRenderScriptMaterialOverrideGrowsVertexBuffer[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRenderScriptMaterialOverrideGrowsVertexBuffer[0m [32mPASS[0m (1017 µs)
+[33mSnapshotGeometrySurvivesDeletion[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotGeometrySurvivesDeletion[0m [32mPASS[0m (2728 µs)
+[33mSnapshotAffineTransformsAndSlice9[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotAffineTransformsAndSlice9[0m [32mPASS[0m (818 µs)
+[33mThreadSnapshotReservationAndAccounting[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mThreadSnapshotReservationAndAccounting[0m [32mPASS[0m (299 µs)
+[33mRenderFrameGeometrySurvivesDeletion[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mRenderFrameGeometrySurvivesDeletion[0m [32mPASS[0m (992 µs)
+[33mThreadSnapshotDeletionAndSlotReuse[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mThreadSnapshotDeletionAndSlotReuse[0m [32mPASS[0m (296 µs)
+[33mThreadSnapshotCapacityAdmission[0m
+ERROR:GAMESYS: Sprite thread slot capacity budget exceeded; frame rejected
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mThreadSnapshotCapacityAdmission[0m [32mPASS[0m (267 µs)
+[33mSnapshotCopiesConstantsAndAttributes[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotCopiesConstantsAndAttributes[0m [32mPASS[0m (526 µs)
+[33mSnapshotBoundsAndCapacity[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotBoundsAndCapacity[0m [32mPASS[0m (301 µs)
+[33mSnapshotRenderMaterialOverride[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotRenderMaterialOverride[0m [32mPASS[0m (358 µs)
+[33mSnapshotConstantDeduplication[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotConstantDeduplication[0m [32mPASS[0m (382 µs)
+[33mSnapshotAdjacentBindingOverrides[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotAdjacentBindingOverrides[0m [32mPASS[0m (670 µs)
+[33mGetSetImagesByHash[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: sprite/image_get_set_image_by_hash.script:32: go.set failed with error code -10
+DEBUG:SCRIPT: sprite/image_get_set_image_by_hash.script:33: '#sprite' does not have any property called 'image'
+[33mGetSetImagesByHash[0m [32mPASS[0m (825 µs)
+[33mSetImageThenPlayAnimationDoesNotLogErrors[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSetImageThenPlayAnimationDoesNotLogErrors[0m [32mPASS[0m (12.619 ms)
+[33mSetImageKeepsSharedAnimationWithoutLogging[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSetImageKeepsSharedAnimationWithoutLogging[0m [32mPASS[0m (29.622 ms)
+[33mSetImageFallsBackToFirstAnimationWithoutLogging[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSetImageFallsBackToFirstAnimationWithoutLogging[0m [32mPASS[0m (30.516 ms)
+[33mSetImageFallsBackToFirstTrimmedAnimationWithoutLogging[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSetImageFallsBackToFirstTrimmedAnimationWithoutLogging[0m [32mPASS[0m (39.114 ms)
+[33mScaleAffectsWorldSize[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mScaleAffectsWorldSize[0m [32mPASS[0m (281 µs)
+[33mSnapshotAtlasReplacementAfterUpdate[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSnapshotAtlasReplacementAfterUpdate[0m [32mPASS[0m (351 µs)
+[33mAtlasReplacementInvalidatesAnimationCache[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mAtlasReplacementInvalidatesAnimationCache[0m [32mPASS[0m (389 µs)
+[36mSpriteTest[0m took 143.959 ms
+[36mParticleFxTest[0m
+[33mPlayAnim[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPlayAnim[0m [32mPASS[0m (809 µs)
+[33mPlayAnimFromCoroutine[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPlayAnimFromCoroutine[0m [32mPASS[0m (777 µs)
+[33mGetSetProperties[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Atlas doesn't contains animation 'anim'. Animation 'test_anim_1' will be used
+WARNING:GAMESYS: Atlas doesn't contains animation 'anim'. Animation 'test_anim_1' will be used
+WARNING:GAMESYS: Atlas doesn't contains animation 'anim'. Animation 'test_anim_1' will be used
+WARNING:GAMESYS: Atlas doesn't contains animation 'anim'. Animation 'test_anim_1' will be used
+[33mGetSetProperties[0m [32mPASS[0m (1641 µs)
+[33mPlayWithOverridesAfterComponentStorageGrowth[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPlayWithOverridesAfterComponentStorageGrowth[0m [32mPASS[0m (321 µs)
+[33mFrustumCullsParticleEmitters[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mFrustumCullsParticleEmitters[0m [32mPASS[0m (291 µs)
+[33mPreparedParticleGeometrySurvivesUpdate[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPreparedParticleGeometrySurvivesUpdate[0m [32mPASS[0m (306 µs)
+[36mParticleFxTest[0m took 7.678 ms
+[36mWindowTest[0m
+[33mMouseLock[0m
+ERROR:SCRIPT: window/mouse_lock.script:15: Argument 1 must be a boolean
+stack traceback:
+  [C]:-1: in function set_mouse_lock
+  window/mouse_lock.script:15: in function <window/mouse_lock.script:5>
+
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMouseLock[0m [32mPASS[0m (587 µs)
+[33mEvents[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mEvents[0m [32mPASS[0m (277 µs)
+[36mWindowTest[0m took 2076 µs
+[36mGamepadConnectedTest[0m
+[33mTestGamepadConnectedInputEvent[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestGamepadConnectedInputEvent[0m [32mPASS[0m (1289 µs)
+[36mGamepadConnectedTest[0m took 1760 µs
+[36mCollisionObject2DTest[0m
+[33mWakingCollisionObjectTest[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mWakingCollisionObjectTest[0m [32mPASS[0m (1449 µs)
+[33mPropertiesTest[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPropertiesTest[0m [32mPASS[0m (682 µs)
+[36mCollisionObject2DTest[0m took 3155 µs
+[36mTrigger2DTest[0m
+[33mEventTriggerFalseTest[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mEventTriggerFalseTest[0m [32mPASS[0m (1021 µs)
+[36mTrigger2DTest[0m took 1486 µs
+[36mGroupAndMaskTest/GroupAndMask2DTest[0m
+[33mGroupAndMaskTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGroupAndMaskTest[0m/0  [32mPASS[0m (825 µs)
+[33mGroupAndMaskTest[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body1-go#co'	, argument: 	'default'
+[33mGroupAndMaskTest[0m/1  [32mPASS[0m (581 µs)
+[33mGroupAndMaskTest[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body2-go#co'	, argument: 	'default'
+[33mGroupAndMaskTest[0m/2  [32mPASS[0m (585 µs)
+[33mGroupAndMaskTest[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: command: 	'group'	, object: 	'body1-go#co'	, argument: 	'user'
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body1-go#co'	, argument: 	'enemy'
+DEBUG:SCRIPT: command: 	'addmask'	, object: 	'body1-go#co'	, argument: 	'enemy'
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body1-go#co'	, argument: 	'default'
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body1-go#co'	, argument: 	'user'
+DEBUG:SCRIPT: command: 	'group'	, object: 	'body2-go#co'	, argument: 	'enemy'
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body2-go#co'	, argument: 	'user'
+DEBUG:SCRIPT: command: 	'addmask'	, object: 	'body2-go#co'	, argument: 	'user'
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body2-go#co'	, argument: 	'default'
+[33mGroupAndMaskTest[0m/3  [32mPASS[0m (633 µs)
+[36mGroupAndMaskTest/GroupAndMask2DTest[0m took 5.688 ms
+[36mGroupAndMaskTest/GroupAndMask3DTest[0m
+[33mGroupAndMaskTest[0m/0 
+INFO:PHYSICS: Created physics context: Bullet v3.25
+[33mGroupAndMaskTest[0m/0  [32mPASS[0m (716 µs)
+[33mGroupAndMaskTest[0m/1 
+INFO:PHYSICS: Created physics context: Bullet v3.25
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body1-go#co'	, argument: 	'default'
+[33mGroupAndMaskTest[0m/1  [32mPASS[0m (559 µs)
+[33mGroupAndMaskTest[0m/2 
+INFO:PHYSICS: Created physics context: Bullet v3.25
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body2-go#co'	, argument: 	'default'
+[33mGroupAndMaskTest[0m/2  [32mPASS[0m (600 µs)
+[33mGroupAndMaskTest[0m/3 
+INFO:PHYSICS: Created physics context: Bullet v3.25
+DEBUG:SCRIPT: command: 	'group'	, object: 	'body1-go#co'	, argument: 	'user'
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body1-go#co'	, argument: 	'enemy'
+DEBUG:SCRIPT: command: 	'addmask'	, object: 	'body1-go#co'	, argument: 	'enemy'
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body1-go#co'	, argument: 	'default'
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body1-go#co'	, argument: 	'user'
+DEBUG:SCRIPT: command: 	'group'	, object: 	'body2-go#co'	, argument: 	'enemy'
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body2-go#co'	, argument: 	'user'
+DEBUG:SCRIPT: command: 	'addmask'	, object: 	'body2-go#co'	, argument: 	'user'
+DEBUG:SCRIPT: command: 	'removemask'	, object: 	'body2-go#co'	, argument: 	'default'
+[33mGroupAndMaskTest[0m/3  [32mPASS[0m (599 µs)
+[36mGroupAndMaskTest/GroupAndMask3DTest[0m took 6.454 ms
+[36mVelocityThreshold2DTest[0m
+[33mVelocityThresholdTest[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mVelocityThresholdTest[0m [32mPASS[0m (1368 µs)
+[36mVelocityThreshold2DTest[0m took 1870 µs
+[36mMiscComponentTest[0m
+[33mDispatchBuffersTest[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Material /misc/dispatch_buffers_test_material_a.materialc has specified a vertex constant named 'view_proj', but it does not exist or isn't used in any of the shaders.
+[33mDispatchBuffersTest[0m [32mPASS[0m (21.014 ms)
+[33mDispatchBuffersInstancingTest[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Material /misc/dispatch_buffers_instancing_test_material_a.materialc has specified a vertex constant named 'view_proj', but it does not exist or isn't used in any of the shaders.
+[33mDispatchBuffersInstancingTest[0m [32mPASS[0m (1531 µs)
+[36mMiscComponentTest[0m took 24.373 ms
+[36mParticleFxComponentTest[0m
+[33mParticleFXRenderScriptMaterialOverrideAttributeSizeMismatch[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mParticleFXRenderScriptMaterialOverrideAttributeSizeMismatch[0m [32mPASS[0m (25.3 ms)
+[36mParticleFxComponentTest[0m took 26.023 ms
+[36mComponentTest[0m
+[33mGetSetCollisionShape[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGetSetCollisionShape[0m [32mPASS[0m (773 µs)
+[33mGetSetErrorCollisionShape[0m
+ERROR:SCRIPT: collision_object/get_set_error_shape.script:20: Shape 'shape_sphere_1' has invalid size '0' for 'diameter' 
+stack traceback:
+  [C]:-1: in function set_shape
+  collision_object/get_set_error_shape.script:20: in function <collision_object/get_set_error_shape.script:18>
+
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGetSetErrorCollisionShape[0m [32mPASS[0m (625 µs)
+[36mComponentTest[0m took 2649 µs
+[36mCursorTest[0m
+[33mGuiFlipbookCursor[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: Test param #1 anim: anim_none_0
+DEBUG:SCRIPT: Test param #2 anim: anim_none_60
+DEBUG:SCRIPT: Test param #3 anim: anim_once
+DEBUG:SCRIPT: Test param #4 anim: anim_once
+DEBUG:SCRIPT: Test param #5 anim: anim_once
+DEBUG:SCRIPT: Test param #6 anim: anim_once_back
+DEBUG:SCRIPT: Test param #7 anim: anim_loop
+DEBUG:SCRIPT: Test param #8 anim: anim_loop_back
+DEBUG:SCRIPT: Test param #9 anim: anim_once_pingpong
+DEBUG:SCRIPT: Test param #10 anim: anim_loop_pingpong
+DEBUG:SCRIPT: Test param #11 anim: anim_once
+DEBUG:SCRIPT: Test param #12 anim: anim_once_back
+DEBUG:SCRIPT: Test param #13 anim: anim_once_back
+DEBUG:SCRIPT: Test param #14 anim: anim_loop
+DEBUG:SCRIPT: Test param #15 anim: anim_loop_back
+DEBUG:SCRIPT: Test param #16 anim: anim_once_pingpong
+DEBUG:SCRIPT: Test param #17 anim: anim_loop_pingpong
+DEBUG:SCRIPT: Test param #18 anim: anim_once
+DEBUG:SCRIPT: Test param #19 anim: anim_once_back
+DEBUG:SCRIPT: Test param #20 anim: anim_loop
+DEBUG:SCRIPT: Test param #21 anim: anim_loop_back
+DEBUG:SCRIPT: Test param #22 anim: anim_once_pingpong
+DEBUG:SCRIPT: Test param #23 anim: anim_loop_pingpong
+DEBUG:SCRIPT: Test param #24 anim: anim_once
+DEBUG:SCRIPT: Test param #25 anim: anim_once_back
+DEBUG:SCRIPT: Test param #26 anim: anim_loop
+DEBUG:SCRIPT: Test param #27 anim: anim_loop_back
+DEBUG:SCRIPT: Test param #28 anim: anim_once_pingpong
+DEBUG:SCRIPT: Test param #29 anim: anim_loop_pingpong
+DEBUG:SCRIPT: Test param #30 anim: anim_once
+DEBUG:SCRIPT: Test param #31 anim: anim_once_back
+DEBUG:SCRIPT: Test param #32 anim: anim_loop
+DEBUG:SCRIPT: Test param #33 anim: anim_loop_back
+DEBUG:SCRIPT: Test param #34 anim: anim_once_pingpong
+DEBUG:SCRIPT: Test param #35 anim: anim_loop_pingpong
+[33mGuiFlipbookCursor[0m [32mPASS[0m (2100 µs)
+[36mCursorTest[0m took 2607 µs
+[36mGuiTest[0m
+[33mGetSetMaterialConstants[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Material /gui/material_material_constant_mixed.materialc has specified a vertex constant named 'view_proj', but it does not exist or isn't used in any of the shaders.
+[33mGetSetMaterialConstants[0m [32mPASS[0m (1134 µs)
+[33mGuiFlipbookAnim[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiFlipbookAnim[0m [32mPASS[0m (583 µs)
+[33mTextureResources[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTextureResources[0m [32mPASS[0m (1083 µs)
+[33mTextureSetterOverrideRefreshesAtlasState[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTextureSetterOverrideRefreshesAtlasState[0m [32mPASS[0m (1080 µs)
+[33mTextureReloadRefreshesAtlasState[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTextureReloadRefreshesAtlasState[0m [32mPASS[0m (605 µs)
+[33mGuiSetNilRemovesRuntimeTextureMapping[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: gui/gui_set_texture_nil.gui_script:78: Property 'textures' is a hashtable, but in options table specified index instead of key.
+DEBUG:SCRIPT: gui/gui_set_texture_nil.gui_script:79: failed to delete texture 'missing_runtime_atlas' (result = -5)
+DEBUG:SCRIPT: gui/gui_set_texture_nil.gui_script:80: 'gui.set()' only supports nil for gui.set(msg.url(), "textures", nil, {key = ...})
+DEBUG:SCRIPT: gui/gui_set_texture_nil.gui_script:81: bad argument #2 to 'set_texture' (hash expected, got nil)
+[33mGuiSetNilRemovesRuntimeTextureMapping[0m [32mPASS[0m (827 µs)
+[33mAsyncTextureAutoSize[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mAsyncTextureAutoSize[0m [32mPASS[0m (84.385 ms)
+[33mMaxDynamictextures[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMaxDynamictextures[0m [32mPASS[0m (1003 µs)
+[33mGuiPreparedTextLayoutInvalidation[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /gui/font_dyn_glyph_bank_test_1.fontc was successfully reloaded.
+[33mGuiPreparedTextLayoutInvalidation[0m [32mPASS[0m (1455 µs)
+[33mGuiPreparedTextLayoutLifecycle[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiPreparedTextLayoutLifecycle[0m [32mPASS[0m (597 µs)
+[33mGuiSelectedBaseStyle[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:FONT: Font style 'missing' is unavailable; using no base style
+WARNING:FONT: Font style 'link' is unavailable; using no base style
+INFO:RESOURCE: /gui/font_dyn_glyph_bank_test_1.fontc was successfully reloaded.
+[33mGuiSelectedBaseStyle[0m [32mPASS[0m (752 µs)
+[33mGuiPreparedRichTextLayout[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiPreparedRichTextLayout[0m [32mPASS[0m (518 µs)
+[33mGuiLayoutObjectsAreCurrentOnDemand[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiLayoutObjectsAreCurrentOnDemand[0m [32mPASS[0m (790 µs)
+[33mGuiRichTextLinkInteraction[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiRichTextLinkInteraction[0m [32mPASS[0m (626 µs)
+[33mGuiRichTextLinkTargetFontReload[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /gui/font_dyn_glyph_bank_test_1.fontc was successfully reloaded.
+[33mGuiRichTextLinkTargetFontReload[0m [32mPASS[0m (587 µs)
+[33mGuiRichTextLinkInteractionUsesRenderLayerOrder[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiRichTextLinkInteractionUsesRenderLayerOrder[0m [32mPASS[0m (537 µs)
+[33mGuiRichTextAnimationAdvances[0m
+ERROR:SCRIPT: gui/valid.gui_script:8: assertion failed!
+stack traceback:
+  [C]:-1: in function assert
+  gui/valid.gui_script:8: in function <gui/valid.gui_script:7>
+
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiRichTextAnimationAdvances[0m [32mPASS[0m (538 µs)
+[33mGuiPreparedTextLayoutDestroyedBeforeDraw[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiPreparedTextLayoutDestroyedBeforeDraw[0m [32mPASS[0m (544 µs)
+[33mPerPropertyRegistration[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPerPropertyRegistration[0m [32mPASS[0m (555 µs)
+[33mPerPropertyPrecedence[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPerPropertyPrecedence[0m [32mPASS[0m (574 µs)
+[33mGuiCustomPropertiesFromDDF[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiCustomPropertiesFromDDF[0m [32mPASS[0m (494 µs)
+[33mGuiCustomPropertiesFromLayoutDDF[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiCustomPropertiesFromLayoutDDF[0m [32mPASS[0m (660 µs)
+[36mGuiTest[0m took 113.929 ms
+[36mGuiResourceTest[0m
+[33mScriptSetFonts[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mScriptSetFonts[0m [32mPASS[0m (1598 µs)
+[36mGuiResourceTest[0m took 2114 µs
+[36mFontTest[0m
+[33mGlyphBankTest[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGlyphBankTest[0m [32mPASS[0m (792 µs)
+[33mGlyphBankRecreateKeepsFontHandle[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGlyphBankRecreateKeepsFontHandle[0m [32mPASS[0m (370 µs)
+[33mDynamicGlyph[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDynamicGlyph[0m [32mPASS[0m (1860 µs)
+[33mDynamicFontPrewarmedGlyphsFitCacheRows[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDynamicFontPrewarmedGlyphsFitCacheRows[0m [32mPASS[0m (9.349 ms)
+[33mDynamicFontFirstBitmapHasNegativeAscent[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDynamicFontFirstBitmapHasNegativeAscent[0m [32mPASS[0m (12.369 ms)
+[33mPrewarmTextRejectsCallbackAfterScriptInstanceReuse[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPrewarmTextRejectsCallbackAfterScriptInstanceReuse[0m [32mPASS[0m (5.356 ms)
+[33mReloadCancelsPendingDynamicFontJobs[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /font/dyn_glyph_bank_test_1.fontc was successfully reloaded.
+[33mReloadCancelsPendingDynamicFontJobs[0m [32mPASS[0m (1732 µs)
+[33mReleaseCancelsPendingDynamicFontJobs[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mReleaseCancelsPendingDynamicFontJobs[0m [32mPASS[0m (1669 µs)
+[33mDynamicFontPrewarmCallbackCanReloadSameFont[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /font/dyn_glyph_bank_test_1.fontc was successfully reloaded.
+[33mDynamicFontPrewarmCallbackCanReloadSameFont[0m [32mPASS[0m (3272 µs)
+[33mDestroyingDynamicFontRejectsNewJobs[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDestroyingDynamicFontRejectsNewJobs[0m [32mPASS[0m (159 µs)
+[33mScriptAddRemoveFont[0m
+ERROR:GAMESYS: The font is already added to the font collection: '/font/valid_copy.ttf'
+ERROR:GAMESYS: [string "font.add_font(hash("/font/dyn_glyph_bank_test..."]:1: Failed to add font '/font/valid_copy.ttf' to font collection '/font/dyn_glyph_bank_test_1.fontc'
+ERROR:GAMESYS: The default font is already added to the font collection: '/font/valid.ttf'
+ERROR:GAMESYS: [string "font.add_font(hash("/font/dyn_glyph_bank_test..."]:1: Failed to add font '' to font collection '/font/dyn_glyph_bank_test_1.fontc'
+ERROR:GAMESYS: The default font is already added to the font collection: '/font/valid.ttf'
+ERROR:GAMESYS: [string "font.add_font(hash("/font/dyn_glyph_bank_test..."]:1: Failed to add font '/font/valid.ttf' to font collection '/font/dyn_glyph_bank_test_1.fontc'
+ERROR:GAMESYS: You cannot remove the default font from the font collection: '/font/valid.ttf'
+ERROR:GAMESYS: [string "font.remove_font(hash("/font/dyn_glyph_bank_t..."]:1: Failed to add font '/font/valid.ttf' to font collection '/font/dyn_glyph_bank_test_1.fontc'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:GAMESYS: Expected errors ->
+INFO:GAMESYS: <- End of expected errors.
+[33mScriptAddRemoveFont[0m [32mPASS[0m (298 µs)
+[33mCompiledFontStyleTable[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCompiledFontStyleTable[0m [32mPASS[0m (504 µs)
+[33mEmptyCompiledFontStyleTable[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /font/authored_styles.fontc was successfully reloaded.
+[33mEmptyCompiledFontStyleTable[0m [32mPASS[0m (342 µs)
+[33mScriptSetNamedFontStyle[0m
+ERROR:GAMESYS: [string "font.set_style('/font/dyn_glyph_bank_test_1.f..."]:1: font.set_style() invalid markup at byte 0
+ERROR:GAMESYS: [string "font.set_style('/font/dyn_glyph_bank_test_1.f..."]:1: font.set_style() invalid markup at byte 15
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:GAMESYS: Expected errors ->
+INFO:GAMESYS: <- End of expected errors.
+[33mScriptSetNamedFontStyle[0m [32mPASS[0m (269 µs)
+[33mOpenTypeResource[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mOpenTypeResource[0m [32mPASS[0m (584 µs)
+[36mFontTest[0m took 46.841 ms
+[36mGuiComponentTest[0m
+[33mGuiTextSingleFlushAndOrder[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGuiTextSingleFlushAndOrder[0m [32mPASS[0m (793 µs)
+[36mGuiComponentTest[0m took 1331 µs
+[36mLabelComponentTest[0m
+[33mLabelTextProperty[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLabelTextProperty[0m [32mPASS[0m (1241 µs)
+[33mLabelUserDataSurvivesPoolCompaction[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLabelUserDataSurvivesPoolCompaction[0m [32mPASS[0m (370 µs)
+[33mLabelSelectedBaseStyles[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLabelSelectedBaseStyles[0m [32mPASS[0m (1170 µs)
+[33mLabelStyleHashReload[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /label/valid.labelc was successfully reloaded.
+[33mLabelStyleHashReload[0m [32mPASS[0m (479 µs)
+[33mLabelPreparedTextLayoutInvalidation[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /font/dyn_glyph_bank_test_1.fontc was successfully reloaded.
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mLabelPreparedTextLayoutInvalidation[0m [32mPASS[0m (4792 µs)
+[33mLabelRichTextAnimationAdvances[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLabelRichTextAnimationAdvances[0m [32mPASS[0m (466 µs)
+[33mLabelRichTextLinkHover[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLabelRichTextLinkHover[0m [32mPASS[0m (488 µs)
+[33mLegacyRichTextLinkWrappedSpriteInteraction[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLegacyRichTextLinkWrappedSpriteInteraction[0m [32mPASS[0m (723 µs)
+[33mLabelPreparedTextLayoutDestroyedBeforeDraw[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLabelPreparedTextLayoutDestroyedBeforeDraw[0m [32mPASS[0m (442 µs)
+[33mLabelPreparedTextLayoutFallbackMutation[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLabelPreparedTextLayoutFallbackMutation[0m [32mPASS[0m (1000 µs)
+[36mLabelComponentTest[0m took 16.968 ms
+[36mLabelTest[0m
+[33mLabelMovesWhenSwitchingPivot[0m
+[33mLabelMovesWhenSwitchingPivot[0m [32mPASS[0m (1 µs)
+[33mLabelMovesWhenChangingPosition[0m
+[33mLabelMovesWhenChangingPosition[0m [32mPASS[0m (0 µs)
+[33mLabelRotatesAroundPivot[0m
+[33mLabelRotatesAroundPivot[0m [32mPASS[0m (0 µs)
+[36mLabelTest[0m took 16 µs
+[36mLabel/ResourceTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /label/valid.labelc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (412 µs)
+[33mTestPreload[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreload[0m/0  [32mPASS[0m (9.281 ms)
+[33mTestPreloadAsync[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestPreloadAsync[0m/0  [32mPASS[0m (8.942 ms)
+[36mLabel/ResourceTest[0m took 41.106 ms
+[36mLabel/ComponentTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+INFO:RESOURCE: /_generated_b40a0f68e7d5900.labelc was successfully reloaded.
+[33mTest[0m/0  [32mPASS[0m (429 µs)
+[33mTestReloadFail[0m/0 
+ERROR:RESOURCE: /_generated_b40a0f68e7d5900.labelc could not be reloaded since it was never loaded before.
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestReloadFail[0m/0  [32mPASS[0m (1196 µs)
+[36mLabel/ComponentTest[0m took 5.664 ms
+[36mLabel/ComponentFailTest[0m
+[33mTest[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RESOURCE: Unable to create resource: /label/material_missing_name.materialc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /label/invalid_label.labelc: FORMAT_ERROR
+WARNING:RESOURCE: Unable to create resource: /label/invalid_label.goc: FORMAT_ERROR
+[33mTest[0m/0  [32mPASS[0m (213 µs)
+[36mLabel/ComponentFailTest[0m took 1380 µs
+[36mBoxRender/BoxRenderTest[0m
+[33mBoxRender[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/0  [32mPASS[0m (1151 µs)
+[33mBoxRender[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/1  [32mPASS[0m (811 µs)
+[33mBoxRender[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/2  [32mPASS[0m (805 µs)
+[33mBoxRender[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/3  [32mPASS[0m (1134 µs)
+[33mBoxRender[0m/4 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/4  [32mPASS[0m (934 µs)
+[33mBoxRender[0m/5 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/5  [32mPASS[0m (775 µs)
+[33mBoxRender[0m/6 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/6  [32mPASS[0m (500 µs)
+[33mBoxRender[0m/7 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/7  [32mPASS[0m (877 µs)
+[33mBoxRender[0m/8 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/8  [32mPASS[0m (698 µs)
+[33mBoxRender[0m/9 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/9  [32mPASS[0m (530 µs)
+[33mBoxRender[0m/10 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBoxRender[0m/10  [32mPASS[0m (948 µs)
+[36mBoxRender/BoxRenderTest[0m took 16.084 ms
+[36mCursor/CursorTest[0m
+[33mCursor[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/0  [32mPASS[0m (256 µs)
+[33mCursor[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/1  [32mPASS[0m (234 µs)
+[33mCursor[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/2  [32mPASS[0m (337 µs)
+[33mCursor[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/3  [32mPASS[0m (294 µs)
+[33mCursor[0m/4 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/4  [32mPASS[0m (247 µs)
+[33mCursor[0m/5 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/5  [32mPASS[0m (254 µs)
+[33mCursor[0m/6 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/6  [32mPASS[0m (319 µs)
+[33mCursor[0m/7 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/7  [32mPASS[0m (281 µs)
+[33mCursor[0m/8 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/8  [32mPASS[0m (250 µs)
+[33mCursor[0m/9 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/9  [32mPASS[0m (371 µs)
+[33mCursor[0m/10 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/10  [32mPASS[0m (225 µs)
+[33mCursor[0m/11 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/11  [32mPASS[0m (241 µs)
+[33mCursor[0m/12 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/12  [32mPASS[0m (238 µs)
+[33mCursor[0m/13 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/13  [32mPASS[0m (297 µs)
+[33mCursor[0m/14 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/14  [32mPASS[0m (270 µs)
+[33mCursor[0m/15 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/15  [32mPASS[0m (234 µs)
+[33mCursor[0m/16 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/16  [32mPASS[0m (225 µs)
+[33mCursor[0m/17 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/17  [32mPASS[0m (219 µs)
+[33mCursor[0m/18 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/18  [32mPASS[0m (240 µs)
+[33mCursor[0m/19 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/19  [32mPASS[0m (228 µs)
+[33mCursor[0m/20 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/20  [32mPASS[0m (218 µs)
+[33mCursor[0m/21 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/21  [32mPASS[0m (209 µs)
+[33mCursor[0m/22 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/22  [32mPASS[0m (238 µs)
+[33mCursor[0m/23 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/23  [32mPASS[0m (213 µs)
+[33mCursor[0m/24 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/24  [32mPASS[0m (217 µs)
+[33mCursor[0m/25 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/25  [32mPASS[0m (297 µs)
+[33mCursor[0m/26 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/26  [32mPASS[0m (245 µs)
+[33mCursor[0m/27 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/27  [32mPASS[0m (262 µs)
+[33mCursor[0m/28 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/28  [32mPASS[0m (219 µs)
+[33mCursor[0m/29 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/29  [32mPASS[0m (220 µs)
+[33mCursor[0m/30 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/30  [32mPASS[0m (228 µs)
+[33mCursor[0m/31 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/31  [32mPASS[0m (249 µs)
+[33mCursor[0m/32 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/32  [32mPASS[0m (256 µs)
+[33mCursor[0m/33 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/33  [32mPASS[0m (301 µs)
+[33mCursor[0m/34 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCursor[0m/34  [32mPASS[0m (234 µs)
+[36mCursor/CursorTest[0m took 25.81 ms
+[36mRenderConstantsTest[0m
+[33mCreateDestroy[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCreateDestroy[0m [32mPASS[0m (1 µs)
+[33mSetGetConstant[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSetGetConstant[0m [32mPASS[0m (91 µs)
+[33mSetGetManyConstants[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSetGetManyConstants[0m [32mPASS[0m (43 µs)
+[33mHashRenderConstants[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mHashRenderConstants[0m [32mPASS[0m (0 µs)
+[36mRenderConstantsTest[0m took 2144 µs
+[36mMaterialTest[0m
+[33mCustomInstanceAttributes[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCustomInstanceAttributes[0m [32mPASS[0m (487 µs)
+[33mCustomVertexAttributes[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCustomVertexAttributes[0m [32mPASS[0m (300 µs)
+[33mTextureTransform2DAttribute[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTextureTransform2DAttribute[0m [32mPASS[0m (103 µs)
+[33mManyVertexStreamsLoad[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mManyVertexStreamsLoad[0m [32mPASS[0m (471 µs)
+[33mManyVertexStreamsAttributeValues[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mManyVertexStreamsAttributeValues[0m [32mPASS[0m (137 µs)
+[33mDynamicVertexAttributes[0m
+ERROR:GAMESYS: Unable to allocate dynamic attributes, max dynamic attribute limit reached (65535).
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDynamicVertexAttributes[0m [32mPASS[0m (367 µs)
+[33mDynamicMatrixVertexAttributes[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDynamicMatrixVertexAttributes[0m [32mPASS[0m (386 µs)
+[33mDynamicVertexAttributesWithGoAnimate[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDynamicVertexAttributesWithGoAnimate[0m [32mPASS[0m (1481 µs)
+[33mDynamicVertexAttributesGoSetGetSparse[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDynamicVertexAttributesGoSetGetSparse[0m [32mPASS[0m (773 µs)
+[33mDynamicVertexAttributesCount[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDynamicVertexAttributesCount[0m [32mPASS[0m (586 µs)
+[33mGoGetSetConstants[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGoGetSetConstants[0m [32mPASS[0m (2349 µs)
+[33mTestUniformBuffersLayout[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:RENDER: Type for uniform lights.position is not supported (13)
+WARNING:RENDER: Type for uniform lights.color_intensity.color is not supported (13)
+WARNING:RENDER: Type for uniform lights.color_intensity.intensity is not supported (6)
+WARNING:RENDER: Type for uniform light_count is not supported (6)
+[33mTestUniformBuffersLayout[0m [32mPASS[0m (198 µs)
+[33mTestLightBuffer[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestLightBuffer[0m [32mPASS[0m (186 µs)
+[33mTestLightBufferSmallerThanProjectMax[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestLightBufferSmallerThanProjectMax[0m [32mPASS[0m (170 µs)
+[33mTestLightBufferAbsent[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestLightBufferAbsent[0m [32mPASS[0m (114 µs)
+[36mMaterialTest[0m took 16.287 ms
+[36mMiscTests[0m
+[33mMaterialModule[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Material /misc/material_compute_modules/material_module.materialc has specified a fragment constant named 'u_user_not_found', but it does not exist or isn't used in any of the shaders.
+[33mMaterialModule[0m [32mPASS[0m (1761 µs)
+[33mComputeModule[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+WARNING:GAMESYS: Compute /misc/material_compute_modules/compute_module.computec has specified a constant named 'proj', but it does not exist or isn't used in the shader.
+WARNING:GAMESYS: Compute /misc/material_compute_modules/compute_module.computec has specified a constant named 'view', but it does not exist or isn't used in the shader.
+WARNING:GAMESYS: Compute /misc/material_compute_modules/compute_module.computec has specified a constant named 'world', but it does not exist or isn't used in the shader.
+WARNING:GAMESYS: Compute /misc/material_compute_modules/compute_module.computec has specified a constant named 'u_user_not_found', but it does not exist or isn't used in the shader.
+[33mComputeModule[0m [32mPASS[0m (966 µs)
+[36mMiscTests[0m took 3761 µs
+[36mMaterialResourceTest[0m
+[33mTestLightBufferWriteIntoUbo[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestLightBufferWriteIntoUbo[0m [32mPASS[0m (673 µs)
+[33mTestLightBufferWriteIntoUboAfterDelete[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestLightBufferWriteIntoUboAfterDelete[0m [32mPASS[0m (167 µs)
+[33mTestLightBufferWriteIntoUboCompute[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mTestLightBufferWriteIntoUboCompute[0m [32mPASS[0m (512 µs)
+[36mMaterialResourceTest[0m took 2572 µs
+[36mShaderTest[0m
+[33mCompute[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mCompute[0m [32mPASS[0m (144 µs)
+[33mComputeResource[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mComputeResource[0m [32mPASS[0m (221 µs)
+[33mComputeLightBuffer[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mComputeLightBuffer[0m [32mPASS[0m (145 µs)
+[33mComputeLightBufferAbsent[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mComputeLightBufferAbsent[0m [32mPASS[0m (119 µs)
+[36mShaderTest[0m took 2413 µs
+[36mModelTest[0m
+[33mGetAABB[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mGetAABB[0m [32mPASS[0m (2698 µs)
+[33mPlayAnim[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPlayAnim[0m [32mPASS[0m (1.20042 s)
+[33mPlayAnimMessage[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPlayAnimMessage[0m [32mPASS[0m (1.22626 s)
+[33mPlayAnimMissingAnimation[0m
+ERROR:GAMESYS: 'collection:/go#fox' has no animation named 'Missing'
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPlayAnimMissingAnimation[0m [32mPASS[0m (41.967 ms)
+[33mBlendWeightsScript[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mBlendWeightsScript[0m [32mPASS[0m (38.149 ms)
+[33mMultiMaterialVertexSpaceRenderBatching[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMultiMaterialVertexSpaceRenderBatching[0m [32mPASS[0m (1250 µs)
+[33mMorphTargetInstancedWeightsBatch[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMorphTargetInstancedWeightsBatch[0m [32mPASS[0m (1059 µs)
+[33mInstancedRenderBufferUsesOneBackingPerDispatch[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mInstancedRenderBufferUsesOneBackingPerDispatch[0m [32mPASS[0m (316 µs)
+[33mSelectedMeshUsesInstantiatedMorphModelId[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mSelectedMeshUsesInstantiatedMorphModelId[0m [32mPASS[0m (374 µs)
+[33mMorphTargetUniformWeightsSplitInstancedBatches[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMorphTargetUniformWeightsSplitInstancedBatches[0m [32mPASS[0m (822 µs)
+[33mMorphTargetInstancedWeightsClampedPerMesh[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMorphTargetInstancedWeightsClampedPerMesh[0m [32mPASS[0m (700 µs)
+[33mMorphTargetUniformWeightsClampedPerMesh[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMorphTargetUniformWeightsClampedPerMesh[0m [32mPASS[0m (643 µs)
+[33mDynamicVertexAttributes[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mDynamicVertexAttributes[0m [32mPASS[0m (790 µs)
+[33mMeshAttributeRenderDataPurge[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMeshAttributeRenderDataPurge[0m [32mPASS[0m (593 µs)
+[33mMeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap[0m [32mPASS[0m (2515 µs)
+[33mMeshAttributeRenderDataPurgeAcrossFrameTickWrap[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMeshAttributeRenderDataPurgeAcrossFrameTickWrap[0m [32mPASS[0m (556 µs)
+[33mPbrProperties[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mPbrProperties[0m [32mPASS[0m (3874 µs)
+[36mModelTest[0m took 2.53588 s
+[36mBufferMetadataTest[0m
+[33mMetadataLuaApi[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mMetadataLuaApi[0m [32mPASS[0m (479 µs)
+[36mBufferMetadataTest[0m took 1137 µs
+[36mScriptComponent/ScriptComponentTest[0m
+[33mGetComponentFromLua[0m/0 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/camera/test_comp.goc' with component type 'camerac', and component 'camera'
+[33mGetComponentFromLua[0m/0  [32mPASS[0m (40.363 ms)
+[33mGetComponentFromLua[0m/1 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/factory/test_comp.goc' with component type 'factoryc', and component 'factory'
+[33mGetComponentFromLua[0m/1  [32mPASS[0m (38.157 ms)
+[33mGetComponentFromLua[0m/2 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/label/test_comp.goc' with component type 'labelc', and component 'label'
+[33mGetComponentFromLua[0m/2  [32mPASS[0m (38.011 ms)
+[33mGetComponentFromLua[0m/3 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/light/test_comp.goc' with component type 'lightc', and component 'light'
+[33mGetComponentFromLua[0m/3  [32mPASS[0m (34.307 ms)
+[33mGetComponentFromLua[0m/4 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/mesh/test_comp.goc' with component type 'meshc', and component 'mesh'
+[33mGetComponentFromLua[0m/4  [32mPASS[0m (34.054 ms)
+[33mGetComponentFromLua[0m/5 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/model/test_comp.goc' with component type 'modelc', and component 'model'
+WARNING:GAMESYS: Model has animations but no skeleton set. Only morph target animations will be used.
+[33mGetComponentFromLua[0m/5  [32mPASS[0m (41.472 ms)
+[33mGetComponentFromLua[0m/6 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/particlefx/test_comp.goc' with component type 'particlefxc', and component 'particlefx'
+[33mGetComponentFromLua[0m/6  [32mPASS[0m (41.682 ms)
+[33mGetComponentFromLua[0m/7 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/sound/test_comp.goc' with component type 'soundc', and component 'sound'
+[33mGetComponentFromLua[0m/7  [32mPASS[0m (42.701 ms)
+[33mGetComponentFromLua[0m/8 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/sprite/test_comp.goc' with component type 'spritec', and component 'sprite'
+[33mGetComponentFromLua[0m/8  [32mPASS[0m (41.676 ms)
+[33mGetComponentFromLua[0m/9 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/tilegrid/test_comp.goc' with component type 'tilemapc', and component 'tilemap'
+[33mGetComponentFromLua[0m/9  [32mPASS[0m (37.42 ms)
+[33mGetComponentFromLua[0m/10 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/collision_object/test_comp.goc' with component type 'collisionobjectc', and component 'collisionobject'
+[33mGetComponentFromLua[0m/10  [32mPASS[0m (38.4 ms)
+[33mGetComponentFromLua[0m/11 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/collection_proxy/test_comp.goc' with component type 'collectionproxyc', and component 'collectionproxy'
+[33mGetComponentFromLua[0m/11  [32mPASS[0m (35.183 ms)
+[33mGetComponentFromLua[0m/12 
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+Testing '/collection_factory/test_comp.goc' with component type 'collectionfactoryc', and component 'collectionfactory'
+[33mGetComponentFromLua[0m/12  [32mPASS[0m (41.847 ms)
+[36mScriptComponent/ScriptComponentTest[0m took 0.573216 s
+[36mScriptImageTest[0m
+[33mTestImage[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: Loading	src/gamesys/test/image/color_check_2x2.png.raw
+DEBUG:SCRIPT: Loading	src/gamesys/test/image/color_check_2x2.png.raw
+DEBUG:SCRIPT: Loading	src/gamesys/test/image/color_check_2x2.jpg.raw
+DEBUG:SCRIPT: Loading	src/gamesys/test/image/color_check_2x2_16.png.raw
+DEBUG:SCRIPT: Loading	src/gamesys/test/image/color_check_2x2_indexed.png.raw
+[33mTestImage[0m [32mPASS[0m (2457 µs)
+[33mTestImageBuffer[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: Testing: src/gamesys/test/image/color_check_2x2.png.raw
+DEBUG:SCRIPT: Testing: src/gamesys/test/image/color_check_2x2.jpg.raw
+DEBUG:SCRIPT: Testing: src/gamesys/test/image/color_check_2x2_16.png.raw
+DEBUG:SCRIPT: Testing: src/gamesys/test/image/color_check_2x2_indexed.png.raw
+DEBUG:SCRIPT: Testing (inverted): src/gamesys/test/image/color_check_2x2.png.raw
+DEBUG:SCRIPT: Testing (inverted): src/gamesys/test/image/color_check_2x2.jpg.raw
+DEBUG:SCRIPT: Testing (inverted): src/gamesys/test/image/color_check_2x2_16.png.raw
+DEBUG:SCRIPT: Testing (inverted): src/gamesys/test/image/color_check_2x2_indexed.png.raw
+[33mTestImageBuffer[0m [32mPASS[0m (1423 µs)
+[36mScriptImageTest[0m took 8.565 ms
+[36mScriptBufferTest[0m
+[33mPushCheckBuffer[0m
+[33mPushCheckBuffer[0m [32mPASS[0m (2 µs)
+[33mPushCheckUnpackBuffer[0m
+[33mPushCheckUnpackBuffer[0m [32mPASS[0m (1 µs)
+[33mIsBuffer[0m
+[33mIsBuffer[0m [32mPASS[0m (1 µs)
+[33mPrintBuffer[0m
+DEBUG:SCRIPT: buffer.buffer(count = 256, version = 0, handle = 65536, { hash("rgb"), buffer.VALUE_TYPE_UINT16, 3 }, { hash("a"), buffer.VALUE_TYPE_FLOAT32, 1 })
+DEBUG:SCRIPT: buffer.bufferstream({ hash("rgb"), buffer.VALUE_TYPE_UINT16, 3 })
+[33mPrintBuffer[0m [32mPASS[0m (24 µs)
+[33mGetCount[0m
+[33mGetCount[0m [32mPASS[0m (5 µs)
+[33mCreateBuffer[0m
+[33mCreateBuffer[0m [32mPASS[0m (39 µs)
+[33mGetBytes[0m
+[33mGetBytes[0m [32mPASS[0m (112 µs)
+[33mIndexing[0m
+[33mIndexing[0m [32mPASS[0m (201 µs)
+[33mCopyStream[0m
+ERROR:GAMESYS: [string "  local srcbuffer = buffer.create( 16*16, { {..."]:1: Trying to write too many values: Stream length: 256, Offset: 0, Values to copy: 266
+ERROR:GAMESYS: [string "  local srcbuffer = buffer.create( 16*16, { {..."]:1: Trying to write too many values: Stream length: 256, Offset: 5, Values to copy: 256
+ERROR:GAMESYS: [string "  local srcbuffer = buffer.create( 16*16, { {..."]:1: Trying to read too many values: Stream length: 256, Offset: 5, Values to copy: 256
+WARNING:GAMESYS: Expected error outputs ->
+WARNING:GAMESYS: <- Expected error outputs end.
+[33mCopyStream[0m [32mPASS[0m (403 µs)
+[33mRefCount[0m
+DEBUG:SCRIPT: buffer.buffer(count = 256, version = 0, handle = 65536, { hash("rgb"), buffer.VALUE_TYPE_UINT16, 3 }, { hash("a"), buffer.VALUE_TYPE_FLOAT32, 1 })
+[33mRefCount[0m [32mPASS[0m (100 µs)
+[36mScriptBufferTest[0m took 4374 µs
+[36mScriptBufferCopySequence/ScriptBufferCopyTest[0m
+[33mCopyBuffer[0m/0 
+[33mCopyBuffer[0m/0  [32mPASS[0m (94 µs)
+[33mCopyBuffer[0m/1 
+[33mCopyBuffer[0m/1  [32mPASS[0m (80 µs)
+[33mCopyBuffer[0m/2 
+[33mCopyBuffer[0m/2  [32mPASS[0m (79 µs)
+[33mCopyBuffer[0m/3 
+[33mCopyBuffer[0m/3  [32mPASS[0m (75 µs)
+[33mCopyBuffer[0m/4 
+[33mCopyBuffer[0m/4  [32mPASS[0m (73 µs)
+[33mCopyBuffer[0m/5 
+ERROR:GAMESYS: [string " local srcbuffer = buffer.create( 64, { {name..."]:1: Trying to write too many elements: Destination buffer length: 64, Offset: 0, Values to copy: 100
+WARNING:GAMESYS: Expected error outputs ->
+WARNING:GAMESYS: <- Expected error outputs end.
+[33mCopyBuffer[0m/5  [32mPASS[0m (88 µs)
+[33mCopyBuffer[0m/6 
+ERROR:GAMESYS: [string " local srcbuffer = buffer.create( 64, { {name..."]:1: Trying to read too many elements: Destination buffer length: 64, Offset: 0, Values to copy: 32
+WARNING:GAMESYS: Expected error outputs ->
+WARNING:GAMESYS: <- Expected error outputs end.
+[33mCopyBuffer[0m/6  [32mPASS[0m (92 µs)
+[33mCopyBuffer[0m/7 
+ERROR:GAMESYS: [string " local srcbuffer = buffer.create( 64, { {name..."]:1: Trying to write too many elements: Destination buffer length: 64, Offset: 48, Values to copy: 32
+WARNING:GAMESYS: Expected error outputs ->
+WARNING:GAMESYS: <- Expected error outputs end.
+[33mCopyBuffer[0m/7  [32mPASS[0m (93 µs)
+[33mCopyBuffer[0m/8 
+ERROR:GAMESYS: [string " local srcbuffer = buffer.create( 64, { {name..."]:1: Invalid elements to copy: 0
+WARNING:GAMESYS: Expected error outputs ->
+WARNING:GAMESYS: <- Expected error outputs end.
+[33mCopyBuffer[0m/8  [32mPASS[0m (93 µs)
+[36mScriptBufferCopySequence/ScriptBufferCopyTest[0m took 3708 µs
+[36mSysTest[0m
+[33mLoadBufferSync[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: sys/load_buffer_sync.script:13: sys.load_buffer failed to load the resource (code=-3)
+[33mLoadBufferSync[0m [32mPASS[0m (1179 µs)
+[33mLoadBufferASync[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+DEBUG:SCRIPT: Running async buffer test 'simple'
+WARNING:GAMESYS: sys.load_buffer_async called with path 'src/gamesys/test/sys/sys_buffer_test_content.raw' that is already pending
+DEBUG:SCRIPT: Running async buffer test 'large_file'
+DEBUG:SCRIPT: Running async buffer test 'invalid_files'
+DEBUG:SCRIPT: Running async buffer test 'massive amounts of requests'
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+DEBUG:SCRIPT: Running async buffer test 'creating new requests in callback'
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+WARNING:GAMESYS: sys.load_buffer_async called with path '/sys/sys_buffer_test_content.rawc' that is already pending
+[33mLoadBufferASync[0m [32mPASS[0m (0.662261 s)
+[33mLoadBufferAsyncFromCoroutine[0m
+INFO:PHYSICS: Created physics context: Box2D v2.2.1
+[33mLoadBufferAsyncFromCoroutine[0m [32mPASS[0m (67.211 ms)
+[36mSysTest[0m took 0.734544 s
+Ran 563 tests, with 25416 assertions in 6.38271 s
+563 tests [32mPASSED[0m and 0 skipped

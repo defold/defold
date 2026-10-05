@@ -57,6 +57,8 @@ namespace dmGraphics
     void GetGraphicsPacketStats(GraphicsPacketStats* stats);
     bool GetGraphicsPacketBufferSize(uintptr_t buffer, uint32_t* size);
     void ForgetGraphicsPacketBuffer(uintptr_t buffer);
+    void RememberCapturedGraphicsBuffer(uintptr_t buffer, uint32_t size);
+    void RememberCapturedGraphicsViewport(int32_t x, int32_t y, uint32_t width, uint32_t height);
     bool IsGraphicsPacketOwner();
     // Adapter-table installation is internal, also used by the null tests.
     struct GraphicsAdapterFunctionTable;

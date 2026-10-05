@@ -2,9 +2,10 @@
 <body style="margin:0;background:#121824"><canvas id="canvas" tabindex="0"></canvas>
 <script>
 const q=new URLSearchParams(location.search), mode=q.get('mode')||'direct';
-const policies={direct:[0,0,0],inline:[0,0,0],threaded:[1,0,0],scheduled:[1,1,0],cached_raf:[1,0,1],cached_completion:[1,1,1],cached_retry:[1,2,1]};
+const policies={direct:[0,0,0],inline:[0,0,0],threaded:[1,0,0],scheduled:[1,1,0],cached_raf:[1,0,1],cached_completion:[1,1,1],cached_retry:[1,2,1],serialized:[1,0,1],barrier:[1,0,1],overlap:[1,0,1],overlap_completion:[1,1,1],overlap_paced:[1,3,1],overlap_ready:[1,4,1],barrier_completion:[1,1,1]};
 if(!policies[mode])throw Error('Unknown benchmark mode: '+mode);
 const [threaded,schedule,cacheWindow]=policies[mode];
+const replay=q.get('scene')==='replay';
 const bunny=q.get('scene')==='bunny', width=bunny?720:1280, height=720;
 const canvas=document.getElementById('canvas');
 canvas.width=width;canvas.height=height;canvas.style.width=width+'px';canvas.style.height=height+'px';
@@ -12,9 +13,15 @@ if(!crossOriginIsolated) throw Error('COOP/COEP required');
 var Module={canvas,preRun:[function(){FS.mkdir('/data');}],arguments:[
  '--config=render.poc_pipeline='+(mode==='direct'?'legacy':'component'),
  '--config=render.poc_threaded='+threaded,
+ '--config=render.poc_web_components='+(['serialized','barrier','overlap','overlap_completion','overlap_paced','overlap_ready','barrier_completion'].includes(mode)?1:0),
+ '--config=render.poc_web_overlap='+(['barrier','overlap','overlap_completion','overlap_paced','overlap_ready','barrier_completion'].includes(mode)?1:0),
+ '--config=render.poc_web_prepare_overlap='+(mode.startsWith('barrier')?0:1),
  '--config=render.poc_web_schedule='+schedule,
+ '--config=render.poc_web_deferred_sprites='+(q.get('deferred_sprites')||0),
+ '--config=render.poc_web_owned_model_buffers='+(q.get('owned_models')||0),
  '--config=render.poc_web_cache_window='+cacheWindow,
  '--config=render.poc_web_metrics='+ (q.get('metrics')==='0'?0:1),
+ '--config=render.poc_web_diagnostics='+(q.get('diagnostics')||0),
  '--config=render.poc_web_stack_kb='+(q.get('stack_kb')||5120),
  '--config=render.poc_web_stack_measure='+(q.get('stack_measure')||0),
  '--config=display.high_dpi='+(bunny?1:0),'--config=display.width='+width,'--config=display.height='+height,
@@ -23,12 +30,22 @@ var Module={canvas,preRun:[function(){FS.mkdir('/data');}],arguments:[
  '--config=benchmark.measure_seconds='+(q.get('seconds')||15),
  '--config=benchmark.cooldown_seconds=0.2',
  '--config=benchmark.memory_interval=2',
+ '--config=benchmark.memory_diagnostic='+(q.get('memory_diagnostic')||0),
+ '--config=benchmark.memory_samples='+(q.get('memory_samples')||1),
  '--config=render.mixed_preparation=0',
- '--config=sound.use_thread=0','--config=sound.max_sound_instances=0'],
+ '--config=sound.use_thread=0',...(replay?[]:['--config=sound.max_sound_instances=0'])],
  print:s=>{console.log(s);(window.lines||=[]).push(s)},printErr:s=>{console.error(s);(window.lines||=[]).push(s)},
  onExit:code=>window.exitCode=code,onAbort:reason=>window.abortReason=String(reason)};
 if(q.get('metrics')!=='0')Module.arguments.push('--config=render.sprite_trace=/trace.csv');
 if(bunny) Module.arguments.push('--config=bootstrap.main_collection=/example/bunnymark.collectionc','--config=bunnymark.initial_count='+(q.get('count')||30000));
+if(q.get('scene')==='geometry')Module.arguments.push('--config=bootstrap.main_collection=/geometry_benchmark.collectionc');
 for(const key of ['count','simulation_iterations','moving_fraction','sprite_size','passes','visible_fraction']) if(q.has(key))Module.arguments.push('--config=benchmark.'+key+'='+q.get(key));
+if(replay){
+ Module.arguments.push('--config=replay.enabled=1','--config=replay.output_path=/data/replay.json','--config=replay.cooldown_seconds=2','--config=engine.poc_replay_hz=60');
+ for(const [key,value] of Object.entries(JSON.parse(q.get('config')||'{}'))){
+  if(!['physics.debug','engine.fixed_update_frequency','gui.max_particle_count','graphics.max_draw_calls','graphics.max_font_batches'].includes(key))throw Error('Unexpected replay setting: '+key);
+  Module.arguments.push('--config='+key+'='+value);
+ }
+}
 Module.arguments.push('/content/game.projectc');
 </script><script src="dmengine_release.js"></script>

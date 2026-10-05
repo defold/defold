@@ -1,0 +1,50 @@
+[
+  {
+    "count": 200,
+    "mode": "direct",
+    "pixels": {
+      "world mesh": 2000,
+      "local mesh": 2000,
+      "static": 1200,
+      "cpu": 1200,
+      "gpu": 1200,
+      "instanced": 3200
+    }
+  },
+  {
+    "count": 200,
+    "mode": "overlap",
+    "pixels": {
+      "world mesh": 2000,
+      "local mesh": 2000,
+      "static": 1200,
+      "cpu": 1200,
+      "gpu": 1200,
+      "instanced": 3200
+    }
+  },
+  {
+    "count": 1000,
+    "mode": "direct",
+    "pixels": {
+      "world mesh": 10000,
+      "local mesh": 10000,
+      "static": 6000,
+      "cpu": 10000,
+      "gpu": 6000,
+      "instanced": 12000
+    }
+  },
+  {
+    "count": 1000,
+    "mode": "overlap",
+    "pixels": {
+      "world mesh": 10000,
+      "local mesh": 10000,
+      "static": 6000,
+      "cpu": 6000,
+      "gpu": 6000,
+      "instanced": 16000
+    }
+  }
+]

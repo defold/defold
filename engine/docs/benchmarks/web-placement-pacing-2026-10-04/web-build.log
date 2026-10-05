@@ -1,0 +1,66 @@
+-- Found Java: /Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java (found suitable version "25.0.1", minimum required is "25") found components: Runtime Development
+-- HOST_PLATFORM: arm64-macos
+-- sdk_emscripten: Toolchain file: /Users/jhonny/dev/defold/tmp/web-poc-emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+-- sdk_emscripten: EMSCRIPTEN: /Users/jhonny/dev/defold/tmp/web-poc-emsdk/upstream/emscripten
+-- Defold CMake settings: CMAKE_GENERATOR=Ninja, TARGET_PLATFORM=wasm_pthread-web, CMAKE_BUILD_TYPE=RelWithDebInfo, BUILD_TESTS=ON
+-- Defold engine libs: testmain;dlib;jni;texc;modelc;shaderc;ddf;platform;graphics;font;particle;lua;hid;input;physics;resource;extension;script;render;rig;gameobject;gui;sound;liveupdate;crash;gamesys;tools;record;profiler;engine;sdk
+-- Skipping test_lua_csharp for wasm_pthread-web; NativeAOT test is currently enabled for macOS desktop targets
+-- Symbols: GraphicsAdapterOpenGL
+-- Found Java: /Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java (found version "25.0.1") found components: Runtime Development
+-- Found Java: /Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java (found version "25.0.1") found components: Runtime
+-- Configuring done (7.8s)
+-- Generating done (0.6s)
+-- Build files have been written to: /Users/jhonny/dev/defold/engine/build/wasm-pthread-component-poc
+[0/2] Re-checking globbed directories...
+[1/4] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/engine.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render_frame.h:21:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[2/4] Linking CXX static library /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/libengine_release.a
+[3/4] Linking CXX executable /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/dmengine_release.js
+em++: warning: -pthread + ALLOW_MEMORY_GROWTH may run non-wasm code slowly, see https://github.com/WebAssembly/design/issues/1271 [-Wpthreads-mem-growth]
+warning: no output file specified, not emitting output
+-- Found Java: /Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java (found suitable version "25.0.1", minimum required is "25") found components: Runtime Development
+-- HOST_PLATFORM: arm64-macos
+-- sdk_emscripten: Toolchain file: /Users/jhonny/dev/defold/tmp/web-poc-emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+-- sdk_emscripten: EMSCRIPTEN: /Users/jhonny/dev/defold/tmp/web-poc-emsdk/upstream/emscripten
+-- Defold CMake settings: CMAKE_GENERATOR=Ninja, TARGET_PLATFORM=wasm_pthread-web, CMAKE_BUILD_TYPE=RelWithDebInfo, BUILD_TESTS=ON
+-- Defold engine libs: testmain;dlib;jni;texc;modelc;shaderc;ddf;platform;graphics;font;particle;lua;hid;input;physics;resource;extension;script;render;rig;gameobject;gui;sound;liveupdate;crash;gamesys;tools;record;profiler;engine;sdk
+-- Skipping test_lua_csharp for wasm_pthread-web; NativeAOT test is currently enabled for macOS desktop targets
+-- Symbols: GraphicsAdapterOpenGL
+-- Found Java: /Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java (found version "25.0.1") found components: Runtime Development
+-- Found Java: /Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java (found version "25.0.1") found components: Runtime
+-- Configuring done (7.5s)
+-- Generating done (0.6s)
+-- Build files have been written to: /Users/jhonny/dev/defold/engine/build/wasm-pthread-component-poc
+[0/2] Re-checking globbed directories...
+[1/2] Linking CXX executable /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/dmengine_release.js
+em++: warning: -pthread + ALLOW_MEMORY_GROWTH may run non-wasm code slowly, see https://github.com/WebAssembly/design/issues/1271 [-Wpthreads-mem-growth]
+warning: no output file specified, not emitting output
+-- Found Java: /Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java (found suitable version "25.0.1", minimum required is "25") found components: Runtime Development
+-- HOST_PLATFORM: arm64-macos
+-- sdk_emscripten: Toolchain file: /Users/jhonny/dev/defold/tmp/web-poc-emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+-- sdk_emscripten: EMSCRIPTEN: /Users/jhonny/dev/defold/tmp/web-poc-emsdk/upstream/emscripten
+-- Defold CMake settings: CMAKE_GENERATOR=Ninja, TARGET_PLATFORM=wasm_pthread-web, CMAKE_BUILD_TYPE=RelWithDebInfo, BUILD_TESTS=ON
+-- Defold engine libs: testmain;dlib;jni;texc;modelc;shaderc;ddf;platform;graphics;font;particle;lua;hid;input;physics;resource;extension;script;render;rig;gameobject;gui;sound;liveupdate;crash;gamesys;tools;record;profiler;engine;sdk
+-- Skipping test_lua_csharp for wasm_pthread-web; NativeAOT test is currently enabled for macOS desktop targets
+-- Symbols: GraphicsAdapterOpenGL
+-- Found Java: /Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java (found version "25.0.1") found components: Runtime Development
+-- Found Java: /Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java (found version "25.0.1") found components: Runtime
+-- Configuring done (7.6s)
+-- Generating done (0.6s)
+-- Build files have been written to: /Users/jhonny/dev/defold/engine/build/wasm-pthread-component-poc
+[0/2] Re-checking globbed directories...
+[1/2] Linking CXX executable /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/dmengine_release.js
+em++: warning: -pthread + ALLOW_MEMORY_GROWTH may run non-wasm code slowly, see https://github.com/WebAssembly/design/issues/1271 [-Wpthreads-mem-growth]
+warning: no output file specified, not emitting output

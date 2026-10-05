@@ -1,0 +1,43 @@
+-- Each visible group has two meshes and five models, including CPU, GPU and
+-- instanced animation. The small triangles isolate component and draw overhead.
+local memory_probe = require "benchmark.memory_probe"
+
+function init(self)
+    sys.set_error_handler(function(_, message, traceback)
+        io.write("WEB_ERROR " .. message .. " " .. traceback .. "\n"); io.flush(); sys.exit(1)
+    end)
+    self.count = sys.get_config_int("benchmark.count", 200)
+    local columns = 20
+    local rows = math.ceil(self.count / columns)
+    local scale = math.min(0.11, 700 / (rows * 50))
+    for i = 0, self.count - 1 do
+        factory.create("#factory", vmath.vector3(8 + (i % columns) * 63, 5 + math.floor(i / columns) * 700 / rows - 260 * scale, 0), nil, nil, scale)
+    end
+    self.bench_start = sprite._snapshot_clock()
+    self.bench_phase = "warmup"
+    self.bench_frames = 0
+    memory_probe.init(self)
+    io.write("WEB_GEOMETRY_BENCH groups=" .. self.count .. " meshes=" .. self.count * 2 .. " models=" .. self.count * 5 .. "\n"); io.flush()
+end
+
+function update(self, dt)
+    memory_probe.update(self)
+    local now = sprite._snapshot_clock()
+    if self.bench_phase == "warmup" and now - self.bench_start >= sys.get_config_number("benchmark.warmup_seconds", 5) then
+        memory_probe.collect("start")
+        self.bench_start = sprite._snapshot_clock()
+        self.bench_phase = "measure"
+        io.write("WEB_PHASE measure\n"); io.flush()
+    elseif self.bench_phase == "measure" then
+        self.bench_frames = self.bench_frames + 1
+        if now - self.bench_start >= sys.get_config_number("benchmark.measure_seconds", 15) then
+            io.write("WEB_RESULT " .. json.encode({valid=true, measurement_clock_start=self.bench_start,
+                elapsed_seconds=now-self.bench_start, update_intervals_per_second=self.bench_frames/(now-self.bench_start),
+                engine=sys.get_engine_info(), count=self.count}) .. "\n"); io.flush()
+            memory_probe.collect("end")
+            self.bench_phase = "done"
+            sys.exit(0)
+        end
+    end
+    memory_probe.finish(self)
+end

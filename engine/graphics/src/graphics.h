@@ -31,8 +31,8 @@
 
 namespace dmGraphics
 {
-    // Internal PoC upload snapshots. Capture on the producer while its consumer
-    // is idle; replay on the consumer before drawing. Resource barriers protect
+    // Internal PoC upload snapshots. Capture is thread-local so a producer may
+    // prepare one slot while the consumer replays another. Resource barriers protect
     // handle lifetime. Overflow rejects the complete frame, never falls back.
     struct VertexUpload
     {
@@ -40,22 +40,52 @@ namespace dmGraphics
         uint32_t m_Offset;
         uint32_t m_Size;
         uint32_t m_DataOffset;
+        uint32_t m_OwnedIndex; // UINT32_MAX for the copied payload arena
         BufferUsage m_Usage;
         bool m_SubData;
         bool m_IndexBuffer;
+        uint32_t m_TextureIndex; // UINT32_MAX for a buffer upload
+    };
+    struct CapturedTextureUpload
+    {
+        HContext m_Context;
+        HTexture m_Texture;
+        TextureParams m_Params; // m_Data is null; bytes are owned by the batch.
+    };
+    struct OwnedVertexUpload
+    {
+        dmArray<uint8_t> m_Data;
+        bool m_Open;
+        OwnedVertexUpload() : m_Open(false) {}
     };
     struct VertexUploadBatch
     {
         enum { MAX_UPLOADS = 4096, MAX_PAYLOAD = 16 * 1024 * 1024, MAX_GROWTH_BYTES = 32 * 1024 * 1024 };
         dmArray<VertexUpload> m_Uploads;
         dmArray<uint8_t> m_Data;
+        dmArray<CapturedTextureUpload> m_Textures;
+        dmArray<OwnedVertexUpload*> m_Owned;
+        uint32_t m_OwnedCursor;
+        uint64_t m_OwnedBytes;
+        bool m_OwnedEnabled;
         uint64_t m_GrowthPeak;
         bool m_Failed;
         bool m_CaptureIndexUploads;
         bool m_ProtectResources;
-        VertexUploadBatch() : m_GrowthPeak(sizeof(*this)), m_Failed(false), m_CaptureIndexUploads(false), m_ProtectResources(false) {}
+        bool m_CaptureTextures;
+        int32_t m_ViewportX, m_ViewportY;
+        uint32_t m_ViewportWidth, m_ViewportHeight;
+        ~VertexUploadBatch();
+        VertexUploadBatch() : m_OwnedCursor(0), m_OwnedBytes(0), m_OwnedEnabled(false), m_GrowthPeak(sizeof(*this)), m_Failed(false), m_CaptureIndexUploads(false), m_ProtectResources(false), m_CaptureTextures(false) {}
     };
-    void BeginVertexUploadCapture(VertexUploadBatch* batch, bool capture_indices = false);
+    // Lend a retired frame's reusable array to the producer while it generates
+    // geometry. End returns immutable storage to that frame before upload capture.
+    // UINT32_MAX leaves the normal component scratch path unchanged.
+    uint32_t BeginOwnedVertexUpload(dmArray<uint8_t>& scratch);
+    void* EndOwnedVertexUpload(uint32_t token, dmArray<uint8_t>& scratch);
+    uint64_t GetOwnedVertexUploadUsedBytes(const VertexUploadBatch* batch);
+    void BeginVertexUploadCapture(VertexUploadBatch* batch, bool capture_indices = false, bool capture_textures = false);
+    void SetCapturedViewport(int32_t x, int32_t y, uint32_t width, uint32_t height);
     bool EndVertexUploadCapture();
     void ProtectCapturedGraphicsResources();
     void InvalidateCapturedGraphicsResources();

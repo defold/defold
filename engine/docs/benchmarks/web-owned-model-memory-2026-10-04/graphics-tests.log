@@ -1,0 +1,166 @@
+[0/2] Re-checking globbed directories...
+[1/6] Building CXX object /Users/jhonny/dev/defold/tmp/render-poc-build/engine/graphics/build/arm64-macos/CMakeFiles/graphics_transcoder_null.dir/src/transcoder/graphics_transcoder_null.cpp.o
+[2/6] Linking CXX static library /Users/jhonny/dev/defold/tmp/render-poc-build/engine/graphics/build/arm64-macos/libgraphics_transcoder_null.a
+[3/6] Building CXX object /Users/jhonny/dev/defold/tmp/render-poc-build/engine/graphics/build/arm64-macos/src/test/CMakeFiles/test_graphics.dir/test_graphics.cpp.o
+[4/6] Linking CXX executable /Users/jhonny/dev/defold/tmp/render-poc-build/engine/graphics/build/arm64-macos/src/test/test_graphics
+[5/6] Running test_graphics in /Users/jhonny/dev/defold/engine/graphics/src/test
+StorageBuffer
+LegacyDescriptorFields
+LegacyDescriptorFields PASS (19 µs)
+FlatBindingsAcrossSetsAndStages
+FlatBindingsAcrossSetsAndStages PASS (1 µs)
+DX12MixedAccessAliases
+DX12MixedAccessAliases PASS (0 µs)
+StorageBuffer took 38 µs
+dmGraphicsTest
+NewDeleteContext
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+NewDeleteContext PASS (1 µs)
+DoubleNewContext
+DoubleNewContext PASS (0 µs)
+CloseWindow
+CloseWindow PASS (0 µs)
+TestWindowState
+TestWindowState PASS (0 µs)
+TestWindowSize
+TestWindowSize PASS (1 µs)
+TestDefaultTextureFilters
+TestDefaultTextureFilters PASS (0 µs)
+Flip
+Flip PASS (1 µs)
+Clear
+Clear PASS (1 µs)
+VertexBuffer
+VertexBuffer PASS (15 µs)
+IndexBuffer
+IndexBuffer PASS (1 µs)
+VertexStreamDeclaration
+VertexStreamDeclaration PASS (2 µs)
+VertexDeclaration
+VertexDeclaration PASS (2 µs)
+VertexDeclarationMoreThan8Streams
+VertexDeclarationMoreThan8Streams PASS (4 µs)
+Drawing
+Drawing PASS (3 µs)
+TestUniformBuffers
+WARNING:GRAPHICS: Uniform buffer with hash -1 has an incompatible layout with the currently bound program at the shader binding 'buf' (hash=1685929184)
+TestUniformBuffers PASS (28 µs)
+TestStorageBuffers
+TestStorageBuffers PASS (2 µs)
+TestUniformBufferLayoutCompatibility
+TestUniformBufferLayoutCompatibility PASS (1 µs)
+TestProgram
+TestProgram PASS (11 µs)
+TestComputeProgram
+TestComputeProgram PASS (16 µs)
+VertexAttributeDataTypeConversion
+VertexAttributeDataTypeConversion PASS (1 µs)
+VertexAttributeConversionRulesSemanticTypeNone
+VertexAttributeConversionRulesSemanticTypeNone PASS (5 µs)
+VertexAttributeEngineProvidedData
+VertexAttributeEngineProvidedData PASS (1 µs)
+VertexAttributeConversionRulesSemanticTypeOneAsW
+VertexAttributeConversionRulesSemanticTypeOneAsW PASS (2 µs)
+TestVertexAttributesGL3
+TestVertexAttributesGL3 PASS (18 µs)
+TestViewport
+TestViewport PASS (0 µs)
+TestTexture
+TestTexture PASS (2 µs)
+TestTextureAsync
+TestTextureAsync PASS (101.91 ms)
+TestTextureAsyncDelete
+TestTextureAsyncDelete PASS (142.191 ms)
+TestMaxTextureSize
+TestMaxTextureSize PASS (1 µs)
+TestTextureDefautlOriginalDimension
+TestTextureDefautlOriginalDimension PASS (5 µs)
+TestRenderTargetSampleCountConformance
+WARNING:GRAPHICS: Test render target requested sample_count 3, using supported sample_count 2.
+TestRenderTargetSampleCountConformance PASS (2 µs)
+TestRenderTarget
+TestRenderTarget PASS (29 µs)
+TestCubeMapRenderTarget
+ERROR:GRAPHICS: Cubemap render target dimensions must be square.
+ERROR:GRAPHICS: Cubemap render target attachments must be non-zero, square, and equally sized.
+WARNING:GRAPHICS: Null render target requested sample_count 4, using supported sample_count 1.
+TestCubeMapRenderTarget PASS (49 µs)
+TestGetRTAttachment
+TestGetRTAttachment PASS (2 µs)
+TestRTDepthStencilTexture
+TestRTDepthStencilTexture PASS (4 µs)
+TestMasks
+TestMasks PASS (1 µs)
+TestCloseCallback
+TestCloseCallback PASS (16 µs)
+TestTextureSupport
+TestTextureSupport PASS (0 µs)
+TestTextureFormatBPP
+TestTextureFormatBPP PASS (0 µs)
+TestTextureFormatCompressedBlockSize
+TestTextureFormatCompressedBlockSize PASS (0 µs)
+TestEstimateTextureResourceDataSize
+TestEstimateTextureResourceDataSize PASS (0 µs)
+TestTextureFormatDataSize
+TestTextureFormatDataSize PASS (0 µs)
+TestIsTextureFormatCompressed
+TestIsTextureFormatCompressed PASS (0 µs)
+TestBCArrayTextureSupportedForType
+TestBCArrayTextureSupportedForType PASS (0 µs)
+TestGetTextureParams
+TestGetTextureParams PASS (2 µs)
+TestGraphicsHandles
+TestGraphicsHandles PASS (9 µs)
+TestGraphicsNativeSymbols
+TestGraphicsNativeSymbols PASS (0 µs)
+GraphicsPacketInlineOwnsUploads
+GraphicsPacketInlineOwnsUploads PASS (10 µs)
+GraphicsPacketShadowState
+GraphicsPacketShadowState PASS (22 µs)
+GraphicsPacketThreadedSlots
+GraphicsPacketThreadedSlots PASS (11.35 ms)
+GraphicsPacketResourceOrdering
+GraphicsPacketResourceOrdering PASS (49 µs)
+GraphicsPacketPausedResources
+GraphicsPacketPausedResources PASS (53 µs)
+GraphicsPacketRejectsUnsafeWork
+
+jc_test: Death test begin ->
+FATAL:GRAPHICS: Graphics packet PoC: 32 MiB packet capacity exceeded
+jc_test: <- Death test end
+
+jc_test: Death test begin ->
+FATAL:GRAPHICS: Graphics packet PoC: DispatchCompute is not admitted
+jc_test: <- Death test end
+GraphicsPacketRejectsUnsafeWork PASS (26 µs)
+RenderLayerOwnerService
+RenderLayerOwnerService PASS (59 µs)
+RenderLayerInlineOwnerBarrier
+RenderLayerInlineOwnerBarrier PASS (1 µs)
+RenderLayerResourceProducer
+RenderLayerResourceProducer PASS (76 µs)
+RenderLayerExtensionLifecycle
+RenderLayerExtensionLifecycle PASS (39 µs)
+RenderLayerShutdownAdmission
+RenderLayerShutdownAdmission PASS (54 µs)
+ExternalOwnerResourceLane
+ExternalOwnerResourceLane PASS (50 µs)
+ExternalOwnerWindowSnapshot
+ExternalOwnerWindowSnapshot PASS (115 µs)
+dmGraphicsTest took 258.432 ms
+dmGraphicsSynchronousTest
+TestTextureAsyncCallbackWithoutAsyncSupport
+TestTextureAsyncCallbackWithoutAsyncSupport PASS (1 µs)
+TestSetTextureBounds
+
+jc_test: Death test begin ->
+Assertion failed: (!params.m_SubUpdate || (params.m_X + params.m_Width <= tex->m_Base.m_Width)), function NullSetTexture, file graphics_null.cpp, line 1723.
+jc_test: <- Death test end
+
+jc_test: Death test begin ->
+Assertion failed: (!params.m_SubUpdate || (params.m_X + params.m_Width <= tex->m_Base.m_Width)), function NullSetTexture, file graphics_null.cpp, line 1723.
+jc_test: <- Death test end
+TestSetTextureBounds PASS (20 µs)
+dmGraphicsSynchronousTest took 26 µs
+Ran 65 tests, with 17328 assertions in 258.496 ms
+65 tests PASSED and 0 skipped

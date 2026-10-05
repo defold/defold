@@ -1,0 +1,9 @@
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+[36mEngineTest[0m
+[33mWebPacedCompletionAdmission[0m
+[33mWebPacedCompletionAdmission[0m [32mPASS[0m (0 µs)
+[33mWebPacedHiddenAndStopAdmission[0m
+[33mWebPacedHiddenAndStopAdmission[0m [32mPASS[0m (0 µs)
+[36mEngineTest[0m took 80 µs
+Ran 2 tests, with 13 assertions in 80 µs
+2 tests [32mPASSED[0m and 69 skipped

@@ -22,7 +22,14 @@ namespace dmRender
     typedef ComponentFrame* HComponentFrame;
     // Prepared component output, not graphics packets. No component/world/Lua
     // pointers cross consumption. Resource mutation barriers protect handles.
-    HComponentFrame NewComponentFrame();
+    typedef void (*ComponentDeferredDraw)(void* data, HRenderContext consumer);
+    // The placeholder preserves the globally sorted draw position. Data must
+    // stay immutable until frame retirement; renderer scratch is consumer-owned.
+    // The callback appends at most one object, with storage valid for the pass.
+    bool AddComponentDeferredDraw(HRenderContext context, RenderObject* placeholder, ComponentDeferredDraw draw, void* data);
+    void RejectComponentFrame(HRenderContext context);
+    HComponentFrame NewComponentFrame(bool owned_model_buffers = false);
+    uint64_t GetComponentFrameOwnedUploadBytes(HComponentFrame frame);
     void DeleteComponentFrame(HComponentFrame frame);
     void BeginComponentFrameCapture(HRenderContext context, HComponentFrame frame);
     bool EndComponentFrameCapture(HRenderContext context);
@@ -33,6 +40,8 @@ namespace dmRender
     void ConsumeComponentFrame(HRenderContext consumer, HComponentFrame frame);
     uint64_t GetComponentFrameCapacity(HComponentFrame frame);
     uint64_t GetComponentFrameUsedBytes(HComponentFrame frame);
+    uint64_t GetComponentFrameUploadCapacity(HComponentFrame frame);
+    uint64_t GetComponentFrameConstantCapacity(HComponentFrame frame);
     void EnableComponentFrames(HRenderContext context, bool enabled);
     bool AreComponentFramesEnabled(HRenderContext context);
 }

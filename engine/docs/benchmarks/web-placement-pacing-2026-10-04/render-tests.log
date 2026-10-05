@@ -1,0 +1,264 @@
+[0/2] Re-checking globbed directories...
+[1/4] Building CXX object /Users/jhonny/dev/defold/tmp/render-poc-build/engine/render/build/arm64-macos/src/test/CMakeFiles/test_render.dir/test_render.cpp.o
+[2/4] Linking CXX executable /Users/jhonny/dev/defold/tmp/render-poc-build/engine/render/build/arm64-macos/src/test/test_render
+[3/4] Running test_render in /Users/jhonny/dev/defold/engine/render
+dmRenderTest
+TestFontMapTextureFiltering
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+TestFontMapTextureFiltering PASS (1 µs)
+TestGraphicsContext
+TestGraphicsContext PASS (0 µs)
+TestViewProj
+TestViewProj PASS (1 µs)
+TestRenderObjects
+WARNING:RENDER: Max number of draw calls reached (2), some objects will not be rendered. Increase the capacity with graphics.max_draw_calls
+TestRenderObjects PASS (1 µs)
+TestRenderCamera
+TestRenderCamera PASS (1 µs)
+TestRenderCameraEffectiveAspectRatio
+TestRenderCameraEffectiveAspectRatio PASS (4 µs)
+TestRenderCameraOrthographicAutoZoom
+TestRenderCameraOrthographicAutoZoom PASS (15 µs)
+TestSquare2d
+TestSquare2d PASS (0 µs)
+TestLine2d
+TestLine2d PASS (0 µs)
+TestLine3d
+TestLine3d PASS (0 µs)
+TestRenderListDraw
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListDraw PASS (9 µs)
+TestRenderListDrawState
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+DeleteVertexDeclaration; 0x850c18d80
+TestRenderListDrawState PASS (8 µs)
+TestEnableTextureByHash
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestEnableTextureByHash PASS (42 µs)
+TestRenderObjectMaxTextureBindings
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderObjectMaxTextureBindings PASS (22 µs)
+TestEnableDisableContextTextures
+TestEnableDisableContextTextures PASS (2 µs)
+TestDefaultSamplerFilters
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestDefaultSamplerFilters PASS (11 µs)
+TestRenderListCulling
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListCulling PASS (9 µs)
+TestRenderListFrustumCullDeduplication
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListFrustumCullDeduplication PASS (21 µs)
+TestRenderListOrder
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListOrder PASS (5 µs)
+TestRenderListDebug
+TestRenderListDebug PASS (0 µs)
+TestRenderListSortFrontToBack
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListSortFrontToBack PASS (3 µs)
+TestRenderListSortNoneUsesInsertionOrder
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+TestRenderListSortNoneUsesInsertionOrder PASS (3 µs)
+GetTextMetrics
+GetTextMetrics PASS (5 µs)
+GetPreparedTextMetrics
+GetPreparedTextMetrics PASS (4 µs)
+GetTextMetricsWithNullPreparedLayout
+GetTextMetricsWithNullPreparedLayout PASS (0 µs)
+SdfEdgeTransitionWidth
+SdfEdgeTransitionWidth PASS (19 µs)
+CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout
+CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout PASS (10 µs)
+MarkupOutlineLayerOnlyCoversSpan
+MarkupOutlineLayerOnlyCoversSpan PASS (6 µs)
+MarkupWithoutEffectTagsSuppressesBaseEffects
+MarkupWithoutEffectTagsSuppressesBaseEffects PASS (5 µs)
+MarkupOutlineColorOverridesBaseOutlineColor
+MarkupOutlineColorOverridesBaseOutlineColor PASS (9 µs)
+MarkupOutlineSizeZeroDisablesAndOversizeClamps
+MarkupOutlineSizeZeroDisablesAndOversizeClamps PASS (4 µs)
+MarkupCrispShadowOnlyCoversSpan
+MarkupCrispShadowOnlyCoversSpan PASS (18 µs)
+MarkupBitmapShadowDoesNotRevealUntaggedOutline
+MarkupBitmapShadowDoesNotRevealUntaggedOutline PASS (4 µs)
+DrawTextPreservesNodeShadowAlpha
+DrawTextPreservesNodeShadowAlpha PASS (1 µs)
+DrawTextPreservesEffectAlphaAboveOne
+DrawTextPreservesEffectAlphaAboveOne PASS (5 µs)
+DrawTextPreservesEffectAlphaOverrides
+DrawTextPreservesEffectAlphaOverrides PASS (6 µs)
+DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText
+DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText PASS (2 µs)
+MarkupShadowUsesFontBlurWhenOmitted
+MarkupShadowUsesFontBlurWhenOmitted PASS (2 µs)
+MarkupShadowBlurClampsToBakedCapacity
+MarkupShadowBlurClampsToBakedCapacity PASS (2 µs)
+MarkupFontSizeScalesFinalGlyphVertices
+MarkupFontSizeScalesFinalGlyphVertices PASS (2 µs)
+MarkupUnderlineGeneratesGradientVertices
+MarkupUnderlineGeneratesGradientVertices PASS (18 µs)
+MarkupDashedDecorationsGenerateOneProceduralQuadEach
+MarkupDashedDecorationsGenerateOneProceduralQuadEach PASS (5 µs)
+MarkupDecorationInheritsOutlineAndShadowLayers
+MarkupDecorationInheritsOutlineAndShadowLayers PASS (6 µs)
+MarkupAnimatedGlyphGradientReachesFinalVertices
+MarkupAnimatedGlyphGradientReachesFinalVertices PASS (7 µs)
+MarkupAnimatedSpanGradientUsesOneFinalVertexColor
+MarkupAnimatedSpanGradientUsesOneFinalVertexColor PASS (6 µs)
+MarkupUnderlineIgnoresGlyphPositionEffects
+MarkupUnderlineIgnoresGlyphPositionEffects PASS (19 µs)
+CreateFontVertexDataUsesPreparedTextLayout
+WARNING:RENDER: Character buffer exceeded (size: 1), increase the "graphics.max_characters" property in your game.project file.
+CreateFontVertexDataUsesPreparedTextLayout PASS (6 µs)
+DrawTextUsesPreparedTextLayoutThroughRenderQueue
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+DrawTextUsesPreparedTextLayoutThroughRenderQueue PASS (19 µs)
+DrawTextPreparedTextLayoutRetainedUntilClear
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+DrawTextPreparedTextLayoutRetainedUntilClear PASS (8 µs)
+FontVertexDeclaration
+FontVertexDeclaration PASS (13 µs)
+FindRanges
+FindRanges PASS (1 µs)
+FontMapSetup
+FontMapSetup PASS (13 µs)
+FontMapNegativeGlyphAscent
+WARNING:RENDER: Glyph 96 does not fit inside its font cache cell (64 x 128).
+WARNING:RENDER: Glyph 96 does not fit inside its font cache cell (64 x 128).
+FontMapNegativeGlyphAscent PASS (34 µs)
+LightBufferTestSimple
+LightBufferTestSimple PASS (5 µs)
+LightBufferTestAllTypes
+LightBufferTestAllTypes PASS (1 µs)
+LightBufferSubmissionIsPerFrame
+LightBufferSubmissionIsPerFrame PASS (0 µs)
+LightBufferTestMultipleInstances
+LightBufferTestMultipleInstances PASS (28 µs)
+LightBufferTestIndexReuse
+LightBufferTestIndexReuse PASS (1 µs)
+LightBufferTestSetLightInstanceUpdates
+LightBufferTestSetLightInstanceUpdates PASS (1 µs)
+ConstantTypeTimeSetsTimeAndDt
+ConstantTypeTimeSetsTimeAndDt PASS (4 µs)
+ConstantTypeInverseMatricesSetExpectedValues
+ConstantTypeInverseMatricesSetExpectedValues PASS (3 µs)
+SpriteThreadCommandOwnership
+SpriteThreadCommandOwnership PASS (1 µs)
+NamedConstantMemoryCapacity
+NamedConstantMemoryCapacity PASS (14 µs)
+PreparedListOwnsDrawData
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+PreparedListOwnsDrawData PASS (6 µs)
+PreparedListAdmission
+ERROR:RENDER: Mixed preparation exceeds entry limit or has an unsupported visibility callback
+ERROR:RENDER: Mixed preparation exceeds entry limit or has an unsupported visibility callback
+PreparedListAdmission PASS (23 µs)
+PreparedListReleasesTextLayout
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+PreparedListReleasesTextLayout PASS (13 µs)
+PreparedVertexUploadsOwnBytes
+PreparedVertexUploadsOwnBytes PASS (62 µs)
+PreparedVertexUploadBudgets
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+PreparedVertexUploadBudgets PASS (98 µs)
+PreparedInlineKeepsOtherDispatches
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+PreparedInlineKeepsOtherDispatches PASS (9 µs)
+ComponentFrameOwnsPassData
+ComponentFrameOwnsPassData PASS (42 µs)
+ComponentFrameDeferredDrawOrdering
+ComponentFrameDeferredDrawOrdering PASS (19 µs)
+ComponentFrameRejectsInvalidCapture
+ERROR:RENDER: Component frame capture rejected: unsupported command or frame capacity exceeded
+ERROR:RENDER: Component frame capture rejected: unsupported command or frame capacity exceeded
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ERROR:RENDER: Component frame capture rejected: unsupported command or frame capacity exceeded
+ComponentFrameRejectsInvalidCapture PASS (13 µs)
+ComponentFrameUploadRanges
+ComponentFrameUploadRanges PASS (0 µs)
+ComponentFrameOwnsLightsAndShaderCapacity
+ComponentFrameOwnsLightsAndShaderCapacity PASS (3 µs)
+ComponentFrameConcurrentPreparationUploads
+ComponentFrameConcurrentPreparationUploads PASS (72 µs)
+ComponentFrameTexturePayloadAlignment
+ComponentFrameTexturePayloadAlignment PASS (1 µs)
+ComponentFrameFontDimensionsAreProducerOwned
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ComponentFrameFontDimensionsAreProducerOwned PASS (19 µs)
+ComponentFrameTextureAdmission
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ComponentFrameTextureAdmission PASS (3 µs)
+ComponentOwnedVertexStorage
+ComponentOwnedVertexStorage PASS (4 µs)
+ComponentOwnedVertexAdmission
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ComponentOwnedVertexAdmission PASS (14.531 ms)
+ComponentOwnedVertexPayloadLimit
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ComponentOwnedVertexPayloadLimit PASS (9 µs)
+dmRenderTest took 19.39 ms
+Render
+TextAlignmentOffsets
+TextAlignmentOffsets PASS (0 µs)
+BatchIterator
+BatchIterator PASS (1 µs)
+Render took 4 µs
+Constants
+Constant
+Constant PASS (1 µs)
+NamedConstantsArray
+NamedConstantsArray PASS (17 µs)
+NamedConstants
+NamedConstants PASS (2 µs)
+Constants took 35 µs
+dmRenderThreadTest
+InteractiveQosLifetime
+PoC worker QoS: enabled
+InteractiveQosLifetime PASS (61 µs)
+OrderedSlotsAndPausedControls
+OrderedSlotsAndPausedControls PASS (592 µs)
+RejectUnsupportedCommandsAndOverflow
+ERROR:RENDER: Unsupported sprite thread render command: 24
+ERROR:RENDER: Sprite thread command capacity exceeded (129 > 128)
+RejectUnsupportedCommandsAndOverflow PASS (4 µs)
+ShutdownDrainsAfterCancellation
+ShutdownDrainsAfterCancellation PASS (40 µs)
+FrameTraceBoundedStorage
+FrameTraceBoundedStorage PASS (1 µs)
+TracePublicationOwnership
+TracePublicationOwnership PASS (31 µs)
+RenderFramePassConstants
+RenderFramePassConstants PASS (6 µs)
+ExternalOwnerPumpsPublishedFrames
+ExternalOwnerPumpsPublishedFrames PASS (6 µs)
+ComponentFrameSimulationOverlap
+ComponentFrameSimulationOverlap PASS (1305 µs)
+dmRenderThreadTest took 2083 µs
+RenderFrameContract
+ConditionResolution
+ConditionResolution PASS (2 µs)
+OwnedPayloadAndConsumerDispatch
+OwnedPayloadAndConsumerDispatch PASS (9 µs)
+AdmissionAndPartialFailure
+AdmissionAndPartialFailure PASS (1 µs)
+RenderFrameContract took 17 µs
+Ran 98 tests, with 6694 assertions in 21.529 ms
+98 tests PASSED and 0 skipped

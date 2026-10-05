@@ -1,0 +1,86 @@
+[0/2] Re-checking globbed directories...
+[1/11] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/dmengine_release.dir/src/common/main.cpp.o
+[2/11] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/dmengine_release.dir/__exported_symbols_dmengine_release.cpp.o
+[3/11] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/extension.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/extension.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/engine/src/dmsdk/engine/extension.hpp:20:
+In file included from /Users/jhonny/dev/defold/engine/extension/src/dmsdk/extension/extension.h:31:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[4/11] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/engine_main.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_main.cpp:27:
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_private.h:29:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[5/11] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/script/script_engine.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/script/script_engine.cpp:16:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[6/11] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/engine_loop.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_loop.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_private.h:29:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[7/11] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/engine_web.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_web.cpp:20:
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine_private.h:29:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[8/11] Building CXX object /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/CMakeFiles/engine_release.dir/src/engine.cpp.o
+In file included from /Users/jhonny/dev/defold/engine/engine/src/engine.cpp:15:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render_frame.h:21:
+In file included from /Users/jhonny/dev/defold/engine/render/src/render/render.h:25:
+In file included from /Users/jhonny/dev/defold/tmp/dynamo_home/include/script/script.h:19:
+In file included from /Users/jhonny/dev/defold/engine/script/src/dmsdk/script/script.h:28:
+In file included from /Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/lua.h:16:
+/Users/jhonny/dev/defold/engine/lua/src/dmsdk/lua/luaconf.h:28:9: warning: 'LUA_ANSI' macro redefined [-Wmacro-redefined]
+   28 | #define LUA_ANSI
+      |         ^
+<command line>:21:9: note: previous definition is here
+   21 | #define LUA_ANSI 1
+      |         ^
+1 warning generated.
+[9/11] Linking CXX static library /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/libengine_release.a
+[10/11] Linking CXX executable /Users/jhonny/dev/defold/tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/dmengine_release.js
+em++: warning: -pthread + ALLOW_MEMORY_GROWTH may run non-wasm code slowly, see https://github.com/WebAssembly/design/issues/1271 [-Wpthreads-mem-growth]
+warning: no output file specified, not emitting output

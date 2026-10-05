@@ -1,0 +1,163 @@
+{
+  "native": {
+    "render": {
+      "tests": 97,
+      "assertions": 6677
+    },
+    "gamesys": {
+      "tests": 563,
+      "assertions": 25418
+    },
+    "graphics": {
+      "tests": 65,
+      "assertions": 17328
+    }
+  },
+  "harness": {
+    "python": 15,
+    "javascript": 7
+  },
+  "geometry": [
+    {
+      "count": 200,
+      "mode": "direct",
+      "pixels": {
+        "world mesh": 2000,
+        "local mesh": 2000,
+        "static": 1200,
+        "cpu": 1200,
+        "gpu": 1200,
+        "instanced": 3200
+      }
+    },
+    {
+      "count": 200,
+      "mode": "overlap",
+      "pixels": {
+        "world mesh": 2000,
+        "local mesh": 2000,
+        "static": 1200,
+        "cpu": 1200,
+        "gpu": 1200,
+        "instanced": 3200
+      }
+    },
+    {
+      "count": 200,
+      "mode": "overlap-owned",
+      "pixels": {
+        "world mesh": 2000,
+        "local mesh": 2000,
+        "static": 1200,
+        "cpu": 1200,
+        "gpu": 1200,
+        "instanced": 3200
+      }
+    },
+    {
+      "count": 1000,
+      "mode": "direct",
+      "pixels": {
+        "world mesh": 10000,
+        "local mesh": 10000,
+        "static": 6000,
+        "cpu": 6000,
+        "gpu": 6000,
+        "instanced": 16000
+      }
+    },
+    {
+      "count": 1000,
+      "mode": "overlap",
+      "pixels": {
+        "world mesh": 10000,
+        "local mesh": 10000,
+        "static": 6000,
+        "cpu": 6000,
+        "gpu": 6000,
+        "instanced": 16000
+      }
+    },
+    {
+      "count": 1000,
+      "mode": "overlap-owned",
+      "pixels": {
+        "world mesh": 10000,
+        "local mesh": 10000,
+        "static": 6000,
+        "cpu": 6000,
+        "gpu": 6000,
+        "instanced": 16000
+      }
+    }
+  ],
+  "lifecycle": {
+    "browser": "154.0.8037.95",
+    "correctnessOnly": true,
+    "results": [
+      {
+        "mode": "direct",
+        "checkpoint": "WEB_2D_CHECK mode=existing inputs=1 sound_done=1",
+        "geometryDraws": {
+          "maxInstances": 2
+        },
+        "simulationsDuringRender": 0,
+        "preparationsDuringRender": 0,
+        "artificialDrawDelayMs": 0,
+        "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+      },
+      {
+        "mode": "overlap",
+        "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+        "stack": {
+          "reserved": 5242880,
+          "touched": 0,
+          "measured": false
+        },
+        "geometryDraws": {
+          "maxInstances": 2
+        },
+        "simulationsDuringRender": 107,
+        "preparationsDuringRender": 8,
+        "artificialDrawDelayMs": 0,
+        "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+      },
+      {
+        "mode": "overlap-owned",
+        "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+        "stack": {
+          "reserved": 5242880,
+          "touched": 0,
+          "measured": false
+        },
+        "geometryDraws": {
+          "maxInstances": 2
+        },
+        "simulationsDuringRender": 102,
+        "preparationsDuringRender": 12,
+        "artificialDrawDelayMs": 0,
+        "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+      },
+      {
+        "mode": "overlap-owned-slow",
+        "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+        "stack": {
+          "reserved": 5242880,
+          "touched": 0,
+          "measured": false
+        },
+        "geometryDraws": {
+          "maxInstances": 2
+        },
+        "simulationsDuringRender": 165,
+        "preparationsDuringRender": 160,
+        "artificialDrawDelayMs": 2,
+        "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+      }
+    ]
+  },
+  "git_head": "bed9d48fb4fa47e242bab74748688b6e4190268a",
+  "dirty": true,
+  "screen_saver_restored_seconds": 1200,
+  "scope": "Same-build opt-in model buffers; native macOS tests and Chrome web correctness/performance. Not production acceptance."
+}

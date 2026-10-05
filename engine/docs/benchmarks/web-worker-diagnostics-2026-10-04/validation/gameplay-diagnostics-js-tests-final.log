@@ -1,0 +1,75 @@
+TAP version 13
+# Subtest: accepts ordered cross-owner timing and returns named records
+ok 1 - accepts ordered cross-owner timing and returns named records
+  ---
+  duration_ms: 2.139
+  ...
+# Subtest: rejects dropped, reordered, overlapping and overcounted records
+ok 2 - rejects dropped, reordered, overlapping and overcounted records
+  ---
+  duration_ms: 1.209125
+  ...
+# Subtest: accepts sub-microsecond clock rounding but rejects a real reversal
+ok 3 - accepts sub-microsecond clock rounding but rejects a real reversal
+  ---
+  duration_ms: 0.355042
+  ...
+# Subtest: replay launch keeps sound capacity and enables the deterministic adapter
+ok 4 - replay launch keeps sound capacity and enables the deterministic adapter
+  ---
+  duration_ms: 3.825416
+  ...
+# Subtest: completion barrier is distinct from full overlap
+ok 5 - completion barrier is distinct from full overlap
+  ---
+  duration_ms: 0.630792
+  ...
+# Subtest: replay config rejects execution-policy overrides
+ok 6 - replay config rejects execution-policy overrides
+  ---
+  duration_ms: 2.393083
+  ...
+# Subtest: memory diagnostics and model ownership default off and can be selected
+ok 7 - memory diagnostics and model ownership default off and can be selected
+  ---
+  duration_ms: 2.005
+  ...
+# Subtest: deferred sprite geometry and paced completion can be selected independently
+ok 8 - deferred sprite geometry and paced completion can be selected independently
+  ---
+  duration_ms: 1.413667
+  ...
+# Subtest: update diagnostics remain opt-in
+ok 9 - update diagnostics remain opt-in
+  ---
+  duration_ms: 1.594417
+  ...
+# Subtest: a changed checkpoint changes the replay signature
+ok 10 - a changed checkpoint changes the replay signature
+  ---
+  duration_ms: 1.354625
+  ...
+# Subtest: incomplete replay evidence is rejected
+ok 11 - incomplete replay evidence is rejected
+  ---
+  duration_ms: 13.453542
+  ...
+# Subtest: object key order does not affect replay signature
+ok 12 - object key order does not affect replay signature
+  ---
+  duration_ms: 0.141084
+  ...
+# Subtest: instrumented replay must match explicit diagnostic selection
+ok 13 - instrumented replay must match explicit diagnostic selection
+  ---
+  duration_ms: 0.464916
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 144.599041

@@ -1,0 +1,81 @@
+{
+  "browser": "154.0.8037.95",
+  "correctnessOnly": true,
+  "results": [
+    {
+      "mode": "direct",
+      "checkpoint": "WEB_2D_CHECK mode=existing inputs=1 sound_done=1",
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 0,
+      "preparationsDuringRender": 0,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "overlap-deferred",
+      "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+      "stack": {
+        "reserved": 2097152,
+        "touched": 18144,
+        "measured": true
+      },
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 108,
+      "preparationsDuringRender": 6,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "overlap-deferred-slow",
+      "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+      "stack": {
+        "reserved": 2097152,
+        "touched": 18144,
+        "measured": true
+      },
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 166,
+      "preparationsDuringRender": 162,
+      "artificialDrawDelayMs": 2,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "overlap-owned",
+      "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+      "stack": {
+        "reserved": 2097152,
+        "touched": 18144,
+        "measured": true
+      },
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 105,
+      "preparationsDuringRender": 2,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    },
+    {
+      "mode": "overlap-deferred-paced",
+      "checkpoint": "WEB_2D_CHECK mode=component-web-snapshots inputs=1 sound_done=1",
+      "stack": {
+        "reserved": 2097152,
+        "touched": 18144,
+        "measured": true
+      },
+      "geometryDraws": {
+        "maxInstances": 2
+      },
+      "simulationsDuringRender": 115,
+      "preparationsDuringRender": 13,
+      "artificialDrawDelayMs": 0,
+      "pixelSha256": "4f47eb7ba25919ee319982a9c0a801e33ff410d51bf98a0cd3775b1315e1be00"
+    }
+  ]
+}

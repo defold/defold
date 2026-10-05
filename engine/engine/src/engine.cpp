@@ -581,6 +581,7 @@ namespace dmEngine
         dmRender::HRenderContext m_Consumer;
         dmRender::FrameTraceRecord* m_Trace[2];
         bool m_Paused;
+        bool m_PrepareOverlap;
     };
 
     struct SpriteThreadState
@@ -760,15 +761,26 @@ namespace dmEngine
     {
         ComponentThreadState* state = new ComponentThreadState;
         engine->m_ComponentThread = state;
-        state->m_Frames[0] = dmRender::NewComponentFrame();
-        state->m_Frames[1] = dmRender::NewComponentFrame();
+        bool owned_model_buffers = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_owned_model_buffers", 0) != 0;
+        state->m_Frames[0] = dmRender::NewComponentFrame(owned_model_buffers);
+        state->m_Frames[1] = dmRender::NewComponentFrame(owned_model_buffers);
+        fprintf(stderr, "WEB_COMPONENT_BUFFERS owned_models=%d\n", owned_model_buffers ? 1 : 0);
+        engine->m_SpriteContext.m_ComponentDeferredSprites = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_deferred_sprites", 0) != 0;
+        if (engine->m_SpriteContext.m_ComponentDeferredSprites)
+        {
+            engine->m_SpriteContext.m_ComponentFrameBarrier = SpriteThreadBarrier;
+        }
+        fprintf(stderr, "WEB_COMPONENT_SPRITES deferred_geometry=%d\n", engine->m_SpriteContext.m_ComponentDeferredSprites ? 1 : 0);
         state->m_Consumer = dmRender::NewComponentFrameConsumer(engine->m_RenderContext);
         state->m_Trace[0] = state->m_Trace[1] = 0;
         state->m_Paused = false;
+        state->m_PrepareOverlap = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_prepare_overlap", 1) != 0;
         state->m_Thread = dmRender::NewExternalRenderThread(ComponentThreadRender, engine);
         dmRender::EnableComponentFrames(engine->m_RenderContext, true);
         engine->m_SpriteContext.m_RenderThread = state->m_Thread;
         engine->m_SpriteContext.m_ComponentFrames = true;
+        engine->m_SpriteContext.m_ComponentPreparationOverlap = state->m_PrepareOverlap;
+        fprintf(stderr, "WEB_COMPONENT_PREPARATION overlap=%d\n", state->m_PrepareOverlap ? 1 : 0);
         engine->m_SpriteContext.m_SnapshotPause = SpriteThreadPause;
         engine->m_SpriteContext.m_SnapshotContext = engine;
         dmResource::SetRenderMutationBarrier(ComponentFrameResourceBarrier, engine);
@@ -777,11 +789,13 @@ namespace dmEngine
     static bool PrepareComponentThreadFrame(Engine* engine, uint32_t slot, float dt, dmRender::FrameTraceRecord* trace)
     {
         ComponentThreadState* state = engine->m_ComponentThread;
-        // Simulation has already overlapped the previous consumer. Preparation
-        // owns all live worlds/render scratch and only starts after it retires.
-        SpriteThreadBarrier(engine);
+        // Producer owns live worlds, render scratch and thread-local capture.
+        // Only the explicit comparison control drains before CPU preparation.
+        if (!state->m_PrepareOverlap) SpriteThreadBarrier(engine);
+        uint64_t preparation_begin = dmTime::GetMonotonicTime();
         if (trace) trace->m_QueueDrainEnd = dmTime::GetMonotonicTime();
         dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
+        engine->m_SpriteContext.m_ComponentFrameSlot = slot;
         dmRender::BeginComponentFrameCapture(engine->m_RenderContext, state->m_Frames[slot]);
         dmRender::RenderListBegin(engine->m_RenderContext);
         bool ok = dmGameObject::Render(engine->m_MainCollection);
@@ -789,11 +803,15 @@ namespace dmEngine
         dmRender::RenderListEnd(engine->m_RenderContext);
         ok = dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt) == dmRender::RENDER_SCRIPT_RESULT_OK && ok;
         ok = dmRender::EndComponentFrameCapture(engine->m_RenderContext) && ok;
-        dmGraphics::FlushGraphicsPackets();
+        dmRender::MarkRenderThreadPreparationComplete(state->m_Thread, preparation_begin);
         if (trace) trace->m_PrepareEnd = dmTime::GetMonotonicTime();
+        dmGraphics::FlushGraphicsPackets();
         if (!ok) return false;
         engine->m_SpriteContext.m_RenderFrameCapacityBytes = dmRender::GetComponentFrameCapacity(state->m_Frames[0]) + dmRender::GetComponentFrameCapacity(state->m_Frames[1]);
         engine->m_SpriteContext.m_RenderFrameUsedBytes = dmRender::GetComponentFrameUsedBytes(state->m_Frames[0]) + dmRender::GetComponentFrameUsedBytes(state->m_Frames[1]);
+        engine->m_SpriteContext.m_ComponentUploadCapacityBytes = dmRender::GetComponentFrameUploadCapacity(state->m_Frames[0]) + dmRender::GetComponentFrameUploadCapacity(state->m_Frames[1]);
+        engine->m_SpriteContext.m_ComponentConstantCapacityBytes = dmRender::GetComponentFrameConstantCapacity(state->m_Frames[0]) + dmRender::GetComponentFrameConstantCapacity(state->m_Frames[1]);
+        engine->m_SpriteContext.m_ComponentOwnedUploadBytes = dmRender::GetComponentFrameOwnedUploadBytes(state->m_Frames[slot]);
         state->m_Trace[slot] = trace;
         dmRender::PublishRenderThreadFrame(state->m_Thread, slot, trace);
         return true;
@@ -1119,6 +1137,7 @@ namespace dmEngine
             dmRender::DeleteComponentFrame(engine->m_ComponentThread->m_Frames[1]);
             delete engine->m_ComponentThread;
             engine->m_ComponentThread = 0;
+            engine->m_SpriteContext.m_ComponentFrameBarrier = 0;
             engine->m_SpriteContext.m_RenderThread = 0;
             engine->m_SpriteContext.m_SnapshotPause = 0;
         }
@@ -2033,10 +2052,13 @@ namespace dmEngine
             if (web_overlap < 0 || web_overlap > 1 || (web_overlap && (!engine->m_PocWebComponents || !condition.m_Threaded)))
             { dmLogError("poc_web_overlap must be 0/1 and requires threaded web component compatibility"); return false; }
             engine->m_PocWebOverlap = web_overlap != 0;
+            int prepare_overlap = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_prepare_overlap", 1);
+            if (prepare_overlap < 0 || prepare_overlap > 1)
+            { dmLogError("poc_web_prepare_overlap must be 0 or 1"); return false; }
             int web_schedule = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_schedule", 0);
-            if (web_schedule < 0 || web_schedule > 2 || (web_schedule &&
+            if (web_schedule < 0 || web_schedule > 4 || (web_schedule &&
                 (condition.m_Pipeline != dmRender::POC_COMPONENT || !condition.m_Threaded || (engine->m_PocWebComponents && !engine->m_PocWebOverlap))))
-            { dmLogError("poc_web_schedule must be 0/1/2; scheduling experiments require the overlapping threaded component path"); return false; }
+            { dmLogError("poc_web_schedule must be 0/1/2/3/4; scheduling experiments require the overlapping threaded component path"); return false; }
             int web_cache_window = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_cache_window", 0);
             if (web_cache_window < 0 || web_cache_window > 1 || (web_cache_window &&
                 (condition.m_Pipeline != dmRender::POC_COMPONENT || !condition.m_Threaded)))

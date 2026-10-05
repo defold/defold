@@ -449,6 +449,18 @@ namespace dmGraphics
         table.Put(buffer, size);
     }
 
+    void RememberCapturedGraphicsBuffer(uintptr_t buffer, uint32_t size)
+    {
+        if (g_Packets && ProducerCall()) RememberBuffer(buffer, size);
+    }
+
+    void RememberCapturedGraphicsViewport(int32_t x, int32_t y, uint32_t width, uint32_t height)
+    {
+        if (!g_Packets || !ProducerCall()) return;
+        g_Packets->m_ViewportX = x; g_Packets->m_ViewportY = y;
+        g_Packets->m_ViewportWidth = width; g_Packets->m_ViewportHeight = height;
+    }
+
     bool GetGraphicsPacketBufferSize(uintptr_t buffer, uint32_t* size)
     {
         if (!g_Packets || !ProducerCall()) return false;

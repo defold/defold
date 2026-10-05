@@ -1,0 +1,29 @@
+{
+  "fixture": {
+    "path": "/Users/jhonny/dev/defold/tmp/web-placement-fixture",
+    "sha256": {
+      "dmengine_release.data": "76a17bbb3e11a83f5ed1673394a21e26af46809413d45173c35646ab06307e76",
+      "dmengine_release.js": "39de61971a8b004db4a5d0ec2b3adff0800d71538ae886b4ed73fdf83bf7aefd",
+      "dmengine_release.wasm": "bdc82b90ceac534f32b1b98d1c030da48f4e7cc7588da04b25a7ac70b8cccbce",
+      "index.html": "b9782e0fc747dce4a0f581c2b06a4ab415dbfe7b012fa3df63a46607482e400e"
+    }
+  },
+  "synthetic": {
+    "path": "/Users/jhonny/dev/defold/tmp/web-placement-synthetic",
+    "sha256": {
+      "dmengine_release.data": "c91f524aa62cf0451dd1262c5fc2b2a903af1c78e5feb61c77cc4d706ac4e7b4",
+      "dmengine_release.js": "ea47d338a2643c2b7cddd83752863be1e95e83a52df0363a2974894881235e06",
+      "dmengine_release.wasm": "bdc82b90ceac534f32b1b98d1c030da48f4e7cc7588da04b25a7ac70b8cccbce",
+      "index.html": "ad24bed9b71dbef5c02a529a3216ddcb26a99957e35d3dbe71c5fd9b97a8dc89"
+    }
+  },
+  "gameplay": {
+    "path": "/Users/jhonny/dev/defold/tmp/web-placement-gameplay",
+    "sha256": {
+      "dmengine_release.data": "5055e39a8706bf14b879c31064778e2218d72d27ebc2a8dca1686b0b4bd81904",
+      "dmengine_release.js": "b28d92dd54bd91c4a4e6b3c265b2e8ea59feb82294641e50903357f23c290a2e",
+      "dmengine_release.wasm": "bdc82b90ceac534f32b1b98d1c030da48f4e7cc7588da04b25a7ac70b8cccbce",
+      "index.html": "ad24bed9b71dbef5c02a529a3216ddcb26a99957e35d3dbe71c5fd9b97a8dc89"
+    }
+  }
+}

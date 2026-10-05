@@ -68,7 +68,7 @@ namespace dmEngine
     struct WebEvent { uint32_t m_Kind, m_A, m_B; };
     // Separate owner-written buffers; exported only after the worker has joined.
     struct WebScheduleSample { double m_Begin, m_End; uint32_t m_Kind, m_Phase; };
-    enum { WEB_SCHEDULE_CAPACITY = 32768 };
+    enum { WEB_SCHEDULE_CAPACITY = 32768, WEB_DIAGNOSTIC_CAPACITY = 16384 };
     struct WebComponentLoop
     {
         Engine* m_Engine;
@@ -79,6 +79,10 @@ namespace dmEngine
         double m_PreviousTick;
         uint64_t m_Ticks, m_Retired, m_NoFrame, m_InputPublished;
         bool m_CompletionDispatch;
+        WebFrameAdmission m_Admission;
+        WebRenderAdmission m_RenderAdmission;
+        uint32_t m_ReadyRenders;
+        uint32_t m_Schedule;
         bool m_RetryDispatch, m_CacheWindowOpened;
         uint32_t m_RetryDispatches;
         WebScheduleSample* m_MainSamples;
@@ -86,6 +90,9 @@ namespace dmEngine
         uint32_t m_MainCount, m_WorkerCount, m_MainDropped, m_WorkerDropped;
         uint32_t m_StackBytes, m_StackTouchedBytes;
         bool m_MeasureStack;
+        WebUpdateDiagnostic* m_Diagnostics;
+        WebUpdateDiagnostic* m_ActiveDiagnostic; // Worker-owned.
+        uint32_t m_DiagnosticCount, m_DiagnosticDropped;
     };
     static WebComponentLoop* g_Web = 0;
 
@@ -115,12 +122,14 @@ namespace dmEngine
         return true;
     }
 
-    struct BrowserCall { void (*m_Execute)(void*); void* m_Data; };
+    struct BrowserCall { void (*m_Execute)(void*); void* m_Data; bool m_Measure; double m_Begin, m_End; };
     static void ExecuteBrowserCall(void* data)
     {
         BrowserCall* call = (BrowserCall*)data;
         assert(emscripten_is_main_browser_thread());
+        if (call->m_Measure) call->m_Begin = emscripten_get_now();
         call->m_Execute(call->m_Data);
+        if (call->m_Measure) call->m_End = emscripten_get_now();
     }
 
     static void AddScheduleSample(WebComponentLoop* loop, bool worker, uint32_t kind, uint32_t phase, double begin, double end);
@@ -129,10 +138,14 @@ namespace dmEngine
     {
         // One synchronous caller: its operands remain alive until acknowledgment.
         // Only the worker waits. Browser main never joins or drains a producer.
-        BrowserCall call = {execute, data};
-        double begin = g_Web->m_WorkerSamples ? emscripten_get_now() : 0;
+        WebUpdateDiagnostic* diagnostic = g_Web->m_ActiveDiagnostic;
+        BrowserCall call = {execute, data, diagnostic != 0, 0, 0};
+        double begin = g_Web->m_WorkerSamples || diagnostic ? emscripten_get_now() : 0;
         emscripten_sync_run_in_main_runtime_thread(EM_FUNC_SIG_VI, ExecuteBrowserCall, &call);
-        AddScheduleSample(g_Web, true, 3, 0, begin, g_Web->m_WorkerSamples ? emscripten_get_now() : 0);
+        double end = g_Web->m_WorkerSamples || diagnostic ? emscripten_get_now() : 0;
+        if (diagnostic) diagnostic->RecordGraphicsCall(begin, call.m_Begin, call.m_End, end);
+        // Aggregation avoids overflowing the older event buffer in long replays.
+        if (!g_Web->m_Diagnostics) AddScheduleSample(g_Web, true, 3, 0, begin, end);
     }
 
     static void AddScheduleSample(WebComponentLoop* loop, bool worker, uint32_t kind, uint32_t phase, double begin, double end)
@@ -150,11 +163,27 @@ namespace dmEngine
         sample.m_Begin = begin; sample.m_End = end;
     }
 
-    static bool DispatchWebUpdate();
+    static bool DispatchWebUpdate(uint32_t source);
+    static bool PumpAdmittedWebFrame(WebComponentLoop* loop)
+    {
+        bool stopping = __atomic_load_n(&loop->m_Stop, __ATOMIC_ACQUIRE) != 0;
+        // Hidden service still retires accepted frames; render consumption itself
+        // suppresses graphics work while hidden or after context loss.
+        if (WebCanRender() && !loop->m_RenderAdmission.CanConsume(true, stopping)) return false;
+        if (!PumpWebComponentFrame(loop->m_Engine)) return false;
+        loop->m_RenderAdmission.Consumed();
+        ++loop->m_Retired;
+        return true;
+    }
+
     static void WebWorkerReady()
     {
         // Queued notifications can outlive shutdown. Never retain the loop pointer.
-        if (g_Web) DispatchWebUpdate();
+        if (g_Web)
+        {
+            DispatchWebUpdate(1);
+            if (g_Web->m_Schedule == 4 && PumpAdmittedWebFrame(g_Web)) ++g_Web->m_ReadyRenders;
+        }
     }
 
     static void* WebSimulation(void* data)
@@ -176,6 +205,9 @@ namespace dmEngine
                 emscripten_futex_wait(&loop->m_Phase, WEB_WAITING, 1000);
             __atomic_store_n(&loop->m_Phase, WEB_RUNNING, __ATOMIC_RELEASE);
             if (__atomic_load_n(&loop->m_Stop, __ATOMIC_ACQUIRE)) break;
+            WebUpdateDiagnostic* diagnostic = loop->m_Diagnostics && loop->m_InputPublished <= WEB_DIAGNOSTIC_CAPACITY ? &loop->m_Diagnostics[loop->m_InputPublished - 1] : 0;
+            loop->m_ActiveDiagnostic = diagnostic;
+            if (diagnostic) diagnostic->m_Wake = emscripten_get_now();
             uint32_t read = __atomic_load_n(&loop->m_EventRead, __ATOMIC_RELAXED);
             uint32_t write = __atomic_load_n(&loop->m_EventWrite, __ATOMIC_ACQUIRE);
             while (read != write)
@@ -187,13 +219,18 @@ namespace dmEngine
             __atomic_store_n(&loop->m_EventRead, read, __ATOMIC_RELEASE);
             if (__atomic_load_n(&loop->m_Stop, __ATOMIC_ACQUIRE)) break;
             double begin = loop->m_WorkerSamples ? emscripten_get_now() : 0;
+            if (diagnostic) diagnostic->m_EventsEnd = emscripten_get_now();
             UpdateResult result = loop->m_Params.m_EngineUpdate(loop->m_Engine);
+            if (diagnostic) { diagnostic->m_UpdateEnd = emscripten_get_now(); ++loop->m_DiagnosticCount; }
+            else if (loop->m_Diagnostics) ++loop->m_DiagnosticDropped;
+            loop->m_ActiveDiagnostic = 0;
             AddScheduleSample(loop, true, 2, 0, begin, loop->m_WorkerSamples ? emscripten_get_now() : 0);
             if (result != RESULT_OK) break;
             __atomic_store_n(&loop->m_Phase, WEB_WAITING, __ATOMIC_RELEASE);
             if (loop->m_CompletionDispatch && WebHasContinuousFrames(loop->m_Engine))
                 emscripten_async_run_in_main_runtime_thread(EM_FUNC_SIG_V, WebWorkerReady);
         }
+        loop->m_ActiveDiagnostic = 0;
         DrainWebComponentFrame(loop->m_Engine);
         if (loop->m_MeasureStack)
         {
@@ -213,13 +250,13 @@ namespace dmEngine
         return EM_TRUE;
     }
 
-    static bool DispatchWebUpdate()
+    static bool DispatchWebUpdate(uint32_t source)
     {
         WebComponentLoop* loop = g_Web;
         uint32_t phase = __atomic_load_n(&loop->m_Phase, __ATOMIC_ACQUIRE);
         bool visible = WebCanRender();
         bool stopping = __atomic_load_n(&loop->m_Stop, __ATOMIC_ACQUIRE) != 0;
-        if (phase == WEB_WAITING && (visible || stopping))
+        if (loop->m_Admission.Admit(phase == WEB_WAITING, visible, stopping))
         {
             double now = emscripten_get_now();
             float dt = (float)((now - loop->m_PreviousTick) * 0.001);
@@ -229,6 +266,16 @@ namespace dmEngine
                 dmGraphics::UpdateExternalGraphicsWindow(loop->m_Engine->m_GraphicsContext, loop->m_CacheWindowOpened);
                 PrepareWebInput(loop->m_Engine, dt);
                 ++loop->m_InputPublished;
+            }
+            if (!stopping && loop->m_Diagnostics && loop->m_InputPublished <= WEB_DIAGNOSTIC_CAPACITY)
+            {
+                WebUpdateDiagnostic& diagnostic = loop->m_Diagnostics[loop->m_InputPublished - 1];
+                memset(&diagnostic, 0, sizeof(diagnostic));
+                diagnostic.m_Id = loop->m_InputPublished;
+                diagnostic.m_BrowserTick = loop->m_Ticks;
+                diagnostic.m_Source = source;
+                diagnostic.m_DispatchBegin = now;
+                diagnostic.m_DispatchEnd = emscripten_get_now();
             }
             AddScheduleSample(loop, false, 1, phase, now, emscripten_get_now());
             __atomic_store_n(&loop->m_Phase, WEB_TICK, __ATOMIC_RELEASE);
@@ -275,6 +322,20 @@ namespace dmEngine
             if (action == RESULT_REBOOT) { dmLogError("Web component PoC does not support reboot"); code = 1; }
             if (__atomic_load_n(&loop->m_Stop, __ATOMIC_ACQUIRE)) code = 1;
             ExportSchedule(loop);
+            EM_ASM({ Module['webRenderAdmission'] = ({readyRenders:$0, retired:$1, browserTicks:$2}); },
+                loop->m_ReadyRenders, (double)loop->m_Retired, (double)loop->m_Ticks);
+            if (loop->m_Diagnostics)
+            {
+                EM_ASM({ Module['webUpdateDiagnostics'] = ({schema:1,dropped:$0,capacityBytes:$1,rows:[],fields:['id','browser_tick','source','dispatch_begin','dispatch_end','wake','events_end','update_end','graphics_calls','owner_queue','owner_execute','owner_return','max_owner_queue']}); },
+                    loop->m_DiagnosticDropped, sizeof(WebUpdateDiagnostic) * WEB_DIAGNOSTIC_CAPACITY);
+                for (uint32_t i = 0; i < loop->m_DiagnosticCount; ++i)
+                {
+                    const WebUpdateDiagnostic& d = loop->m_Diagnostics[i];
+                    EM_ASM({ Module['webUpdateDiagnostics'].rows.push([$0,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12]); },
+                        d.m_Id,d.m_BrowserTick,d.m_Source,d.m_DispatchBegin,d.m_DispatchEnd,d.m_Wake,d.m_EventsEnd,d.m_UpdateEnd,d.m_GraphicsCalls,d.m_OwnerQueue,d.m_OwnerExecute,d.m_OwnerReturn,d.m_MaxOwnerQueue);
+                }
+                delete[] loop->m_Diagnostics;
+            }
             EM_ASM({ Module['webStack'] = ({reserved:$0, touched:$1, measured:!!$2}); },
                 loop->m_StackBytes, loop->m_StackTouchedBytes, loop->m_MeasureStack);
             dmGraphics::DetachExternalGraphicsProducer();
@@ -300,12 +361,25 @@ namespace dmEngine
         }
         ++loop->m_Ticks;
         double begin = loop->m_MainSamples ? emscripten_get_now() : 0;
-        bool dispatched = DispatchWebUpdate();
-        if (PumpWebComponentFrame(loop->m_Engine)) ++loop->m_Retired;
-        else ++loop->m_NoFrame;
+        loop->m_Admission.BrowserTick(WebCanRender());
+        bool dispatched;
+        if (loop->m_Schedule == 4)
+        {
+            // Wake before consuming to preserve simulation/preparation overlap.
+            // Readiness may fill a missed tick, using the same two frame slots.
+            loop->m_RenderAdmission.BrowserTick(WebCanRender());
+            dispatched = DispatchWebUpdate(0);
+            if (!PumpAdmittedWebFrame(loop)) ++loop->m_NoFrame;
+        }
+        else
+        {
+            dispatched = DispatchWebUpdate(0);
+            if (PumpWebComponentFrame(loop->m_Engine)) ++loop->m_Retired;
+            else ++loop->m_NoFrame;
+        }
         // A worker may finish while main consumes its previous snapshot. Retry
         // only if this callback has not already admitted an update: no run-ahead.
-        if (loop->m_RetryDispatch && !dispatched && DispatchWebUpdate())
+        if (loop->m_RetryDispatch && !dispatched && DispatchWebUpdate(2))
             ++loop->m_RetryDispatches;
         AddScheduleSample(loop, false, 0, phase, begin, loop->m_MainSamples ? emscripten_get_now() : 0);
     }
@@ -328,8 +402,11 @@ namespace dmEngine
         loop->m_Engine = engine;
         loop->m_Params = *params;
         loop->m_PreviousTick = emscripten_get_now();
-        loop->m_CompletionDispatch = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_schedule", 0) == 1;
-        loop->m_RetryDispatch = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_schedule", 0) == 2;
+        loop->m_Schedule = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_schedule", 0);
+        if (loop->m_Schedule > 4) { dmLogFatal("render.poc_web_schedule must be 0..4"); abort(); }
+        loop->m_CompletionDispatch = loop->m_Schedule == 1 || loop->m_Schedule == 3 || loop->m_Schedule == 4;
+        loop->m_RetryDispatch = loop->m_Schedule == 2;
+        loop->m_Admission.m_Paced = loop->m_Schedule == 3;
         loop->m_CacheWindowOpened = engine->m_PocWebOverlap || dmConfigFile::GetInt(engine->m_Config, "render.poc_web_cache_window", 0) != 0;
         int stack_kb = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_stack_kb", 5120);
         if (stack_kb < 256 || stack_kb > 16384)
@@ -343,6 +420,8 @@ namespace dmEngine
             loop->m_MainSamples = new WebScheduleSample[WEB_SCHEDULE_CAPACITY];
             loop->m_WorkerSamples = new WebScheduleSample[WEB_SCHEDULE_CAPACITY];
         }
+        if (dmConfigFile::GetInt(engine->m_Config, "render.poc_web_diagnostics", 0))
+            loop->m_Diagnostics = new WebUpdateDiagnostic[WEB_DIAGNOSTIC_CAPACITY];
         g_Web = loop;
         if (!dmGraphics::StartExternalGraphicsOwner(engine->m_GraphicsContext, WebDispatchGraphics)) abort();
         dmGraphics::UpdateExternalGraphicsWindow(engine->m_GraphicsContext, loop->m_CacheWindowOpened);
@@ -357,7 +436,8 @@ namespace dmEngine
             engine->m_PocWebOverlap ? "component-web-snapshots" : engine->m_PocWebComponents ? "component-web-serialized" : "component-web-threaded",
             engine->m_PocWebComponents && !engine->m_PocWebOverlap ? "exclusive-handoff" : "slots=2");
         fprintf(stderr, "WEB_POC_SCHEDULE completion_dispatch=%d metrics=%d\n", loop->m_CompletionDispatch, loop->m_MainSamples != 0);
-        fprintf(stderr, "WEB_POC_OPTIONS schedule=%d cache_window=%d\n", loop->m_CompletionDispatch ? 1 : loop->m_RetryDispatch ? 2 : 0, loop->m_CacheWindowOpened);
+        fprintf(stderr, "WEB_POC_DIAGNOSTICS enabled=%d\n", loop->m_Diagnostics != 0);
+        fprintf(stderr, "WEB_POC_OPTIONS schedule=%d cache_window=%d\n", loop->m_Schedule, loop->m_CacheWindowOpened);
         emscripten_set_timeout_loop(HiddenService, 100, 0);
         emscripten_set_main_loop_arg(WebBrowserTick, 0, 0, 1);
         return true;

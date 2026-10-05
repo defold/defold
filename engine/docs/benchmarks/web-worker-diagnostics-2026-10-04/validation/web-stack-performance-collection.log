@@ -1,0 +1,109 @@
+Starting gameplay_long-direct-1
+gameplay_long-direct-1: 30s sampled
+gameplay_long-direct-1: 60s sampled
+gameplay_long-direct-1: 90s sampled
+gameplay_long-direct-1: 120s sampled
+1/9 gameplay_long-direct-1: 120.00 updates/s
+Starting gameplay_long-deferred_5m-1
+gameplay_long-deferred_5m-1: 30s sampled
+gameplay_long-deferred_5m-1: 60s sampled
+gameplay_long-deferred_5m-1: 90s sampled
+gameplay_long-deferred_5m-1: 120s sampled
+2/9 gameplay_long-deferred_5m-1: 120.00 updates/s
+Starting gameplay_long-deferred_2m-1
+gameplay_long-deferred_2m-1: 30s sampled
+gameplay_long-deferred_2m-1: 60s sampled
+gameplay_long-deferred_2m-1: 90s sampled
+gameplay_long-deferred_2m-1: 120s sampled
+3/9 gameplay_long-deferred_2m-1: 120.00 updates/s
+Starting gameplay_long-deferred_5m-2
+gameplay_long-deferred_5m-2: 30s sampled
+gameplay_long-deferred_5m-2: 60s sampled
+gameplay_long-deferred_5m-2: 90s sampled
+gameplay_long-deferred_5m-2: 120s sampled
+4/9 gameplay_long-deferred_5m-2: 119.91 updates/s
+Starting gameplay_long-deferred_2m-2
+gameplay_long-deferred_2m-2: 30s sampled
+gameplay_long-deferred_2m-2: 60s sampled
+gameplay_long-deferred_2m-2: 90s sampled
+gameplay_long-deferred_2m-2: 120s sampled
+5/9 gameplay_long-deferred_2m-2: 120.01 updates/s
+Starting gameplay_long-direct-2
+gameplay_long-direct-2: 30s sampled
+gameplay_long-direct-2: 60s sampled
+gameplay_long-direct-2: 90s sampled
+gameplay_long-direct-2: 120s sampled
+6/9 gameplay_long-direct-2: 120.00 updates/s
+Starting gameplay_long-deferred_2m-3
+gameplay_long-deferred_2m-3: 30s sampled
+gameplay_long-deferred_2m-3: 60s sampled
+gameplay_long-deferred_2m-3: 90s sampled
+gameplay_long-deferred_2m-3: 120s sampled
+7/9 gameplay_long-deferred_2m-3: 119.98 updates/s
+Starting gameplay_long-direct-3
+gameplay_long-direct-3: 30s sampled
+gameplay_long-direct-3: 60s sampled
+gameplay_long-direct-3: 90s sampled
+gameplay_long-direct-3: 120s sampled
+8/9 gameplay_long-direct-3: 120.00 updates/s
+Starting gameplay_long-deferred_5m-3
+gameplay_long-deferred_5m-3: 30s sampled
+gameplay_long-deferred_5m-3: 60s sampled
+gameplay_long-deferred_5m-3: 90s sampled
+gameplay_long-deferred_5m-3: 120s sampled
+9/9 gameplay_long-deferred_5m-3: 120.00 updates/s
+Starting bunny30k-direct-1
+bunny30k-direct-1: 30s sampled
+1/18 bunny30k-direct-1: 79.96 updates/s
+Starting bunny30k-deferred_5m-1
+bunny30k-deferred_5m-1: 30s sampled
+2/18 bunny30k-deferred_5m-1: 118.37 updates/s
+Starting bunny30k-deferred_2m-1
+bunny30k-deferred_2m-1: 30s sampled
+3/18 bunny30k-deferred_2m-1: 118.46 updates/s
+Starting geometry1000-direct-1
+geometry1000-direct-1: 30s sampled
+4/18 geometry1000-direct-1: 67.08 updates/s
+Starting geometry1000-deferred_5m-1
+geometry1000-deferred_5m-1: 30s sampled
+5/18 geometry1000-deferred_5m-1: 83.77 updates/s
+Starting geometry1000-deferred_2m-1
+geometry1000-deferred_2m-1: 30s sampled
+6/18 geometry1000-deferred_2m-1: 84.11 updates/s
+Starting bunny30k-deferred_5m-2
+bunny30k-deferred_5m-2: 30s sampled
+7/18 bunny30k-deferred_5m-2: 119.10 updates/s
+Starting bunny30k-deferred_2m-2
+bunny30k-deferred_2m-2: 30s sampled
+8/18 bunny30k-deferred_2m-2: 118.67 updates/s
+Starting bunny30k-direct-2
+bunny30k-direct-2: 30s sampled
+9/18 bunny30k-direct-2: 79.97 updates/s
+Starting geometry1000-deferred_5m-2
+geometry1000-deferred_5m-2: 30s sampled
+10/18 geometry1000-deferred_5m-2: 82.40 updates/s
+Starting geometry1000-deferred_2m-2
+geometry1000-deferred_2m-2: 30s sampled
+11/18 geometry1000-deferred_2m-2: 83.86 updates/s
+Starting geometry1000-direct-2
+geometry1000-direct-2: 30s sampled
+12/18 geometry1000-direct-2: 67.25 updates/s
+Starting bunny30k-deferred_2m-3
+bunny30k-deferred_2m-3: 30s sampled
+13/18 bunny30k-deferred_2m-3: 119.47 updates/s
+Starting bunny30k-direct-3
+bunny30k-direct-3: 30s sampled
+14/18 bunny30k-direct-3: 78.77 updates/s
+Starting bunny30k-deferred_5m-3
+bunny30k-deferred_5m-3: 30s sampled
+15/18 bunny30k-deferred_5m-3: 119.43 updates/s
+Starting geometry1000-deferred_2m-3
+geometry1000-deferred_2m-3: 30s sampled
+16/18 geometry1000-deferred_2m-3: 83.11 updates/s
+Starting geometry1000-direct-3
+geometry1000-direct-3: 30s sampled
+17/18 geometry1000-direct-3: 66.77 updates/s
+Starting geometry1000-deferred_5m-3
+geometry1000-deferred_5m-3: 30s sampled
+18/18 geometry1000-deferred_5m-3: 84.17 updates/s
+Original screen-saver timeout restored.

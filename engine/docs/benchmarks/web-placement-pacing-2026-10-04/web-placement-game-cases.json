@@ -1,0 +1,21 @@
+[
+  {
+    "name": "gameplay_long",
+    "scene": "replay",
+    "expected": {
+      "id": "underwatermelon-offline-web-long-v1",
+      "ticks": 15000,
+      "measure_ticks": 14400,
+      "events": 9387
+    },
+    "config": {
+      "physics.debug": 0,
+      "engine.fixed_update_frequency": 60,
+      "gui.max_particle_count": 2048,
+      "graphics.max_draw_calls": 4096,
+      "graphics.max_font_batches": 1024
+    },
+    "timeout_seconds": 1200,
+    "url": "http://127.0.0.1:8768/"
+  }
+]

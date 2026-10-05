@@ -1,5 +1,10 @@
 # Web component-threading PoC
 
+[The production-candidate evaluation](WEB_PRODUCTION_CANDIDATE.md) adds longer
+same-build tests, a deterministic offline gameplay replay and explicit acceptance
+gates. Its desktop candidate fails the provisional memory budget and gameplay p99
+gate; threading remains opt-in.
+
 ## Memory experiment
 
 Sprite snapshots now use a 96-byte record (previously 128): a full 3D affine
@@ -268,6 +273,7 @@ poc_pipeline = component
 poc_threaded = 1
 poc_web_components = 1
 poc_web_overlap = 1
+poc_web_prepare_overlap = 1
 
 [sound]
 use_thread = 0
@@ -277,38 +283,46 @@ The console and `sprite._get_snapshot_stats().mode` report
 `component-web-snapshots`. Setting only `poc_web_overlap=0` restores the serialized
 control. Setting both `poc_web_overlap=0` and `poc_threaded=0` restores direct
 main-thread execution. The existing sprite-only path is unchanged.
+`poc_web_prepare_overlap` defaults to 1 within the opt-in owned-frame path.
+Setting it to 0 retains a preparation barrier for same-build comparisons: simulation
+still overlaps, but preparation waits for the previous consumer. This control also
+uses the new owned texture uploads; it is not the historical engine binary.
 
 The worker can now advance simulation **while browser main draws the previous
 frame**, including scenes containing models and meshes. Two reusable frame slots
 own finalized render objects, transforms, copied component/render-script constants,
 camera matrices, texture bindings, compacted light data, pass commands, and vertex
-and index upload bytes. No consumer callback accesses a live component pool, rig,
+and index upload bytes, plus owned 2D texture upload bytes. No consumer callback accesses a live component pool, rig,
 Lua state, text layout, camera registry, or producer render context. Main uses a
 separate render context for draw state and light-buffer scratch.
 
 | Stage | Owner and synchronization |
 | --- | --- |
 | Simulation, animation, callbacks, physics, game Lua | Worker; may overlap previous frame consumption |
-| Preparation: component rendering, culling, batching, CPU skinning, geometry, render Lua | Worker, after draining the previous frame |
-| GPU pose-texture update and resource operations | Browser main via the synchronized owner lane |
-| Pass execution, owned vertex/index uploads, WebGL draws | Browser main; consumes the published frame |
+| Preparation: component rendering, culling, batching, CPU skinning, geometry, render Lua | Worker; may overlap previous frame consumption |
+| Resource creation, replacement and destruction | Browser main via the synchronized owner lane; may require draining |
+| Pass execution, owned vertex/index/pose-texture uploads, WebGL draws | Browser main; consumes the published frame |
 
-This is a prepared component-output snapshot. **Preparation still waits for the
-previous consumer**; this is not a full move of culling/batching/geometry to main,
-and it does not give models the same extraction/consumption split as the original
-sprite-only path. It provides a conservative first overlap implementation for
-mixed projects. The model bone texture updates during preparation, preserving the
-previous GPU pose until consumption retires. Mesh update no longer uploads while
-the previous frame is active. Per-pass upload boundaries preserve reuse of a
-buffer across multiple draws with different data.
+This is a prepared component-output snapshot. **Simulation and preparation can
+both overlap the previous consumer.** Culling, batching and geometry stay on the
+worker; models do not use the original sprite-only extraction/consumption split.
+Upload recording is thread-local. Bone-texture bytes and buffer data are copied
+into the building slot and uploaded only during its consumption. Preparation uses
+producer-owned buffer-size and viewport metadata and the captured pose dimensions,
+plus producer-owned font-atlas dimensions, so it does not read state being changed
+by the previous consumer. Per-pass upload
+boundaries preserve reuse of buffers and textures across draws with different data.
+Publication still waits for the previous frame to retire, bounding the queue to
+one building slot and one consuming slot.
 
 GPU/material handles are protected by drain-before-mutation barriers, rather than
 by duplicating all resources. Creation, replacement and destruction during the
 next simulation may therefore shorten overlap. Destructive resource changes
 **between already captured passes** reject the unpublished frame; they cannot
-silently replay stale handles. Whole-texture replacement in that interval is also
-rejected. Built-in font atlas sub-updates preserve glyphs used by the current
-frame. Custom extension drawing/graphics calls remain outside the supported scope.
+silently replay stale handles. Ordinary full and partial 2D texture uploads are
+owned and ordered with passes, including model poses and built-in font atlases.
+Array, cube and 3D uploads during capture are rejected. Custom extension
+drawing/graphics calls remain outside the supported scope.
 Compute commands are rejected, and the earlier reboot/context-restoration and
 extension restrictions still apply. Normal stock multipass rendering is covered.
 
@@ -330,14 +344,20 @@ simulation-update intervals that start and finish while a consumer callback is
 actively executing. `thread_simulation_overlap_us` sums those intervals. Queued
 or already-retired frames do not count. This deliberately undercounts partial
 overlap and is an execution diagnostic, not a speedup measurement.
+`thread_preparations_during_render` and `thread_preparation_overlap_us` apply the
+same strict test to the preparation span. `component_preparation_overlap` reports
+the selected preparation control. Zero complete spans does not exclude partial overlap.
 
-Validation and exact commands are in
+Current validation is in
+[the preparation overlap record](validation/web-preparation-overlap-full-2026-10-03/README.md).
+The earlier simulation-only milestone is preserved in
 [the model/mesh overlap validation record](validation/web-model-mesh-overlap-2026-10-03/README.md).
 The mixed fixture compares animated and final pixels against serialized/direct
 controls, checks CPU/GPU skinning and instancing, buffer growth/shrink, destruction,
 pause/resume and context loss. A separate correctness case inserts a documented
 2 ms main-thread draw delay to make the overlap assertion deterministic. Neither
-case is a throughput or memory benchmark; performance evaluation is still needed.
+case is a throughput or memory benchmark. Hardware-browser performance and memory
+results are reported separately in [the preparation benchmark](WEB_PREPARATION_OVERLAP_RESULTS.md).
 
 ## Sprite-only scope and controls
 
@@ -444,3 +464,113 @@ The browser run used headless Chrome 154 on macOS; final local artifacts are in
 Firefox, Safari, hardware WebGL, hidden-tab lifecycle automation, and real-game
 coverage remain to be validated before drawing performance or portability
 conclusions.
+
+## Opt-in model upload ownership experiment
+
+`render.poc_web_owned_model_buffers=1` lends storage from the building component
+frame to model batching, then returns it to that frame before recording the
+upload. Generated world-space/CPU-skinned vertex data and model instance data are
+written into reusable frame-owned arrays. The producer's corresponding scratch
+arrays are left empty. Copied capture remains the default (`0`), and mesh uploads,
+pose textures and other component types retain their existing paths.
+
+Each render-list dispatch gets distinct storage, preserving multiple render
+passes and uploads to a shared graphics buffer. Only a retired slot is reused;
+the consumer never observes producer-writable arrays. This does not add a queue
+slot, reduce the worker stack, or alter resource mutation barriers. The existing
+payload/capacity limits still reject an oversized frame. Slot-owned array
+metadata and retained capacities are included in component frame accounting;
+`component_owned_upload_bytes` reports the last prepared frame's upload bytes
+that avoided the capture copy. It does not claim all renderer copies are removed.
+
+Native tests cover retired-slot reuse, independent frames, upload ordering,
+default fallback and capacity rejection. Web tests exercise animated CPU/GPU and
+instanced models, resource replacement, matching pixels, and preparation while a
+consumer is deliberately stalled. See the benchmark runner's model-buffer/GC
+workflow for separate allocation-attribution and timing runs.
+
+## Opt-in sprite placement and paced completion experiments
+
+The broad overlapping component path now has two independent experiment switches:
+
+```ini
+[render]
+poc_pipeline = component
+poc_threaded = 1
+poc_web_components = 1
+poc_web_overlap = 1
+poc_web_prepare_overlap = 1
+poc_web_deferred_sprites = 1
+poc_web_schedule = 3
+```
+
+`poc_web_deferred_sprites` defaults to `0`. At `1`, the worker extracts compact
+immutable sprite snapshots, culls, globally sorts, and selects batches together
+with other component entries. Each sprite batch records its selected snapshot
+indices at the original draw position. Browser main generates sprite geometry
+and uploads it when consuming that pass. Other components retain their existing
+preparation paths. This moves geometry work only: culling, sorting and batching
+have not moved to main. Render Lua remains on the worker.
+
+The callback reads frame-owned data and writes render-owner scratch, never live
+sprite components. The reserved two-slot lifecycle protects snapshots; resource
+mutation barriers protect retained resources. Sprite-world deletion drains
+published work before freeing renderer scratch. Deferred descriptor/index pools
+are reused and count toward sprite frame budgets; the component frame also
+accounts for its deferred draw registry. Capacity failure rejects the frame.
+Each render pass retains its ordering, matrices, constants and graphics uploads.
+
+The existing sprite diagnostic renderer-scratch counters are not refreshed by
+this deferred path; their zero values must not be interpreted as zero scratch
+usage. Use the WASM allocator totals for memory comparisons. Deferred payload
+and descriptor capacities remain budgeted and counted.
+
+`poc_web_schedule=3` grants one admission credit per visible browser animation
+callback. A busy worker can consume an unused credit through its completion
+callback, avoiding a whole extra rAF wait. A fast worker must wait for a new
+credit, so completion callbacks cannot run simulation ahead of the browser.
+Credits do not accumulate; hidden tabs lose credit, and shutdown can wake the
+worker without credit. This limits dispatch to browser opportunities, not a
+fixed 60 or 120 Hz. It does not guarantee uniform update intervals or input
+latency. Mode `1` retains unrestricted completion dispatch; `0` remains the
+default rAF scheduler, and `2` retains its post-consumption retry behavior.
+
+`poc_web_schedule=4` is a separate readiness-consumption experiment. It keeps
+mode 1's completion-driven simulation dispatch, but gives rendering one credit
+per visible browser animation callback. If that callback finds no ready frame,
+the worker's completion notification may consume a frame using the unused
+credit. Consumption spends the credit; credits never accumulate. Both paths
+wake the next simulation update before consuming, preserving overlap. The
+frame queue still has two slots. Hidden-tab retirement and shutdown may drain
+accepted work without a visible presentation credit. This is opt-in and does
+not change the default scheduler. After shutdown, `Module.webRenderAdmission`
+reports `readyRenders`, `retired`, and `browserTicks` for checking the bound.
+See the [space game replay comparison](SPACE_GAME_WEB_REPLAY_RESULTS.md) for the
+vanilla control, correctness checks, memory measurements and scheduling results.
+
+Select the switches independently when evaluating: geometry only uses
+`poc_web_deferred_sprites=1, poc_web_schedule=1`; pacing only uses `0, 3`;
+both use `1, 3`. The separate model-buffer ownership experiment remains off
+unless explicitly enabled. A Release `wasm_pthread-web` build and cross-origin
+isolation are required. Console activation includes
+`WEB_COMPONENT_SPRITES deferred_geometry=1` and `WEB_POC_OPTIONS schedule=3`.
+
+See [sprite placement and pacing results](WEB_SPRITE_PLACEMENT_RESULTS.md) for the measured comparison and recommended experimental configuration.
+
+### Per-update diagnostics and aggregate memory accounting
+
+`render.poc_web_diagnostics=1` adds a bounded, opt-in diagnostic record for each
+admitted worker update. Browser main records dispatch and admission source; the
+worker records wake-up, event handling and completion. Synchronous graphics-owner
+calls contribute separate queue, owner execution and worker-resumption spans.
+Records are exported as `Module.webUpdateDiagnostics` only after the worker joins.
+The benchmark contract requires sequential IDs, consistent timestamps and no lost
+records. No diagnostic buffer is allocated when the switch is off.
+
+Deferred sprite scratch accounting is now sampled on the render owner at completed
+consumption and read only when that frame slot is retired. It no longer reports
+zero merely because the producer cannot safely inspect live render scratch.
+Aggregates include every registered sprite world, including collection proxies;
+world deletion removes it after existing consumption barriers. Component frame
+upload and constant capacities are exposed as subsets of total frame capacity.
+These are CPU-capacity counters; logical GPU sizes are reported separately.

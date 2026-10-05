@@ -153,6 +153,8 @@ namespace dmGameSystem
         uint16_t                         m_BindPoseCacheTextureCurrentHeight;
     };
 
+    static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
+
     struct ModelWorld
     {
         dmObjectPool<ModelComponent*>    m_Components;
@@ -168,6 +170,8 @@ namespace dmGameSystem
         dmArray<uint8_t>*                m_VertexBufferData;
         uint32_t*                        m_VertexBufferDispatchCounts;
         uint32_t                         m_InstanceBufferDispatchCount;
+        uint32_t                         m_OwnedVertexTokens[VERTEX_BUFFER_MAX_BATCHES];
+        uint32_t                         m_OwnedInstanceToken;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmArray<HComponentRenderConstants> m_ScratchConstantBuffers;
@@ -188,7 +192,6 @@ namespace dmGameSystem
         uint8_t                          m_RenderBatchWorldVSCount;
     };
 
-    static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
     static const uint8_t VX_DECL_BASE_BUFFER        = 0;
     static const uint8_t VX_DECL_INSTANCE_BUFFER    = 1;
     static const uint8_t VX_DECL_CUSTOM_BUFFER      = 2;
@@ -2488,11 +2491,13 @@ namespace dmGameSystem
                 world->m_StatisticsVertexDataSize = 0;
 
                 world->m_InstanceBufferDataLocalSpace.SetSize(0);
+                world->m_OwnedInstanceToken = dmGraphics::BeginOwnedVertexUpload(world->m_InstanceBufferDataLocalSpace);
                 world->m_RenderObjects.SetSize(0);
 
                 for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
                 {
                     world->m_VertexBufferData[batch_index].SetSize(0);
+                    world->m_OwnedVertexTokens[batch_index] = dmGraphics::BeginOwnedVertexUpload(world->m_VertexBufferData[batch_index]);
                 }
                 break;
             }
@@ -2503,26 +2508,25 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                if (!world->m_InstanceBufferDataLocalSpace.Empty())
+                uint32_t instance_size = world->m_InstanceBufferDataLocalSpace.Size();
+                void* instance_data = dmGraphics::EndOwnedVertexUpload(world->m_OwnedInstanceToken, world->m_InstanceBufferDataLocalSpace);
+                if (instance_size)
                 {
-                    dmRender::SetBufferData(params.m_Context, world->m_InstanceBufferLocalSpace, world->m_InstanceBufferDataLocalSpace.Size(), world->m_InstanceBufferDataLocalSpace.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                    dmRender::SetBufferData(params.m_Context, world->m_InstanceBufferLocalSpace, instance_size, instance_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
                     // Update statistics for the instance buffer
-                    world->m_StatisticsVertexDataSize += world->m_InstanceBufferDataLocalSpace.Size();
+                    world->m_StatisticsVertexDataSize += instance_size;
                     world->m_InstanceBufferDispatchCount++;
                 }
 
                 for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
                 {
                     dmArray<uint8_t>& vertex_buffer_data = world->m_VertexBufferData[batch_index];
-                    if (vertex_buffer_data.Empty())
-                    {
-                        continue;
-                    }
-
                     uint32_t vb_size = vertex_buffer_data.Size();
+                    void* vertex_data = dmGraphics::EndOwnedVertexUpload(world->m_OwnedVertexTokens[batch_index], vertex_buffer_data);
+                    if (!vb_size) continue;
                     dmRender::HBufferedRenderBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
-                    dmRender::SetBufferData(params.m_Context, gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                    dmRender::SetBufferData(params.m_Context, gfx_vertex_buffer, vb_size, vertex_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
                     world->m_VertexBufferDispatchCounts[batch_index]++;
                 }
 

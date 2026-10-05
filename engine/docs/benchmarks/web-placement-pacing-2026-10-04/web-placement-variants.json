@@ -1,0 +1,1 @@
+{"direct":{"mode":"direct"},"current":{"mode":"overlap_completion"},"deferred":{"mode":"overlap_completion","deferredSprites":true},"paced":{"mode":"overlap_paced"},"combined":{"mode":"overlap_paced","deferredSprites":true}}

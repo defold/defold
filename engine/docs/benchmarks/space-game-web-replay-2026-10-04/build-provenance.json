@@ -1,0 +1,14 @@
+{
+  "poc_head": "bed9d48fb4fa47e242bab74748688b6e4190268a",
+  "vanilla_revision": "5f5706cb09a646358da203c7c59b95269c54910f",
+  "platform": "wasm_pthread-web",
+  "optimization": "-O3",
+  "main_stack_bytes": 5242880,
+  "initial_wasm_bytes": 33554432,
+  "worker_stack_bytes": 2097152,
+  "assertions": 1,
+  "pthread_pool_size": 1,
+  "logging": "Common dmLog listener; engine_release compiled with -UNDEBUG; engine reports is_debug=false.",
+  "poc_has_uncommitted_changes": true,
+  "publication_scope": "Engine configuration only; private project identities, source manifests, content hashes and extension details are omitted."
+}

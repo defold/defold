@@ -1,0 +1,2316 @@
+diff --git a/engine/docs/WEB_COMPONENT_POC.md b/engine/docs/WEB_COMPONENT_POC.md
+index 34e56e6013..03d2ad8ef5 100644
+--- a/engine/docs/WEB_COMPONENT_POC.md
++++ b/engine/docs/WEB_COMPONENT_POC.md
+@@ -1,5 +1,10 @@
+ # Web component-threading PoC
+ 
++[The production-candidate evaluation](WEB_PRODUCTION_CANDIDATE.md) adds longer
++same-build tests, a deterministic offline gameplay replay and explicit acceptance
++gates. Its desktop candidate fails the provisional memory budget and gameplay p99
++gate; threading remains opt-in.
++
+ ## Memory experiment
+ 
+ Sprite snapshots now use a 96-byte record (previously 128): a full 3D affine
+@@ -268,6 +273,7 @@ poc_pipeline = component
+ poc_threaded = 1
+ poc_web_components = 1
+ poc_web_overlap = 1
++poc_web_prepare_overlap = 1
+ 
+ [sound]
+ use_thread = 0
+@@ -277,38 +283,46 @@ The console and `sprite._get_snapshot_stats().mode` report
+ `component-web-snapshots`. Setting only `poc_web_overlap=0` restores the serialized
+ control. Setting both `poc_web_overlap=0` and `poc_threaded=0` restores direct
+ main-thread execution. The existing sprite-only path is unchanged.
++`poc_web_prepare_overlap` defaults to 1 within the opt-in owned-frame path.
++Setting it to 0 retains a preparation barrier for same-build comparisons: simulation
++still overlaps, but preparation waits for the previous consumer. This control also
++uses the new owned texture uploads; it is not the historical engine binary.
+ 
+ The worker can now advance simulation **while browser main draws the previous
+ frame**, including scenes containing models and meshes. Two reusable frame slots
+ own finalized render objects, transforms, copied component/render-script constants,
+ camera matrices, texture bindings, compacted light data, pass commands, and vertex
+-and index upload bytes. No consumer callback accesses a live component pool, rig,
++and index upload bytes, plus owned 2D texture upload bytes. No consumer callback accesses a live component pool, rig,
+ Lua state, text layout, camera registry, or producer render context. Main uses a
+ separate render context for draw state and light-buffer scratch.
+ 
+ | Stage | Owner and synchronization |
+ | --- | --- |
+ | Simulation, animation, callbacks, physics, game Lua | Worker; may overlap previous frame consumption |
+-| Preparation: component rendering, culling, batching, CPU skinning, geometry, render Lua | Worker, after draining the previous frame |
+-| GPU pose-texture update and resource operations | Browser main via the synchronized owner lane |
+-| Pass execution, owned vertex/index uploads, WebGL draws | Browser main; consumes the published frame |
+-
+-This is a prepared component-output snapshot. **Preparation still waits for the
+-previous consumer**; this is not a full move of culling/batching/geometry to main,
+-and it does not give models the same extraction/consumption split as the original
+-sprite-only path. It provides a conservative first overlap implementation for
+-mixed projects. The model bone texture updates during preparation, preserving the
+-previous GPU pose until consumption retires. Mesh update no longer uploads while
+-the previous frame is active. Per-pass upload boundaries preserve reuse of a
+-buffer across multiple draws with different data.
++| Preparation: component rendering, culling, batching, CPU skinning, geometry, render Lua | Worker; may overlap previous frame consumption |
++| Resource creation, replacement and destruction | Browser main via the synchronized owner lane; may require draining |
++| Pass execution, owned vertex/index/pose-texture uploads, WebGL draws | Browser main; consumes the published frame |
++
++This is a prepared component-output snapshot. **Simulation and preparation can
++both overlap the previous consumer.** Culling, batching and geometry stay on the
++worker; models do not use the original sprite-only extraction/consumption split.
++Upload recording is thread-local. Bone-texture bytes and buffer data are copied
++into the building slot and uploaded only during its consumption. Preparation uses
++producer-owned buffer-size and viewport metadata and the captured pose dimensions,
++plus producer-owned font-atlas dimensions, so it does not read state being changed
++by the previous consumer. Per-pass upload
++boundaries preserve reuse of buffers and textures across draws with different data.
++Publication still waits for the previous frame to retire, bounding the queue to
++one building slot and one consuming slot.
+ 
+ GPU/material handles are protected by drain-before-mutation barriers, rather than
+ by duplicating all resources. Creation, replacement and destruction during the
+ next simulation may therefore shorten overlap. Destructive resource changes
+ **between already captured passes** reject the unpublished frame; they cannot
+-silently replay stale handles. Whole-texture replacement in that interval is also
+-rejected. Built-in font atlas sub-updates preserve glyphs used by the current
+-frame. Custom extension drawing/graphics calls remain outside the supported scope.
++silently replay stale handles. Ordinary full and partial 2D texture uploads are
++owned and ordered with passes, including model poses and built-in font atlases.
++Array, cube and 3D uploads during capture are rejected. Custom extension
++drawing/graphics calls remain outside the supported scope.
+ Compute commands are rejected, and the earlier reboot/context-restoration and
+ extension restrictions still apply. Normal stock multipass rendering is covered.
+ 
+@@ -330,14 +344,20 @@ simulation-update intervals that start and finish while a consumer callback is
+ actively executing. `thread_simulation_overlap_us` sums those intervals. Queued
+ or already-retired frames do not count. This deliberately undercounts partial
+ overlap and is an execution diagnostic, not a speedup measurement.
++`thread_preparations_during_render` and `thread_preparation_overlap_us` apply the
++same strict test to the preparation span. `component_preparation_overlap` reports
++the selected preparation control. Zero complete spans does not exclude partial overlap.
+ 
+-Validation and exact commands are in
++Current validation is in
++[the preparation overlap record](validation/web-preparation-overlap-full-2026-10-03/README.md).
++The earlier simulation-only milestone is preserved in
+ [the model/mesh overlap validation record](validation/web-model-mesh-overlap-2026-10-03/README.md).
+ The mixed fixture compares animated and final pixels against serialized/direct
+ controls, checks CPU/GPU skinning and instancing, buffer growth/shrink, destruction,
+ pause/resume and context loss. A separate correctness case inserts a documented
+ 2 ms main-thread draw delay to make the overlap assertion deterministic. Neither
+-case is a throughput or memory benchmark; performance evaluation is still needed.
++case is a throughput or memory benchmark. Hardware-browser performance and memory
++results are reported separately in [the preparation benchmark](WEB_PREPARATION_OVERLAP_RESULTS.md).
+ 
+ ## Sprite-only scope and controls
+ 
+@@ -444,3 +464,100 @@ The browser run used headless Chrome 154 on macOS; final local artifacts are in
+ Firefox, Safari, hardware WebGL, hidden-tab lifecycle automation, and real-game
+ coverage remain to be validated before drawing performance or portability
+ conclusions.
++
++## Opt-in model upload ownership experiment
++
++`render.poc_web_owned_model_buffers=1` lends storage from the building component
++frame to model batching, then returns it to that frame before recording the
++upload. Generated world-space/CPU-skinned vertex data and model instance data are
++written into reusable frame-owned arrays. The producer's corresponding scratch
++arrays are left empty. Copied capture remains the default (`0`), and mesh uploads,
++pose textures and other component types retain their existing paths.
++
++Each render-list dispatch gets distinct storage, preserving multiple render
++passes and uploads to a shared graphics buffer. Only a retired slot is reused;
++the consumer never observes producer-writable arrays. This does not add a queue
++slot, reduce the worker stack, or alter resource mutation barriers. The existing
++payload/capacity limits still reject an oversized frame. Slot-owned array
++metadata and retained capacities are included in component frame accounting;
++`component_owned_upload_bytes` reports the last prepared frame's upload bytes
++that avoided the capture copy. It does not claim all renderer copies are removed.
++
++Native tests cover retired-slot reuse, independent frames, upload ordering,
++default fallback and capacity rejection. Web tests exercise animated CPU/GPU and
++instanced models, resource replacement, matching pixels, and preparation while a
++consumer is deliberately stalled. See the benchmark runner's model-buffer/GC
++workflow for separate allocation-attribution and timing runs.
++
++## Opt-in sprite placement and paced completion experiments
++
++The broad overlapping component path now has two independent experiment switches:
++
++```ini
++[render]
++poc_pipeline = component
++poc_threaded = 1
++poc_web_components = 1
++poc_web_overlap = 1
++poc_web_prepare_overlap = 1
++poc_web_deferred_sprites = 1
++poc_web_schedule = 3
++```
++
++`poc_web_deferred_sprites` defaults to `0`. At `1`, the worker extracts compact
++immutable sprite snapshots, culls, globally sorts, and selects batches together
++with other component entries. Each sprite batch records its selected snapshot
++indices at the original draw position. Browser main generates sprite geometry
++and uploads it when consuming that pass. Other components retain their existing
++preparation paths. This moves geometry work only: culling, sorting and batching
++have not moved to main. Render Lua remains on the worker.
++
++The callback reads frame-owned data and writes render-owner scratch, never live
++sprite components. The reserved two-slot lifecycle protects snapshots; resource
++mutation barriers protect retained resources. Sprite-world deletion drains
++published work before freeing renderer scratch. Deferred descriptor/index pools
++are reused and count toward sprite frame budgets; the component frame also
++accounts for its deferred draw registry. Capacity failure rejects the frame.
++Each render pass retains its ordering, matrices, constants and graphics uploads.
++
++The existing sprite diagnostic renderer-scratch counters are not refreshed by
++this deferred path; their zero values must not be interpreted as zero scratch
++usage. Use the WASM allocator totals for memory comparisons. Deferred payload
++and descriptor capacities remain budgeted and counted.
++
++`poc_web_schedule=3` grants one admission credit per visible browser animation
++callback. A busy worker can consume an unused credit through its completion
++callback, avoiding a whole extra rAF wait. A fast worker must wait for a new
++credit, so completion callbacks cannot run simulation ahead of the browser.
++Credits do not accumulate; hidden tabs lose credit, and shutdown can wake the
++worker without credit. This limits dispatch to browser opportunities, not a
++fixed 60 or 120 Hz. It does not guarantee uniform update intervals or input
++latency. Mode `1` retains unrestricted completion dispatch; `0` remains the
++default rAF scheduler, and `2` retains its post-consumption retry behavior.
++
++Select the switches independently when evaluating: geometry only uses
++`poc_web_deferred_sprites=1, poc_web_schedule=1`; pacing only uses `0, 3`;
++both use `1, 3`. The separate model-buffer ownership experiment remains off
++unless explicitly enabled. A Release `wasm_pthread-web` build and cross-origin
++isolation are required. Console activation includes
++`WEB_COMPONENT_SPRITES deferred_geometry=1` and `WEB_POC_OPTIONS schedule=3`.
++
++See [sprite placement and pacing results](WEB_SPRITE_PLACEMENT_RESULTS.md) for the measured comparison and recommended experimental configuration.
++
++### Per-update diagnostics and aggregate memory accounting
++
++`render.poc_web_diagnostics=1` adds a bounded, opt-in diagnostic record for each
++admitted worker update. Browser main records dispatch and admission source; the
++worker records wake-up, event handling and completion. Synchronous graphics-owner
++calls contribute separate queue, owner execution and worker-resumption spans.
++Records are exported as `Module.webUpdateDiagnostics` only after the worker joins.
++The benchmark contract requires sequential IDs, consistent timestamps and no lost
++records. No diagnostic buffer is allocated when the switch is off.
++
++Deferred sprite scratch accounting is now sampled on the render owner at completed
++consumption and read only when that frame slot is retired. It no longer reports
++zero merely because the producer cannot safely inspect live render scratch.
++Aggregates include every registered sprite world, including collection proxies;
++world deletion removes it after existing consumption barriers. Component frame
++upload and constant capacities are exposed as subsets of total frame capacity.
++These are CPU-capacity counters; logical GPU sizes are reported separately.
+diff --git a/engine/engine/src/engine.cpp b/engine/engine/src/engine.cpp
+index abaa798683..2c57431b85 100644
+--- a/engine/engine/src/engine.cpp
++++ b/engine/engine/src/engine.cpp
+@@ -581,6 +581,7 @@ namespace dmEngine
+         dmRender::HRenderContext m_Consumer;
+         dmRender::FrameTraceRecord* m_Trace[2];
+         bool m_Paused;
++        bool m_PrepareOverlap;
+     };
+ 
+     struct SpriteThreadState
+@@ -760,15 +761,26 @@ namespace dmEngine
+     {
+         ComponentThreadState* state = new ComponentThreadState;
+         engine->m_ComponentThread = state;
+-        state->m_Frames[0] = dmRender::NewComponentFrame();
+-        state->m_Frames[1] = dmRender::NewComponentFrame();
++        bool owned_model_buffers = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_owned_model_buffers", 0) != 0;
++        state->m_Frames[0] = dmRender::NewComponentFrame(owned_model_buffers);
++        state->m_Frames[1] = dmRender::NewComponentFrame(owned_model_buffers);
++        fprintf(stderr, "WEB_COMPONENT_BUFFERS owned_models=%d\n", owned_model_buffers ? 1 : 0);
++        engine->m_SpriteContext.m_ComponentDeferredSprites = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_deferred_sprites", 0) != 0;
++        if (engine->m_SpriteContext.m_ComponentDeferredSprites)
++        {
++            engine->m_SpriteContext.m_ComponentFrameBarrier = SpriteThreadBarrier;
++        }
++        fprintf(stderr, "WEB_COMPONENT_SPRITES deferred_geometry=%d\n", engine->m_SpriteContext.m_ComponentDeferredSprites ? 1 : 0);
+         state->m_Consumer = dmRender::NewComponentFrameConsumer(engine->m_RenderContext);
+         state->m_Trace[0] = state->m_Trace[1] = 0;
+         state->m_Paused = false;
++        state->m_PrepareOverlap = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_prepare_overlap", 1) != 0;
+         state->m_Thread = dmRender::NewExternalRenderThread(ComponentThreadRender, engine);
+         dmRender::EnableComponentFrames(engine->m_RenderContext, true);
+         engine->m_SpriteContext.m_RenderThread = state->m_Thread;
+         engine->m_SpriteContext.m_ComponentFrames = true;
++        engine->m_SpriteContext.m_ComponentPreparationOverlap = state->m_PrepareOverlap;
++        fprintf(stderr, "WEB_COMPONENT_PREPARATION overlap=%d\n", state->m_PrepareOverlap ? 1 : 0);
+         engine->m_SpriteContext.m_SnapshotPause = SpriteThreadPause;
+         engine->m_SpriteContext.m_SnapshotContext = engine;
+         dmResource::SetRenderMutationBarrier(ComponentFrameResourceBarrier, engine);
+@@ -777,11 +789,13 @@ namespace dmEngine
+     static bool PrepareComponentThreadFrame(Engine* engine, uint32_t slot, float dt, dmRender::FrameTraceRecord* trace)
+     {
+         ComponentThreadState* state = engine->m_ComponentThread;
+-        // Simulation has already overlapped the previous consumer. Preparation
+-        // owns all live worlds/render scratch and only starts after it retires.
+-        SpriteThreadBarrier(engine);
++        // Producer owns live worlds, render scratch and thread-local capture.
++        // Only the explicit comparison control drains before CPU preparation.
++        if (!state->m_PrepareOverlap) SpriteThreadBarrier(engine);
++        uint64_t preparation_begin = dmTime::GetMonotonicTime();
+         if (trace) trace->m_QueueDrainEnd = dmTime::GetMonotonicTime();
+         dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
++        engine->m_SpriteContext.m_ComponentFrameSlot = slot;
+         dmRender::BeginComponentFrameCapture(engine->m_RenderContext, state->m_Frames[slot]);
+         dmRender::RenderListBegin(engine->m_RenderContext);
+         bool ok = dmGameObject::Render(engine->m_MainCollection);
+@@ -789,11 +803,15 @@ namespace dmEngine
+         dmRender::RenderListEnd(engine->m_RenderContext);
+         ok = dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt) == dmRender::RENDER_SCRIPT_RESULT_OK && ok;
+         ok = dmRender::EndComponentFrameCapture(engine->m_RenderContext) && ok;
+-        dmGraphics::FlushGraphicsPackets();
++        dmRender::MarkRenderThreadPreparationComplete(state->m_Thread, preparation_begin);
+         if (trace) trace->m_PrepareEnd = dmTime::GetMonotonicTime();
++        dmGraphics::FlushGraphicsPackets();
+         if (!ok) return false;
+         engine->m_SpriteContext.m_RenderFrameCapacityBytes = dmRender::GetComponentFrameCapacity(state->m_Frames[0]) + dmRender::GetComponentFrameCapacity(state->m_Frames[1]);
+         engine->m_SpriteContext.m_RenderFrameUsedBytes = dmRender::GetComponentFrameUsedBytes(state->m_Frames[0]) + dmRender::GetComponentFrameUsedBytes(state->m_Frames[1]);
++        engine->m_SpriteContext.m_ComponentUploadCapacityBytes = dmRender::GetComponentFrameUploadCapacity(state->m_Frames[0]) + dmRender::GetComponentFrameUploadCapacity(state->m_Frames[1]);
++        engine->m_SpriteContext.m_ComponentConstantCapacityBytes = dmRender::GetComponentFrameConstantCapacity(state->m_Frames[0]) + dmRender::GetComponentFrameConstantCapacity(state->m_Frames[1]);
++        engine->m_SpriteContext.m_ComponentOwnedUploadBytes = dmRender::GetComponentFrameOwnedUploadBytes(state->m_Frames[slot]);
+         state->m_Trace[slot] = trace;
+         dmRender::PublishRenderThreadFrame(state->m_Thread, slot, trace);
+         return true;
+@@ -1119,6 +1137,7 @@ namespace dmEngine
+             dmRender::DeleteComponentFrame(engine->m_ComponentThread->m_Frames[1]);
+             delete engine->m_ComponentThread;
+             engine->m_ComponentThread = 0;
++            engine->m_SpriteContext.m_ComponentFrameBarrier = 0;
+             engine->m_SpriteContext.m_RenderThread = 0;
+             engine->m_SpriteContext.m_SnapshotPause = 0;
+         }
+@@ -2033,10 +2052,13 @@ namespace dmEngine
+             if (web_overlap < 0 || web_overlap > 1 || (web_overlap && (!engine->m_PocWebComponents || !condition.m_Threaded)))
+             { dmLogError("poc_web_overlap must be 0/1 and requires threaded web component compatibility"); return false; }
+             engine->m_PocWebOverlap = web_overlap != 0;
++            int prepare_overlap = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_prepare_overlap", 1);
++            if (prepare_overlap < 0 || prepare_overlap > 1)
++            { dmLogError("poc_web_prepare_overlap must be 0 or 1"); return false; }
+             int web_schedule = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_schedule", 0);
+-            if (web_schedule < 0 || web_schedule > 2 || (web_schedule &&
++            if (web_schedule < 0 || web_schedule > 3 || (web_schedule &&
+                 (condition.m_Pipeline != dmRender::POC_COMPONENT || !condition.m_Threaded || (engine->m_PocWebComponents && !engine->m_PocWebOverlap))))
+-            { dmLogError("poc_web_schedule must be 0/1/2; scheduling experiments require the overlapping threaded component path"); return false; }
++            { dmLogError("poc_web_schedule must be 0/1/2/3; scheduling experiments require the overlapping threaded component path"); return false; }
+             int web_cache_window = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_cache_window", 0);
+             if (web_cache_window < 0 || web_cache_window > 1 || (web_cache_window &&
+                 (condition.m_Pipeline != dmRender::POC_COMPONENT || !condition.m_Threaded)))
+diff --git a/engine/engine/src/engine_web.cpp b/engine/engine/src/engine_web.cpp
+index 0c8f97dbae..c47ef2145b 100644
+--- a/engine/engine/src/engine_web.cpp
++++ b/engine/engine/src/engine_web.cpp
+@@ -68,7 +68,7 @@ namespace dmEngine
+     struct WebEvent { uint32_t m_Kind, m_A, m_B; };
+     // Separate owner-written buffers; exported only after the worker has joined.
+     struct WebScheduleSample { double m_Begin, m_End; uint32_t m_Kind, m_Phase; };
+-    enum { WEB_SCHEDULE_CAPACITY = 32768 };
++    enum { WEB_SCHEDULE_CAPACITY = 32768, WEB_DIAGNOSTIC_CAPACITY = 16384 };
+     struct WebComponentLoop
+     {
+         Engine* m_Engine;
+@@ -79,6 +79,8 @@ namespace dmEngine
+         double m_PreviousTick;
+         uint64_t m_Ticks, m_Retired, m_NoFrame, m_InputPublished;
+         bool m_CompletionDispatch;
++        WebFrameAdmission m_Admission;
++        uint32_t m_Schedule;
+         bool m_RetryDispatch, m_CacheWindowOpened;
+         uint32_t m_RetryDispatches;
+         WebScheduleSample* m_MainSamples;
+@@ -86,6 +88,9 @@ namespace dmEngine
+         uint32_t m_MainCount, m_WorkerCount, m_MainDropped, m_WorkerDropped;
+         uint32_t m_StackBytes, m_StackTouchedBytes;
+         bool m_MeasureStack;
++        WebUpdateDiagnostic* m_Diagnostics;
++        WebUpdateDiagnostic* m_ActiveDiagnostic; // Worker-owned.
++        uint32_t m_DiagnosticCount, m_DiagnosticDropped;
+     };
+     static WebComponentLoop* g_Web = 0;
+ 
+@@ -115,12 +120,14 @@ namespace dmEngine
+         return true;
+     }
+ 
+-    struct BrowserCall { void (*m_Execute)(void*); void* m_Data; };
++    struct BrowserCall { void (*m_Execute)(void*); void* m_Data; bool m_Measure; double m_Begin, m_End; };
+     static void ExecuteBrowserCall(void* data)
+     {
+         BrowserCall* call = (BrowserCall*)data;
+         assert(emscripten_is_main_browser_thread());
++        if (call->m_Measure) call->m_Begin = emscripten_get_now();
+         call->m_Execute(call->m_Data);
++        if (call->m_Measure) call->m_End = emscripten_get_now();
+     }
+ 
+     static void AddScheduleSample(WebComponentLoop* loop, bool worker, uint32_t kind, uint32_t phase, double begin, double end);
+@@ -129,10 +136,14 @@ namespace dmEngine
+     {
+         // One synchronous caller: its operands remain alive until acknowledgment.
+         // Only the worker waits. Browser main never joins or drains a producer.
+-        BrowserCall call = {execute, data};
+-        double begin = g_Web->m_WorkerSamples ? emscripten_get_now() : 0;
++        WebUpdateDiagnostic* diagnostic = g_Web->m_ActiveDiagnostic;
++        BrowserCall call = {execute, data, diagnostic != 0, 0, 0};
++        double begin = g_Web->m_WorkerSamples || diagnostic ? emscripten_get_now() : 0;
+         emscripten_sync_run_in_main_runtime_thread(EM_FUNC_SIG_VI, ExecuteBrowserCall, &call);
+-        AddScheduleSample(g_Web, true, 3, 0, begin, g_Web->m_WorkerSamples ? emscripten_get_now() : 0);
++        double end = g_Web->m_WorkerSamples || diagnostic ? emscripten_get_now() : 0;
++        if (diagnostic) diagnostic->RecordGraphicsCall(begin, call.m_Begin, call.m_End, end);
++        // Aggregation avoids overflowing the older event buffer in long replays.
++        if (!g_Web->m_Diagnostics) AddScheduleSample(g_Web, true, 3, 0, begin, end);
+     }
+ 
+     static void AddScheduleSample(WebComponentLoop* loop, bool worker, uint32_t kind, uint32_t phase, double begin, double end)
+@@ -150,11 +161,11 @@ namespace dmEngine
+         sample.m_Begin = begin; sample.m_End = end;
+     }
+ 
+-    static bool DispatchWebUpdate();
++    static bool DispatchWebUpdate(uint32_t source);
+     static void WebWorkerReady()
+     {
+         // Queued notifications can outlive shutdown. Never retain the loop pointer.
+-        if (g_Web) DispatchWebUpdate();
++        if (g_Web) DispatchWebUpdate(1);
+     }
+ 
+     static void* WebSimulation(void* data)
+@@ -176,6 +187,9 @@ namespace dmEngine
+                 emscripten_futex_wait(&loop->m_Phase, WEB_WAITING, 1000);
+             __atomic_store_n(&loop->m_Phase, WEB_RUNNING, __ATOMIC_RELEASE);
+             if (__atomic_load_n(&loop->m_Stop, __ATOMIC_ACQUIRE)) break;
++            WebUpdateDiagnostic* diagnostic = loop->m_Diagnostics && loop->m_InputPublished <= WEB_DIAGNOSTIC_CAPACITY ? &loop->m_Diagnostics[loop->m_InputPublished - 1] : 0;
++            loop->m_ActiveDiagnostic = diagnostic;
++            if (diagnostic) diagnostic->m_Wake = emscripten_get_now();
+             uint32_t read = __atomic_load_n(&loop->m_EventRead, __ATOMIC_RELAXED);
+             uint32_t write = __atomic_load_n(&loop->m_EventWrite, __ATOMIC_ACQUIRE);
+             while (read != write)
+@@ -187,13 +201,18 @@ namespace dmEngine
+             __atomic_store_n(&loop->m_EventRead, read, __ATOMIC_RELEASE);
+             if (__atomic_load_n(&loop->m_Stop, __ATOMIC_ACQUIRE)) break;
+             double begin = loop->m_WorkerSamples ? emscripten_get_now() : 0;
++            if (diagnostic) diagnostic->m_EventsEnd = emscripten_get_now();
+             UpdateResult result = loop->m_Params.m_EngineUpdate(loop->m_Engine);
++            if (diagnostic) { diagnostic->m_UpdateEnd = emscripten_get_now(); ++loop->m_DiagnosticCount; }
++            else if (loop->m_Diagnostics) ++loop->m_DiagnosticDropped;
++            loop->m_ActiveDiagnostic = 0;
+             AddScheduleSample(loop, true, 2, 0, begin, loop->m_WorkerSamples ? emscripten_get_now() : 0);
+             if (result != RESULT_OK) break;
+             __atomic_store_n(&loop->m_Phase, WEB_WAITING, __ATOMIC_RELEASE);
+             if (loop->m_CompletionDispatch && WebHasContinuousFrames(loop->m_Engine))
+                 emscripten_async_run_in_main_runtime_thread(EM_FUNC_SIG_V, WebWorkerReady);
+         }
++        loop->m_ActiveDiagnostic = 0;
+         DrainWebComponentFrame(loop->m_Engine);
+         if (loop->m_MeasureStack)
+         {
+@@ -213,13 +232,13 @@ namespace dmEngine
+         return EM_TRUE;
+     }
+ 
+-    static bool DispatchWebUpdate()
++    static bool DispatchWebUpdate(uint32_t source)
+     {
+         WebComponentLoop* loop = g_Web;
+         uint32_t phase = __atomic_load_n(&loop->m_Phase, __ATOMIC_ACQUIRE);
+         bool visible = WebCanRender();
+         bool stopping = __atomic_load_n(&loop->m_Stop, __ATOMIC_ACQUIRE) != 0;
+-        if (phase == WEB_WAITING && (visible || stopping))
++        if (loop->m_Admission.Admit(phase == WEB_WAITING, visible, stopping))
+         {
+             double now = emscripten_get_now();
+             float dt = (float)((now - loop->m_PreviousTick) * 0.001);
+@@ -230,6 +249,16 @@ namespace dmEngine
+                 PrepareWebInput(loop->m_Engine, dt);
+                 ++loop->m_InputPublished;
+             }
++            if (!stopping && loop->m_Diagnostics && loop->m_InputPublished <= WEB_DIAGNOSTIC_CAPACITY)
++            {
++                WebUpdateDiagnostic& diagnostic = loop->m_Diagnostics[loop->m_InputPublished - 1];
++                memset(&diagnostic, 0, sizeof(diagnostic));
++                diagnostic.m_Id = loop->m_InputPublished;
++                diagnostic.m_BrowserTick = loop->m_Ticks;
++                diagnostic.m_Source = source;
++                diagnostic.m_DispatchBegin = now;
++                diagnostic.m_DispatchEnd = emscripten_get_now();
++            }
+             AddScheduleSample(loop, false, 1, phase, now, emscripten_get_now());
+             __atomic_store_n(&loop->m_Phase, WEB_TICK, __ATOMIC_RELEASE);
+             emscripten_futex_wake(&loop->m_Phase, 1);
+@@ -275,6 +304,18 @@ namespace dmEngine
+             if (action == RESULT_REBOOT) { dmLogError("Web component PoC does not support reboot"); code = 1; }
+             if (__atomic_load_n(&loop->m_Stop, __ATOMIC_ACQUIRE)) code = 1;
+             ExportSchedule(loop);
++            if (loop->m_Diagnostics)
++            {
++                EM_ASM({ Module['webUpdateDiagnostics'] = ({schema:1,dropped:$0,capacityBytes:$1,rows:[],fields:['id','browser_tick','source','dispatch_begin','dispatch_end','wake','events_end','update_end','graphics_calls','owner_queue','owner_execute','owner_return','max_owner_queue']}); },
++                    loop->m_DiagnosticDropped, sizeof(WebUpdateDiagnostic) * WEB_DIAGNOSTIC_CAPACITY);
++                for (uint32_t i = 0; i < loop->m_DiagnosticCount; ++i)
++                {
++                    const WebUpdateDiagnostic& d = loop->m_Diagnostics[i];
++                    EM_ASM({ Module['webUpdateDiagnostics'].rows.push([$0,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12]); },
++                        d.m_Id,d.m_BrowserTick,d.m_Source,d.m_DispatchBegin,d.m_DispatchEnd,d.m_Wake,d.m_EventsEnd,d.m_UpdateEnd,d.m_GraphicsCalls,d.m_OwnerQueue,d.m_OwnerExecute,d.m_OwnerReturn,d.m_MaxOwnerQueue);
++                }
++                delete[] loop->m_Diagnostics;
++            }
+             EM_ASM({ Module['webStack'] = ({reserved:$0, touched:$1, measured:!!$2}); },
+                 loop->m_StackBytes, loop->m_StackTouchedBytes, loop->m_MeasureStack);
+             dmGraphics::DetachExternalGraphicsProducer();
+@@ -300,12 +341,13 @@ namespace dmEngine
+         }
+         ++loop->m_Ticks;
+         double begin = loop->m_MainSamples ? emscripten_get_now() : 0;
+-        bool dispatched = DispatchWebUpdate();
++        loop->m_Admission.BrowserTick(WebCanRender());
++        bool dispatched = DispatchWebUpdate(0);
+         if (PumpWebComponentFrame(loop->m_Engine)) ++loop->m_Retired;
+         else ++loop->m_NoFrame;
+         // A worker may finish while main consumes its previous snapshot. Retry
+         // only if this callback has not already admitted an update: no run-ahead.
+-        if (loop->m_RetryDispatch && !dispatched && DispatchWebUpdate())
++        if (loop->m_RetryDispatch && !dispatched && DispatchWebUpdate(2))
+             ++loop->m_RetryDispatches;
+         AddScheduleSample(loop, false, 0, phase, begin, loop->m_MainSamples ? emscripten_get_now() : 0);
+     }
+@@ -328,8 +370,11 @@ namespace dmEngine
+         loop->m_Engine = engine;
+         loop->m_Params = *params;
+         loop->m_PreviousTick = emscripten_get_now();
+-        loop->m_CompletionDispatch = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_schedule", 0) == 1;
+-        loop->m_RetryDispatch = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_schedule", 0) == 2;
++        loop->m_Schedule = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_schedule", 0);
++        if (loop->m_Schedule > 3) { dmLogFatal("render.poc_web_schedule must be 0..3"); abort(); }
++        loop->m_CompletionDispatch = loop->m_Schedule == 1 || loop->m_Schedule == 3;
++        loop->m_RetryDispatch = loop->m_Schedule == 2;
++        loop->m_Admission.m_Paced = loop->m_Schedule == 3;
+         loop->m_CacheWindowOpened = engine->m_PocWebOverlap || dmConfigFile::GetInt(engine->m_Config, "render.poc_web_cache_window", 0) != 0;
+         int stack_kb = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_stack_kb", 5120);
+         if (stack_kb < 256 || stack_kb > 16384)
+@@ -343,6 +388,8 @@ namespace dmEngine
+             loop->m_MainSamples = new WebScheduleSample[WEB_SCHEDULE_CAPACITY];
+             loop->m_WorkerSamples = new WebScheduleSample[WEB_SCHEDULE_CAPACITY];
+         }
++        if (dmConfigFile::GetInt(engine->m_Config, "render.poc_web_diagnostics", 0))
++            loop->m_Diagnostics = new WebUpdateDiagnostic[WEB_DIAGNOSTIC_CAPACITY];
+         g_Web = loop;
+         if (!dmGraphics::StartExternalGraphicsOwner(engine->m_GraphicsContext, WebDispatchGraphics)) abort();
+         dmGraphics::UpdateExternalGraphicsWindow(engine->m_GraphicsContext, loop->m_CacheWindowOpened);
+@@ -357,7 +404,8 @@ namespace dmEngine
+             engine->m_PocWebOverlap ? "component-web-snapshots" : engine->m_PocWebComponents ? "component-web-serialized" : "component-web-threaded",
+             engine->m_PocWebComponents && !engine->m_PocWebOverlap ? "exclusive-handoff" : "slots=2");
+         fprintf(stderr, "WEB_POC_SCHEDULE completion_dispatch=%d metrics=%d\n", loop->m_CompletionDispatch, loop->m_MainSamples != 0);
+-        fprintf(stderr, "WEB_POC_OPTIONS schedule=%d cache_window=%d\n", loop->m_CompletionDispatch ? 1 : loop->m_RetryDispatch ? 2 : 0, loop->m_CacheWindowOpened);
++        fprintf(stderr, "WEB_POC_DIAGNOSTICS enabled=%d\n", loop->m_Diagnostics != 0);
++        fprintf(stderr, "WEB_POC_OPTIONS schedule=%d cache_window=%d\n", loop->m_Schedule, loop->m_CacheWindowOpened);
+         emscripten_set_timeout_loop(HiddenService, 100, 0);
+         emscripten_set_main_loop_arg(WebBrowserTick, 0, 0, 1);
+         return true;
+diff --git a/engine/engine/src/engine_web.h b/engine/engine/src/engine_web.h
+index 6e54cbca55..b96b6ab90f 100644
+--- a/engine/engine/src/engine_web.h
++++ b/engine/engine/src/engine_web.h
+@@ -16,6 +16,42 @@
+ #define DM_ENGINE_WEB_H
+ #include <stdint.h>
+ 
++namespace dmEngine
++{
++    // Diagnostic record for one admitted update. Main publishes the prefix
++    // before waking the worker; worker completes it before publishing WAITING.
++    struct WebUpdateDiagnostic
++    {
++        uint32_t m_Id, m_BrowserTick, m_Source, m_GraphicsCalls;
++        double m_DispatchBegin, m_DispatchEnd, m_Wake, m_EventsEnd, m_UpdateEnd;
++        double m_OwnerQueue, m_OwnerExecute, m_OwnerReturn, m_MaxOwnerQueue;
++        void RecordGraphicsCall(double begin, double owner_begin, double owner_end, double end)
++        {
++            ++m_GraphicsCalls;
++            m_OwnerQueue += owner_begin - begin;
++            m_OwnerExecute += owner_end - owner_begin;
++            m_OwnerReturn += end - owner_end;
++            if (owner_begin - begin > m_MaxOwnerQueue) m_MaxOwnerQueue = owner_begin - begin;
++        }
++    };
++
++    // Main-thread admission credit: completion can fill a missed browser tick,
++    // but fast workers cannot run ahead or accumulate hidden-tab catch-up ticks.
++    struct WebFrameAdmission
++    {
++        bool m_Paced, m_Credit;
++        WebFrameAdmission() : m_Paced(false), m_Credit(false) {}
++        void BrowserTick(bool visible) { m_Credit = visible; }
++        bool Admit(bool ready, bool visible, bool stopping)
++        {
++            if (!ready || (!visible && !stopping)) return false;
++            if (m_Paced && !stopping && !m_Credit) return false;
++            m_Credit = false;
++            return true;
++        }
++    };
++}
++
+ #if defined(__EMSCRIPTEN_PTHREADS__)
+ namespace dmEngine
+ {
+diff --git a/engine/engine/src/test/test_engine.cpp b/engine/engine/src/test/test_engine.cpp
+index 503d7d8bc5..edd3ec8476 100644
+--- a/engine/engine/src/test/test_engine.cpp
++++ b/engine/engine/src/test/test_engine.cpp
+@@ -32,6 +32,7 @@
+ #include "test_engine.h"
+ #include "../../../graphics/src/graphics_private.h"
+ #include "../engine.h"
++#include "../engine_web.h"
+ #include "../engine_private.h"
+ 
+ #if defined(DM_PLATFORM_IOS)
+@@ -1527,3 +1528,53 @@ int main(int argc, char **argv)
+     ProfileFinalize();
+     return ret;
+ }
++
++// Fast completions get at most one admission per visible browser tick; a worker
++// still busy at the tick may consume that credit immediately when it completes.
++TEST(EngineTest, WebPacedCompletionAdmission)
++{
++    dmEngine::WebFrameAdmission admission;
++    admission.m_Paced = true;
++    ASSERT_FALSE(admission.Admit(true, true, false));
++    admission.BrowserTick(true);
++    ASSERT_TRUE(admission.Admit(true, true, false));
++    ASSERT_FALSE(admission.Admit(true, true, false));
++    admission.BrowserTick(true);
++    ASSERT_FALSE(admission.Admit(false, true, false));
++    ASSERT_TRUE(admission.Admit(true, true, false));
++    admission.BrowserTick(true);
++    admission.BrowserTick(true);
++    ASSERT_TRUE(admission.Admit(true, true, false));
++    ASSERT_FALSE(admission.Admit(true, true, false));
++}
++
++// Hidden tabs discard pacing credit, but shutdown must wake a waiting worker;
++// uncapped completion retains the existing immediate-dispatch behavior.
++TEST(EngineTest, WebPacedHiddenAndStopAdmission)
++{
++    dmEngine::WebFrameAdmission admission;
++    admission.m_Paced = true;
++    admission.BrowserTick(true);
++    admission.BrowserTick(false);
++    ASSERT_FALSE(admission.Admit(true, false, false));
++    ASSERT_FALSE(admission.Admit(true, true, false));
++    ASSERT_TRUE(admission.Admit(true, false, true));
++    ASSERT_FALSE(admission.Admit(false, false, true));
++    admission.m_Paced = false;
++    ASSERT_TRUE(admission.Admit(true, true, false));
++    ASSERT_TRUE(admission.Admit(true, true, false));
++}
++
++// Graphics rendezvous accounting separates owner queueing, execution and worker
++// resumption; repeated calls must accumulate without losing the longest queue.
++TEST(EngineTest, WebGraphicsRendezvousAccounting)
++{
++    dmEngine::WebUpdateDiagnostic diagnostic = {};
++    diagnostic.RecordGraphicsCall(1, 4, 6, 8);
++    diagnostic.RecordGraphicsCall(10, 11, 12, 14);
++    ASSERT_EQ(2U, diagnostic.m_GraphicsCalls);
++    ASSERT_EQ(4.0, diagnostic.m_OwnerQueue);
++    ASSERT_EQ(3.0, diagnostic.m_OwnerExecute);
++    ASSERT_EQ(4.0, diagnostic.m_OwnerReturn);
++    ASSERT_EQ(3.0, diagnostic.m_MaxOwnerQueue);
++}
+diff --git a/engine/engine/src/test/web_component_2d/index.html b/engine/engine/src/test/web_component_2d/index.html
+index 1e8870b312..aaeef2e9b0 100644
+--- a/engine/engine/src/test/web_component_2d/index.html
++++ b/engine/engine/src/test/web_component_2d/index.html
+@@ -9,7 +9,7 @@ var Module = {
+  canvas: document.getElementById('canvas'),
+  // The project retains the old flag. Direct tests explicit new=0 precedence;
+  // alias omits the new flag to exercise compatibility with existing projects.
+- arguments: ['--config=render.poc_web_schedule='+(mode==='overlap-completion'?1:mode==='overlap-retry'?2:0),'--config=render.poc_web_overlap='+(mode.startsWith('overlap')?1:0),'--config=render.poc_web_stack_kb='+stackKb,'--config=render.poc_web_stack_measure='+stackMeasure,...(mode==='alias'?[]:['--config=render.poc_web_components='+(mode==='direct'?0:1)]),'--config=render.poc_pipeline='+(mode==='direct'?'legacy':'component'),'--config=render.poc_threaded='+(['threaded','alias'].includes(mode)||mode.startsWith('overlap')?1:0),'/content/game.projectc'],
++ arguments: ['--config=render.poc_web_deferred_sprites='+(mode.includes('deferred')?1:0),'--config=render.poc_web_owned_model_buffers='+(mode.includes('owned')?1:0),'--config=render.poc_web_prepare_overlap='+(mode.includes('barrier')?0:1),'--config=render.poc_web_schedule='+(mode.includes('paced')?3:mode==='overlap-completion'?1:mode==='overlap-retry'?2:0),'--config=render.poc_web_overlap='+(mode.startsWith('overlap')?1:0),'--config=render.poc_web_stack_kb='+stackKb,'--config=render.poc_web_stack_measure='+stackMeasure,...(mode==='alias'?[]:['--config=render.poc_web_components='+(mode==='direct'?0:1)]),'--config=render.poc_pipeline='+(mode==='direct'?'legacy':'component'),'--config=render.poc_threaded='+(['threaded','alias'].includes(mode)||mode.startsWith('overlap')?1:0),'/content/game.projectc'],
+  print: s => { console.log(s); (window.lines ||= []).push(s); },
+  printErr: s => { console.error(s); (window.lines ||= []).push(s); },
+  onExit: code => { window.exitCode = code; },
+diff --git a/engine/engine/src/test/web_component_2d/main.script b/engine/engine/src/test/web_component_2d/main.script
+index 9697753917..c38269c195 100644
+--- a/engine/engine/src/test/web_component_2d/main.script
++++ b/engine/engine/src/test/web_component_2d/main.script
+@@ -26,6 +26,8 @@ function update(self, dt)
+         window.set_size(680, 400)
+         local area = window.get_safe_area()
+         assert(area.width > 0 and window.get_display_scale() > 0)
++    elseif self.tick == 35 then
++        self.loaded_worlds = sprite._get_snapshot_stats().all_sprite_worlds
+     elseif self.tick == 40 then
+         go.delete(self.spawned)
+         go.delete(self.geometry)
+@@ -45,7 +47,15 @@ function update(self, dt)
+         assert(label.get_text("#label") == "Label updated")
+         assert(tilemap.get_tile("#map", "tiles", 3, 3) == 0)
+         local stats = sprite._get_snapshot_stats()
+-        report("WEB_OVERLAP simulations=" .. (stats.thread_simulations_during_render or 0) .. " us=" .. (stats.thread_simulation_overlap_us or 0) .. " capacity=" .. (stats.component_frame_capacity_bytes or 0))
++        assert(stats.all_sprite_worlds > 0 and stats.all_sprite_worlds < self.loaded_worlds, "unloaded proxy sprite world must leave accounting")
++        assert(stats.all_sprite_renderer_cpu_capacity_bytes >= stats.renderer_cpu_capacity_bytes, "aggregate scratch must include current world")
++        assert(stats.all_sprite_frame_capacity_bytes >= stats.frame_capacity_bytes, "aggregate frames must include current world")
++        assert(stats.component_upload_capacity_bytes + stats.component_constant_capacity_bytes <= (stats.component_frame_capacity_bytes or 0), "frame subsets must not double count")
++        if sys.get_config_int("render.poc_web_deferred_sprites", 0) ~= 0 then
++            assert(stats.renderer_cpu_capacity_bytes > 0 and stats.renderer_gpu_logical_bytes > 0, "retired deferred scratch must be counted")
++        end
++        report("WEB_MEMORY_CHECK " .. json.encode(stats))
++        report("WEB_OVERLAP simulations=" .. (stats.thread_simulations_during_render or 0) .. " us=" .. (stats.thread_simulation_overlap_us or 0) .. " preparations=" .. (stats.thread_preparations_during_render or 0) .. " prepare_us=" .. (stats.thread_preparation_overlap_us or 0) .. " capacity=" .. (stats.component_frame_capacity_bytes or 0))
+         report("WEB_2D_CHECK mode=" .. stats.mode .. " inputs=" .. self.inputs .. " sound_done=" .. self.sound_done)
+     elseif self.tick == 220 then
+         assert(self.inputs > 0 and self.sound_done > 0, "input/sound lifecycle incomplete")
+diff --git a/engine/gamesys/src/gamesys/components/comp_model.cpp b/engine/gamesys/src/gamesys/components/comp_model.cpp
+index b790195132..9eacf8303a 100644
+--- a/engine/gamesys/src/gamesys/components/comp_model.cpp
++++ b/engine/gamesys/src/gamesys/components/comp_model.cpp
+@@ -153,6 +153,8 @@ namespace dmGameSystem
+         uint16_t                         m_BindPoseCacheTextureCurrentHeight;
+     };
+ 
++    static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
++
+     struct ModelWorld
+     {
+         dmObjectPool<ModelComponent*>    m_Components;
+@@ -168,6 +170,8 @@ namespace dmGameSystem
+         dmArray<uint8_t>*                m_VertexBufferData;
+         uint32_t*                        m_VertexBufferDispatchCounts;
+         uint32_t                         m_InstanceBufferDispatchCount;
++        uint32_t                         m_OwnedVertexTokens[VERTEX_BUFFER_MAX_BATCHES];
++        uint32_t                         m_OwnedInstanceToken;
+         // Temporary scratch array for instances, only used during the creation phase of components
+         dmArray<dmGameObject::HInstance> m_ScratchInstances;
+         dmArray<HComponentRenderConstants> m_ScratchConstantBuffers;
+@@ -188,7 +192,6 @@ namespace dmGameSystem
+         uint8_t                          m_RenderBatchWorldVSCount;
+     };
+ 
+-    static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
+     static const uint8_t VX_DECL_BASE_BUFFER        = 0;
+     static const uint8_t VX_DECL_INSTANCE_BUFFER    = 1;
+     static const uint8_t VX_DECL_CUSTOM_BUFFER      = 2;
+@@ -2488,11 +2491,13 @@ namespace dmGameSystem
+                 world->m_StatisticsVertexDataSize = 0;
+ 
+                 world->m_InstanceBufferDataLocalSpace.SetSize(0);
++                world->m_OwnedInstanceToken = dmGraphics::BeginOwnedVertexUpload(world->m_InstanceBufferDataLocalSpace);
+                 world->m_RenderObjects.SetSize(0);
+ 
+                 for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
+                 {
+                     world->m_VertexBufferData[batch_index].SetSize(0);
++                    world->m_OwnedVertexTokens[batch_index] = dmGraphics::BeginOwnedVertexUpload(world->m_VertexBufferData[batch_index]);
+                 }
+                 break;
+             }
+@@ -2503,26 +2508,25 @@ namespace dmGameSystem
+             }
+             case dmRender::RENDER_LIST_OPERATION_END:
+             {
+-                if (!world->m_InstanceBufferDataLocalSpace.Empty())
++                uint32_t instance_size = world->m_InstanceBufferDataLocalSpace.Size();
++                void* instance_data = dmGraphics::EndOwnedVertexUpload(world->m_OwnedInstanceToken, world->m_InstanceBufferDataLocalSpace);
++                if (instance_size)
+                 {
+-                    dmRender::SetBufferData(params.m_Context, world->m_InstanceBufferLocalSpace, world->m_InstanceBufferDataLocalSpace.Size(), world->m_InstanceBufferDataLocalSpace.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
++                    dmRender::SetBufferData(params.m_Context, world->m_InstanceBufferLocalSpace, instance_size, instance_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+ 
+                     // Update statistics for the instance buffer
+-                    world->m_StatisticsVertexDataSize += world->m_InstanceBufferDataLocalSpace.Size();
++                    world->m_StatisticsVertexDataSize += instance_size;
+                     world->m_InstanceBufferDispatchCount++;
+                 }
+ 
+                 for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
+                 {
+                     dmArray<uint8_t>& vertex_buffer_data = world->m_VertexBufferData[batch_index];
+-                    if (vertex_buffer_data.Empty())
+-                    {
+-                        continue;
+-                    }
+-
+                     uint32_t vb_size = vertex_buffer_data.Size();
++                    void* vertex_data = dmGraphics::EndOwnedVertexUpload(world->m_OwnedVertexTokens[batch_index], vertex_buffer_data);
++                    if (!vb_size) continue;
+                     dmRender::HBufferedRenderBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
+-                    dmRender::SetBufferData(params.m_Context, gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
++                    dmRender::SetBufferData(params.m_Context, gfx_vertex_buffer, vb_size, vertex_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                     world->m_VertexBufferDispatchCounts[batch_index]++;
+                 }
+ 
+diff --git a/engine/gamesys/src/gamesys/components/comp_sprite.cpp b/engine/gamesys/src/gamesys/components/comp_sprite.cpp
+index 8ba633b3c4..1ba958ef9a 100644
+--- a/engine/gamesys/src/gamesys/components/comp_sprite.cpp
++++ b/engine/gamesys/src/gamesys/components/comp_sprite.cpp
+@@ -13,6 +13,7 @@
+ // specific language governing permissions and limitations under the License.
+ 
+ #include "comp_sprite.h"
++#include <render/component_frame.h>
+ #include <render/render_frame.h>
+ 
+ #include <string.h>
+@@ -236,9 +237,30 @@ namespace dmGameSystem
+         SpriteFrameBlock m_Values;
+     };
+ 
++    struct SpriteRenderFrame;
++    struct SpriteRendererState;
++    struct DeferredSpriteBatch
++    {
++        SpriteRenderFrame* m_Frame;
++        SpriteRendererState* m_Renderer;
++        dmArray<uint32_t> m_Indices;
++        dmRender::RenderObject m_Placeholder;
++        bool m_First, m_Last, m_Prepare;
++    };
++
++    struct SpriteRendererMemory
++    {
++        uint64_t m_CpuBytes, m_ConstantBytes, m_GpuLogicalBytes;
++    };
++    static void GetSpriteRendererMemory(const SpriteRendererState& renderer, SpriteRendererMemory* memory);
++
+     struct SpriteRenderFrame
+     {
+-        SpriteRenderFrame() : m_CapacityBytes(sizeof(SpriteRenderFrame)), m_GrowthPeakBytes(sizeof(SpriteRenderFrame)), m_ResourceBytes(0), m_CapacityLimit(0), m_Overflow(false), m_Builder(0), m_CentralDependencies(false) {}
++        SpriteRenderFrame() : m_CapacityBytes(sizeof(SpriteRenderFrame)), m_GrowthPeakBytes(sizeof(SpriteRenderFrame)), m_ResourceBytes(0), m_CapacityLimit(0), m_Overflow(false), m_Builder(0), m_CentralDependencies(false), m_DeferredCursor(0), m_DeferredPassBegin(0), m_DeferredRenderer(0) { memset(&m_RetiredRendererMemory, 0, sizeof(m_RetiredRendererMemory)); }
++        ~SpriteRenderFrame()
++        {
++            for (uint32_t i = 0; i < m_DeferredBatches.Size(); ++i) delete m_DeferredBatches[i];
++        }
+         uint64_t m_CapacityBytes;
+         uint64_t m_GrowthPeakBytes;
+         uint64_t m_ResourceBytes;
+@@ -261,6 +283,10 @@ namespace dmGameSystem
+         uint32_t m_VertexCount;
+         uint32_t m_IndexCount;
+         uint32_t m_VertexMemorySize;
++        dmArray<DeferredSpriteBatch*> m_DeferredBatches;
++        uint32_t m_DeferredCursor, m_DeferredPassBegin;
++        SpriteRendererMemory m_RetiredRendererMemory; // Consumer-written, read only when this slot is retired.
++        SpriteRendererState* m_DeferredRenderer; // Render-owner scratch, never used by capture.
+         // Capture-only indices. Consumers never look up a live component/cache key.
+         dmHashTable64<uint32_t> m_ResourceSizes; // Unique direct resource descriptors.
+         dmHashTable64<uint32_t> m_BindingMap;
+@@ -301,6 +327,7 @@ namespace dmGameSystem
+ 
+     struct SpriteWorld
+     {
++        SpriteWorld* m_NextWorld;
+         AnimationDataCache m_AnimationDataCache;
+         dmObjectPool<SpriteComponent> m_Components;
+         DynamicAttributePool m_DynamicVertexAttributePool;
+@@ -373,6 +400,8 @@ namespace dmGameSystem
+     {
+         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
+         SpriteWorld* sprite_world = new SpriteWorld();
++        sprite_world->m_NextWorld = (SpriteWorld*)sprite_context->m_SnapshotWorlds;
++        sprite_context->m_SnapshotWorlds = sprite_world;
+         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
+         sprite_world->m_Components.SetCapacity(comp_count);
+         sprite_world->m_CullingInfo.SetCapacity(comp_count);
+@@ -398,7 +427,7 @@ namespace dmGameSystem
+         sprite_world->m_Renderer.m_LegacyWorld = sprite_world;
+         sprite_world->m_ThreadFrames[0] = 0;
+         sprite_world->m_ThreadFrames[1] = 0;
+-        sprite_world->m_Threaded = sprite_context->m_SnapshotThreaded;
++        sprite_world->m_Threaded = sprite_context->m_SnapshotThreaded || sprite_context->m_ComponentDeferredSprites;
+         memset(&sprite_world->m_ThreadStats, 0, sizeof(sprite_world->m_ThreadStats));
+         sprite_world->m_ThreadStats.m_Threaded = sprite_world->m_Threaded;
+         sprite_world->m_Renderer.m_Frame = 0;
+@@ -421,6 +450,9 @@ namespace dmGameSystem
+     {
+         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+ 
++        SpriteContext* lifetime_context = (SpriteContext*)params.m_Context;
++        if (lifetime_context->m_ComponentFrameBarrier)
++            lifetime_context->m_ComponentFrameBarrier(lifetime_context->m_SnapshotContext);
+         DestroyMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool);
+ 
+         for (uint32_t i = 0; i < sprite_world->m_Renderer.m_RenderObjects.Size(); ++i)
+@@ -429,6 +461,11 @@ namespace dmGameSystem
+         }
+ 
+         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
++        SpriteWorld* previous = 0;
++        SpriteWorld* current = (SpriteWorld*)sprite_context->m_SnapshotWorlds;
++        while (current != sprite_world) { previous = current; current = current->m_NextWorld; }
++        if (previous) previous->m_NextWorld = current->m_NextWorld;
++        else sprite_context->m_SnapshotWorlds = current->m_NextWorld;
+         dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_Renderer.m_VertexBuffer);
+         free(sprite_world->m_Renderer.m_VertexBufferData);
+         dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_Renderer.m_IndexBuffer);
+@@ -1739,6 +1776,7 @@ namespace dmGameSystem
+             dmResource::Release(factory, binding.m_Resolved.m_Material);
+             dmResource::Release(factory, binding.m_Source);
+         }
++        frame->m_DeferredCursor = 0;
+         frame->m_Sprites.SetSize(0);
+         frame->m_Bounds.SetSize(0);
+         frame->m_Slice9.SetSize(0);
+@@ -2068,7 +2106,7 @@ namespace dmGameSystem
+ 
+         for (uint32_t* i = begin; i != end; ++i)
+         {
+-            uint32_t component_index         = (uint32_t)buf[*i].m_UserData;
++            uint32_t component_index         = (buf ? (uint32_t)buf[*i].m_UserData : *i);
+             SpriteComponent view;
+             const SpriteComponent* component = GetRenderSprite(sprite_world, component_index, &view);
+             const Matrix4& world_matrix      = component->m_World;
+@@ -2343,7 +2381,7 @@ namespace dmGameSystem
+ 
+         for (uint32_t* i = begin; i != end; ++i)
+         {
+-            uint32_t component_index = (uint32_t) buf[*i].m_UserData;
++            uint32_t component_index = (buf ? (uint32_t)buf[*i].m_UserData : *i);
+             uint32_t vertex_count = sprite_world->m_Frame ? sprite_world->m_Frame->m_Sprites[component_index].m_VertexCount :
+                 sprite_world->m_LegacyWorld->m_Components.GetRawObjects()[component_index].m_VertexCount;
+             uint32_t remainder = required_size % vertex_stride;
+@@ -2368,7 +2406,7 @@ namespace dmGameSystem
+     {
+         DM_PROFILE("SpriteRenderBatch");
+ 
+-        uint32_t component_index = (uint32_t)buf[*begin].m_UserData;
++        uint32_t component_index = (buf ? (uint32_t)buf[*begin].m_UserData : *begin);
+         SpriteComponent view;
+         const SpriteComponent* first = GetRenderSprite(sprite_world, component_index, &view);
+         assert(first->m_Enabled);
+@@ -2810,15 +2848,9 @@ namespace dmGameSystem
+         }
+     }
+ 
+-    static dmGameObject::UpdateResult SubmitSpriteFrame(SpriteRendererState* renderer, dmRender::HRenderContext render_context,
+-                                                       uint32_t vertex_count, uint32_t index_count, uint32_t vertex_memory_size,
+-                                                       const dmRender::RenderFrame* global_frame = 0)
++    static void PrepareSpriteRenderer(SpriteRendererState* renderer, dmRender::HRenderContext render_context,
++                                      uint32_t vertex_count, uint32_t index_count, uint32_t vertex_memory_size)
+     {
+-        uint32_t sprite_count = renderer->m_Frame ? renderer->m_Frame->m_Sprites.Size() : renderer->m_LegacyWorld->m_Components.GetRawObjects().Size();
+-        // Even an empty capture must release the previous frame's retained resources.
+-        if (!sprite_count)
+-            return dmGameObject::UPDATE_RESULT_OK;
+-
+         renderer->m_ReallocBuffers |= vertex_memory_size > renderer->m_VertexMemorySize || index_count > renderer->m_IndexCount;
+         renderer->m_VertexMemorySize = dmMath::Max(renderer->m_VertexMemorySize, vertex_memory_size);
+         renderer->m_VertexCount = vertex_count;
+@@ -2833,6 +2865,19 @@ namespace dmGameSystem
+         renderer->m_VerticesWritten = 0;
+         PrepareSpriteConstants(renderer);
+ 
++    }
++
++    static dmGameObject::UpdateResult SubmitSpriteFrame(SpriteRendererState* renderer, dmRender::HRenderContext render_context,
++                                                       uint32_t vertex_count, uint32_t index_count, uint32_t vertex_memory_size,
++                                                       const dmRender::RenderFrame* global_frame = 0)
++    {
++        uint32_t sprite_count = renderer->m_Frame ? renderer->m_Frame->m_Sprites.Size() : renderer->m_LegacyWorld->m_Components.GetRawObjects().Size();
++        // Even an empty capture must release the previous frame's retained resources.
++        if (!sprite_count)
++            return dmGameObject::UPDATE_RESULT_OK;
++
++        PrepareSpriteRenderer(renderer, render_context, vertex_count, index_count, vertex_memory_size);
++
+         dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(render_context, sprite_count);
+         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, renderer);
+         dmRender::RenderListEntry* write_ptr = entries;
+@@ -2883,10 +2928,105 @@ namespace dmGameSystem
+         return dmGameObject::UPDATE_RESULT_OK;
+     }
+ 
++    static void ConsumeDeferredSpriteBatch(void* data, dmRender::HRenderContext context)
++    {
++        DeferredSpriteBatch* batch = (DeferredSpriteBatch*)data;
++        SpriteRendererState* renderer = batch->m_Renderer;
++        SpriteRenderFrame* frame = batch->m_Frame;
++        if (batch->m_First)
++        {
++            renderer->m_Frame = frame;
++            renderer->m_LegacyWorld = 0;
++            if (batch->m_Prepare) PrepareSpriteRenderer(renderer, context, frame->m_VertexCount, frame->m_IndexCount, frame->m_VertexMemorySize);
++            dmRender::RenderListDispatchParams begin = {};
++            begin.m_UserData = renderer; begin.m_Context = context; begin.m_Operation = dmRender::RENDER_LIST_OPERATION_BEGIN;
++            RenderListDispatch(begin);
++        }
++        RenderBatch(renderer, context, 0, batch->m_Indices.Begin(), batch->m_Indices.End());
++        if (batch->m_Last)
++        {
++            dmRender::RenderListDispatchParams end = {};
++            end.m_UserData = renderer; end.m_Context = context; end.m_Operation = dmRender::RENDER_LIST_OPERATION_END;
++            RenderListDispatch(end);
++            GetSpriteRendererMemory(*renderer, &frame->m_RetiredRendererMemory);
++        }
++    }
++
++    static void CullDeferredSprites(const dmRender::RenderListVisibilityParams& params)
++    {
++        const SpriteRenderFrame* frame = (const SpriteRenderFrame*)params.m_UserData;
++        for (uint32_t i = 0; i < params.m_NumEntries; ++i)
++        {
++            dmRender::RenderListEntry& entry = params.m_Entries[i];
++            const SpriteCullingInfo& info = frame->m_Bounds[entry.m_UserData];
++            entry.m_Visibility = dmIntersection::TestFrustumSphereSq(*params.m_Frustum,
++                Vector4(info.m_Position[0], info.m_Position[1], info.m_Position[2], 1), info.m_Radius) ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
++        }
++    }
++
++    static void CaptureDeferredSpriteBatch(const dmRender::RenderListDispatchParams& params)
++    {
++        SpriteRenderFrame* frame = (SpriteRenderFrame*)params.m_UserData;
++        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BEGIN)
++        { frame->m_DeferredPassBegin = frame->m_DeferredCursor; return; }
++        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_END)
++        {
++            if (frame->m_DeferredCursor > frame->m_DeferredPassBegin)
++                frame->m_DeferredBatches[frame->m_DeferredCursor - 1]->m_Last = true;
++            return;
++        }
++        if (frame->m_DeferredCursor == frame->m_DeferredBatches.Size())
++        {
++            if (!ReserveSpriteFrame(frame, frame->m_DeferredBatches, frame->m_DeferredCursor + 1) ||
++                !GrowSpriteFrame(frame, sizeof(DeferredSpriteBatch), 0))
++            { dmRender::RejectComponentFrame(params.m_Context); return; }
++            frame->m_DeferredBatches.Push(new DeferredSpriteBatch);
++        }
++        DeferredSpriteBatch* batch = frame->m_DeferredBatches[frame->m_DeferredCursor++];
++        uint32_t count = params.m_End - params.m_Begin;
++        if (!ReserveSpriteFrame(frame, batch->m_Indices, count))
++        { dmRender::RejectComponentFrame(params.m_Context); return; }
++        batch->m_Indices.SetSize(0);
++        for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
++            batch->m_Indices.Push(params.m_Buf[*i].m_UserData);
++        batch->m_Frame = frame; batch->m_Renderer = frame->m_DeferredRenderer;
++        batch->m_First = frame->m_DeferredCursor == frame->m_DeferredPassBegin + 1;
++        batch->m_Last = false;
++        batch->m_Prepare = frame->m_DeferredCursor == 1;
++        batch->m_Placeholder.Init();
++        batch->m_Placeholder.m_VertexCount = 1;
++        batch->m_Placeholder.m_Material = frame->m_Bindings[frame->m_Sprites[batch->m_Indices[0]].m_Binding].m_Resolved.m_Material->m_Material;
++        dmRender::AddComponentDeferredDraw(params.m_Context, &batch->m_Placeholder, ConsumeDeferredSpriteBatch, batch);
++    }
++
++    static dmGameObject::UpdateResult SubmitDeferredSprites(SpriteWorld* world, SpriteContext* context)
++    {
++        if (!CaptureSpriteThreadFrame(world, context, context->m_ComponentFrameSlot)) return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
++        SpriteRenderFrame* frame = world->m_ThreadFrames[context->m_ComponentFrameSlot];
++        frame->m_DeferredRenderer = &world->m_Renderer;
++        dmGraphics::ProtectCapturedGraphicsResources();
++        uint32_t count = frame->m_Sprites.Size();
++        if (!count) return dmGameObject::UPDATE_RESULT_OK;
++        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(context->m_RenderContext, count);
++        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(context->m_RenderContext, CaptureDeferredSpriteBatch, CullDeferredSprites, frame);
++        for (uint32_t i = 0; i < count; ++i)
++        {
++            const SpriteRenderData& data = frame->m_Sprites[i];
++            entries[i].m_WorldPosition = Point3(data.m_World[9], data.m_World[10], data.m_World[11]);
++            entries[i].m_BatchKey = data.m_BatchKey;
++            entries[i].m_TagListKey = frame->m_Bindings[data.m_Binding].m_TagListKey;
++            entries[i].m_UserData = i; entries[i].m_Dispatch = dispatch;
++            entries[i].m_MinorOrder = 0; entries[i].m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
++        }
++        dmRender::RenderListSubmit(context->m_RenderContext, entries, entries + count);
++        return dmGameObject::UPDATE_RESULT_OK;
++    }
++
+     dmGameObject::UpdateResult CompSpriteRender(const dmGameObject::ComponentsRenderParams& params)
+     {
+         SpriteContext* context = (SpriteContext*)params.m_Context;
+         SpriteWorld* world = (SpriteWorld*)params.m_World;
++        if (context->m_ComponentDeferredSprites) return SubmitDeferredSprites(world, context);
+         SpriteRendererState* renderer = &world->m_Renderer;
+         dmRender::HRenderContext render_context = context->m_RenderContext;
+         if (context->m_SnapshotInline)
+@@ -3409,6 +3549,23 @@ namespace dmGameSystem
+         return map.Capacity() ? sizeof(uint32_t) * dmMath::Max(1U, map.Capacity() * 2 / 3) + sizeof(typename dmHashTable<K, uint32_t>::Entry) * map.Capacity() : 0;
+     }
+ 
++    static void GetSpriteRendererMemory(const SpriteRendererState& renderer, SpriteRendererMemory* memory)
++    {
++        memset(memory, 0, sizeof(*memory));
++        memory->m_CpuBytes = renderer.m_VertexMemorySize + renderer.m_IndexCapacityBytes +
++            renderer.m_AttributeScratch.Capacity() * sizeof(dmGraphics::VertexAttributeInfo) +
++            renderer.m_ConstantBuffers.Capacity() * sizeof(dmRender::HNamedConstantBuffer) +
++            renderer.m_RenderObjects.Capacity() * sizeof(dmRender::RenderObject*) +
++            renderer.m_RenderObjects.Size() * sizeof(dmRender::RenderObject) +
++            (renderer.m_ScratchPositionWorld.Capacity() + renderer.m_ScratchPositionLocal.Capacity()) * sizeof(Vector4);
++        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
++            memory->m_CpuBytes += renderer.m_ScratchUVs[i].Capacity() * sizeof(float);
++        for (uint32_t i = 0; i < renderer.m_ConstantBuffers.Size(); ++i)
++            memory->m_ConstantBytes += dmRender::GetNamedConstantBufferCapacity(renderer.m_ConstantBuffers[i]);
++        memory->m_CpuBytes += memory->m_ConstantBytes;
++        memory->m_GpuLogicalBytes = dmRender::GetBufferedRenderBufferDataSize(renderer.m_VertexBuffer) + dmRender::GetBufferedRenderBufferDataSize(renderer.m_IndexBuffer);
++    }
++
+     static void ComputeSpriteSnapshotStats(SpriteWorld* world, const SpriteRenderFrame* frame, SpriteSnapshotStats* stats, bool renderer_idle = true)
+     {
+         memset(stats, 0, sizeof(*stats));
+@@ -3420,18 +3577,11 @@ namespace dmGameSystem
+         stats->m_CaptureTotalUs = renderer.m_CaptureTotalUs;
+         if (renderer_idle)
+         {
+-            stats->m_RendererCpuCapacityBytes = renderer.m_VertexMemorySize + renderer.m_IndexCapacityBytes +
+-                renderer.m_AttributeScratch.Capacity() * sizeof(dmGraphics::VertexAttributeInfo) +
+-                renderer.m_ConstantBuffers.Capacity() * sizeof(dmRender::HNamedConstantBuffer) +
+-                renderer.m_RenderObjects.Capacity() * sizeof(dmRender::RenderObject*) +
+-                renderer.m_RenderObjects.Size() * sizeof(dmRender::RenderObject) +
+-                (renderer.m_ScratchPositionWorld.Capacity() + renderer.m_ScratchPositionLocal.Capacity()) * sizeof(Vector4);
+-            for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
+-                stats->m_RendererCpuCapacityBytes += renderer.m_ScratchUVs[i].Capacity() * sizeof(float);
+-            for (uint32_t i = 0; i < renderer.m_ConstantBuffers.Size(); ++i)
+-                stats->m_ConstantBufferCapacityBytes += dmRender::GetNamedConstantBufferCapacity(renderer.m_ConstantBuffers[i]);
+-            stats->m_RendererCpuCapacityBytes += stats->m_ConstantBufferCapacityBytes;
+-            stats->m_RendererGpuLogicalBytes = dmRender::GetBufferedRenderBufferDataSize(renderer.m_VertexBuffer) + dmRender::GetBufferedRenderBufferDataSize(renderer.m_IndexBuffer);
++            SpriteRendererMemory memory;
++            GetSpriteRendererMemory(renderer, &memory);
++            stats->m_RendererCpuCapacityBytes = memory.m_CpuBytes;
++            stats->m_ConstantBufferCapacityBytes = memory.m_ConstantBytes;
++            stats->m_RendererGpuLogicalBytes = memory.m_GpuLogicalBytes;
+         }
+         if (!frame)
+             return;
+@@ -3451,6 +3601,12 @@ namespace dmGameSystem
+         CountFrameArray(frame->m_ConstantNext, stats);
+         CountFrameArray(frame->m_ConstantDescriptors, stats);
+         CountFrameArray(frame->m_ConstantValues, stats);
++        CountFrameArray(frame->m_DeferredBatches, stats);
++        for (uint32_t i = 0; i < frame->m_DeferredBatches.Size(); ++i)
++        {
++            stats->m_FrameCapacityBytes += sizeof(DeferredSpriteBatch) + frame->m_DeferredBatches[i]->m_Indices.Capacity() * sizeof(uint32_t);
++            if (i < frame->m_DeferredCursor) stats->m_PayloadUsedBytes += sizeof(DeferredSpriteBatch) + frame->m_DeferredBatches[i]->m_Indices.Size() * sizeof(uint32_t);
++        }
+         CountFrameArray(frame->m_Attributes, stats);
+         CountFrameArray(frame->m_AttributeValues, stats);
+         stats->m_FrameCapacityBytes += FrameMapCapacity(frame->m_ResourceSizes) + FrameMapCapacity(frame->m_BindingMap) + FrameMapCapacity(frame->m_GeometryMap) + FrameMapCapacity(frame->m_ConstantMap);
+@@ -3469,6 +3625,23 @@ namespace dmGameSystem
+             ComputeSpriteSnapshotStats(world, world->m_Renderer.m_Frame, stats);
+     }
+ 
++    uint32_t GetSpriteContextSnapshotStats(SpriteContext* context, SpriteSnapshotStats* total)
++    {
++        memset(total, 0, sizeof(*total));
++        uint32_t worlds = 0;
++        for (SpriteWorld* world = (SpriteWorld*)context->m_SnapshotWorlds; world; world = world->m_NextWorld)
++        {
++            SpriteSnapshotStats stats;
++            GetSpriteSnapshotStats(world, &stats);
++            total->m_FrameCapacityBytes += stats.m_FrameCapacityBytes;
++            total->m_RendererCpuCapacityBytes += stats.m_RendererCpuCapacityBytes;
++            total->m_ConstantBufferCapacityBytes += stats.m_ConstantBufferCapacityBytes;
++            total->m_RendererGpuLogicalBytes += stats.m_RendererGpuLogicalBytes;
++            ++worlds;
++        }
++        return worlds;
++    }
++
+     void ReleaseSpriteThreadFrames(void* sprite_world, SpriteContext* context)
+     {
+         SpriteWorld* world = (SpriteWorld*)sprite_world;
+@@ -3480,7 +3653,7 @@ namespace dmGameSystem
+     bool CaptureSpriteThreadFrame(void* sprite_world, SpriteContext* context, uint32_t slot, uint32_t capacity_limit)
+     {
+         SpriteWorld* world = (SpriteWorld*)sprite_world;
+-        assert(slot < 2 && context->m_SnapshotThreaded);
++        assert(slot < 2 && (context->m_SnapshotThreaded || context->m_ComponentDeferredSprites));
+         assert(world->m_Threaded || !world->m_Renderer.m_Frame);
+         world->m_Threaded = true;
+         // Only this reserved slot is free. Never release the other reader slot.
+@@ -3498,6 +3671,15 @@ namespace dmGameSystem
+         world->m_ThreadStats.m_FrameCapacityBytes += other.m_FrameCapacityBytes;
+         world->m_ThreadStats.m_SlotsPayloadUsedBytes += other.m_PayloadUsedBytes;
+         world->m_ThreadStats.m_FrameGrowthPeakBytes += other.m_FrameGrowthPeakBytes;
++        if (context->m_ComponentDeferredSprites)
++        {
++            // BeginRenderThreadFrame reserved a retired slot. Its consumer's
++            // scratch sample is immutable here; never inspect the live renderer.
++            const SpriteRendererMemory& memory = world->m_ThreadFrames[slot]->m_RetiredRendererMemory;
++            world->m_ThreadStats.m_RendererCpuCapacityBytes = memory.m_CpuBytes;
++            world->m_ThreadStats.m_ConstantBufferCapacityBytes = memory.m_ConstantBytes;
++            world->m_ThreadStats.m_RendererGpuLogicalBytes = memory.m_GpuLogicalBytes;
++        }
+         world->m_ThreadStats.m_Threaded = 1;
+         // Hard admission budget, including both slot capacities and capture maps.
+         if (world->m_ThreadFrames[slot]->m_Overflow || world->m_ThreadFrames[slot]->m_CapacityBytes > capacity_limit || world->m_ThreadStats.m_FrameCapacityBytes > 64 * 1024 * 1024)
+diff --git a/engine/gamesys/src/gamesys/components/comp_sprite.h b/engine/gamesys/src/gamesys/components/comp_sprite.h
+index c3db676a21..79ae5b90e2 100644
+--- a/engine/gamesys/src/gamesys/components/comp_sprite.h
++++ b/engine/gamesys/src/gamesys/components/comp_sprite.h
+@@ -57,6 +57,7 @@ namespace dmGameSystem
+     void RenderSpriteThreadFrame(void* world, SpriteContext* context, uint32_t slot);
+     void ReleaseSpriteThreadFrames(void* world, SpriteContext* context);
+     void GetSpriteSnapshotStats(void* sprite_world, SpriteSnapshotStats* stats);
++    uint32_t GetSpriteContextSnapshotStats(SpriteContext* context, SpriteSnapshotStats* stats);
+ 
+     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params);
+ 
+diff --git a/engine/gamesys/src/gamesys/gamesys.h b/engine/gamesys/src/gamesys/gamesys.h
+index ca06a4ffea..ae21b49505 100644
+--- a/engine/gamesys/src/gamesys/gamesys.h
++++ b/engine/gamesys/src/gamesys/gamesys.h
+@@ -249,8 +249,15 @@ namespace dmGameSystem
+         uint32_t                    m_SnapshotInline : 1;
+         uint32_t                    m_SnapshotThreaded : 1;
+         uint32_t                    m_ComponentFrames : 1;
++        uint32_t                    m_ComponentPreparationOverlap : 1;
++        uint32_t                    m_ComponentDeferredSprites : 1;
++        void*                       m_SnapshotWorlds; // Producer-owned sprite-world registry for aggregate diagnostics.
++        uint64_t                    m_ComponentUploadCapacityBytes, m_ComponentConstantCapacityBytes;
++        uint32_t                    m_ComponentFrameSlot;
++        void (*m_ComponentFrameBarrier)(void* context);
+         dmRender::HRenderThread      m_RenderThread;
+         uint32_t                    m_SnapshotCommandBytes;
++        uint64_t                    m_ComponentOwnedUploadBytes;
+         uint64_t                    m_RenderFrameUsedBytes;
+         uint64_t                    m_RenderFrameCapacityBytes;
+         uint64_t                    m_RenderFrameGrowthPeakBytes;
+diff --git a/engine/gamesys/src/gamesys/scripts/script_sprite.cpp b/engine/gamesys/src/gamesys/scripts/script_sprite.cpp
+index e08c8c36c4..40307fabdd 100644
+--- a/engine/gamesys/src/gamesys/scripts/script_sprite.cpp
++++ b/engine/gamesys/src/gamesys/scripts/script_sprite.cpp
+@@ -12,6 +12,10 @@
+ // CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ // specific language governing permissions and limitations under the License.
+ 
++#if defined(__EMSCRIPTEN__)
++#include <malloc.h>
++#endif
++
+ #include <graphics/graphics_packet.h>
+ #include <float.h>
+ #include <stdio.h>
+@@ -513,6 +517,15 @@ namespace dmGameSystem
+         GetSpriteSnapshotStats(world, &stats);
+         SpriteContext* context = (SpriteContext*)dmGameObject::GetContext(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
+         lua_newtable(L);
++        SpriteSnapshotStats aggregate;
++        uint32_t worlds = GetSpriteContextSnapshotStats(context, &aggregate);
++        lua_pushnumber(L, worlds); lua_setfield(L, -2, "all_sprite_worlds");
++        lua_pushnumber(L, (lua_Number)aggregate.m_FrameCapacityBytes); lua_setfield(L, -2, "all_sprite_frame_capacity_bytes");
++        lua_pushnumber(L, (lua_Number)aggregate.m_RendererCpuCapacityBytes); lua_setfield(L, -2, "all_sprite_renderer_cpu_capacity_bytes");
++        lua_pushnumber(L, (lua_Number)aggregate.m_ConstantBufferCapacityBytes); lua_setfield(L, -2, "all_sprite_constant_capacity_bytes");
++        lua_pushnumber(L, (lua_Number)aggregate.m_RendererGpuLogicalBytes); lua_setfield(L, -2, "all_sprite_gpu_logical_bytes");
++        lua_pushnumber(L, (lua_Number)context->m_ComponentUploadCapacityBytes); lua_setfield(L, -2, "component_upload_capacity_bytes");
++        lua_pushnumber(L, (lua_Number)context->m_ComponentConstantCapacityBytes); lua_setfield(L, -2, "component_constant_capacity_bytes");
+         dmGraphics::GraphicsPacketStats packet;
+         dmGraphics::GetGraphicsPacketStats(&packet);
+         lua_pushstring(L, dmGraphics::IsExternalGraphicsProducer() ? (context->m_ComponentFrames ? "component-web-snapshots" : stats.m_Threaded ? "component-web-threaded" : "component-web-serialized") : dmGraphics::IsRenderGraphicsOwnerActive() ? (packet.m_Mode == 1 ? "renderframe-inline" : "renderframe-threaded") :
+@@ -589,6 +602,12 @@ namespace dmGameSystem
+         lua_setfield(L, -2, "retained_reference_count");
+         if (context->m_ComponentFrames)
+         {
++            lua_pushnumber(L, (lua_Number)context->m_ComponentOwnedUploadBytes);
++            lua_setfield(L, -2, "component_owned_upload_bytes");
++            lua_pushboolean(L, context->m_ComponentDeferredSprites);
++            lua_setfield(L, -2, "component_deferred_sprites");
++            lua_pushboolean(L, context->m_ComponentPreparationOverlap);
++            lua_setfield(L, -2, "component_preparation_overlap");
+             lua_pushnumber(L, (lua_Number)context->m_RenderFrameCapacityBytes);
+             lua_setfield(L, -2, "component_frame_capacity_bytes");
+             lua_pushnumber(L, (lua_Number)context->m_RenderFrameUsedBytes);
+@@ -639,6 +658,10 @@ namespace dmGameSystem
+             lua_setfield(L, -2, "thread_simulations_during_render");
+             lua_pushnumber(L, (lua_Number)thread.m_SimulationOverlapUs);
+             lua_setfield(L, -2, "thread_simulation_overlap_us");
++            lua_pushnumber(L, thread.m_PreparationsDuringRender);
++            lua_setfield(L, -2, "thread_preparations_during_render");
++            lua_pushnumber(L, thread.m_PreparationOverlapUs);
++            lua_setfield(L, -2, "thread_preparation_overlap_us");
+             lua_pushnumber(L, (lua_Number)thread.m_CapturesWithConsumerOutstanding);
+             lua_setfield(L, -2, "thread_captures_with_consumer_outstanding");
+             lua_pushnumber(L, (lua_Number)thread.m_Submitted);
+@@ -686,11 +709,27 @@ namespace dmGameSystem
+         return 1;
+     }
+ 
++    // Internal web diagnostic: return numbers without constructing a Lua table.
++    // Called on the Lua owner, including when that owner is the simulation worker.
++    static int SpriteComp_SnapshotMemory(lua_State* L)
++    {
++#if defined(__EMSCRIPTEN__)
++        struct mallinfo info = mallinfo();
++        uint64_t lua_bytes = (uint64_t)lua_gc(L, LUA_GCCOUNT, 0) * 1024 + lua_gc(L, LUA_GCCOUNTB, 0);
++        lua_pushnumber(L, info.uordblks);
++        lua_pushnumber(L, (lua_Number)lua_bytes);
++        return 2;
++#else
++        return luaL_error(L, "snapshot allocator diagnostic requires web");
++#endif
++    }
++
+     static const luaL_reg SPRITE_COMP_FUNCTIONS[] =
+     {
+             {"_get_snapshot_stats", SpriteComp_GetSnapshotStats},
+             {"_snapshot_pause", SpriteComp_SnapshotPause},
+             {"_snapshot_clock", SpriteComp_SnapshotClock},
++            {"_snapshot_memory", SpriteComp_SnapshotMemory},
+             {"set_hflip",       SpriteComp_SetHFlip},
+             {"set_vflip",       SpriteComp_SetVFlip},
+             {"reset_constant",  SpriteComp_ResetConstant},
+diff --git a/engine/graphics/src/graphics.cpp b/engine/graphics/src/graphics.cpp
+index e0fc9bcb74..317648b492 100644
+--- a/engine/graphics/src/graphics.cpp
++++ b/engine/graphics/src/graphics.cpp
+@@ -48,52 +48,137 @@ namespace dmGraphics
+     static void (*g_RenderMutationBarrier)(void*) = 0;
+     static void* g_RenderMutationContext = 0;
+     static dmThread::ThreadId g_RenderProducerThread;
+-    static VertexUploadBatch* g_VertexUploadCapture = 0;
++    struct UploadCaptureTls
++    {
++        dmThread::TlsKey m_Key;
++        UploadCaptureTls() : m_Key(dmThread::AllocTls()) {}
++        ~UploadCaptureTls() { dmThread::FreeTls(m_Key); }
++    };
++    static UploadCaptureTls g_UploadCaptureTls;
++    static VertexUploadBatch* GetVertexUploadCapture()
++    {
++        return (VertexUploadBatch*)dmThread::GetTlsValue(g_UploadCaptureTls.m_Key);
++    }
++
++    VertexUploadBatch::~VertexUploadBatch()
++    {
++        for (uint32_t i = 0; i < m_Owned.Size(); ++i)
++        {
++            assert(!m_Owned[i]->m_Open);
++            delete m_Owned[i];
++        }
++    }
++
++    uint64_t GetOwnedVertexUploadUsedBytes(const VertexUploadBatch* batch)
++    {
++        uint64_t bytes = 0;
++        for (uint32_t i = 0; i < batch->m_OwnedCursor; ++i)
++            bytes += sizeof(OwnedVertexUpload) + sizeof(OwnedVertexUpload*) + batch->m_Owned[i]->m_Data.Size();
++        return bytes;
++    }
++
++    uint32_t BeginOwnedVertexUpload(dmArray<uint8_t>& scratch)
++    {
++        VertexUploadBatch* batch = GetVertexUploadCapture();
++        if (!batch || !batch->m_OwnedEnabled || batch->m_Failed) return UINT32_MAX;
++        if (batch->m_OwnedCursor == VertexUploadBatch::MAX_UPLOADS)
++        { batch->m_Failed = true; return UINT32_MAX; }
++        if (batch->m_OwnedCursor == batch->m_Owned.Size())
++        {
++            if (batch->m_Owned.Full()) batch->m_Owned.OffsetCapacity(16);
++            batch->m_Owned.Push(new OwnedVertexUpload);
++        }
++        uint32_t token = batch->m_OwnedCursor++;
++        OwnedVertexUpload* owned = batch->m_Owned[token];
++        assert(!owned->m_Open && scratch.Empty());
++        // Drop legacy scratch once when entering this opt-in path. Subsequent
++        // captures leave the component empty and reuse only the retired slot.
++        scratch.SetCapacity(0);
++        owned->m_Data.SetSize(0);
++        scratch.Swap(owned->m_Data);
++        owned->m_Open = true;
++        return token;
++    }
++
++    void* EndOwnedVertexUpload(uint32_t token, dmArray<uint8_t>& scratch)
++    {
++        if (token == UINT32_MAX) return scratch.Begin();
++        VertexUploadBatch* batch = GetVertexUploadCapture();
++        assert(batch && token < batch->m_OwnedCursor);
++        OwnedVertexUpload* owned = batch->m_Owned[token];
++        assert(owned->m_Open && owned->m_Data.Capacity() == 0);
++        scratch.Swap(owned->m_Data);
++        owned->m_Open = false;
++        if (batch->m_Data.Size() + GetOwnedVertexUploadUsedBytes(batch) > VertexUploadBatch::MAX_PAYLOAD || GetVertexUploadCapacity(batch) > VertexUploadBatch::MAX_GROWTH_BYTES)
++            batch->m_Failed = true;
++        batch->m_GrowthPeak = dmMath::Max(batch->m_GrowthPeak, GetVertexUploadCapacity(batch));
++        return owned->m_Data.Begin();
++    }
+ 
+     uint64_t GetVertexUploadCapacity(const VertexUploadBatch* batch)
+     {
+-        return sizeof(*batch) + batch->m_Data.Capacity() + batch->m_Uploads.Capacity() * sizeof(VertexUpload);
++        uint64_t owned = batch->m_Owned.Capacity() * sizeof(OwnedVertexUpload*);
++        for (uint32_t i = 0; i < batch->m_Owned.Size(); ++i)
++            owned += sizeof(OwnedVertexUpload) + batch->m_Owned[i]->m_Data.Capacity();
++        return sizeof(*batch) + owned + batch->m_Data.Capacity() + batch->m_Uploads.Capacity() * sizeof(VertexUpload) + batch->m_Textures.Capacity() * sizeof(CapturedTextureUpload);
+     }
+ 
+-    void BeginVertexUploadCapture(VertexUploadBatch* batch, bool capture_indices)
++    void BeginVertexUploadCapture(VertexUploadBatch* batch, bool capture_indices, bool capture_textures)
+     {
+-        assert(!g_VertexUploadCapture);
++        assert(!GetVertexUploadCapture());
++        batch->m_OwnedCursor = 0;
++        batch->m_OwnedBytes = 0;
+         batch->m_Uploads.SetSize(0);
+         batch->m_Data.SetSize(0);
++        batch->m_Textures.SetSize(0);
++        batch->m_CaptureTextures = capture_textures;
+         batch->m_Failed = false;
+         batch->m_CaptureIndexUploads = capture_indices;
+         batch->m_ProtectResources = false;
+-        g_VertexUploadCapture = batch;
++        dmThread::SetTlsValue(g_UploadCaptureTls.m_Key, batch);
+     }
+ 
+     bool EndVertexUploadCapture()
+     {
+-        assert(g_VertexUploadCapture);
+-        bool ok = !g_VertexUploadCapture->m_Failed;
+-        g_VertexUploadCapture = 0;
++        assert(GetVertexUploadCapture());
++        VertexUploadBatch* batch = GetVertexUploadCapture();
++        for (uint32_t i = 0; i < batch->m_OwnedCursor; ++i) assert(!batch->m_Owned[i]->m_Open);
++        bool ok = !batch->m_Failed;
++        dmThread::SetTlsValue(g_UploadCaptureTls.m_Key, 0);
+         if (!ok) dmLogError("Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation");
+         return ok;
+     }
+ 
+     void ProtectCapturedGraphicsResources()
+     {
+-        assert(g_VertexUploadCapture);
+-        g_VertexUploadCapture->m_ProtectResources = true;
++        assert(GetVertexUploadCapture());
++        GetVertexUploadCapture()->m_ProtectResources = true;
+     }
+ 
+     void InvalidateCapturedGraphicsResources()
+     {
+-        if (g_VertexUploadCapture && g_VertexUploadCapture->m_ProtectResources)
+-            g_VertexUploadCapture->m_Failed = true;
++        if (GetVertexUploadCapture() && GetVertexUploadCapture()->m_ProtectResources)
++            GetVertexUploadCapture()->m_Failed = true;
+     }
+ 
+     static void CaptureVertexUpload(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data, BufferUsage usage, bool sub_data, bool index_buffer = false)
+     {
+-        VertexUploadBatch* batch = g_VertexUploadCapture;
++        VertexUploadBatch* batch = GetVertexUploadCapture();
+         if (batch->m_Failed) return;
+-        uint32_t bytes = data ? size : 0;
+-        uint64_t needed = (uint64_t)batch->m_Data.Size() + bytes;
+-        if (size > VertexUploadBatch::MAX_PAYLOAD || needed > VertexUploadBatch::MAX_PAYLOAD || batch->m_Uploads.Size() == VertexUploadBatch::MAX_UPLOADS)
++        uint32_t owned_index = UINT32_MAX;
++        if (data && buffer && !sub_data && !index_buffer)
++            for (uint32_t i = 0; i < batch->m_OwnedCursor; ++i)
++            {
++                const OwnedVertexUpload* owned = batch->m_Owned[i];
++                if (!owned->m_Open && data == owned->m_Data.Begin() && size == owned->m_Data.Size())
++                { owned_index = i; break; }
++            }
++        uint32_t bytes = data && owned_index == UINT32_MAX ? size : 0;
++        // WebGL reads float/half-float textures through typed WASM views. Keep
++        // every payload aligned even after an odd-sized glyph or buffer upload.
++        uint32_t data_offset = bytes ? (batch->m_Data.Size() + 3) & ~3U : batch->m_Data.Size();
++        uint64_t needed = (uint64_t)data_offset + bytes;
++        if (size > VertexUploadBatch::MAX_PAYLOAD || needed + GetOwnedVertexUploadUsedBytes(batch) > VertexUploadBatch::MAX_PAYLOAD || batch->m_Uploads.Size() == VertexUploadBatch::MAX_UPLOADS)
+         {
+             batch->m_Failed = true;
+             return;
+@@ -119,14 +204,76 @@ namespace dmGraphics
+         upload.m_Buffer = buffer;
+         upload.m_Offset = offset;
+         upload.m_Size = size;
+-        upload.m_DataOffset = data ? batch->m_Data.Size() : UINT32_MAX;
++        upload.m_DataOffset = data ? data_offset : UINT32_MAX;
++        upload.m_OwnedIndex = owned_index;
++        if (owned_index != UINT32_MAX) batch->m_OwnedBytes += size;
+         upload.m_Usage = usage;
+         upload.m_SubData = sub_data;
+         upload.m_IndexBuffer = index_buffer;
+-        if (bytes) batch->m_Data.PushArray((const uint8_t*)data, bytes);
++        upload.m_TextureIndex = UINT32_MAX;
++        if (!sub_data) RememberCapturedGraphicsBuffer(buffer, size);
++        if (bytes)
++        {
++            while (batch->m_Data.Size() < data_offset) batch->m_Data.Push(0);
++            batch->m_Data.PushArray((const uint8_t*)data, bytes);
++        }
+         batch->m_Uploads.Push(upload);
+     }
+ 
++    void SetCapturedViewport(int32_t x, int32_t y, uint32_t width, uint32_t height)
++    {
++        VertexUploadBatch* batch = GetVertexUploadCapture();
++        assert(batch && batch->m_CaptureTextures);
++        batch->m_ViewportX = x; batch->m_ViewportY = y;
++        batch->m_ViewportWidth = width; batch->m_ViewportHeight = height;
++        RememberCapturedGraphicsViewport(x, y, width, height);
++    }
++
++    static void CaptureTextureUpload(HContext context, HTexture texture, const TextureParams& params)
++    {
++        VertexUploadBatch* batch = GetVertexUploadCapture();
++        // Built-in pose textures and font atlases are 2D. Unsupported targets
++        // fail admission instead of dereferencing a wrongly sized payload.
++        if (GetTextureType(context, texture) != TEXTURE_TYPE_2D || params.m_Depth > 1 || params.m_LayerCount > 1)
++        { batch->m_Failed = true; return; }
++        TextureFormatCompressedBlockSize block;
++        uint64_t bytes = GetTextureFormatCompressedBlockSize(params.m_Format, &block) ? params.m_DataSize :
++            (uint64_t)params.m_Width * params.m_Height * GetTextureFormatBitsPerPixel(params.m_Format) / 8;
++        if (bytes > VertexUploadBatch::MAX_PAYLOAD || batch->m_Textures.Size() == VertexUploadBatch::MAX_UPLOADS)
++        { batch->m_Failed = true; return; }
++        uint32_t capacity = batch->m_Textures.Capacity();
++        if (batch->m_Textures.Full())
++        {
++            capacity = dmMath::Min<uint32_t>(VertexUploadBatch::MAX_UPLOADS, dmMath::Max<uint32_t>(16, capacity * 2));
++            uint64_t growth = GetVertexUploadCapacity(batch) + capacity * sizeof(CapturedTextureUpload);
++            if (growth > VertexUploadBatch::MAX_GROWTH_BYTES) { batch->m_Failed = true; return; }
++            batch->m_GrowthPeak = dmMath::Max(batch->m_GrowthPeak, growth);
++            batch->m_Textures.SetCapacity(capacity);
++        }
++        // Reuse the common owned byte stream and command budget. Textures have
++        // an explicit command discriminator and never update buffer metadata.
++        CaptureVertexUpload(0, 0, (uint32_t)bytes, params.m_Data, BUFFER_USAGE_STREAM_DRAW, true);
++        if (batch->m_Failed) return;
++        CapturedTextureUpload upload;
++        upload.m_Context = context; upload.m_Texture = texture; upload.m_Params = params;
++        upload.m_Params.m_Data = 0;
++        batch->m_Uploads.Back().m_TextureIndex = batch->m_Textures.Size();
++        batch->m_Textures.Push(upload);
++    }
++
++    static const TextureParams* FindCapturedTexture(HTexture texture)
++    {
++        VertexUploadBatch* batch = GetVertexUploadCapture();
++        if (!batch || !batch->m_CaptureTextures) return 0;
++        for (uint32_t i = batch->m_Textures.Size(); i > 0; --i)
++        {
++            const CapturedTextureUpload& upload = batch->m_Textures[i - 1];
++            if (upload.m_Texture == texture && !upload.m_Params.m_SubUpdate && !upload.m_Params.m_MipMap)
++                return &upload.m_Params;
++        }
++        return 0;
++    }
++
+     void ReplayVertexUploads(const VertexUploadBatch* batch)
+     {
+         ReplayVertexUploads(batch, 0, batch->m_Uploads.Size());
+@@ -134,13 +281,21 @@ namespace dmGraphics
+ 
+     void ReplayVertexUploads(const VertexUploadBatch* batch, uint32_t begin, uint32_t end)
+     {
+-        assert(!g_VertexUploadCapture && !batch->m_Failed);
++        assert(!GetVertexUploadCapture() && !batch->m_Failed);
+         assert(begin <= end && end <= batch->m_Uploads.Size());
+         for (uint32_t i = begin; i < end; ++i)
+         {
+             const VertexUpload& upload = batch->m_Uploads[i];
+-            const void* data = upload.m_DataOffset == UINT32_MAX ? 0 : batch->m_Data.Begin() + upload.m_DataOffset;
+-            if (upload.m_IndexBuffer)
++            const void* data = upload.m_OwnedIndex != UINT32_MAX ? batch->m_Owned[upload.m_OwnedIndex]->m_Data.Begin() :
++                upload.m_DataOffset == UINT32_MAX ? 0 : batch->m_Data.Begin() + upload.m_DataOffset;
++            if (upload.m_TextureIndex != UINT32_MAX)
++            {
++                const CapturedTextureUpload& texture = batch->m_Textures[upload.m_TextureIndex];
++                TextureParams params = texture.m_Params;
++                params.m_Data = data;
++                SetTexture(texture.m_Context, texture.m_Texture, params);
++            }
++            else if (upload.m_IndexBuffer)
+             {
+                 if (upload.m_SubData) SetIndexBufferSubData(upload.m_Buffer, upload.m_Offset, upload.m_Size, data);
+                 else SetIndexBufferData(upload.m_Buffer, upload.m_Size, data, upload.m_Usage);
+@@ -2274,6 +2429,8 @@ namespace dmGraphics
+     }
+     uint16_t GetTextureWidth(HContext context, HTexture texture)
+     {
++        const TextureParams* captured = FindCapturedTexture(texture);
++        if (captured) return captured->m_Width;
+         GraphicsContext* gc = (GraphicsContext*)context;
+         DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+         const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+@@ -2281,6 +2438,8 @@ namespace dmGraphics
+     }
+     uint16_t GetTextureHeight(HContext context, HTexture texture)
+     {
++        const TextureParams* captured = FindCapturedTexture(texture);
++        if (captured) return captured->m_Height;
+         GraphicsContext* gc = (GraphicsContext*)context;
+         DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+         const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+@@ -2288,6 +2447,8 @@ namespace dmGraphics
+     }
+     uint16_t GetTextureDepth(HContext context, HTexture texture)
+     {
++        const TextureParams* captured = FindCapturedTexture(texture);
++        if (captured) return captured->m_Depth;
+         GraphicsContext* gc = (GraphicsContext*)context;
+         DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+         const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+@@ -2420,7 +2581,7 @@ namespace dmGraphics
+     }
+     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+     {
+-        if (g_VertexUploadCapture)
++        if (GetVertexUploadCapture())
+         {
+             CaptureVertexUpload(buffer, 0, size, data, buffer_usage, false);
+             return;
+@@ -2430,7 +2591,7 @@ namespace dmGraphics
+     }
+     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+     {
+-        if (g_VertexUploadCapture)
++        if (GetVertexUploadCapture())
+         {
+             CaptureVertexUpload(buffer, offset, size, data, BUFFER_USAGE_STREAM_DRAW, true);
+             return;
+@@ -2462,7 +2623,7 @@ namespace dmGraphics
+     }
+     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+     {
+-        if (g_VertexUploadCapture && g_VertexUploadCapture->m_CaptureIndexUploads)
++        if (GetVertexUploadCapture() && GetVertexUploadCapture()->m_CaptureIndexUploads)
+         {
+             CaptureVertexUpload(buffer, 0, size, data, buffer_usage, false, true);
+             return;
+@@ -2472,7 +2633,7 @@ namespace dmGraphics
+     }
+     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+     {
+-        if (g_VertexUploadCapture && g_VertexUploadCapture->m_CaptureIndexUploads)
++        if (GetVertexUploadCapture() && GetVertexUploadCapture()->m_CaptureIndexUploads)
+         {
+             CaptureVertexUpload(buffer, offset, size, data, BUFFER_USAGE_STREAM_DRAW, true, true);
+             return;
+@@ -2617,6 +2778,9 @@ namespace dmGraphics
+     }
+     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+     {
++        VertexUploadBatch* capture = GetVertexUploadCapture();
++        if (capture && capture->m_CaptureTextures)
++        { SetCapturedViewport(x, y, width, height); return; }
+         RenderMutationBarrier();
+         g_functions.m_SetViewport(context, x, y, width, height);
+     }
+@@ -2815,6 +2979,9 @@ namespace dmGraphics
+     }
+     void SetTexture(HContext context, HTexture texture, const TextureParams& params)
+     {
++        VertexUploadBatch* capture = GetVertexUploadCapture();
++        if (capture && capture->m_CaptureTextures)
++        { CaptureTextureUpload(context, texture, params); return; }
+         // Font atlas sub-updates preserve glyphs referenced in this frame. A
+         // complete replacement may invalidate already captured passes.
+         if (!params.m_SubUpdate) InvalidateCapturedGraphicsResources();
+@@ -2938,6 +3105,13 @@ namespace dmGraphics
+     }
+     void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
+     {
++        VertexUploadBatch* capture = GetVertexUploadCapture();
++        if (capture && capture->m_CaptureTextures)
++        {
++            *x = capture->m_ViewportX; *y = capture->m_ViewportY;
++            *width = capture->m_ViewportWidth; *height = capture->m_ViewportHeight;
++            return;
++        }
+         g_functions.m_GetViewport(context, x, y, width, height);
+     }
+     HUniformBuffer NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size)
+diff --git a/engine/graphics/src/graphics.h b/engine/graphics/src/graphics.h
+index 9da6744a36..28b2620384 100644
+--- a/engine/graphics/src/graphics.h
++++ b/engine/graphics/src/graphics.h
+@@ -31,8 +31,8 @@
+ 
+ namespace dmGraphics
+ {
+-    // Internal PoC upload snapshots. Capture on the producer while its consumer
+-    // is idle; replay on the consumer before drawing. Resource barriers protect
++    // Internal PoC upload snapshots. Capture is thread-local so a producer may
++    // prepare one slot while the consumer replays another. Resource barriers protect
+     // handle lifetime. Overflow rejects the complete frame, never falls back.
+     struct VertexUpload
+     {
+@@ -40,22 +40,52 @@ namespace dmGraphics
+         uint32_t m_Offset;
+         uint32_t m_Size;
+         uint32_t m_DataOffset;
++        uint32_t m_OwnedIndex; // UINT32_MAX for the copied payload arena
+         BufferUsage m_Usage;
+         bool m_SubData;
+         bool m_IndexBuffer;
++        uint32_t m_TextureIndex; // UINT32_MAX for a buffer upload
++    };
++    struct CapturedTextureUpload
++    {
++        HContext m_Context;
++        HTexture m_Texture;
++        TextureParams m_Params; // m_Data is null; bytes are owned by the batch.
++    };
++    struct OwnedVertexUpload
++    {
++        dmArray<uint8_t> m_Data;
++        bool m_Open;
++        OwnedVertexUpload() : m_Open(false) {}
+     };
+     struct VertexUploadBatch
+     {
+         enum { MAX_UPLOADS = 4096, MAX_PAYLOAD = 16 * 1024 * 1024, MAX_GROWTH_BYTES = 32 * 1024 * 1024 };
+         dmArray<VertexUpload> m_Uploads;
+         dmArray<uint8_t> m_Data;
++        dmArray<CapturedTextureUpload> m_Textures;
++        dmArray<OwnedVertexUpload*> m_Owned;
++        uint32_t m_OwnedCursor;
++        uint64_t m_OwnedBytes;
++        bool m_OwnedEnabled;
+         uint64_t m_GrowthPeak;
+         bool m_Failed;
+         bool m_CaptureIndexUploads;
+         bool m_ProtectResources;
+-        VertexUploadBatch() : m_GrowthPeak(sizeof(*this)), m_Failed(false), m_CaptureIndexUploads(false), m_ProtectResources(false) {}
++        bool m_CaptureTextures;
++        int32_t m_ViewportX, m_ViewportY;
++        uint32_t m_ViewportWidth, m_ViewportHeight;
++        ~VertexUploadBatch();
++        VertexUploadBatch() : m_OwnedCursor(0), m_OwnedBytes(0), m_OwnedEnabled(false), m_GrowthPeak(sizeof(*this)), m_Failed(false), m_CaptureIndexUploads(false), m_ProtectResources(false), m_CaptureTextures(false) {}
+     };
+-    void BeginVertexUploadCapture(VertexUploadBatch* batch, bool capture_indices = false);
++    // Lend a retired frame's reusable array to the producer while it generates
++    // geometry. End returns immutable storage to that frame before upload capture.
++    // UINT32_MAX leaves the normal component scratch path unchanged.
++    uint32_t BeginOwnedVertexUpload(dmArray<uint8_t>& scratch);
++    void* EndOwnedVertexUpload(uint32_t token, dmArray<uint8_t>& scratch);
++    uint64_t GetOwnedVertexUploadUsedBytes(const VertexUploadBatch* batch);
++    void BeginVertexUploadCapture(VertexUploadBatch* batch, bool capture_indices = false, bool capture_textures = false);
++    void SetCapturedViewport(int32_t x, int32_t y, uint32_t width, uint32_t height);
+     bool EndVertexUploadCapture();
+     void ProtectCapturedGraphicsResources();
+     void InvalidateCapturedGraphicsResources();
+diff --git a/engine/graphics/src/graphics_packet.cpp b/engine/graphics/src/graphics_packet.cpp
+index f6763a0be1..89a0f83a57 100644
+--- a/engine/graphics/src/graphics_packet.cpp
++++ b/engine/graphics/src/graphics_packet.cpp
+@@ -449,6 +449,18 @@ namespace dmGraphics
+         table.Put(buffer, size);
+     }
+ 
++    void RememberCapturedGraphicsBuffer(uintptr_t buffer, uint32_t size)
++    {
++        if (g_Packets && ProducerCall()) RememberBuffer(buffer, size);
++    }
++
++    void RememberCapturedGraphicsViewport(int32_t x, int32_t y, uint32_t width, uint32_t height)
++    {
++        if (!g_Packets || !ProducerCall()) return;
++        g_Packets->m_ViewportX = x; g_Packets->m_ViewportY = y;
++        g_Packets->m_ViewportWidth = width; g_Packets->m_ViewportHeight = height;
++    }
++
+     bool GetGraphicsPacketBufferSize(uintptr_t buffer, uint32_t* size)
+     {
+         if (!g_Packets || !ProducerCall()) return false;
+diff --git a/engine/graphics/src/graphics_packet.h b/engine/graphics/src/graphics_packet.h
+index c06ca6892a..01ce9a5e1d 100644
+--- a/engine/graphics/src/graphics_packet.h
++++ b/engine/graphics/src/graphics_packet.h
+@@ -57,6 +57,8 @@ namespace dmGraphics
+     void GetGraphicsPacketStats(GraphicsPacketStats* stats);
+     bool GetGraphicsPacketBufferSize(uintptr_t buffer, uint32_t* size);
+     void ForgetGraphicsPacketBuffer(uintptr_t buffer);
++    void RememberCapturedGraphicsBuffer(uintptr_t buffer, uint32_t size);
++    void RememberCapturedGraphicsViewport(int32_t x, int32_t y, uint32_t width, uint32_t height);
+     bool IsGraphicsPacketOwner();
+     // Adapter-table installation is internal, also used by the null tests.
+     struct GraphicsAdapterFunctionTable;
+diff --git a/engine/render/src/render/component_frame.cpp b/engine/render/src/render/component_frame.cpp
+index 0030c32ea6..4608583176 100644
+--- a/engine/render/src/render/component_frame.cpp
++++ b/engine/render/src/render/component_frame.cpp
+@@ -32,6 +32,12 @@ namespace dmRender
+         uint32_t m_TextureBegin, m_TextureCount, m_LightBegin, m_LightCount, m_LightCapacity;
+     };
+ 
++    struct DeferredDraw
++    {
++        ComponentDeferredDraw m_Draw;
++        void* m_Data;
++    };
++
+     struct ComponentFrame
+     {
+         enum { MAX_COMMANDS = 256, MAX_PASSES = 64, MAX_OBJECTS = 16384,
+@@ -39,6 +45,9 @@ namespace dmRender
+         dmArray<Command> m_Commands;
+         dmArray<ComponentPass> m_Passes;
+         dmArray<RenderObject> m_Objects;
++        dmArray<uint32_t> m_ObjectDeferred;
++        dmArray<DeferredDraw> m_Deferred;
++        dmHashTable64<uint32_t> m_DeferredSources;
+         dmArray<TextureBinding> m_Textures;
+         dmArray<LightSTD140> m_Lights;
+         dmArray<HNamedConstantBuffer> m_Constants;
+@@ -62,7 +71,37 @@ namespace dmRender
+         return true;
+     }
+ 
+-    HComponentFrame NewComponentFrame() { return new ComponentFrame; }
++    void RejectComponentFrame(HRenderContext context)
++    {
++        assert(context->m_ComponentFrameCapture);
++        context->m_ComponentFrameCapture->m_Failed = true;
++    }
++
++    bool AddComponentDeferredDraw(HRenderContext context, RenderObject* placeholder, ComponentDeferredDraw draw, void* data)
++    {
++        ComponentFrame* frame = context->m_ComponentFrameCapture;
++        assert(frame && draw && placeholder->m_VertexCount);
++        if (frame->m_Failed || !Reserve(frame->m_Deferred, frame->m_Deferred.Size() + 1, ComponentFrame::MAX_OBJECTS))
++        { frame->m_Failed = true; return false; }
++        if (frame->m_DeferredSources.Full())
++        {
++            uint32_t capacity = dmMath::Min<uint32_t>(ComponentFrame::MAX_OBJECTS, dmMath::Max<uint32_t>(16, frame->m_DeferredSources.Capacity() * 2));
++            frame->m_DeferredSources.SetCapacity(capacity * 2, capacity);
++        }
++        frame->m_DeferredSources.Put((uintptr_t)placeholder, frame->m_Deferred.Size());
++        DeferredDraw deferred = { draw, data };
++        frame->m_Deferred.Push(deferred);
++        if (AddToRender(context, placeholder) != RESULT_OK) frame->m_Failed = true;
++        return !frame->m_Failed;
++    }
++
++    HComponentFrame NewComponentFrame(bool owned_model_buffers)
++    {
++        ComponentFrame* frame = new ComponentFrame;
++        frame->m_Uploads.m_OwnedEnabled = owned_model_buffers;
++        return frame;
++    }
++    uint64_t GetComponentFrameOwnedUploadBytes(HComponentFrame frame) { return frame->m_Uploads.m_OwnedBytes; }
+     void DeleteComponentFrame(HComponentFrame frame) { delete frame; }
+     void EnableComponentFrames(HRenderContext context, bool enabled) { context->m_ComponentFramesEnabled = enabled; }
+     bool AreComponentFramesEnabled(HRenderContext context) { return context->m_ComponentFramesEnabled; }
+@@ -101,6 +140,7 @@ namespace dmRender
+         assert(!context->m_ComponentFrameCapture);
+         frame->m_Commands.SetSize(0); frame->m_Passes.SetSize(0); frame->m_Objects.SetSize(0);
+         frame->m_Textures.SetSize(0); frame->m_Lights.SetSize(0);
++        frame->m_ObjectDeferred.SetSize(0); frame->m_Deferred.SetSize(0); frame->m_DeferredSources.Clear();
+         frame->m_ConstantCursor = 0;
+         frame->m_Failed = false;
+         frame->m_Time = context->m_Time; frame->m_Dt = context->m_Dt;
+@@ -108,7 +148,8 @@ namespace dmRender
+         int32_t x, y; uint32_t w, h;
+         dmGraphics::GetViewport(context->m_GraphicsContext, &x, &y, &w, &h);
+         AppendCommand(frame, Command(COMMAND_TYPE_SET_VIEWPORT, x, y, w, h));
+-        dmGraphics::BeginVertexUploadCapture(&frame->m_Uploads, true);
++        dmGraphics::BeginVertexUploadCapture(&frame->m_Uploads, true, true);
++        dmGraphics::SetCapturedViewport(x, y, w, h);
+     }
+ 
+     bool EndComponentFrameCapture(HRenderContext context)
+@@ -132,6 +173,7 @@ namespace dmRender
+         GetComponentFrameLights(context, &lights, &light_count, &ambient);
+         if (!Reserve(frame->m_Passes, frame->m_Passes.Size() + 1, ComponentFrame::MAX_PASSES) ||
+             !Reserve(frame->m_Objects, frame->m_Objects.Size() + context->m_RenderObjects.Size(), ComponentFrame::MAX_OBJECTS) ||
++            !Reserve(frame->m_ObjectDeferred, frame->m_Objects.Size() + context->m_RenderObjects.Size(), ComponentFrame::MAX_OBJECTS) ||
+             !Reserve(frame->m_Textures, frame->m_Textures.Size() + context->m_TextureBindTable.Size(), ComponentFrame::MAX_BINDINGS) ||
+             !Reserve(frame->m_Lights, frame->m_Lights.Size() + light_count, ComponentFrame::MAX_LIGHTS))
+         { frame->m_Failed = true; return RESULT_OUT_OF_RESOURCES; }
+@@ -150,6 +192,8 @@ namespace dmRender
+                 if (!MatchMaterialTags(tags.m_Count, tags.m_Tags, predicate->m_TagCount, predicate->m_Tags)) continue;
+             }
+             object.m_ConstantBuffer = CopyConstants(frame, object.m_ConstantBuffer);
++            uint32_t* deferred = frame->m_DeferredSources.Get((uintptr_t)context->m_RenderObjects[i]);
++            frame->m_ObjectDeferred.Push(deferred ? *deferred : UINT32_MAX);
+             frame->m_Objects.Push(object);
+         }
+         pass.m_ObjectCount = frame->m_Objects.Size() - pass.m_ObjectBegin;
+@@ -232,6 +276,7 @@ namespace dmRender
+         RenderContext* context = new RenderContext;
+         context->m_GraphicsContext = source->m_GraphicsContext;
+         context->m_UseAdjustedNDC = source->m_UseAdjustedNDC;
++        context->m_MultiBufferingRequired = source->m_MultiBufferingRequired;
+         context->m_View = dmVMath::Matrix4::identity();
+         context->m_Projection = dmVMath::Matrix4::identity();
+         context->m_ComponentFrameCapture = 0;
+@@ -279,25 +324,36 @@ namespace dmRender
+             context->m_RenderObjects.SetSize(0);
+             Reserve(context->m_RenderObjects, pass.m_ObjectCount, ComponentFrame::MAX_OBJECTS);
+             for (uint32_t j = 0; j < pass.m_ObjectCount; ++j)
+-                context->m_RenderObjects.Push(&frame->m_Objects[pass.m_ObjectBegin + j]);
++            {
++                uint32_t object = pass.m_ObjectBegin + j;
++                uint32_t deferred = frame->m_ObjectDeferred[object];
++                if (deferred == UINT32_MAX) context->m_RenderObjects.Push(&frame->m_Objects[object]);
++                else frame->m_Deferred[deferred].m_Draw(frame->m_Deferred[deferred].m_Data, context);
++            }
+             Draw(context, 0, pass.m_Constants);
+         }
+         dmGraphics::ReplayVertexUploads(&frame->m_Uploads, upload_begin, frame->m_Uploads.m_Uploads.Size());
+         context->m_RenderObjects.SetSize(0);
+     }
+ 
++    uint64_t GetComponentFrameUploadCapacity(HComponentFrame f)
++    { return dmGraphics::GetVertexUploadCapacity(&f->m_Uploads) - sizeof(f->m_Uploads); }
++    uint64_t GetComponentFrameConstantCapacity(HComponentFrame f) { return f->m_ConstantCapacity; }
++
+     uint64_t GetComponentFrameCapacity(HComponentFrame f)
+     {
+-        return sizeof(*f) + f->m_Commands.Capacity() * sizeof(Command) + f->m_Passes.Capacity() * sizeof(ComponentPass) +
++        return sizeof(*f) + f->m_ObjectDeferred.Capacity() * sizeof(uint32_t) + f->m_Deferred.Capacity() * sizeof(DeferredDraw) +
++            dmHashTable64<uint32_t>::GetMemorySize(f->m_DeferredSources.Capacity() * 2, f->m_DeferredSources.Capacity()) + f->m_Commands.Capacity() * sizeof(Command) + f->m_Passes.Capacity() * sizeof(ComponentPass) +
+             f->m_Objects.Capacity() * sizeof(RenderObject) + f->m_Textures.Capacity() * sizeof(TextureBinding) +
+             f->m_Lights.Capacity() * sizeof(LightSTD140) + f->m_Constants.Capacity() * sizeof(HNamedConstantBuffer) +
+             f->m_ConstantCapacity + dmGraphics::GetVertexUploadCapacity(&f->m_Uploads) - sizeof(f->m_Uploads);
+     }
+     uint64_t GetComponentFrameUsedBytes(HComponentFrame f)
+     {
+-        return sizeof(*f) + f->m_Commands.Size() * sizeof(Command) + f->m_Passes.Size() * sizeof(ComponentPass) +
++        return sizeof(*f) + f->m_ObjectDeferred.Size() * sizeof(uint32_t) + f->m_Deferred.Size() * sizeof(DeferredDraw) + f->m_Commands.Size() * sizeof(Command) + f->m_Passes.Size() * sizeof(ComponentPass) +
+             f->m_Objects.Size() * sizeof(RenderObject) + f->m_Textures.Size() * sizeof(TextureBinding) +
+-            f->m_Lights.Size() * sizeof(LightSTD140) + f->m_ConstantCapacity + f->m_Uploads.m_Data.Size() +
+-            f->m_Uploads.m_Uploads.Size() * sizeof(dmGraphics::VertexUpload);
++            f->m_Lights.Size() * sizeof(LightSTD140) + f->m_ConstantCapacity + f->m_Uploads.m_Data.Size() + dmGraphics::GetOwnedVertexUploadUsedBytes(&f->m_Uploads) +
++            f->m_Uploads.m_Uploads.Size() * sizeof(dmGraphics::VertexUpload) +
++            f->m_Uploads.m_Textures.Size() * sizeof(dmGraphics::CapturedTextureUpload);
+     }
+ }
+diff --git a/engine/render/src/render/component_frame.h b/engine/render/src/render/component_frame.h
+index cb2a771833..290dff9860 100644
+--- a/engine/render/src/render/component_frame.h
++++ b/engine/render/src/render/component_frame.h
+@@ -22,7 +22,14 @@ namespace dmRender
+     typedef ComponentFrame* HComponentFrame;
+     // Prepared component output, not graphics packets. No component/world/Lua
+     // pointers cross consumption. Resource mutation barriers protect handles.
+-    HComponentFrame NewComponentFrame();
++    typedef void (*ComponentDeferredDraw)(void* data, HRenderContext consumer);
++    // The placeholder preserves the globally sorted draw position. Data must
++    // stay immutable until frame retirement; renderer scratch is consumer-owned.
++    // The callback appends at most one object, with storage valid for the pass.
++    bool AddComponentDeferredDraw(HRenderContext context, RenderObject* placeholder, ComponentDeferredDraw draw, void* data);
++    void RejectComponentFrame(HRenderContext context);
++    HComponentFrame NewComponentFrame(bool owned_model_buffers = false);
++    uint64_t GetComponentFrameOwnedUploadBytes(HComponentFrame frame);
+     void DeleteComponentFrame(HComponentFrame frame);
+     void BeginComponentFrameCapture(HRenderContext context, HComponentFrame frame);
+     bool EndComponentFrameCapture(HRenderContext context);
+@@ -33,6 +40,8 @@ namespace dmRender
+     void ConsumeComponentFrame(HRenderContext consumer, HComponentFrame frame);
+     uint64_t GetComponentFrameCapacity(HComponentFrame frame);
+     uint64_t GetComponentFrameUsedBytes(HComponentFrame frame);
++    uint64_t GetComponentFrameUploadCapacity(HComponentFrame frame);
++    uint64_t GetComponentFrameConstantCapacity(HComponentFrame frame);
+     void EnableComponentFrames(HRenderContext context, bool enabled);
+     bool AreComponentFramesEnabled(HRenderContext context);
+ }
+diff --git a/engine/render/src/render/font/font_renderer.cpp b/engine/render/src/render/font/font_renderer.cpp
+index 3b90360733..09e70656e2 100644
+--- a/engine/render/src/render/font/font_renderer.cpp
++++ b/engine/render/src/render/font/font_renderer.cpp
+@@ -548,8 +548,15 @@ namespace dmRender
+         if (font_map->m_Texture)
+         {
+             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+-            float cache_width  = (float) dmGraphics::GetTextureWidth(graphics_context, font_map->m_Texture);
+-            float cache_height = (float) dmGraphics::GetTextureHeight(graphics_context, font_map->m_Texture);
++            // Owned-frame preparation can run while the previous atlas upload
++            // writes backend metadata. The live font map belongs to this producer.
++            float cache_width  = (float) font_map->m_CacheWidth;
++            float cache_height = (float) font_map->m_CacheHeight;
++            if (!render_context->m_ComponentFramesEnabled)
++            {
++                cache_width = (float) dmGraphics::GetTextureWidth(graphics_context, font_map->m_Texture);
++                cache_height = (float) dmGraphics::GetTextureHeight(graphics_context, font_map->m_Texture);
++            }
+ 
+             im_recip /= cache_width;
+             ih_recip /= cache_height;
+diff --git a/engine/render/src/render/render_thread.cpp b/engine/render/src/render/render_thread.cpp
+index aea8e839ac..ac896f20a7 100644
+--- a/engine/render/src/render/render_thread.cpp
++++ b/engine/render/src/render/render_thread.cpp
+@@ -290,6 +290,17 @@ namespace dmRender
+             t->m_Stats.m_SimulationOverlapUs += end - begin;
+         }
+     }
++    void MarkRenderThreadPreparationComplete(HRenderThread t, uint64_t begin)
++    {
++        uint64_t end = dmTime::GetMonotonicTime();
++        DM_MUTEX_SCOPED_LOCK(t->m_Mutex);
++        uint32_t slot = (uint32_t)(t->m_Stats.m_Completed % 2);
++        if (t->m_Slots[slot] == SLOT_READING && dmAtomicGet32(&t->m_ConsumerActive) && begin >= t->m_ConsumerBegin)
++        {
++            ++t->m_Stats.m_PreparationsDuringRender;
++            t->m_Stats.m_PreparationOverlapUs += end - begin;
++        }
++    }
+ 
+     void PublishRenderThreadFrame(HRenderThread t, uint32_t slot, FrameTraceRecord* trace)
+     {
+diff --git a/engine/render/src/render/render_thread.h b/engine/render/src/render/render_thread.h
+index 25bf6621f0..82659d2ec5 100644
+--- a/engine/render/src/render/render_thread.h
++++ b/engine/render/src/render/render_thread.h
+@@ -37,6 +37,8 @@ namespace dmRender
+         uint64_t m_CapturesWithConsumerOutstanding;
+         uint64_t m_SimulationsDuringRender;
+         uint64_t m_SimulationOverlapUs;
++        uint64_t m_PreparationsDuringRender;
++        uint64_t m_PreparationOverlapUs;
+         uint32_t m_MaxOutstanding;
+         uint32_t m_SlotCount;
+         uint32_t m_ControlCapacity;
+@@ -83,6 +85,7 @@ namespace dmRender
+     // Counts complete simulation intervals contained in an active consumption.
+     // This is stronger than counting a merely queued/outstanding frame.
+     void MarkRenderThreadSimulationComplete(HRenderThread thread, uint64_t begin);
++    void MarkRenderThreadPreparationComplete(HRenderThread thread, uint64_t begin);
+     void PublishRenderThreadFrame(HRenderThread thread, uint32_t slot, FrameTraceRecord* trace = 0);
+     void CancelRenderThreadFrame(HRenderThread thread, uint32_t slot);
+     void DrainRenderThread(HRenderThread thread);
+diff --git a/engine/render/src/test/test_render.cpp b/engine/render/src/test/test_render.cpp
+index 135449c9c2..a279701278 100644
+--- a/engine/render/src/test/test_render.cpp
++++ b/engine/render/src/test/test_render.cpp
+@@ -4791,6 +4791,13 @@ TEST_F(dmRenderTest, ComponentFrameOwnsPassData)
+     ASSERT_TRUE(dmRender::EndComponentFrameCapture(m_Context));
+     ASSERT_EQ(1U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
+     ASSERT_TRUE(dmRender::GetComponentFrameUsedBytes(frame) <= dmRender::GetComponentFrameCapacity(frame));
++    // Upload and constant capacities are disjoint subsets of the total, retained
++    // across consumption rather than additional allocations to add to it.
++    uint64_t uploads = dmRender::GetComponentFrameUploadCapacity(frame);
++    uint64_t constants_capacity = dmRender::GetComponentFrameConstantCapacity(frame);
++    ASSERT_TRUE(uploads >= sizeof(bytes));
++    ASSERT_TRUE(constants_capacity > 0);
++    ASSERT_TRUE(uploads + constants_capacity <= dmRender::GetComponentFrameCapacity(frame));
+     dmRender::DeleteNamedConstantBuffer(constants);
+     object.m_VertexCount = 0;
+     memset(bytes, 255, sizeof(bytes));
+@@ -4819,6 +4826,77 @@ TEST_F(dmRenderTest, ComponentFrameOwnsPassData)
+     }
+ }
+ 
++struct DeferredDrawProbe
++{
++    dmRender::RenderObject m_Object;
++    uint32_t m_Calls;
++    uint32_t m_Preceding[2];
++    float m_ViewX[2];
++};
++
++static void ProbeDeferredDraw(void* data, dmRender::HRenderContext context)
++{
++    DeferredDrawProbe* probe = (DeferredDrawProbe*)data;
++    uint32_t call = probe->m_Calls++;
++    probe->m_Preceding[call] = context->m_RenderObjects.Size();
++    probe->m_ViewX[call] = context->m_View.getCol3().getX();
++    dmRender::AddToRender(context, &probe->m_Object);
++}
++
++// Deferred draws preserve mixed object ordering and pass state after producer
++// placeholders change, and run only on consumption rather than capture.
++TEST_F(dmRenderTest, ComponentFrameDeferredDrawOrdering)
++{
++    m_Context->m_RenderObjects.SetCapacity(3);
++    dmGraphics::ShaderDescBuilder builder;
++    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
++    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
++    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
++    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
++    dmRender::HComponentFrame frame = dmRender::NewComponentFrame();
++    dmRender::HRenderContext consumer = dmRender::NewComponentFrameConsumer(m_Context);
++    DeferredDrawProbe probes[2];
++    dmRender::RenderObject placeholders[2], ordinary;
++    ordinary.m_Material = material;
++    ordinary.m_VertexCount = 1;
++    dmRender::BeginComponentFrameCapture(m_Context, frame);
++    for (uint32_t i = 0; i < 2; ++i)
++    {
++        probes[i].m_Calls = 0;
++        placeholders[i].m_Material = material;
++        placeholders[i].m_VertexCount = 1;
++        ASSERT_TRUE(dmRender::AddComponentDeferredDraw(m_Context, &placeholders[i], ProbeDeferredDraw, &probes[i]));
++        if (i == 0) dmRender::AddToRender(m_Context, &ordinary);
++    }
++    for (uint32_t i = 0; i < 2; ++i)
++    {
++        dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
++        view.setCol3(dmVMath::Vector4((float)i + 7, 0, 0, 1));
++        dmRender::SetViewMatrix(m_Context, view);
++        ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
++    }
++    ASSERT_TRUE(dmRender::EndComponentFrameCapture(m_Context));
++    for (uint32_t i = 0; i < 2; ++i)
++    {
++        ASSERT_EQ(0U, probes[i].m_Calls);
++        placeholders[i].m_VertexCount = 0;
++    }
++    dmRender::ConsumeComponentFrame(consumer, frame);
++    for (uint32_t i = 0; i < 2; ++i)
++    {
++        ASSERT_EQ(2U, probes[i].m_Calls);
++        for (uint32_t pass = 0; pass < 2; ++pass)
++        {
++            ASSERT_EQ(i * 2, probes[i].m_Preceding[pass]);
++            ASSERT_EQ((float)pass + 7, probes[i].m_ViewX[pass]);
++        }
++    }
++    dmRender::DeleteComponentFrameConsumer(consumer);
++    dmRender::DeleteComponentFrame(frame);
++    dmRender::DeleteMaterial(m_Context, material);
++    dmGraphics::DeleteProgram(m_GraphicsContext, program);
++}
++
+ // Reject unsupported compute, excessive pass counts and resource invalidation;
+ // each slot must recover cleanly when a later capture begins.
+ TEST_F(dmRenderTest, ComponentFrameRejectsInvalidCapture)
+@@ -4885,6 +4963,7 @@ TEST(dmRenderThreadTest, ComponentFrameSimulationOverlap)
+     uint64_t begin = dmTime::GetMonotonicTime();
+     dmTime::Sleep(1000);
+     dmRender::MarkRenderThreadSimulationComplete(thread, begin);
++    dmRender::MarkRenderThreadPreparationComplete(thread, begin);
+     dmMutex::Lock(probe.m_Mutex);
+     probe.m_Release = true;
+     dmConditionVariable::Broadcast(probe.m_Changed);
+@@ -4894,6 +4973,8 @@ TEST(dmRenderThreadTest, ComponentFrameSimulationOverlap)
+     dmRender::RenderThreadStats stats;
+     dmRender::GetRenderThreadStats(thread, &stats);
+     ASSERT_EQ(1ULL, stats.m_SimulationsDuringRender);
++    ASSERT_EQ(1ULL, stats.m_PreparationsDuringRender);
++    ASSERT_GE(stats.m_PreparationOverlapUs, 1000ULL);
+     ASSERT_GE(stats.m_SimulationOverlapUs, 1000ULL);
+     dmRender::DeleteRenderThread(thread);
+     dmConditionVariable::Delete(probe.m_Changed);
+@@ -4929,3 +5010,231 @@ TEST_F(dmRenderTest, ComponentFrameOwnsLightsAndShaderCapacity)
+     dmRender::DeleteComponentFrameConsumer(consumer);
+     dmRender::DeleteComponentFrame(frame);
+ }
++
++
++// A consumer may replay one slot while another thread records the next slot.
++// Upload bytes, pose texture dimensions and viewport state must remain independent.
++TEST_F(dmRenderTest, ComponentFrameConcurrentPreparationUploads)
++{
++    dmGraphics::TextureCreationParams create;
++    create.m_Width = create.m_Height = 1;
++    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_GraphicsContext, create);
++    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
++    dmGraphics::VertexUploadBatch first, second;
++    uint8_t bytes[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
++    dmGraphics::TextureParams params;
++    params.m_Width = params.m_Height = params.m_Depth = 1;
++    params.m_Data = bytes; params.m_DataSize = 4;
++    dmGraphics::BeginVertexUploadCapture(&first, true, true);
++    dmGraphics::SetCapturedViewport(0, 0, 100, 100);
++    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
++    dmGraphics::SetVertexBufferData(buffer, 4, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
++    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
++    dmGraphics::BeginVertexUploadCapture(&second, true, true);
++    dmGraphics::SetCapturedViewport(0, 0, 200, 200);
++    params.m_Width = 2; params.m_DataSize = 8;
++    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
++    dmGraphics::SetVertexBufferData(buffer, 8, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
++    memset(bytes, 255, sizeof(bytes));
++    dmRender::HRenderThread worker = dmRender::NewRenderThread(ReplayPreparedProbeUploads, &first);
++    dmRender::PublishRenderThreadFrame(worker, dmRender::BeginRenderThreadFrame(worker));
++    dmRender::DeleteRenderThread(worker);
++    // The backend saw frame 1; the recording thread still sees frame 2 metadata.
++    ASSERT_EQ(4U, dmGraphics::GetVertexBufferSize(buffer));
++    ASSERT_EQ(1U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
++    ASSERT_EQ(2U, dmGraphics::GetTextureWidth(m_GraphicsContext, texture));
++    int32_t x, y; uint32_t width, height;
++    dmGraphics::GetViewport(m_GraphicsContext, &x, &y, &width, &height);
++    ASSERT_EQ(200U, width);
++    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
++    ASSERT_EQ(1U, dmGraphics::GetTextureWidth(m_GraphicsContext, texture));
++    dmGraphics::ReplayVertexUploads(&second);
++    ASSERT_EQ(2U, dmGraphics::GetTextureWidth(m_GraphicsContext, texture));
++    ASSERT_EQ(8U, dmGraphics::GetVertexBufferSize(buffer));
++    ASSERT_EQ(8U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[7]);
++    void* pixels = 0;
++    dmGraphics::GetTextureHandle(texture, &pixels);
++    ASSERT_EQ(1U, ((uint8_t*)pixels)[0]);
++    ASSERT_EQ(8U, ((uint8_t*)pixels)[7]);
++    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
++    dmGraphics::DeleteVertexBuffer(buffer);
++}
++
++// Odd-sized uploads must not misalign a following pose texture's floating-point
++// payload: WebGL uses a typed heap view and would otherwise read preceding bytes.
++TEST_F(dmRenderTest, ComponentFrameTexturePayloadAlignment)
++{
++    dmGraphics::TextureCreationParams create;
++    create.m_Width = create.m_Height = 1;
++    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_GraphicsContext, create);
++    dmGraphics::VertexUploadBatch batch;
++    uint8_t glyph = 255;
++    float pose[] = {1, 2, 3, 4};
++    dmGraphics::TextureParams params;
++    params.m_Width = params.m_Height = params.m_Depth = 1;
++    params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
++    params.m_Data = &glyph; params.m_DataSize = 1;
++    dmGraphics::BeginVertexUploadCapture(&batch, true, true);
++    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
++    params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA32F;
++    params.m_Data = pose; params.m_DataSize = sizeof(pose);
++    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
++    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
++    ASSERT_EQ(4U, batch.m_Uploads[1].m_DataOffset);
++    ASSERT_EQ(20U, batch.m_Data.Size());
++    memset(pose, 0, sizeof(pose));
++    dmGraphics::ReplayVertexUploads(&batch);
++    void* pixels = 0;
++    dmGraphics::GetTextureHandle(texture, &pixels);
++    ASSERT_EQ(1.0f, ((float*)pixels)[0]);
++    ASSERT_EQ(4.0f, ((float*)pixels)[3]);
++    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
++}
++
++// Text preparation must use producer-owned atlas dimensions, even when the
++// backend still describes another frame. This guards against concurrent atlas resets.
++TEST_F(dmRenderTest, ComponentFrameFontDimensionsAreProducerOwned)
++{
++    dmGraphics::ShaderDescBuilder shaders;
++    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
++    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
++    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shaders.Get(), 0, 0);
++    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
++    dmRender::SetFontMapMaterial(m_SystemFontMap, material);
++    dmRender::DrawTextParams params;
++    params.m_Text = "Hello";
++    dmArray<uint8_t> expected, prepared;
++    uint32_t count = QueueTextAndCopyVertices(m_Context, m_SystemFontMap, params, expected, 0, 0);
++    ASSERT_GT(count, 0U);
++    dmRender::ClearRenderObjects(m_Context);
++    dmGraphics::TextureParams texture;
++    texture.m_Width = m_SystemFontMap->m_CacheWidth / 2;
++    texture.m_Height = m_SystemFontMap->m_CacheHeight / 2;
++    dmGraphics::SetTexture(m_GraphicsContext, m_SystemFontMap->m_Texture, texture);
++    dmRender::EnableComponentFrames(m_Context, true);
++    ASSERT_EQ(count, QueueTextAndCopyVertices(m_Context, m_SystemFontMap, params, prepared, 0, 0));
++    ASSERT_EQ(expected.Size(), prepared.Size());
++    ASSERT_EQ(0, memcmp(expected.Begin(), prepared.Begin(), expected.Size()));
++    dmRender::EnableComponentFrames(m_Context, false);
++    dmRender::ClearRenderObjects(m_Context);
++    dmRender::SetFontMapMaterial(m_SystemFontMap, 0);
++    dmRender::DeleteMaterial(m_Context, material);
++    dmGraphics::DeleteProgram(m_GraphicsContext, program);
++}
++
++// Oversized and unsupported texture payloads must fail before reading input.
++TEST_F(dmRenderTest, ComponentFrameTextureAdmission)
++{
++    dmGraphics::TextureCreationParams create;
++    create.m_Width = create.m_Height = 1;
++    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_GraphicsContext, create);
++    dmGraphics::VertexUploadBatch batch;
++    dmGraphics::TextureParams params;
++    uint8_t byte = 1;
++    params.m_Data = &byte; params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA32F;
++    params.m_Width = params.m_Height = 65535;
++    dmGraphics::BeginVertexUploadCapture(&batch, true, true);
++    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
++    ASSERT_FALSE(dmGraphics::EndVertexUploadCapture());
++    ASSERT_EQ(0U, batch.m_Data.Capacity());
++    params.m_Width = params.m_Height = 1; params.m_LayerCount = 2;
++    dmGraphics::BeginVertexUploadCapture(&batch, true, true);
++    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
++    ASSERT_FALSE(dmGraphics::EndVertexUploadCapture());
++    ASSERT_EQ(0U, batch.m_Data.Capacity());
++    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
++}
++
++// Owned geometry must survive producer scratch reuse and retain pass upload order
++// without copying payloads into the general arena or aliasing the next frame.
++TEST_F(dmRenderTest, ComponentOwnedVertexStorage)
++{
++    uint8_t initial = 0;
++    dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 1, &initial, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
++    dmGraphics::VertexUploadBatch frames[2];
++    frames[0].m_OwnedEnabled = frames[1].m_OwnedEnabled = true;
++    dmArray<uint8_t> scratch;
++    uint8_t* first_storage = 0;
++    for (uint32_t frame = 0; frame < 2; ++frame)
++    {
++        dmGraphics::BeginVertexUploadCapture(&frames[frame]);
++        for (uint32_t pass = 0; pass < 2; ++pass)
++        {
++            uint32_t token = dmGraphics::BeginOwnedVertexUpload(scratch);
++            scratch.SetCapacity(4);
++            scratch.Push((uint8_t)(10 * frame + pass + 1));
++            if (frame == 0 && pass == 0) first_storage = scratch.Begin();
++            void* data = dmGraphics::EndOwnedVertexUpload(token, scratch);
++            ASSERT_EQ(0U, scratch.Capacity());
++            dmGraphics::SetVertexBufferData(buffer, 1, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
++        }
++        ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
++        ASSERT_TRUE(frames[frame].m_Data.Empty());
++        ASSERT_EQ(2U, frames[frame].m_OwnedBytes);
++        ASSERT_EQ(0U, frames[frame].m_Uploads[0].m_OwnedIndex);
++        ASSERT_EQ(1U, frames[frame].m_Uploads[1].m_OwnedIndex);
++    }
++    dmGraphics::ReplayVertexUploads(&frames[0], 0, 1);
++    ASSERT_EQ(1U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
++    dmGraphics::ReplayVertexUploads(&frames[0], 1, 2);
++    ASSERT_EQ(2U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
++    dmGraphics::ReplayVertexUploads(&frames[1]);
++    ASSERT_EQ(12U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
++    uint64_t capacity = dmGraphics::GetVertexUploadCapacity(&frames[0]);
++    dmGraphics::BeginVertexUploadCapture(&frames[0]);
++    uint32_t token = dmGraphics::BeginOwnedVertexUpload(scratch);
++    ASSERT_EQ(first_storage, scratch.Begin());
++    ASSERT_TRUE(scratch.Empty());
++    scratch.Push(99);
++    void* data = dmGraphics::EndOwnedVertexUpload(token, scratch);
++    dmGraphics::SetVertexBufferData(buffer, 1, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
++    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
++    ASSERT_EQ(capacity, dmGraphics::GetVertexUploadCapacity(&frames[0]));
++    dmGraphics::ReplayVertexUploads(&frames[0]);
++    ASSERT_EQ(99U, ((dmGraphics::VertexBuffer*)buffer)->m_Buffer[0]);
++    dmGraphics::DeleteVertexBuffer(buffer);
++}
++
++// Default capture must keep copying live component memory; an empty owned batch
++// must return its storage too, and the bounded slot pool must reject overflow.
++TEST_F(dmRenderTest, ComponentOwnedVertexAdmission)
++{
++    dmArray<uint8_t> scratch;
++    scratch.SetCapacity(4);
++    ASSERT_EQ(UINT32_MAX, dmGraphics::BeginOwnedVertexUpload(scratch));
++    ASSERT_EQ(4U, scratch.Capacity());
++    dmGraphics::VertexUploadBatch batch;
++    dmGraphics::BeginVertexUploadCapture(&batch);
++    ASSERT_EQ(UINT32_MAX, dmGraphics::BeginOwnedVertexUpload(scratch));
++    ASSERT_EQ((void*)scratch.Begin(), dmGraphics::EndOwnedVertexUpload(UINT32_MAX, scratch));
++    ASSERT_TRUE(dmGraphics::EndVertexUploadCapture());
++    batch.m_OwnedEnabled = true;
++    dmGraphics::BeginVertexUploadCapture(&batch);
++    for (uint32_t i = 0; i < dmGraphics::VertexUploadBatch::MAX_UPLOADS; ++i)
++    {
++        uint32_t token = dmGraphics::BeginOwnedVertexUpload(scratch);
++        ASSERT_EQ(i, token);
++        dmGraphics::EndOwnedVertexUpload(token, scratch);
++    }
++    ASSERT_EQ(UINT32_MAX, dmGraphics::BeginOwnedVertexUpload(scratch));
++    ASSERT_FALSE(dmGraphics::EndVertexUploadCapture());
++    ASSERT_EQ((uint32_t)dmGraphics::VertexUploadBatch::MAX_UPLOADS, batch.m_Owned.Size());
++}
++
++// Owned data and copied uploads share one payload limit, so ownership cannot
++// bypass frame admission when individually small buffers exceed the total cap.
++TEST_F(dmRenderTest, ComponentOwnedVertexPayloadLimit)
++{
++    dmGraphics::VertexUploadBatch batch;
++    batch.m_OwnedEnabled = true;
++    dmArray<uint8_t> scratch;
++    dmGraphics::BeginVertexUploadCapture(&batch);
++    for (uint32_t i = 0; i < 2; ++i)
++    {
++        uint32_t token = dmGraphics::BeginOwnedVertexUpload(scratch);
++        scratch.SetCapacity(dmGraphics::VertexUploadBatch::MAX_PAYLOAD / 2);
++        scratch.SetSize(scratch.Capacity());
++        dmGraphics::EndOwnedVertexUpload(token, scratch);
++    }
++    ASSERT_FALSE(dmGraphics::EndVertexUploadCapture());
++}

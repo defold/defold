@@ -1,0 +1,37 @@
+{
+  "git_head": "bed9d48fb4fa47e242bab74748688b6e4190268a",
+  "files": {
+    "tmp/web-preparation-overlap-final-bundle/dmengine_release.js": {
+      "bytes": 331064,
+      "sha256": "256af041ae40c2c2e010818c379b3896f0a142062f523b2d1b0ff60a7b8c0852"
+    },
+    "tmp/web-preparation-overlap-final-bundle/dmengine_release.data": {
+      "bytes": 227906,
+      "sha256": "76a17bbb3e11a83f5ed1673394a21e26af46809413d45173c35646ab06307e76"
+    },
+    "tmp/web-preparation-overlap-final-bundle/dmengine_release.js.symbols": {
+      "bytes": 422172,
+      "sha256": "c5261b97feae4e4e6ac8c000d062a3a03a9b217be10dc572eeb5c712dd817986"
+    },
+    "tmp/web-preparation-overlap-final-bundle/dmengine_release.wasm": {
+      "bytes": 3033675,
+      "sha256": "0cef7f5f6a05f699f74fa827fd080c69f2557741d5441579289f624059da2f74"
+    },
+    "tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/dmengine_release.js": {
+      "bytes": 332141,
+      "sha256": "af000cc5aa5c4e75c8b5892bca205f2d73d48147686d5fc234b563691255b89e"
+    },
+    "tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/dmengine_release.data": {
+      "bytes": 283135,
+      "sha256": "5a1ebc1d84ce884cb6de88b8e71abd243cfa02bb340d16f6d4c2ec9715be93b6"
+    },
+    "tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/dmengine_release.js.symbols": {
+      "bytes": 422172,
+      "sha256": "c5261b97feae4e4e6ac8c000d062a3a03a9b217be10dc572eeb5c712dd817986"
+    },
+    "tmp/web-component-poc-build/engine/engine/build/wasm_pthread-web/dmengine_release.wasm": {
+      "bytes": 3033675,
+      "sha256": "0cef7f5f6a05f699f74fa827fd080c69f2557741d5441579289f624059da2f74"
+    }
+  }
+}

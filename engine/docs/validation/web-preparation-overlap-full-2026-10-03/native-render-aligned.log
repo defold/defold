@@ -1,0 +1,250 @@
+[36mdmRenderTest[0m
+[33mTestFontMapTextureFiltering[0m
+INFO:GRAPHICS: Installed graphics device 'ADAPTER_FAMILY_NULL'
+[33mTestFontMapTextureFiltering[0m [32mPASS[0m (1 µs)
+[33mTestGraphicsContext[0m
+[33mTestGraphicsContext[0m [32mPASS[0m (0 µs)
+[33mTestViewProj[0m
+[33mTestViewProj[0m [32mPASS[0m (0 µs)
+[33mTestRenderObjects[0m
+WARNING:RENDER: Max number of draw calls reached (2), some objects will not be rendered. Increase the capacity with graphics.max_draw_calls
+[33mTestRenderObjects[0m [32mPASS[0m (1 µs)
+[33mTestRenderCamera[0m
+[33mTestRenderCamera[0m [32mPASS[0m (0 µs)
+[33mTestRenderCameraEffectiveAspectRatio[0m
+[33mTestRenderCameraEffectiveAspectRatio[0m [32mPASS[0m (1 µs)
+[33mTestRenderCameraOrthographicAutoZoom[0m
+[33mTestRenderCameraOrthographicAutoZoom[0m [32mPASS[0m (14 µs)
+[33mTestSquare2d[0m
+[33mTestSquare2d[0m [32mPASS[0m (0 µs)
+[33mTestLine2d[0m
+[33mTestLine2d[0m [32mPASS[0m (0 µs)
+[33mTestLine3d[0m
+[33mTestLine3d[0m [32mPASS[0m (0 µs)
+[33mTestRenderListDraw[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mTestRenderListDraw[0m [32mPASS[0m (8 µs)
+[33mTestRenderListDrawState[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+DeleteVertexDeclaration; 0x84cc90090
+[33mTestRenderListDrawState[0m [32mPASS[0m (10 µs)
+[33mTestEnableTextureByHash[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mTestEnableTextureByHash[0m [32mPASS[0m (49 µs)
+[33mTestRenderObjectMaxTextureBindings[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mTestRenderObjectMaxTextureBindings[0m [32mPASS[0m (25 µs)
+[33mTestEnableDisableContextTextures[0m
+[33mTestEnableDisableContextTextures[0m [32mPASS[0m (3 µs)
+[33mTestDefaultSamplerFilters[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mTestDefaultSamplerFilters[0m [32mPASS[0m (16 µs)
+[33mTestRenderListCulling[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mTestRenderListCulling[0m [32mPASS[0m (12 µs)
+[33mTestRenderListFrustumCullDeduplication[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mTestRenderListFrustumCullDeduplication[0m [32mPASS[0m (31 µs)
+[33mTestRenderListOrder[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mTestRenderListOrder[0m [32mPASS[0m (8 µs)
+[33mTestRenderListDebug[0m
+[33mTestRenderListDebug[0m [32mPASS[0m (0 µs)
+[33mTestRenderListSortFrontToBack[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mTestRenderListSortFrontToBack[0m [32mPASS[0m (4 µs)
+[33mTestRenderListSortNoneUsesInsertionOrder[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mTestRenderListSortNoneUsesInsertionOrder[0m [32mPASS[0m (4 µs)
+[33mGetTextMetrics[0m
+[33mGetTextMetrics[0m [32mPASS[0m (3 µs)
+[33mGetPreparedTextMetrics[0m
+[33mGetPreparedTextMetrics[0m [32mPASS[0m (2 µs)
+[33mGetTextMetricsWithNullPreparedLayout[0m
+[33mGetTextMetricsWithNullPreparedLayout[0m [32mPASS[0m (0 µs)
+[33mSdfEdgeTransitionWidth[0m
+[33mSdfEdgeTransitionWidth[0m [32mPASS[0m (17 µs)
+[33mCreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout[0m
+[33mCreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout[0m [32mPASS[0m (7 µs)
+[33mMarkupOutlineLayerOnlyCoversSpan[0m
+[33mMarkupOutlineLayerOnlyCoversSpan[0m [32mPASS[0m (7 µs)
+[33mMarkupWithoutEffectTagsSuppressesBaseEffects[0m
+[33mMarkupWithoutEffectTagsSuppressesBaseEffects[0m [32mPASS[0m (7 µs)
+[33mMarkupOutlineColorOverridesBaseOutlineColor[0m
+[33mMarkupOutlineColorOverridesBaseOutlineColor[0m [32mPASS[0m (5 µs)
+[33mMarkupOutlineSizeZeroDisablesAndOversizeClamps[0m
+[33mMarkupOutlineSizeZeroDisablesAndOversizeClamps[0m [32mPASS[0m (5 µs)
+[33mMarkupCrispShadowOnlyCoversSpan[0m
+[33mMarkupCrispShadowOnlyCoversSpan[0m [32mPASS[0m (18 µs)
+[33mMarkupBitmapShadowDoesNotRevealUntaggedOutline[0m
+[33mMarkupBitmapShadowDoesNotRevealUntaggedOutline[0m [32mPASS[0m (4 µs)
+[33mDrawTextPreservesNodeShadowAlpha[0m
+[33mDrawTextPreservesNodeShadowAlpha[0m [32mPASS[0m (1 µs)
+[33mDrawTextPreservesEffectAlphaAboveOne[0m
+[33mDrawTextPreservesEffectAlphaAboveOne[0m [32mPASS[0m (6 µs)
+[33mDrawTextPreservesEffectAlphaOverrides[0m
+[33mDrawTextPreservesEffectAlphaOverrides[0m [32mPASS[0m (7 µs)
+[33mDrawTextOnlyAppliesBaseOutlineAlphaToLegacyText[0m
+[33mDrawTextOnlyAppliesBaseOutlineAlphaToLegacyText[0m [32mPASS[0m (2 µs)
+[33mMarkupShadowUsesFontBlurWhenOmitted[0m
+[33mMarkupShadowUsesFontBlurWhenOmitted[0m [32mPASS[0m (2 µs)
+[33mMarkupShadowBlurClampsToBakedCapacity[0m
+[33mMarkupShadowBlurClampsToBakedCapacity[0m [32mPASS[0m (3 µs)
+[33mMarkupFontSizeScalesFinalGlyphVertices[0m
+[33mMarkupFontSizeScalesFinalGlyphVertices[0m [32mPASS[0m (3 µs)
+[33mMarkupUnderlineGeneratesGradientVertices[0m
+[33mMarkupUnderlineGeneratesGradientVertices[0m [32mPASS[0m (17 µs)
+[33mMarkupDashedDecorationsGenerateOneProceduralQuadEach[0m
+[33mMarkupDashedDecorationsGenerateOneProceduralQuadEach[0m [32mPASS[0m (6 µs)
+[33mMarkupDecorationInheritsOutlineAndShadowLayers[0m
+[33mMarkupDecorationInheritsOutlineAndShadowLayers[0m [32mPASS[0m (3 µs)
+[33mMarkupAnimatedGlyphGradientReachesFinalVertices[0m
+[33mMarkupAnimatedGlyphGradientReachesFinalVertices[0m [32mPASS[0m (7 µs)
+[33mMarkupAnimatedSpanGradientUsesOneFinalVertexColor[0m
+[33mMarkupAnimatedSpanGradientUsesOneFinalVertexColor[0m [32mPASS[0m (7 µs)
+[33mMarkupUnderlineIgnoresGlyphPositionEffects[0m
+[33mMarkupUnderlineIgnoresGlyphPositionEffects[0m [32mPASS[0m (17 µs)
+[33mCreateFontVertexDataUsesPreparedTextLayout[0m
+WARNING:RENDER: Character buffer exceeded (size: 1), increase the "graphics.max_characters" property in your game.project file.
+[33mCreateFontVertexDataUsesPreparedTextLayout[0m [32mPASS[0m (6 µs)
+[33mDrawTextUsesPreparedTextLayoutThroughRenderQueue[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mDrawTextUsesPreparedTextLayoutThroughRenderQueue[0m [32mPASS[0m (22 µs)
+[33mDrawTextPreparedTextLayoutRetainedUntilClear[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mDrawTextPreparedTextLayoutRetainedUntilClear[0m [32mPASS[0m (9 µs)
+[33mFontVertexDeclaration[0m
+[33mFontVertexDeclaration[0m [32mPASS[0m (13 µs)
+[33mFindRanges[0m
+[33mFindRanges[0m [32mPASS[0m (1 µs)
+[33mFontMapSetup[0m
+[33mFontMapSetup[0m [32mPASS[0m (13 µs)
+[33mFontMapNegativeGlyphAscent[0m
+WARNING:RENDER: Glyph 96 does not fit inside its font cache cell (64 x 128).
+WARNING:RENDER: Glyph 96 does not fit inside its font cache cell (64 x 128).
+[33mFontMapNegativeGlyphAscent[0m [32mPASS[0m (29 µs)
+[33mLightBufferTestSimple[0m
+[33mLightBufferTestSimple[0m [32mPASS[0m (0 µs)
+[33mLightBufferTestAllTypes[0m
+[33mLightBufferTestAllTypes[0m [32mPASS[0m (1 µs)
+[33mLightBufferSubmissionIsPerFrame[0m
+[33mLightBufferSubmissionIsPerFrame[0m [32mPASS[0m (0 µs)
+[33mLightBufferTestMultipleInstances[0m
+[33mLightBufferTestMultipleInstances[0m [32mPASS[0m (13 µs)
+[33mLightBufferTestIndexReuse[0m
+[33mLightBufferTestIndexReuse[0m [32mPASS[0m (0 µs)
+[33mLightBufferTestSetLightInstanceUpdates[0m
+[33mLightBufferTestSetLightInstanceUpdates[0m [32mPASS[0m (0 µs)
+[33mConstantTypeTimeSetsTimeAndDt[0m
+[33mConstantTypeTimeSetsTimeAndDt[0m [32mPASS[0m (3 µs)
+[33mConstantTypeInverseMatricesSetExpectedValues[0m
+[33mConstantTypeInverseMatricesSetExpectedValues[0m [32mPASS[0m (3 µs)
+[33mSpriteThreadCommandOwnership[0m
+[33mSpriteThreadCommandOwnership[0m [32mPASS[0m (1 µs)
+[33mNamedConstantMemoryCapacity[0m
+[33mNamedConstantMemoryCapacity[0m [32mPASS[0m (16 µs)
+[33mPreparedListOwnsDrawData[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mPreparedListOwnsDrawData[0m [32mPASS[0m (11 µs)
+[33mPreparedListAdmission[0m
+ERROR:RENDER: Mixed preparation exceeds entry limit or has an unsupported visibility callback
+ERROR:RENDER: Mixed preparation exceeds entry limit or has an unsupported visibility callback
+[33mPreparedListAdmission[0m [32mPASS[0m (23 µs)
+[33mPreparedListReleasesTextLayout[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mPreparedListReleasesTextLayout[0m [32mPASS[0m (16 µs)
+[33mPreparedVertexUploadsOwnBytes[0m
+[33mPreparedVertexUploadsOwnBytes[0m [32mPASS[0m (58 µs)
+[33mPreparedVertexUploadBudgets[0m
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+[33mPreparedVertexUploadBudgets[0m [32mPASS[0m (52 µs)
+[33mPreparedInlineKeepsOtherDispatches[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mPreparedInlineKeepsOtherDispatches[0m [32mPASS[0m (5 µs)
+[33mComponentFrameOwnsPassData[0m
+[33mComponentFrameOwnsPassData[0m [32mPASS[0m (25 µs)
+[33mComponentFrameRejectsInvalidCapture[0m
+ERROR:RENDER: Component frame capture rejected: unsupported command or frame capacity exceeded
+ERROR:RENDER: Component frame capture rejected: unsupported command or frame capacity exceeded
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ERROR:RENDER: Component frame capture rejected: unsupported command or frame capacity exceeded
+[33mComponentFrameRejectsInvalidCapture[0m [32mPASS[0m (16 µs)
+[33mComponentFrameUploadRanges[0m
+[33mComponentFrameUploadRanges[0m [32mPASS[0m (1 µs)
+[33mComponentFrameOwnsLightsAndShaderCapacity[0m
+[33mComponentFrameOwnsLightsAndShaderCapacity[0m [32mPASS[0m (3 µs)
+[33mComponentFrameConcurrentPreparationUploads[0m
+[33mComponentFrameConcurrentPreparationUploads[0m [32mPASS[0m (37 µs)
+[33mComponentFrameTexturePayloadAlignment[0m
+[33mComponentFrameTexturePayloadAlignment[0m [32mPASS[0m (1 µs)
+[33mComponentFrameFontDimensionsAreProducerOwned[0m
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+ERROR:RENDER: Failed to get material tag list with hash 0x00000000
+[33mComponentFrameFontDimensionsAreProducerOwned[0m [32mPASS[0m (15 µs)
+[33mComponentFrameTextureAdmission[0m
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+ERROR:GRAPHICS: Component upload capture rejected: capacity exceeded or a referenced resource was mutated during preparation
+[33mComponentFrameTextureAdmission[0m [32mPASS[0m (6 µs)
+[36mdmRenderTest[0m took 4480 µs
+[36mRender[0m
+[33mTextAlignmentOffsets[0m
+[33mTextAlignmentOffsets[0m [32mPASS[0m (0 µs)
+[33mBatchIterator[0m
+[33mBatchIterator[0m [32mPASS[0m (0 µs)
+[36mRender[0m took 9 µs
+[36mConstants[0m
+[33mConstant[0m
+[33mConstant[0m [32mPASS[0m (1 µs)
+[33mNamedConstantsArray[0m
+[33mNamedConstantsArray[0m [32mPASS[0m (14 µs)
+[33mNamedConstants[0m
+[33mNamedConstants[0m [32mPASS[0m (2 µs)
+[36mConstants[0m took 31 µs
+[36mdmRenderThreadTest[0m
+[33mInteractiveQosLifetime[0m
+PoC worker QoS: enabled
+[33mInteractiveQosLifetime[0m [32mPASS[0m (37 µs)
+[33mOrderedSlotsAndPausedControls[0m
+[33mOrderedSlotsAndPausedControls[0m [32mPASS[0m (472 µs)
+[33mRejectUnsupportedCommandsAndOverflow[0m
+ERROR:RENDER: Unsupported sprite thread render command: 24
+ERROR:RENDER: Sprite thread command capacity exceeded (129 > 128)
+[33mRejectUnsupportedCommandsAndOverflow[0m [32mPASS[0m (5 µs)
+[33mShutdownDrainsAfterCancellation[0m
+[33mShutdownDrainsAfterCancellation[0m [32mPASS[0m (29 µs)
+[33mFrameTraceBoundedStorage[0m
+[33mFrameTraceBoundedStorage[0m [32mPASS[0m (0 µs)
+[33mTracePublicationOwnership[0m
+[33mTracePublicationOwnership[0m [32mPASS[0m (28 µs)
+[33mRenderFramePassConstants[0m
+[33mRenderFramePassConstants[0m [32mPASS[0m (3 µs)
+[33mExternalOwnerPumpsPublishedFrames[0m
+[33mExternalOwnerPumpsPublishedFrames[0m [32mPASS[0m (1 µs)
+[33mComponentFrameSimulationOverlap[0m
+[33mComponentFrameSimulationOverlap[0m [32mPASS[0m (1399 µs)
+[36mdmRenderThreadTest[0m took 2039 µs
+[36mRenderFrameContract[0m
+[33mConditionResolution[0m
+[33mConditionResolution[0m [32mPASS[0m (1 µs)
+[33mOwnedPayloadAndConsumerDispatch[0m
+[33mOwnedPayloadAndConsumerDispatch[0m [32mPASS[0m (4 µs)
+[33mAdmissionAndPartialFailure[0m
+[33mAdmissionAndPartialFailure[0m [32mPASS[0m (1 µs)
+[36mRenderFrameContract[0m took 23 µs
+Ran 94 tests, with 2550 assertions in 6.582 ms
+94 tests [32mPASSED[0m and 0 skipped

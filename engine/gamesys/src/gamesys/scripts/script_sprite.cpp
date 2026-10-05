@@ -12,6 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if defined(__EMSCRIPTEN__)
+#include <malloc.h>
+#endif
+
 #include <graphics/graphics_packet.h>
 #include <float.h>
 #include <stdio.h>
@@ -513,6 +517,15 @@ namespace dmGameSystem
         GetSpriteSnapshotStats(world, &stats);
         SpriteContext* context = (SpriteContext*)dmGameObject::GetContext(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
         lua_newtable(L);
+        SpriteSnapshotStats aggregate;
+        uint32_t worlds = GetSpriteContextSnapshotStats(context, &aggregate);
+        lua_pushnumber(L, worlds); lua_setfield(L, -2, "all_sprite_worlds");
+        lua_pushnumber(L, (lua_Number)aggregate.m_FrameCapacityBytes); lua_setfield(L, -2, "all_sprite_frame_capacity_bytes");
+        lua_pushnumber(L, (lua_Number)aggregate.m_RendererCpuCapacityBytes); lua_setfield(L, -2, "all_sprite_renderer_cpu_capacity_bytes");
+        lua_pushnumber(L, (lua_Number)aggregate.m_ConstantBufferCapacityBytes); lua_setfield(L, -2, "all_sprite_constant_capacity_bytes");
+        lua_pushnumber(L, (lua_Number)aggregate.m_RendererGpuLogicalBytes); lua_setfield(L, -2, "all_sprite_gpu_logical_bytes");
+        lua_pushnumber(L, (lua_Number)context->m_ComponentUploadCapacityBytes); lua_setfield(L, -2, "component_upload_capacity_bytes");
+        lua_pushnumber(L, (lua_Number)context->m_ComponentConstantCapacityBytes); lua_setfield(L, -2, "component_constant_capacity_bytes");
         dmGraphics::GraphicsPacketStats packet;
         dmGraphics::GetGraphicsPacketStats(&packet);
         lua_pushstring(L, dmGraphics::IsExternalGraphicsProducer() ? (context->m_ComponentFrames ? "component-web-snapshots" : stats.m_Threaded ? "component-web-threaded" : "component-web-serialized") : dmGraphics::IsRenderGraphicsOwnerActive() ? (packet.m_Mode == 1 ? "renderframe-inline" : "renderframe-threaded") :
@@ -589,6 +602,12 @@ namespace dmGameSystem
         lua_setfield(L, -2, "retained_reference_count");
         if (context->m_ComponentFrames)
         {
+            lua_pushnumber(L, (lua_Number)context->m_ComponentOwnedUploadBytes);
+            lua_setfield(L, -2, "component_owned_upload_bytes");
+            lua_pushboolean(L, context->m_ComponentDeferredSprites);
+            lua_setfield(L, -2, "component_deferred_sprites");
+            lua_pushboolean(L, context->m_ComponentPreparationOverlap);
+            lua_setfield(L, -2, "component_preparation_overlap");
             lua_pushnumber(L, (lua_Number)context->m_RenderFrameCapacityBytes);
             lua_setfield(L, -2, "component_frame_capacity_bytes");
             lua_pushnumber(L, (lua_Number)context->m_RenderFrameUsedBytes);
@@ -639,6 +658,10 @@ namespace dmGameSystem
             lua_setfield(L, -2, "thread_simulations_during_render");
             lua_pushnumber(L, (lua_Number)thread.m_SimulationOverlapUs);
             lua_setfield(L, -2, "thread_simulation_overlap_us");
+            lua_pushnumber(L, thread.m_PreparationsDuringRender);
+            lua_setfield(L, -2, "thread_preparations_during_render");
+            lua_pushnumber(L, thread.m_PreparationOverlapUs);
+            lua_setfield(L, -2, "thread_preparation_overlap_us");
             lua_pushnumber(L, (lua_Number)thread.m_CapturesWithConsumerOutstanding);
             lua_setfield(L, -2, "thread_captures_with_consumer_outstanding");
             lua_pushnumber(L, (lua_Number)thread.m_Submitted);
@@ -686,11 +709,27 @@ namespace dmGameSystem
         return 1;
     }
 
+    // Internal web diagnostic: return numbers without constructing a Lua table.
+    // Called on the Lua owner, including when that owner is the simulation worker.
+    static int SpriteComp_SnapshotMemory(lua_State* L)
+    {
+#if defined(__EMSCRIPTEN__)
+        struct mallinfo info = mallinfo();
+        uint64_t lua_bytes = (uint64_t)lua_gc(L, LUA_GCCOUNT, 0) * 1024 + lua_gc(L, LUA_GCCOUNTB, 0);
+        lua_pushnumber(L, info.uordblks);
+        lua_pushnumber(L, (lua_Number)lua_bytes);
+        return 2;
+#else
+        return luaL_error(L, "snapshot allocator diagnostic requires web");
+#endif
+    }
+
     static const luaL_reg SPRITE_COMP_FUNCTIONS[] =
     {
             {"_get_snapshot_stats", SpriteComp_GetSnapshotStats},
             {"_snapshot_pause", SpriteComp_SnapshotPause},
             {"_snapshot_clock", SpriteComp_SnapshotClock},
+            {"_snapshot_memory", SpriteComp_SnapshotMemory},
             {"set_hflip",       SpriteComp_SetHFlip},
             {"set_vflip",       SpriteComp_SetVFlip},
             {"reset_constant",  SpriteComp_ResetConstant},
