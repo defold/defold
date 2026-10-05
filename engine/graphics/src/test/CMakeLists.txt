@@ -72,6 +72,10 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
     target_include_directories(test_app_graphics PRIVATE
       "${GRAPHICS_SRC_DIR}"
       "${GRAPHICS_PROTO_ROOT}")
+    if(TARGET_PLATFORM_OS STREQUAL "xbone")
+      target_include_directories(test_app_graphics PRIVATE
+        "${DEFOLD_XBONE_PRIVATE_REPO_ROOT}/engine/graphics/src/test")
+    endif()
     defold_target_link_libraries(test_app_graphics "${TARGET_PLATFORM}"
       testmain
       ddf

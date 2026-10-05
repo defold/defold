@@ -136,20 +136,30 @@ $ ./scripts/build.py install_ext --platform=arm64-android
 It is important that you provide the `--platform` if you target a platform other than the host platform.
 With host platform, we mean any of the `x86_64-win32`, `x86_64-macos`, `arm64-macos`, `x86_64-linux` or `arm64-linux`.
 
-The `install_ext` command first installs the prepackaged dependencies from `./packages`,
-including Box2D and Protocol Buffers (a.k.a. protobuf). After installing the packages
-and support files, it checks the SDK and builds and installs source
-dependencies with CMake. These include Bullet, Basis Universal, and LZ4. Mobile and web platform backends
-are built with the engine.
+The `install_ext` command first installs the remaining prepackaged dependencies
+from `./packages` and support files, then calls `build_ext` to check the SDK and
+build and install source dependencies with CMake. These include Bullet, Basis
+Universal, LZ4, both Box2D versions, HarfBuzz, libunibreak, Opus, SheenBidi,
+Skribidi, and desktop Protobuf.
+Mobile and web platform backends are built with the engine.
 Cross-builds build source dependencies for both the host and target platform.
+These source dependencies are no longer installed from package archives.
 
 When `install_ext` finishes, the dependencies are installed in `${DYNAMO_HOME}/ext`.
 Run it for each target platform before building the engine or packaging a local
 platform SDK, and repeat it after `distclean`.
 
-Run `install_ext` again when the external sources or toolchain change.
+Run `build_ext` when only the external sources or toolchain change, or `install_ext`
+to also reinstall the packages.
 Subsequent calls reuse the CMake build cache; ordinary engine rebuilds use the
 installed libraries.
+
+For a fresh external installation and build, run
+`./scripts/build.py clean_ext install_ext --platform=<platform>`.
+`clean_ext` removes external build directories and installed dependency files for
+the selected platform (the host platform when `--platform` is omitted). It retains
+other platforms, shared dependency files, platform SDKs, engine outputs, and
+package archives outside the build directories.
 
 This step also installs some Python dependencies:
 

@@ -108,7 +108,11 @@ The ordinary and sequential runners register the likeness tests. Hosted CI
 automatically captures only on native Linux/Vulkan (Mesa software Vulkan
 under Xvfb); macOS and Windows record explicit policy skips. This does not
 disable the manual target. The report is collected by the existing
-`upload-build-reports` action, including failed runs.
+`upload-build-reports` action alongside the font report, including failed runs.
+The CI run's **Build Reports** job summary links the downloadable artifact and
+provides a download command. The artifact preserves the report paths and includes
+the standalone HTML and `results.json`; missing reports are recorded as diagnostic
+text. Report links are published in the run summary, not in PR comments.
 An explicitly requested missing backend fails:
 
 ```sh

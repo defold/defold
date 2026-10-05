@@ -41,6 +41,11 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'armv7-android', 'arm64-android', 'x86_64-android',
                     'wasm-web', 'wasm_pthread-web']
 
+# Private platform hooks can still list dependencies now built from source.
+SOURCE_BUILT_PACKAGE_PREFIXES = (
+    'bullet-', 'protobuf-', 'box2d-', 'box2d_defold-', 'opus-',
+    'harfbuzz-', 'SheenBidi-', 'libunibreak-', 'SkriBidi-')
+
 _CMAKE_FEATURE_FLAG_MAP = {
     '--with-asan': 'WITH_ASAN',
     '--with-hwasan': 'WITH_HWASAN',
@@ -101,12 +106,12 @@ class build_private(object):
     @classmethod
     def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
         return [package for package in cls._call(None, 'get_install_host_packages', [], platform)
-                if not package.startswith('bullet-')]
+                if not package.startswith(SOURCE_BUILT_PACKAGE_PREFIXES)]
 
     @classmethod
     def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the target
         return [package for package in cls._call(platform, 'get_install_target_packages', [], platform)
-                if not package.startswith('bullet-')]
+                if not package.startswith(SOURCE_BUILT_PACKAGE_PREFIXES)]
 
     @classmethod
     def get_external_package_name(cls, platform, library, default_name):
@@ -150,7 +155,6 @@ def get_default_target_platforms():
 
 PACKAGES_ALL=[
     sdk.ANDROID_PACKAGE,
-    "protobuf-35.1",
     "junit-4.6",
     "jsign-4.2",
     "bundletool-all",
@@ -163,46 +167,23 @@ PACKAGES_ALL=[
     "defold-robot-0.7.0",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.15",
-    "vulkan-v1.4.307",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "vulkan-v1.4.307"]
 
 PACKAGES_HOST=[
-    "protobuf-35.1",
     "vpx-1.7.0",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_SIMULATOR=[
     "luajit-2.1.0-3e223cb",
-    "tremolo-b0cb4d1",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "moltenvk-1474891",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "moltenvk-1474891"]
 
 PACKAGES_MACOS_X86_64=[
-    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
@@ -215,13 +196,6 @@ PACKAGES_MACOS_X86_64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-30aabb3",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
@@ -232,7 +206,6 @@ PACKAGES_MACOS_X86_64=[
 
 PACKAGES_MACOS_ARM64=[
     "dawn-6bab1bd",
-    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
@@ -244,13 +217,6 @@ PACKAGES_MACOS_ARM64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-30aabb3",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
@@ -260,7 +226,6 @@ PACKAGES_MACOS_ARM64=[
     "zipalign"]
 
 PACKAGES_WIN32_64=[
-    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
@@ -273,13 +238,6 @@ PACKAGES_WIN32_64=[
     "tint-22b958",
     "astcenc-30aabb3",
     "directx-headers-1.611.0",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "ogg-1.1.1",
@@ -287,7 +245,6 @@ PACKAGES_WIN32_64=[
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
-    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
@@ -300,13 +257,6 @@ PACKAGES_LINUX_X86_64=[
     "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-30aabb3",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "apkc-0.1.0",
@@ -315,7 +265,6 @@ PACKAGES_LINUX_X86_64=[
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
-    "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
@@ -327,61 +276,26 @@ PACKAGES_LINUX_ARM64=[
     "glfw-3.4",
     "tint-7bd151a780",
     "astcenc-30aabb3",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10"]
 
 # Android window backends build with the engine's platform library.
 PACKAGES_ANDROID=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "vkquality-1.1-2642a0d",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "vkquality-1.1-2642a0d"]
 
 PACKAGES_ANDROID_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "vkquality-1.1-2642a0d",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "vkquality-1.1-2642a0d"]
 
 PACKAGES_ANDROID_X86_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "vkquality-1.1-2642a0d",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "vkquality-1.1-2642a0d"]
 
 PACKAGES_EMSCRIPTEN=[
-    "wagyu-69",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "wagyu-69"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
@@ -929,6 +843,18 @@ class Configuration(object):
         self._remove_tree(join(self.defold_root, 'engine/engine/src/test/build'))
         self._log('clean done.')
 
+    def clean_ext(self):
+        """Remove external builds and installed dependencies for the selected platform."""
+        platform = self.target_platform
+        for builddir in glob(join(self.defold_root, 'external', '*', 'build', platform)):
+            self._remove_tree(builddir)
+        self._remove_tree(join(self.defold_root, 'external', 'build', platform))
+
+        # Shared headers and tools must remain installed for other platforms.
+        for directory in ('lib', 'bin', 'include', 'share'):
+            self._remove_tree(join(self.ext, directory, platform))
+        self._log('clean_ext done for %s.' % platform)
+
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
         self._mkdirs(path)
@@ -1201,7 +1127,7 @@ class Configuration(object):
             message += "\nChecked runners:\n  " + "\n  ".join(errors)
         return message
 
-    def check_sdk(self):
+    def check_sdk(self, require_protoc=True):
         self.check_python(print_check = True)
 
         sdkfolder = join(self.ext, 'SDKs')
@@ -1250,6 +1176,8 @@ class Configuration(object):
         self._log(f"Found Ninja: {ninja}")
 
         args = ["cmake", f"-DTARGET_PLATFORM={self.target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
+        if not require_protoc:
+            args.insert(1, '-DDEFOLD_REQUIRE_PROTOC=OFF')
         if self.verbose:
             args.insert(1, '-DDEFOLD_VERBOSE=ON')
 
@@ -2492,7 +2420,7 @@ class Configuration(object):
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
 
     def build_ext(self):
-        self.check_sdk()
+        self.check_sdk(require_protoc=False)
 
         # Cross-builds also need host dependencies for tools such as texc.
         self._build_ext_platform(self.host)
@@ -2521,12 +2449,16 @@ class Configuration(object):
         self.build_tracker.start_component('ext', platform)
         try:
             for name, args in [('configure', configure_args), ('build', build_args), ('install', install_args)]:
-                command = 'CMake %s ext' % name
+                command = 'CMake %s ext (%s)' % (name, platform)
+                if name == 'build':
+                    previous_ninja_log = self.build_tracker.read_ninja_log(build_dir)
                 self.build_tracker.start_command(command)
                 try:
                     run.env_command(self._form_env(), args, cwd=self.defold_root)
                 finally:
                     self.build_tracker.end_command(command)
+                    if name == 'build':
+                        self.build_tracker.record_ninja_library_times(command, build_dir, previous_ninja_log)
         finally:
             self.build_tracker.end_component('ext', platform)
 
@@ -2562,15 +2494,6 @@ class Configuration(object):
         if not os.path.exists(join(source_dir, 'CMakeLists.txt')):
             self.fatal("CMake external package '%s' is missing CMakeLists.txt" % lib)
 
-        # The shared CMake toolchain needs host protoc even when the package
-        # itself has no protobuf sources. Bootstrap it before install_ext.
-        protoc = 'protoc.exe' if self.host.endswith('-win32') else 'protoc'
-        if not os.path.exists(join(self.ext, 'bin', self.host, protoc)):
-            protobuf_package = next(package for package in PLATFORM_PACKAGES[self.host]
-                                    if package.startswith('protobuf-'))
-            protobuf_path = join(self.defold_root, 'packages', '%s-%s.tar.gz' % (protobuf_package, self.host))
-            self._extract_tgz(protobuf_path, self.ext)
-
         if os.path.exists(install_dir):
             shutil.rmtree(install_dir)
         os.makedirs(build_dir, exist_ok=True)
@@ -2587,6 +2510,7 @@ class Configuration(object):
             '-DDEFOLD_EXTERNAL_PLATFORM=%s' % platform,
             '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
             '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
+            '-DDEFOLD_REQUIRE_PROTOC=OFF',
             '-DBUILD_TESTS=OFF',
         ]
         build_args = ['cmake', '--build', build_dir, '--target', 'install']
@@ -3254,7 +3178,9 @@ class Configuration(object):
             if response[0] != 'y':
                 return
 
-        if tag_name:
+        # Console publication uses archived public-build artifacts; it must not
+        # create or force-push tags from either source checkout.
+        if tag_name and not build_private.is_repo_private():
             self.push_tag(self.create_tag())
 
         # Only release the web pages for the public repo
@@ -3766,7 +3692,9 @@ if __name__ == '__main__':
 Commands:
 distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
+clean_ext        - Remove external builds and installed dependencies for the selected platform, retaining shared files and SDKs
 install_ext      - Install prepackaged dependencies, then build and install source dependencies
+build_ext        - Build and install source dependencies for the host and target platform
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
