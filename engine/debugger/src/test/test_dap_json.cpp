@@ -55,8 +55,8 @@ TEST(DapJson, InitialCapacityAndGrowingArray)
         value = json.Get(value).m_Next;
     }
     ASSERT_EQ(-1, value);
-    const char* small = "{\"value\":42}";
-    ASSERT_TRUE(json.Parse(small, (uint32_t)strlen(small)));
+    const char* small_json = "{\"value\":42}";
+    ASSERT_TRUE(json.Parse(small_json, (uint32_t)strlen(small_json)));
     ASSERT_EQ(2u, json.m_Nodes.Size());
     ASSERT_EQ(42, json.Integer(json.Field(0, "value")));
 }
@@ -167,8 +167,8 @@ TEST(DapJson, NodeLimit)
     Array(text, MAX_JSON_NODES);
     ASSERT_FALSE(json.Parse(text.Data(), text.Size()));
     ASSERT_EQ(MAX_JSON_NODES, json.m_Nodes.Size());
-    const char* small = "{\"valid\":true}";
-    ASSERT_TRUE(json.Parse(small, (uint32_t)strlen(small)));
+    const char* small_json = "{\"valid\":true}";
+    ASSERT_TRUE(json.Parse(small_json, (uint32_t)strlen(small_json)));
     ASSERT_TRUE(json.Boolean(json.Field(0, "valid")));
 }
 
