@@ -26,7 +26,7 @@
             [editor.shaders :as shaders]
             [util.coll :as coll])
   (:import [com.jogamp.opengl GL2]
-           [editor.types AABB Camera Region]
+           [editor.types Camera Region]
            [java.awt BasicStroke Color Font RenderingHints]
            [java.awt.geom Ellipse2D$Double]
            [java.awt.image BufferedImage]
@@ -442,15 +442,13 @@
 (defn- frame-to-axis! [self axis]
   (g/with-auto-evaluation-context evaluation-context
     (let [camera-node-id (g/node-value self :camera-node-id evaluation-context)
-          scene-aabb (g/node-value self :scene-aabb evaluation-context)
           current-camera (g/node-value camera-node-id :local-camera evaluation-context)
           ;; If the camera is already aligned with the clicked axis, flip to
           ;; the opposite axis so re-clicking toggles between +/- views.
           target-axis (if (camera-facing-axis? current-camera axis)
                         (opposite-axis axis)
                         axis)]
-      (when-not (geom/predefined-aabb? scene-aabb)
-        (c/frame-camera-to-axis! camera-node-id target-axis true)))))
+      (c/frame-camera-to-axis! camera-node-id target-axis true))))
 
 (defn- tumble-camera! [self ^double dx ^double dy]
   (let [camera-node-id (g/node-value self :camera-node-id)
@@ -531,7 +529,6 @@
 
   (input camera-node-id g/NodeID)
   (input camera Camera)
-  (input scene-aabb AABB)
 
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output update-tick-handler Runnable :cached (g/constantly handle-update-tick))
