@@ -24,8 +24,7 @@
            [javafx.scene Scene]
            [javafx.scene.control ScrollBar TreeCell TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.layout StackPane]
-           [javafx.stage Stage]))
+           [javafx.scene.layout StackPane]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -57,19 +56,19 @@
 
 (defn- pause! [view session generation frame-id]
   (ui/run-now
-    (swap! (:state session) assoc :status :running)
+    (await (send-via future/io-executor session assoc :status :running))
     (variables/clear! view)
-    (swap! (:state session) assoc :status :suspended :generation generation)
-    (variables/show-frame! view session (dap/suspension session) frame-id)))
+    (await (send-via future/io-executor session assoc :status :suspended :generation generation))
+    (variables/show-frame! view session (dap/suspension @session) frame-id)))
 
 ;; Verify opened paths reload fresh values/references across stops, unopened and
 ;; collapsed branches stay closed, and cycles reopen only to the saved depth.
 (deftest restore-expanded-paths-test
   (let [view (ui/run-now (variables/make-view!))
         session
-        {:state (atom {:status :suspended
-                       :generation 1
-                       :thread-id 7})}
+        (agent {:status :suspended
+                :generation 1
+                :threadId 7})
         requests (atom [])]
     (with-redefs [dap/frame-variables
                   (fn [_ {:keys [generation]} _]
@@ -138,9 +137,9 @@
 (deftest changing-variable-shapes-test
   (let [view (ui/run-now (variables/make-view!))
         session
-        {:state (atom {:status :suspended
-                       :generation 1
-                       :thread-id 7})}
+        (agent {:status :suspended
+                :generation 1
+                :threadId 7})
         requests (atom [])]
     (with-redefs [dap/frame-variables
                   (fn [_ {:keys [generation]} _]
@@ -176,9 +175,9 @@
 (deftest stale-table-response-test
   (let [view (ui/run-now (variables/make-view!))
         session
-        {:state (atom {:status :suspended
-                       :generation 1
-                       :thread-id 7})}
+        (agent {:status :suspended
+                :generation 1
+                :threadId 7})
         started (promise)
         response (promise)]
     (with-redefs [dap/frame-variables
@@ -189,22 +188,19 @@
                     (if-not (= 1 reference)
                       [(variable "new" "2" 0)]
                       (do
-                        (deliver started true)
+                        (deliver started (Thread/currentThread))
                         @response)))]
       (try
         (pause! view session 1 42)
         (await-ui! #(item-at view ["self"]))
-        (let [old-load
-              (ui/run-now
-                (let [item (item-at view ["self"])]
-                  (.setExpanded item true)
-                  (get-in @(ui/user-data view :editor.debugging.variables/state)
-                          [:pending (:path (.getValue item))])))]
-          (is (= true (deref started 10000 ::timeout)))
+        (ui/run-now (.setExpanded (item-at view ["self"]) true))
+        (let [old-worker (deref started 10000 ::timeout)]
+          (is (instance? Thread old-worker))
           (pause! view session 2 99)
           (await-ui! #(item-at view ["self" "new"]))
           (deliver response [(variable "old" "1" 0)])
-          (is (nil? (deref old-load 10000 ::timeout)))
+          (.join ^Thread old-worker 10000)
+          (is (not (.isAlive ^Thread old-worker)))
           (ui/run-now
             (is (nil? (item-at view ["self" "old"])))
             (is (= "2" (:value (.getValue (item-at view ["self" "new"])))))))
@@ -226,19 +222,21 @@
 ;; Clearing selection with the keyboard must survive a pending table response
 ;; and the next pause.
 (deftest cleared-selection-survives-loading-test
-  (let [[^TreeView view ^Stage stage]
+  (let [^TreeView view
         (ui/run-now
           (let [view (variables/make-view!)
                 pane (doto (StackPane.)
-                       (ui/children! [view]))
-                stage (doto (Stage.)
-                        (.setScene (Scene. pane 400.0 200.0))
-                        (.show))]
-            [view stage]))
+                       (ui/children! [view]))]
+            (Scene. pane 400.0 200.0)
+            (doto pane
+              (.resize 400.0 200.0)
+              (.applyCss)
+              (.layout))
+            view))
         session
-        {:state (atom {:status :suspended
-                       :generation 1
-                       :thread-id 7})}
+        (agent {:status :suspended
+                :generation 1
+                :threadId 7})
         started (future/make)
         response (future/make)]
     (with-redefs [dap/frame-variables
@@ -278,27 +276,28 @@
         (finally
           (future/complete! response [])
           (ui/run-now
-            (variables/clear! view)
-            (.close stage)))))))
+            (variables/clear! view)))))))
 
 ;; Verify selection and both scroll positions survive changed table rows, and
 ;; user navigation takes precedence over a delayed viewport restoration.
 (deftest restore-scroll-position-test
-  (let [[^TreeView view ^Stage stage]
+  (let [^TreeView view
         (ui/run-now
           (let [view (doto (variables/make-view!)
                        (.setShowRoot false)
                        (.setFixedCellSize 24.0))
                 pane (doto (StackPane.)
-                       (ui/children! [view]))
-                stage (doto (Stage.)
-                        (.setScene (Scene. pane 400.0 200.0))
-                        (.show))]
-            [view stage]))
+                       (ui/children! [view]))]
+            (Scene. pane 400.0 200.0)
+            (doto pane
+              (.resize 400.0 200.0)
+              (.applyCss)
+              (.layout))
+            view))
         session
-        {:state (atom {:status :suspended
-                       :generation 1
-                       :thread-id 7})}
+        (agent {:status :suspended
+                :generation 1
+                :threadId 7})
         started (promise)
         response (promise)]
     (with-redefs [dap/frame-variables
@@ -363,5 +362,4 @@
         (finally
           (deliver response true)
           (ui/run-now
-            (variables/clear! view)
-            (.close stage)))))))
+            (variables/clear! view)))))))

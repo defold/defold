@@ -14,10 +14,11 @@
 
 (ns util.coll
   (:refer-clojure :exclude [any? bounded-count empty? every? keys mapcat merge merge-with not-any? not-empty not-every? some sort update-vals vals])
+  (:require [util.task :as task])
   (:import [clojure.core Eduction Vec]
-           [clojure.lang Cons Cycle IEditableCollection IReduceInit LazilyPersistentVector LazySeq MapEntry Repeat Var]
+           [clojure.lang Cons Cycle IEditableCollection IReduceInit LazilyPersistentVector LazySeq MapEntry Repeat]
            [java.util ArrayList Arrays Collection Comparator List]
-           [java.util.concurrent Semaphore StructuredTaskScope StructuredTaskScope$FailedException StructuredTaskScope$Joiner]
+           [java.util.concurrent Semaphore]
            [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
@@ -1240,27 +1241,21 @@
      (case item-count
        0 []
        1 [(f (items 0))]
-       (let [binding-frame (Var/cloneThreadBindingFrame)
-             results (object-array item-count)
+       (let [results (object-array item-count)
              next-index (AtomicInteger. 0)
              worker-count (min item-count (default-parallelism))]
-         (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
+         (task/scope :all-successful
            (dotimes [_ worker-count]
-             (.fork
-               scope
-               ^Runnable
-               (fn []
-                 (Var/resetThreadBindingFrame binding-frame)
-                 (loop []
-                   (when-not (.isInterrupted (Thread/currentThread))
-                     (let [index (.getAndIncrement next-index)]
-                       (when (< index item-count)
-                         (aset results index (f (items index)))
-                         (recur))))))))
-           (try
-             (.join scope)
-             (catch StructuredTaskScope$FailedException e (throw (.getCause e))))
-           (LazilyPersistentVector/createOwning results))))))
+             (task/fork
+               (loop []
+                 (when-not (.isInterrupted (Thread/currentThread))
+                   (let [index (.getAndIncrement next-index)]
+                     (when (< index item-count)
+                       (aset results index (f (items index)))
+                       (recur)))))))
+           ;; Keep dotimes in statement position to avoid a compiler-generated function.
+           nil)
+         (LazilyPersistentVector/createOwning results)))))
   ([f coll & colls]
    (pmapv #(apply f %) (apply mapv vector coll colls))))
 
@@ -1279,26 +1274,20 @@
   [children-fn build-fn root]
   (let [budget (Semaphore. (default-parallelism))]
     (letfn [(parallel-child-results [child-nodes]
-              (let [binding-frame (Var/cloneThreadBindingFrame)
-                    child-count (count child-nodes)
+              (let [child-count (count child-nodes)
                     results (object-array child-count)]
-                (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
+                (task/scope :all-successful
                   (dotimes [index child-count]
                     (let [child-node (child-nodes index)]
                       (if (.tryAcquire budget)
-                        (.fork scope
-                               ^Runnable
-                               (fn []
-                                 (try
-                                   (Var/resetThreadBindingFrame binding-frame)
-                                   (aset results index (visit child-node))
-                                   (finally
-                                     (.release budget)))))
+                        (task/fork
+                          (try
+                            (aset results index (visit child-node))
+                            (finally
+                              (.release budget))))
                         (aset results index (visit child-node)))))
-                  (try
-                    (.join scope)
-                    (catch StructuredTaskScope$FailedException e
-                      (throw (.getCause e)))))
+                  ;; Keep dotimes in statement position to avoid a compiler-generated function.
+                  nil)
                 (LazilyPersistentVector/createOwning results)))
             (visit [node]
               (let [child-nodes (vec (or (children-fn node) []))

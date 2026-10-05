@@ -218,7 +218,7 @@
       (console/append-console-entry! :eval-expression code)
       (future/io
         (try
-          (let [snapshot (dap/suspension debug-session)
+          (let [snapshot (dap/suspension @debug-session)
                 result (dap/evaluate! debug-session (:id frame) code)
                 output (dap/evaluation-result->string debug-session snapshot result)]
             (doseq [line (string/split-lines output)]
@@ -249,7 +249,7 @@
   [debug-view]
   (let [debug-session (g/node-value debug-view :debug-session)
         frame (current-stack-frame debug-view)
-        snapshot (when debug-session (dap/suspension debug-session))
+        snapshot (when debug-session (dap/suspension @debug-session))
         variables-view (g/node-value debug-view :variables-view)]
     (debugger-variables/show-frame! variables-view debug-session snapshot (:id frame))))
 
@@ -402,25 +402,17 @@
 
 (defn- make-update-timer
   [project debug-view]
-  (let [state (volatile! nil)
-        tick-fn
-        (fn [_timer _ _]
-          (let [{:keys [snapshot task]} @state]
-            ;; Serialize background updates so an older UI snapshot cannot
-            ;; overwrite newer breakpoints after waiting for the I/O thread.
-            (when (and (not (ui/ui-disabled?))
-                       (or (not task) (future/done? task)))
-              (when-let [debug-session (g/node-value debug-view :debug-session)]
-                (let [breakpoints (collect-enabled-breakpoints project)
-                      new-snapshot [debug-session breakpoints]]
-                  (when-not (= new-snapshot snapshot)
-                    (let [breakpoints (breakpoints-by-path breakpoints)]
-                      (vreset! state
-                               {:snapshot new-snapshot
-                                :task
-                                (future/io
-                                  (dap/set-breakpoints! debug-session breakpoints))}))))))))]
-    (ui/->timer 4 "debugger-update-timer" tick-fn)))
+  (let [snapshot (volatile! nil)]
+    (ui/->timer
+      4 "debugger-update-timer"
+      (fn [_timer _ _]
+        (when-not (ui/ui-disabled?)
+          (when-let [debug-session (g/node-value debug-view :debug-session)]
+            (let [breakpoints (collect-enabled-breakpoints project)
+                  current [debug-session breakpoints]]
+              (when-not (= current @snapshot)
+                (vreset! snapshot current)
+                (dap/set-breakpoints! debug-session (breakpoints-by-path breakpoints))))))))))
 
 (defn- setup-view! [debug-view app-view]
   (g/transact
@@ -454,76 +446,72 @@
     (state-changed-fn attention?)))
 
 (defn- update-suspension-state!
-  [debug-view debug-session]
-  (let [snapshot (dap/suspension debug-session)]
-    (future/io
-      (try
-        (let [stack (dap/stack debug-session snapshot)]
-          (ui/run-later
-            (when (and (identical? debug-session (g/node-value debug-view :debug-session))
-                       snapshot
-                       (= snapshot (dap/suspension debug-session)))
-              (g/transact
-                {:undoable false}
-                (g/set-property debug-view :suspension-state {:stack stack}))
-              (state-changed! debug-view true))))
-        (catch Exception exception
-          (when (= snapshot (dap/suspension debug-session))
-            (console/append-console-entry! :eval-error (ex-message exception))))))))
+  [debug-view debug-session snapshot]
+  (future/io
+    (try
+      (let [stack (dap/stack debug-session snapshot)]
+        (ui/run-later
+          (when (and (identical? debug-session (g/node-value debug-view :debug-session))
+                     snapshot
+                     (= snapshot (dap/suspension @debug-session)))
+            (g/transact
+              {:undoable false}
+              (g/set-property debug-view :suspension-state {:stack stack}))
+            (state-changed! debug-view true))))
+      (catch Exception exception
+        (when (= snapshot (dap/suspension @debug-session))
+          (console/append-console-entry! :eval-error (ex-message exception)))))))
 
 (defn- make-debugger-callbacks
   [debug-view]
   {:on-connected
-   (fn [debug-session]
-     (ui/run-later
-       (when (identical? debug-session (g/node-value debug-view :debug-session))
-         (state-changed! debug-view true))))
+   (fn [debug-session _snapshot]
+     (when (identical? debug-session (g/node-value debug-view :debug-session))
+       (state-changed! debug-view true)))
 
    :on-suspended
-   (fn [debug-session _event]
-     (update-suspension-state! debug-view debug-session))
+   (fn [debug-session snapshot _event]
+     (update-suspension-state! debug-view debug-session
+                               (dap/suspension snapshot)))
 
    :on-resumed
-   (fn [debug-session]
-     (ui/run-later
-       (when (and (identical? debug-session (g/node-value debug-view :debug-session))
-                  (= :running (dap/status debug-session)))
-         (g/transact
-           {:undoable false}
-           (g/set-property debug-view :suspension-state nil))
-         (state-changed! debug-view false))))
+   (fn [debug-session _snapshot]
+     (when (and (identical? debug-session (g/node-value debug-view :debug-session))
+                (= :running (dap/status debug-session)))
+       (g/transact
+         {:undoable false}
+         (g/set-property debug-view :suspension-state nil))
+       (state-changed! debug-view false)))
 
    :on-invalidated
-   (fn [debug-session _event]
-     (ui/run-later
-       (when (identical? debug-session (g/node-value debug-view :debug-session))
-         (load-frame-variables! debug-view))))
+   (fn [debug-session _snapshot _event]
+     (when (identical? debug-session (g/node-value debug-view :debug-session))
+       (load-frame-variables! debug-view)))
 
    :on-output
-   (fn [_debug-session {:keys [output category]}]
+   (fn [_debug-session _snapshot {:keys [output category]}]
      (doseq [line (string/split-lines output)]
        (console/append-console-entry! (if (= "stderr" category) :eval-error :eval-result) line)))
 
    :on-closed
-   (fn [debug-session]
-     (ui/run-later
-       ;; A late close from an old connection must not clear a new one.
-       (when (identical? debug-session (g/node-value debug-view :debug-session))
-         (g/transact
-           {:undoable false}
-           (g/set-properties debug-view :debug-session nil :suspension-state nil))
-         (state-changed! debug-view false))))})
+   (fn [debug-session _snapshot]
+     ;; A late close from an old connection must not clear a new one.
+     (when (identical? debug-session (g/node-value debug-view :debug-session))
+       (g/transact
+         {:undoable false}
+         (g/set-properties debug-view :debug-session nil :suspension-state nil))
+       (state-changed! debug-view false)))})
 
 (defn show-connect-failed-info! [^Exception exception workspace]
-  (ui/run-later
-    (let [error-text (or (.getMessage exception) (.getSimpleName (class exception)))
-          log-text (str error-text "\n\nCheck that the game is running and is reachable over the network.")]
-      (log/error :msg log-text :exception exception)
-      (notifications/show!
-        (workspace/notifications workspace)
-        {:type :error
-         :id ::debugger-connection-error
-         :message (localization/message "notification.debug-view.connect-failed.error" {"error" error-text})}))))
+  (assert (ui/on-ui-thread?))
+  (let [error-text (or (.getMessage exception) (.getSimpleName (class exception)))
+        log-text (str error-text "\n\nCheck that the game is running and is reachable over the network.")]
+    (log/error :msg log-text :exception exception)
+    (notifications/show!
+      (workspace/notifications workspace)
+      {:type :error
+       :id ::debugger-connection-error
+       :message (localization/message "notification.debug-view.connect-failed.error" {"error" error-text})})))
 
 (defn- latest-target [target]
   (or (coll/first-where #(= (:id target) (:id %)) (targets/all-launched-targets))
@@ -541,14 +529,15 @@
 
         session
         (dap/connect! (:address target "localhost") resolve-port
-                      {:target target
-                       :local-root (.getAbsolutePath (workspace/project-directory workspace))
-                       :stop-on-entry stop-on-entry
-                       :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
                       (assoc (make-debugger-callbacks debug-view)
+                        :target target
+                        :local-root (.getAbsolutePath (workspace/project-directory workspace))
+                        :stop-on-entry stop-on-entry
+                        :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))
                         :on-error
-                        (fn [_session exception]
-                          (show-connect-failed-info! exception workspace))))]
+                        (fn [session _snapshot exception]
+                          (when (identical? session (g/node-value debug-view :debug-session))
+                            (show-connect-failed-info! exception workspace)))))]
     (g/transact
       {:undoable false}
       (g/set-properties debug-view
@@ -705,7 +694,7 @@
     (current-session debug-view evaluation-context))
   (run [debug-view]
     (let [session (current-session debug-view)
-          target (latest-target (:target session))]
+          target (latest-target (:target @session))]
       (g/transact
         {:undoable false}
         (g/set-property debug-view :pending-debugger-start nil))

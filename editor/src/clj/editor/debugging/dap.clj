@@ -13,53 +13,25 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.debugging.dap
-  (:require [clojure.core.async :as a]
-            [clojure.data.json :as json]
-            [clojure.set :as set]
+  (:require [clojure.data.json :as json]
             [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
             [editor.future :as future]
-            [util.coll :as coll])
-  (:import [java.io BufferedInputStream EOFException IOException InputStream OutputStream]
+            [editor.ui :as ui]
+            [util.coll :as coll]
+            [util.defonce :as defonce]
+            [util.task :as task])
+  (:import [clojure.lang IDeref]
+           [java.io BufferedInputStream IOException InputStream OutputStream]
            [java.net InetSocketAddress Socket SocketException]
            [java.nio.charset StandardCharsets]
-           [java.util.concurrent ExecutionException]))
+           [java.util.concurrent CompletableFuture ExecutionException LinkedBlockingQueue TimeUnit TimeoutException]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (def ^:private request-timeout-ms 10000)
 (def ^:private ^:const max-message-size (* 1024 1024))
-
-(defn- read-message! [^InputStream in]
-  (let [header (StringBuilder.)
-        content-length
-        (loop []
-          (let [ch (.read in)]
-            (when (= -1 ch)
-              (throw (EOFException. "Debugger disconnected")))
-            (.append header (char ch))
-            (when (> (.length header) 4096)
-              (throw (IOException. "Debugger message header is too large")))
-            (if-not (and (>= (.length header) 4)
-                         (= "\r\n\r\n" (.substring header (- (.length header) 4))))
-              (recur)
-              (let [lengths (into []
-                                  (keep #(second (re-matches #"(?i)Content-Length:\s*(\d+)" %)))
-                                  (string/split (.toString header) #"\r\n"))]
-                (when-not (= 1 (count lengths))
-                  (throw (IOException. "Expected one Content-Length header from debugger")))
-                (let [length (Long/parseLong (first lengths))]
-                  (when-not (<= 1 length max-message-size)
-                    (throw (IOException. "Invalid debugger message size")))
-                  length)))))
-        bytes (.readNBytes in (int content-length))]
-    (when-not (= content-length (alength bytes))
-      (throw (EOFException. "Incomplete debugger message")))
-    (let [message (json/read-str (String. bytes StandardCharsets/UTF_8) :key-fn keyword)]
-      (when-not (and (map? message) (string? (:type message)))
-        (throw (IOException. "Invalid debugger message")))
-      message)))
 
 (defn- write-message! [^OutputStream out message]
   (let [bytes (.getBytes (json/write-str message) StandardCharsets/UTF_8)
@@ -71,327 +43,283 @@
       (.write bytes)
       (.flush))))
 
+(defn close!
+  [session]
+  (assert (not (ui/on-ui-thread?)))
+  (when-let [transport (:transport (first (swap-vals! (:data session) dissoc :transport)))]
+    (future/complete! (:stop-requested transport) nil))
+  (try
+    (.get ^CompletableFuture (:ended session))
+    (catch ExecutionException _))
+  nil)
+
+(defonce/record Session [data ended]
+  IDeref
+  (deref [_] (:debugger @data)))
+
 (defn status [session]
-  (:status @(:state session)))
+  (:status @session))
 
-(defn suspension [session]
-  (let [snapshot @(:state session)]
-    (when (= :suspended (:status snapshot))
-      (select-keys snapshot [:generation :thread-id]))))
+(defn suspension [state]
+  (when (= :suspended (:status state))
+    (select-keys state [:generation :threadId])))
 
-(defn- notify! [session callback & args]
-  (when-let [f (get (:callbacks session) callback)]
-    (a/put! (:notifications session) #(apply f session args))))
+(defn- notify! [{:keys [session] :as state} callback & args]
+  (when-let [f (get state callback)]
+    (let [snapshot @session]
+      (ui/run-later (error-reporting/catch-all! (apply f session snapshot args))))))
 
-(defn- close-session! [session exception]
-  ;; Only the protocol loop closes the session. Clear related fields together
-  ;; before completing requests, since their callers can immediately run again.
-  (let [[old] (swap-vals! (:state session) assoc :status :closed :socket nil :pending {})]
-    (when-not (= :closed (:status old))
-      (when-let [^Socket socket (:socket old)]
-        (try
-          (.close socket)
-          (catch IOException _)))
-      (let [error (or exception (IOException. "Debugger disconnected"))]
-        (future/fail! (:initialized session) error)
-        (doseq [[_ response] (:pending old)]
-          (future/fail! response error)))
-      (when exception
-        (notify! session :on-error exception))
-      (notify! session :on-closed)
-      (a/close! (:outgoing session))
-      (a/close! (:notifications session))
-      (a/close! (:protocol session)))))
-
-(defn- fail! [session exception]
-  (a/>!! (:protocol session) [:fail exception]))
-
-(defn- await-response! [session command response]
-  (let [result
-        (try
-          (deref response request-timeout-ms ::timeout)
-          (catch ExecutionException exception
-            (throw (.getCause exception))))]
-    (if-not (= ::timeout result)
-      result
+(defn- await-response! [session command ^CompletableFuture response]
+  (try
+    (.get (CompletableFuture/anyOf (into-array CompletableFuture [response (:ended session)]))
+          (long request-timeout-ms) 
+          TimeUnit/MILLISECONDS)
+    (catch ExecutionException exception (throw (.getCause exception)))
+    (catch TimeoutException _
       (let [exception (IOException. (str "Debugger request timed out: " command))]
-        (fail! session exception)
+        (when-let [transport (:transport @(:data session))]
+          (future/complete! (:stop-requested transport) exception))
         (throw exception)))))
 
-(defn close!
-  "Close once, cancel pending requests, and release any suspended Lua execution.
-  Blocks until the protocol loop has closed the session. Call off the UI thread."
-  [session]
-  (let [closed (future/make)]
-    (when (a/>!! (:protocol session) [:close closed])
-      (await-response! session "close" closed))))
+(defn- request-operation [command arguments response]
+  (fn [{:keys [out next-seq] :as state}]
+    (let [id (inc (long next-seq))]
+      (write-message! out {:seq id :type "request" :command command :arguments arguments})
+      (-> state (assoc :next-seq id) (assoc-in [:pending id] response)))))
 
-(defn- send-request! [session command arguments]
+(defn- enqueue-request! [{:keys [inbox]} command arguments]
   (let [response (future/make)]
-    (when-not (a/>!! (:protocol session) [:request command arguments response])
-      (future/fail! response (IOException. "Debugger disconnected")))
+    (.add ^LinkedBlockingQueue inbox (request-operation command arguments response))
     response))
 
-(defn request!
-  "Make a blocking DAP request. Call off the UI and protocol threads."
-  [session command arguments]
+(defn- send-request! [session command arguments]
+  (if-let [^LinkedBlockingQueue work (get-in @(:data session) [:transport :work])]
+    (let [response (future/make)
+          operation (request-operation command arguments response)]
+      (.add work
+            (fn [{:keys [inbox] :as state}]
+              (.add ^LinkedBlockingQueue inbox operation)
+              state))
+      response)
+    (future/failed (IOException. "Debugger disconnected"))))
+
+(defn- request! [session command arguments]
   (await-response! session command (send-request! session command arguments)))
 
-(defn- handle-event! [session {:keys [event body]}]
+(defn- protocol-request! [{:keys [session] :as state} command arguments]
+  (await-response! session command (enqueue-request! state command arguments)))
+
+(defn- handle-event! [{:keys [session initialized stop-requested] :as state} {:keys [event body]}]
   (case event
-    "initialized"
-    (future/complete! (:initialized session) true)
+    "initialized" (future/complete! initialized nil)
+    "stopped" (do
+                (swap! (:data session) update :debugger
+                       #(-> %
+                            (assoc :status :suspended :threadId (:threadId body))
+                            (update :generation inc)))
+                (notify! state :on-suspended body))
+    "continued" (do
+                  (swap! (:data session) update :debugger
+                         #(-> % (assoc :status :running) (update :generation inc)))
+                  (notify! state :on-resumed))
+    "output" (notify! state :on-output body)
+    "invalidated" (notify! state :on-invalidated body)
+    ("terminated" "exited") (future/complete! stop-requested nil)
+    nil)
+  state)
 
-    "stopped"
+(defn- handle-message! [{:keys [out] :as state} {:keys [type request_seq command success body message] :as response}]
+  (case type
+    "response"
     (do
-      (swap! (:state session)
-             #(-> %
-                  (assoc :status :suspended :thread-id (:threadId body))
-                  (update :generation inc)))
-      (notify! session :on-suspended body))
+      (when-let [pending (get-in state [:pending request_seq])]
+        (if success
+          (future/complete! pending body)
+          (future/fail! pending (IOException. (str (or message (str "Debugger request failed: " command)))))))
+      (update state :pending dissoc request_seq))
 
-    "continued"
-    (do
-      (swap! (:state session)
-             #(-> %
-                  (assoc :status :running)
-                  (update :generation inc)))
-      (notify! session :on-resumed))
+    "event"
+    (handle-event! state response)
 
-    "output"
-    (notify! session :on-output body)
+    "request"
+    (let [state (update state :next-seq inc)]
+      (write-message! out {:seq (:next-seq state)
+                           :type "response"
+                           :request_seq (:seq response)
+                           :command command
+                           :success false
+                           :message "Client request is not supported"})
+      state)
 
-    "invalidated"
-    (notify! session :on-invalidated body)
+    (throw (IOException. "Invalid debugger message"))))
 
-    ("terminated" "exited")
-    (close-session! session nil)
-
-    nil))
-
-(defn- read-messages! [^InputStream in protocol]
-  (future/io
-    (try
-      (loop []
-        (when (a/>!! protocol [:message (read-message! in)])
-          (recur)))
-      (catch EOFException exception
-        (a/>!! protocol [:eof exception]))
-      (catch SocketException exception
-        (a/>!! protocol [:eof exception]))
-      (catch Exception exception
-        (a/>!! protocol [:fail exception])))))
-
-(defn- write-messages! [^OutputStream out outgoing protocol]
-  (future/io
-    (try
-      (loop []
-        (when-let [message (a/<!! outgoing)]
-          (write-message! out message)
-          (recur)))
-      (catch Exception exception
-        (a/>!! protocol [:fail exception])))))
-
-(defn- handle-message! [session {:keys [type request_seq command success body message] :as response}]
-  (when-not (= :closed (status session))
-    (case type
-      "response"
-      (let [[old] (swap-vals! (:state session) update :pending dissoc request_seq)]
-        (when-let [pending (get-in old [:pending request_seq])]
-          (if success
-            (future/complete! pending body)
-            (future/fail! pending (IOException. (str (or message (str "Debugger request failed: " command))))))))
-
-      "event"
-      (handle-event! session response)
-
-      "request"
-      (let [state (swap! (:state session) update :next-seq inc)]
-        (a/put! (:outgoing session)
-                {:seq (:next-seq state)
-                 :type "response"
-                 :request_seq (:seq response)
-                 :command command
-                 :success false
-                 :message "Client request is not supported"}))
-
-      (throw (IOException. "Unknown debugger message type")))))
-
-(defn- run-protocol! [session]
-  (future/io
-    (loop []
-      (when-let [[operation x y response] (a/<!! (:protocol session))]
+(defn- read-messages! [^LinkedBlockingQueue inbox ^InputStream in]
+  (let [failure
         (try
-          (case operation
-            :close
-            (do
-              (close-session! session nil)
-              (future/complete! x nil))
+          (loop []
+            (let [header (StringBuilder.)
+                  complete
+                  (loop []
+                    (let [ch (.read in)]
+                      (if (= -1 ch)
+                        (when (pos? (.length header))
+                          (throw (IOException. "Invalid debugger message")))
+                        (do
+                          (.append header (char ch))
+                          (when (> (.length header) 4096)
+                            (throw (IOException. "Invalid debugger message")))
+                          (if (and (>= (.length header) 4)
+                                   (= "\r\n\r\n" (.substring header (- (.length header) 4))))
+                            true
+                            (recur))))))]
+              (when complete
+                (let [lengths (into []
+                                    (keep #(second (re-matches #"(?i)Content-Length:\s*(.*?)\s*" %)))
+                                    (string/split (.toString header) #"\r\n"))
+                      length (when (= 1 (count lengths)) (parse-long (first lengths)))]
+                  (when-not (and length (<= 1 (long length) max-message-size))
+                    (throw (IOException. "Invalid debugger message")))
+                  (let [bytes (.readNBytes in (int length))]
+                    (when-not (= (long length) (alength bytes))
+                      (throw (IOException. "Invalid debugger message")))
+                    (let [message (json/read-str (String. bytes StandardCharsets/UTF_8) :key-fn keyword)]
+                      (when-not (and (map? message) (string? (:type message)))
+                        (throw (IOException. "Invalid debugger message")))
+                      (.add inbox #(handle-message! % message)))))
+                (recur))))
+          (catch SocketException _ nil)
+          (catch Throwable exception exception))]
+    (when-not (.isInterrupted (Thread/currentThread))
+      (.add inbox
+            (fn [{:keys [session stop-requested]}]
+              (when failure (throw failure))
+              (if (= :connecting (status session))
+                (throw (IOException. "Debugger disconnected"))
+                (future/complete! stop-requested nil))
+              nil)))))
 
-            :socket
-            (if (= :closed (status session))
-              (do
-                (.close ^Socket x)
-                (future/fail! y (IOException. "Debugger connection cancelled")))
-              (do
-                (swap! (:state session) assoc :socket x)
-                (future/complete! y nil)))
+(defn- run-operations! [^LinkedBlockingQueue queue state]
+  (loop [state state]
+    (when-let [state ((.take queue) state)]
+      (recur state))))
 
-            :request
-            (if (= :closed (status session))
-              (future/fail! response (IOException. "Debugger disconnected"))
-              (let [state
-                    (swap! (:state session)
-                           (fn [state]
-                             (let [sequence-number (inc (long (:next-seq state)))]
-                               (-> state
-                                   (assoc :next-seq sequence-number)
-                                   (assoc-in [:pending sequence-number] response)))))]
-                (a/put! (:outgoing session)
-                        {:seq (:next-seq state)
-                         :type "request"
-                         :command x
-                         :arguments y})))
-
-            :connected
-            (do
-              (when-not (= :closed (status session))
-                ;; configurationDone may already have produced a stopped event.
-                (swap! (:state session)
-                       #(cond-> %
-                          (= :connecting (:status %))
-                          (assoc :status :running)))
-                (notify! session :on-connected))
-              (future/complete! x nil))
-
-            :fail
-            (close-session! session x)
-
-            :eof
-            (close-session! session (when (= :connecting (status session)) x))
-
-            :message
-            (handle-message! session x))
-          (catch Exception exception
-            (close-session! session exception)))
-        (recur)))))
-
-(defn- sync-breakpoints! [{:keys [breakpoint-lock] :as session}]
-  ;; setBreakpoints replaces a source's complete set, including an empty set
-  ;; when its last breakpoint is removed. Read the latest desired set in the lock.
-  (locking breakpoint-lock
-    (let [{old :breakpoints new :desired-breakpoints} @(:state session)]
-      (doseq [path (set/union (set (coll/keys old)) (set (coll/keys new)))
-              :let [breakpoints (get new path [])]
-              :when (not= (get old path []) breakpoints)]
-        (request! session "setBreakpoints"
-                  {:source {:path path}
-                   :breakpoints breakpoints}))
-      (swap! (:state session) assoc :breakpoints new))))
+(defn- sync-breakpoints! [{:keys [session breakpoints] :as state}]
+  (let [desired (:desired-breakpoints @session)]
+    (doseq [path (into (set (coll/keys breakpoints)) (coll/keys desired))
+            :let [new (get desired path [])]
+            :when (not= (get breakpoints path []) new)]
+      (protocol-request! state "setBreakpoints" {:source {:path path} :breakpoints new}))
+    (assoc state :breakpoints desired)))
 
 (defn set-breakpoints!
-  "Replace breakpoints, grouped by project path. Blocks until synchronized when connected."
   [session breakpoints]
-  (swap! (:state session) assoc :desired-breakpoints breakpoints)
-  (when (#{:running :suspended} (status session))
-    (try
-      (sync-breakpoints! session)
-      (catch Exception exception
-        (fail! session exception)
-        (throw exception)))))
+  (let [data (swap! (:data session)
+                    #(if-not (:transport %) % (assoc-in % [:debugger :desired-breakpoints] breakpoints)))]
+    (when-let [^LinkedBlockingQueue work (get-in data [:transport :work])]
+      (.add work sync-breakpoints!)))
+  session)
+
+(defn- initialize! [{:keys [session inbox initialized local-root stop-on-entry] :as state}]
+  (let [capabilities
+        (protocol-request! state "initialize"
+                           {:clientID "defold"
+                            :clientName "Defold Editor"
+                            :adapterID "defold"
+                            :pathFormat "path"
+                            :linesStartAt1 true
+                            :columnsStartAt1 true
+                            :supportsVariableType true
+                            :supportsInvalidatedEvent true})
+        attach (enqueue-request! state "attach"
+                                 {:localRoot local-root :stopOnEntry (boolean stop-on-entry)})]
+    (await-response! session "initialized" initialized)
+    (let [state
+          (loop [state (assoc state :breakpoints {})]
+            (if (= (:breakpoints state) (:desired-breakpoints @session))
+              state
+              (recur (sync-breakpoints! state))))]
+      (when (:supportsConfigurationDoneRequest capabilities)
+        (protocol-request! state "configurationDone" {}))
+      (await-response! session "attach" attach)
+      (.add ^LinkedBlockingQueue inbox
+            (fn [{:keys [session] :as state}]
+              (swap! (:data session) update :debugger
+                     #(cond-> % (= :connecting (:status %)) (assoc :status :running)))
+              (notify! state :on-connected)
+              state))
+      state)))
 
 (defn- connect-socket!
-  ^Socket [session address resolve-port]
+  ^Socket [address resolve-port]
   (let [deadline (+ (System/nanoTime) (* 1000000 (long request-timeout-ms)))]
     (loop []
-      (when (= :closed (status session))
-        (throw (IOException. "Debugger connection cancelled")))
       (let [port (resolve-port)
             socket (Socket.)
-            registered (future/make)]
-        (when-not (a/>!! (:protocol session) [:socket socket registered])
-          (.close socket)
-          (throw (IOException. "Debugger connection cancelled")))
-        (await-response! session "connect" registered)
-        (let [error
-              (try
-                (when-not port
-                  (throw (IOException. "Waiting for the engine's DAP listener")))
-                (.connect socket (InetSocketAddress. ^String address (int port)) 1000)
-                (.setTcpNoDelay socket true)
-                nil
-                (catch IOException exception
-                  (.close socket)
-                  exception))]
-          (if-not error
-            socket
-            (if (>= (System/nanoTime) deadline)
+            error (try
+                    (when port
+                      (.connect socket (InetSocketAddress. ^String address (int port)) 1000)
+                      (.setTcpNoDelay socket true))
+                    nil
+                    (catch IOException exception exception)
+                    (catch Throwable exception (.close socket) (throw exception)))]
+        (if (and port (not error))
+          socket
+          (do
+            (.close socket)
+            (when (>= (System/nanoTime) deadline)
               (throw (IOException. (str "Failed to connect to DAP debugger on " address
-                                        (when port (str ":" port))) error))
-              (do
-                (Thread/sleep 100)
-                (recur)))))))))
+                                        (when port (str ":" port))) error)))
+            (Thread/sleep 100)
+            (recur)))))))
+
+(defn- run-connection! [{:keys [inbox work] :as state} address resolve-port]
+  (task/with-open [socket (connect-socket! address resolve-port)]
+    (let [in (BufferedInputStream. (.getInputStream socket))
+          out (.getOutputStream socket)]
+      (task/scope :all-successful
+        (task/fork (read-messages! inbox in))
+        (task/fork (run-operations! inbox (assoc state :out out :next-seq 0 :pending {})))
+        (task/fork (run-operations! work (initialize! state))))))
+  nil)
+
+(defn- run-session! [{:keys [session stop-requested] :as state} address resolve-port]
+  (let [exception
+        (try
+          (task/scope :first-completed
+            (task/fork (.get ^CompletableFuture stop-requested))
+            (task/fork (run-connection! state address resolve-port)))
+          (catch Throwable exception exception))]
+    (swap! (:data session) #(-> %
+                                (dissoc :transport)
+                                (assoc-in [:debugger :status] :closed)
+                                (update :debugger dissoc :threadId)))
+    (try
+      (when exception (notify! state :on-error exception))
+      (notify! state :on-closed)
+      (finally
+        (future/fail! (:ended session) (or exception (IOException. "Debugger disconnected")))))))
 
 (defn connect!
-  "Connect and configure asynchronously, returning a session immediately.
-  Callbacks run in order on a separate thread and may make blocking DAP requests."
-  [address resolve-port {:keys [local-root breakpoints stop-on-entry target]} callbacks]
-  (let [session
-        {:state (atom {:status :connecting
-                       :generation 0
-                       :socket nil
-                       :next-seq 0
-                       :pending {}
-                       :breakpoints {}
-                       :desired-breakpoints breakpoints})
-         :initialized (future/make)
-         :protocol (a/chan 128)
-         :outgoing (a/chan 128)
-         :notifications (a/chan 128)
-         :breakpoint-lock (Object.)
-         :callbacks callbacks
-         :local-root local-root
-         :target target}]
-    (run-protocol! session)
+  [address resolve-port {:keys [local-root breakpoints target] :as options}]
+  (let [transport {:inbox (LinkedBlockingQueue.)
+                   :work (LinkedBlockingQueue.)
+                   :stop-requested (future/make)
+                   :initialized (future/make)}
+        session (->Session (atom {:debugger {:status :connecting
+                                             :generation 0
+                                             :local-root local-root
+                                             :target target
+                                             :desired-breakpoints (or breakpoints {})}
+                                  :transport transport})
+                           (future/make))]
     (future/io
-      (loop []
-        (when-let [callback (a/<!! (:notifications session))]
-          (error-reporting/catch-all! (callback))
-          (recur))))
-    (future/io
-      (try
-        (let [socket (connect-socket! session address resolve-port)]
-          (read-messages! (BufferedInputStream. (.getInputStream socket)) (:protocol session))
-          (write-messages! (.getOutputStream socket) (:outgoing session) (:protocol session)))
-        (let [capabilities
-              (request! session "initialize"
-                        {:clientID "defold"
-                         :clientName "Defold Editor"
-                         :adapterID "defold"
-                         :pathFormat "path"
-                         :linesStartAt1 true
-                         :columnsStartAt1 true
-                         :supportsVariableType true
-                         :supportsInvalidatedEvent true})
-
-              attach-response
-              (send-request! session "attach"
-                             {:localRoot local-root
-                              :stopOnEntry (boolean stop-on-entry)})]
-          (await-response! session "initialized" (:initialized session))
-          (sync-breakpoints! session)
-          (when (:supportsConfigurationDoneRequest capabilities)
-            (request! session "configurationDone" {}))
-          (await-response! session "attach" attach-response)
-          (let [connected (future/make)]
-            (when (a/>!! (:protocol session) [:connected connected])
-              (await-response! session "connected" connected)
-              (sync-breakpoints! session))))
-        (catch Exception exception
-          (fail! session exception))))
+      (.setName (Thread/currentThread) "dap-session")
+      (run-session! (assoc (merge options transport) :session session) address resolve-port))
     session))
 
-(defn disconnect! [session]
+(defn disconnect!
+  [session]
+  (assert (not (ui/on-ui-thread?)))
   (try
     (when (#{:running :suspended} (status session))
       (request! session "disconnect" {:terminateDebuggee false}))
@@ -399,7 +327,7 @@
       (close! session))))
 
 (defn control! [session command]
-  (let [thread-id (or (when-not (= "pause" command) (:thread-id @(:state session)))
+  (let [thread-id (or (when-not (= "pause" command) (:threadId @session))
                       (:id (first (:threads (request! session "threads" {})))))]
     (request! session command {:threadId thread-id})))
 
@@ -408,61 +336,57 @@
     (let [path (string/replace path "\\" "/")
           root (string/replace local-root "\\" "/")
           root (string/replace root #"/+$" "")
-          ;; Native DAP normalizes Windows drive letters to lower case.
           normalized-path (string/replace path #"^[A-Z]:" string/lower-case)
           normalized-root (string/replace root #"^[A-Z]:" string/lower-case)]
       (if-not (string/starts-with? normalized-path (str normalized-root "/"))
         path
         (subs path (count root))))))
 
+(defn- inspect [session snapshot f]
+  (when (and snapshot (= snapshot (suspension @session)))
+    (try
+      (let [result (f)]
+        (when (= snapshot (suspension @session))
+          result))
+      (catch Exception exception
+        (when (= snapshot (suspension @session))
+          (throw exception))))))
+
 (defn stack [session snapshot]
-  (when (and snapshot (= snapshot (suspension session)))
-    (let [thread-id (or (:thread-id snapshot)
-                        (:id (first (:threads (request! session "threads" {})))))
-          frames (:stackFrames (request! session "stackTrace" {:threadId thread-id}))]
-      (when (= snapshot (suspension session))
-        (mapv (fn [{:keys [id name source line]}]
-                {:id id
-                 :function name
-                 :file (source-path->project-path (:local-root session) (:path source))
-                 :line line})
-              frames)))))
+  (inspect session snapshot
+           (fn []
+             (let [thread-id (or (:threadId snapshot)
+                                 (:id (first (:threads (request! session "threads" {})))))
+                   frames (:stackFrames (request! session "stackTrace" {:threadId thread-id}))]
+               (mapv (fn [{:keys [id name source line]}]
+                       {:id id
+                        :function name
+                        :file (source-path->project-path (:local-root @session) (:path source))
+                        :line line})
+                     frames)))))
 
 (defn variables [session snapshot reference]
-  (when (and snapshot (= snapshot (suspension session)))
-    (let [result (:variables (request! session "variables" {:variablesReference reference}))]
-      (when (= snapshot (suspension session))
-        result))))
+  (inspect session snapshot
+           #(:variables (request! session "variables" {:variablesReference reference}))))
 
 (defn frame-variables [session snapshot frame-id]
-  (when (and snapshot (= snapshot (suspension session)))
-    (let [scopes (:scopes (request! session "scopes" {:frameId frame-id}))
-          ;; Keep locals/upvalues flat and fetch globals only when _G is expanded.
-          result
-          (into []
-                (mapcat (fn [{:keys [name variablesReference expensive]}]
-                          (cond
-                            (= "Globals" name)
-                            [{:name "_G"
-                              :value "table"
-                              :type "table"
-                              :variablesReference variablesReference}]
-
-                            expensive
-                            []
-
-                            :else
-                            (variables session snapshot variablesReference))))
-                scopes)]
-      (when (= snapshot (suspension session))
-        result))))
+  (inspect session snapshot
+           (fn []
+             (let [scopes (:scopes (request! session "scopes" {:frameId frame-id}))]
+               (into []
+                     (mapcat (fn [{:keys [name variablesReference expensive]}]
+                               (cond
+                                 (= "Globals" name)
+                                 [{:name "_G" :value "table" :type "table"
+                                   :variablesReference variablesReference}]
+                                 expensive []
+                                 :else (variables session snapshot variablesReference))))
+                     scopes)))))
 
 (defn evaluate! [session frame-id expression]
   (request! session "evaluate"
-            (cond-> {:expression expression
-                     :context "repl"}
-              frame-id
-              (assoc :frameId frame-id))))
+            (cond-> {:expression expression :context "repl"}
+              frame-id (assoc :frameId frame-id))))
 
 (defn- evaluation-value->string-impl
   [session snapshot seen depth {:keys [value variablesReference]}]
@@ -489,12 +413,10 @@
                  indent "}")))))))
 
 (defn evaluation-result->string
-  "Load and format an evaluation result's contents while its stop remains current.
-  Repeated references and tables beyond depth 16 retain their identity strings."
   [session snapshot result]
   (let [output
         (evaluation-value->string-impl session snapshot (volatile! #{}) 0
                                        (assoc result :value (:result result)))]
-    (if (= snapshot (suspension session))
+    (if (= snapshot (suspension @session))
       output
       (:result result))))

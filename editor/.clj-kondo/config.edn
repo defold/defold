@@ -1,4 +1,9 @@
-{:hooks {:analyze-call {clojure.core/boolean hooks.clojure-core/boolean
+{:lint-as {util.task/scope clojure.core/do
+           util.task/fork clojure.core/do
+           util.task/with-open clojure.core/with-open}
+ :config-in-call {util.task/scope {:linters {:redundant-do {:level :off}}}
+                  util.task/fork {:linters {:redundant-do {:level :off}}}}
+ :hooks {:analyze-call {clojure.core/boolean hooks.clojure-core/boolean
                         clojure.core/bounded-count hooks.clojure-core/bounded-count
                         clojure.core/defn hooks.clojure-core/defn-call
                         clojure.core/defn- hooks.clojure-core/defn-call

@@ -138,6 +138,7 @@
                  util.defonce/record [[:inner 0] [:inner 1]]
                  util.defonce/type [[:inner 0] [:inner 1]]
                  util.profiler/profile [[:inner 0]]
+                 util.task/scope [[:block 1]]
                  vlaaad.reveal/defaction [[:inner 0]]
                  vlaaad.reveal/defstream [[:inner 0]]}
  :alias-map {g dynamo.graph

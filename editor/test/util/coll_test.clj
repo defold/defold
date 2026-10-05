@@ -2356,4 +2356,37 @@
                             (throw (ex-info (str "boom " value) {:value value}))
                             value)
                           children))
-                      {:children (mapv (fn [value] {:value value}) (range 4))})))))
+                      {:children (mapv (fn [value] {:value value}) (range 4))}))))
+
+  (testing "An inline failure preserves its exception and joins forked siblings."
+    (let [parallelism (#'coll/default-parallelism)
+          exception (ex-info "inline failure" {:original true})
+          owner (Thread/currentThread)
+          started (CountDownLatch. parallelism)
+          finished (CountDownLatch. parallelism)
+          outcome
+          (try
+            (coll/ptree
+              :children
+              (fn [node children]
+                (case (:value node)
+                  :blocked
+                  (try
+                    (.countDown started)
+                    (.await (CountDownLatch. 1))
+                    (finally
+                      (.countDown finished)))
+
+                  :fail
+                  (do
+                    (is (identical? owner (Thread/currentThread)))
+                    (when-not (.await started 10 TimeUnit/SECONDS)
+                      (throw (ex-info "Timed out waiting for siblings" {})))
+                    (throw exception))
+
+                  children))
+              {:children (conj (mapv (fn [_] {:value :blocked}) (range parallelism))
+                               {:value :fail})})
+            (catch Throwable exception exception))]
+      (is (identical? exception outcome))
+      (is (zero? (.getCount finished))))))

@@ -35,7 +35,7 @@
 
 (defn- current-load? [model {:keys [session snapshot] :as context}]
   (and (identical? context (:context @model))
-       (= snapshot (dap/suspension session))))
+       (= snapshot (dap/suspension @session))))
 
 (defn- horizontal-scroll-bar
   ^ScrollBar [^TreeView view]
@@ -103,32 +103,26 @@
     (when (and (current-load? model context)
                (not (contains? children path))
                (not (contains? pending path)))
-      (let [completion (future/make)]
-        (swap! model assoc-in [:pending path] completion)
-        (-> (future/io
-              (if (coll/empty? path)
-                (dap/frame-variables session snapshot frame-id)
-                (dap/variables session snapshot reference)))
-            (future/then
-              (fn [variables]
-                (ui/run-later
-                  (when (current-load? model context)
-                    (swap! model #(-> %
-                                      (assoc-in [:children path] (decorate-variables path variables))
-                                      (update :pending dissoc path)))
-                    ;; Restoring expansion follows only saved paths, even for cycles.
-                    (load-expanded! model context))
-                  (future/complete! completion nil))))
-            (future/catch
-              (fn [exception]
-                (ui/run-later
-                  (when (current-load? model context)
-                    (swap! model #(-> %
-                                      (assoc-in [:children path] [])
-                                      (update :pending dissoc path)))
-                    (console/append-console-entry! :eval-error (ex-message exception)))
-                  (future/fail! completion exception)))))
-        completion))))
+      (swap! model update :pending conj path)
+      (future/io
+        (try
+          (let [variables (if (coll/empty? path)
+                            (dap/frame-variables session snapshot frame-id)
+                            (dap/variables session snapshot reference))]
+            (ui/run-now
+              (when (current-load? model context)
+                (swap! model #(-> %
+                                  (assoc-in [:children path] (decorate-variables path variables))
+                                  (update :pending disj path)))
+                ;; Restoring expansion follows only saved paths, even for cycles.
+                (load-expanded! model context))))
+          (catch Exception exception
+            (ui/run-now
+              (when (current-load? model context)
+                (swap! model #(-> %
+                                  (assoc-in [:children path] [])
+                                  (update :pending disj path)))
+                (console/append-console-entry! :eval-error (ex-message exception))))))))))
 
 (defn- variable-item [model {:keys [children expanded-paths context] :as state} {:keys [path variablesReference] :as variable}]
   (let [table (pos? (long variablesReference))]
@@ -228,7 +222,7 @@
   ^TreeView []
   (let [model (atom {:expanded-paths #{}
                      :children {}
-                     :pending {}})
+                     :pending #{}})
         component (fx/create-component {:fx/type variables-view :model model})
         view (fx/instance component)]
     (ui/user-data! view ::component component)
@@ -242,7 +236,7 @@
     (swap! model assoc
            :context nil
            :children {}
-           :pending {}
+           :pending #{}
            :scroll-position position)))
 
 (defn show-frame!

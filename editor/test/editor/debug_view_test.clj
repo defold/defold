@@ -42,38 +42,102 @@
       (throw (IllegalStateException. "Timed out waiting for debugger UI test")))
     result))
 
+;; Wrong-thread calls fail before cancellation or UI work, guarding against
+;; blocking the UI during session closure and rendering errors from a worker.
+(deftest debugger-thread-affinity-test
+  (let [stop-requested (future/make)
+        data {:debugger {:status :connecting}
+              :transport {:work ::queue :stop-requested stop-requested}}
+        session (dap/->Session (atom data)
+                               (future/failed (IOException. "Already ended")))]
+    (ui/run-now
+      (is (thrown? AssertionError (dap/close! session)))
+      (is (thrown? AssertionError (dap/disconnect! session)))
+      (is (identical? data @(:data session)))
+      (is (not (future/done? stop-requested))))
+    (is (thrown? AssertionError
+                 (debug-view/show-connect-failed-info! (IOException. "Wrong thread") ::workspace)))))
+
 ;; Verify callbacks from a closed session cannot clear a newer session, while
-;; closing the current session clears its debugger state.
+;; closing the current session clears its state within the dispatched UI callback.
 (deftest stale-session-callback-test
   (test-support/with-clean-system
-    (let [old {:state (atom {:status :closed})}
+    (let [old (agent {:status :closed})
           current
-          {:state (atom {:status :suspended
-                         :generation 1})}
+          (agent {:status :suspended
+                  :generation 1})
           view
           (g/make-node! debug-view/DebugView
             :debug-session current
             :suspension-state {:stack []}
             :state-changed-fn (constantly nil))
           callbacks (#'debug-view/make-debugger-callbacks view)]
-      ((:on-closed callbacks) old)
-      ((:on-resumed callbacks) old)
       (ui/run-now
+        ((:on-closed callbacks) old @old)
+        ((:on-resumed callbacks) old @old)
         (is (identical? current (g/node-value view :debug-session)))
-        (is (= {:stack []} (g/node-value view :suspension-state))))
-      ((:on-closed callbacks) current)
-      (ui/run-now
+        (is (= {:stack []} (g/node-value view :suspension-state)))
+        ((:on-closed callbacks) current @current)
         (is (nil? (g/node-value view :debug-session)))
         (is (nil? (g/node-value view :suspension-state)))))))
+
+;; Errors delivered after a session is replaced must not report a failure for the
+;; new connection; the current session's error is shown within its UI callback.
+(deftest stale-session-error-test
+  (test-support/with-clean-system
+    (let [old (atom {:status :closed})
+          current (atom {:status :running})
+          callbacks (atom nil)
+          errors (atom [])
+          view (g/make-node! debug-view/DebugView
+                 :state-changed-fn (constantly nil))]
+      (with-redefs-fn
+        {#'debug-view/collect-enabled-breakpoints (constantly #{})
+         #'project/workspace (constantly ::workspace)
+         #'workspace/project-directory (constantly (io/file "."))
+         #'dap/connect!
+         (fn [_ _ handlers]
+           (reset! callbacks handlers)
+           old)
+         #'debug-view/show-connect-failed-info!
+         (fn [exception workspace]
+           (is (ui/on-ui-thread?))
+           (is (= ::workspace workspace))
+           (swap! errors conj (ex-message exception)))}
+        #(ui/run-now
+           (#'debug-view/connect-debugger! view ::project {:id "target"} false)
+           (let [on-error (:on-error @callbacks)]
+             (g/set-property! view :debug-session current)
+             (on-error old @old (IOException. "Old connection failed"))
+             (is (= [] @errors))
+             (g/set-property! view :debug-session old)
+             (on-error old @old (IOException. "Current connection failed"))
+             (is (= ["Current connection failed"] @errors))))))))
+
+;; A delayed suspension notification keeps the snapshot captured for its event,
+;; guarding against querying frames from a later suspension of the same session.
+(deftest suspension-callback-snapshot-test
+  (let [session (atom {:status :suspended :generation 2 :threadId 7})
+        captured (atom nil)
+        callbacks (#'debug-view/make-debugger-callbacks ::view)]
+    (with-redefs-fn
+      {#'debug-view/update-suspension-state!
+       (fn [view current snapshot]
+         (is (= ::view view))
+         (is (identical? session current))
+         (reset! captured snapshot))}
+      #((:on-suspended callbacks) session
+                                  {:status :suspended :generation 1 :threadId 9} {:threadId 9}))
+    (is (= {:generation 1 :threadId 9} @captured))))
 
 ;; Verify a stack response received after execution resumes cannot restore the
 ;; old suspension state in the editor.
 (deftest stale-stack-response-test
   (test-support/with-clean-system
     (let [session
-          {:state (atom {:status :suspended
-                         :generation 1
-                         :thread-id 7})}
+          (agent {:status :suspended
+                  :generation 1
+                  :threadId 7})
           view
           (g/make-node! debug-view/DebugView
             :debug-session session
@@ -84,9 +148,9 @@
                     (fn [_ _]
                       (deliver started true)
                       (await! response))]
-        (let [work (#'debug-view/update-suspension-state! view session)]
+        (let [work (#'debug-view/update-suspension-state! view session (dap/suspension @session))]
           (await! started)
-          (swap! (:state session) assoc :status :running :generation 2)
+          (await (send-via future/io-executor session assoc :status :running :generation 2))
           (deliver response [{:id 42
                               :file "/main.script"
                               :line 5}])
@@ -99,9 +163,9 @@
 (deftest selected-frame-variables-test
   (test-support/with-clean-system
     (let [session
-          {:state (atom {:status :suspended
-                         :generation 1
-                         :thread-id 7})}
+          (agent {:status :suspended
+                  :generation 1
+                  :threadId 7})
           ^ListView call-stack (ui/run-now (ListView.))
           ^TreeView variables (ui/run-now (debugger-variables/make-view!))
           view
@@ -170,9 +234,9 @@
 (deftest stepping-refreshes-frame-variables-test
   (test-support/with-clean-system
     (let [session
-          {:state (atom {:status :suspended
-                         :generation 0
-                         :thread-id 7})}
+          (agent {:status :suspended
+                  :generation 0
+                  :threadId 7})
           ^ListView call-stack (ui/run-now (ListView.))
           ^TreeView variables (ui/run-now (debugger-variables/make-view!))
           view
@@ -203,25 +267,22 @@
           (reset! requests [])
           (ui/run-now
             ;; Keep the old stack displayed until the next stop is rendered.
-            (swap! (:state session) assoc :generation frame-id)
+            (await (send-via future/io-executor session assoc :generation frame-id))
             (g/set-property! view :suspension-state {:stack [{:id frame-id}]})
             (g/node-value view :update-call-stack))
           (doseq [task @work]
             (await! task))
           (ui/run-now
-            (is (= [[(dap/suspension session) frame-id]] @requests))
+            (is (= [[(dap/suspension @session) frame-id]] @requests))
             (let [^TreeItem item (first (.getChildren (.getRoot variables)))]
               (is (= (str frame-id) (some-> item .getValue :display-value))))))
         (is (= [] @errors))))))
 
-;; Verify breakpoint updates run one at a time and then send the latest snapshot,
-;; guarding against older background requests overwriting newer breakpoints.
-(deftest breakpoint-updates-are-serialized-test
+;; Breakpoint edits are submitted directly in UI observation order, even while
+;; earlier edits are awaiting the adapter; unchanged edits are not resubmitted.
+(deftest breakpoint-edits-do-not-wait-test
   (let [session ::session
         breakpoints (atom #{1})
-        started (promise)
-        release (promise)
-        latest (promise)
         requests (atom [])]
     (with-redefs-fn {#'g/node-value (fn [_ _] session)
                      #'ui/ui-disabled? (constantly false)
@@ -231,33 +292,13 @@
                      #'dap/set-breakpoints!
                      (fn [_ values]
                        (swap! requests conj values)
-                       (if-not (= #{1} values)
-                         (deliver latest true)
-                         (do
-                           (deliver started true)
-                           (await! release))))}
+                       true)}
       (fn []
         (let [tick (#'debug-view/make-update-timer ::project ::view)]
-          (try
-            (tick nil nil nil)
-            (await! started)
-            (reset! breakpoints #{2})
-            (tick nil nil nil)
-            (reset! breakpoints #{3})
-            (tick nil nil nil)
-            (is (= [#{1}] @requests))
-            (deliver release true)
-            (let [deadline (+ (System/nanoTime) 10000000000)]
-              (loop []
-                (tick nil nil nil)
-                (when-not (realized? latest)
-                  (when (> (System/nanoTime) deadline)
-                    (throw (IllegalStateException. "Timed out waiting for breakpoint update")))
-                  (Thread/sleep 10)
-                  (recur))))
-            (is (= [#{1} #{3}] @requests))
-            (finally
-              (deliver release true))))))))
+          (doseq [values [#{1} #{2} #{3} #{3}]]
+            (reset! breakpoints values)
+            (tick nil nil nil))
+          (is (= [#{1} #{2} #{3}] @requests)))))))
 
 ;; Verify editor breakpoints become sorted, one-based DAP lines with nonempty
 ;; conditions preserved and empty conditions omitted.
@@ -279,9 +320,9 @@
 (deftest table-evaluation-console-test
   (test-support/with-clean-system
     (let [session
-          {:state (atom {:status :suspended
-                         :generation 1
-                         :thread-id 7})}
+          (agent {:status :suspended
+                  :generation 1
+                  :threadId 7})
 
           ^ListView call-stack (ui/run-now (ListView.))
           view
@@ -361,7 +402,7 @@
                          (fn []
                            (if (targets/launched-target? target) [@current] []))
                          #'dap/connect!
-                         (fn [_ resolve-port _ _]
+                         (fn [_ resolve-port _]
                            (let [initial-port (resolve-port)]
                              (swap! current assoc :debugger-port 49152)
                              (is (= expected-ports [initial-port (resolve-port)])))
@@ -373,7 +414,7 @@
   (doseq [action [:replace :detach :newer-start :close-error]]
     (testing (name action)
       (test-support/with-clean-system
-        (let [old {:state (atom {:status :running})}
+        (let [old (agent {:status :running})
               started (future/make)
               release (future/make)
               responsive (future/make)
@@ -394,35 +435,34 @@
 
                            #'dap/close!
                            (fn [session]
-                             (future/complete! started (ui/on-ui-thread?))
+                             (future/complete! started true)
                              (await! release)
                              (if (= :close-error action)
                                (throw (IOException. "Close failed"))
                                (do
-                                 (swap! (:state session) assoc :status :closed)
-                                 (on-closed session))))
+                                 (await (send-via future/io-executor session assoc :status :closed))
+                                 (ui/run-later (on-closed session @session)))))
 
                            #'dap/disconnect!
                            (fn [session]
                              (is (not (ui/on-ui-thread?)))
-                             (swap! (:state session) assoc :status :closed)
-                             (on-closed session))
+                             (await (send-via future/io-executor session assoc :status :closed))
+                             (ui/run-later (on-closed session @session)))
 
                            #'dap/connect!
-                           (fn [_ _ {:keys [target]} _]
+                           (fn [_ _ {:keys [target]}]
                              (is (ui/on-ui-thread?))
                              (is (future/done? release))
                              (swap! connections conj target)
-                             {:state (atom {:status :running}) :target target})}
+                             (agent {:status :running :target target}))}
             (fn []
               (let [work
-                    (future/then
-                      (future/io
+                    (future/io
+                      (await!
                         (ui/run-now
-                          (debug-view/start-debugger! view ::project {:id "first"} false)))
-                      identity)]
+                          (debug-view/start-debugger! view ::project {:id "first"} false))))]
                 (try
-                  (is (false? (await! started)))
+                  (is (true? (await! started)))
                   (ui/run-later (future/complete! responsive true))
                   (is (= true (deref responsive 10000 ::timeout)))
                   (when (future/done? responsive)
@@ -471,7 +511,7 @@
                          (swap! current merge target-info))
                        #'engine/run-script! (constantly :ok)
                        #'dap/connect!
-                       (fn [_ resolve-port _ _]
+                       (fn [_ resolve-port _]
                          (swap! connected-ports conj (resolve-port))
                          nil)}
         (fn []
