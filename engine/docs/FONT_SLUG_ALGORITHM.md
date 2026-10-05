@@ -91,8 +91,9 @@ fully cached at once. Effect atlas growth is applied before render batches
 capture texture handles.
 
 Runtime rendering requires `RGBA16F` and unsigned `R32UI` texture support. It
-does not provide a GLES 2 / WebGL 1 fallback. The editor's GL 2 representation
-is a separate preview path.
+does not provide a GLES 2 / WebGL 1 fallback. Projects using vector fonts must
+explicitly enable **Shader > Exclude GLES 2.0** (`shader.exclude_gles_sm100`) in
+`game.project`. Otherwise, compiling the GLES 2 shader variant reports an error.
 
 The CPU packing code is in [font_vector_slug.cpp](../font/src/font_vector_slug.cpp).
 The shared coverage shader is [font-vector-slug.glsl](../font/content/builtins/fonts/font-vector-slug.glsl),

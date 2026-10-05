@@ -33,6 +33,30 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         addTestFiles();
     }
 
+    // Integer texture shaders must fail with an actionable compatibility error until the user opts out of GLES2.
+    @Test
+    public void testVectorShaderRequiresExplicitGles100Exclusion() throws Exception {
+        getProject().setOption("platform", "wasm-web");
+        addFile("/custom.vp", "#version 330\nin vec4 position;\nvoid main() { gl_Position = position; }\n");
+        addFile("/custom.fp", "#version 330\nuniform usampler2D band_texture;\nout vec4 color;\n" +
+            "void main() { color = vec4(texelFetch(band_texture, ivec2(0), 0)); }\n");
+        String material = "name: \"vector\"\nvertex_program: \"/custom.vp\"\nfragment_program: \"/custom.fp\"\n";
+        for (boolean exclude : new boolean[] {false, true, false}) {
+            getProject().setOption("exclude-gles-sm100", Boolean.toString(exclude));
+            try {
+                Graphics.ShaderDesc shader = getMessage(build("/custom.material", material), Graphics.ShaderDesc.class);
+                assertTrue("GLES2 incompatibility must require an explicit setting", exclude);
+                assertNotNull(shader);
+                assertFalse(shader.getShadersList().stream().anyMatch(
+                    variant -> variant.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
+            } catch (com.dynamo.bob.CompileExceptionError error) {
+                assertFalse(error.getMessage(), exclude);
+                assertTrue(error.getMessage(), error.getMessage().contains("shader.exclude_gles_sm100"));
+                assertTrue(error.getMessage(), error.getMessage().contains("OpenGL ES 2.0 / WebGL 1.0"));
+            }
+        }
+    }
+
     private void addAttribute(StringBuilder src, String name, int elementCount, Graphics.VertexAttribute.SemanticType semanticType) {
         String nameEscaped = "\"" + name + "\"";
         src.append("attributes {");
@@ -84,8 +108,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(ResourceUtil.minifyPath(expectedProgram), program);
     }
 
+    // A sampler name alone must not disable a graphics API.
     @Test
-    public void testVectorCurveSamplerSelectsGles100Compatibility() throws Exception {
+    public void testVectorCurveSamplerPreservesGles100Compatibility() throws Exception {
         getProject().setOption("platform", "wasm-web");
 
         String vertexShader = "void main() { gl_Position = vec4(0.0); }\n";
@@ -112,7 +137,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 """);
         Graphics.ShaderDesc nativeShader = getMessage(nativeOutputs, Graphics.ShaderDesc.class);
         assertNotNull(nativeShader);
-        assertFalse(nativeShader.getShadersList().stream().anyMatch(
+        assertTrue(nativeShader.getShadersList().stream().anyMatch(
                 shader -> shader.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
 
         addFile("/bitmap.fp", String.format(fragmentShader, "texture_sampler", "texture_sampler"));

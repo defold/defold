@@ -719,6 +719,7 @@
                                              desc)]))
                          cases)]
     (test-util/with-temp-project-content font-descs
+      (test-util/set-setting! (test-util/resource-node project "/game.project") ["shader" "exclude_gles_sm100"] true)
       (doseq [[path desc expected-size [initial-saved-size edited-saved-size] expected-build-size] cases]
         (testing path
           ;; Check the initially cached save-value before any property edit can
@@ -806,6 +807,7 @@
                      :shadow-alpha 1.0
                      :shadow-blur 2
                      :characters "A"}}
+    (test-util/set-setting! (test-util/resource-node project "/game.project") ["shader" "exclude_gles_sm100"] true)
     (let [font-node (test-util/resource-node project "/vector.font")]
       (doseq [runtime [false true]]
         (prop! font-node :runtime runtime)

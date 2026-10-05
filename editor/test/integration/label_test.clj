@@ -323,6 +323,7 @@
                       :size [128.0 32.0 0.0 0.0]
                       :font-size 64.0
                       :style "notice"}}
+    (test-util/set-setting! (test-util/resource-node project "/game.project") ["shader" "exclude_gles_sm100"] true)
     (let [font-node (test-util/resource-node project "/styled.font")
           label-node (test-util/resource-node project "/styled.label")]
       (doseq [runtime [false true]]
