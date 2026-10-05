@@ -364,7 +364,7 @@
                     :open-gl-vulkan-dx12 #{:open-gl :vulkan :dx12}}
         original (app-manifest/set-setting-value
                    {:platforms {:x86_64-win32 {:context {:libs ["custom"]
-                                                        :symbols ["CustomExtension"]}}
+                                                         :symbols ["CustomExtension"]}}
                                 :arm64-ios {:context {:libs ["custom_ios"]}}}}
                    app-manifest/graphics-setting :vulkan)]
     (is (= :open-gl (app-manifest/get-setting-value {} setting)))
@@ -401,7 +401,7 @@
           (is (= (dissoc (:platforms original) :x86_64-win32)
                  (dissoc (:platforms manifest) :x86_64-win32)))
           (is (= context (get-in (app-manifest/set-setting-value manifest app-manifest/graphics-setting :open-gl)
-                                [:platforms :x86_64-win32 :context])))
+                                 [:platforms :x86_64-win32 :context])))
           (is (= manifest (app-manifest/set-setting-value manifest setting to))))))))
 
 (deftest windows-graphics-legacy-library-names-test
@@ -409,10 +409,10 @@
                 ["graphics_vulkan" "platform_vulkan" "vulkan-1"]]
           [excluded selection] [[[] :open-gl-vulkan] [["libgraphics"] :vulkan]]]
     (let [legacy {:platforms {:x86_64-win32
-                             {:context {:libs libs
-                                        :excludeLibs (conj excluded "platform")
-                                        :symbols ["GraphicsAdapterVulkan"]
-                                        :excludeSymbols (if (coll/empty? excluded) [] ["GraphicsAdapterOpenGL"])}}}}
+                              {:context {:libs libs
+                                         :excludeLibs (conj excluded "platform")
+                                         :symbols ["GraphicsAdapterVulkan"]
+                                         :excludeSymbols (if (coll/empty? excluded) [] ["GraphicsAdapterOpenGL"])}}}}
           setting app-manifest/graphics-setting-windows
           dx12 (app-manifest/set-setting-value legacy setting :dx12)
           context (get-in dx12 [:platforms :x86_64-win32 :context])]
@@ -431,8 +431,8 @@
                        ["d3d12" "dxgi" "d3dcompiler"]
                        (into [] cat [sdk-libs bare-libs legacy-libs])]]
       (let [manifest {:platforms {:x86_64-win32
-                                 {:context {:libs (into ["custom" "graphics_dx12"] libraries)
-                                            :symbols ["GraphicsAdapterDX12"]}}}}
+                                  {:context {:libs (into ["custom" "graphics_dx12"] libraries)
+                                             :symbols ["GraphicsAdapterDX12"]}}}}
             normalized (app-manifest/set-setting-value manifest setting :open-gl-dx12)
             cleared (app-manifest/set-setting-value manifest setting :open-gl)]
         (is (= :open-gl-dx12 (app-manifest/get-setting-value manifest setting)))
@@ -443,8 +443,8 @@
 (deftest windows-graphics-compatibility-test
   (test-util/with-loaded-project
     (doseq [[filename selection] [["default.appmanifest" :open-gl]
-                                 ["vulkan.appmanifest" :vulkan]
-                                 ["vulkan_and_opengl.appmanifest" :open-gl-vulkan]]]
+                                  ["vulkan.appmanifest" :vulkan]
+                                  ["vulkan_and_opengl.appmanifest" :open-gl-vulkan]]]
       (let [node (test-util/resource-node project (str "/app_manifest/" filename))]
         (is (= selection (g/node-value node :graphics-windows)))))
 
