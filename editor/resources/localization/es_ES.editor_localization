@@ -1205,7 +1205,6 @@ property.appmanifest.graphics-android.tooltip = Selecciona el backend gráfico i
 property.appmanifest.graphics-web = Gráficos (HTML5)
 property.appmanifest.graphics-web.tooltip = Selecciona el backend de gráficos incluido en las compilaciones HTML5. WebGL es el predeterminado; incluyendo ambos WebGL y WebGPU permite un respaldo, pero aumenta el tamaño del motor.
 property.appmanifest.use-font-layout = Usar sistema de disposición de texto completo
-property.appmanifest.use-font-layout.tooltip = Incluye el sistema completo de disposición de texto requerido para la generación de fuentes SDF en tiempo de ejecución a partir de fuentes TrueType. Rasterización de glifos en tiempo de ejecución también requiere `font.runtime_generation` en `game.project`; soporta características como texto de derecha a izquierda.
 property.appmanifest.use-rich-text = Usar texto enriquecido
 property.appmanifest.use-rich-text.tooltip = Incluye análisis de texto enriquecido y efectos de estilo para etiquetas y texto GUI. Deshabilita esto para reducir el tamaño del motor; entonces el texto etiquetado se mostrará como texto plano.
 

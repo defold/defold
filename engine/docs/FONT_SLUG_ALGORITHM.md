@@ -70,6 +70,25 @@ Both modes use the same CPU effect generator. Static fonts still pack their
 curves into GPU records and decompress/upload effect images when cached.
 Dynamic prewarming also runs on the CPU; it does not make the font static.
 
+### Updating projects that used runtime generation
+
+The project-wide `font.runtime_generation` setting is deprecated and has no
+effect. Existing fonts that omit `runtime` now use Static generation, even if
+the old project setting is enabled. To retain dynamic glyph generation:
+
+1. Set **Glyph Generation** to **Dynamic** (`runtime: true`) in each SDF or Vector
+   `.font` resource that should generate glyphs at runtime. Keep its existing
+   font mode and material. Bitmap fonts remain Static.
+2. Enable **Use full text layout system** in the project's App Manifest for
+   target builds. Put representative text in **Prewarm Text** (`characters` in
+   the `.font` file) to prepare common glyphs when the font loads.
+3. Remove `font.runtime_generation` from `game.project`.
+
+This is an explicit migration: loading a project does not change its font
+generation choices. Fonts that remain Static only include the glyphs selected
+at build time, so review fonts used with runtime font collections or text that
+contains characters outside that set.
+
 ## Materials and text layout
 
 Select `vector_font_mode: VECTOR_FONT_MODE_VECTOR` and use:

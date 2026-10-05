@@ -1140,7 +1140,6 @@ property.appmanifest.graphics-android.tooltip = Androidビルドに含めるグ�
 property.appmanifest.graphics-web = グラフィックス (HTML5)
 property.appmanifest.graphics-web.tooltip = HTML5ビルドに含めるグラフィックスバックエンドを選択します。デフォルトはWebGLですが、WebGLとWebGPUの両方を含めるとフォールバックが可能になる一方、エンジンサイズが増加します。
 property.appmanifest.use-font-layout = フルテキストレイアウトシステムを使用する
-property.appmanifest.use-font-layout.tooltip = TrueTypeフォントから実行時にSDFフォントを生成するために必要な、フルテキストレイアウトシステムを組み込みます。実行時のグリフ・ラスタライズには `game.project` で `font.runtime_generation` を有効にする必要もあり、これにより右から左へ記述するテキストなどの機能がサポートされます。
 property.appmanifest.use-rich-text = リッチテキストを使用する
 property.appmanifest.use-rich-text.tooltip = ラベルやGUIテキストに対して、リッチテキストの解析およびスタイル効果を有効にします。これを無効にするとエンジンサイズを削減できますが、マークアップはプレーンテキストとして表示されるようになります。
 
