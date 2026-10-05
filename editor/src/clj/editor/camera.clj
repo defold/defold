@@ -1325,7 +1325,8 @@
               (set-dolly-target! self (* ^double dolly-delta-scale (- mouse-y last-y))))
             (g/user-data-swap! self ::camera-state assoc
               :last-x mouse-x
-              :last-y mouse-y)))))))
+              :last-y mouse-y))))))
+  input-state)
 
 (g/defnode CameraController
   (property prefs g/Any)

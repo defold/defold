@@ -2209,7 +2209,6 @@
                                     :prefs prefs]
                    grid            (grid-type :prefs prefs)
                    tool-controller [tool-controller-type :prefs prefs]
-                   axis-gizmo      [scene-axis-gizmo/AxisGizmoController]
                    rulers          [rulers/Rulers]]
 
       (g/connect resource-node   :scene                         view-id         :scene)
@@ -2225,8 +2224,6 @@
       (g/connect camera          :local-camera                  view-id         :local-camera)
       (g/connect camera          :camera                        view-id         :camera)
       (g/connect camera          :input-handler                 view-id         :input-handlers)
-      ;; Before the camera's, whose handler returns nil and ends the chain.
-      (g/connect axis-gizmo      :update-tick-handler           view-id         :update-tick-handlers)
       (g/connect camera          :update-tick-handler           view-id         :update-tick-handlers)
       (g/connect camera          :cursor-type                   view-id         :cursor-type)
       (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
@@ -2254,11 +2251,16 @@
       (g/connect camera          :camera                        tool-controller :camera)
       (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
 
-      (g/connect axis-gizmo      :input-handler                 view-id         :input-handlers)
-      (g/connect axis-gizmo      :renderables                   view-id         :tool-renderables)
-      (g/connect camera          :_node-id                      axis-gizmo      :camera-node-id)
-      (g/connect camera          :camera                        axis-gizmo      :camera)
-      (g/connect view-id         :scene-aabb                    axis-gizmo      :scene-aabb)
+      ;; Previews render static images, so they get no axis gizmo. Connected
+      ;; before the selection controller so it gets clicks first.
+      (when-not (:manual-refresh? opts)
+        (g/make-nodes [axis-gizmo scene-axis-gizmo/AxisGizmoController]
+          (g/connect axis-gizmo  :update-tick-handler           view-id         :update-tick-handlers)
+          (g/connect axis-gizmo  :input-handler                 view-id         :input-handlers)
+          (g/connect axis-gizmo  :renderables                   view-id         :tool-renderables)
+          (g/connect camera      :_node-id                      axis-gizmo      :camera-node-id)
+          (g/connect camera      :camera                        axis-gizmo      :camera)
+          (g/connect view-id     :scene-aabb                    axis-gizmo      :scene-aabb)))
 
       (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 
