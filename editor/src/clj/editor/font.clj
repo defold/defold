@@ -1008,14 +1008,17 @@
                                         :text preview-text}
                             :passes [pass/transparent]}))))
 
+(defn- scalable-font-path? [font-path]
+  (contains? #{"ttf" "otf"} (resource/filename->type-ext font-path)))
+
 (defn- scalable-font? [font]
-  (contains? #{"ttf" "otf"} (some-> font resource/type-ext)))
+  (scalable-font-path? (resource/proj-path font)))
 
 (defn- bitmap-font? [font]
   (= "fnt" (some-> font resource/type-ext)))
 
 (defn- vector-font? [font vector-font-mode]
-  (and (scalable-font? font)
+  (and (some-> font scalable-font?)
        (= :vector-font-mode-vector vector-font-mode)))
 
 (defn- font-size-message [font vector-font-mode]
@@ -1039,7 +1042,7 @@
                              (pos? (:shadow-blur font-desc))
                              (not (zero? (:shadow-x font-desc)))
                              (not (zero? (:shadow-y font-desc))))))
-        runtime (and (scalable-font? font) (not output-bitmap) (:runtime font-desc))]
+        runtime (and (some-> font scalable-font?) (not output-bitmap) (:runtime font-desc))]
     (cond-> (assoc font-desc
               :output-format (if output-bitmap :type-bitmap :type-distance-field)
               :render-mode (if (and output-bitmap (not bitmap))
@@ -1055,10 +1058,10 @@
       (font-effects-enabled? outline-alpha outline-width shadow-alpha shadow-blur shadow-x shadow-y)))
 
 (defn- all-chars-visible? [font runtime]
-  (not (and (scalable-font? font) runtime)))
+  (not (and (some-> font scalable-font?) runtime)))
 
 (g/defnk characters-label [font runtime]
-  (if (and (scalable-font? font) runtime)
+  (if (and (some-> font scalable-font?) runtime)
     (properties/label-message :font :prewarm-text)
     (properties/label-message :font :characters)))
 
@@ -1091,9 +1094,7 @@
               :styles style-msgs)
       (or bitmap (and vector (not effects))) (dissoc :size)
       bitmap (dissoc :vector-font-mode :runtime)
-      (scalable-font? font) (assoc :vector-font-mode vector-font-mode)
-      (and (scalable-font? font) (some? runtime)) (assoc :runtime runtime)
-      (and (scalable-font? font) runtime (not= :vector-font-mode-bitmap vector-font-mode)) (dissoc :all-chars)
+      (and (some-> font scalable-font?) runtime (not= :vector-font-mode-bitmap vector-font-mode)) (dissoc :all-chars)
       (not= :vector-font-mode-bitmap vector-font-mode) (dissoc :render-mode))))
 
 (defn- make-native-glyph-bank
@@ -1242,7 +1243,7 @@
           style-error))
       (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)
-                              (when (scalable-font? font)
+                              (when (some-> font scalable-font?)
                                 (validation/prop-error :fatal _node-id :size validation/prop-zero-or-below?
                                                        (:size (effective-font-desc font (assoc (protobuf/inject-defaults Font$FontDesc save-value) :runtime runtime)))
                                                        (font-size-message font (:vector-font-mode save-value))))]
@@ -1675,19 +1676,14 @@
                               (when replacement-path
                                 (let [resource (g/node-value self :resource evaluation-context)]
                                   (g/set-property self :material (workspace/resolve-resource resource replacement-path))))])))))
-            (dynamic visible (g/fnk [font] (scalable-font? font)))
+            (dynamic visible (g/fnk [font] (some-> font scalable-font?)))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$VectorFontMode)))
             (dynamic label (properties/label-dynamic :font :vector-font-mode)))
-  (property runtime g/Bool
+  (property runtime g/Bool (default (protobuf/default Font$FontDesc :runtime))
             (dynamic read-only? (g/fnk [vector-font-mode] (= :vector-font-mode-bitmap vector-font-mode)))
-            (value (g/fnk [font vector-font-mode project-settings runtime]
-                     (and (not= :vector-font-mode-bitmap vector-font-mode)
-                          (if-some [runtime runtime]
-                            runtime
-                            (and (scalable-font? font)
-                                 (or (vector-font? font vector-font-mode)
-                                     (true? (get project-settings ["font" "runtime_generation"]))))))))
-            (dynamic visible (g/fnk [font] (scalable-font? font)))
+            (value (g/fnk [vector-font-mode runtime]
+                     (and (not= :vector-font-mode-bitmap vector-font-mode) runtime)))
+            (dynamic visible (g/fnk [font] (some-> font scalable-font?)))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[false "Static"]
                                                         [true "Dynamic"]]}))
@@ -1701,11 +1697,11 @@
             (dynamic tooltip (properties/tooltip-dynamic :font :output-format)))
   (property render-mode g/Keyword (default (protobuf/default Font$FontDesc :render-mode))
             (dynamic visible (g/fnk [font vector-font-mode]
-                               (and (scalable-font? font) (= :vector-font-mode-bitmap vector-font-mode))))
+                               (and (some-> font scalable-font?) (= :vector-font-mode-bitmap vector-font-mode))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontRenderMode)))
             (dynamic label (properties/label-dynamic :font :render-mode))
             (dynamic tooltip (properties/tooltip-dynamic :font :render-mode)))
-  (property size g/Int (default default-font-size)
+  (property size g/Int (default (protobuf/default Font$FontDesc :size))
             (value (g/fnk [font font-source-size size]
                      (if (bitmap-font? font)
                        font-source-size
@@ -1721,7 +1717,7 @@
             (dynamic tooltip (properties/tooltip-dynamic :font :size)))
   (property antialias g/Bool (default (protobuf/int->boolean (protobuf/default Font$FontDesc :antialias)))
             (dynamic visible (g/fnk [font vector-font-mode]
-                               (and (scalable-font? font) (= :vector-font-mode-bitmap vector-font-mode))))
+                               (and (some-> font scalable-font?) (= :vector-font-mode-bitmap vector-font-mode))))
             (dynamic label (properties/label-dynamic :font :antialias))
             (dynamic tooltip (properties/tooltip-dynamic :font :antialias)))
   (property alpha g/Num (default (protobuf/default Font$FontDesc :alpha))
@@ -1799,7 +1795,6 @@
   (input material-shader ShaderLifecycle)
   (input vector-shader-source-info g/Any)
   (input font-resource-map g/Any)
-  (input project-settings g/Any)
   (input use-font-layout g/Bool)
   (input use-rich-text g/Bool)
 
@@ -1861,8 +1856,7 @@
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
   (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (into
-      [(g/connect project :settings self :project-settings)
-       (g/set-property self :vector-shader-source (resolve-resource "/builtins/fonts/font-vector.fp"))
+      [(g/set-property self :vector-shader-source (resolve-resource "/builtins/fonts/font-vector.fp"))
        (g/connect project :use-font-layout self :use-font-layout)
        (g/connect project :use-rich-text self :use-rich-text)
        (g/make-nodes [styles-node FontStylesNode]
@@ -1904,13 +1898,13 @@
   ;; include in addition to the ASCII characters.
   ;; Now, we instead explicitly list the :characters to include, but default to
   ;; the printable ASCII characters.
-  (let [scalable (contains? #{"ttf" "otf"} (FilenameUtils/getExtension font))
-        mode (or (:vector-font-mode font-desc)
-                 (if (= :type-distance-field (:output-format font-desc))
-                   :vector-font-mode-sdf
-                   :vector-font-mode-bitmap))
+  (let [scalable (scalable-font-path? font)
+        mode (if (and (= :type-distance-field (:output-format font-desc))
+                      (= :vector-font-mode-bitmap (:vector-font-mode font-desc :vector-font-mode-bitmap)))
+               :vector-font-mode-sdf
+               (:vector-font-mode font-desc (protobuf/default Font$FontDesc :vector-font-mode)))
         legacy-bitmap (and font
-                           (.endsWith ^String font ".fnt")
+                           (= "fnt" (resource/filename->type-ext font))
                            (zero? (count characters)))
 
         explicit-characters
@@ -1930,9 +1924,6 @@
             (when (pos? (count distinct-extra-characters))
               (String. (char-array distinct-extra-characters)))))
 
-        {:keys [outline-alpha outline-width shadow-alpha shadow-blur shadow-x shadow-y]}
-        (protobuf/inject-defaults Font$FontDesc font-desc)
-
         merged-characters
         (cond-> explicit-characters
           distinct-extra-characters (str distinct-extra-characters))]
@@ -1941,20 +1932,11 @@
         (dissoc :extra-characters :output-format)
         (cond-> (or (not scalable) (not= :vector-font-mode-bitmap mode))
           (dissoc :render-mode))
-        (cond-> scalable (assoc :vector-font-mode mode))
+        (cond-> (and scalable (not= mode (protobuf/default Font$FontDesc :vector-font-mode)))
+          (assoc :vector-font-mode mode))
         (assoc :characters merged-characters
                :styles (mapv protobuf/pb->map-without-defaults
                              (FontStyles/getSourceStyles (protobuf/map->pb Font$FontDesc font-desc))))
-        (cond-> (and (= :vector-font-mode-vector mode)
-                     (not (contains? font-desc :runtime)))
-          (assoc :runtime true))
-        ;; Loaded source values seed the save-value cache. Apply the editor's
-        ;; size default here as well, before preview and build validation use it.
-        (cond-> (and (not (contains? font-desc :size))
-                     scalable
-                     (or (not= :vector-font-mode-vector mode)
-                         (font-effects-enabled? outline-alpha outline-width shadow-alpha shadow-blur shadow-x shadow-y)))
-          (assoc :size default-font-size))
         (cond-> legacy-bitmap (assoc :all-chars true)))))
 
 (defn- selection->styles-node [selection evaluation-context]
@@ -2006,14 +1988,6 @@
        :node-type FontNode
        :ddf-type Font$FontDesc
        :editor-dependencies ["/builtins/fonts/font-vector.fp"]
-       :read-fn (fn [_read-opts _owner-resource input]
-                  ;; An explicit Static choice must override the Dynamic default
-                  ;; for Vector fonts and the legacy project-wide runtime setting.
-                  (let [^Font$FontDesc message (protobuf/read-pb Font$FontDesc input)]
-                    (cond-> (protobuf/pb->map-without-defaults message)
-                      (.hasRuntime message) (assoc :runtime (.getRuntime message))
-                      (.hasVectorFontMode message) (assoc :vector-font-mode (protobuf/pb-enum->val (.getVectorFontMode message)))
-                      (.hasSize message) (assoc :size (.getSize message)))))
        :load-fn load-font
        :sanitize-fn sanitize-font
        :icon font-icon

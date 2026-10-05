@@ -41,7 +41,7 @@ import com.dynamo.render.proto.Material.MaterialDesc;
 import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = FontDesc.class, messageClass = FontMap.class)
-@BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc", paramsForSignature = {"font-runtime-generation"})
+@BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
 public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
     private static boolean isTrueTypeFont(FontDesc fontDesc) {
@@ -69,15 +69,11 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
                 fontDesc.getShadowX() != 0.0f || fontDesc.getShadowY() != 0.0f);
     }
 
-    private boolean legacyRuntimeGeneration() {
-        return this.project.option("font-runtime-generation", "false").equals("true");
-    }
-
     private static boolean useRuntimeGeneration(FontDesc fontDesc) {
         return isTrueTypeFont(fontDesc) && fontDesc.getRuntime();
     }
 
-    static FontDesc getEffectiveFontDesc(FontDesc fontDesc, boolean legacyRuntimeGeneration) {
+    static FontDesc getEffectiveFontDesc(FontDesc fontDesc) {
         FontDesc.Builder builder = fontDesc.toBuilder();
         boolean hasEffects = hasOutline(fontDesc) || hasShadow(fontDesc);
         if (isBitmapFont(fontDesc)) {
@@ -89,13 +85,13 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
                 builder.setAllChars(true);
             }
         } else {
-            VectorFontMode mode = fontDesc.hasVectorFontMode() ? fontDesc.getVectorFontMode() :
-                fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP ?
-                    VectorFontMode.VECTOR_FONT_MODE_BITMAP : VectorFontMode.VECTOR_FONT_MODE_SDF;
+            VectorFontMode mode = fontDesc.getVectorFontMode();
+            if (mode == VectorFontMode.VECTOR_FONT_MODE_BITMAP && fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+                mode = VectorFontMode.VECTOR_FONT_MODE_SDF;
+            }
             boolean vector = mode == VectorFontMode.VECTOR_FONT_MODE_VECTOR;
             boolean bitmap = mode == VectorFontMode.VECTOR_FONT_MODE_BITMAP;
-            boolean runtime = isTrueTypeFont(fontDesc) && !bitmap &&
-                (fontDesc.hasRuntime() ? fontDesc.getRuntime() : vector || legacyRuntimeGeneration);
+            boolean runtime = isTrueTypeFont(fontDesc) && !bitmap && fontDesc.getRuntime();
 
             builder.setVectorFontMode(mode);
             builder.setOutputFormat(bitmap ? FontTextureFormat.TYPE_BITMAP : FontTextureFormat.TYPE_DISTANCE_FIELD);
@@ -112,10 +108,6 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             }
         }
         return builder.build();
-    }
-
-    private FontDesc getEffectiveFontDesc(FontDesc fontDesc) {
-        return getEffectiveFontDesc(fontDesc, legacyRuntimeGeneration());
     }
 
     private static void validateMaterialMode(IResource input, FontDesc fontDesc, IResource materialResource) throws IOException, CompileExceptionError {

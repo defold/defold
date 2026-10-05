@@ -628,9 +628,9 @@
            (g/set-property font-node :runtime runtime)])
         (let [saved (g/node-value font-node :save-value)
               reopened (read-fn read-opts owner-resource (java.io.StringReader. (write-fn saved)))]
-          (is (= mode (:vector-font-mode reopened)))
-          (is (= runtime (:runtime saved)))
-          (is (= runtime (:runtime reopened))))))))
+          (is (= mode (:vector-font-mode (protobuf/inject-defaults Font$FontDesc reopened))))
+          (is (= runtime (:runtime (protobuf/inject-defaults Font$FontDesc saved))))
+          (is (= runtime (:runtime (protobuf/inject-defaults Font$FontDesc reopened)))))))))
 
 (deftest vector-to-bitmap-or-sdf-font-size
   (test-util/with-loaded-project
@@ -677,50 +677,39 @@
                  (select-keys (get-in node-properties [:runtime :edit-type]) [:type :options])))
           (is (= runtime (get-in node-properties [:runtime :value])))
           (is (= (not runtime) (get-in node-properties [:all-chars :visible]))))
-        (is (= runtime (:runtime (g/node-value font-node :save-value))))
+        (is (= runtime (:runtime (protobuf/inject-defaults Font$FontDesc (g/node-value font-node :save-value)))))
         (is (= 20 (:size (g/valid-node-value font-node :font-map))))))))
 
-(deftest vector-font-effect-size-defaults-to-15
+;; A missing effect size is zero, just like an explicit zero, and must be set before baking effects.
+(deftest vector-font-effect-size-defaults-to-zero
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/fonts/vector_implicit_dynamic.font")]
-      (is (= 15 (g/node-value font-node :size)))
-      (let [size-property (get-in (g/node-value font-node :_properties) [:properties :size])]
-        (is (properties/visible? size-property))
-        (is (true? (:read-only? size-property))))
-      (is (not (contains? (g/node-value font-node :save-value) :size)))
-      (is (= 16 (:size (g/node-value font-node :font-map))))
-      (doseq [runtime [false true]
-              [outline-width shadow-blur shadow-x] [[1.0 0 0.0] [0.0 2 0.0] [0.0 0 2.0]]]
-        (g/transact {:undoable false}
-          [(g/set-property font-node :runtime runtime)
-           (g/set-property font-node :outline-alpha 1.0)
-           (g/set-property font-node :outline-width outline-width)
-           (g/set-property font-node :shadow-alpha 1.0)
-           (g/set-property font-node :shadow-blur shadow-blur)
-           (g/set-property font-node :shadow-x shadow-x)])
-        (let [size-property (get-in (g/node-value font-node :_properties) [:properties :size])]
-          (is (properties/visible? size-property))
-          (is (false? (:read-only? size-property)))
-          (is (= "Outline/Shadow Bitmap Size" (test-util/localization (:label size-property))))
-          (is (= 15 (:value size-property))))
-        (is (= 15 (:size (g/node-value font-node :save-value))))
-        (is (= 15 (:size (g/node-value font-node :font-map))))
-        (is (not (g/error? (g/node-value font-node :build-targets))))))))
+      (is (zero? (g/node-value font-node :size)))
+      (is (= 16 (:size (g/valid-node-value font-node :font-map))))
+      (g/transact {:undoable false}
+        [(g/set-property font-node :outline-alpha 1.0)
+         (g/set-property font-node :outline-width 2.0)])
+      (is (g/error-fatal? (g/node-value font-node :build-targets)))
+      (is (g/error-fatal? (get-in (g/node-value font-node :_properties) [:properties :size :error])))
+      (prop! font-node :size 15)
+      (is (= 15 (:size (g/valid-node-value font-node :font-map))))
+      (is (not (g/error? (g/node-value font-node :build-targets)))))))
 
+;; Initial cached values and later edits must agree on protobuf defaults and authored sizes.
 (deftest font-size-defaults-on-initial-load
   (let [sdf-desc {:material "/builtins/fonts/font-df.material"
                   :vector-font-mode :vector-font-mode-sdf}
         vector-desc {:material "/builtins/fonts/font-vector.material"
                      :vector-font-mode :vector-font-mode-vector}
         ;; Path, source descriptor, displayed size, saved sizes before/after editing, preview/build size.
-        cases [["/sdf-static.font" (assoc sdf-desc :runtime false) 15 [15 15] 15]
-               ["/sdf-dynamic.font" (assoc sdf-desc :runtime true) 15 [15 15] 15]
+        cases [["/sdf-static.font" (assoc sdf-desc :runtime false) 0 [nil nil] nil]
+               ["/sdf-dynamic.font" (assoc sdf-desc :runtime true) 0 [nil nil] nil]
                ["/sdf-explicit-size.font" (assoc sdf-desc :runtime false :size 37) 37 [37 37] 37]
-               ["/vector-static.font" (assoc vector-desc :runtime false) 15 [nil nil] 16]
-               ["/vector-dynamic.font" (assoc vector-desc :runtime true) 15 [nil nil] 16]
-               ["/vector-explicit-size.font" (assoc vector-desc :runtime true :size 37) 37 [37 nil] 16]
-               ["/vector-static-outline.font" (assoc vector-desc :runtime false :outline-alpha 1.0 :outline-width 2.0) 15 [15 15] 15]
-               ["/vector-dynamic-shadow.font" (assoc vector-desc :runtime true :shadow-alpha 1.0 :shadow-blur 2) 15 [15 15] 15]
+               ["/vector-static.font" (assoc vector-desc :runtime false) 0 [nil nil] 16]
+               ["/vector-dynamic.font" (assoc vector-desc :runtime true) 0 [nil nil] 16]
+               ["/vector-explicit-size.font" (assoc vector-desc :runtime true :size 37) 37 [nil nil] 16]
+               ["/vector-static-outline.font" (assoc vector-desc :runtime false :outline-alpha 1.0 :outline-width 2.0) 0 [nil nil] nil]
+               ["/vector-dynamic-shadow.font" (assoc vector-desc :runtime true :shadow-alpha 1.0 :shadow-blur 2) 0 [nil nil] nil]
                ["/vector-static-effect-size.font" (assoc vector-desc :runtime false :size 37 :outline-alpha 1.0 :outline-width 2.0) 37 [37 37] 37]
                ["/vector-dynamic-effect-size.font" (assoc vector-desc :runtime true :size 37 :shadow-alpha 1.0 :shadow-blur 2) 37 [37 37] 37]]
         font-descs (into {}
@@ -738,13 +727,17 @@
                 initial-save-value (g/node-value font-node :save-value)]
             (is (= expected-size (g/node-value font-node :size)))
             (is (= (:runtime desc) (g/node-value font-node :runtime)))
-            (is (= (:runtime desc) (:runtime initial-save-value)))
+            (is (= (:runtime desc) (:runtime (protobuf/inject-defaults Font$FontDesc initial-save-value))))
             (is (= initial-saved-size (:size initial-save-value)))
-            (is (= expected-build-size (:size (g/valid-node-value font-node :font-map))))
-            (is (= expected-build-size (get-in (g/valid-node-value font-node :build-targets) [0 :user-data :pb-map :size])))
+            (if expected-build-size
+              (do
+                (is (= expected-build-size (:size (g/valid-node-value font-node :font-map))))
+                (is (= expected-build-size (get-in (g/valid-node-value font-node :build-targets) [0 :user-data :pb-map :size]))))
+              (is (g/error-fatal? (g/node-value font-node :build-targets))))
             (prop! font-node :characters "B")
             (is (= edited-saved-size (:size (g/node-value font-node :save-value))))
-            (is (= expected-build-size (:size (g/valid-node-value font-node :font-map))))))))))
+            (when expected-build-size
+              (is (= expected-build-size (:size (g/valid-node-value font-node :font-map)))))))))))
 
 (deftest vector-font-effect-size-is-owned-by-the-resource
   (test-util/with-loaded-project
@@ -790,19 +783,16 @@
           (is (= effects-enabled (boolean (g/error-fatal? (get-in (g/node-value font-node :_properties) [:properties :size :error])))))
           (is (= effects-enabled (boolean (g/error-fatal? (g/node-value font-node :build-targets))))))))))
 
-(deftest vector-font-without-glyph-generation-defaults-to-dynamic
+;; Existing Vector resources without runtime use the protobuf's Static default.
+(deftest vector-font-without-glyph-generation-defaults-to-static
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/fonts/vector_implicit_dynamic.font")
-          build-targets (g/node-value font-node :build-targets)
-          built-font-map (coll/some #(let [pb-map (get-in % [:user-data :pb-map])]
-                                       (when (:font pb-map)
-                                         pb-map))
-                                    build-targets)]
-      (is (true? (g/node-value font-node :runtime)))
-      (is (true? (:runtime (g/node-value font-node :save-value))))
-      (is (= "/fonts/vera_mo_bd.ttf" (some-> (:font built-font-map) resource/proj-path)))
-      (is (= "Vector prewarm" (:characters built-font-map)))
-      (is (nil? (coll/some #(get-in % [:user-data :pb-map :glyph-bank]) build-targets))))))
+          build-targets (g/valid-node-value font-node :build-targets)
+          font-map (get-in build-targets [0 :user-data :pb-map])]
+      (is (false? (g/node-value font-node :runtime)))
+      (is (not (:runtime (g/node-value font-node :save-value))))
+      (is (:glyph-bank font-map))
+      (is (not (:font font-map))))))
 
 (deftest vector-build-preserves-glyph-generation
   (test-util/with-temp-project-content
@@ -810,6 +800,7 @@
                      :material "/builtins/fonts/font-vector.material"
                      :vector-font-mode :vector-font-mode-vector
                      :runtime false
+                     :size 15
                      :outline-alpha 1.0
                      :outline-width 2.0
                      :shadow-alpha 1.0
@@ -1036,3 +1027,36 @@
         (let [renderables (g/node-value view :all-renderables)
               font-renderable (coll/first-where #(= node (:node-id %)) (get renderables pass/transparent))]
           (is (= "default" (get-in font-renderable [:user-data :text-layout :style]))))))))
+
+;; Omitted fields must load like explicit protobuf defaults, including cached save data.
+(deftest font-omitted-properties-match-defaults
+  (let [base {:font "/builtins/fonts/vera_mo_bd.ttf"
+              :material "/builtins/fonts/font.material"
+              :characters "A"}
+        defaults (assoc base
+                   :runtime (protobuf/default Font$FontDesc :runtime)
+                   :vector-font-mode (protobuf/default Font$FontDesc :vector-font-mode)
+                   :size (protobuf/default Font$FontDesc :size))]
+    (test-util/with-temp-project-content
+      {"/omitted.font" base
+       "/explicit.font" defaults
+       "/vector-omitted.font" (assoc base :vector-font-mode :vector-font-mode-vector)
+       "/vector-explicit.font" (assoc base :vector-font-mode :vector-font-mode-vector :runtime false :size 0)}
+      (doseq [[omitted explicit] [["/omitted.font" "/explicit.font"]
+                                 ["/vector-omitted.font" "/vector-explicit.font"]]]
+        (let [omitted-node (test-util/resource-node project omitted)
+              explicit-node (test-util/resource-node project explicit)]
+          (doseq [output [:vector-font-mode :runtime :size :save-value]]
+            (is (= (g/node-value explicit-node output)
+                   (g/node-value omitted-node output))
+                (str omitted " " output)))
+          (is (false? (g/node-value omitted-node :runtime)))
+          (is (zero? (g/node-value omitted-node :size))))))))
+
+;; Sanitization must recognize the same scalable and bitmap extensions as resource loading.
+(deftest font-extension-case-does-not-change-sanitization
+  (doseq [extension ["ttf" "otf" "fnt"]]
+    (let [desc {:material "/builtins/fonts/font.material"
+                :output-format :type-distance-field}]
+      (is (= (dissoc (font/sanitize-font {} nil (assoc desc :font (str "/font." extension))) :font)
+             (dissoc (font/sanitize-font {} nil (assoc desc :font (str "/font." (s/upper-case extension)))) :font))))))

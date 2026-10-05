@@ -51,7 +51,7 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
     public Task create(IResource input) throws IOException, CompileExceptionError {
 
         FontDesc.Builder builder = getSrcBuilder(input);
-        FontDesc fontDesc = FontBuilder.getEffectiveFontDesc(builder.build(), false);
+        FontDesc fontDesc = FontBuilder.getEffectiveFontDesc(builder.build());
         IResource inputFontFile = input.getResource(fontDesc.getFont());
         fontDesc = FontBuilder.withInferredBitmapSize(fontDesc, inputFontFile);
 
@@ -73,7 +73,7 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         FontDesc.Builder builder = getSrcBuilder(task.firstInput());
-        FontDesc fontDesc = FontBuilder.getEffectiveFontDesc(builder.build(), false);
+        FontDesc fontDesc = FontBuilder.getEffectiveFontDesc(builder.build());
 
         IResource inputFontFile = BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
         fontDesc = FontBuilder.withInferredBitmapSize(fontDesc, inputFontFile);

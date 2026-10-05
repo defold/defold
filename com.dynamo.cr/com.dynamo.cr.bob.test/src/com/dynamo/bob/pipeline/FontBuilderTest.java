@@ -298,6 +298,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("font: \"/Tuffy.ttf\"\n");
         src.append("material: \"/test-vector.material\"\n");
         src.append("size: 16\n");
+        src.append("runtime: true\n");
         src.append("output_format: TYPE_BITMAP\n");
         src.append("render_mode: MODE_SINGLE_LAYER\n");
         src.append("characters: \"ABC\"\n");
@@ -389,7 +390,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             .setCacheHeight(0)
             .setCharacters("")
             .setExtraCharacters("")
-            .setVectorFontMode(VectorFontMode.VECTOR_FONT_MODE_SDF)
+            .setVectorFontMode(VectorFontMode.VECTOR_FONT_MODE_BITMAP)
             .build();
 
         assertEquals(Fontc.FontDescToHash(implicit), Fontc.FontDescToHash(explicit));
@@ -668,6 +669,23 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(fontMap.getCharacters().isEmpty());
     }
 
+    // Omitted properties must compile like explicit defaults, even with the legacy global flag enabled.
+    @Test
+    public void testOmittedFontPropertiesUseDefaults() throws Exception {
+        getProject().setOption("font-runtime-generation", "true");
+        for (String mode : new String[] {"", "vector_font_mode: VECTOR_FONT_MODE_VECTOR\n"}) {
+            String material = mode.isEmpty() ? "/test.material" : "/test-vector.material";
+            String source = "font: \"/Tuffy.ttf\"\nmaterial: \"" + material + "\"\ncharacters: \"A\"\n" + mode;
+            String size = mode.isEmpty() ? "size: 16\n" : "";
+            FontMap omitted = getFontMap(build("/default.font", source + size));
+            FontMap explicit = getFontMap(build("/default.font", source + size + "runtime: false\n" +
+                (mode.isEmpty() ? "vector_font_mode: VECTOR_FONT_MODE_BITMAP\n" : "size: 0\n")));
+            assertEquals(omitted, explicit);
+            assertTrue(omitted.getFont().isEmpty());
+            assertTrue(!omitted.getGlyphBank().isEmpty());
+        }
+    }
+
     @Test
     public void testEffectiveFontSettingsMatrix() {
         String[] extensions = {"ttf", "otf", "fnt"};
@@ -678,35 +696,32 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         for (String extension : extensions) {
             for (VectorFontMode mode : modes) {
                 for (Boolean runtime : runtimeOptions) {
-                    for (boolean legacyRuntime : booleans) {
-                        for (boolean allChars : booleans) {
-                            FontDesc.Builder builder = FontDesc.newBuilder()
-                                .setFont("/source." + extension)
-                                .setMaterial("/test.material")
-                                .setSize(24)
-                                .setCharacters("A")
-                                .setAllChars(allChars)
-                                .setVectorFontMode(mode);
-                            if (runtime != null)
-                                builder.setRuntime(runtime);
+                    for (boolean allChars : booleans) {
+                        FontDesc.Builder builder = FontDesc.newBuilder()
+                            .setFont("/source." + extension)
+                            .setMaterial("/test.material")
+                            .setSize(24)
+                            .setCharacters("A")
+                            .setAllChars(allChars)
+                            .setVectorFontMode(mode);
+                        if (runtime != null)
+                            builder.setRuntime(runtime);
 
-                            FontDesc effective = FontBuilder.getEffectiveFontDesc(builder.build(), legacyRuntime);
-                            String context = extension + ", " + mode + ", runtime=" + runtime +
-                                ", legacy=" + legacyRuntime + ", allChars=" + allChars;
-                            boolean bitmap = extension.equals("fnt") || mode == VectorFontMode.VECTOR_FONT_MODE_BITMAP;
-                            boolean vector = !bitmap && mode == VectorFontMode.VECTOR_FONT_MODE_VECTOR;
-                            boolean dynamic = !bitmap &&
-                                (runtime != null ? runtime : vector || legacyRuntime);
+                        FontDesc effective = FontBuilder.getEffectiveFontDesc(builder.build());
+                        String context = extension + ", " + mode + ", runtime=" + runtime +
+                            ", allChars=" + allChars;
+                        boolean bitmap = extension.equals("fnt") || mode == VectorFontMode.VECTOR_FONT_MODE_BITMAP;
+                        boolean vector = !bitmap && mode == VectorFontMode.VECTOR_FONT_MODE_VECTOR;
+                        boolean dynamic = !bitmap && Boolean.TRUE.equals(runtime);
 
-                            assertEquals(context, dynamic, effective.getRuntime());
-                            assertEquals(context, !dynamic && allChars, effective.getAllChars());
-                            assertEquals(context, bitmap ? FontTextureFormat.TYPE_BITMAP : FontTextureFormat.TYPE_DISTANCE_FIELD,
-                                         effective.getOutputFormat());
-                            assertEquals(context, vector ? FontRenderMode.MODE_MULTI_LAYER : FontRenderMode.MODE_SINGLE_LAYER,
-                                         effective.getRenderMode());
-                            assertEquals(context, vector, effective.getVectorFontMode() == VectorFontMode.VECTOR_FONT_MODE_VECTOR);
-                            assertEquals(context, vector ? Fontc.VECTOR_REFERENCE_SIZE : 24, effective.getSize());
-                        }
+                        assertEquals(context, dynamic, effective.getRuntime());
+                        assertEquals(context, !dynamic && allChars, effective.getAllChars());
+                        assertEquals(context, bitmap ? FontTextureFormat.TYPE_BITMAP : FontTextureFormat.TYPE_DISTANCE_FIELD,
+                                     effective.getOutputFormat());
+                        assertEquals(context, vector ? FontRenderMode.MODE_MULTI_LAYER : FontRenderMode.MODE_SINGLE_LAYER,
+                                     effective.getRenderMode());
+                        assertEquals(context, vector, effective.getVectorFontMode() == VectorFontMode.VECTOR_FONT_MODE_VECTOR);
+                        assertEquals(context, vector ? Fontc.VECTOR_REFERENCE_SIZE : 24, effective.getSize());
                     }
                 }
             }
@@ -739,9 +754,9 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             assertTrue("The build must produce the compiled Label", foundLabel);
         }
         FontDesc custom = FontDesc.newBuilder().setFont("/Tuffy.ttf").setMaterial("/custom.material").setSize(16).build();
-        assertEquals("/custom.material", FontBuilder.getEffectiveFontDesc(custom, false).getMaterial());
+        assertEquals("/custom.material", FontBuilder.getEffectiveFontDesc(custom).getMaterial());
         FontDesc bitmap = custom.toBuilder().setFont("/custom.fnt").setMaterial("/builtins/fonts/font.material").build();
-        assertEquals("/builtins/fonts/font.material", FontBuilder.getEffectiveFontDesc(bitmap, false).getMaterial());
+        assertEquals("/builtins/fonts/font.material", FontBuilder.getEffectiveFontDesc(bitmap).getMaterial());
     }
 
     @Test
@@ -753,6 +768,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("shadow_blur: 1\n");
         src.append("shadow_alpha: 1\n");
         src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: true\n");
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
@@ -769,6 +785,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("outline_alpha: 1\n");
         src.append("shadow_blur: 0\n");
         src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: true\n");
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
@@ -784,6 +801,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("outline_width: 2\n");
         src.append("outline_alpha: 1\n");
         src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: true\n");
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
@@ -838,7 +856,8 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         String src = "font: \"/Test.otf\"\n" +
                 "material: \"/test.material\"\n" +
                 "size: 16\n" +
-                "output_format: TYPE_DISTANCE_FIELD\n";
+                "output_format: TYPE_DISTANCE_FIELD\n" +
+                "runtime: true\n";
 
         addFile("/test.font", src);
         getProject().setInputs(Collections.singletonList("/test.font"));
@@ -867,6 +886,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("material: \"/test-vector.material\"\n");
         src.append("size: 48\n");
         src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: true\n");
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
         assertEquals("/Test.otf", fontMap.getFont());

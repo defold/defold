@@ -822,8 +822,9 @@
             source-value (g/node-value legacy-font :source-value)
             save-value (g/node-value legacy-font :save-value)]
         (is (= source-value save-value))
-        (is (= 15 (:size save-value)))
-        (is (false? (:runtime save-value)))
+        (is (zero? (g/node-value legacy-font :size)))
+        (is (not (contains? save-value :size)))
+        (is (not (contains? save-value :runtime)))
         (is (not (coll/any? #(contains? save-value %) [:output-format :render-mode])))))
 
     (testing "gui"

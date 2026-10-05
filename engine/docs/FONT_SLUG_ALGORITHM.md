@@ -64,6 +64,8 @@ blur requires rebuilding its glyph data.
 | Static (`runtime: false`) | Bob generates curves and optional effect images for the requested characters at build time | Glyph bank |
 | Dynamic (`runtime: true`) | Prewarming and later glyph requests generate data at runtime | Source TTF/OTF |
 
+Omitting `runtime` means Static. New font templates explicitly set `runtime: true`.
+
 Both modes use the same CPU effect generator. Static fonts still pack their
 curves into GPU records and decompress/upload effect images when cached.
 Dynamic prewarming also runs on the CPU; it does not make the font static.

@@ -115,8 +115,8 @@ message FontDesc
     optional FontRenderMode render_mode = 17 [default = MODE_SINGLE_LAYER];
     optional string characters = 18 [default = ""];
     repeated StyleDesc styles = 19;
-    // When absent, preserve the legacy output_format (Bitmap by default).
-    optional VectorFontMode vector_font_mode = 20 [default = VECTOR_FONT_MODE_SDF];
+    // Bitmap is the legacy default; output_format is migrated for older SDF fonts.
+    optional VectorFontMode vector_font_mode = 20 [default = VECTOR_FONT_MODE_BITMAP];
     // Glyph Generation: false bakes selected glyphs; true generates glyphs dynamically from the source font.
     optional bool runtime = 21 [default = false];
 }
