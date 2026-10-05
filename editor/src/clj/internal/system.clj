@@ -456,7 +456,7 @@
 (defn update-system-from-evaluation-context [system evaluation-context]
   (if-not (evaluation-context-compatible? system evaluation-context)
     system
-    (let [{:keys [changes user-data]} @(:state-atom evaluation-context)
+    (let [{:keys [changes]} @(:state-atom evaluation-context)
           expected-invalidate-counters (materialization-invalidate-counters system evaluation-context)
           original-invalidate-counters (:invalidate-counters system)
           system (cond-> system
@@ -465,7 +465,6 @@
       ;; Our own materialization invalidations have already been applied to
       ;; the context's caches. Only concurrent changes should reject entries.
       (-> system
-          (update :user-data #(merge-with merge % user-data))
           (assoc :invalidate-counters original-invalidate-counters)
           (update-cache-from-evaluation-context
             (assoc evaluation-context :initial-invalidate-counters expected-invalidate-counters))

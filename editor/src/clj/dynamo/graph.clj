@@ -315,9 +315,9 @@
              (fn [system]
                (-> system
                    (is/merge-basis pre-tx-basis basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))
-                   (is/merge-user-data (:evaluation-user-data tx-result))
-                   ;; Ordinary transactions can include edits beyond materialization.
-                   ;; Do not exempt their invalidations from conflict checking.
+                   ;; Ordinary transactions can include edits beyond
+                   ;; materialization. Do not exempt their invalidations from
+                   ;; conflict checking.
                    (is/merge-materializations (:materializations tx-result) #{}))))))
   nil)
 
@@ -1046,15 +1046,6 @@
 
 (defn user-data [node-id key]
   (is/user-data @*the-system* node-id key))
-
-(defn evaluation-user-data [evaluation-context node-id key]
-  (get-in (:user-data @(:state-atom evaluation-context)) [node-id key]
-          (user-data node-id key)))
-
-(defn merge-evaluation-user-data! [evaluation-context values-by-key-by-node-id]
-  (swap! (:state-atom evaluation-context) update :user-data
-         #(merge-with merge % values-by-key-by-node-id))
-  nil)
 
 (defn user-data! [node-id key value]
   (swap! *the-system* is/assoc-user-data node-id key value)

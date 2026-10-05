@@ -141,45 +141,32 @@
   (realize-tx-impl ctx undoable-changes tx-data nil))
 
 (defn- make-evaluation-context [ctx]
-  (let [evaluation-context
-        (in/custom-evaluation-context
-          {:basis (:basis ctx)
-           :shell-node-id->materialize-info-atom (:shell-node-id->materialize-info-atom ctx)
-           :materializations (:materializations ctx)
-           :initial-invalidate-counters (:initial-invalidate-counters ctx)
-           :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters ctx)
-           :tx-data-context (:tx-data-context ctx)
-           :node-id-generator (:node-id-generator ctx)
-           :override-id-generator (:override-id-generator ctx)
-           :materialize-node! materialize-node!})]
-    (swap! (:state-atom evaluation-context) assoc
-           :user-data (:evaluation-user-data ctx)
-           :applied-user-data (:evaluation-user-data ctx))
-    evaluation-context))
+  (in/custom-evaluation-context
+    {:basis (:basis ctx)
+     :shell-node-id->materialize-info-atom (:shell-node-id->materialize-info-atom ctx)
+     :materializations (:materializations ctx)
+     :initial-invalidate-counters (:initial-invalidate-counters ctx)
+     :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters ctx)
+     :tx-data-context (:tx-data-context ctx)
+     :node-id-generator (:node-id-generator ctx)
+     :override-id-generator (:override-id-generator ctx)
+     :materialize-node! materialize-node!}))
 
 (defn- apply-evaluation-context [ctx evaluation-context]
   (let [state-atom (:state-atom evaluation-context)
-        {:keys [changes user-data applied-user-data]} @state-atom
-        has-changes (not (coll/empty? changes))
-        user-data-changed (not (identical? user-data applied-user-data))
-        ctx (cond-> ctx
-
-              has-changes
-              (coll/reduce=> changes
-                (fn [ctx change]
-                  (-> ctx
-                      (perform-change change)
-                      (update :completed-action-count inc)
-                      (cond->
-                        (:realized-changes ctx)
-                        (update :realized-changes conj change)))))
-
-              user-data-changed
-              (update :evaluation-user-data #(merge-with merge % user-data)))]
-
-    (when (or has-changes user-data-changed)
-      (swap! state-atom assoc :changes [] :applied-user-data user-data))
-    ctx))
+        {:keys [changes]} @state-atom]
+    (if (coll/empty? changes)
+      ctx
+      (let [ctx (coll/reduce-> changes ctx
+                  (fn [ctx change]
+                    (-> ctx
+                        (perform-change change)
+                        (update :completed-action-count inc)
+                        (cond->
+                          (:realized-changes ctx)
+                          (update :realized-changes conj change)))))]
+        (swap! state-atom assoc :changes [])
+        ctx))))
 
 (defn- mark-input-activated
   [ctx node-id input-label]
@@ -1686,7 +1673,7 @@
     (.-arc tx-step)))
 
 (def tx-report-keys
-  (cond-> [:basis :nodes-added :nodes-deleted :outputs-modified :label :sequence-label :undoable-changes :realized-changes :evaluation-user-data :materializations]
+  (cond-> [:basis :nodes-added :nodes-deleted :outputs-modified :label :sequence-label :undoable-changes :realized-changes :materializations]
     (du/metrics-enabled?) (conj :metrics)))
 
 (defn finalize-update
@@ -1798,17 +1785,15 @@
 (defn materialize-shell [node-id]
   [(->MaterializeShellTXS node-id)])
 
-(defn- perform-materialization [ctx {:keys [node-id changes user-data dependencies] :as materialize-info}]
+(defn- perform-materialization [ctx {:keys [node-id changes dependencies] :as materialize-info}]
   (if (and (identical? materialize-info (get (:materializations ctx) node-id))
            (not (in/unmaterialized-shell-node? (ig/node-by-id-at (:basis ctx) node-id))))
     ctx
-    (let [ctx (reduce-kv (fn [ctx _node-id dependency]
-                           (perform-materialization ctx dependency))
-                         ctx
-                         dependencies)]
-      (-> (reduce perform-change ctx changes)
-          (assoc-in [:materializations node-id] materialize-info)
-          (update :evaluation-user-data #(merge-with merge % user-data))))))
+    (let [ctx (coll/reduce-kv-> dependencies ctx
+                (fn [ctx _node-id dependency]
+                  (perform-materialization ctx dependency)))]
+      (assoc-in (reduce perform-change ctx changes)
+                [:materializations node-id] materialize-info))))
 
 (defonce/type MaterializationTXC [materialize-info]
   TransactionChange
@@ -1818,7 +1803,7 @@
     (throw (UnsupportedOperationException. "Materializations are not undoable."))))
 
 (defn- evaluation-transaction-context [evaluation-context]
-  (let [{:keys [basis materializations user-data]} @(:state-atom evaluation-context)]
+  (let [{:keys [basis materializations]} @(:state-atom evaluation-context)]
     (-> (new-transaction-context basis
                                  (:node-id-generator evaluation-context)
                                  (:override-id-generator evaluation-context)
@@ -1828,18 +1813,16 @@
         (assoc :tx-data-context (:tx-data-context evaluation-context)
                :initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
                :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters evaluation-context)
-               :realized-changes []
-               :evaluation-user-data user-data))))
+               :realized-changes []))))
 
 (defn- apply-evaluation-transaction-result! [evaluation-context result]
-  (let [{:keys [basis realized-changes outputs-modified evaluation-user-data materializations]} result]
+  (let [{:keys [basis realized-changes outputs-modified materializations]} result]
     (swap! (:state-atom evaluation-context)
            (fn [state]
              (-> state
                  (assoc :basis basis :materializations materializations)
                  (update :changes into realized-changes)
-                 (update :invalidated-endpoints into outputs-modified)
-                 (update :user-data #(merge-with merge % evaluation-user-data)))))
+                 (update :invalidated-endpoints into outputs-modified))))
     (swap! (:local evaluation-context) #(reduce dissoc % outputs-modified))
     (when-let [local-temp (:local-temp evaluation-context)]
       (swap! local-temp #(reduce dissoc % outputs-modified))))
@@ -1925,9 +1908,6 @@
                          :changes changes
                          :dependencies (:materializations previous-state)
                          :completed-materializations (:materializations current-state)
-                         :user-data (into {}
-                                          (remove (fn [[id data]] (= data (get (:user-data previous-state) id))))
-                                          (:user-data current-state))
                          :invalidated-endpoints (:invalidated-endpoints current-state)
                          :initial-invalidate-counters initial-invalidate-counters}]
                     (swap! state

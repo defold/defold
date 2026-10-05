@@ -540,7 +540,6 @@
    :state-atom (atom {:basis basis
                       :changes []
                       :materializations materializations
-                      :user-data {}
                       :invalidated-endpoints #{}})
    :cache cache ; cache from the system
    :initial-invalidate-counters initial-invalidate-counters
@@ -559,7 +558,6 @@
             :state-atom (atom {:basis basis
                                :changes []
                                :materializations (:materializations options)
-                               :user-data {}
                                :invalidated-endpoints #{}})
             :local (atom {})
             :hits (atom [])

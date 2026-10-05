@@ -134,6 +134,8 @@
       (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) unrelated))))))
 
 (deftest failed-materialization-can-be-retried-test
+  ;; Verifies rollback and retry of materialized properties, including
+  ;; non-undoable state that must remain isolated until the load succeeds.
   (with-clean-system
     (let [node-id (first (g/take-node-ids 1))
           fail (atom true)]
@@ -141,19 +143,21 @@
         (g/add-node
           (g/construct-shell ShellTestNode
             {:_node-id node-id}
-            (fn materialize-fn [self evaluation-context]
-              (g/merge-evaluation-user-data! evaluation-context {self {:source-value :staged}})
-              [(g/set-property self :value 9)
+            (fn materialize-fn [self _evaluation-context]
+              [(g/non-undoable (g/set-property self :identity "loaded"))
+               (g/set-property self :value 9)
                (g/callback #(when @fail (throw (ex-info "load failed" {}))))]))))
       (let [evaluation-context (g/make-evaluation-context)]
         (is (thrown-with-msg? ExceptionInfo #"load failed" (g/node-value node-id :result evaluation-context)))
         (is (in/unmaterialized-shell-node? (g/node-by-id (g/ec-basis evaluation-context) node-id)))
-        (is (= {} (:user-data @(:state-atom evaluation-context))))
-        (is (nil? (g/user-data node-id :source-value)))
+        (is (nil? (g/node-value node-id :identity evaluation-context)))
+        (is (nil? (g/node-value node-id :identity)))
         (reset! fail false)
         (is (= 9 (g/node-value node-id :result evaluation-context)))
+        (is (= "loaded" (g/node-value node-id :identity evaluation-context)))
+        (is (nil? (g/node-value node-id :identity)))
         (g/update-system-from-evaluation-context! evaluation-context)
-        (is (= :staged (g/user-data node-id :source-value)))))))
+        (is (= "loaded" (g/node-value node-id :identity)))))))
 
 (deftest materialization-replays-non-undoable-changes-test
   (with-clean-system
@@ -356,9 +360,12 @@
       (is (= 37 (g/node-value parent :result))))))
 
 (g/defnode ShellWithChild
-  (property child g/NodeID))
+  (property child g/NodeID)
+  (property source-value g/Any :unjammable))
 
 (deftest competing-contexts-share-materialization-test
+  ;; Verifies that competing contexts share one materialization and replay its
+  ;; non-undoable properties through the same transactions as its child nodes.
   (doseq [commit-before-second-evaluation [false true]]
     (with-clean-system
       (let [shell (first (g/take-node-ids 1))
@@ -367,25 +374,29 @@
           (g/add-node
             (g/construct-shell ShellWithChild
               {:_node-id shell}
-              (fn [self evaluation-context]
+              (fn [self _evaluation-context]
                 (swap! calls inc)
                 (let [child (first (g/take-node-ids 1))]
-                  (g/merge-evaluation-user-data! evaluation-context {self {:source-value :loaded}})
                   [(g/add-node (g/construct ShellTestNode :_node-id child :value 42))
+                   (g/non-undoable (g/set-property self :source-value :loaded))
                    (g/set-property self :child child)])))))
         (let [first-context (g/make-evaluation-context)
               second-context (g/make-evaluation-context)
               child (g/node-value shell :child first-context)]
+          (is (= :loaded (g/node-value shell :source-value first-context)))
+          (is (nil? (g/node-value shell :source-value second-context)))
+          (is (nil? (g/node-value shell :source-value)))
           (when commit-before-second-evaluation
             (g/update-system-from-evaluation-context! first-context))
           (is (= child (g/node-value shell :child second-context)))
           (is (= 42 (g/node-value child :result second-context)))
-          (is (= :loaded (g/evaluation-user-data second-context shell :source-value)))
+          (is (= :loaded (g/node-value shell :source-value second-context)))
           (when-not commit-before-second-evaluation
             (g/update-system-from-evaluation-context! first-context))
           (g/update-system-from-evaluation-context! second-context)
           (is (= child (g/node-value shell :child)))
           (is (= 42 (g/node-value child :result)))
+          (is (= :loaded (g/node-value shell :source-value)))
           (is (= 1 @calls)))))))
 
 (deftest shared-materialization-retains-prerequisites-test
