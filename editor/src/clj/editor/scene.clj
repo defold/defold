@@ -56,7 +56,7 @@
             [editor.scene-selection :as selection]
             [editor.scene-shapes :as scene-shapes]
             [editor.scene-tools :as scene-tools]
-            [editor.scene-view-cube :as scene-view-cube]
+            [editor.scene-axis-gizmo :as scene-axis-gizmo]
             [editor.scene-visibility :as scene-visibility]
             [editor.system :as system]
             [editor.shaders :as shaders]
@@ -2209,7 +2209,7 @@
                                     :prefs prefs]
                    grid            (grid-type :prefs prefs)
                    tool-controller [tool-controller-type :prefs prefs]
-                   view-cube       [scene-view-cube/SceneViewCubeController]
+                   axis-gizmo      [scene-axis-gizmo/AxisGizmoController]
                    rulers          [rulers/Rulers]]
 
       (g/connect resource-node   :scene                         view-id         :scene)
@@ -2226,7 +2226,7 @@
       (g/connect camera          :camera                        view-id         :camera)
       (g/connect camera          :input-handler                 view-id         :input-handlers)
       ;; Before the camera's, whose handler returns nil and ends the chain.
-      (g/connect view-cube       :update-tick-handler           view-id         :update-tick-handlers)
+      (g/connect axis-gizmo      :update-tick-handler           view-id         :update-tick-handlers)
       (g/connect camera          :update-tick-handler           view-id         :update-tick-handlers)
       (g/connect camera          :cursor-type                   view-id         :cursor-type)
       (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
@@ -2254,11 +2254,11 @@
       (g/connect camera          :camera                        tool-controller :camera)
       (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
 
-      (g/connect view-cube       :input-handler                 view-id         :input-handlers)
-      (g/connect view-cube       :renderables                   view-id         :tool-renderables)
-      (g/connect camera          :_node-id                      view-cube       :camera-node-id)
-      (g/connect view-id         :scene-aabb                    view-cube       :scene-aabb)
-      (g/connect view-id         :viewport                      view-cube       :viewport)
+      (g/connect axis-gizmo      :input-handler                 view-id         :input-handlers)
+      (g/connect axis-gizmo      :renderables                   view-id         :tool-renderables)
+      (g/connect camera          :_node-id                      axis-gizmo      :camera-node-id)
+      (g/connect view-id         :scene-aabb                    axis-gizmo      :scene-aabb)
+      (g/connect view-id         :viewport                      axis-gizmo      :viewport)
 
       (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 

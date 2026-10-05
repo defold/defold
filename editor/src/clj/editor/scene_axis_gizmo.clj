@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.scene-view-cube
+(ns editor.scene-axis-gizmo
   (:require [dynamo.graph :as g]
             [editor.camera :as c]
             [editor.geom :as geom]
@@ -34,12 +34,12 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private cube-batch-key ::view-cube)
-(def ^:private cube-margin 36.0)
-(def ^:private cube-scale 30.0)
-(def ^:private cube-depth (* cube-scale 4.0))
+(def ^:private gizmo-batch-key ::axis-gizmo)
+(def ^:private gizmo-margin 36.0)
+(def ^:private gizmo-scale 30.0)
+(def ^:private gizmo-depth (* gizmo-scale 4.0))
 
-(def ^:private face-order [:+x :-x :+y :-y :+z :-z])
+(def ^:private axis-order [:+x :-x :+y :-y :+z :-z])
 
 (def ^:private axis->normal
   {:+x (Vector3d. 1.0 0.0 0.0)
@@ -49,7 +49,7 @@
    :+z (Vector3d. 0.0 0.0 1.0)
    :-z (Vector3d. 0.0 0.0 -1.0)})
 
-(def ^:private opposite-face
+(def ^:private opposite-axis
   {:+x :-x
    :-x :+x
    :+y :-y
@@ -61,14 +61,14 @@
   "Minimum dot product between the current and requested camera forward vector
   that's considered to be facing that axis. Keeps the toggle-on-re-click logic
   robust against tiny numerical drift that would otherwise require the user to
-  click twice to flip to the opposite face."
+  click twice to flip to the opposite axis."
   0.999)
 
-(defn- cube-center [^Region viewport]
-  [(+ (.left viewport) cube-margin cube-scale)
-   (- (.bottom viewport) cube-margin cube-scale)])
+(defn- gizmo-center [^Region viewport]
+  [(+ (.left viewport) gizmo-margin gizmo-scale)
+   (- (.bottom viewport) gizmo-margin gizmo-scale)])
 
-(defn- cube-model-matrix
+(defn- gizmo-model-matrix
   ^Matrix4d [^Camera camera ^Region viewport]
   ;; The overlay ortho projection maps pixel-space Y downward, so GL +Y ends up
   ;; pointing to the bottom of the screen. To render the gizmo upright we build
@@ -77,9 +77,9 @@
   ;; to match screen-space Y just before translation. Composing the Y flip this
   ;; way avoids the gimbal-lock issues of trying to mirror individual Euler
   ;; components of the camera rotation.
-  (let [[x y] (cube-center viewport)
+  (let [[x y] (gizmo-center viewport)
         rotation (doto (Quat4d. ^Quat4d (:rotation camera)) (.conjugate))
-        rs ^Matrix4d (math/->mat4-uniform (Vector3d. 0.0 0.0 0.0) rotation cube-scale)
+        rs ^Matrix4d (math/->mat4-uniform (Vector3d. 0.0 0.0 0.0) rotation gizmo-scale)
         reflect-y ^Matrix4d (doto ^Matrix4d (math/->mat4)
                               (.setElement 1 1 -1.0))
         translation ^Matrix4d (doto ^Matrix4d (math/->mat4)
@@ -88,7 +88,7 @@
       (.mul reflect-y)
       (.mul rs))))
 
-(defn- cube-projection-matrix
+(defn- gizmo-projection-matrix
   "Screen-space ortho projection for the gizmo.
 
   In picking passes, render-args contains a :picking-matrix that was used to
@@ -97,19 +97,19 @@
   picking-matrix on top; otherwise the gizmo ends up drawn across the whole
   picking buffer and every click in the scene view is intercepted by it."
   ^Matrix4d [render-args ^Region viewport]
-  (let [base ^Matrix4d (c/region-orthographic-projection-matrix viewport (- cube-depth) cube-depth)]
+  (let [base ^Matrix4d (c/region-orthographic-projection-matrix viewport (- gizmo-depth) gizmo-depth)]
     (if-let [^Matrix4d picking-matrix (:picking-matrix render-args)]
       (doto (Matrix4d. picking-matrix) (.mul base))
       base)))
 
-(defn- cube-render-args
+(defn- gizmo-render-args
   "Replaces the render-args transforms with the gizmo's own model and
   projection matrices."
   [render-args ^Camera camera ^Region viewport]
   (merge render-args
-         (math/derive-render-transforms (cube-model-matrix camera viewport)
+         (math/derive-render-transforms (gizmo-model-matrix camera viewport)
                                         geom/Identity4d
-                                        (cube-projection-matrix render-args viewport)
+                                        (gizmo-projection-matrix render-args viewport)
                                         (:texture render-args))))
 
 (defn- camera-facing-axis?
@@ -218,7 +218,7 @@
 (def ^:private backdrop-radius (+ ^double ball-distance ^double ball-radius 0.1))
 
 (def ^:private pick-vertex-buffers
-  (delay (assoc (into {} (map (juxt identity (comp make-pick-vertex-buffer handle-pick-quads))) face-order)
+  (delay (assoc (into {} (map (juxt identity (comp make-pick-vertex-buffer handle-pick-quads))) axis-order)
            :backdrop (make-pick-vertex-buffer (sphere-quads [0.0 0.0 0.0] backdrop-radius)))))
 
 ;; The scene view has no multisampling, so the visible handles are drawn as
@@ -281,7 +281,7 @@
 (def ^:private ball-textures
   (into {}
         (map (fn [axis] [axis (texture/image-texture [::ball axis] (make-ball-image axis))]))
-        face-order))
+        axis-order))
 
 (def ^:private line-textures
   (into {}
@@ -348,7 +348,7 @@
         ^Vector3d right (screen-axis 1.0 0.0 0.0)
         ^Vector3d up (screen-axis 0.0 1.0 0.0)
         ^Vector3d toward (screen-axis 0.0 0.0 1.0)
-        balls (for [axis face-order
+        balls (for [axis axis-order
                     :let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))]]
                 {:key [::ball axis]
                  :depth (.dot toward center)
@@ -402,29 +402,29 @@
     (when (renderable-by-selection-data :backdrop)
       (pick! :backdrop))
     (.glDepthMask gl true)
-    (doseq [axis face-order
+    (doseq [axis axis-order
             :when (renderable-by-selection-data axis)]
       (pick! axis))
     (.glDepthMask gl false)
     (.glDisable gl GL2/GL_DEPTH_TEST)))
 
-(defn- render-view-cube [^GL2 gl render-args renderables _rcount]
+(defn- render-axis-gizmo [^GL2 gl render-args renderables _rcount]
   (let [camera ^Camera (:camera render-args)
-        cube-args (cube-render-args render-args camera (:viewport render-args))]
+        gizmo-args (gizmo-render-args render-args camera (:viewport render-args))]
     (if (= pass/manipulator-selection (:pass render-args))
-      (pick-handles! gl cube-args (into {} (map (juxt :selection-data identity)) renderables))
-      (draw-handles! gl cube-args camera (double (get-in (first renderables) [:user-data :backdrop-alpha] 0.0))))))
+      (pick-handles! gl gizmo-args (into {} (map (juxt :selection-data identity)) renderables))
+      (draw-handles! gl gizmo-args camera (double (get-in (first renderables) [:user-data :backdrop-alpha] 0.0))))))
 
 (g/defnk produce-renderables [_node-id backdrop-alpha]
-  (let [renderables (coll/into-> (conj face-order :backdrop) []
+  (let [renderables (coll/into-> (conj axis-order :backdrop) []
                       (map (fn [selection-data]
-                             {:batch-key cube-batch-key
+                             {:batch-key gizmo-batch-key
                               :node-id _node-id
                               :passes [pass/manipulator pass/manipulator-selection]
-                              :render-fn render-view-cube
-                              :select-batch-key cube-batch-key
+                              :render-fn render-axis-gizmo
+                              :select-batch-key gizmo-batch-key
                               :selection-data selection-data
-                              :tags #{:view-cube}
+                              :tags #{:axis-gizmo}
                               :user-data {:backdrop-alpha backdrop-alpha}})))]
     {pass/manipulator renderables
      pass/manipulator-selection renderables}))
@@ -433,7 +433,7 @@
   "Pixels the cursor must move after pressing on the gizmo before it's a drag."
   4.0)
 
-(defn- frame-to-face! [self face]
+(defn- frame-to-axis! [self axis]
   (g/with-auto-evaluation-context evaluation-context
     (let [camera-node-id (g/node-value self :camera-node-id evaluation-context)
           viewport (g/node-value self :viewport evaluation-context)
@@ -441,11 +441,11 @@
           current-camera (g/node-value camera-node-id :local-camera evaluation-context)
           ;; If the camera is already aligned with the clicked axis, flip to
           ;; the opposite axis so re-clicking toggles between +/- views.
-          target-face (if (camera-facing-axis? current-camera face)
-                        (opposite-face face)
-                        face)]
+          target-axis (if (camera-facing-axis? current-camera axis)
+                        (opposite-axis axis)
+                        axis)]
       (when-not (geom/predefined-aabb? scene-aabb)
-        (c/frame-camera-to-axis! camera-node-id viewport scene-aabb target-face true)))))
+        (c/frame-camera-to-axis! camera-node-id viewport scene-aabb target-axis true)))))
 
 (defn- tumble-camera! [self ^double dx ^double dy]
   (let [camera-node-id (g/node-value self :camera-node-id)
@@ -457,14 +457,14 @@
 (defn handle-input [self _input-state action selection-data]
   (let [hits (get selection-data self)
         ;; Handles win over the backdrop behind them.
-        face (or (first (remove #{:backdrop} hits)) (first hits))
+        handle (or (first (remove #{:backdrop} hits)) (first hits))
         press (g/user-data self ::press)
         {:keys [x y screen-x screen-y]} action]
     (case (:type action)
       :mouse-pressed (if (and (= :primary (:button action))
-                              face)
+                              handle)
                        (do
-                         (g/user-data! self ::press {:face face :x x :y y :last-x x :last-y y :dragging false})
+                         (g/user-data! self ::press {:handle handle :x x :y y :last-x x :last-y y :dragging false})
                          nil)
                        action)
       :mouse-moved (if press
@@ -487,14 +487,14 @@
                          (g/user-data! self ::press (assoc press :dragging false)))
                        nil)
                      (do
-                       (when (not= face (g/node-value self :hot-face))
-                         (g/transact (g/set-property self :hot-face face)))
+                       (when (not= handle (g/node-value self :hot-handle))
+                         (g/transact (g/set-property self :hot-handle handle)))
                        action))
       :mouse-released (if press
                         (do
                           (g/user-data! self ::press nil)
-                          (when-not (or (:dragging press) (= :backdrop (:face press)))
-                            (frame-to-face! self (:face press)))
+                          (when-not (or (:dragging press) (= :backdrop (:handle press)))
+                            (frame-to-axis! self (:handle press)))
                           nil)
                         action)
       action)))
@@ -505,7 +505,7 @@
   "Fades the backdrop in while the gizmo is hovered or dragged, and out after."
   [self input-state dt]
   (let [alpha (double (g/node-value self :backdrop-alpha))
-        target (if (or (g/node-value self :hot-face) (g/user-data self ::press)) 1.0 0.0)
+        target (if (or (g/node-value self :hot-handle) (g/user-data self ::press)) 1.0 0.0)
         step (/ (double dt) ^double backdrop-fade-seconds)
         next-alpha (if (< alpha target)
                      (min target (+ alpha step))
@@ -516,8 +516,8 @@
         (g/set-property self :backdrop-alpha next-alpha)))
     input-state))
 
-(g/defnode SceneViewCubeController
-  (property hot-face g/Keyword)
+(g/defnode AxisGizmoController
+  (property hot-handle g/Keyword)
   (property backdrop-alpha g/Num (default 0.0))
 
   (input camera-node-id g/NodeID)

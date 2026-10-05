@@ -100,7 +100,7 @@
 
 (defn frame-camera-to-axis
   ^Camera [^Camera camera ^Region viewport ^AABB aabb axis]
-  ;; TODO(view-cube): temporarily keeps the current zoom instead of framing the
+  ;; TODO(axis-gizmo): temporarily keeps the current zoom instead of framing the
   ;; aabb; viewport and aabb are unused for now.
   (let [[^Vector3d forward up] (view-axis->forward+up axis)
         rotation (camera-rotation-from-forward+up forward up)
