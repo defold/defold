@@ -101,7 +101,8 @@ namespace dmDebugger
         REFERENCE_LOCALS,
         REFERENCE_UPVALUES,
         REFERENCE_GLOBALS,
-        REFERENCE_VALUE
+        REFERENCE_VALUE,
+        REFERENCE_RESULTS
     };
     struct Reference
     {
@@ -112,6 +113,7 @@ namespace dmDebugger
         ReferenceKind m_Kind;
         char*         m_EvaluateName;
         uint32_t      m_FrameId;
+        int           m_ResultCount;
     };
     enum Step
     {
@@ -195,7 +197,9 @@ namespace dmDebugger
     void       CheckEvaluation(lua_State* L);
     // Evaluation leaves exactly one result (or error string) on the stack.
     // A negative level selects the Lua thread's global environment.
-    bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment = 0);
+    // With result_count, REPL results are packed into a table if there is more
+    // than one return. The explicit count includes nil values.
+    bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment = 0, int* result_count = 0);
     int  LocalIndex(lua_State* L, lua_Debug* ar, const char* name);
     int  UpvalueIndex(lua_State* L, int function, const char* name);
     void PushEnvironment(lua_State* L, int level);

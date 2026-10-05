@@ -159,8 +159,9 @@ namespace dmDebugger
         return 0;
     }
 
-    static uint32_t AddReference(Debugger* d, lua_State* L, ReferenceKind kind, int level, int index = 0, const char* evaluate_name = 0)
+    static uint32_t AddReference(Debugger* d, lua_State* L, ReferenceKind kind, int level, int index = 0, const char* evaluate_name = 0, int result_count = 0)
     {
+        bool     value = kind == REFERENCE_VALUE || kind == REFERENCE_RESULTS;
         uint32_t frame_id = 0;
         for (uint32_t i = 0; level >= 0 && i < d->m_Frames.Size(); ++i)
             if (d->m_Frames[i].m_Valid && d->m_Frames[i].m_L == L && d->m_Frames[i].m_Level == level)
@@ -173,24 +174,21 @@ namespace dmDebugger
             Reference& r = d->m_References[i];
             if (r.m_L != L || r.m_Kind != kind || r.m_Level != level || r.m_FrameId != frame_id)
                 continue;
-            if (kind != REFERENCE_VALUE)
+            if (!value)
                 return r.m_Id;
-            if (kind == REFERENCE_VALUE)
+            const void* pointer = lua_topointer(L, index);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
+            bool same = lua_topointer(L, -1) == pointer;
+            lua_pop(L, 1);
+            if (same)
             {
-                const void* pointer = lua_topointer(L, index);
-                lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
-                bool same = lua_topointer(L, -1) == pointer;
-                lua_pop(L, 1);
-                if (same)
-                {
-                    if (!r.m_EvaluateName && evaluate_name)
-                        r.m_EvaluateName = strdup(evaluate_name);
-                    return r.m_Id;
-                }
+                if (!r.m_EvaluateName && evaluate_name)
+                    r.m_EvaluateName = strdup(evaluate_name);
+                return r.m_Id;
             }
         }
-        Reference r = { d->m_NextId++, L, level, LUA_NOREF, kind, evaluate_name ? strdup(evaluate_name) : 0, frame_id };
-        if (kind == REFERENCE_VALUE)
+        Reference r = { d->m_NextId++, L, level, LUA_NOREF, kind, evaluate_name ? strdup(evaluate_name) : 0, frame_id, result_count };
+        if (value)
         {
             lua_pushvalue(L, index);
             r.m_LuaRef = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -321,6 +319,28 @@ namespace dmDebugger
         }
         if (expandable)
             lua_pop(L, 1);
+    }
+
+    static void ResultsBody(Debugger* d, lua_State* L, int level, int result_count, Buffer& body)
+    {
+        int    table = lua_gettop(L);
+        Buffer value;
+        for (int i = 1; i <= result_count; ++i)
+        {
+            if (i > 1)
+                value.Add(", ");
+            lua_rawgeti(L, table, i);
+            FormatValue(d, L, -1, value);
+            lua_pop(L, 1);
+        }
+        body.Add("\"result\":");
+        body.String(value.Data(), value.Size());
+        if (d->m_VariableType)
+            body.Add(",\"type\":\"tuple\"");
+        body.Format(",\"variablesReference\":%u,\"defoldResultCount\":%d", AddReference(d, L, REFERENCE_RESULTS, level, table, 0, result_count), result_count);
+        body.Add(",\"presentationHint\":{\"kind\":\"virtual\",\"attributes\":[\"readOnly\"]}");
+        if (d->m_VariablePaging)
+            body.Format(",\"namedVariables\":0,\"indexedVariables\":%d", result_count);
     }
 
     struct Evaluation
@@ -554,6 +574,8 @@ namespace dmDebugger
     {
         uint64_t m_Deadline;
         int      m_Result;
+        int      m_ResultCount;
+        bool     m_AllResults;
         bool     m_TimedOut;
     };
 
@@ -600,8 +622,39 @@ namespace dmDebugger
         // Lua 5.1 children inherit this hook. Keep the normal event mask so
         // coroutines created by evaluation can hit breakpoints after it ends.
         lua_sethook(L, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
-        call->m_Result = lua_pcall(L, lua_gettop(L) - 1, 1, 0);
+        call->m_Result = lua_pcall(L, lua_gettop(L) - 1, call->m_AllResults ? LUA_MULTRET : 1, 0);
         lua_sethook(L, old_hook, old_mask, old_count);
+        if (!call->m_Result && call->m_AllResults)
+        {
+            call->m_ResultCount = lua_gettop(L);
+            if (call->m_ResultCount > 1)
+            {
+                // Allocation can raise a Lua error before packing completes.
+                call->m_Result = LUA_ERRRUN;
+                // The hook-restoring lua_error below transports one value.
+                // Pack all returns first; keep the count outside the table
+                // because Lua tables do not retain nil slots.
+                if (lua_checkstack(L, 2))
+                {
+                    lua_createtable(L, call->m_ResultCount, 0);
+                    for (int i = 1; i <= call->m_ResultCount; ++i)
+                    {
+                        lua_pushvalue(L, i);
+                        lua_rawseti(L, -2, i);
+                    }
+                    lua_replace(L, 1);
+                    lua_settop(L, 1);
+                    call->m_Result = 0;
+                }
+                else
+                {
+                    lua_settop(L, 0);
+                    lua_pushliteral(L, "Too many results for evaluation");
+                }
+            }
+            else if (!call->m_ResultCount)
+                lua_pushnil(L);
+        }
         if (dmTime::GetTime() >= call->m_Deadline)
         {
             lua_pop(L, 1);
@@ -612,8 +665,10 @@ namespace dmDebugger
         return lua_error(L);
     }
 
-    bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment)
+    bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment, int* result_count)
     {
+        if (result_count)
+            *result_count = 0;
         lua_Debug frame;
         if (level >= 0 && !lua_getstack(L, level, &frame))
         {
@@ -740,7 +795,7 @@ namespace dmDebugger
         bool timed_out = false;
         if (!result)
         {
-            EvaluationCall call = { dmTime::GetTime() + (uint64_t)d->m_EvaluationTimeout * 1000, LUA_ERRRUN, false };
+            EvaluationCall call = { dmTime::GetTime() + (uint64_t)d->m_EvaluationTimeout * 1000, LUA_ERRRUN, 0, result_count && repl && !assignment, false };
             lua_pushlightuserdata(L, &g_EvaluationKey);
             lua_pushlightuserdata(L, &call);
             lua_rawset(L, LUA_REGISTRYINDEX);
@@ -749,6 +804,8 @@ namespace dmDebugger
             lua_insert(evaluation_L, lua_gettop(evaluation_L) - arguments - 1);
             lua_pcall(evaluation_L, arguments + 1, 1, 0);
             result = call.m_Result;
+            if (result_count && !result)
+                *result_count = call.m_ResultCount;
             timed_out = call.m_TimedOut;
             lua_pushlightuserdata(L, &g_EvaluationKey);
             lua_pushnil(L);
@@ -802,7 +859,7 @@ namespace dmDebugger
         }
     }
 
-    static void Variable(Debugger* d, lua_State* L, int level, const char* name, Buffer& body, int* count, const char* evaluate_name)
+    static void Variable(Debugger* d, lua_State* L, int level, const char* name, Buffer& body, int* count, const char* evaluate_name, bool read_only = false)
     {
         if ((*count)++)
             body.Add(",");
@@ -810,6 +867,8 @@ namespace dmDebugger
         body.String(name);
         body.Add(",");
         ValueBody(d, L, level, -1, body, "value", evaluate_name, true);
+        if (read_only)
+            body.Add(",\"presentationHint\":{\"attributes\":[\"readOnly\"]}");
         body.Add("}");
     }
 
@@ -842,6 +901,21 @@ namespace dmDebugger
                     bool visible = r.m_Kind == REFERENCE_LOCALS || LocalIndex(L, &ar, name) == 0;
                     Variable(d, L, r.m_Level, name, body, &emitted, visible && IsIdentifier(name) ? name : 0);
                 }
+                lua_pop(L, 1);
+            }
+        }
+        else if (r.m_Kind == REFERENCE_RESULTS)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
+            int table = lua_gettop(L);
+            for (int i = 1; !dmStrEq(filter, "named") && i <= r.m_ResultCount; ++i)
+            {
+                if (!Page(i - 1, start, count))
+                    continue;
+                Buffer name;
+                name.Format("[%d]", i);
+                lua_rawgeti(L, table, i);
+                Variable(d, L, r.m_Level, name.Data(), body, &emitted, 0, true);
                 lua_pop(L, 1);
             }
         }
@@ -1089,18 +1163,23 @@ namespace dmDebugger
             {
                 const char* context = request.String(request.Field(args, "context"), "");
                 bool        hover = !assignment && dmStrEq(context, "hover");
+                bool        repl = !assignment && dmStrEq(context, "repl");
+                int         result_count = 0;
                 // Watch evaluations can be triggered by an invalidation. Sending
                 // another event for them would cause a client refresh loop.
                 invalidate = assignment || dmStrEq(context, "repl");
                 bool ok = hover ? Inspect(d, L, level, expression) :
-                                  Evaluate(d, L, level, value, !assignment && dmStrEq(context, "repl"), assignment ? expression : 0);
+                                  Evaluate(d, L, level, value, repl, assignment ? expression : 0, repl ? &result_count : 0);
                 RefreshFrames(d);
                 if (frame_id && !FindFrame(d, frame_id))
                     level = -1;
                 if (ok)
                 {
                     body.Add("{");
-                    ValueBody(d, L, level, -1, body, assignment ? "value" : "result", expression);
+                    if (result_count > 1)
+                        ResultsBody(d, L, level, result_count, body);
+                    else
+                        ValueBody(d, L, level, -1, body, assignment ? "value" : "result", expression);
                     body.Add("}");
                 }
                 else
@@ -1148,6 +1227,8 @@ namespace dmDebugger
                 else if (!Variables(d, r, body, start, count, filter))
                     error = body.Data();
             }
+            else if (r.m_Kind == REFERENCE_RESULTS)
+                error = "Evaluation results are read-only";
             else
             {
                 const char* name = request.String(request.Field(args, "name"));

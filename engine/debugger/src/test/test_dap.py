@@ -1556,6 +1556,180 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    # REPL expressions and return statements preserve every result in order,
+    # including leading/trailing nils, without executing a function twice.
+    def test_repl_multiple_returns(self):
+        c = self.start('''
+            local calls = 0
+            local function values()
+                calls = calls + 1
+                return 7, nil, false, nil
+            end
+            local marker = 0 -- inspect
+            assert(calls == 1)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        for expression, expected in [
+                ("1, 2", ["1", "2"]),
+                ('nil, "error details", false, nil', ["nil", '"error details"', "false", "nil"]),
+                ('string.find("abc", "b")', ["2", "2"]),
+                ("return 1, nil, 3, nil", ["1", "nil", "3", "nil"]),
+                ("nil, nil", ["nil", "nil"]),
+                ("values()", ["7", "nil", "false", "nil"])]:
+            with self.subTest(expression=expression):
+                result = self.evaluate(expression, context="repl")
+                self.assertEqual(result["result"], ", ".join(expected))
+                self.assertEqual(result["defoldResultCount"], len(expected))
+                self.assertEqual(result["type"], "tuple")
+                self.assertEqual(result["indexedVariables"], len(expected))
+                variables = self.variables(result["variablesReference"])
+                self.assertEqual([v["name"] for v in variables], [f"[{i}]" for i in range(1, len(expected) + 1)])
+                self.assertEqual([v["value"] for v in variables], expected)
+                self.assertTrue(all(v["variablesReference"] == 0 for v in variables))
+        self.assertEqual(self.evaluate("calls")["result"], "1")
+        global_result = c.request("evaluate", {"expression": 'nil, "global", nil', "context": "repl"})
+        self.assertEqual([v["value"] for v in self.variables(global_result["variablesReference"])], ["nil", '"global"', "nil"])
+        self.resume()
+        self.finished()
+
+    # Result slots are read-only and paged in return order, while returned
+    # tables retain identity, survive GC, and expire on the next suspension.
+    def test_repl_result_references(self):
+        c = self.start('''
+            local calls = 0
+            local function values()
+                calls = calls + 1
+                local t = {value = 42}
+                t.self = t
+                return t, nil, t, nil
+            end
+            local marker = 0 -- inspect
+            assert(calls == 1)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        result = self.evaluate("values()", context="repl")
+        reference = result["variablesReference"]
+        other = self.evaluate("4, 5", context="repl")["variablesReference"]
+        self.assertNotEqual(reference, other)
+        self.evaluate("collectgarbage('collect')", context="repl")
+        values = self.variables(reference)
+        table_ref = values[0]["variablesReference"]
+        self.assertNotEqual(table_ref, 0)
+        self.assertEqual(values[2]["variablesReference"], table_ref)
+        self.assertTrue(all("evaluateName" not in v for v in values))
+        self.assertTrue(all("readOnly" in v["presentationHint"]["attributes"] for v in values))
+        children = {v["name"]: v for v in self.variables(table_ref)}
+        self.assertEqual(children["self"]["variablesReference"], table_ref)
+        self.assertEqual(children["value"]["value"], "42")
+        self.assertEqual(self.variables(reference, filter="named"), [])
+        page = self.variables(reference, filter="indexed", start=1, count=2)
+        self.assertEqual([v["name"] for v in page], ["[2]", "[3]"])
+        self.assertEqual(page[0]["value"], "nil")
+        self.assertEqual(self.variables(reference, start=3, count=0)[0]["value"], "nil")
+        self.assertEqual(self.variables(reference, start=4), [])
+        seq = c.send("setVariable", {"variablesReference": reference, "name": "[1]",
+                                     "value": "(function() calls = calls + 100; return 0 end)()"})
+        response = c.wait(lambda m: m["type"] == "response" and m["request_seq"] == seq)
+        self.assertFalse(response["success"])
+        self.assertIn("read-only", response["message"])
+        self.assertEqual(self.evaluate("calls")["result"], "1")
+        c.request("setVariable", {"variablesReference": table_ref, "name": "value", "value": "99"})
+        self.assertEqual(next(v["value"] for v in self.variables(table_ref) if v["name"] == "value"), "99")
+        self.resume("next")
+        self.stopped("step")
+        c.request("variables", {"variablesReference": reference}, success=False)
+        c.request("variables", {"variablesReference": table_ref}, success=False)
+        self.resume()
+        self.finished()
+
+    # Packing more returns than the C API's spare stack retains nils and table
+    # values even when expanding the container reallocates the reference array.
+    def test_repl_many_returns(self):
+        c = self.start("local marker = 0 -- inspect\nassert(true)\n")
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        result = self.evaluate('''(function()
+            local values = {}
+            for i = 1, 80, 2 do values[i] = {index = i} end
+            return unpack(values, 1, 80)
+        end)()''', context="repl")
+        self.assertEqual(result["defoldResultCount"], 80)
+        values = self.variables(result["variablesReference"])
+        self.assertEqual(len(values), 80)
+        self.assertEqual([v["name"] for v in values], [f"[{i}]" for i in range(1, 81)])
+        references = [v["variablesReference"] for v in values[::2]]
+        self.assertEqual(len(set(references)), 40)
+        self.assertTrue(all(v["value"] == "nil" and v["variablesReference"] == 0 for v in values[1::2]))
+        self.evaluate("collectgarbage('collect')", context="repl")
+        for index, reference in enumerate(references):
+            self.assertEqual(self.variables(reference)[0]["value"], str(2 * index + 1))
+        self.resume()
+        self.finished()
+
+    # Single/empty REPL results keep their existing shape; watch expressions
+    # and variable/expression assignment still consume only the first return.
+    def test_repl_single_result_compatibility(self):
+        c = self.start('''
+            local n = 0
+            local function values() return 7, nil, 8 end
+            local marker = 0 -- inspect
+            assert(n == 7)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        for expression, expected in [("42", "42"), ("nil", "nil"), ("n = 1", "nil"), ("(function() end)()", "nil")]:
+            result = self.evaluate(expression, context="repl")
+            self.assertEqual(result["result"], expected)
+            self.assertEqual(result["variablesReference"], 0)
+            self.assertNotIn("defoldResultCount", result)
+        table = self.evaluate("{answer = 42}", context="repl")
+        self.assertEqual(table["type"], "table")
+        self.assertNotIn("defoldResultCount", table)
+        self.assertEqual(self.variables(table["variablesReference"])[0]["value"], "42")
+        for context in ["", "watch"]:
+            result = self.evaluate("values()", context=context)
+            self.assertEqual(result["result"], "7")
+            self.assertEqual(result["variablesReference"], 0)
+            self.assertNotIn("defoldResultCount", result)
+        self.assertEqual(c.request("setExpression", {"frameId": self.frame, "expression": "n", "value": "values()"})["value"], "7")
+        locals_ref = self.scopes()["Locals"]
+        self.assertEqual(c.request("setVariable", {"variablesReference": locals_ref, "name": "n", "value": "values()"})["value"], "7")
+        self.resume()
+        self.finished()
+
+    # Multiple results remain distinguishable and retain nil slots when a
+    # client has not opted into variable type or paging metadata.
+    def test_repl_result_metadata_opt_in(self):
+        c = self.start("local marker = 0 -- inspect\nassert(true)\n")
+        c.initialize(supportsVariableType=False, supportsVariablePaging=False)
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        result = self.evaluate("1, nil, 2, nil", context="repl")
+        self.assertEqual(result["defoldResultCount"], 4)
+        for key in ["type", "namedVariables", "indexedVariables"]:
+            self.assertNotIn(key, result)
+        values = self.variables(result["variablesReference"])
+        self.assertEqual([v["value"] for v in values], ["1", "nil", "2", "nil"])
+        self.assertTrue(all("type" not in v for v in values))
+        self.resume()
+        self.finished()
+
     # Checks the exact source lines reached by step-in, step-over, and step-out
     # through nested calls, plus stack paging and the total frame count.
     def test_step_in_over_out_and_stack_paging(self):
@@ -2898,6 +3072,7 @@ class DAPTests(DAPTestCase):
 
     # Completing a coroutine through a cached resume during evaluation must
     # reject its old frame and variable IDs, not inspect an unwound Lua stack.
+    # Its return values remain inspectable after the selected frame unwinds.
     def test_evaluation_expires_completed_coroutine_references(self):
         c = self.start('''
             co = coroutine.create(function()
@@ -2923,7 +3098,9 @@ class DAPTests(DAPTestCase):
         references.append(self.evaluate("t")["variablesReference"])
         # Evaluating on the yielded frame also exercises its environment snapshot
         # after the very frame supplying its locals has finished executing.
-        self.assertEqual(self.evaluate("original_resume(co)", context="repl")["result"], "true")
+        result = self.evaluate("original_resume(co)", context="repl")
+        self.assertEqual(result["result"], "true, 43")
+        self.assertEqual([v["value"] for v in self.variables(result["variablesReference"])], ["true", "43"])
         for reference in references:
             c.request("variables", {"variablesReference": reference}, success=False)
             c.request("setVariable", {"variablesReference": reference, "name": "x", "value": "9"}, success=False)
