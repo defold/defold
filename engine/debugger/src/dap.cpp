@@ -405,7 +405,7 @@ namespace dmDebugger
         if (Get(object).m_Type != JSON_OBJECT)
             return -1;
         for (int i = Get(object).m_First; i >= 0; i = Get(i).m_Next)
-            if (Get(i).m_Name && !strcmp(Get(i).m_Name, name))
+            if (Get(i).m_Name && dmStrEq(Get(i).m_Name, name))
                 return i;
         return -1;
     }

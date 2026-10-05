@@ -16,6 +16,7 @@
 // every debugger request; this host implements the engine lifecycle and fixtures.
 #include <script/script.h>
 #include <extension/extension.hpp>
+#include <dlib/dstrings.h>
 #include <dlib/socket.h>
 #include <dlib/time.h>
 #include <stdio.h>
@@ -117,47 +118,47 @@ static dmConfigFile::HConfig Config(const char* text)
 int main(int argc, char** argv)
 {
     LogSeverity minimum_log_level = LOG_SEVERITY_USER_DEBUG;
-    if (argc > 2 && strcmp(argv[1], "--minimum-log-level") == 0)
+    if (argc > 2 && dmStrEq(argv[1], "--minimum-log-level"))
     {
         minimum_log_level = (LogSeverity)atoi(argv[2]);
         argc -= 2;
         argv += 2;
     }
     int updates = 0;
-    if (argc > 2 && strcmp(argv[1], "--updates") == 0)
+    if (argc > 2 && dmStrEq(argv[1], "--updates"))
     {
         updates = atoi(argv[2]);
         argc -= 2;
         argv += 2;
     }
     const char* prelude = 0;
-    if (argc > 2 && strcmp(argv[1], "--prelude") == 0)
+    if (argc > 2 && dmStrEq(argv[1], "--prelude"))
     {
         prelude = argv[2];
         argc -= 2;
         argv += 2;
     }
-    bool no_wait = argc > 1 && strcmp(argv[1], "--no-wait") == 0;
+    bool no_wait = argc > 1 && dmStrEq(argv[1], "--no-wait");
     if (no_wait)
     {
         --argc;
         ++argv;
     }
     const char* startup_port = 0;
-    if (argc > 2 && strcmp(argv[1], "--startup-port") == 0)
+    if (argc > 2 && dmStrEq(argv[1], "--startup-port"))
     {
         startup_port = argv[2];
         argc -= 2;
         argv += 2;
     }
     const char* startup_address = 0;
-    if (argc > 2 && strcmp(argv[1], "--startup-address") == 0)
+    if (argc > 2 && dmStrEq(argv[1], "--startup-address"))
     {
         startup_address = argv[2];
         argc -= 2;
         argv += 2;
     }
-    bool late_attach = argc > 1 && strcmp(argv[1], "--late-attach") == 0;
+    bool late_attach = argc > 1 && dmStrEq(argv[1], "--late-attach");
     if (late_attach)
     {
         --argc;

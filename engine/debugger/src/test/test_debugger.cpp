@@ -15,6 +15,7 @@
 // A real Lua host for the DAP integration suite. It has no debugger control
 // shortcuts: the test client can inspect/control Lua only through the TCP port.
 #include "debugger.h"
+#include <dlib/dstrings.h>
 #include <dlib/socket.h>
 #include <dlib/time.h>
 #include <stdio.h>
@@ -118,20 +119,20 @@ static int Run(lua_State* L, const char* path)
 int main(int argc, char** argv)
 {
     int updates = 0;
-    if (argc > 2 && strcmp(argv[1], "--updates") == 0)
+    if (argc > 2 && dmStrEq(argv[1], "--updates"))
     {
         updates = atoi(argv[2]);
         argc -= 2;
         argv += 2;
     }
     const char* prelude = 0;
-    if (argc > 2 && strcmp(argv[1], "--prelude") == 0)
+    if (argc > 2 && dmStrEq(argv[1], "--prelude"))
     {
         prelude = argv[2];
         argc -= 2;
         argv += 2;
     }
-    bool no_wait = argc > 1 && strcmp(argv[1], "--no-wait") == 0;
+    bool no_wait = argc > 1 && dmStrEq(argv[1], "--no-wait");
     if (no_wait)
     {
         --argc;

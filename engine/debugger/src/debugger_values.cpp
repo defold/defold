@@ -119,7 +119,7 @@ namespace dmDebugger
                 lua_getinfo(L, "Sl", &ar);
                 // C callbacks and Lua 5.1's eliminated tail-call placeholders
                 // have no inspectable Lua function or environment.
-                if (strcmp(ar.what, "Lua") && strcmp(ar.what, "main"))
+                if (!dmStrEq(ar.what, "Lua") && !dmStrEq(ar.what, "main"))
                     continue;
                 bool captured = false;
                 for (uint32_t j = 0; j < d->m_Frames.Size(); ++j)
@@ -344,7 +344,7 @@ namespace dmDebugger
             const char* local = lua_getlocal(L, ar, i);
             if (!local)
                 break;
-            if (local[0] != '(' && !strcmp(local, name))
+            if (local[0] != '(' && dmStrEq(local, name))
                 result = i;
             lua_pop(L, 1);
         }
@@ -358,7 +358,7 @@ namespace dmDebugger
             const char* upvalue = lua_getupvalue(L, function, i);
             if (!upvalue)
                 break;
-            bool found = !strcmp(upvalue, name);
+            bool found = dmStrEq(upvalue, name);
             lua_pop(L, 1);
             if (found)
                 return i;
@@ -725,7 +725,7 @@ namespace dmDebugger
                 const char* name = lua_getlocal(L, &frame, -arguments - 1);
                 if (!name)
                     break;
-                if (strcmp(name, "(*vararg)"))
+                if (!dmStrEq(name, "(*vararg)"))
                 {
                     lua_pop(L, 1);
                     break;
@@ -824,7 +824,7 @@ namespace dmDebugger
         int        top = lua_gettop(L);
         int        ordinal = 0, emitted = 0;
         lua_Debug  ar;
-        bool       indexed = !strcmp(filter, "indexed");
+        bool       indexed = dmStrEq(filter, "indexed");
         body.Add("{\"variables\":[");
         if (r.m_Kind == REFERENCE_LOCALS || r.m_Kind == REFERENCE_UPVALUES)
         {
@@ -969,7 +969,7 @@ namespace dmDebugger
                 Buffer key;
                 KeyName(d, L, -2, key);
                 lua_pop(L, 1);
-                if (!strcmp(key.Data(), name))
+                if (dmStrEq(key.Data(), name))
                 {
                     lua_pushvalue(L, value);
                     lua_rawset(L, table);
@@ -992,9 +992,9 @@ namespace dmDebugger
 
     bool ValueRequest(Debugger* d, const Json& request, const char* command, int seq, int args)
     {
-        if (strcmp(command, "stackTrace") && strcmp(command, "scopes") && strcmp(command, "variables") &&
-            strcmp(command, "evaluate") && strcmp(command, "setVariable") && strcmp(command, "exceptionInfo") &&
-            strcmp(command, "setExpression") && strcmp(command, "completions"))
+        if (!dmStrEq(command, "stackTrace") && !dmStrEq(command, "scopes") && !dmStrEq(command, "variables") &&
+            !dmStrEq(command, "evaluate") && !dmStrEq(command, "setVariable") && !dmStrEq(command, "exceptionInfo") &&
+            !dmStrEq(command, "setExpression") && !dmStrEq(command, "completions"))
             return false;
         if (!d->m_Paused)
         {
@@ -1005,7 +1005,7 @@ namespace dmDebugger
         Buffer      body;
         const char* error = 0;
         bool        invalidate = false;
-        if (!strcmp(command, "stackTrace"))
+        if (dmStrEq(command, "stackTrace"))
         {
             int thread = request.Integer(request.Field(args, "threadId"));
             int start = request.Integer(request.Field(args, "startFrame"), 0);
@@ -1047,7 +1047,7 @@ namespace dmDebugger
                 body.Format("],\"totalFrames\":%d}", ordinal);
             }
         }
-        else if (!strcmp(command, "scopes"))
+        else if (dmStrEq(command, "scopes"))
         {
             Frame* frame = FindFrame(d, request.Integer(request.Field(args, "frameId")));
             if (!frame)
@@ -1065,7 +1065,7 @@ namespace dmDebugger
                 body.Add("]}");
             }
         }
-        else if (!strcmp(command, "evaluate") || !strcmp(command, "setExpression") || !strcmp(command, "completions"))
+        else if (dmStrEq(command, "evaluate") || dmStrEq(command, "setExpression") || dmStrEq(command, "completions"))
         {
             Frame*      frame = FindFrame(d, request.Integer(request.Field(args, "frameId")));
             Thread*     thread = FindThread(d, d->m_StoppedThread);
@@ -1073,12 +1073,12 @@ namespace dmDebugger
             lua_State*  L = global ? (thread ? GetThread(thread) : 0) : (frame ? frame->m_L : 0);
             int         level = global ? -1 : (frame ? frame->m_Level : -1);
             uint32_t    frame_id = frame ? frame->m_Id : 0;
-            bool        assignment = !strcmp(command, "setExpression");
+            bool        assignment = dmStrEq(command, "setExpression");
             const char* expression = request.String(request.Field(args, "expression"));
             const char* value = assignment ? request.String(request.Field(args, "value")) : expression;
             if (!L)
                 error = "Invalid frameId";
-            else if (!strcmp(command, "completions"))
+            else if (dmStrEq(command, "completions"))
             {
                 if (!Completions(d, L, level, request, args, body))
                     error = body.Data();
@@ -1088,12 +1088,12 @@ namespace dmDebugger
             else
             {
                 const char* context = request.String(request.Field(args, "context"), "");
-                bool        hover = !assignment && !strcmp(context, "hover");
+                bool        hover = !assignment && dmStrEq(context, "hover");
                 // Watch evaluations can be triggered by an invalidation. Sending
                 // another event for them would cause a client refresh loop.
-                invalidate = assignment || !strcmp(context, "repl");
+                invalidate = assignment || dmStrEq(context, "repl");
                 bool ok = hover ? Inspect(d, L, level, expression) :
-                                  Evaluate(d, L, level, value, !assignment && !strcmp(context, "repl"), assignment ? expression : 0);
+                                  Evaluate(d, L, level, value, !assignment && dmStrEq(context, "repl"), assignment ? expression : 0);
                 RefreshFrames(d);
                 if (frame_id && !FindFrame(d, frame_id))
                     level = -1;
@@ -1111,7 +1111,7 @@ namespace dmDebugger
                 lua_pop(L, 1);
             }
         }
-        else if (!strcmp(command, "exceptionInfo"))
+        else if (dmStrEq(command, "exceptionInfo"))
         {
             int thread = request.Integer(request.Field(args, "threadId"));
             if (thread <= 0 || (uint32_t)thread != d->m_StoppedThread || !d->m_Exception.Size())
@@ -1138,12 +1138,12 @@ namespace dmDebugger
                 }
             if (!found || (r.m_FrameId && !FindFrame(d, r.m_FrameId)))
                 error = "Invalid variablesReference";
-            else if (!strcmp(command, "variables"))
+            else if (dmStrEq(command, "variables"))
             {
                 int         start = request.Integer(request.Field(args, "start"), 0);
                 int         count = request.Integer(request.Field(args, "count"), 0);
                 const char* filter = request.String(request.Field(args, "filter"), "");
-                if (start < 0 || count < 0 || (filter[0] && strcmp(filter, "named") && strcmp(filter, "indexed")))
+                if (start < 0 || count < 0 || (filter[0] && !dmStrEq(filter, "named") && !dmStrEq(filter, "indexed")))
                     error = "Invalid variable range or filter";
                 else if (!Variables(d, r, body, start, count, filter))
                     error = body.Data();

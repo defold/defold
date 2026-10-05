@@ -376,7 +376,7 @@ namespace dmDebugger
                             const char* name = lua_getlocal(thread, &frame, -vararg);
                             if (!name)
                                 break;
-                            if (strcmp(name, "(*vararg)"))
+                            if (!dmStrEq(name, "(*vararg)"))
                             {
                                 lua_pop(thread, 1);
                                 break;
@@ -894,7 +894,7 @@ namespace dmDebugger
     static Source* FindSource(Debugger* d, const char* path)
     {
         for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
-            if (!strcmp(d->m_Sources[i]->m_Path, path))
+            if (dmStrEq(d->m_Sources[i]->m_Path, path))
                 return d->m_Sources[i];
         return 0;
     }
@@ -961,7 +961,7 @@ namespace dmDebugger
     }
     static void ObserveSource(Debugger* d, lua_State* L, lua_Debug* ar)
     {
-        if (!ar->source || ar->source[0] != '@' || !strcmp(ar->what, "C"))
+        if (!ar->source || ar->source[0] != '@' || dmStrEq(ar->what, "C"))
             return;
         State* state = (State*)GetPointer(L, &g_StateKey);
         lua_rawgeti(L, LUA_REGISTRYINDEX, state->m_ObservedFunctionsRef);
@@ -990,7 +990,7 @@ namespace dmDebugger
         for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
         {
             Breakpoint* bp = d->m_Breakpoints[i];
-            if (!strcmp(bp->m_Path, path.Data()))
+            if (dmStrEq(bp->m_Path, path.Data()))
             {
                 lua_rawgeti(L, -1, bp->m_Line);
                 if (lua_toboolean(L, -1))
@@ -1036,7 +1036,7 @@ namespace dmDebugger
         RefreshSources(d);
         for (uint32_t i = 0; i < d->m_Breakpoints.Size();)
         {
-            if (!strcmp(d->m_Breakpoints[i]->m_Path, path.Data()))
+            if (dmStrEq(d->m_Breakpoints[i]->m_Path, path.Data()))
             {
                 FreeBreakpoint(d->m_Breakpoints[i]);
                 d->m_Breakpoints.EraseSwap(i);
@@ -1071,7 +1071,7 @@ namespace dmDebugger
             bp->m_Line = json.Integer(json.Field(i, "line")) + !d->m_LinesStartAt1;
             bp->m_HitTarget = (uint32_t)target;
             for (uint32_t s = 0; s < d->m_Sources.Size(); ++s)
-                if (!strcmp(d->m_Sources[s]->m_Path, bp->m_Path))
+                if (dmStrEq(d->m_Sources[s]->m_Path, bp->m_Path))
                     bp->m_Verified = HasLine(d->m_Sources[s], bp->m_Line);
             Push(d->m_Breakpoints, bp);
             BreakpointBody(d, bp, body);
@@ -1099,7 +1099,7 @@ namespace dmDebugger
         RefreshSources(d);
         dmArray<int> lines;
         for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
-            if (!strcmp(d->m_Sources[i]->m_Path, path.Data()))
+            if (dmStrEq(d->m_Sources[i]->m_Path, path.Data()))
                 for (uint32_t j = 0; j < d->m_Sources[i]->m_Lines.Size(); ++j)
                 {
                     int line = d->m_Sources[i]->m_Lines[j] - !d->m_LinesStartAt1;
@@ -1137,7 +1137,7 @@ namespace dmDebugger
         const char* command = json.String(json.Field(0, "command"));
         int         seq = json.Integer(json.Field(0, "seq"));
         int         args = json.Field(0, "arguments");
-        if (!command || seq < 0 || strcmp(json.String(json.Field(0, "type"), ""), "request"))
+        if (!command || seq < 0 || !dmStrEq(json.String(json.Field(0, "type"), ""), "request"))
         {
             d->m_ClosePending = true;
             return;
@@ -1147,14 +1147,14 @@ namespace dmDebugger
             Respond(d, seq, command, 0, "Expected arguments object");
             return;
         }
-        if (!strcmp(command, "initialize"))
+        if (dmStrEq(command, "initialize"))
         {
             if (d->m_Initialized)
             {
                 Respond(d, seq, command, 0, "Already initialized");
                 return;
             }
-            if (strcmp(json.String(json.Field(args, "pathFormat"), "path"), "path"))
+            if (!dmStrEq(json.String(json.Field(args, "pathFormat"), "path"), "path"))
             {
                 Respond(d, seq, command, 0, "Only native paths are supported");
                 return;
@@ -1182,7 +1182,7 @@ namespace dmDebugger
             Respond(d, seq, command, 0, "Send initialize first");
             return;
         }
-        if (!strcmp(command, "disconnect"))
+        if (dmStrEq(command, "disconnect"))
         {
             if (json.Boolean(json.Field(args, "terminateDebuggee")))
             {
@@ -1196,7 +1196,7 @@ namespace dmDebugger
             d->m_CloseDeadline = dmTime::GetTime() + 1000000;
             return;
         }
-        if (!strcmp(command, "attach"))
+        if (dmStrEq(command, "attach"))
         {
             if (d->m_Attached)
             {
@@ -1230,7 +1230,7 @@ namespace dmDebugger
             Respond(d, seq, command, 0, "Send attach first");
             return;
         }
-        if (!strcmp(command, "configurationDone"))
+        if (dmStrEq(command, "configurationDone"))
         {
             if (d->m_Configured)
             {
@@ -1242,17 +1242,17 @@ namespace dmDebugger
             Respond(d, d->m_AttachSeq, "attach");
             return;
         }
-        if (!strcmp(command, "setBreakpoints"))
+        if (dmStrEq(command, "setBreakpoints"))
         {
             SetBreakpoints(d, json, seq, args);
             return;
         }
-        if (!strcmp(command, "breakpointLocations"))
+        if (dmStrEq(command, "breakpointLocations"))
         {
             BreakpointLocations(d, json, seq, args);
             return;
         }
-        if (!strcmp(command, "setExceptionBreakpoints"))
+        if (dmStrEq(command, "setExceptionBreakpoints"))
         {
             int filters = json.Field(args, "filters");
             if (json.Get(filters).m_Type != JSON_ARRAY)
@@ -1263,7 +1263,7 @@ namespace dmDebugger
             bool enabled = false;
             for (int i = json.Get(filters).m_First; i >= 0; i = json.Get(i).m_Next)
             {
-                if (strcmp(json.String(i, ""), "uncaught"))
+                if (!dmStrEq(json.String(i, ""), "uncaught"))
                 {
                     Respond(d, seq, command, 0, "Unknown exception filter");
                     return;
@@ -1274,7 +1274,7 @@ namespace dmDebugger
             Respond(d, seq, command);
             return;
         }
-        if (!strcmp(command, "threads"))
+        if (dmStrEq(command, "threads"))
         {
             DiscoverEvaluationThreads(d);
             Buffer body;
@@ -1301,7 +1301,7 @@ namespace dmDebugger
         }
         if (ValueRequest(d, json, command, seq, args))
             return;
-        if (!strcmp(command, "pause") || !strcmp(command, "continue") || !strcmp(command, "next") || !strcmp(command, "stepIn") || !strcmp(command, "stepOut"))
+        if (dmStrEq(command, "pause") || dmStrEq(command, "continue") || dmStrEq(command, "next") || dmStrEq(command, "stepIn") || dmStrEq(command, "stepOut"))
         {
             int id = json.Integer(json.Field(args, "threadId"));
             if (!d->m_Configured || id <= 0 || !FindThread(d, (uint32_t)id))
@@ -1309,7 +1309,7 @@ namespace dmDebugger
                 Respond(d, seq, command, 0, "Invalid thread or session not configured");
                 return;
             }
-            if (!strcmp(command, "pause"))
+            if (dmStrEq(command, "pause"))
             {
                 if (d->m_Paused)
                 {
@@ -1326,22 +1326,22 @@ namespace dmDebugger
                     Respond(d, seq, command, 0, "Lua is running");
                     return;
                 }
-                if (strcmp(command, "continue") && (uint32_t)id != d->m_StoppedThread)
+                if (!dmStrEq(command, "continue") && (uint32_t)id != d->m_StoppedThread)
                 {
                     Respond(d, seq, command, 0, "Step the stopped thread");
                     return;
                 }
                 const char* granularity = json.String(json.Field(args, "granularity"), "line");
-                if (strcmp(granularity, "line") && strcmp(granularity, "statement"))
+                if (!dmStrEq(granularity, "line") && !dmStrEq(granularity, "statement"))
                 {
                     Respond(d, seq, command, 0, "Only line stepping is supported");
                     return;
                 }
                 Buffer body;
                 body.Add("{\"allThreadsContinued\":true}");
-                Respond(d, seq, command, !strcmp(command, "continue") ? &body : 0);
-                Resume(d, !strcmp(command, "next") ? STEP_OVER : !strcmp(command, "stepIn") ? STEP_IN :
-                       !strcmp(command, "stepOut")                                          ? STEP_OUT :
+                Respond(d, seq, command, dmStrEq(command, "continue") ? &body : 0);
+                Resume(d, dmStrEq(command, "next") ? STEP_OVER : dmStrEq(command, "stepIn") ? STEP_IN :
+                       dmStrEq(command, "stepOut")                                          ? STEP_OUT :
                                                                                               STEP_NONE,
                        id);
             }
@@ -1699,7 +1699,7 @@ namespace dmDebugger
                 else if (depth <= d->m_StepDepth)
                 {
                     d->m_StepDepth = depth - 1;
-                    d->m_StepNativeTailCall = depth == 1 && !strcmp(ar->what, "C");
+                    d->m_StepNativeTailCall = depth == 1 && dmStrEq(ar->what, "C");
                 }
             }
             RecordCallSite(thread, L, depth);
@@ -1724,7 +1724,7 @@ namespace dmDebugger
         for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
         {
             Breakpoint* bp = d->m_Breakpoints[i];
-            if (ar->currentline != bp->m_Line || strcmp(path.Data(), bp->m_Path))
+            if (ar->currentline != bp->m_Line || !dmStrEq(path.Data(), bp->m_Path))
                 continue;
             VerifyBreakpoint(d, bp);
             if (bp->m_Condition[0])

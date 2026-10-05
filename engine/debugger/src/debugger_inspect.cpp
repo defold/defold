@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "debugger_private.h"
+#include <dlib/dstrings.h>
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,7 +47,7 @@ namespace dmDebugger
                 return false;
         const char* keywords[] = { "and", "break", "do", "else", "elseif", "end", "false", "for", "function", "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while" };
         for (uint32_t i = 0; i < sizeof(keywords) / sizeof(keywords[0]); ++i)
-            if (!strcmp(name, keywords[i]))
+            if (dmStrEq(name, keywords[i]))
                 return false;
         return true;
     }
