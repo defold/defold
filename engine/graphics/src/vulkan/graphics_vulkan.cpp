@@ -6161,13 +6161,7 @@ bail:
         // Match OpenGLReadPixels: callers receive BGRA regardless of attachment format.
         if (is_rgba)
         {
-            uint8_t* pixels = (uint8_t*) buffer;
-            for (uint32_t i = 0; i < width * height * 4; i += 4)
-            {
-                uint8_t red = pixels[i];
-                pixels[i] = pixels[i + 2];
-                pixels[i + 2] = red;
-            }
+            SwizzleRGBAToBGRA(buffer, width * height);
         }
 
         stage_buffer.UnmapMemory(context->m_LogicalDevice.m_Device);

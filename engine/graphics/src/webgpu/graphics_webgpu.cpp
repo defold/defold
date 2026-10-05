@@ -4091,12 +4091,7 @@ static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t w
 
         if (is_rgba)
         {
-            for (uint32_t i = 0; i < width * height * 4; i += 4)
-            {
-                uint8_t red = pixels[i];
-                pixels[i] = pixels[i + 2];
-                pixels[i + 2] = red;
-            }
+            SwizzleRGBAToBGRA(buffer, width * height);
         }
         wgpuBufferUnmap(staging);
     }

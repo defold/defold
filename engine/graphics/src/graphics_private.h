@@ -136,6 +136,10 @@ namespace dmGraphics
     uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts);
     uint32_t ConformRenderTargetSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts, const char* adapter_name);
 
+    // Convert tightly packed RGBA8 pixels in place to the BGRA8 layout used by ReadPixels.
+    // The caller owns buffer, which must contain at least pixel_count * 4 bytes.
+    void SwizzleRGBAToBGRA(void* buffer, uint32_t pixel_count);
+
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;

@@ -5826,12 +5826,7 @@ namespace dmGraphics
             if (source_texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm ||
                 source_texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm_sRGB)
             {
-                for (uint32_t i = 0; i < dst_row_size * height; i += 4)
-                {
-                    uint8_t red = dst[i];
-                    dst[i] = dst[i + 2];
-                    dst[i + 2] = red;
-                }
+                SwizzleRGBAToBGRA(buffer, width * height);
             }
 
             if (used_frame_command_buffer)
