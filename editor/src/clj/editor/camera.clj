@@ -51,6 +51,8 @@
 
 (declare interpolate-orbit set-camera!)
 
+(def ^:private ^:const align-duration 0.25)
+
 (defn camera-forward-vector
   ^Vector3d [^Camera camera]
   (math/rotate (types/rotation camera)
@@ -115,7 +117,7 @@
         end-camera (frame-camera-to-axis start-camera axis)]
     (when (not= (:type end-camera) :orthographic)
       (g/set-property! camera-node :cached-3d-camera end-camera))
-    (set-camera! camera-node start-camera end-camera animate nil {:interpolate-fn interpolate-orbit :duration 0.25})))
+    (set-camera! camera-node start-camera end-camera animate nil {:interpolate-fn interpolate-orbit :duration align-duration})))
 
 (defn camera-focus-point
   ^Point3d [^Camera camera]
@@ -1015,7 +1017,7 @@
              local-cam (cond-> local-cam
                          (= (:type camera-3d) :perspective)
                          (camera-orthographic->perspective (perspective-fov-y camera-node)))]
-         (set-camera! camera-node local-cam camera-3d animate))
+         (set-camera! camera-node local-cam camera-3d animate nil {:duration align-duration}))
        (let [is-perspective (= (:type local-cam) :perspective)]
          (g/transact
            {:undoable false}
@@ -1024,7 +1026,7 @@
                             is-perspective camera-perspective->orthographic
                             :always camera-orthographic-realign
                             is-perspective (camera-orthographic->perspective (perspective-fov-y camera-node)))]
-           (set-camera! camera-node local-cam end-camera animate #(set-camera-type! camera-node :orthographic))))))))
+           (set-camera! camera-node local-cam end-camera animate #(set-camera-type! camera-node :orthographic) {:duration align-duration})))))))
 
 (defn- contains-key-code? [pressed-keys key-codes] (some #(contains? pressed-keys %) key-codes))
 

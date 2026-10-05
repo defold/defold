@@ -457,6 +457,9 @@
       {:undoable false}
       (g/set-property camera-node-id :local-camera (c/tumble camera dx dy)))))
 
+(defn- camera-animating? [self]
+  (g/node-value (g/node-value self :camera-node-id) :animating))
+
 (defn handle-input [self _input-state action selection-data]
   (let [hits (get selection-data self)
         ;; Handles win over the backdrop behind them.
@@ -484,7 +487,8 @@
                                dy (- last-y (double (:y action)))]
                            ;; Same direction as the camera's own orbit. Huge jumps are stale
                            ;; events from before a warp, so skip them.
-                           (when (< (max (Math/abs dx) (Math/abs dy)) 150.0)
+                           (when (and (< (max (abs dx) (abs dy)) 150.0)
+                                      (not (camera-animating? self)))
                              (tumble-camera! self dx dy))
                            (g/user-data! self ::press (assoc press :dragging true :last-x x :last-y y)))
                          (g/user-data! self ::press (assoc press :dragging false)))
@@ -496,7 +500,9 @@
       :mouse-released (if press
                         (do
                           (g/user-data! self ::press nil)
-                          (when-not (or (:dragging press) (= :backdrop (:handle press)))
+                          (when-not (or (:dragging press)
+                                        (= :backdrop (:handle press))
+                                        (camera-animating? self))
                             (frame-to-axis! self (:handle press)))
                           nil)
                         action)
