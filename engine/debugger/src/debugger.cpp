@@ -1685,7 +1685,7 @@ namespace dmDebugger
             return;
         if (ar->event == LUA_HOOKRET || ar->event == LUA_HOOKTAILRET)
         {
-            if (d->m_Step == STEP_OVER)
+            if (d->m_Step == STEP_OVER || d->m_Step == STEP_OUT)
             {
                 Thread*   thread = TrackThread(d, L);
                 lua_Debug caller;
@@ -1717,18 +1717,20 @@ namespace dmDebugger
         if (ar->event == LUA_HOOKCALL)
         {
             int depth = StackDepth(L);
-            if (d->m_Step == STEP_OVER && d->m_StepThread == thread->m_Id)
+            if ((d->m_Step == STEP_OVER || d->m_Step == STEP_OUT) && d->m_StepThread == thread->m_Id)
             {
                 // LuaJIT omits return hooks for fast native tail calls. A later
                 // call at the root depth means that native invocation has ended;
                 // Lua callbacks invoked inside it still have a deeper stack.
                 if (depth == 1 && d->m_StepNativeTailCall)
                     d->m_Step = STEP_IN;
-                // LuaJIT replaces the caller's frame on a tail call. Keep
-                // stepping over the new invocation until its caller resumes.
+                // LuaJIT replaces the caller's frame on a tail call. Step-over
+                // follows the replacement, while step-out keeps the original
+                // depth until its caller resumes.
                 else if (depth <= d->m_StepDepth)
                 {
-                    d->m_StepDepth = depth - 1;
+                    if (d->m_Step == STEP_OVER)
+                        d->m_StepDepth = depth - 1;
                     d->m_StepNativeTailCall = depth == 1 && dmStrEq(ar->what, "C");
                 }
             }

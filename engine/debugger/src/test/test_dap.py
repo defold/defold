@@ -1669,11 +1669,7 @@ class DAPTests(DAPTestCase):
             self.resume()
         self.finished()
 
-    # Steps over the final line of separate C-invoked engine callbacks, including
-    # ordinary returns, recursive Lua tail calls, and native tail calls that may
-    # invoke Lua. Each next must finish the current callback and stop at the first
-    # line of the following callback.
-    def test_step_over_across_engine_callbacks(self):
+    def check_step_across_engine_callbacks(self, command):
         c = self.start('''
             local calls, completed = 0, 0
             local function tail(n)
@@ -1705,7 +1701,7 @@ class DAPTests(DAPTestCase):
             self.assertEqual(self.evaluate("calls")["result"], str(calls))
             thread = self.thread
             self.breakpoints(*({"line": line} for line in remaining))
-            self.resume("next")
+            self.resume(command)
             frames = self.stopped("step")
             self.assertEqual(self.thread, thread)
             self.assertEqual(len(frames), 1)
@@ -1714,6 +1710,16 @@ class DAPTests(DAPTestCase):
             self.assertEqual(self.evaluate("completed")["result"], str(completed))
             self.resume()
         self.finished()
+
+    # Steps over ordinary returns, recursive Lua tail calls, and native tail
+    # calls without stopping before the following C-invoked callback starts.
+    def test_step_over_across_engine_callbacks(self):
+        self.check_step_across_engine_callbacks("next")
+
+    # Stepping out of a C-invoked callback must stop in the next callback,
+    # including tail calls, rather than leave the step pending indefinitely.
+    def test_step_out_across_engine_callbacks(self):
+        self.check_step_across_engine_callbacks("stepOut")
 
     # Checks that step-in enters a tail-called function and step-out returns to
     # the source line following the original caller's invocation.
