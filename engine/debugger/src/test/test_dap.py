@@ -1045,6 +1045,57 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    def check_stack_frames_without_source(self, start_at_1):
+        c = self.start(r'''
+            local file_co = coroutine.create(function()
+                coroutine.yield() -- yield
+            end)
+            local code = "local value = 1\ncoroutine.yield()\nreturn value"
+            local string_co = coroutine.create(assert(loadstring(code)))
+            local named_co = coroutine.create(assert(loadstring(code, "=generated")))
+            assert(coroutine.resume(file_co))
+            assert(coroutine.resume(string_co))
+            assert(coroutine.resume(named_co))
+            local marker = 0 -- inspect
+        ''')
+        c.initialize(linesStartAt1=start_at_1, columnsStartAt1=start_at_1)
+        c.attach()
+        line_offset = int(not start_at_1)
+        self.breakpoints({"line": self.line("inspect") - line_offset})
+        c.configured()
+        frames = self.stopped()
+        self.assertEqual((frames[0]["line"], frames[0]["column"]),
+                         (self.line("inspect") - line_offset, int(start_at_1)))
+        self.evaluate("repl_co = coroutine.create(function() coroutine.yield() end); "
+                      "assert(coroutine.resume(repl_co))", context="repl")
+        coroutines = [t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"]]
+        self.assertEqual(len(coroutines), 4)
+        without_source = 0
+        for thread in coroutines:
+            frames = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"]
+            self.assertEqual(len(frames), 1)
+            frame = frames[0]
+            if "source" in frame:
+                self.assertEqual(frame["source"]["path"], str(self.path))
+                self.assertEqual((frame["line"], frame["column"]),
+                                 (self.line("yield") - line_offset, int(start_at_1)))
+            else:
+                without_source += 1
+                self.assertEqual((frame["line"], frame["column"]), (0, 0))
+        self.assertEqual(without_source, 3)
+        self.resume()
+        self.finished()
+
+    # Generated and REPL frames without a source must report zero coordinates,
+    # even for one-based clients; file-backed frame coordinates remain unchanged.
+    def test_stack_frames_without_source_use_zero_coordinates(self):
+        self.check_stack_frames_without_source(start_at_1=True)
+
+    # Source-less frames must also use zero coordinates for zero-based clients,
+    # rather than exposing their generated chunk's positive Lua line number.
+    def test_stack_frames_without_source_with_zero_based_client(self):
+        self.check_stack_frames_without_source(start_at_1=False)
+
     # Provides source names, table child counts, and evaluatable paths for
     # representable keys. Hidden bindings and table references whose parent has
     # been reassigned must not expose paths that refer to a different variable.

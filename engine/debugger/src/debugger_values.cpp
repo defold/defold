@@ -1104,8 +1104,9 @@ namespace dmDebugger
                         body.Add(",");
                     body.Format("{\"id\":%u,\"name\":", frame.m_Id);
                     body.String(ar.name ? ar.name : ar.what);
-                    body.Format(",\"line\":%d,\"column\":%d", ar.currentline > 0 ? ar.currentline - !d->m_LinesStartAt1 : 0, d->m_ColumnsStartAt1 ? 1 : 0);
-                    if (ar.source && ar.source[0] == '@')
+                    bool has_source = ar.source && ar.source[0] == '@';
+                    body.Format(",\"line\":%d,\"column\":%d", has_source && ar.currentline > 0 ? ar.currentline - !d->m_LinesStartAt1 : 0, has_source && d->m_ColumnsStartAt1 ? 1 : 0);
+                    if (has_source)
                     {
                         Buffer path;
                         ClientPath(d, ar.source, path);
