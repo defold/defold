@@ -3405,19 +3405,11 @@ bail:
 
         PipelineState pipeline_state_draw = context->m_PipelineState;
 
-        // Offscreen Vulkan rendering uses the opposite effective winding from
-        // OpenGL, so flip the cull side to preserve the existing culling
-        // semantics used by render scripts.
+        // The offscreen viewport reverses winding. Flip the front-face definition
+        // so culling, two-sided stencil and gl_FrontFacing all agree.
         if (current_rt->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
-            {
-                pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
-            }
-            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
-            {
-                pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
-            }
+            pipeline_state_draw.m_FaceWinding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CCW ? FACE_WINDING_CW : FACE_WINDING_CCW;
         }
 
         // Update the viewport

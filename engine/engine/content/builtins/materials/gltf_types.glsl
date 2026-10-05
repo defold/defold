@@ -24,7 +24,7 @@ struct PBRSurface
 {
     vec3 position;
     vec3 normal;
-    vec3 geometricNormal;
+    vec3 geometricNormal; // Interpolated mesh normal before normal mapping.
     vec3 view;
     vec3 worldPosition;
     vec3 worldNormal;
@@ -37,8 +37,9 @@ struct MaterialInfo
 {
     vec4 baseColor;
     vec3 diffuseColor;
-    vec3 f0;
-    vec3 f90;
+    vec3 dielectricF0; // Nonmetal reflectance, kept separate for diffuse energy conservation.
+    vec3 f0;  // Specular reflectance at normal incidence.
+    vec3 f90; // Specular reflectance at grazing angles.
     float metallic;
     float perceptualRoughness;
     float alphaRoughness;

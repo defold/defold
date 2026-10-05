@@ -1,7 +1,7 @@
 #ifndef DEFOLD_PBR_INPUTS
 #define DEFOLD_PBR_INPUTS
 
-// Fragment inputs only. Lighting bindings are supplied by gltf_lights.glsl.
+// Fragment inputs only. Lighting bindings are supplied by lighting.glsl.
 in highp vec4 var_position;
 in mediump vec3 var_normal;
 in mediump vec2 var_texcoord0;

@@ -41,27 +41,33 @@ vec3 apply_skin_normal(mat4 bone_matrix, float weight, vec3 base_normal) {
     return weight * (mat3(bone_matrix) * base_normal);
 }
 
+// Blend once so callers can reuse the matrix for positions, normals and tangents.
+mat4 get_skin_matrix()
+{
+#ifndef EDITOR
+    if (animation_data.y > 0.0)
+    {
+        // Manually unrolled loop for compatibility with WebGL1 and OpenGL ES 2.0.
+        return get_bone_matrix(int(bone_indices.x)) * bone_weights.x
+             + get_bone_matrix(int(bone_indices.y)) * bone_weights.y
+             + get_bone_matrix(int(bone_indices.z)) * bone_weights.z
+             + get_bone_matrix(int(bone_indices.w)) * bone_weights.w;
+    }
+#endif
+    // Editor does not support skinned mesh previews yet.
+    return mat4(1.0);
+}
+
 vec4 get_skinned_position(vec4 local_position)
 {
-#ifdef EDITOR
-    // Editor does not support skinned mesh previews yet
-    return local_position;
-#else
-    vec4 skinned_position = vec4(0.0);
-    if (animation_data.y > 0.0) {
-        vec4 base_pos = vec4(position.xyz, 1.0);
-        // Manually unrolled loop for compatibility with WebGL1 and OpenGL ES 2.0.
-        skinned_position += apply_skin(get_bone_matrix(int(bone_indices.x)), bone_weights.x, base_pos);
-        skinned_position += apply_skin(get_bone_matrix(int(bone_indices.y)), bone_weights.y, base_pos);
-        skinned_position += apply_skin(get_bone_matrix(int(bone_indices.z)), bone_weights.z, base_pos);
-        skinned_position += apply_skin(get_bone_matrix(int(bone_indices.w)), bone_weights.w, base_pos);
-    }
-    else
+#ifndef EDITOR
+    if (animation_data.y > 0.0)
     {
-        skinned_position = position;
+        // Positions have w = 1 while applying bone translation.
+        return get_skin_matrix() * vec4(local_position.xyz, 1.0);
     }
-    return skinned_position;
 #endif
+    return local_position;
 }
 
 vec3 get_skinned_normal(vec3 local_normal)
@@ -69,18 +75,7 @@ vec3 get_skinned_normal(vec3 local_normal)
 #ifdef EDITOR
     return local_normal;
 #else
-    vec3 skinned_normal = vec3(0.0);
-    if (animation_data.y > 0.0) {
-        skinned_normal += apply_skin_normal(get_bone_matrix(int(bone_indices.x)), bone_weights.x, local_normal);
-        skinned_normal += apply_skin_normal(get_bone_matrix(int(bone_indices.y)), bone_weights.y, local_normal);
-        skinned_normal += apply_skin_normal(get_bone_matrix(int(bone_indices.z)), bone_weights.z, local_normal);
-        skinned_normal += apply_skin_normal(get_bone_matrix(int(bone_indices.w)), bone_weights.w, local_normal);
-    }
-    else
-    {
-        skinned_normal = local_normal;
-    }
-    return normalize(skinned_normal);
+    return normalize(mat3(get_skin_matrix()) * local_normal);
 #endif
 }
 #endif

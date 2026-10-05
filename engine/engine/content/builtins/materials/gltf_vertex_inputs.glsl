@@ -6,16 +6,20 @@ in mediump vec3 normal;
 in mediump vec4 tangent;
 in mediump vec4 color;
 in mediump vec2 texcoord0;
+
 #ifdef PBR_SKINNED
 in mediump vec4 bone_weights;
 in mediump vec4 bone_indices;
 #endif
+
 #ifdef PBR_INSTANCED
 in highp mat4 mtx_world;
 in mediump mat4 mtx_normal;
+
 #ifdef PBR_SKINNED
 in highp vec4 animation_data;
 #endif
+
 #endif
 
 out highp vec4 var_position;

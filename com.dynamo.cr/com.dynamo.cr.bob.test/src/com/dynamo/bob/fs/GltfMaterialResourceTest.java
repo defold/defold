@@ -20,14 +20,14 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class GltfMaterialResourceTest {
-    // Verifies imported skinning selects a compatible shader without forcing instancing.
+    // Verifies skinning metadata does not automatically select a different material vertex program.
     @Test
-    public void selectsSkinnedVertexProgram() {
+    public void keepsDefaultVertexProgramForSkinnedMaterial() {
         Modelimporter.Material source = new Modelimporter.Material();
         assertEquals("/builtins/materials/gltf.vp", GltfMaterialResource.createMaterialDesc(source).getVertexProgram());
         source.isSkinned = 1;
         MaterialDesc material = GltfMaterialResource.createMaterialDesc(source);
-        assertEquals("/builtins/materials/gltf_skinned.vp", material.getVertexProgram());
+        assertEquals("/builtins/materials/gltf.vp", material.getVertexProgram());
         assertEquals(4, material.getVertexConstantsCount());
         assertEquals("/builtins/materials/gltf.fp", material.getFragmentProgram());
     }

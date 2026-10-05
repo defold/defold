@@ -1,6 +1,10 @@
 #ifndef DEFOLD_LIGHTING_GLSL
 #define DEFOLD_LIGHTING_GLSL
 
+#ifndef MAX_LIGHT_COUNT
+#define MAX_LIGHT_COUNT 8
+#endif
+
 #define LIGHT_DIRECTIONAL 0
 #define LIGHT_POINT       1
 #define LIGHT_SPOT        2
@@ -35,67 +39,91 @@ uniform LightBuffer
 };
 #endif
 
-vec3 world_to_view_point(vec3 p)
+// Shared bindings and light sampling; no material model or fragment inputs.
+const float LIGHT_EPSILON = 0.00001;
+
+vec3 light_normalize(vec3 direction)
 {
-    return (var_view * vec4(p, 1.0)).xyz;
+    float length_squared = dot(direction, direction);
+    return length_squared > LIGHT_EPSILON * LIGHT_EPSILON ? direction * inversesqrt(length_squared) : vec3(0.0);
 }
 
-vec3 world_to_view_dir(vec3 d)
+vec3 world_to_view_point(vec3 p, mat4 view_matrix)
 {
-    return normalize((var_view * vec4(d, 0.0)).xyz);
+    return (view_matrix * vec4(p, 1.0)).xyz;
+}
+
+vec3 world_to_view_dir(vec3 d, mat4 view_matrix)
+{
+    return light_normalize(mat3(view_matrix) * d);
+}
+
+int light_count()
+{
+    return clamp(int(light_info.w), 0, MAX_LIGHT_COUNT);
 }
 
 vec3 ambient_light()
 {
-     return light_info.xyz;
+    return light_info.xyz;
 }
 
-vec3 diffuse_lambert(int index, vec3 normal, vec3 view_position)
+// Produces a view-space surface-to-light direction and attenuated radiance.
+// Keep the index available to callers for per-light shadow/probe metadata.
+void sample_light(int index, vec3 view_position, mat4 view_matrix,
+                  out vec3 direction, out vec3 radiance)
 {
+    direction = vec3(0.0);
+    radiance = vec3(0.0);
     int type = int(lights[index].params.x);
+    float attenuation = 1.0;
     if (type == LIGHT_DIRECTIONAL)
     {
-        vec3 L = -world_to_view_dir(lights[index].direction_range.xyz);
-        return lights[index].color.rgb * lights[index].params.y * max(dot(normal, L), 0.0);
+        direction = -world_to_view_dir(lights[index].direction_range.xyz, view_matrix);
     }
-    else if (type == LIGHT_POINT)
+    else if (type == LIGHT_POINT || type == LIGHT_SPOT)
     {
-        vec3  to_light = world_to_view_point(lights[index].position.xyz) - view_position;
-        float dist     = length(to_light);
-        float atten    = clamp(1.0 - (dist / lights[index].direction_range.w), 0.0, 1.0);
-        atten *= atten;
-        vec3  L        = normalize(to_light);
-        return lights[index].color.rgb * lights[index].params.y * max(dot(normal, L), 0.0) * atten;
+        vec3 to_light = world_to_view_point(lights[index].position.xyz, view_matrix) - view_position;
+        float distance_to_light = length(to_light);
+        direction = light_normalize(to_light);
+        float range = max(lights[index].direction_range.w, LIGHT_EPSILON);
+        attenuation = clamp(1.0 - distance_to_light / range, 0.0, 1.0);
+        attenuation *= attenuation;
+        if (type == LIGHT_SPOT)
+        {
+            vec3 spot_direction = world_to_view_dir(lights[index].direction_range.xyz, view_matrix);
+            float outer_cos = cos(0.5 * lights[index].params.w);
+            float inner_cos = max(cos(0.5 * lights[index].params.z), outer_cos + LIGHT_EPSILON);
+            attenuation *= smoothstep(outer_cos, inner_cos, dot(-direction, spot_direction));
+        }
     }
-    else if (type == LIGHT_SPOT)
+    else
     {
-        vec3  to_light = world_to_view_point(lights[index].position.xyz) - view_position;
-        float dist     = length(to_light);
-        float atten    = clamp(1.0 - (dist / lights[index].direction_range.w), 0.0, 1.0);
-        atten *= atten;
-        vec3  L         = normalize(to_light);
-        vec3  spot_dir  = world_to_view_dir(lights[index].direction_range.xyz);
-        float inner_cos = cos(0.5 * lights[index].params.z - 0.00001);
-        float outer_cos = cos(0.5 * lights[index].params.w);
-        float spot_i    = smoothstep(outer_cos, inner_cos, dot(-L, spot_dir));
-        return lights[index].color.rgb * lights[index].params.y * max(dot(normal, L), 0.0) * atten * spot_i;
+        return;
     }
-
-    return vec3(0.0);
+    radiance = lights[index].color.rgb * lights[index].params.y * attenuation;
 }
 
-vec3 diffuse_lambert(vec3 view_normal, vec3 view_position)
+vec3 diffuse_lambert(int index, vec3 normal, vec3 view_position, mat4 view_matrix)
+{
+    vec3 direction;
+    vec3 radiance;
+    sample_light(index, view_position, view_matrix, direction, radiance);
+    return radiance * max(dot(normal, direction), 0.0);
+}
+
+vec3 diffuse_lambert(vec3 view_normal, vec3 view_position, mat4 view_matrix)
 {
     vec3 total_light = vec3(0.0);
-    int light_count = min(int(light_info.w), MAX_LIGHT_COUNT);
+    int count = light_count();
 
     for (int i = 0; i < MAX_LIGHT_COUNT; ++i)
     {
-        if (i >= light_count)
+        if (i >= count)
         {
             break;
         }
-        total_light += diffuse_lambert(i, view_normal, view_position);
+        total_light += diffuse_lambert(i, view_normal, view_position, view_matrix);
     }
 
     return total_light;
