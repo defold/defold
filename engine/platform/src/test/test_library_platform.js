@@ -115,7 +115,112 @@ function testLoaderFullscreenToggle() {
     }
 }
 
-for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle]) {
+function loadPointerEnvironment() {
+    const context = loadEnvironment();
+    context.Module.canvas = {
+        width: 100,
+        height: 100,
+        getBoundingClientRect: () => ({ left: 0, top: 0, right: 100, bottom: 100 })
+    };
+    context.Browser = {
+        mouseX: 0,
+        mouseY: 0,
+        calculateMouseEvent(event) {
+            this.mouseX = event.clientX;
+            this.mouseY = event.clientY;
+        },
+        getMouseWheelDelta: () => 1
+    };
+    return context;
+}
+
+function touchEvent(context, changedTouches, touches = changedTouches) {
+    return { target: context.Module.canvas, changedTouches, touches, preventDefault() {} };
+}
+
+function mouseEvent(context, button = 0) {
+    return { target: context.Module.canvas, button, clientX: 70, clientY: 80, preventDefault() {} };
+}
+
+// Verifies primary-touch emulation tracks its origin, ignores secondary touches, and clears the held marker on end and cancellation.
+function testTouchMouseSources() {
+    for (const finish of ["onTouchEnd", "onTouchCancel"]) {
+        const context = loadPointerEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        const platform = context.DefoldPlatform;
+        const primary = { identifier: 1, clientX: 10, clientY: 20 };
+        const secondary = { identifier: 2, clientX: 30, clientY: 40 };
+
+        assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), false);
+        assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), false);
+        platform.onTouchStart(touchEvent(context, [primary]));
+        assert.strictEqual(library.dmNativeGetMouseButton(0), true);
+        assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), true);
+        assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
+
+        platform.onMousemove(mouseEvent(context));
+        assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), true);
+        assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), false);
+        platform.onTouchStart(touchEvent(context, [secondary], [primary, secondary]));
+        platform.onTouchMove(touchEvent(context, [secondary], [primary, secondary]));
+        assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), false);
+
+        primary.clientX = 15;
+        platform.onTouchMove(touchEvent(context, [primary], [primary, secondary]));
+        assert.strictEqual(context.Browser.mouseX, 15);
+        assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
+
+        platform[finish](touchEvent(context, [secondary], [primary]));
+        assert.strictEqual(library.dmNativeGetMouseButton(0), true);
+        assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), true);
+        platform[finish](touchEvent(context, [primary], []));
+        assert.strictEqual(library.dmNativeGetMouseButton(0), false);
+        assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), false);
+
+        platform.onMouseButtonDown(mouseEvent(context));
+        assert.strictEqual(library.dmNativeGetMouseButton(0), true);
+        assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), false);
+        platform.onMouseButtonUp(mouseEvent(context));
+        assert.strictEqual(library.dmNativeGetMouseButton(0), false);
+    }
+}
+
+// Verifies real mouse buttons and movement keep their own origin while a touch-emulated button is held.
+function testMixedTouchAndMouseSources() {
+    const context = loadPointerEnvironment();
+    const library = context.LibraryDefoldPlatform;
+    const platform = context.DefoldPlatform;
+    const primary = { identifier: 1, clientX: 10, clientY: 20 };
+    platform.onTouchStart(touchEvent(context, [primary]));
+    platform.mouseButtonFunc = () => {};
+
+    // DOM right and middle buttons are swapped in the native API.
+    for (const [domButton, nativeButton] of [[2, 1], [1, 2]]) {
+        platform.onMouseButtonDown(mouseEvent(context, domButton));
+        assert.strictEqual(library.dmNativeGetMouseButton(nativeButton), true);
+        assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), true);
+        assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), false);
+        platform.onMouseButtonUp(mouseEvent(context, domButton));
+        assert.strictEqual(library.dmNativeGetMouseButton(nativeButton), false);
+        assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), true);
+    }
+
+    platform.onTouchMove(touchEvent(context, [primary]));
+    platform.onMouseWheel(mouseEvent(context));
+    assert.strictEqual(library.dmNativeGetMouseWheel(), 1);
+    assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), true);
+    assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
+
+    platform.onMouseButtonDown(mouseEvent(context));
+    assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), false);
+    assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), false);
+    platform.onTouchMove(touchEvent(context, [primary]));
+    assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), false);
+    assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
+}
+
+for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
+                   testTouchMouseSources, testMixedTouchAndMouseSources]) {
     try {
         test();
         process.stdout.write(test.name + " passed\n");

@@ -1827,6 +1827,7 @@ bail:
         dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
         dmGameObject::InputAction input_action;
         input_action.m_ActionId = action_id;
+        input_action.m_Source = action->m_Source;
         input_action.m_Value = action->m_Value;
         input_action.m_Pressed = action->m_Pressed;
         input_action.m_Released = action->m_Released;
