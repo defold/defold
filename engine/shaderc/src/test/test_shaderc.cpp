@@ -640,6 +640,8 @@ TEST(Shaderc, TestHLSLSimple)
     free(data);
 }
 
+// Verifies storage-buffer bytecode and SRV/UAV root parameters preserve register spaces
+// and bindings, guarding against omitted buffers and malformed root signatures.
 TEST(Shaderc, HLSLStorageBufferRootSignature)
 {
 #if defined(_WIN32)

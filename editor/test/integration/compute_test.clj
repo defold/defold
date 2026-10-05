@@ -25,6 +25,8 @@
     (let [node-id (test-util/resource-node project "/test.compute")]
       (is (not (g/error? (g/node-value node-id :build-targets)))))))
 
+;; Verifies storage-buffer shaders build in a default project with HLSL on Windows,
+;; guarding against HLSL compilation failures blocking projects without a DX12 manifest.
 (deftest storage-buffer-build-targets
   (test-util/with-temp-project-content
     {"/storage.compute" {:compute-program "/storage.cp"}

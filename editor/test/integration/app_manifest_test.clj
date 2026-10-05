@@ -353,6 +353,8 @@
             (is (= exclude-bullet-script
                    (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt")))))))))
 
+;; Verifies every Windows backend transition updates link inputs and preserves unrelated
+;; settings, guarding against stale backend libraries and symbols.
 (deftest windows-graphics-setting-test
   (let [setting app-manifest/graphics-setting-windows
         selections {:open-gl #{:open-gl}
@@ -404,6 +406,8 @@
                                  [:platforms :x86_64-win32 :context])))
           (is (= manifest (app-manifest/set-setting-value manifest setting to))))))))
 
+;; Verifies legacy Windows Vulkan library names are recognized and removed when selecting
+;; DX12, guarding against stale link inputs after changing backends.
 (deftest windows-graphics-legacy-library-names-test
   (doseq [libs [["libgraphics_vulkan.lib" "platform_vulkan.lib" "vulkan-1.lib"]
                 ["graphics_vulkan" "platform_vulkan" "vulkan-1"]]
@@ -422,6 +426,8 @@
       (is (= ["graphics"] (:excludeLibs context)))
       (is (= ["GraphicsAdapterDX12"] (:symbols context))))))
 
+;; Verifies legacy DX12 system library names normalize to lowercase SDK filenames with
+;; .lib suffixes, guarding against linker failures on case-sensitive build hosts.
 (deftest windows-dx12-system-library-names-test
   (let [setting app-manifest/graphics-setting-windows
         sdk-libs ["d3d12.lib" "dxgi.lib" "d3dcompiler.lib"]
@@ -440,6 +446,8 @@
                (set (get-in normalized [:platforms :x86_64-win32 :context :libs]))))
         (is (= ["custom"] (get-in cleared [:platforms :x86_64-win32 :context :libs])))))))
 
+;; Verifies existing manifests retain their Windows backend selection and all new choices
+;; survive serialization, guarding against editor load/save compatibility regressions.
 (deftest windows-graphics-compatibility-test
   (test-util/with-loaded-project
     (doseq [[filename selection] [["default.appmanifest" :open-gl]

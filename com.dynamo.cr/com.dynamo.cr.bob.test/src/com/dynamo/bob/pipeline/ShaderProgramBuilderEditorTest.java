@@ -129,6 +129,8 @@ public class ShaderProgramBuilderEditorTest {
         assertFalse(result.source.contains("attribute "));
     }
 
+    // Verifies storage-buffer compute shaders produce DX12 bytecode and a root signature,
+    // guarding against omitted buffer bindings and malformed root-signature separators.
     @Test
     public void runtimeDx12CompilesStorageBuffer() throws Exception {
         assumeTrue(Platform.getHostPlatform() == Platform.X86_64Win32);
@@ -144,6 +146,8 @@ public class ShaderProgramBuilderEditorTest {
         assertDx12RuntimeShaders(new ShaderCompilePipeline.ShaderModuleDesc[] { compute }, 1);
     }
 
+    // Verifies both graphics stages produce DX12 bytecode and a root signature even when
+    // supplied in reverse order, guarding against unusable editor-built DX12 shaders.
     @Test
     public void runtimeDx12IncludesBytecodeAndRootSignature() throws Exception {
         assumeTrue(Platform.getHostPlatform() == Platform.X86_64Win32);
@@ -163,6 +167,8 @@ public class ShaderProgramBuilderEditorTest {
         assertDx12RuntimeShaders(new ShaderCompilePipeline.ShaderModuleDesc[] { fragment, vertex }, 2);
     }
 
+    // Verifies compute shaders compile for DX12 with the full editor language list,
+    // guarding against attempts to compile compute shaders for graphics-only languages.
     @Test
     public void runtimeDx12ComputeFiltersGraphicsOnlyLanguages() throws Exception {
         assumeTrue(Platform.getHostPlatform() == Platform.X86_64Win32);
