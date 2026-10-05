@@ -32,6 +32,11 @@ defold_target_link_libraries(debugger "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
 defold_target_link_lua(debugger "${TARGET_PLATFORM}" SCOPE PUBLIC)
 defold_target_link_socket(debugger "${TARGET_PLATFORM}" PUBLIC)
 
+# gui_script.h consumes installed script headers alongside the local headers.
+if(TARGET script_sdk_headers)
+  add_dependencies(debugger script_sdk_headers)
+endif()
+
 defold_install_targets(TARGETS debugger ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
 install(FILES src/debugger.h DESTINATION include/debugger)
 
