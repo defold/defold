@@ -2257,6 +2257,7 @@
       (g/connect axis-gizmo      :input-handler                 view-id         :input-handlers)
       (g/connect axis-gizmo      :renderables                   view-id         :tool-renderables)
       (g/connect camera          :_node-id                      axis-gizmo      :camera-node-id)
+      (g/connect camera          :camera                        axis-gizmo      :camera)
       (g/connect view-id         :scene-aabb                    axis-gizmo      :scene-aabb)
 
       (attach-tool-controller tool-controller-type tool-controller view-id resource-node)

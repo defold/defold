@@ -35,7 +35,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private gizmo-batch-key ::axis-gizmo)
-(def ^:private gizmo-margin 36.0)
+(def ^:private gizmo-margin 21.0)
 (def ^:private gizmo-scale 30.0)
 (def ^:private gizmo-depth (* gizmo-scale 4.0))
 
@@ -417,19 +417,23 @@
       (pick-handles! gl gizmo-args (into {} (map (juxt :selection-data identity)) renderables))
       (draw-handles! gl gizmo-args camera (double (get-in (first renderables) [:user-data :backdrop-alpha] 0.0))))))
 
-(g/defnk produce-renderables [_node-id backdrop-alpha]
-  (let [renderables (coll/into-> (conj axis-order :backdrop) []
-                      (map (fn [selection-data]
-                             {:batch-key gizmo-batch-key
-                              :node-id _node-id
-                              :passes [pass/manipulator pass/manipulator-selection]
-                              :render-fn render-axis-gizmo
-                              :select-batch-key gizmo-batch-key
-                              :selection-data selection-data
-                              :tags #{:axis-gizmo}
-                              :user-data {:backdrop-alpha backdrop-alpha}})))]
-    {pass/manipulator renderables
-     pass/manipulator-selection renderables}))
+(g/defnk produce-renderables [_node-id backdrop-alpha camera]
+  ;; Hidden in 2D, like Unity. The rulers only show in 2D, so the gizmo can
+  ;; sit closer to the corner without overlapping them.
+  (if (c/mode-2d? camera)
+    {}
+    (let [renderables (coll/into-> (conj axis-order :backdrop) []
+                        (map (fn [selection-data]
+                               {:batch-key gizmo-batch-key
+                                :node-id _node-id
+                                :passes [pass/manipulator pass/manipulator-selection]
+                                :render-fn render-axis-gizmo
+                                :select-batch-key gizmo-batch-key
+                                :selection-data selection-data
+                                :tags #{:axis-gizmo}
+                                :user-data {:backdrop-alpha backdrop-alpha}})))]
+      {pass/manipulator renderables
+       pass/manipulator-selection renderables})))
 
 (def ^:private drag-threshold
   "Pixels the cursor must move after pressing on the gizmo before it's a drag."
@@ -489,7 +493,7 @@
                        nil)
                      (do
                        (when (not= handle (g/node-value self :hot-handle))
-                         (g/transact (g/set-property self :hot-handle handle)))
+                         (g/transact {:undoable false} (g/set-property self :hot-handle handle)))
                        action))
       :mouse-released (if press
                         (do
@@ -498,6 +502,10 @@
                             (frame-to-axis! self (:handle press)))
                           nil)
                         action)
+      :mouse-exited (do
+                      (when (g/node-value self :hot-handle)
+                        (g/transact {:undoable false} (g/set-property self :hot-handle nil)))
+                      action)
       action)))
 
 (def ^:private backdrop-fade-seconds 0.15)
@@ -522,6 +530,7 @@
   (property backdrop-alpha g/Num (default 0.0))
 
   (input camera-node-id g/NodeID)
+  (input camera Camera)
   (input scene-aabb AABB)
 
   (output input-handler Runnable :cached (g/constantly handle-input))
