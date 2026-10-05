@@ -72,6 +72,9 @@ namespace dmPlatform
     void SetWindowedSizeFromSettingsNative(HWindow window, int32_t width, int32_t height);
     void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params);
     bool CanSetOpenGLCoreProfileHintNative(bool use_highest_version);
+#if defined(DM_PLATFORM_MACOS)
+    void SetOpenGLWindowColorSpaceNative(HWindow window);
+#endif
 #if defined(_WIN32)
     const char* GetJoystickDeviceGuidNative(HWindow window, uint32_t joystick_index, const char* glfw_guid);
 #endif
