@@ -34,8 +34,8 @@ The curve and band textures contain numeric data. Curve records and band lists
 are kept within texture rows. The effects texture stores glyph images in cells
 and follows the font's cache settings.
 
-The editor's GL 2 preview uses the same curve records, but stores band fields in
-the R and G channels of an `RGBA32F` texture. Its curve and band textures are
+The editor preview uses the same texture formats and shaders as the runtime.
+Its curve and band textures are
 **4096 texels wide**, with each height determined by the occupied rows, up to
 **256 rows**.
 

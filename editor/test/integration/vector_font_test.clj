@@ -14,6 +14,7 @@
 
 (ns integration.vector-font-test
   (:require [clojure.set :as set]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
@@ -207,6 +208,7 @@
 (deftest vector-batch-uploads-numeric-textures-once
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
+          _ (g/set-property! font-node :runtime true)
           font-data (g/valid-node-value font-node :font-data)
           label-node (project/get-resource-node project "/label/test.label")
           [_ view] (test-util/open-scene-view! project app-view "/fonts/vector_preview.go" 512 256)]
@@ -279,6 +281,44 @@
                     (is (identical? initial-buffer buffer))
                     (is (= initial-version version)))
                   (is (= 2 (count (fn/call-logger-calls update-image!))))))
+              (finally
+                (#'scene/dispose-preview view)
+                (test-util/close-tab! project app-view path)))))))))
+
+;; Copied shaders and unsaved fragment edits must render through the selected material in every font view.
+(deftest custom-vector-material-preview
+  (test-util/with-scratch-project "test/resources/test_project"
+    (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
+          label-node (project/get-resource-node project "/label/test.label")
+          builtin-material (project/get-resource-node project "/builtins/fonts/font-vector.material")
+          material-desc (assoc (g/valid-node-value builtin-material :save-value)
+                         :vertex-program "/fonts/custom-vector.vp"
+                         :fragment-program "/fonts/custom-vector.fp")]
+      (doseq [ext ["vp" "fp"]]
+        (test-util/write-file-resource! workspace (str "/fonts/custom-vector." ext)
+                                       (string/split-lines (slurp (workspace/find-resource workspace (str "/builtins/fonts/font-vector." ext))))))
+      (test-util/write-file-resource! workspace "/fonts/custom-vector.material" material-desc)
+      (workspace/resource-sync! workspace)
+      (let [custom-material (workspace/find-resource workspace "/fonts/custom-vector.material")
+            fragment-node (project/get-resource-node project "/fonts/custom-vector.fp")
+            original-lines (test-util/code-editor-lines fragment-node)
+            green-lines (mapv #(string/replace % "var_color.rgb * var_color.a" "vec3(0.0, 1.0, 0.0) * var_color.a") original-lines)]
+        (g/transact
+          [(g/set-property font-node :characters "O")
+           (g/set-property font-node :material custom-material)
+           (g/set-property label-node :font (workspace/find-resource workspace "/fonts/vector_implicit_dynamic.font"))
+           (g/set-property label-node :material custom-material)
+           (g/set-property label-node :font-size 36.0)
+           (g/set-property label-node :text "O")
+           (g/set-property label-node :color [1.0 0.0 1.0 1.0])])
+        (doseq [path ["/fonts/vector_implicit_dynamic.font" "/fonts/vector_preview.go" "/fonts/vector_preview.gui"]]
+          (let [[_ view] (test-util/open-scene-view! project app-view path 512 256)]
+            (try
+              (let [before (count (image-points (g/valid-node-value view :frame) #(= 0x00ff00 %)))]
+                (test-util/set-code-editor-lines! fragment-node green-lines)
+                (is (< (+ before 10) (count (image-points (g/valid-node-value view :frame) #(= 0x00ff00 %)))) path)
+                (test-util/set-code-editor-lines! fragment-node original-lines)
+                (is (= before (count (image-points (g/valid-node-value view :frame) #(= 0x00ff00 %)))) path))
               (finally
                 (#'scene/dispose-preview view)
                 (test-util/close-tab! project app-view path)))))))))

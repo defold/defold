@@ -201,7 +201,6 @@
         blend-mode (get user-data :blend-mode)
         render-pass (:pass render-args)
         vb (gen-vb gl renderables render-args)
-        render-args (font-shader/preview-render-args gl render-args (:vector-textures font-data))
         vcount (count vb)]
     (when (> vcount 0)
       (condp = render-pass
@@ -2244,10 +2243,11 @@
                   font-map (get-in text-data [:font-data :font-map])
                   material-shader (when (not (empty? material)) material-shader)
                   font-shaders (:font-shaders costly-gui-scene-info)
-                  font-shader (or (get-in text-data [:font-data :preview-shader])
-                                  material-shader
+                  font-shader (or material-shader
                                   (get font-shaders font)
                                   (get font-shaders ""))
+                  font-shader (cond-> font-shader
+                                (get-in text-data [:font-data :vector?]) font-shader/with-vector-samplers)
                   font-shader (assoc-in font-shader [:uniforms "texture_size_recip"] (some-> font-map font/get-texture-recip-uniform))]
               ;; The material-shader output is used to propagate the shader
               ;; from the GuiSceneNode to our child nodes. Thus, we cannot

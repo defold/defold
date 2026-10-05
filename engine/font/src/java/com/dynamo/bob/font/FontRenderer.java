@@ -1020,7 +1020,7 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     /**
-     * Returns complete Slug curve (RGBA16F) and band (RGBA32F) texture updates.
+     * Returns complete Slug curve (RGBA16F) and band (R32UI) texture updates.
      * Call generateTexture for every entry in the batch first, then request these
      * textures once. Both textures share the final atlas version; null
      * pixels mean the caller's textures are current. Returned buffers are owned
@@ -1033,7 +1033,7 @@ public final class FontRenderer implements AutoCloseable {
             try {
                 checkResult(FontcGetVectorTextures(requireHandle(), knownAtlasVersion, curves, bands),
                         "Native Vector texture generation failed");
-                return new Texture[] {new Texture(curves, Short.BYTES), new Texture(bands, Float.BYTES)};
+                return new Texture[] {new Texture(curves, Short.BYTES), new Texture(bands, Integer.BYTES)};
             } finally {
                 FontcFreeTexture(curves);
                 FontcFreeTexture(bands);

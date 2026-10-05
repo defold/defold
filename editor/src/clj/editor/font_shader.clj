@@ -15,46 +15,30 @@
 (ns editor.font-shader
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [editor.gl.shader :as shader]
-            [editor.gl.texture :as texture])
-  (:import [com.jogamp.opengl GL3]
-           [com.jogamp.opengl.util.texture Texture]
-           [javax.vecmath Vector4d]))
+            [editor.gl.shader :as shader]))
 
 (set! *warn-on-reflection* true)
-(set! *unchecked-math* :warn-on-boxed)
 
-(defn preview-render-args
-  "Adds the float-atlas adapter's texture sizes after vertex generation has updated the atlases."
-  [^GL3 gl render-args vector-textures]
-  (into render-args
-        (mapv (fn [gpu-texture uniform-key]
-                (let [^Texture tex (texture/->texture gpu-texture gl 0)]
-                  [uniform-key (Vector4d. (/ 1.0 (.getWidth tex)) (/ 1.0 (.getHeight tex)) 0.0 0.0)]))
-              vector-textures
-              [::curve-texture-size-recip ::band-texture-size-recip])))
+(defn with-vector-samplers [material-shader]
+  (update material-shader :uniforms assoc
+          "effect_bitmap" 0
+          "curve_texture" 1
+          "band_texture" 2))
 
-(defn preview-shader-info
-  "Adapts the built-in Slug shader to the editor's floating-point band texture.
-  The fragment source includes its resolved dependencies from the resource graph."
-  [fragment-source picking]
-  (let [preview-directives (str "#version 330\n#define SLUG_LEGACY_GL\n#define highp\n#define mediump\n#define lowp\n#define varying in\n#define texture2D texture\nout vec4 preview_fragColor;\n#define gl_FragColor preview_fragColor\n"
-                                (when picking "#define FONT_VECTOR_PICKING\n"))]
-    ;; Reflect the vertex attributes through Bob. The fragment shader retains its
-    ;; float-atlas adapter and plain uniforms, without passing through the transpiler.
-    (update (shader/read-combined-shader-info ["shaders/font_vector.vp"] {} (comp slurp io/resource))
-            :shader-type+source-pairs conj
-            [:shader-type-fragment (string/replace-first fragment-source
-                                                         #"(?m)^[ \t]*#version[^\r\n]*"
-                                                         preview-directives)])))
-
-(defn make-preview-shader [node-id shader-source-info picking]
-  (let [{:keys [shader-type+source-pairs
+(defn make-selection-shader [node-id shader-source-info]
+  (let [fragment-source (string/replace-first (:shader-source shader-source-info)
+                                              #"(?m)^([ \t]*#version[^\r\n]*)"
+                                              "$1\n#define FONT_VECTOR_PICKING")
+        {:keys [shader-type+source-pairs
                 location+attribute-name-pairs
                 array-sampler-name->slice-sampler-names
                 strip-resource-binding-namespace-regex-str
                 attribute-reflection-infos]}
-        (preview-shader-info (:shader-source shader-source-info) picking)
+        (shader/read-combined-shader-info ["shaders/font_vector.vp" "font_vector.fp"] {}
+                                         (fn [path]
+                                           (if (= "font_vector.fp" path)
+                                             fragment-source
+                                             (slurp (io/resource path)))))
 
         request-data
         (shader/make-shader-request-data
@@ -63,11 +47,7 @@
           array-sampler-name->slice-sampler-names
           strip-resource-binding-namespace-regex-str)]
 
-    (shader/make-shader-lifecycle [node-id :vector picking] request-data attribute-reflection-infos
-                                  {"view_proj" :view-proj
-                                   "id" :id
-                                   "effect_bitmap" 0
-                                   "curve_texture" 1
-                                   "band_texture" 2
-                                   "curve_texture_size_recip" ::curve-texture-size-recip
-                                   "band_texture_size_recip" ::band-texture-size-recip})))
+    (with-vector-samplers
+      (shader/make-shader-lifecycle [node-id :vector-selection] request-data attribute-reflection-infos
+                                    {"view_proj" :view-proj
+                                     "id" :id}))))

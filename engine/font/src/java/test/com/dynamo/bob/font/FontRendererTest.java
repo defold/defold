@@ -460,17 +460,13 @@ public class FontRendererTest {
             assertEquals(2, numeric.length);
             assertEquals(4096, numeric[0].width);
             assertEquals(Short.BYTES, numeric[0].componentSize);
-            assertEquals(Float.BYTES, numeric[1].componentSize);
+            assertEquals(Integer.BYTES, numeric[1].componentSize);
+            assertEquals(4, numeric[0].channels);
+            assertEquals(1, numeric[1].channels);
             assertEquals(4096, numeric[1].width);
             for (FontRenderer.Texture atlas : numeric) {
                 assertEquals(texture.atlasVersion, atlas.atlasVersion);
-                assertEquals(atlas.width * atlas.height * 4 * atlas.componentSize, atlas.pixels.remaining());
-            }
-            // Every band field is an exactly representable uint16, not raster coverage.
-            for (int i = 0; i < numeric[1].pixels.remaining(); i += Float.BYTES) {
-                float field = numeric[1].pixels.getFloat(i);
-                assertTrue(field >= 0 && field <= 65535);
-                assertEquals(field, (float)(int)field, 0.0f);
+                assertEquals(atlas.width * atlas.height * atlas.channels * atlas.componentSize, atlas.pixels.remaining());
             }
             FontRenderer.Texture[] unchanged = renderer.getVectorTextures(texture.atlasVersion);
             assertNull(unchanged[0].pixels);
@@ -493,7 +489,7 @@ public class FontRendererTest {
             assertTrue(grown[1].height > numeric[1].height);
             for (FontRenderer.Texture atlas : grown) {
                 assertEquals(update.atlasVersion, atlas.atlasVersion);
-                assertEquals(atlas.width * atlas.height * 4 * atlas.componentSize, atlas.pixels.remaining());
+                assertEquals(atlas.width * atlas.height * atlas.channels * atlas.componentSize, atlas.pixels.remaining());
             }
             // Repacking the growing atlas must preserve the first text entry.
             renderer.setText("Ag");

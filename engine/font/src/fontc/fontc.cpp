@@ -1741,9 +1741,10 @@ FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known
     curves->m_Width = bands->m_Width = FONT_VECTOR_SLUG_WIDTH;
     curves->m_Height = dmMath::Max(1u, (data.m_Curves.Size() / 4 + FONT_VECTOR_SLUG_WIDTH - 1) / FONT_VECTOR_SLUG_WIDTH);
     bands->m_Height = dmMath::Max(1u, (data.m_Bands.Size() + FONT_VECTOR_SLUG_WIDTH - 1) / FONT_VECTOR_SLUG_WIDTH);
-    curves->m_Channels = bands->m_Channels = 4;
+    curves->m_Channels = 4;
+    bands->m_Channels = 1;
     const uint64_t curve_bytes = (uint64_t)curves->m_Width * curves->m_Height * 4 * sizeof(uint16_t);
-    const uint64_t band_bytes = (uint64_t)bands->m_Width * bands->m_Height * 4 * sizeof(float);
+    const uint64_t band_bytes = (uint64_t)bands->m_Width * bands->m_Height * sizeof(uint32_t);
     if (curve_bytes > UINT32_MAX || band_bytes > UINT32_MAX)
         return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
     curves->m_PixelCount = (uint32_t)curve_bytes;
@@ -1758,14 +1759,8 @@ FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known
     }
     if (!data.m_Curves.Empty())
         memcpy(curves->m_Pixels, data.m_Curves.Begin(), data.m_Curves.Size() * sizeof(uint16_t));
-    // GL 2 has no integer samplers. Each unsigned 16-bit field is represented
-    // exactly by a float32 channel, using the runtime's unchanged band records.
-    float* output = (float*)bands->m_Pixels;
-    for (uint32_t i = 0; i < data.m_Bands.Size(); ++i)
-    {
-        output[i * 4] = (float)(data.m_Bands[i] & 65535u);
-        output[i * 4 + 1] = (float)(data.m_Bands[i] >> 16);
-    }
+    if (!data.m_Bands.Empty())
+        memcpy(bands->m_Pixels, data.m_Bands.Begin(), data.m_Bands.Size() * sizeof(uint32_t));
     return FONT_RENDERER_RESULT_OK;
 }
 

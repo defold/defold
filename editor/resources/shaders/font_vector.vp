@@ -1,3 +1,5 @@
+#version 330
+
 // Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
@@ -12,36 +14,27 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-// Numeric atlas row width in texels, used to decode the linear glyph-header address.
-// Must match FONT_VECTOR_SLUG_WIDTH in engine/font/src/font_vector_slug.h.
-const float SLUG_TEXTURE_WIDTH = 4096.0;
-
-// Highest band index on either axis: eight bands indexed from 0 through 7.
-// Keep this one less than the band count passed by PrepareVectorData() in
-// engine/font/src/fontc/fontc.cpp.
-const float SLUG_BAND_MAX = 7.0;
-
-uniform mat4 view_proj;
-attribute vec4 position;
-attribute vec4 texcoord;
-attribute vec4 effect_params;
-attribute vec4 color;
-varying vec2 var_texcoord;
-varying float var_mode;
-varying vec4 var_color;
-varying vec4 var_banding;
-varying vec4 var_glyph;
-varying float var_curve_count;
+in highp vec4 position;
+in highp vec4 texcoord;
+in highp vec4 effect_params;
+in lowp vec4 color;
+out highp vec2 var_texcoord;
+flat out highp float var_mode;
+out mediump vec4 var_color;
+flat out highp vec4 var_banding;
+flat out highp ivec4 var_glyph;
+flat out highp float var_curve_count;
+uniform vs_uniforms { mat4 view_proj; };
 void main()
 {
-    float header = floor(position.z + 0.5);
+    int header = int(position.z + 0.5);
+    int band_max = 7; // Matches the runtime cache’s eight bands per axis.
     var_texcoord = texcoord.xy;
     var_mode = texcoord.w;
     var_color = color;
     var_banding = effect_params;
-    var_glyph = vec4(mod(header, SLUG_TEXTURE_WIDTH), floor(header / SLUG_TEXTURE_WIDTH),
-                     SLUG_BAND_MAX, SLUG_BAND_MAX);
+    var_glyph = ivec4(header & 4095, header >> 12, band_max, band_max);
     var_curve_count = texcoord.z;
-    // Native vertices keep world Z separate from the numeric glyph address.
+    // World Z is stored separately from the numeric glyph address.
     gl_Position = view_proj * vec4(position.xy, position.w, 1.0);
 }

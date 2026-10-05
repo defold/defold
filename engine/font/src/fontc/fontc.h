@@ -661,8 +661,8 @@ extern "C"
                                                          FontcTexture* texture);
 
     /* Returns Slug numeric textures after FontcGenerateTexture has prepared the
-     * glyphs for all entries in a batch. Curves are RGBA16F; bands are RGBA32F with unpacked uint16 fields
-     * in R/G for GL 2 compatibility. Updates contain complete images, whose
+     * glyphs for all entries in a batch. Curves are RGBA16F; bands are packed R32UI,
+     * matching the runtime texture formats. Updates contain complete images, whose
      * heights grow with the active glyph set. Release both with FontcFreeTexture.
      * The existing atlas version covers all three textures. */
     DM_DLLEXPORT FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known_atlas_version,

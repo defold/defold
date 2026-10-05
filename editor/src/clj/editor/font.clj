@@ -657,7 +657,6 @@
                      :texture  schema/Any
                      :native-renderer-spec schema/Any
                      :vector? schema/Bool
-                     :preview-shader schema/Any
                      (schema/optional-key :vector-textures) schema/Any
                      (schema/optional-key :selection-shader) schema/Any})
 
@@ -829,6 +828,7 @@
   ;; Empty text still retains its native atlas state. Keep the GPU atlas alive
   ;; too, since restoring the text will not upload an unchanged native atlas.
   (texture/->texture (:texture font-data) gl 0)
+  (run! #(texture/->texture % gl 0) (:vector-textures font-data))
   (let [atlas-key (mapv :atlas-key native-entry-states)
         previous-state @atlas-state
         known-atlas-version (:atlas-version previous-state)
@@ -857,7 +857,7 @@
         (dotimes [i 2]
           (let [^FontRenderer$Texture generated (aget generated-textures i)]
             (texture/update-image! (nth (:vector-textures font-data) i) gl (.-pixels generated)
-                                   (if (zero? i) :rgba16f :rgba32f)
+                                   (if (zero? i) :rgba16f :r32ui)
                                    (.-width generated) (.-height generated))))))
     (vreset! atlas-state {:atlas-version atlas-version
                           :atlas-key atlas-key
@@ -961,7 +961,6 @@
                                                :outline (colors/alpha colors/mid-grey 1.0)
                                                :shadow [0.0 0.0 0.0 1.0]}]
                                              render-args)
-        render-args (font-shader/preview-render-args gl render-args (:vector-textures user-data))
         material-shader (:shader user-data)
         vcount (count vertex-buffer)]
     (when (> vcount 0)
@@ -1834,22 +1833,21 @@
               (let [params {:min-filter GL3/GL_NEAREST :mag-filter GL3/GL_NEAREST
                             :wrap-s GL3/GL_CLAMP_TO_EDGE :wrap-t GL3/GL_CLAMP_TO_EDGE}]
                 [(texture/empty-texture [_node-id :curves] :rgba16f 1 1 params 1)
-                 (texture/empty-texture [_node-id :bands] :rgba32f 1 1 params 2)]))))
+                 (texture/empty-texture [_node-id :bands] :r32ui 1 1 params 2)]))))
   (output material-shader ShaderLifecycle :cached
-          (g/fnk [_node-id font vector-font-mode material-shader vector-shader-source-info]
-            (if (vector-font? font vector-font-mode)
-              (font-shader/make-preview-shader _node-id vector-shader-source-info false)
-              material-shader)))
+          (g/fnk [font vector-font-mode material-shader]
+            (if-not (vector-font? font vector-font-mode)
+              material-shader
+              (font-shader/with-vector-samplers material-shader))))
   (output selection-shader g/Any :cached
           (g/fnk [_node-id font vector-font-mode vector-shader-source-info]
             (when (vector-font? font vector-font-mode)
-              (font-shader/make-preview-shader _node-id vector-shader-source-info true))))
+              (font-shader/make-selection-shader _node-id vector-shader-source-info))))
   (output type g/Keyword produce-font-type)
-  (output font-data FontData :cached (g/fnk [font vector-font-mode type gpu-texture vector-textures font-map material-shader selection-shader]
+  (output font-data FontData :cached (g/fnk [font vector-font-mode type gpu-texture vector-textures font-map selection-shader]
                                        {:type type
                                         :texture gpu-texture
                                         :font-map font-map
-                                        :preview-shader (when (vector-font? font vector-font-mode) material-shader)
                                         :vector-textures vector-textures
                                         :selection-shader selection-shader
                                         :native-renderer-spec (:native-renderer-spec font-map)

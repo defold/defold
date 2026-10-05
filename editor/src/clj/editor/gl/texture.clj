@@ -288,7 +288,7 @@
     :rgb  GL3/GL_RGB
     :rgba GL3/GL_RGBA
     :rgba16f GL3/GL_RGBA16F
-    :rgba32f GL3/GL_RGBA32F))
+    :r32ui GL3/GL_R32UI))
 
 (defn- data-format->pixel-format
   ^long [data-format]
@@ -298,7 +298,8 @@
     :bgr  GL3/GL_BGR
     :abgr GL3/GL_RGBA ;; There is no GL_ABGR, so this is swizzled into ABGR by the GL_UNSIGNED_INT_8_8_8_8 type returned by data-format->type.
     :rgb  GL3/GL_RGB
-    (:rgba :rgba16f :rgba32f) GL3/GL_RGBA))
+    (:rgba :rgba16f) GL3/GL_RGBA
+    :r32ui GL3/GL_RED_INTEGER))
 
 (defn- data-format->type
   ^long [data-format]
@@ -310,7 +311,7 @@
     :rgb  GL3/GL_UNSIGNED_BYTE
     :rgba GL3/GL_UNSIGNED_BYTE
     :rgba16f GL3/GL_HALF_FLOAT
-    :rgba32f GL3/GL_FLOAT))
+    :r32ui GL3/GL_UNSIGNED_INT))
 
 (defn- image-type->data-format [^long image-type]
   (condp = image-type
@@ -330,13 +331,13 @@
         pixel-format (data-format->pixel-format data-format)
         type (data-format->type data-format)
         border 0]
-    (if (contains? #{:rgba16f :rgba32f} data-format)
-      ;; JOGL's PixelFormat describes packed image pixels and rejects float
-      ;; channels. Texture uploads use getPixelType, so retain the RGBA channel
-      ;; layout while supplying the numeric type and its actual allocation size.
-      (let [estimated-memory-size (int (* (long width) (long height) 4 (if (= :rgba16f data-format) 2 4)))]
+    (if (contains? #{:rgba16f :r32ui} data-format)
+      ;; JOGL's PixelFormat describes color pixels. Numeric atlases provide
+      ;; their actual channel format, component type, and allocation size.
+      (let [estimated-memory-size (int (* (long width) (long height) (if (= :rgba16f data-format) 8 4)))]
         (proxy [TextureData] [nil internal-format width height border
-                              pixel-format GL3/GL_UNSIGNED_BYTE mipmap false false data nil]
+                              GL3/GL_RGBA GL3/GL_UNSIGNED_BYTE mipmap false false data nil]
+          (getPixelFormat [] pixel-format)
           (getPixelType [] type)
           (getEstimatedMemorySize [] estimated-memory-size)))
       (TextureData. nil internal-format width height border pixel-format type mipmap false false data nil))))

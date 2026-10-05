@@ -107,7 +107,6 @@
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         render-pass (:pass render-args)
         vb (gen-vb gl renderables render-args)
-        render-args (font-shader/preview-render-args gl render-args (:vector-textures font-data))
         vcount (count vb)]
     (when (> vcount 0)
       (condp = render-pass
@@ -179,7 +178,8 @@
   (let [scene {:node-id _node-id
                :aabb aabb}
         font-map (get-in text-data [:font-data :font-map])
-        material-shader (or (get-in text-data [:font-data :preview-shader]) material-shader)
+        material-shader (cond-> material-shader
+                          (get-in text-data [:font-data :vector?]) font-shader/with-vector-samplers)
         texture-recip-uniform (some-> font-map font/get-texture-recip-uniform)
         material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
     (if text-data
