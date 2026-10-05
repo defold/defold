@@ -53,7 +53,7 @@
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.os :as os]
@@ -2550,7 +2550,7 @@
                              :children [{:fx/type fx.region/lifecycle
                                          :style-class "flat-list-doc-background"}
                                         (cond->
-                                          {:fx/type markdown/view
+                                          {:fx/type markdown-view/view
                                            :base-url (:base-url doc)
                                            :event-filter (fn [e]
                                                            (when (instance? KeyEvent e)
@@ -4044,7 +4044,7 @@
           :min-width 10
           :min-height 10
           :style-class "hover-background"}
-         {:fx/type markdown/view
+         {:fx/type markdown-view/view
           :content (->> hover-showing-regions
                         (e/mapcat
                           (fn [region]
