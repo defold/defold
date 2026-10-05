@@ -1565,7 +1565,7 @@
   (doto (BMFont.)
     (.parse input-stream)))
 
-(defn load-bitmap-font-source [{:keys [resolve-resource-fn workspace]} {:keys [owner-resource resource] self :node-id}]
+(defn load-bitmap-font-source [{:keys [resolve-resource-fn]} {:keys [owner-resource resource] self :node-id}]
   (let [[^BMFont bm-font disk-sha256] (resource/read-source-value+sha256-hex resource read-bm-font)]
     (let [;; this weird dance stolen from Fontc.java
           texture-file-name (-> bm-font
@@ -1579,7 +1579,7 @@
       (concat
         (g/set-property self :texture texture-resource)
         (when disk-sha256
-          (workspace/set-disk-sha256 workspace self disk-sha256))))))
+          (resource-node/set-disk-sha256 self disk-sha256))))))
 
 (g/defnode TrueTypeFontSourceNode
   (inherits resource-node/ResourceNode)

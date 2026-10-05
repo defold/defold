@@ -178,7 +178,7 @@
                 (g/node-value node-id :source-value))
              "Source value reflects expected state.")
          (is (= (digest/string->sha256-hex expected-save-text)
-                (get (g/node-value workspace :disk-sha256s-by-node-id) node-id))
+                (g/node-value node-id :disk-sha256))
              "Disk SHA256 reflects expected state."))))
 
 (defn- check-lazy-loaded-save-data! [project proj-path expected-save-text]
@@ -203,7 +203,7 @@
              "Node has been registered as loaded (i.e. it is functional, even if lazy-loading happens later).")
          (is (nil? (g/node-value node-id :source-value))
              "Source value has not been loaded yet.")
-         (is (nil? (get (g/node-value workspace :disk-sha256s-by-node-id) node-id))
+         (is (nil? (g/node-value node-id :disk-sha256))
              "Disk SHA256 has not been loaded yet."))))
 
 (deftest async-reload-test
@@ -403,7 +403,7 @@
                                                    (map (partial gt/endpoint resource-node)
                                                         retained-labels))))
                                        save-datas)))
-                        (let [save-data-sha256s (mapv resource-node/save-data-sha256 save-datas)]
+                        (let [save-data-sha256s (mapv #(resource-node/save-data-sha256 % (g/node-value (:node-id %) :disk-sha256)) save-datas)]
                           (disk/make-post-save-actions save-datas save-data-sha256s invalidate-counters)))]
           (test-util/run-event-loop!
             (fn [exit-event-loop!]
@@ -428,6 +428,45 @@
                       (is (empty? (g/cache)))))
 
                   (exit-event-loop!))))))))))
+
+(deftest referencing-resource-save-cache-test
+  ;; Verifies that saving a script retains the current save cache of an
+  ;; unwritten game object that references it, including edits made after the
+  ;; save snapshot.
+  (doseq [edit-during-save [false true]]
+    (testing (str "Referencing resource edited during save: " edit-during-save)
+      (with-clean-system {:cache-size 50
+                          :cache-retain? project/cache-retain?}
+        (let [workspace (test-util/setup-workspace!)
+              project (test-util/setup-project! workspace)
+              script-node-id (test-util/resource-node project "/script/props.script")
+              game-object-node-id (test-util/resource-node project "/game_object/empty_props.go")
+              save-data-endpoint (g/endpoint game-object-node-id :save-data)
+              save-value-endpoint (g/endpoint game-object-node-id :save-value)]
+          (test-util/set-code-editor-lines! script-node-id
+            (conj (test-util/code-editor-lines script-node-id) "-- Edit before save."))
+
+          (let [written-save-data (g/node-value script-node-id :save-data)
+                post-save-actions (disk/make-post-save-actions
+                                    [written-save-data]
+                                    [(resource-node/save-data-sha256 written-save-data nil)]
+                                    (g/invalidate-counters))]
+            (is (true? (:dirty written-save-data)))
+            (is (false? (:dirty (g/node-value game-object-node-id :save-data))))
+            (when edit-during-save
+              (let [referenced-component-node-id (test-util/outline-node-id game-object-node-id "script")]
+                (test-util/prop! referenced-component-node-id :id "edited-during-save")))
+
+            (let [current-save-data (g/node-value game-object-node-id :save-data)
+                  current-save-value (g/node-value game-object-node-id :save-value)]
+              (is (= edit-during-save (:dirty current-save-data)))
+              (is (= (if edit-during-save "edited-during-save" "script")
+                     (get-in current-save-value [:components 0 :id])))
+              (disk/process-post-save-actions! workspace post-save-actions)
+              (is (= current-save-data (get (g/cache) save-data-endpoint)))
+              (is (= current-save-value (get (g/cache) save-value-endpoint)))
+              (is (= current-save-data (g/node-value game-object-node-id :save-data)))
+              (is (false? (g/node-value script-node-id :dirty))))))))))
 
 (deftest edit-during-save-test
   (with-clean-system {:cache-size 50
@@ -457,7 +496,7 @@
                                      save-datas)))
 
                       ;; Proceed with the save process.
-                      (let [save-data-sha256s (mapv resource-node/save-data-sha256 save-datas)]
+                      (let [save-data-sha256s (mapv #(resource-node/save-data-sha256 % (g/node-value (:node-id %) :disk-sha256)) save-datas)]
                         (disk/make-post-save-actions save-datas save-data-sha256s invalidate-counters)))]
         (test-util/run-event-loop!
           (fn [exit-event-loop!]

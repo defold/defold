@@ -154,15 +154,37 @@
             written-save-datas))))
 
 (defn process-post-save-actions! [workspace post-save-actions]
-  (g/transact
-    {:undoable false}
-    (concat
-      (g/update-property workspace :resource-snapshot resource-watch/update-snapshot-status (:written-file-resource-status-map-entries post-save-actions))
-      (workspace/merge-disk-sha256s workspace (:written-disk-sha256s-by-node-id post-save-actions))))
-  (let [endpoint-invalidated-since-snapshot? (g/endpoint-invalidated-pred (:snapshot-invalidate-counters post-save-actions))]
-    (resource-node/merge-source-values! (:written-source-values-by-node-id post-save-actions))
+  ;; Capture edits made during the save before updating disk baselines, which
+  ;; also invalidate save-data through their ordinary graph dependencies.
+  (let [endpoint-invalidated-since-snapshot? (g/endpoint-invalidated-pred (:snapshot-invalidate-counters post-save-actions))
+        cache-before-disk-state-update (g/cache)
+        written-source-values-by-node-id (:written-source-values-by-node-id post-save-actions)
+
+        {:keys [basis outputs-modified]}
+        (g/transact
+          {:undoable false}
+          [(g/update-property workspace :resource-snapshot resource-watch/update-snapshot-status (:written-file-resource-status-map-entries post-save-actions))
+           (resource-node/merge-disk-sha256s (:written-disk-sha256s-by-node-id post-save-actions))
+           (resource-node/merge-source-values written-source-values-by-node-id)])
+
+        ;; Disk baselines also invalidate property metadata used by referencing
+        ;; resources. Their save-values are unchanged, as are the save-data of
+        ;; files we did not write. Restore retained entries from the current
+        ;; cache, which already accounts for any edits made during the save.
+        unchanged-cache-entries
+        (coll/into-> outputs-modified []
+          (keep (fn [endpoint]
+                  (let [label (g/endpoint-label endpoint)
+                        node-id (g/endpoint-node-id endpoint)]
+                    (when (and (case label
+                                 :save-value true
+                                 :save-data (not (contains? written-source-values-by-node-id node-id))
+                                 false)
+                               (project/cache-retain? basis endpoint))
+                      (find cache-before-disk-state-update endpoint))))))]
+
     (g/cache-output-values!
-      (into []
+      (into unchanged-cache-entries
             (keep (fn [{:keys [node-id] :as save-data}]
                     ;; It's possible the user might have edited a resource
                     ;; while we were saving on a background thread. We need to

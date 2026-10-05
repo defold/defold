@@ -962,39 +962,40 @@
 (declare workspace)
 
 (defn load-nodes! [project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts]
-  (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state node-load-infos)
-        workspace (workspace project)]
-    (resource-node/merge-source-values! node-id+source-value-pairs)
-    (let [{:keys [basis] :as tx-result}
-          (g/transact transact-opts
-            (e/concat
-              prelude-tx-data
-              (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
-              (g/expand-ec
-                (fn [evaluation-context]
-                  (load-nodes-tx-data
-                    (make-load-opts-in-evaluation-context project evaluation-context)
-                    (get-transpiler-tx-data-fn! evaluation-context)
-                    node-load-infos progress/null-render-progress! render-progress! resource-metrics)))
-              (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
+  (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]}
+        (node-load-infos->stored-disk-state node-load-infos)
 
-          migrated-resource-node-ids
-          (into #{}
-                (keep #(resource-node/owner-resource-node-id basis %))
-                (g/migrated-node-ids tx-result))
+        {:keys [basis] :as tx-result}
+        (g/transact transact-opts
+          (e/concat
+            prelude-tx-data
+            (resource-node/merge-disk-sha256s disk-sha256s-by-node-id)
+            (resource-node/merge-source-values node-id+source-value-pairs)
+            (g/expand-ec
+              (fn [evaluation-context]
+                (load-nodes-tx-data
+                  (make-load-opts-in-evaluation-context project evaluation-context)
+                  (get-transpiler-tx-data-fn! evaluation-context)
+                  node-load-infos progress/null-render-progress! render-progress! resource-metrics)))
+            (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
-          migrated-proj-paths
-          (into (sorted-set)
-                (map #(resource/proj-path (resource-node/resource basis %)))
-                migrated-resource-node-ids)]
+        migrated-resource-node-ids
+        (into #{}
+              (keep #(resource-node/owner-resource-node-id basis %))
+              (g/migrated-node-ids tx-result))
 
-      ;; Log any migrated proj-paths.
-      ;; Disabled during tests to minimize log spam.
-      (when (and (pos? (count migrated-proj-paths))
-                 (not (Boolean/getBoolean "defold.tests")))
-        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths))
+        migrated-proj-paths
+        (into (sorted-set)
+              (map #(resource/proj-path (resource-node/resource basis %)))
+              migrated-resource-node-ids)]
 
-      migrated-resource-node-ids)))
+    ;; Log any migrated proj-paths.
+    ;; Disabled during tests to minimize log spam.
+    (when (and (pos? (count migrated-proj-paths))
+               (not (Boolean/getBoolean "defold.tests")))
+      (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths))
+
+    migrated-resource-node-ids))
 
 (defn get-resource-node
   ([project path-or-resource]
@@ -1093,7 +1094,7 @@
       (e/mapcat (fn [[node-id _source-value]]
                   (g/invalidate-output node-id :source-value))
                 node-id+source-value-pairs)
-      (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
+      (resource-node/merge-disk-sha256s disk-sha256s-by-node-id)
       (load-nodes-tx-data load-opts transpiler-tx-data-fn node-load-infos progress/null-render-progress! progress/null-render-progress! nil))))
 
 (defn make-resource-node-tx-data [project node-type node-id resource]
@@ -1636,16 +1637,13 @@
 
 (defn- handle-resource-changes [project changes render-progress!]
   (reload-plugins! project (set/union (set (:added changes)) (set (:changed changes))))
-  (let [[old-nodes-by-path old-node->old-disk-sha256]
-        (g/with-auto-evaluation-context evaluation-context
-          (let [workspace (workspace project evaluation-context)
-                old-nodes-by-path (g/node-value project :nodes-by-resource-path evaluation-context)
-                old-node->old-disk-sha256 (g/node-value workspace :disk-sha256s-by-node-id evaluation-context)]
-            [old-nodes-by-path old-node->old-disk-sha256]))
+  (g/let-ec [basis (g/ec-basis evaluation-context)
+             old-nodes-by-path (g/node-value project :nodes-by-resource-path evaluation-context)
+             old-node->old-disk-sha256 #(g/raw-property-value basis % :disk-sha256)
 
-        resource-change-plan
-        (du/metrics-time "Generate resource change plan"
-          (resource-update/resource-change-plan old-nodes-by-path old-node->old-disk-sha256 changes))]
+             resource-change-plan
+             (du/metrics-time "Generate resource change plan"
+               (resource-update/resource-change-plan old-nodes-by-path old-node->old-disk-sha256 changes))]
 
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
@@ -1838,7 +1836,7 @@
   {:pre [(resource/resource? resource)]}
   (let [loaded-resources (:loaded-resources tx-data-context-map)]
     (if (contains? loaded-resources resource)
-      [tx-data-context-map nil nil]
+      [tx-data-context-map nil]
       (let [workspace (resource/workspace resource)
 
             [tx-data-context-map' read-opts]
@@ -1853,12 +1851,12 @@
             node-load-info (read-node-load-info read-opts node-id resource)
             {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state [node-load-info])
             load-tx-data (e/concat
-                           (e/mapcat (fn [[node-id _source-value]] (g/invalidate-output node-id :source-value)) node-id+source-value-pairs)
-                           (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
+                           (resource-node/merge-disk-sha256s disk-sha256s-by-node-id)
+                           (resource-node/merge-source-values node-id+source-value-pairs)
                            (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn))
             loaded-resources' (conj (or loaded-resources #{}) resource)
             tx-data-context-map' (assoc tx-data-context-map' :loaded-resources loaded-resources')]
-        [tx-data-context-map' node-id+source-value-pairs load-tx-data]))))
+        [tx-data-context-map' load-tx-data]))))
 
 (defn connect-resource-node
   "Creates transaction steps for creating `connections` between the
@@ -1901,12 +1899,8 @@
             (let [transpiler-tx-data-fn (get-transpiler-tx-data-fn! evaluation-context)
                   load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                               (make-load-opts-in-evaluation-context project evaluation-context))
-                  [node-id+source-value-pairs load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded (g/ec-basis evaluation-context) node-id resource transpiler-tx-data-fn load-opts)]
-              (g/merge-evaluation-user-data!
-                evaluation-context
-                (coll/into-> node-id+source-value-pairs {}
-                  (map (fn [[node-id source-value]]
-                         (pair node-id {:source-value source-value})))))
+                  basis (g/ec-basis evaluation-context)
+                  [load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded basis node-id resource transpiler-tx-data-fn load-opts)]
               load-tx-data))]
 
       {:node-id node-id
