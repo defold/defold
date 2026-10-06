@@ -148,5 +148,21 @@ if(AUTOMATION_BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM AND
       RuntimeTest.test_pointer_hold_and_move RuntimeTest.test_drag_holds
       RuntimeTest.test_touch_taps RuntimeTest.test_touch_hold_and_move RuntimeTest.test_touch_cancellation
       RuntimeTest.test_debugger_pause_and_resume RuntimeTest.test_input_sources)
+    _defold_find_python(capture_python)
+    defold_get_graphics_symbols(capture_symbols "${TARGET_PLATFORM}")
+    set(capture_adapters "")
+    foreach(symbol IN LISTS capture_symbols)
+      if(symbol MATCHES "^GraphicsAdapter(Metal|OpenGL|OpenGLES|Vulkan)$")
+        string(TOLOWER "${CMAKE_MATCH_1}" adapter)
+        list(APPEND capture_adapters ${adapter})
+      endif()
+    endforeach()
+    set(AUTOMATION_TEST_CAPTURE_ADAPTERS "${capture_adapters}" CACHE STRING "Graphics adapters required by automation capture tests")
+    foreach(adapter IN LISTS AUTOMATION_TEST_CAPTURE_ADAPTERS)
+      # Known pixels, scene bounds, GUI picking and repeated stencil rendering must agree after readback.
+      automation_add_test(automation_capture_${adapter} dmengine "${capture_python}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_capture.py"
+        --engine "$<TARGET_FILE:dmengine>" --fixture "${AUTOMATION_TEST_FIXTURE}" --adapter "${adapter}")
+    endforeach()
   endif()
 endif()

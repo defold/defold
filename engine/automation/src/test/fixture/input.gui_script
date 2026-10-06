@@ -10,6 +10,28 @@ function init(self)
         return true
     end)
     automation_bridge.command("gui_input_events", function() return self.inputs end)
+    automation_bridge.command("capture_fixture", function()
+        assert(not self.capture_nodes)
+        self.capture_nodes = {}
+        self.capture_picks = {}
+        local function box(name, x, y, w, h, r, g, b)
+            local node = gui.new_box_node(vmath.vector3(x, y, 0), vmath.vector3(w, h, 0))
+            gui.set_id(node, name)
+            gui.set_color(node, vmath.vector4(r / 255, g / 255, b / 255, 1))
+            self.capture_nodes[name] = node
+            return node
+        end
+        box("capture_red", 32, 192, 48, 32, 255, 0, 0)
+        box("capture_green", 256, 168, 64, 48, 0, 255, 0)
+        box("capture_blue", 64, 48, 48, 32, 0, 0, 255)
+        local mask = box("capture_mask", 160, 120, 48, 32, 255, 255, 255)
+        gui.set_clipping_mode(mask, gui.CLIPPING_MODE_STENCIL)
+        gui.set_clipping_visible(mask, false)
+        local fill = box("capture_fill", 0, 0, 96, 64, 223, 96, 32)
+        gui.set_parent(fill, mask)
+        return true
+    end)
+    automation_bridge.command("capture_picks", function() return self.capture_picks end)
 end
 
 function update(self, dt)
@@ -18,4 +40,11 @@ end
 
 function on_input(self, action_id, action)
     if automation_bridge then input_log.record(self, action_id, action) end
+    if self.capture_nodes and action_id == hash("click") and action.pressed then
+        for _, name in ipairs({"capture_red", "capture_green", "capture_blue"}) do
+            if gui.pick_node(self.capture_nodes[name], action.x, action.y) then
+                table.insert(self.capture_picks, name)
+            end
+        end
+    end
 end

@@ -18,7 +18,7 @@ from test_dap import Client as DAPClient
 
 ARGS = None
 
-class RuntimeTest(unittest.TestCase):
+class EngineTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with socket.socket() as reservation:
@@ -28,8 +28,11 @@ class RuntimeTest(unittest.TestCase):
             reservation.bind(('127.0.0.1', 0))
             profiler_port = reservation.getsockname()[1]
         cls.url = f'http://127.0.0.1:{port}/automation-bridge/v3'
-        cls.log = open(Path(ARGS.fixture) / (Path(ARGS.engine).name + '-runtime.log'), 'w+')
-        cls.process = subprocess.Popen([ARGS.engine, f'--config=profiler.remotery_port={profiler_port}', 'build/default/game.projectc'],
+        adapter = getattr(ARGS, 'adapter', None)
+        suffix = '-' + adapter if adapter else ''
+        cls.log = open(Path(ARGS.fixture) / (Path(ARGS.engine).name + suffix + '-runtime.log'), 'w+')
+        graphics_args = ['--graphics-adapter=' + adapter] if adapter else []
+        cls.process = subprocess.Popen([ARGS.engine, f'--config=profiler.remotery_port={profiler_port}', 'build/default/game.projectc'] + graphics_args,
                                      cwd=ARGS.fixture, env=dict(os.environ, DM_SERVICE_PORT=str(port)),
                                      stdout=cls.log, stderr=cls.log)
         cls.runtime = None
@@ -38,6 +41,10 @@ class RuntimeTest(unittest.TestCase):
             if health['identity']['process_id'] != cls.process.pid:
                 raise AssertionError('service belongs to another process')
             cls.runtime = health['engine_instance_id']
+            if adapter:
+                installed = "Installed graphics device 'ADAPTER_FAMILY_" + adapter.upper() + "'"
+                if installed not in Path(cls.log.name).read_text():
+                    raise AssertionError('requested graphics adapter was not installed: ' + adapter)
         except BaseException:
             cls.tearDownClass()
             raise
@@ -113,6 +120,8 @@ class RuntimeTest(unittest.TestCase):
         frame = self.request('/frame')[1]['data']['engine_frame']
         self.until(lambda: self.request('/frame')[1]['data']['engine_frame'] >= frame + count)
 
+
+class RuntimeTest(EngineTest):
     # Reload notifications invalidate only affected lifetimes without per-instance version storage.
     def test_hot_reload_identity_and_owner_cleanup(self):
         def element_ids():
@@ -649,6 +658,7 @@ class RuntimeTest(unittest.TestCase):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--engine', required=True)
+    parser.add_argument('--adapter')
     parser.add_argument('--extension', action='store_true')
     parser.add_argument('--fixture', required=True)
     ARGS, remaining = parser.parse_known_args()

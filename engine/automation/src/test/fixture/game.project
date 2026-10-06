@@ -13,3 +13,7 @@ game_binding = /test.input_bindingc
 width = 320
 height = 240
 update_frequency = 60
+
+[shader]
+output_spirv = 1
+output_glsl = 1

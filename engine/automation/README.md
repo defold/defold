@@ -186,6 +186,18 @@ hosts with a display, or `OFF` for a headless build host. These checks verify
 mouse holds and touch lifecycle through the game's input callbacks. The
 headless runtime suite always runs on supported host desktop builds.
 
+Native checks also register `automation_capture_<adapter>` for linked Metal,
+OpenGL/OpenGL ES, and Vulkan adapters. Override the required matrix with
+`-DAUTOMATION_TEST_CAPTURE_ADAPTERS="metal;opengl;vulkan"`; requesting an adapter
+that cannot run fails the check. Enable matching engine adapters with
+`WITH_OPENGL` and `WITH_VULKAN` as needed. The fixture includes their shader
+variants. Capture tests use the same Python/Pillow environment and likeness
+metric as the graphics tests. They compare independently specified colors and
+stencil clipping, verify scene bounds and coordinate conversion against GUI
+picking, and require identical pixels across three successive readbacks.
+Actual, expected, and difference PNGs plus `results.json` remain under the
+staged fixture's `capture-<adapter>` directory, including failed comparisons.
+
 The fixtures use stock and unrelated-extension headless engines, real HTTP,
 completion polling, owner deletion/recreation, reboot, malformed input, FIFO
 delivery, immutable pagination, and a legacy-extension rejection binary. Release
