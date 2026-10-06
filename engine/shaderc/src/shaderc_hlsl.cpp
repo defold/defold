@@ -864,12 +864,23 @@ namespace dmShaderc
         }
     }
 
+    static bool IsHLSLShaderResourceView(D3D_SHADER_INPUT_TYPE type)
+    {
+        return type == D3D_SIT_TBUFFER || type == D3D_SIT_TEXTURE ||
+               type == D3D_SIT_STRUCTURED || type == D3D_SIT_BYTEADDRESS;
+    }
+
+    static bool IsHLSLUnorderedAccessView(D3D_SHADER_INPUT_TYPE type)
+    {
+        return type == D3D_SIT_UAV_RWTYPED || type == D3D_SIT_UAV_RWSTRUCTURED ||
+               type == D3D_SIT_UAV_RWBYTEADDRESS || type == D3D_SIT_UAV_APPEND_STRUCTURED ||
+               type == D3D_SIT_UAV_CONSUME_STRUCTURED || type == D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER;
+    }
+
     static bool IsSupportedRootSignatureResourceType(D3D_SHADER_INPUT_TYPE type)
     {
-        return type == D3D_SIT_CBUFFER ||
-               type == D3D_SIT_TEXTURE ||
-               type == D3D_SIT_SAMPLER ||
-               type == D3D_SIT_UAV_RWTYPED;
+        return type == D3D_SIT_CBUFFER || type == D3D_SIT_SAMPLER ||
+               IsHLSLShaderResourceView(type) || IsHLSLUnorderedAccessView(type);
     }
 
     static bool SerializeRootSignatureFromReflection(ID3D12ShaderReflection* reflection, const D3D12_SHADER_DESC* shader_desc, ShaderStage stage, dmArray<uint8_t>& out_root_signature)
@@ -915,7 +926,10 @@ namespace dmShaderc
                     param.Descriptor.ShaderRegister = bind_desc.BindPoint;
                     param.Descriptor.RegisterSpace = bind_desc.Space;
                     break;
+                case D3D_SIT_TBUFFER:
                 case D3D_SIT_TEXTURE:
+                case D3D_SIT_STRUCTURED:
+                case D3D_SIT_BYTEADDRESS:
                     ranges[parameter_index].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
                     ranges[parameter_index].NumDescriptors = 1;
                     ranges[parameter_index].BaseShaderRegister = bind_desc.BindPoint;
@@ -936,6 +950,11 @@ namespace dmShaderc
                     param.DescriptorTable.pDescriptorRanges = &ranges[parameter_index];
                     break;
                 case D3D_SIT_UAV_RWTYPED:
+                case D3D_SIT_UAV_RWSTRUCTURED:
+                case D3D_SIT_UAV_RWBYTEADDRESS:
+                case D3D_SIT_UAV_APPEND_STRUCTURED:
+                case D3D_SIT_UAV_CONSUME_STRUCTURED:
+                case D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER:
                     ranges[parameter_index].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
                     ranges[parameter_index].NumDescriptors = 1;
                     ranges[parameter_index].BaseShaderRegister = bind_desc.BindPoint;
@@ -1385,9 +1404,9 @@ namespace dmShaderc
                     continue;
                 const D3D12_DESCRIPTOR_RANGE& range = param.DescriptorTable.pDescriptorRanges[0];
                 const bool matching_type =
-                    (binding.Type == D3D_SIT_TEXTURE && range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SRV) ||
+                    (IsHLSLShaderResourceView(binding.Type) && range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SRV) ||
                     (binding.Type == D3D_SIT_SAMPLER && range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER) ||
-                    (binding.Type == D3D_SIT_UAV_RWTYPED && range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_UAV) ||
+                    (IsHLSLUnorderedAccessView(binding.Type) && range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_UAV) ||
                     (binding.Type == D3D_SIT_CBUFFER && range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_CBV);
                 if (matching_type && range.BaseShaderRegister == binding.BindPoint && range.RegisterSpace == binding.Space)
                     break;

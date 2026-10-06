@@ -697,6 +697,52 @@ TEST(Shaderc, HLSLStorageBufferRootSignature)
 #endif
 }
 
+
+// Verifies SRV/UAV storage-buffer mappings follow an overridden root-signature order,
+// guarding against missing buffer type matching and reflection-order root indices.
+TEST(Shaderc, HLSLStorageBufferRootParameterIndicesWithOverride)
+{
+#if defined(_WIN32)
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/storage_buffers.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    options.m_RootSignatureOverride = "[RootSignature(\"DescriptorTable(UAV(u3,space=1)),DescriptorTable(SRV(t2,space=1))\")]";
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_STREQ("", result->m_LastError);
+    ASSERT_EQ(2u, result->m_HLSLResourceMappings.Size());
+    bool has_srv = false;
+    bool has_uav = false;
+    for (uint32_t i = 0; i < result->m_HLSLResourceMappings.Size(); ++i)
+    {
+        const dmShaderc::HLSLResourceMapping& mapping = result->m_HLSLResourceMappings[i];
+        ASSERT_EQ(1u, mapping.m_ShaderResourceSet);
+        if (mapping.m_ShaderResourceBinding == 2)
+        {
+            ASSERT_EQ(1u, mapping.m_RootParameterIndex);
+            has_srv = true;
+        }
+        else if (mapping.m_ShaderResourceBinding == 3)
+        {
+            ASSERT_EQ(0u, mapping.m_RootParameterIndex);
+            has_uav = true;
+        }
+    }
+    ASSERT_TRUE(has_srv);
+    ASSERT_TRUE(has_uav);
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+#endif
+}
+
 static bool BufferContains(const uint8_t* data, uint32_t data_size, const char* text)
 {
     const uint32_t text_size = (uint32_t) strlen(text);
@@ -740,6 +786,7 @@ TEST(Shaderc, TestHLSLStorageBuffersUseByteAddressResources)
 }
 
 #if defined(_WIN32)
+// Verifies readonly storage buffers retain their set, binding and root parameter index.
 TEST(Shaderc, TestHLSLStorageBufferResourceMapping)
 {
     uint32_t data_size;
@@ -759,6 +806,7 @@ TEST(Shaderc, TestHLSLStorageBufferResourceMapping)
     ASSERT_EQ(1, result->m_HLSLResourceMappings.Size());
     ASSERT_EQ(2, result->m_HLSLResourceMappings[0].m_ShaderResourceSet);
     ASSERT_EQ(3, result->m_HLSLResourceMappings[0].m_ShaderResourceBinding);
+    ASSERT_EQ(0u, result->m_HLSLResourceMappings[0].m_RootParameterIndex);
     ASSERT_GT(result->m_HLSLRootSignature.Size(), 0u);
 
     dmShaderc::FreeShaderCompileResult(result);
