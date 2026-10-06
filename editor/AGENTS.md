@@ -10,4 +10,4 @@ For new or modified Clojure code, apply the [clojure-code-style](.codex/skills/c
 
 ## Tests
 
-- Put a comment inside each test body, stating what it verifies and the regression it guards against, if any.
+- Put a comment immediately above each new test declaration, outside the test body, stating what it verifies and the regression it guards against, if any.
