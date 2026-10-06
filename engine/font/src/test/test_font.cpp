@@ -1759,19 +1759,38 @@ TEST_F(FontTest, LayoutWhitespaceMetrics)
     const struct
     {
         const char* m_Text;
+        const char* m_MarkupText;
         const char* m_BaseText;
         uint32_t    m_SpaceCount;
-        const char* m_MarkupText;
     } cases[] = {
-        { "",             "",         0, "<color=#ff0000></color>" },
-        { " ",            "",         1, "<color=#ff0000> </color>" },
-        { "   ",          "",         3, "<color=#ff0000> </color> <color=#00ff00> </color>" },
-        { "Trailing ",    "Trailing", 1, "<color=#ff0000>Trailing </color>" },
-        { "Trailing   ",  "Trailing", 3, "Trailing<color=#ff0000> </color><color=#00ff00>  </color>" },
-        { " Leading",     "Leading",  1, "<color=#ff0000> </color>Leading" },
-        { "   Leading",   "Leading",  3, "<color=#ff0000>  </color> Leading" },
-        { " Both ",       "Both",     2, "<color=#ff0000> </color>Both<color=#00ff00> </color>" },
-        { "120 ",         "120",      1, "<color=#ff0000>120</color> " },
+        // Plain and markup inputs, then expected base text and space count.
+        { "",
+          "<color=#ff0000></color>",
+          "", 0 },
+        { " ",
+          "<color=#ff0000> </color>",
+          "", 1 },
+        { "   ",
+          "<color=#ff0000> </color> <color=#00ff00> </color>",
+          "", 3 },
+        { "Trailing ",
+          "<color=#ff0000>Trailing </color>",
+          "Trailing", 1 },
+        { "Trailing   ",
+          "Trailing<color=#ff0000> </color><color=#00ff00>  </color>",
+          "Trailing", 3 },
+        { " Leading",
+          "<color=#ff0000> </color>Leading",
+          "Leading", 1 },
+        { "   Leading",
+          "<color=#ff0000>  </color> Leading",
+          "Leading", 3 },
+        { " Both ",
+          "<color=#ff0000> </color>Both<color=#00ff00> </color>",
+          "Both", 2 },
+        { "120 ",
+          "<color=#ff0000>120</color> ",
+          "120", 1 },
     };
 
     TextLayoutSettings settings = {};
@@ -1839,11 +1858,17 @@ TEST_F(FontTest, LayoutMarkupWhitespaceFontSize)
         float       m_BaseSize;
         uint32_t    m_SpaceCount;
     } cases[] = {
-        { "<size=28> </size>",              "",         14.0f, 1 },
-        { "<size=28>   </size>",            "",         14.0f, 3 },
-        { "Trailing<size=28> </size>",      "Trailing", 14.0f, 1 },
-        { "<size=28> </size>Leading",        "Leading",  14.0f, 1 },
-        { "<size=28>Trailing </size>",       "Trailing", 28.0f, 1 },
+        // Markup input, then expected base text, base size and space count.
+        { "<size=28> </size>",
+          "", 14.0f, 1 },
+        { "<size=28>   </size>",
+          "", 14.0f, 3 },
+        { "Trailing<size=28> </size>",
+          "Trailing", 14.0f, 1 },
+        { "<size=28> </size>Leading",
+          "Leading", 14.0f, 1 },
+        { "<size=28>Trailing </size>",
+          "Trailing", 28.0f, 1 },
     };
 
     TextLayoutSettings settings = {};
@@ -2142,6 +2167,182 @@ TEST_F(FontTest, LayoutExplicitLineBreaks)
 
     TextLayoutRelease(layout);
 }
+
+// Verifies explicit separators add no width while real trailing spaces remain in both layouts (#13375).
+TEST_F(FontTest, LayoutExplicitLineBreakMetrics)
+{
+    const struct
+    {
+        const char* m_Text;
+        const char* m_ExpectedText;
+        uint32_t    m_ExpectedLineCount;
+    } cases[] = {
+        // Input, then the single-line width reference and expected line count.
+        { "XX",
+          "XX", 1 },
+        { "XX\nA",
+          "XX", 2 },
+        { "A\nXX",
+          "XX", 2 },
+        { "A\nXX\nA",
+          "XX", 3 },
+        { "XX\r\nA",
+          "XX", 2 },
+        { "XX\n\nA",
+          "XX", 3 },
+        { "XX\r\n\r\nA",
+          "XX", 3 },
+        { "XX\nA\n",
+          "XX", 2 },
+        { "XX \nA",
+          "XX ", 2 },
+        { "XX   \r\nA",
+          "XX   ", 2 },
+        { "A\nXX \nA",
+          "XX ", 3 },
+        { "XX \n\nA",
+          "XX ", 3 },
+        { "A\nXX ",
+          "XX ", 2 },
+        { "XX \nA\n",
+          "XX ", 2 },
+    };
+    const float tracking[] = { 0.0f, 0.25f, -0.05f };
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+
+    dmArray<uint32_t> codepoints;
+    for (uint32_t t = 0; t < DM_ARRAY_SIZE(tracking); ++t)
+    {
+        settings.m_Tracking = tracking[t];
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+        {
+            TextToCodePoints(cases[i].m_ExpectedText, codepoints);
+            HTextLayout reference = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &reference));
+            float reference_width, reference_height;
+            TextLayoutGetBounds(reference, &reference_width, &reference_height);
+            TextLayoutRelease(reference);
+
+            TextToCodePoints(cases[i].m_Text, codepoints);
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
+            float width, height;
+            TextLayoutGetBounds(layout, &width, &height);
+            printf("Explicit break case %u, tracking %g: width %.6f, expected %.6f\n", i, tracking[t], width, reference_width);
+            EXPECT_NEAR(reference_width, width, 0.0001f);
+            EXPECT_NEAR(reference_height * cases[i].m_ExpectedLineCount, height, 0.0001f);
+            EXPECT_EQ(cases[i].m_ExpectedLineCount, layout->m_Lines.Size());
+            for (uint32_t l = 0; l < layout->m_Lines.Size(); ++l)
+            {
+                EXPECT_GE(layout->m_Lines[l].m_Width, 0.0f);
+                EXPECT_LE(layout->m_Lines[l].m_Width, reference_width + 0.0001f);
+                if (layout->m_Lines[l].m_Length == 0)
+                    EXPECT_EQ(0.0f, layout->m_Lines[l].m_Width);
+            }
+            TextLayoutRelease(layout);
+        }
+    }
+}
+
+// Verifies CRLF has the same metrics as LF, including spaces before a wrapped break (#13375).
+TEST_F(FontTest, LayoutCRLFMetrics)
+{
+    const struct
+    {
+        const char* m_Text;
+        const char* m_ExpectedText;
+        uint32_t    m_ExpectedLineCount;
+    } cases[] = {
+        { "XX\r\nA",
+          "XX\nA", 2 },
+        { "XX \r\nA",
+          "XX \nA", 2 },
+        { "XX   \r\nA",
+          "XX   \nA", 2 },
+        { "XX\r\n\r\nA",
+          "XX\n\nA", 3 },
+        { "XX \r\nA\r\n",
+          "XX \nA\n", 2 },
+        { " \r\nA",
+          " \nA", 2 },
+    };
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Width = 1000.0f;
+    dmArray<uint32_t> codepoints;
+
+    for (uint32_t wrap = 0; wrap < 2; ++wrap)
+    {
+        settings.m_LineBreak = wrap != 0;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+        {
+            TextToCodePoints(cases[i].m_ExpectedText, codepoints);
+            HTextLayout reference = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &reference));
+            float expected_width, expected_height;
+            TextLayoutGetBounds(reference, &expected_width, &expected_height);
+            TextLayoutRelease(reference);
+
+            TextToCodePoints(cases[i].m_Text, codepoints);
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
+            float width, height;
+            TextLayoutGetBounds(layout, &width, &height);
+            printf("CRLF case %u, wrap %u: width %.6f, expected %.6f\n", i, wrap, width, expected_width);
+            EXPECT_NEAR(expected_width, width, 0.0001f);
+            EXPECT_NEAR(expected_height, height, 0.0001f);
+            EXPECT_EQ(cases[i].m_ExpectedLineCount, layout->m_Lines.Size());
+            TextLayoutRelease(layout);
+        }
+    }
+}
+
+#if defined(FONT_USE_SKRIBIDI)
+// Verifies negative tracking advances cannot become positive widths in full layout (#13375).
+TEST_F(FontTest, LayoutNegativeTrackingMetrics)
+{
+    const struct
+    {
+        const char* m_Text;
+        float       m_ExpectedWidth;
+    } cases[] = {
+        { "A",
+          0.0f },
+        { "AA",
+          0.0f },
+        { "A A",
+          0.0f },
+        { "   ",
+          0.0f },
+        { "XX\nA",
+          0.0f },
+        { "XX\nA\n",
+          0.0f },
+    };
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+    // -14 pixels of tracking makes every advance in this fixture negative.
+    settings.m_Tracking = -1.0f;
+    dmArray<uint32_t> codepoints;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        TextToCodePoints(cases[i].m_Text, codepoints);
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
+        float width, height;
+        TextLayoutGetBounds(layout, &width, &height);
+        EXPECT_EQ(cases[i].m_ExpectedWidth, width);
+        TextLayoutRelease(layout);
+    }
+}
+#endif
 
 TEST_F(FontTest, LayoutExplicitDoubleLineBreaks)
 {

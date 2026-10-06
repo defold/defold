@@ -1907,20 +1907,47 @@ TEST_F(dmRenderTest, GetTextMetricsWhitespace)
     const struct
     {
         const char* m_Text;
-        float       m_Width;
+        float       m_ExpectedWidth;
+        float       m_ExpectedHeight;
+        uint32_t    m_ExpectedLineCount;
     } cases[] = {
-        { "",              0.0f },
-        { " ",             2.0f },
-        { "   ",           6.0f },
-        { "Trailing",     16.0f },
-        { "Trailing ",    18.0f },
-        { "Trailing   ",  22.0f },
-        { "Leading",      14.0f },
-        { " Leading",     16.0f },
-        { "   Leading",   20.0f },
-        { " Both ",       12.0f },
-        { "120",           6.0f },
-        { "120 ",          8.0f },
+        // Input, then expected width, height and line count.
+        { "",
+          0.0f, 0.0f, 0 },
+        { " ",
+          2.0f, 3.0f, 1 },
+        { "   ",
+          6.0f, 3.0f, 1 },
+        { "Trailing",
+          16.0f, 3.0f, 1 },
+        { "Trailing ",
+          18.0f, 3.0f, 1 },
+        { "Trailing   ",
+          22.0f, 3.0f, 1 },
+        { "Leading",
+          14.0f, 3.0f, 1 },
+        { " Leading",
+          16.0f, 3.0f, 1 },
+        { "   Leading",
+          20.0f, 3.0f, 1 },
+        { " Both ",
+          12.0f, 3.0f, 1 },
+        { "120",
+          6.0f, 3.0f, 1 },
+        { "120 ",
+          8.0f, 3.0f, 1 },
+        { "XX",
+          4.0f, 3.0f, 1 },
+        { "XX ",
+          6.0f, 3.0f, 1 },
+        { "A\nXX\nA",
+          4.0f, 9.0f, 3 },
+        { "XX\nA\n",
+          4.0f, 6.0f, 2 },
+        { "A\nXX \nA",
+          6.0f, 9.0f, 3 },
+        { "XX \nA\n",
+          6.0f, 6.0f, 2 },
     };
 
     TextLayoutSettings settings = {};
@@ -1929,10 +1956,10 @@ TEST_F(dmRenderTest, GetTextMetricsWhitespace)
     {
         dmRender::TextMetrics metrics = {};
         GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics);
-        printf("Text metrics for '%s': width %g, expected %g\n", cases[i].m_Text, metrics.m_Width, cases[i].m_Width);
-        EXPECT_EQ(cases[i].m_Width, metrics.m_Width);
-        EXPECT_EQ(i == 0 ? 0.0f : 3.0f, metrics.m_Height);
-        EXPECT_EQ(i == 0 ? 0u : 1u, metrics.m_LineCount);
+        printf("Text metrics for '%s': width %g, expected %g\n", cases[i].m_Text, metrics.m_Width, cases[i].m_ExpectedWidth);
+        EXPECT_EQ(cases[i].m_ExpectedWidth, metrics.m_Width);
+        EXPECT_EQ(cases[i].m_ExpectedHeight, metrics.m_Height);
+        EXPECT_EQ(cases[i].m_ExpectedLineCount, metrics.m_LineCount);
         EXPECT_EQ(2.0f, metrics.m_MaxAscent);
         EXPECT_EQ(1.0f, metrics.m_MaxDescent);
     }
