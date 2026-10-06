@@ -4319,7 +4319,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             return;
 
         RenderTarget* brt = &rt->m_Base;
-        if (context->m_CurrentRenderTarget == render_target && brt->m_IsBound)
+        const bool was_bound = context->m_CurrentRenderTarget == render_target && brt->m_IsBound;
+        if (was_bound)
         {
             EndRenderPass(context);
         }
@@ -4530,6 +4531,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         rt->m_Scissor.bottom = (LONG) height;
 
         context->m_ViewportChanged = 1;
+        if (was_bound)
+            BeginRenderPass(context, render_target);
     }
 
     static uint32_t DX12GetMaxTextureSize(HContext context)

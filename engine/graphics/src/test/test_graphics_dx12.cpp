@@ -202,6 +202,7 @@ class DX12Test : public jc_test_base_class
     }
 };
 
+// Verifies array-layer uploads and partial RGB conversion preserve untouched pixels.
 TEST_F(DX12Test, ArrayUploadsAndPartialRGBUpdates)
 {
     HTexture texture = Texture(TEXTURE_TYPE_2D_ARRAY, 8, 8, 20, 3);
@@ -251,6 +252,7 @@ TEST_F(DX12Test, ArrayUploadsAndPartialRGBUpdates)
     TransitionTexture(m_Context->m_CommandList, TextureData(texture), (D3D12_RESOURCE_STATES)(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
 }
 
+// Verifies maximum array layers and cubemap mip uploads use the correct subresources.
 TEST_F(DX12Test, MaximumArrayLayersAndCubemapMips)
 {
     HTexture             array = Texture(TEXTURE_TYPE_2D_ARRAY, 1, 1, 2048, 1);
@@ -278,6 +280,7 @@ TEST_F(DX12Test, MaximumArrayLayersAndCubemapMips)
     ASSERT_EQ(33, ReadTexture(cube, 3, 5)[0]);
 }
 
+// Verifies compressed array updates preserve blocks outside the updated region.
 TEST_F(DX12Test, CompressedArraySubUpdatePreservesOtherBlocks)
 {
     HTexture texture = Texture(TEXTURE_TYPE_2D_ARRAY, 16, 16, 19, 2);
@@ -318,6 +321,7 @@ TEST_F(DX12Test, CompressedArraySubUpdatePreservesOtherBlocks)
     ASSERT_EQ(18, ReadTexture(texture, 0, 18)[0]);
 }
 
+// Verifies stencil operations and separate face settings produce the expected pipeline state.
 TEST_F(DX12Test, StencilStateAndSeparateFaces)
 {
     SetStencilMask(Context(), 0x53);
@@ -344,6 +348,7 @@ TEST_F(DX12Test, StencilStateAndSeparateFaces)
     ASSERT_EQ(0, memcmp(&desc.FrontFace, &desc.BackFace, sizeof(desc.FrontFace)));
 }
 
+// Verifies descriptor page rollover and uniform upload overflow preserve earlier draw data.
 TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
 {
     const uint32_t count = 600;
@@ -446,6 +451,7 @@ TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
     ASSERT_EQ(m_Context->m_TextureSamplers.Size() - 1, TextureData(texture)->m_TextureSamplerIndex);
 }
 
+// Verifies masked stencil references clip rendered pixels correctly.
 TEST_F(DX12Test, StencilClipsPixelsWithMaskedReference)
 {
     RenderTargetCreationParams params;
@@ -574,6 +580,7 @@ struct TestProgram
 
 static const char* FULLSCREEN_VS = "float4 main(uint id:SV_VertexID):SV_Position {float2 p[3]={float2(-1,-1),float2(-1,3),float2(3,-1)};return float4(p[id],0.5,1);}";
 
+// Verifies volume mip uploads and Z-slice updates preserve untouched voxels.
 TEST_F(DX12Test, VolumeMipUploadsAndZSubUpdates)
 {
     HTexture      texture = Texture(TEXTURE_TYPE_3D, 8, 8, 4, 3);
@@ -613,6 +620,61 @@ TEST_F(DX12Test, VolumeMipUploadsAndZSubUpdates)
     // View creation is also exercised by the compute sampling test below.
 }
 
+// Verifies resizing a bound target restores its pass before a clear, guarding against stale RTV/DSV handles.
+TEST_F(DX12Test, BoundTargetResizeRestoresClearAttachments)
+{
+    HRenderTarget other = Target(1, 1);
+    for (uint32_t samples = 1; samples <= 4; samples *= 4)
+    {
+        HRenderTarget target = Target(4, 4, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, samples);
+        SetRenderTarget(Context(), target, RenderTargetBindingParams());
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(m_Context->m_BaseContext.m_AssetHandleContainer, target);
+        for (uint32_t size = 2; size < 7; ++size)
+        {
+            SetRenderTargetSize(Context(), target, size, size);
+            ASSERT_TRUE(rt->m_Base.m_IsBound);
+            ASSERT_EQ(target, m_Context->m_CurrentRenderTarget);
+            ASSERT_EQ(D3D12_RESOURCE_STATE_DEPTH_WRITE, TextureData(rt->m_Base.m_TextureDepthStencil)->m_ResourceStates[0]);
+            Clear(Context(), BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, 0, 0, 255, 255, 0.25f, 0);
+            uint8_t pixel[4] = {};
+            ReadPixels(Context(), 1, 1, 1, 1, pixel, sizeof(pixel));
+            ASSERT_EQ(255, pixel[0]);
+            ASSERT_EQ(0, pixel[2]);
+        }
+        SetRenderTarget(Context(), other, RenderTargetBindingParams());
+        Submit();
+        DeleteRenderTarget(Context(), target);
+    }
+    DeleteRenderTarget(Context(), other);
+}
+
+// Verifies MRT shaders can draw to a single color attachment without DX12 validation errors.
+TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
+{
+    HRenderTarget target = Target(4, 4);
+    SetRenderTarget(Context(), target, RenderTargetBindingParams());
+    SetViewport(Context(), 0, 0, 4, 4);
+    DisableState(Context(), STATE_CULL_FACE);
+    DisableState(Context(), STATE_DEPTH_TEST);
+    TestProgram shader;
+    shader.Shader(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.Shader("struct Out {float4 color:SV_Target0;float4 extra:SV_Target1;}; Out main(){Out o;o.color=float4(1,0,0,1);o.extra=float4(0,1,0,1);return o;}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.Root("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram program = shader.Load(Context());
+    ASSERT_NE((HProgram)0, program);
+    EnableProgram(Context(), program);
+    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    uint8_t pixel[4] = {};
+    ReadPixels(Context(), 1, 1, 1, 1, pixel, sizeof(pixel));
+    ASSERT_EQ(255, pixel[2]);
+    ASSERT_EQ(0, pixel[1]);
+    Submit();
+    DisableProgram(Context());
+    DeleteProgram(Context(), program);
+    DeleteRenderTarget(Context(), target);
+}
+
+// Verifies multisample MRT clears, resize and public readback preserve attachment colors.
 TEST_F(DX12Test, MultisampleMRTClearResizeAndPublicReadback)
 {
     HRenderTarget target = Target(4, 4, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_COLOR1_BIT | BUFFER_TYPE_DEPTH_BIT, 4);
@@ -649,6 +711,7 @@ TEST_F(DX12Test, MultisampleMRTClearResizeAndPublicReadback)
     DeleteRenderTarget(Context(), other);
 }
 
+// Verifies shader reload, line rendering, depth bias and scissor survive pipeline changes.
 TEST_F(DX12Test, ShaderReloadLinesBiasAndScissor)
 {
     HRenderTarget target = Target(4, 4, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT);
@@ -699,6 +762,7 @@ TEST_F(DX12Test, ShaderReloadLinesBiasAndScissor)
     DeleteRenderTarget(Context(), target);
 }
 
+// Verifies front/back culling matches the engine convention across render targets.
 TEST_F(DX12Test, FrontAndBackCulling)
 {
     HRenderTarget target = Target(8, 8);
@@ -803,6 +867,7 @@ TEST_F(DX12Test, FrontAndBackCulling)
     DeleteRenderTarget(Context(), target);
 }
 
+// Verifies culling both faces preserves vertex shader storage writes.
 TEST_F(DX12Test, FrontAndBackCullingPreservesVertexWrites)
 {
     HTexture written = Texture(TEXTURE_TYPE_IMAGE_2D, 3, 1, 1, 1);
@@ -841,6 +906,7 @@ TEST_F(DX12Test, FrontAndBackCullingPreservesVertexWrites)
     DeleteRenderTarget(Context(), target);
 }
 
+// Verifies dependent image dispatches and compute-to-draw transitions synchronize writes.
 TEST_F(DX12Test, DependentImageDispatchesAndComputeToDraw)
 {
     HTexture      texture = Texture(TEXTURE_TYPE_IMAGE_2D, 4, 4, 1, 1);
@@ -893,6 +959,7 @@ TEST_F(DX12Test, DependentImageDispatchesAndComputeToDraw)
     DeleteRenderTarget(Context(), target);
 }
 
+// Verifies volume sampling views and writable volume images address the correct voxels.
 TEST_F(DX12Test, VolumeViewsAndWritableVolume)
 {
     HTexture      input = Texture(TEXTURE_TYPE_3D, 4, 4, 4, 2);
@@ -931,6 +998,7 @@ TEST_F(DX12Test, VolumeViewsAndWritableVolume)
     DeleteProgram(Context(), program);
 }
 
+// Verifies depth sampling and resized cubemap targets preserve per-face data.
 TEST_F(DX12Test, DepthSamplingAndCubemapTargetResize)
 {
     HRenderTarget depth = Target(4, 4, BUFFER_TYPE_DEPTH_BIT);
@@ -989,6 +1057,7 @@ TEST_F(DX12Test, DepthSamplingAndCubemapTargetResize)
     DeleteRenderTarget(Context(), depth);
 }
 
+// Verifies upload and pipeline reuse workloads complete without validation errors.
 TEST_F(DX12Test, UploadAndPipelineBenchmark)
 {
     // Opt in after correctness tests. Report CPU submission cost; this is not a GPU throughput measurement.
@@ -1026,6 +1095,7 @@ TEST_F(DX12Test, UploadAndPipelineBenchmark)
     DeleteRenderTarget(Context(), target);
 }
 
+// Verifies sampler modes and supported format capabilities match DX12 settings.
 TEST_F(DX12Test, SamplerModesAndFormatCapabilities)
 {
     SetupSupportedTextureFormats(m_Context);
