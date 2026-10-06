@@ -188,3 +188,12 @@
         halfway (#'c/interpolate-orbit from to 0.5)]
     (is (< (Math/abs (- distance (.distance focus ^Point3d (:position to)))) 1e-9))
     (is (< (Math/abs (- distance (.distance focus ^Point3d (:position halfway)))) 1e-9))))
+
+;; Verifies that the orbit interpolation starts where the camera is when it has
+;; been dollied past its focus point. Guards against the camera jumping to the
+;; mirror position behind the focus point on the first animation frame.
+(deftest interpolate-orbit-keeps-start-past-focus-point
+  (let [from (c/dolly (c/frame-camera-to-axis (framed-test-camera) :+z) 2.0)
+        to (c/frame-camera-to-axis from :+x)
+        start (#'c/interpolate-orbit from to 0.0)]
+    (is (.epsilonEquals ^Point3d (:position from) ^Point3d (:position start) 1e-9))))

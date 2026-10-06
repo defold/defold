@@ -49,7 +49,7 @@
 
 (def vector3-up (Vector3d. 0.0 1.0 0.0))
 
-(declare interpolate-orbit set-camera!)
+(declare interpolate-orbit mode-2d? set-camera!)
 
 (def ^:private ^:const align-duration 0.25)
 
@@ -104,10 +104,10 @@
 
 (defn frame-camera-to-axis! [camera-node start-camera axis animate]
   (let [end-camera (frame-camera-to-axis start-camera axis)]
-    (when (not= (:type end-camera) :orthographic)
+    (when (mode-2d? end-camera)
       (g/transact
         {:undoable false}
-        (g/set-property camera-node :cached-3d-camera end-camera)))
+        (g/set-property camera-node :cached-3d-camera start-camera)))
     (set-camera! camera-node start-camera end-camera animate nil {:interpolate-fn interpolate-orbit :duration align-duration})))
 
 (defn camera-focus-point
@@ -852,9 +852,9 @@
              filter-fn)))
 
 (defn- interpolate-orbit
-  "Like `interpolate`, but turns around the focus point at a steady distance
-  instead of moving in a straight line, so snapping to the opposite side
-  doesn't fly through the focus point."
+  "Like `interpolate`, but turns around the focus point instead of moving in a
+  straight line, so snapping to the opposite side doesn't fly through the
+  focus point."
   ^Camera [^Camera from ^Camera to ^double t]
   (let [filter-fn (or (:filter-fn from) identity)
         ^Camera to (filter-fn to)
@@ -863,11 +863,14 @@
                    (.interpolate (Quat4d. ^Quat4d (:rotation from)) (Quat4d. ^Quat4d (:rotation to)) t))
         fp (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
         focus (Point3d. (.x fp) (.y fp) (.z fp))
-        distance (lerp (.distance (camera-focus-point from) (types/position from))
-                       (.distance (camera-focus-point to) (types/position to))
-                       t)
-        position (doto (Point3d.)
-                   (.scaleAdd distance (math/rotate rotation (Vector3d. 0.0 0.0 1.0)) focus))]
+        ;; The offset from the focus point in the camera's own frame, so a
+        ;; camera dollied past its focus point keeps its starting position.
+        local-offset (fn [^Camera camera]
+                       (math/rotate (doto (Quat4d. ^Quat4d (:rotation camera)) (.conjugate))
+                                    (doto (Vector3d. (types/position camera)) (.sub (camera-focus-point camera)))))
+        offset (doto (Vector3d.) (.interpolate ^Tuple3d (local-offset from) ^Tuple3d (local-offset to) t))
+        position (doto (Point3d. focus) (.add (math/rotate rotation offset)))
+        distance (.distance position focus)]
     (Camera. (:type to) position rotation
              (lerp (:z-near from) (:z-near to) t)
              (lerp (:z-far from) (:z-far to) t)
