@@ -81,12 +81,12 @@
   (first
     (reduce (fn [[items occurrences] {:keys [name value] :as variable}]
               (let [occurrence (long (get occurrences name 0))]
-                [(conj items (assoc variable
-                               :path (conj parent-path [name occurrence])
-                               :display-name name
-                               :display-value value))
-                 (assoc occurrences name (inc occurrence))]))
-            [[] {}]
+                (coll/pair (conj items (assoc variable
+                                       :path (conj parent-path [name occurrence])
+                                       :display-name name
+                                       :display-value value))
+                           (assoc occurrences name (inc occurrence)))))
+            (coll/pair [] {})
             variables)))
 
 (declare load-children!)

@@ -29,6 +29,7 @@
             [editor.workspace :as workspace]
             [support.dap-util :as dap-util]
             [support.test-support :as test-support]
+            [util.coll :as coll]
             [util.http-server.types :as http-server.types])
   (:import [java.io ByteArrayOutputStream]
            [java.nio.charset StandardCharsets]
@@ -90,15 +91,15 @@
           (try
             (await-state! changes #(= :running (dap/status first-session)))
             (is (= [{:line 3} {:line 5 :condition "x > 2"}]
-                   (get-in (first (filterv #(= "setBreakpoints" (:command %)) @requests)) [:arguments :breakpoints])))
-            (is (false? (get-in (first (filterv #(= "attach" (:command %)) @requests)) [:arguments :stopOnEntry])))
+                   (get-in (coll/first-where #(= "setBreakpoints" (:command %)) @requests) [:arguments :breakpoints])))
+            (is (false? (get-in (coll/first-where #(= "attach" (:command %)) @requests) [:arguments :stopOnEntry])))
             (dap/control! first-session "pause")
             (await-state! changes #(g/with-auto-evaluation-context ec (debug-view/suspended? view ec)))
             (ui/run-now
               (g/node-value view :update-call-stack)
               (is (= [42] (mapv :id (ui/selection call-stack)))))
             (doseq [frame-id [42 99]]
-              (ui/run-now (ui/select! call-stack (first (filterv #(= frame-id (:id %)) (ui/items call-stack)))))
+              (ui/run-now (ui/select! call-stack (coll/first-where #(= frame-id (:id %)) (ui/items call-stack))))
               (dap/evaluate! first-session frame-id "refresh")
               (dap-util/await-ui!
                 variables
@@ -114,7 +115,7 @@
                 (try
                   (await-state! changes #(= :running (dap/status next-session)))
                   (is (= [{:line 10}]
-                         (get-in (first (filterv #(= "setBreakpoints" (:command %)) @requests)) [:arguments :breakpoints])))
+                         (get-in (coll/first-where #(= "setBreakpoints" (:command %)) @requests) [:arguments :breakpoints])))
                   (is (not (identical? first-session next-session)))
                   (is (= :closed (dap/status first-session)))
                   (is (identical? next-session (debug-view/current-session view)))
@@ -203,7 +204,7 @@
                         :start
                         (let [session (debug-view/current-session view)]
                           (await-state! changes #(= :running (dap/status session)))
-                          (is (true? (get-in (first (filterv #(= "attach" (:command %)) @requests))
+                          (is (true? (get-in (coll/first-where #(= "attach" (:command %)) @requests)
                                              [:arguments :stopOnEntry])))
                           (is (= 1 (count (filterv #(= "initialize" (:command %)) @requests)))))
                         :detach

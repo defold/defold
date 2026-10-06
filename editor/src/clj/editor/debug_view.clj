@@ -389,16 +389,16 @@
         (g/node-value project :breakpoints)))
 
 (defn- breakpoints-by-path [breakpoints]
-  (reduce (fn [result {:keys [resource row condition]}]
-            (let [path (resource/proj-path resource)]
-              (if-not path
-                result
-                (update result path (fnil conj [])
-                        (cond-> {:line (inc (long row))}
-                          (not (string/blank? condition))
-                          (assoc :condition condition))))))
-          {}
-          (sort-by (juxt #(resource/proj-path (:resource %)) :row) breakpoints)))
+  (coll/aggregate-into
+    {} conj []
+    (eduction
+      (keep (fn [{:keys [resource row condition]}]
+              (when-let [path (resource/proj-path resource)]
+                (coll/pair path
+                           (cond-> {:line (inc (long row))}
+                             (not (string/blank? condition))
+                             (assoc :condition condition))))))
+      (sort-by (juxt #(resource/proj-path (:resource %)) :row) breakpoints))))
 
 (defn- make-update-timer
   [project debug-view]

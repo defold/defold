@@ -23,7 +23,8 @@
             [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.system :as system])
+            [editor.system :as system]
+            [util.coll :as coll])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.render.proto Render$Resize]
            [com.dynamo.resource.proto Resource$Reload]
@@ -133,7 +134,7 @@
                             com.dynamo.system.proto.System$Reboot
                             (into {}
                                   (map-indexed (fn [index argument]
-                                                 [(keyword (str "arg" (inc (long index)))) argument]))
+                                                 (coll/pair (keyword (str "arg" (inc (long index)))) argument)))
                                   args))))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))

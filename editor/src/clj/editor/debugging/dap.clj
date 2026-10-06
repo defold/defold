@@ -230,7 +230,7 @@
 
 (defn- sync-breakpoints! [{:keys [session breakpoints] :as state}]
   (let [desired (:desired-breakpoints @session)]
-    (doseq [path (into (set (coll/keys breakpoints)) (coll/keys desired))
+    (doseq [path (into (coll/key-set breakpoints) (coll/keys desired))
             :let [new (get desired path [])]
             :when (not= (get breakpoints path []) new)]
       (protocol-request! state "setBreakpoints" {:source {:path path} :breakpoints new}))
