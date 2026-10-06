@@ -3416,6 +3416,7 @@ namespace dmGameSystem
             dmGui::HScene scene = gui_component->m_Scene;
             dmGui::InputAction gui_input_action;
             gui_input_action.m_ActionId = params.m_InputAction->m_ActionId;
+            gui_input_action.m_Source = params.m_InputAction->m_Source;
             gui_input_action.m_Value = params.m_InputAction->m_Value;
             gui_input_action.m_Pressed = params.m_InputAction->m_Pressed;
             gui_input_action.m_Released = params.m_InputAction->m_Released;

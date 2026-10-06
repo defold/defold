@@ -131,7 +131,7 @@ local function inspect_action(action)
     end
 end
 
-inspect_action({pressed = true})
+inspect_action({source = hash("keyboard"), pressed = true})
 
 local collision_body = assert(b2d.get_body("#collisionobject"))
 b2d.body.set_mass_data(

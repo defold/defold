@@ -27,7 +27,7 @@
             [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.localization :as localization]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
             [editor.properties :as properties]
@@ -759,7 +759,7 @@
                                   :tooltip {:fx/type fxui/tooltip
                                             :content-display :graphic-only
                                             :style {:-fx-padding 0}
-                                            :graphic {:fx/type markdown/view
+                                            :graphic {:fx/type markdown-view/view
                                                       :content (localization-state
                                                                  (localization/message
                                                                    "property.tooltip"
