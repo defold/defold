@@ -1334,8 +1334,10 @@ var Module = {
         Module._preLoadDone = true;
         for (var i = 0; i < Module._filesToPreload.length; ++i) {
             var item = Module._filesToPreload[i];
-            FS.createPreloadedFile("", item.path, item.data, true, true);
+            // Let the filesystem own the downloaded buffer instead of copying it.
+            FS.createPreloadedFile("", item.path, item.data, true, true, undefined, undefined, false, true);
         }
+        Module._filesToPreload.length = 0;
     },
 
     // Tries to do a MEM->IDB sync

@@ -167,6 +167,37 @@ async function testLoaderArchiveConcurrency() {
     }
 }
 
+// Verify preloading transfers archive buffers to the filesystem, releases the queue, and remains idempotent.
+function testLoaderArchiveBufferOwnership() {
+    const context = loadLoaderEnvironment();
+    const files = new Map();
+    const archives = [
+        { name: "game.arci", data: Uint8Array.of(1, 2, 3) },
+        { name: "game.arcd", data: new Uint8Array(4096).fill(7) }
+    ];
+    let preloadedFiles = 0;
+    context.FS = {
+        createPreloadedFile(parent, name, data, canRead, canWrite, onload, onerror, dontCreateFile, canOwn) {
+            files.set(name, canOwn ? data.subarray(0) : data.slice());
+            ++preloadedFiles;
+        }
+    };
+    for (const archive of archives) {
+        context.Module.onArchiveFileLoaded(archive);
+    }
+
+    context.Module.preloadAll();
+    assert.strictEqual(context.Module._filesToPreload.length, 0);
+    for (const archive of archives) {
+        const contents = files.get(archive.name);
+        assert.deepStrictEqual(contents, archive.data);
+        assert.strictEqual(contents.buffer, archive.data.buffer);
+    }
+
+    context.Module.preloadAll();
+    assert.strictEqual(preloadedFiles, archives.length);
+}
+
 function loadPointerEnvironment() {
     const context = loadEnvironment();
     context.Module.canvas = {
@@ -273,6 +304,7 @@ function testMixedTouchAndMouseSources() {
 
 async function runTests() {
     for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle, testLoaderArchiveConcurrency,
+                       testLoaderArchiveBufferOwnership,
                        testTouchMouseSources, testMixedTouchAndMouseSources]) {
         try {
             await test();
