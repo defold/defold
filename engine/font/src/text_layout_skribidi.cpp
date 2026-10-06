@@ -867,7 +867,7 @@ static bool LayoutText(LayoutContext* ctx,
                     continue;
                 }
 
-                content_advance += fabsf(skbglyph->advance_x);
+                content_advance += skbglyph->advance_x;
 
                 TextGlyph glyph = {0};
                 glyph.m_X               = gx;
@@ -913,10 +913,11 @@ static bool LayoutText(LayoutContext* ctx,
 
         TextLine l;
         l.m_Width   = line->bounds.width - (tracking > 0 ? tracking : 0);
-        if (li == lines_count - 2 &&
-            IsParagraphSeparator(codepoints[num_codepoints - 1]))
+        // Unwrapped widths include real whitespace, but no separator advances.
+        if (!settings->m_LineBreak || (li == lines_count - 2 &&
+                                      IsParagraphSeparator(codepoints[num_codepoints - 1])))
         {
-            l.m_Width = content_advance - (tracking > 0 ? tracking : 0);
+            l.m_Width = fmaxf(0.0f, content_advance - (tracking > 0 ? tracking : 0));
         }
         l.m_Index          = prev_glyph_index;
         l.m_Length         = glyph_index - prev_glyph_index;

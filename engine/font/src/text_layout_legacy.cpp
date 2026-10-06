@@ -42,6 +42,13 @@ static inline uint32_t NextBreak(TextGlyph* glyphs, uint32_t num_glyphs, uint32_
         if (c != 0)
             *n = *n + 1;
     } while (c != 0 && !dmUtf8::IsBreaking(c));
+
+    // Count CRLF as one separator so neither codepoint contributes to line width.
+    if (c == '\r' && *cursor < num_glyphs && glyphs[*cursor].m_Codepoint == CHAR_NEWLINE)
+    {
+        ++(*cursor);
+        c = CHAR_NEWLINE;
+    }
     return c;
 }
 
@@ -55,6 +62,11 @@ static inline uint32_t SkipWS(TextGlyph* glyphs, uint32_t num_glyphs, uint32_t* 
             *n = *n + 1;
     } while (c != 0 && (c == dmUtf8::UTF_WHITESPACE_SPACE || c == dmUtf8::UTF_WHITESPACE_ZERO_WIDTH_SPACE));
 
+    if (c == '\r' && *cursor < num_glyphs && glyphs[*cursor].m_Codepoint == CHAR_NEWLINE)
+    {
+        ++(*cursor);
+        c = CHAR_NEWLINE;
+    }
     return c;
 }
 
