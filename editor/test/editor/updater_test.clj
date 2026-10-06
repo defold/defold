@@ -86,7 +86,7 @@
 
 (defn- make-multi-channel-resource-handler [channel->sha1]
   (let [resources (apply merge (map (fn [[channel sha1]] (make-handler-resources channel sha1))
-                                     channel->sha1))]
+                                    channel->sha1))]
     (fn [request]
       (get resources (:path request) http-server/not-found))))
 

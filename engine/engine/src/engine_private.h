@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/gameobject/res_collection.h>
 #include <dlib/hashtable.h>
 #include <dlib/jobsystem.h>
 #include <dlib/message.h>
@@ -60,7 +61,7 @@ namespace dmEngine
         }
 
         //`RunResult::EXIT` value (as `run_action` in `AppDelegate.m` `ShutdownEngine()`)
-        // compares with GLFW_APP_RUN_EXIT, that's why `RunResult` should have the same values as `glfwAppRunAction`
+        // compares with dmPlatform::APP_RUN_EXIT, that's why `RunResult` should have the same values as `dmPlatform::AppRunAction`
         enum Action
         {
             NONE,
@@ -118,7 +119,7 @@ namespace dmEngine
         bool                                        m_Alive;
 
         dmGameObject::HRegister                     m_Register;
-        dmGameObject::HCollection                   m_MainCollection;
+        dmGameObject::CollectionResource*           m_MainCollectionResource;
         dmArray<dmGameObject::InputAction>          m_InputBuffer;
         dmHashTable64<void*>                        m_ResourceTypeContexts;
 

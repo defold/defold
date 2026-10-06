@@ -85,7 +85,7 @@
 
 (defn- render-geom-cloud [evaluation-context view node-id property]
   (let [render-data (-> (g/node-value node-id property evaluation-context)
-                      (types/geom-aabbs nil))]
+                        (types/geom-aabbs nil))]
     (reduce (fn [view [id aabb]] (view-render view (centroid aabb) {:node-id node-id
                                                                     :property property
                                                                     :element-id id}))
@@ -107,15 +107,15 @@
 (defn- box-select! [view box]
   (let [[minp maxp] box
         selection (->> (:fb view)
-                    (filter (fn [[p v]]
-                              (and (= minp (mapv min p minp))
-                                   (= maxp (mapv max p maxp)))))
-                    (map second)
-                    (reduce (fn [s v]
-                              (update-in s [(:node-id v) (:property v)]
-                                         (fn [ids] (conj (or ids []) (:element-id v)))))
-                            {})
-                    (mapv identity))]
+                       (filter (fn [[p v]]
+                                 (and (= minp (mapv min p minp))
+                                      (= maxp (mapv max p maxp)))))
+                       (map second)
+                       (reduce (fn [s v]
+                                 (update-in s [(:node-id v) (:property v)]
+                                            (fn [ids] (conj (or ids []) (:element-id v)))))
+                               {})
+                       (mapv identity))]
     ((:select-fn view) selection)))
 
 ;; Commands
@@ -134,15 +134,15 @@
 (g/defnode MoveManip
   (input selection g/Any)
   (output position g/Any (g/fnk [^:unsafe _evaluation-context selection]
-                                (let [positions (->> (for [[nid props] selection
-                                                           [k ids] props]
-                                                       (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k _evaluation-context)
-                                                                                                      (types/geom-aabbs ids))))
-                                                     (reduce into [])
-                                                     (map second))
-                                      avg (mapv / (reduce (fn [r p] (mapv + r p)) [0.0 0.0 0.0] positions)
-                                                (repeat (double (count positions))))]
-                                  avg))))
+                           (let [positions (->> (for [[nid props] selection
+                                                      [k ids] props]
+                                                  (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k _evaluation-context)
+                                                                                                 (types/geom-aabbs ids))))
+                                                (reduce into [])
+                                                (map second))
+                                 avg (mapv / (reduce (fn [r p] (mapv + r p)) [0.0 0.0 0.0] positions)
+                                           (repeat (double (count positions))))]
+                             avg))))
 
 (defn- start-move [selection p]
   {:selection selection

@@ -21,7 +21,7 @@
 (s/defn doubling :- g/Num
   "Return a lazy infinite sequence of doublings of i"
   ([i :- g/Num]
-    (iterate #(bit-shift-left % 1) i)))
+   (iterate #(bit-shift-left % 1) i)))
 
 (s/defn closest-power-of-two :- g/Num
   "Return the next higher or preceeding lower power-of-two,

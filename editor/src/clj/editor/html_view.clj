@@ -17,7 +17,7 @@
             [editor.editor-extensions.node-types :as node-types]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.view :as view]
@@ -28,7 +28,7 @@
 (g/defnk produce-desc [html project parent resource]
   {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type ui/ext-value :value parent}
-   :props {:children [{:fx/type markdown/html-view
+   :props {:children [{:fx/type markdown-view/html-view
                        :anchor-pane/top 0
                        :anchor-pane/right 0
                        :anchor-pane/bottom 0
@@ -73,6 +73,6 @@
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
-                                :id :html
-                                :label (localization/message "resource.view.html")
-                                :make-view-fn #'make-view))
+    :id :html
+    :label (localization/message "resource.view.html")
+    :make-view-fn #'make-view))

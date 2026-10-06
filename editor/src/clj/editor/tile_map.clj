@@ -50,7 +50,7 @@
             [internal.graph.types :as gt]
             [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
-           [com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL3]
            [editor.gl.shader ShaderLifecycle]
            [editor.tile_map_common Tile]
            [editor.types AABB]
@@ -345,7 +345,7 @@
 (def tile-map-id-shader shaders/selection-uniform-local-space)
 
 (defn render-layer
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/transparent
@@ -375,8 +375,8 @@
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
-              (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf))
-              (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)))))
+              (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf))
+              (.glBlendFunc gl GL3/GL_SRC_ALPHA GL3/GL_ONE_MINUS_SRC_ALPHA)))))
 
       pass/selection
       (let [{:keys [user-data]} (first renderables)
@@ -384,7 +384,7 @@
         (when vbuf
           (let [vertex-binding (vtx/use-with node-id vbuf tile-map-id-shader)]
             (gl/with-gl-bindings gl (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables))) [tile-map-id-shader vertex-binding gpu-texture]
-              (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))))))
+              (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf)))))))))
 
 (defn make-tile-uv-lookup-cache
   [tile-count uv-transforms]
@@ -525,15 +525,15 @@
 (defn attach-layer-node
   [parent layer-node]
   (concat
-   (g/connect layer-node :_node-id                     parent :nodes)
-   (g/connect layer-node :id                           parent :layer-ids)
-   (g/connect layer-node :node-outline                 parent :child-outlines)
-   (g/connect layer-node :scene                        parent :child-scenes)
-   (g/connect layer-node :pb-msg                       parent :layer-msgs)
-   (g/connect parent     :texture-set-data             layer-node :texture-set-data)
-   (g/connect parent     :material-shader              layer-node :shader)
-   (g/connect parent     :gpu-texture                  layer-node :gpu-texture)
-   (g/connect parent     :blend-mode                   layer-node :blend-mode)))
+    (g/connect layer-node :_node-id                     parent :nodes)
+    (g/connect layer-node :id                           parent :layer-ids)
+    (g/connect layer-node :node-outline                 parent :child-outlines)
+    (g/connect layer-node :scene                        parent :child-scenes)
+    (g/connect layer-node :pb-msg                       parent :layer-msgs)
+    (g/connect parent     :texture-set-data             layer-node :texture-set-data)
+    (g/connect parent     :material-shader              layer-node :shader)
+    (g/connect parent     :gpu-texture                  layer-node :gpu-texture)
+    (g/connect parent     :blend-mode                   layer-node :blend-mode)))
 
 (defn make-layer-node
   [parent tile-layer]
@@ -556,8 +556,8 @@
 (defn- sanitize-tile-map [_read-opts _owner-resource {:keys [material] :as tile-grid}]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
   (cond-> tile-grid
-          (nil? material)
-          (assoc :material default-material-proj-path)))
+    (nil? material)
+    (assoc :material default-material-proj-path)))
 
 (defn- load-tile-map
   [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id tile-grid :source-value}]
@@ -679,7 +679,7 @@
                                             [:shader :material-shader]
                                             [:samplers :material-samplers])))
             (dynamic error (g/fnk [_node-id material]
-                                  (prop-resource-error :fatal _node-id :material material material-message)))
+                             (prop-resource-error :fatal _node-id :material material material-message)))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"})))
 
   (property blend-mode g/Any (default (protobuf/default Tile$TileGrid :blend-mode))
@@ -737,7 +737,7 @@
 ;; brush
 
 (defn render-brush-outline
-  [^GL2 gl render-args renderables count]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         [x y] (:cell user-data)
@@ -799,7 +799,7 @@
         (vtx/flip! vbuf)))))
 
 (defn render-brush
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         {:keys [texture-set-data gpu-texture brush]} user-data
@@ -821,7 +821,7 @@
                              (:texture render-args)))]
     (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
       (shader/set-uniform tex-shader gl "texture_sampler" 0)
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf)))))
 
 ;; palette
 
@@ -944,13 +944,13 @@
         (vtx/flip! vbuf)))))
 
 (defn- render-palette-tiles
-  [^GL2 gl render-args tile-source-attributes texture-set-data gpu-texture]
+  [^GL3 gl render-args tile-source-attributes texture-set-data gpu-texture]
   (let [vbuf (gen-palette-tiles-vbuf tile-source-attributes texture-set-data)
         vb (vtx/use-with ::palette-tiles vbuf tex-shader)
         gpu-texture (texture/set-params gpu-texture tile-source/texture-params)]
     (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
       (shader/set-uniform tex-shader gl "texture_sampler" 0)
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf)))))
 
 (defn gen-palette-grid-vbuf
   [tile-source-attributes]
@@ -986,14 +986,14 @@
       (vtx/flip! vbuf))))
 
 (defn- render-palette-grid
-  [^GL2 gl render-args tile-source-attributes]
+  [^GL3 gl render-args tile-source-attributes]
   (let [vbuf (gen-palette-grid-vbuf tile-source-attributes)
         vb (vtx/use-with ::palette-grid vbuf color-shader)]
     (gl/with-gl-bindings gl render-args [color-shader vb]
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf)))))
 
 (defn- render-palette-active
-  [^GL2 gl render-args tile-source-attributes start-tile end-tile]
+  [^GL3 gl render-args tile-source-attributes start-tile end-tile]
   (when (and start-tile end-tile)
     (let [tiles-per-row (:tiles-per-row tile-source-attributes)
           start-x (palette-x start-tile tiles-per-row)
@@ -1036,10 +1036,10 @@
                    (vtx/flip!))
           vb (vtx/use-with ::palette-active vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
-        (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf))))))
+        (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf))))))
 
 (defn render-palette-background
-  [^GL2 gl render-args viewport]
+  [^GL3 gl render-args viewport]
   (let [{:keys [right bottom]} viewport]
     (render-util/render-color-quad!
       gl render-args ::palette-background
@@ -1050,7 +1050,7 @@
        [0.0 bottom]])))
 
 (defn render-palette
-  [^GL2 gl render-args renderables count]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [user-data (:user-data (first renderables))
         {:keys [viewport tile-source-attributes texture-set-data gpu-texture palette-transform start-tile end-tile]} user-data
         [start-tile end-tile] (if (and start-tile end-tile (<= start-tile end-tile))
@@ -1068,7 +1068,7 @@
       (render-palette-active gl render-args tile-source-attributes start-tile end-tile))))
 
 (defn render-editor-select-outline
-  [^GL2 gl render-args renderables count]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         [sx sy] (:start user-data)
@@ -1089,21 +1089,21 @@
            [x0 y1]])))))
 
 (defn render-editor-select
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables renderable-count]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/outline
-      (render-editor-select-outline gl render-args renderables n))))
+      (render-editor-select-outline gl render-args renderables renderable-count))))
 
 (defn render-editor
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables renderable-count]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/opaque
-      (render-brush gl render-args renderables n)
+      (render-brush gl render-args renderables renderable-count)
 
       pass/outline
-      (render-brush-outline gl render-args renderables n))))
+      (render-brush-outline gl render-args renderables renderable-count))))
 
 (g/defnk produce-palette-renderables
   [viewport tile-source-attributes texture-set-data gpu-texture palette-transform start-palette-tile palette-tile]
@@ -1121,16 +1121,16 @@
   [active-layer-renderable op op-select-start op-select-end current-tile tile-dimensions brush viewport texture-set-data gpu-texture cursor-mode]
   (when active-layer-renderable
     {pass/opaque (cond
-                        current-tile
-                        [{:world-transform (:world-transform active-layer-renderable)
-                          :render-fn render-editor
-                          :user-data {:cell current-tile
-                                      :brush (if (contains? select-modes cursor-mode)
-                                               empty-brush
-                                               brush)
-                                      :tile-dimensions tile-dimensions
-                                      :texture-set-data texture-set-data
-                                      :gpu-texture gpu-texture}}])
+                   current-tile
+                   [{:world-transform (:world-transform active-layer-renderable)
+                     :render-fn render-editor
+                     :user-data {:cell current-tile
+                                 :brush (if (contains? select-modes cursor-mode)
+                                          empty-brush
+                                          brush)
+                                 :tile-dimensions tile-dimensions
+                                 :texture-set-data texture-set-data
+                                 :gpu-texture gpu-texture}}])
      pass/outline (cond
                     (= :select op) [{:world-transform (:world-transform active-layer-renderable)
                                      :render-fn render-editor-select
@@ -1427,11 +1427,11 @@
 (defmethod scene/attach-tool-controller ::TileMapController
   [_ tool-id view-id resource-id]
   (concat
-   (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
-   (g/connect resource-id :texture-set-data tool-id :texture-set-data)
-   (g/connect resource-id :material-shader tool-id :material-shader)
-   (g/connect resource-id :gpu-texture tool-id :gpu-texture)
-   (g/connect resource-id :tile-dimensions tool-id :tile-dimensions)))
+    (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
+    (g/connect resource-id :texture-set-data tool-id :texture-set-data)
+    (g/connect resource-id :material-shader tool-id :material-shader)
+    (g/connect resource-id :gpu-texture tool-id :gpu-texture)
+    (g/connect resource-id :tile-dimensions tool-id :tile-dimensions)))
 
 ;; handlers/menu
 
@@ -1488,8 +1488,8 @@
 
 (handler/defhandler :scene.select-erase-tool :workbench
   (active? [app-view evaluation-context]
-           (and (active-tile-map app-view evaluation-context)
-                (active-scene-view app-view evaluation-context)))
+    (and (active-tile-map app-view evaluation-context)
+         (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
     (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)
@@ -1503,13 +1503,13 @@
 
 (handler/defhandler :scene.toggle-tile-palette :workbench
   (active? [app-view evaluation-context]
-           (and (active-tile-map app-view evaluation-context)
-                (active-scene-view app-view evaluation-context)))
+    (and (active-tile-map app-view evaluation-context)
+         (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-            (and (selection->layer selection evaluation-context)
-                 (let [active-tile (active-tile-map app-view evaluation-context)]
-                   (and (g/node-value active-tile :tile-source-resource evaluation-context)
-                        (not (g/error-value? (g/node-value active-tile :gpu-texture evaluation-context)))))))
+    (and (selection->layer selection evaluation-context)
+         (let [active-tile (active-tile-map app-view evaluation-context)]
+           (and (g/node-value active-tile :tile-source-resource evaluation-context)
+                (not (g/error-value? (g/node-value active-tile :gpu-texture evaluation-context)))))))
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn- transform-brush! [app-view transform-brush-fn]
@@ -1521,8 +1521,8 @@
 
 (handler/defhandler :scene.flip-brush-horizontally :workbench
   (active? [app-view evaluation-context]
-           (and (active-tile-map app-view evaluation-context)
-                (active-scene-view app-view evaluation-context)))
+    (and (active-tile-map app-view evaluation-context)
+         (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
     (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)
@@ -1531,18 +1531,18 @@
 
 (handler/defhandler :scene.flip-brush-vertically :workbench
   (active? [app-view evaluation-context]
-           (and (active-tile-map app-view evaluation-context)
-                (active-scene-view app-view evaluation-context)))
+    (and (active-tile-map app-view evaluation-context)
+         (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-            (and (selection->layer selection evaluation-context)
-                 (-> (active-tile-map app-view evaluation-context)
-                     (g/node-value :tile-source-resource evaluation-context))))
+    (and (selection->layer selection evaluation-context)
+         (-> (active-tile-map app-view evaluation-context)
+             (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-vertically)))
 
 (handler/defhandler :scene.rotate-brush-90-degrees :workbench
   (active? [app-view evaluation-context]
-           (and (active-tile-map app-view evaluation-context)
-                (active-scene-view app-view evaluation-context)))
+    (and (active-tile-map app-view evaluation-context)
+         (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
     (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)

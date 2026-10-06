@@ -326,12 +326,12 @@
               :value (not (contains? filtered-renderable-tags :outline))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :outline)
               :command :scene.visibility.toggle-component-guides}]
-            (system/defold-dev?)
-            (into [{:type :separator}
-                   {:key :dev-visibility-bounds :type :toggle :label "scene-popup.scene-visibility.scene-visibility-bounds"
-                    :value (not (contains? filtered-renderable-tags :dev-visibility-bounds))
-                    :on-value-changed (toggle-tag-visibility-fn scene-visibility :dev-visibility-bounds)
-                    :disabled? (fn [state] (not (:visibility-filters state)))}]))))
+      (system/defold-dev?)
+      (into [{:type :separator}
+             {:key :dev-visibility-bounds :type :toggle :label "scene-popup.scene-visibility.scene-visibility-bounds"
+              :value (not (contains? filtered-renderable-tags :dev-visibility-bounds))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :dev-visibility-bounds)
+              :disabled? (fn [state] (not (:visibility-filters state)))}]))))
 
 (def ^:private never-appear-filtered-tags #{:grid :dev-visibility-bounds})
 

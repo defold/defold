@@ -36,8 +36,8 @@
       (enabled? [instances] (every? #(= % :foo) instances))
       (run [instances] 123))
     (are [inst exp] (= exp (test-util/handler-enabled? :file.open [(handler/->context :global {:instances [inst]})] {}))
-         :foo true
-         :bar false)
+      :foo true
+      :bar false)
     (is (= 123 (test-util/handler-run :file.open [(handler/->context :global {:instances [:foo]})] {})))))
 
 (deftest context
@@ -46,15 +46,15 @@
       (active? [global-context] true)
       (enabled? [global-context] true)
       (run [global-context]
-           (when global-context
-             :c1)))
+        (when global-context
+          :c1)))
 
     (handler/defhandler :c2 :local
       (active? [local-context] true)
       (enabled? [local-context] true)
       (run [local-context]
-           (when local-context
-             :c2)))
+        (when local-context
+          :c2)))
 
     (let [global-context (handler/->context :global {:global-context true})
           local-context (handler/->context :local {:local-context true})]
@@ -87,8 +87,8 @@
       (handler/defhandler :c1 :global
         (active? [selection] selection)
         (run [selection]
-             (g/with-auto-evaluation-context evaluation-context
-               (handler/adapt selection Keyword evaluation-context))))
+          (g/with-auto-evaluation-context evaluation-context
+            (handler/adapt selection Keyword evaluation-context))))
       (doseq [[local-selection expected-selection] [[["b"] [:b]]
                                                     [[] []]
                                                     [nil [:a]]]]
@@ -105,7 +105,7 @@
       (handler/defhandler :c1 :global
         (active? [selection selection-context] (and (= :global selection-context) selection))
         (run [selection]
-             nil))
+          nil))
       (is (test-util/handler-enabled? :c1 [global] {}))
       (is (not (test-util/handler-enabled? :c1 [local] {})))
       (is (test-util/handler-enabled? :c1 [local global] {})))))

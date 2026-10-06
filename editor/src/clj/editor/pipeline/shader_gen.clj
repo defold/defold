@@ -34,6 +34,7 @@
     :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
     :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
     :language-glsl-sm330 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330
+    :language-hlsl-51 Graphics$ShaderDesc$Language/LANGUAGE_HLSL_51
     :language-msl-22 Graphics$ShaderDesc$Language/LANGUAGE_MSL_22
     :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
 
@@ -107,11 +108,9 @@
      :location reflected-location
      :array-size array-size}))
 
-(defn- transpile-target-pb-shader-language
-  ^Graphics$ShaderDesc$Language [target-language]
-  ;; TODO: We need both shader targets during preparation. Later PRs will use
-  ;; SM330 for editor rendering instead of SM120.
-  (shader-language->pb-shader-language target-language))
+(def ^:private transpile-target-pb-shader-language
+  ;; Editor rendering requires desktop GLSL 330.
+  (shader-language->pb-shader-language :language-glsl-sm330))
 
 (defn- decorate-transpile-error
   [^Exception cause shader-type ^String shader-proj-path ^String shader-source max-page-count & extra-key-value-pairs]
@@ -127,9 +126,9 @@
                  :shader-source shader-source
                  :max-page-count max-page-count}
 
-                (coll/not-empty extra-key-value-pairs)
-                (into (partition-all 2)
-                      extra-key-value-pairs))]
+          (coll/not-empty extra-key-value-pairs)
+          (into (partition-all 2)
+                extra-key-value-pairs))]
 
     (ex-info ex-message ex-map cause)))
 
@@ -177,22 +176,19 @@
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
   reflection info. The precision strings should be either \"highp\" or \"mediump\".
-  The target-language selects SM120 for editor previews or SM330 for
-  development and tests. Both targets expose uniform-buffer members as ordinary
+  Editor previews use SM330 and expose uniform-buffer members as ordinary
   uniforms for editor binding."
-  [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str target-language]
+  [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str]
   {:pre [(string? shader-path)
          (pos? (count shader-path))
          (string? shader-source)
-         (pos? (count shader-source))
-         (contains? #{:language-glsl-sm120 :language-glsl-sm330} target-language)]}
+         (pos? (count shader-source))]}
   (let [shader-type (graphics.types/filename-shader-type shader-path)
-        pb-shader-language (transpile-target-pb-shader-language target-language)
         pb-shader-type (graphics.types/shader-type-pb-shader-type shader-type)
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
-          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type pb-shader-language ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
+          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
           (catch CompileExceptionError cause
             (let [error-line-number (.getLineNumber cause)
                   error-proj-path (or (some-> cause .getResource .getPath (str "/"))

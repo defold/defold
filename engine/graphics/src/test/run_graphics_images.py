@@ -31,12 +31,12 @@ CASE_DESCRIPTIONS = {
     'stencil_nested': 'Three nested levels: orange outer mask, green child, blue grandchild. Children extend beyond their parents and must be clipped.',
     'stencil_masks': 'Overlapping low/high-nibble writes preserve unselected bits. Exact values produce yellow, orange, green and blue regions; magenta/cyan strips check masked reads. A zero write mask must block REPLACE.',
     'stencil_ops': 'Nine green tiles, row-major: ZERO, REPLACE, INCR, INCR at 255 (clamp), DECR, DECR at 0 (clamp), INVERT, INCR_WRAP at 255, DECR_WRAP at 0. Missing tiles identify incorrect results.',
-    'stencil_depth': 'An invisible depth occluder crosses three bands. Front band: orange. Rear band: green with orange center from depth-failure INCR. Bottom band: blue from stencil-failure INVERT, including where depth also fails.',
+    'stencil_depth': 'Back-face culling is enabled. An invisible depth occluder crosses three bands. Front band: orange. Rear band: green with orange center from depth-failure INCR. Bottom band: blue from stencil-failure INVERT, including where depth also fails.',
     'stencil_faces': 'Opposite windings: top orange/cyan tiles check separate front/back operations; bottom magenta/green tiles check separate EQUAL/NOTEQUAL comparisons. Results are read with common face state to expose swapped faces.',
 }
 CASE_DESCRIPTIONS.update({case: 'Labelled 8×8 grid uploaded in native %s format, sampled at mip 0 with nearest filtering. Unsupported formats are skipped before upload.' % case.removeprefix('texture_') for case in TEXTURE_CASES})
 REFERENCE_BACKENDS = {**dict.fromkeys(TEXTURE_CASES, 'CPU decoded texture'), 'stencil_faces': 'OpenGL', 'texture_rgba': 'Source image'}
-BACKENDS = ('metal', 'opengl', 'webgpu', 'vulkan', 'dx12')
+BACKENDS = ('metal', 'opengl', 'vulkan', 'webgpu')
 BACKGROUND = (37, 73, 109)
 THRESHOLD = 99.0
 SIZE = (256, 256)
@@ -291,7 +291,7 @@ def capture(executable, root, backend, case, timeout=60, launcher=None, target_p
             raise ValueError('Requested target platform identity was not confirmed')
         if len(platforms) == 1:
             record['target_platform'] = platforms[0]
-        identities = re.findall(r'^GRAPHICS_CAPTURE_BACKEND=(\w+)$', process.stdout, re.MULTILINE)
+        identities = re.findall(r'^INFO:[^:\r\n]+: GRAPHICS_CAPTURE_BACKEND=(\w+)$', process.stdout, re.MULTILINE)
         if identities == [backend]:
             record['actual_backend'] = backend
         if process.returncode not in (0, 77):

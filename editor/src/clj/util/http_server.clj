@@ -23,6 +23,7 @@
             [service.log :as log]
             [util.coll :as coll]
             [util.defonce :as defonce]
+            [util.http-server.types :as http-server.types]
             [util.path :as path])
   (:import [com.sun.net.httpserver Headers HttpHandler HttpServer]
            [java.io Closeable File IOException]
@@ -35,99 +36,16 @@
 
 (set! *warn-on-reflection* true)
 
-(def ext->content-type
-  ;; see also: https://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
-  {"aac" "audio/aac"
-   "apng" "image/apng"
-   "avif" "image/avif"
-   "bmp" "image/bmp"
-   "clj" "text/plain"
-   "css" "text/css"
-   "cur" "image/x-icon"
-   "gif" "image/gif"
-   "glsl" "text/plain"
-   "htm" "text/html"
-   "html" "text/html"
-   "ico" "image/x-icon"
-   "jfif" "image/jpeg"
-   "jpeg" "image/jpeg"
-   "jpg" "image/jpeg"
-   "js" "text/javascript"
-   "json" "application/json"
-   "m4a" "audio/mp4"
-   "m4v" "video/x-m4v"
-   "mp3" "audio/mp3"
-   "mp4" "video/mp4"
-   "oga" "audio/ogg"
-   "ogg" "audio/ogg"
-   "ogv" "video/ogg"
-   "pjp" "image/jpeg"
-   "pjpeg" "image/jpeg"
-   "png" "image/png"
-   "shtml" "text/html"
-   "svg" "image/svg+xml"
-   "tif" "image/tif"
-   "tiff" "image/tiff"
-   "ttf" "font/ttf"
-   "txt" "text/plain"
-   "wasm" "application/wasm"
-   "wav" "audio/wav"
-   "webm" "video/webm"
-   "webmanifest" "application/manifest+json"
-   "webp" "image/webp"
-   "woff" "font/woff"
-   "woff2" "font/woff2"
-   "xhtml" "application/xhtml+xml"
-   "xml" "text/xml"
-   "zip" "application/zip"})
-
 (defn- path-content-type [s]
-  (ext->content-type (FilenameUtils/getExtension s)))
+  (http-server.types/ext->content-type (FilenameUtils/getExtension s)))
 
-;; We want to support a use-case where responses are created and then stored
-;; somewhere until they are returned by some handler. Such use-case has 2
-;; aspects:
-;; - efficient representation of the response. For example, if we want to
-;;   respond with String content, we immediately convert it to bytes and infer
-;;   its content-type and content-length
-;; - meeting the expectations when responding with resources. For example, if
-;;   we create a response with a file Path and cache it, we expect that changing
-;;   the file content would still be recognized by the server that responds with
-;;   the cached response.
-;; To achieve this, we use these protocols:
-(defonce/protocol ContentType (content-type [body] "static content-type string or nil if unknown; default nil"))
-(defonce/protocol ContentLength (content-length [body] "static content-length in bytes (long) or nil if unknown; default nil"))
-(defonce/protocol ->Data (->data [body] "convert body to reusable immutable data"))
-(defonce/protocol ->Connection (->connection [data] "open connection to HTTP response data before sending; the connection may know its content-type and content-length at send time, is written via connection-write!, and may be Closeable; default identity"))
-(defonce/protocol ConnectionContentType (connection-content-type [connection] "dynamic content-type string or nil if unknown; default nil"))
-(defonce/protocol ConnectionContentLength (connection-content-length [connection] "dynamic content-length in bytes (long) or nil if unknown; default nil"))
-(defonce/protocol ConnectionWrite (connection-write! [connection output-stream] "write HTTP response body directly to output-stream"))
-;; During response creation, if content-length and content-type weren't
-;; explicitly provided, we try to infer them. We use `content-type` fn on a
-;; provided body, and then try it on the data produced using `->data`. We
-;; similarly try to get the content length by invoking `content-length` on body
-;; and data. This prepares the immutable part of the response.
-;; Then comes the dynamic part: when sending the response, we open the
-;; connection to data. This connection might know its type and length when it's
-;; established. For example, if response body is an HTTP URL/URI, the editor
-;; server performs an HTTP request to a remote server that may respond to the
-;; editor server with content-type and content-length headers. So, after opening
-;; the connection, if we still don't know the content length and type of the
-;; response, we ask the connection for its `connection-content-type` and
-;; `connection-content-length`. We don't reuse the `content-type` and
-;; `content-length` protocol fns here to make the developer aware that the
-;; functions serve different purposes: `content-type` and `content-length` are
-;; essentially static and don't change for a given response body, while
-;; `connection-content-type` and `connection-content-length` are dynamic and may
-;; change between responses given the same body.
-
-(extend-protocol ->Data
+(extend-protocol http-server.types/->Data
   String (->data [s] (.getBytes s StandardCharsets/UTF_8))
   File (->data [f] (.toPath f))
   Object (->data [x] x)
   nil (->data [x] x))
 
-(extend-protocol ContentType
+(extend-protocol http-server.types/ContentType
   String (content-type [_] "text/plain; charset=utf-8")
   byte/1 (content-type [_] "application/octet-stream")
   Path (content-type [path] (path-content-type (str path)))
@@ -138,7 +56,7 @@
   Object (content-type [_])
   nil (content-type [_]))
 
-(extend-protocol ContentLength
+(extend-protocol http-server.types/ContentLength
   byte/1 (content-length [bytes] (count bytes))
   Object (content-length [_])
   nil (content-length [_]))
@@ -172,19 +90,19 @@
    {:pre [(integer? status) (or (nil? headers) (map? headers))]}
    (let [;; Convert body to reduce unnecessary transformations when sending the
          ;; response in case this response is going to be reused
-         data (->data body)
+         data (http-server.types/->data body)
          data-is-body (identical? body data)
          ;; Infer length if possible to do immediately
          length (or (some-> (get headers "content-length") parse-long)
-                    (content-length body)
-                    (when-not data-is-body (content-length data)))
+                    (http-server.types/content-length body)
+                    (when-not data-is-body (http-server.types/content-length data)))
          headers (-> headers
-                     (provide-header "content-type" (or (content-type body)
-                                                        (when-not data-is-body (content-type data))))
+                     (provide-header "content-type" (or (http-server.types/content-type body)
+                                                        (when-not data-is-body (http-server.types/content-type data))))
                      (provide-header "content-length" length))]
      (cond-> {:status status}
-             headers (assoc :headers headers)
-             (and data (or (not length) (pos? length))) (assoc :body data)))))
+       headers (assoc :headers headers)
+       (and data (or (not length) (pos? length))) (assoc :body data)))))
 
 (defn json-response
   ([json-value]
@@ -222,25 +140,25 @@
   (let [address (.getAddress ^HttpServer (.-server server))]
     (format "http://%s:%d" (.getHostString address) (.getPort address))))
 
-(extend-protocol ConnectionContentLength
+(extend-protocol http-server.types/ConnectionContentLength
   Path (connection-content-length [path] (path/byte-size path))
   Object (connection-content-length [_])
   nil (connection-content-length [_]))
 
-(extend-protocol ConnectionContentType
+(extend-protocol http-server.types/ConnectionContentType
   Object (connection-content-type [_])
   nil (connection-content-type [_]))
 
-(extend-protocol ->Connection
+(extend-protocol http-server.types/->Connection
   URL (->connection [url]
         (let [connection (.openConnection url)]
           (reify
-            ConnectionContentLength
+            http-server.types/ConnectionContentLength
             (connection-content-length [_]
               (let [len (.getContentLengthLong connection)]
                 (when-not (= -1 len) len)))
 
-            ConnectionContentType
+            http-server.types/ConnectionContentType
             (connection-content-type [_] (.getContentType connection))
 
             io/IOFactory
@@ -251,11 +169,11 @@
 
             Closeable
             (close [_] (.close (.getInputStream connection))))))
-  URI (->connection [uri] (->connection (.toURL uri)))
+  URI (->connection [uri] (http-server.types/->connection (.toURL uri)))
   Object (->connection [x] x)
   nil (->connection [x] x))
 
-(extend-protocol ConnectionWrite
+(extend-protocol http-server.types/ConnectionWrite
   Object (connection-write! [connection output-stream]
            (with-open [input-stream (io/input-stream connection)]
              (io/copy input-stream output-stream)))
@@ -323,8 +241,8 @@
                                               (transient {})
                                               (.entrySet (.getRequestHeaders exchange))))
                                  :body (.getRequestBody exchange)}
-                                query
-                                (assoc :query query))]
+                          query
+                          (assoc :query query))]
             (-> (try
                   (future/wrap (handler request))
                   (catch Throwable e (future/failed e)))
@@ -342,15 +260,15 @@
                             (throw (ex-info (str "Invalid response status: " status) {:status status})))
                           (when-not (or (nil? headers) (map? headers))
                             (throw (ex-info (str "Invalid response headers: " headers) {:headers headers})))
-                          (let [connection (->connection body)]
+                          (let [connection (http-server.types/->connection body)]
                             (try
                               (let [;; Infer content-length and content-type for responses that
                                     ;; can't do that during response creation. For example, we
                                     ;; might cache a response with a particular file, but
                                     ;; the file itself might change between requests
                                     headers (-> headers
-                                                (provide-header "content-type" (connection-content-type connection))
-                                                (provide-header "content-length" (connection-content-length connection)))
+                                                (provide-header "content-type" (http-server.types/connection-content-type connection))
+                                                (provide-header "content-length" (http-server.types/connection-content-length connection)))
                                     ;; Maybe don't write the data at all (we still need
                                     ;; to create the connection to infer content headers)
                                     connection (if (or (= "HEAD" request-method)
@@ -372,7 +290,7 @@
                                         (if (zero? n) -1 n))
                                       0)))
                                 (when connection
-                                  (connection-write! connection (.getResponseBody exchange))))
+                                  (http-server.types/connection-write! connection (.getResponseBody exchange))))
                               ;; A browser or remote http client can close the
                               ;; connection before we finished sending the response
                               ;; headers/body: we only log such exceptions since
