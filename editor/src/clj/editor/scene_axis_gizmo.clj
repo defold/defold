@@ -65,7 +65,7 @@
   ;; to match screen-space Y just before translation. Composing the Y flip this
   ;; way avoids the gimbal-lock issues of trying to mirror individual Euler
   ;; components of the camera rotation.
-  (let [x (+ (.left viewport) gizmo-margin gizmo-scale)
+  (let [x (- (.right viewport) gizmo-margin gizmo-scale)
         y (- (.bottom viewport) gizmo-margin gizmo-scale)
         rotation (doto (Quat4d. ^Quat4d (:rotation camera)) (.conjugate))
         rs ^Matrix4d (math/->mat4-uniform (Vector3d. 0.0 0.0 0.0) rotation gizmo-scale)
