@@ -960,7 +960,7 @@ static bool LayoutText(LayoutContext* ctx,
 
     skb_rect2_t layout_bounds = skb_layout_get_bounds(skblayout);
     layout->m_Width = layout_bounds.width - (tracking > 0 ? tracking : 0);
-    if (lines_count != skb_layout_get_lines_count(skblayout))
+    if (!settings->m_LineBreak || lines_count != skb_layout_get_lines_count(skblayout))
     {
         layout->m_Width = 0.0f;
         for (uint32_t i = 0; i < layout->m_Lines.Size(); ++i)
