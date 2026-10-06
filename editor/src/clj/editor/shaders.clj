@@ -74,6 +74,13 @@
     "shaders/basic-texture.vp"
     "shaders/basic-texture.fp"))
 
+(def basic-texture-tint-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
+    "shaders/basic-texture.vp"
+    "shaders/basic-texture-tint.fp"))
+
 (def basic-texture-color-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local

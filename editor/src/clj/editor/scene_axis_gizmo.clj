@@ -30,7 +30,7 @@
            [java.awt BasicStroke Color Font RenderingHints]
            [java.awt.geom Ellipse2D$Double]
            [java.awt.image BufferedImage]
-           [javax.vecmath Matrix4d Quat4d Vector3d]))
+           [javax.vecmath Matrix4d Quat4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -278,36 +278,37 @@
 (def ^:private backdrop-texture
   (texture/image-texture [::backdrop] (make-backdrop-image)))
 
-(def ^:private billboard-shader shaders/basic-texture-color-local-space)
+(def ^:private billboard-shader shaders/basic-texture-tint-local-space)
 
-(defn- make-billboard-vertex-buffer
-  "Quad centered on `center`, spanning `half-u` along `u` and `half-v` along `v`,
-  faded by `alpha`."
-  [^Vector3d center ^Vector3d u ^Vector3d v half-u half-v alpha]
-  (let [alpha (float alpha)
-        half-u (double half-u)
-        half-v (double half-v)
-        corner (fn [^double du ^double dv]
-                 (let [p (Vector3d. center)]
-                   (.scaleAdd p (* du half-u) u p)
-                   (.scaleAdd p (* dv half-v) v p)
-                   p))
-        vertex-buffer (vtx/make-vertex-buffer (shaders/vertex-description billboard-shader) :stream 6)
-        byte-buffer (vtx/buf vertex-buffer)
-        float-buffer (.asFloatBuffer byte-buffer)]
-    (doseq [[du dv] [[-1.0 -1.0] [1.0 -1.0] [1.0 1.0] [1.0 1.0] [-1.0 1.0] [-1.0 -1.0]]
-            :let [^Vector3d p (corner du dv)]]
-      (doto float-buffer
-        (.put (float (.x p))) (.put (float (.y p))) (.put (float (.z p)))
-        (.put (float (* 0.5 (+ 1.0 ^double du)))) (.put (float (* 0.5 (+ 1.0 ^double dv))))
-        (.put (float 1.0)) (.put (float 1.0)) (.put (float 1.0)) (.put alpha)))
-    (.position byte-buffer (* (.position float-buffer) Float/BYTES))
-    (vtx/flip! vertex-buffer)))
+(def ^:private billboard-quad
+  "Quad spanning -1 to 1 in the local XY plane, placed by each handle's matrix."
+  (delay
+    (let [vertex-buffer (vtx/make-vertex-buffer (shaders/vertex-description billboard-shader) :static 6)
+          byte-buffer (vtx/buf vertex-buffer)
+          float-buffer (.asFloatBuffer byte-buffer)]
+      (doseq [[^double x ^double y] [[-1.0 -1.0] [1.0 -1.0] [1.0 1.0] [1.0 1.0] [-1.0 1.0] [-1.0 -1.0]]]
+        (doto float-buffer
+          (.put (float x)) (.put (float y)) (.put (float 0.0))
+          (.put (float (* 0.5 (+ 1.0 x)))) (.put (float (* 0.5 (+ 1.0 y))))))
+      (.position byte-buffer (* (.position float-buffer) Float/BYTES))
+      (vtx/flip! vertex-buffer))))
+
+(defn- billboard-matrix
+  "Places the billboard quad at `center`, spanning `half-u` along `u` and
+  `half-v` along `v`, facing `toward`."
+  ^Matrix4d [^Vector3d center ^Vector3d u ^Vector3d v ^Vector3d toward half-u half-v]
+  (let [half-u (double half-u)
+        half-v (double half-v)]
+    (doto (Matrix4d.)
+      (.setColumn 0 (* (.x u) half-u) (* (.y u) half-u) (* (.z u) half-u) 0.0)
+      (.setColumn 1 (* (.x v) half-v) (* (.y v) half-v) (* (.z v) half-v) 0.0)
+      (.setColumn 2 (.x toward) (.y toward) (.z toward) 0.0)
+      (.setColumn 3 (.x center) (.y center) (.z center) 1.0))))
 
 (defn- handle-billboards
-  "Balls and lines as {:key :depth :texture :vertex-buffer} maps, back to
-  front, after the backdrop while it's faded in. The camera rotation maps
-  screen axes into the gizmo's model space."
+  "Balls and lines as {:depth :texture :matrix :alpha} maps, back to front,
+  after the backdrop while it's faded in. The camera rotation maps screen axes
+  into the gizmo's model space."
   [^Quat4d camera-rotation ^double backdrop-alpha]
   (let [screen-axis (fn [x y z] (math/rotate camera-rotation (Vector3d. x y z)))
         ^Vector3d right (screen-axis 1.0 0.0 0.0)
@@ -315,10 +316,10 @@
         ^Vector3d toward (screen-axis 0.0 0.0 1.0)
         balls (for [axis axis-order
                     :let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))]]
-                {:key [::ball axis]
-                 :depth (.dot toward center)
+                {:depth (.dot toward center)
                  :texture (ball-textures axis)
-                 :vertex-buffer (make-billboard-vertex-buffer center right up ball-radius ball-radius 1.0)})
+                 :matrix (billboard-matrix center right up toward ball-radius ball-radius)
+                 :alpha 1.0})
         lines (for [axis [:+x :+y :+z]
                     :let [normal ^Vector3d (axis->normal axis)
                           side (doto (Vector3d.) (.cross toward normal))
@@ -328,15 +329,15 @@
                           length (* ^double ball-distance (- 1.0 (/ ^double ball-radius (max screen-length 1e-6))))]
                     :when (pos? length)
                     :let [center (doto (Vector3d. normal) (.scale (* 0.5 length)))]]
-                {:key [::line axis]
-                 :depth (.dot toward center)
+                {:depth (.dot toward center)
                  :texture (line-textures axis)
-                 :vertex-buffer (make-billboard-vertex-buffer center (doto side (.normalize)) normal
-                                                              line-quad-half-width (* 0.5 length) 1.0)})]
+                 :matrix (billboard-matrix center (doto side (.normalize)) normal toward
+                                           line-quad-half-width (* 0.5 length))
+                 :alpha 1.0})]
     (cond->> (sort-by :depth (concat balls lines))
-      (pos? backdrop-alpha) (cons {:key [::backdrop]
-                                   :texture backdrop-texture
-                                   :vertex-buffer (make-billboard-vertex-buffer (Vector3d.) right up backdrop-radius backdrop-radius backdrop-alpha)}))))
+      (pos? backdrop-alpha) (cons {:texture backdrop-texture
+                                   :matrix (billboard-matrix (Vector3d.) right up toward backdrop-radius backdrop-radius)
+                                   :alpha backdrop-alpha}))))
 
 (defn- draw-handles!
   "Draws the handles back to front, blending their premultiplied textures.
@@ -344,10 +345,13 @@
   [^GL2 gl render-args ^Camera camera backdrop-alpha]
   (.glDisable gl GL2/GL_DEPTH_TEST)
   (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
-  (doseq [{:keys [key texture vertex-buffer]} (handle-billboards (:rotation camera) backdrop-alpha)
-          :let [vertex-binding (vtx/use-with key vertex-buffer billboard-shader)]]
-    (gl/with-gl-bindings gl render-args [billboard-shader vertex-binding texture]
+  (doseq [{:keys [texture matrix alpha]} (handle-billboards (:rotation camera) backdrop-alpha)
+          :let [vertex-binding (vtx/use-with [::billboard-quad] @billboard-quad billboard-shader)
+                handle-args (assoc render-args :world-view-proj (doto (Matrix4d. ^Matrix4d (:world-view-proj render-args)) (.mul ^Matrix4d matrix)))
+                alpha (double alpha)]]
+    (gl/with-gl-bindings gl handle-args [billboard-shader vertex-binding texture]
       (shader/set-samplers-by-index billboard-shader gl 0 (:texture-units texture))
+      (shader/set-uniform billboard-shader gl "tint" (Vector4d. alpha alpha alpha alpha))
       (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 6)))
   (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
 
