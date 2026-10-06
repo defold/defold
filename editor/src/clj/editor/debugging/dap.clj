@@ -44,6 +44,13 @@
       (.flush))))
 
 (defn close!
+  "Cancel the debugger connection and wait for its tasks to finish.
+
+  Closes the transport and cancels ongoing connection work. Safe to call
+  repeatedly. Connection failures are reported through session callbacks.
+
+  Returns nil. Blocks until cleanup completes; call off the UI thread.
+  Queued callbacks may still run after this function returns."
   [session]
   (assert (not (ui/on-ui-thread?)))
   (when-let [transport (:transport (first (swap-vals! (:data session) dissoc :transport)))]
@@ -57,10 +64,23 @@
   IDeref
   (deref [_] (:debugger @data)))
 
-(defn status [session]
+(defn status
+  "Return the session's current status.
+
+  Returns :connecting, :running, :suspended or :closed."
+  [session]
   (:status @session))
 
-(defn suspension [state]
+(defn suspension
+  "Return a snapshot identifying a suspension in the supplied debugger state.
+
+  Accepts state obtained by dereferencing a session or received by a callback.
+  Returns a map with :generation and any reported :threadId, or nil unless
+  the state is suspended.
+
+  Pass this snapshot to inspection functions to discard results from an
+  earlier suspension."
+  [state]
   (when (= :suspended (:status state))
     (select-keys state [:generation :threadId])))
 
@@ -217,6 +237,18 @@
     (assoc state :breakpoints desired)))
 
 (defn set-breakpoints!
+  "Replace the session's desired breakpoints and queue their synchronization.
+
+  Args:
+    session        debugger session
+    breakpoints    map from source paths to vectors of DAP breakpoint maps;
+                   :line is one-based, and :condition is an optional expression
+
+  An empty vector clears a source's breakpoints. Omitting a previously
+  configured source also clears its breakpoints.
+
+  Returns session without waiting for the adapter. Changes made during
+  connection setup are included in initialization."
   [session breakpoints]
   (let [data (swap! (:data session)
                     #(if-not (:transport %) % (assoc-in % [:debugger :desired-breakpoints] breakpoints)))]
@@ -314,7 +346,40 @@
         (future/fail! (:ended session) (or exception (IOException. "Debugger disconnected")))))))
 
 (defn connect!
-  [address resolve-port {:keys [local-root breakpoints target] :as options}]
+  "Start an asynchronous debugger connection and return its session.
+
+  Args:
+    address         debugger hostname or IP address
+    resolve-port    function of no args that returns the debugger port, or nil
+                    while the port is unavailable
+    local-root      absolute project directory used to convert source paths
+                    to project paths
+
+  Options may be omitted, passed as keyword/value pairs, as a map, or as
+  keyword/value pairs followed by a map. A trailing map overrides preceding
+  pairs.
+
+  Options:
+    :breakpoints     initial breakpoints by source path; defaults to {}
+                     (see set-breakpoints!)
+    :stop-on-entry   whether attachment should stop execution; defaults to false
+    :target          target metadata retained in the session state
+    :on-connected    fn of session and state; called after initialization
+    :on-suspended    fn of session, state and stopped-event body
+    :on-resumed      fn of session and state
+    :on-output       fn of session, state and output-event body
+    :on-invalidated  fn of session, state and invalidated-event body
+    :on-error        fn of session, state and exception
+    :on-closed       fn of session and state
+
+  Callbacks run on the UI thread in notification order. Their state argument
+  is captured when the notification is queued, so it may differ from the
+  session's state when the callback runs. Callbacks may be omitted.
+
+  Dereferencing the session returns its debugger state. Its initial status
+  is :connecting. Port discovery and connection attempts are retried until
+  successful, cancelled or timed out."
+  [address resolve-port local-root & {:keys [breakpoints target] :as options}]
   (let [transport {:protocol-queue (LinkedBlockingQueue.)
                    :coordinator-queue (LinkedBlockingQueue.)
                    :stop-requested (future/make)
@@ -328,10 +393,17 @@
                            (future/make))]
     (future/io
       (.setName (Thread/currentThread) "dap-session")
-      (run-session! (assoc (merge options transport) :session session) address resolve-port))
+      (run-session! (assoc (merge options transport) :session session :local-root local-root) address resolve-port))
     session))
 
 (defn disconnect!
+  "Detach from the debuggee and close the debugger connection.
+
+  Requests detachment without terminating the debuggee when the session is
+  running or suspended. Closes the connection even if the request fails.
+
+  Returns the response body, or nil when no request is sent. Request failures
+  are thrown after cleanup. Blocks; call off the UI thread."
   [session]
   (assert (not (ui/on-ui-thread?)))
   (try
@@ -340,7 +412,20 @@
     (finally
       (close! session))))
 
-(defn control! [session command]
+(defn control!
+  "Send an execution-control command to the debugger.
+
+  Args:
+    session    debugger session
+    command    DAP command string: pause, continue, next, stepIn or stepOut
+
+  Uses the suspended thread for commands other than pause. Otherwise,
+  requests the adapter's threads and uses the first one.
+
+  Returns the response body. Execution-state changes arrive separately
+  through callbacks. Blocks and throws request failures;
+  call off the UI thread."
+  [session command]
   (let [thread-id (or (when-not (= "pause" command) (:threadId @session))
                       (:id (first (:threads (request! session "threads" {})))))]
     (request! session command {:threadId thread-id})))
@@ -366,7 +451,18 @@
         (when (= snapshot (suspension @session))
           (throw exception))))))
 
-(defn stack [session snapshot]
+(defn stack
+  "Fetch the call stack for the suspension identified by snapshot.
+
+  Returns a vector of frames with :id, :function, :file and one-based :line.
+  Source paths within the project directory become project paths.
+
+  Returns nil for a nil or stale snapshot. Results and request failures are
+  discarded if the debugger resumes, stops again or closes during retrieval.
+  Request failures are thrown if the suspension remains unchanged.
+
+  Blocks; call off the UI thread."
+  [session snapshot]
   (inspect session snapshot
            (fn []
              (let [thread-id (or (:threadId snapshot)
@@ -379,11 +475,43 @@
                         :line line})
                      frames)))))
 
-(defn variables [session snapshot reference]
+(defn variables
+  "Fetch the children of a variable reference from a debugger suspension.
+
+  Args:
+    session      debugger session
+    snapshot     snapshot returned by suspension
+    reference    positive :variablesReference from an adapter result
+
+  Returns the adapter's variable maps, including :name, :value and
+  :variablesReference. A zero :variablesReference denotes a leaf value.
+
+  Returns nil for a nil or stale snapshot. Results and request failures are
+  discarded if the debugger resumes, stops again or closes during retrieval.
+  Request failures are thrown if the suspension remains unchanged.
+
+  Blocks; call off the UI thread."
+  [session snapshot reference]
   (inspect session snapshot
            #(:variables (request! session "variables" {:variablesReference reference}))))
 
-(defn frame-variables [session snapshot frame-id]
+(defn frame-variables
+  "Fetch the variables visible in a suspended stack frame.
+
+  Args:
+    session     debugger session
+    snapshot    snapshot returned by suspension
+    frame-id    :id of a frame returned by stack for that suspension
+
+  Combines variables from non-expensive scopes in adapter order. Exposes
+  the Globals scope as an expandable _G variable.
+
+  Returns nil for a nil or stale snapshot. Results and request failures are
+  discarded if the debugger resumes, stops again or closes during retrieval.
+  Request failures are thrown if the suspension remains unchanged.
+
+  Blocks; call off the UI thread."
+  [session snapshot frame-id]
   (inspect session snapshot
            (fn []
              (let [scopes (:scopes (request! session "scopes" {:frameId frame-id}))]
@@ -397,7 +525,20 @@
                                  :else (variables session snapshot variablesReference))))
                      scopes)))))
 
-(defn evaluate! [session frame-id expression]
+(defn evaluate!
+  "Evaluate Lua code in the debuggee using the debugger REPL context.
+
+  Args:
+    session       debugger session
+    frame-id      suspended frame id, or nil for the global context
+    expression    Lua expression or statements to evaluate
+
+  Returns the adapter's evaluation response body. Use
+  evaluation-result->string to format it for display.
+
+  Evaluation may modify the debuggee and invalidate previously fetched
+  variables. Blocks and throws request failures; call off the UI thread."
+  [session frame-id expression]
   (request! session "evaluate"
             (cond-> {:expression expression :context "repl"}
               frame-id (assoc :frameId frame-id))))
@@ -427,6 +568,23 @@
                  indent "}")))))))
 
 (defn evaluation-result->string
+  "Format an evaluation response for display in the debugger console.
+
+  Args:
+    session     debugger session
+    snapshot    suspension snapshot captured for the evaluation
+    result      response body returned by evaluate!
+
+  Fetches and recursively formats inspectable values, limiting expansion
+  depth and avoiding repeated expansion of shared or cyclic references.
+  Multiple return values are formatted independently and joined with
+  newlines, preserving their order and nil values.
+
+  Returns the adapter's original :result text if the suspension is stale
+  or changes during formatting.
+
+  May perform blocking requests and throw request failures;
+  call off the UI thread."
   [session snapshot result]
   (let [output
         (if (:defoldResultCount result)

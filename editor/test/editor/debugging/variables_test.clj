@@ -48,9 +48,6 @@
   [root-variables child-variables & body]
   `(let [root-variables# ~root-variables
          child-variables# ~child-variables
-         ;; Keep with-adapter's port and requests bindings out of the test body.
-         f# (fn [~(with-meta 'view {:tag 'javafx.scene.control.TreeView}) ~'session ~'events]
-              ~@body)
          view# (ui/run-now
                  (let [view# (doto (variables/make-view!) (.setFixedCellSize 24.0))
                        pane# (doto (StackPane.) (ui/children! [view#]))]
@@ -59,6 +56,7 @@
                    view#))]
      (try
        (dap-util/with-adapter
+         "/project"
          {}
          (fn [request# _# out# _socket#]
            (case (:command request#)
@@ -79,7 +77,8 @@
                              (child-variables# request# out# reference#))]
                (when values#
                  (dap-util/respond! out# request# {:variables values#})))))
-         (f# view# ~'session ~'events))
+         (let [~(with-meta 'view {:tag 'javafx.scene.control.TreeView}) view#]
+           ~@body))
        (finally (ui/run-now (variables/clear! view#))))))
 
 (defn- pause! [view session events frame-id]
@@ -90,7 +89,7 @@
 
 ;; Opened paths reload new references and values across stops; collapsed branches stay closed.
 (deftest restore-expanded-paths-test
-  (let [requests (atom [])]
+  (let [variable-requests (atom [])]
     (with-view
       (fn [_ _ generation]
         (let [base (* (long generation) 100)]
@@ -100,7 +99,7 @@
       (fn [_ _ reference]
         (let [generation (quot (long reference) 100)
               base (* generation 100)]
-          (swap! requests conj [generation reference])
+          (swap! variable-requests conj [generation reference])
           (cond
             (= reference (+ base 1)) [(variable "nested" "table" (+ base 2))
                                       (variable "cycle" "table" (+ base 1))]
@@ -108,7 +107,7 @@
             (= reference (+ base 3)) [(variable "global" (str generation) 0)])))
       (dap-util/await! (pause! view session events 1))
       (dap-util/await-ui! view #(item-at view ["self"]))
-      (is (= [] @requests))
+      (is (= [] @variable-requests))
       (let [^TreeItem self (ui/run-now (item-at view ["self"]))]
         (ui/run-now (.setExpanded self true))
         (dap-util/await-ui! view #(item-at view ["self" "nested"])))
@@ -119,7 +118,7 @@
       (dap-util/await-ui! view #(and (item-at view ["self" "nested" "count"])
                                      (item-at view ["self" "cycle" "cycle"])
                                      (item-at view ["_G" "global"])))
-      (reset! requests [])
+      (reset! variable-requests [])
       (dap-util/await! (pause! view session events 2))
       (dap-util/await-ui! view #(and (item-at view ["self" "nested" "count"])
                                      (item-at view ["self" "cycle" "cycle"])
@@ -129,18 +128,18 @@
         (is (.isExpanded (item-at view ["self" "cycle"])))
         (is (not (.isExpanded (item-at view ["self" "cycle" "cycle"]))))
         (is (not (.isExpanded (item-at view ["unopened"])))))
-      (is (= {[2 201] 2 [2 202] 1 [2 203] 1} (frequencies @requests)))
+      (is (= {[2 201] 2 [2 202] 1 [2 203] 1} (frequencies @variable-requests)))
       (ui/run-now (.setExpanded (item-at view ["self" "nested"]) false))
-      (reset! requests [])
+      (reset! variable-requests [])
       (dap-util/await! (pause! view session events 3))
       (dap-util/await-ui! view #(and (item-at view ["self" "cycle" "cycle"])
                                      (item-at view ["_G" "global"])))
       (ui/run-now (is (not (.isExpanded (item-at view ["self" "nested"])))))
-      (is (= {[3 301] 2 [3 303] 1} (frequencies @requests))))))
+      (is (= {[3 301] 2 [3 303] 1} (frequencies @variable-requests))))))
 
 ;; Saved expansion survives a table becoming scalar or absent without fetching its children.
 (deftest changing-variable-shapes-test
-  (let [requests (atom [])]
+  (let [variable-requests (atom [])]
     (with-view
       (fn [_ _ generation]
         (case (long generation)
@@ -148,7 +147,7 @@
           3 []
           [(variable "self" "table" generation)]))
       (fn [_ _ reference]
-        (swap! requests conj reference)
+        (swap! variable-requests conj reference)
         [(variable "value" (str reference) 0)])
       (dap-util/await! (pause! view session events 1))
       (dap-util/await-ui! view #(item-at view ["self"]))
@@ -158,11 +157,11 @@
       (dap-util/await-ui! view #(= "nil" (some-> (item-at view ["self"]) .getValue :value)))
       (dap-util/await! (pause! view session events 3))
       (ui/run-now (is (zero? (count (.getChildren (.getRoot view))))))
-      (is (= [1] @requests))
+      (is (= [1] @variable-requests))
       (dap-util/await! (pause! view session events 4))
       (dap-util/await-ui! view #(item-at view ["self" "value"]))
       (ui/run-now (is (= "4" (:value (.getValue (item-at view ["self" "value"]))))))
-      (is (= [1 4] @requests)))))
+      (is (= [1 4] @variable-requests)))))
 
 ;; A completed old frame refresh cannot overwrite another frame in the same
 ;; suspension, guarding against relying only on DAP stop-generation checks.

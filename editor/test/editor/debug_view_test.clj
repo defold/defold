@@ -239,6 +239,7 @@
         (console/append-console-line! "stream-ready")
         (is (= "stream-ready" (dap-util/take-event! lines)))
         (dap-util/with-adapter
+          "/project"
           {}
           (fn [{:keys [command arguments] :as request} _ out _]
             (case command
@@ -282,6 +283,7 @@
 ;; UI-thread cancellation is rejected before mutating an active real session.
 (deftest debugger-thread-affinity-test
   (dap-util/with-adapter
+    "/project"
     {}
     (fn [request _ out _] (dap-util/respond! out request {}))
     (is (thrown? AssertionError (ui/run-now (dap/close! session))))

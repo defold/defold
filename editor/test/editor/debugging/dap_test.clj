@@ -31,6 +31,7 @@
 ;; UTF-8 requests and consecutive fragmented events retain their byte framing.
 (deftest framing-test
   (dap-util/with-adapter
+    "/project"
     {}
     (fn [request _ ^OutputStream out _]
       (is (= "héj 🦊" (get-in request [:arguments :expression])))
@@ -46,6 +47,7 @@
 ;; Initialization configures breakpoints; edits replace sources and detach preserves the debuggee.
 (deftest configuration-and-breakpoints-test
   (dap-util/with-adapter
+    "/project"
     {:breakpoints {"/main.script" [{:line 5 :condition "x > 2"}]}}
     (fn [request _ out _]
       (dap-util/respond! out request {:threads [{:id 7
@@ -79,6 +81,7 @@
 ;; Inspection and control use the current frame/thread and invalidate references on resume.
 (deftest inspection-and-control-test
   (dap-util/with-adapter
+    "/project"
     {}
     (fn [{:keys [command arguments] :as request} _ out _]
       (case command
@@ -196,6 +199,7 @@
                   2 [{:name "[\"end\"]" :value "42" :variablesReference 0}]
                   3 []}]
     (dap-util/with-adapter
+      "/project"
       {}
       (fn [{:keys [command arguments] :as request} _ out _]
         (case command
@@ -224,6 +228,7 @@
 (deftest evaluation-result-lifetime-test
   (doseq [resume [false true]]
     (dap-util/with-adapter
+      "/project"
       {}
       (fn [{:keys [command arguments] :as request} _ out _]
         (case command
@@ -252,6 +257,7 @@
   (doseq [resume-command ["stackTrace" "scopes" "variables"]]
     (testing (str "Resume during " resume-command)
       (dap-util/with-adapter
+        "/project"
         {}
         (fn [{:keys [command] :as request} _ out _]
           (when (= resume-command command)
@@ -289,6 +295,7 @@
 (deftest responses-and-disconnect-test
   (let [first-received (promise)]
     (dap-util/with-adapter
+      "/project"
       {}
       (fn [request in out ^Socket socket]
         (case (get-in request [:arguments :expression])
@@ -315,6 +322,7 @@
 (deftest response-before-eof-test
   (doseq [body [{:result "last response"} nil]]
     (dap-util/with-adapter
+      "/project"
       {}
       (fn [request _ out ^Socket socket]
         (dap-util/respond! out request body)
@@ -330,6 +338,7 @@
         second-output (promise)
         order (atom [])]
     (dap-util/with-adapter
+      "/project"
       {:on-output (fn [session snapshot {:keys [output]}]
                     (is (ui/on-ui-thread?))
                     (is (= :running (:status snapshot)))
@@ -353,6 +362,7 @@
   (let [observed (atom [])
         closed (promise)]
     (dap-util/with-adapter
+      "/project"
       {:on-suspended (fn [_ snapshot body]
                        (is (ui/on-ui-thread?))
                        (swap! observed conj [:stopped (:status snapshot) body]))
@@ -380,6 +390,7 @@
 ;; An unanswered public request times out, closes the session and rejects subsequent work.
 (deftest request-timeout-closes-session-test
   (dap-util/with-adapter
+    "/project"
     {}
     (fn [_ _ _ _])
     (is (thrown-with-msg? IOException #"timed out" (dap/evaluate! session nil "wait")))
@@ -403,6 +414,7 @@
                     "Content-Length: 2\r\n\r\n{}"
                     "Content-Length: 21\r\n\r\n{\"type\":\"unexpected\"}"]]
     (dap-util/with-adapter
+      "/project"
       {}
       (fn [_ _ ^OutputStream out ^Socket socket]
         (.write out (.getBytes ^String fragment StandardCharsets/US_ASCII))
@@ -428,7 +440,8 @@
                                 ["C:\\project" "c:/project/main.script" "/main.script"]
                                 ["/project" nil nil]]]
     (dap-util/with-adapter
-      {:local-root root}
+      root
+      {}
       (fn [{:keys [command] :as request} _ out _]
         (case command
           "evaluate" (do (dap-util/event! out "stopped" {:threadId 7}) (dap-util/respond! out request {}))
@@ -442,11 +455,9 @@
   (let [closed (future/make)
         errors (atom [])
         session
-        (dap/connect! "127.0.0.1" (constantly nil)
-                      {:local-root "/project"
-                       :breakpoints {}
-                       :on-closed (fn [session _] (future/complete! closed session))
-                       :on-error (fn [_ _ error] (swap! errors conj error))})]
+        (dap/connect! "127.0.0.1" (constantly nil) "/project"
+                      :on-closed (fn [session _] (future/complete! closed session))
+                      :on-error (fn [_ _ error] (swap! errors conj error)))]
     (dap/disconnect! session)
     (is (identical? session (dap-util/await! closed)))
     (is (= :closed (dap/status session)))
@@ -462,11 +473,9 @@
           closed (future/make)
           error (future/make)
           session
-          (dap/connect! "127.0.0.1" #(.getLocalPort server)
-                        {:local-root "/project"
-                         :breakpoints {}
-                         :on-closed (fn [session _] (future/complete! closed session))
-                         :on-error (fn [_ _ exception] (future/complete! error exception))})]
+          (dap/connect! "127.0.0.1" #(.getLocalPort server) "/project"
+                        :on-closed (fn [session _] (future/complete! closed session))
+                        :on-error (fn [_ _ exception] (future/complete! error exception)))]
       (try
         (is (instance? IOException (dap-util/await! error)))
         (is (identical? session (dap-util/await! closed)))
@@ -485,7 +494,7 @@
                         (is (= "initialize" (:command (dap-util/receive! in))))
                         (deliver initializing true)
                         (is (thrown? EOFException (dap-util/receive! in))))))
-          session (dap/connect! "127.0.0.1" #(.getLocalPort server) {:local-root "/project"})]
+          session (dap/connect! "127.0.0.1" #(.getLocalPort server) "/project")]
       (try
         (dap-util/await! initializing)
         (let [evaluation (future/io (dap/evaluate! session nil "concurrent"))]
@@ -537,11 +546,10 @@
                     (is (= "disconnect" (:command disconnect)))
                     (is (false? (get-in disconnect [:arguments :terminateDebuggee])))
                     (dap-util/respond! out disconnect {}))))))
-          session (dap/connect! "127.0.0.1" #(.getLocalPort server)
-                                {:local-root "/project"
-                                 :breakpoints {"/main.script" [{:line 5}]}
-                                 :on-connected (fn [session _] (future/complete! ready session))
-                                 :on-error (fn [_ _ error] (future/fail! ready error))})]
+          session (dap/connect! "127.0.0.1" #(.getLocalPort server) "/project"
+                                :breakpoints {"/main.script" [{:line 5}]}
+                                :on-connected (fn [session _] (future/complete! ready session))
+                                :on-error (fn [_ _ error] (future/fail! ready error)))]
       (try
         (dap-util/await! initializing)
         (dap/set-breakpoints! session {"/main.script" [{:line 9}]})
@@ -564,6 +572,7 @@
 (deftest close-settles-work-test
   (let [received (promise)]
     (dap-util/with-adapter
+      "/project"
       {}
       (fn [_ _ _ _] (deliver received true))
       (let [evaluation (future/io (dap/evaluate! session nil "waiting"))]
@@ -582,6 +591,7 @@
   (let [started (promise)
         release (CountDownLatch. 1)]
     (dap-util/with-adapter
+      "/project"
       {:breakpoints {"/main.script" [{:line 5}]}}
       (fn [{:keys [command arguments] :as request} _ out _]
         (when (and (= "setBreakpoints" command) (= 9 (get-in arguments [:breakpoints 0 :line])))
@@ -619,9 +629,9 @@
                             (.await release)
                             (reset! finished true)
                             (throw exception))))
-                      {:local-root "/project"
-                       :on-closed (fn [_ _] (deliver closed true))
-                       :on-error (fn [_ _ exception] (swap! errors conj exception))})]
+                      "/project"
+                      :on-closed (fn [_ _] (deliver closed true))
+                      :on-error (fn [_ _ exception] (swap! errors conj exception)))]
     (try
       (dap-util/await! started)
       (let [closing (future/io
@@ -642,6 +652,7 @@
 (deftest close-during-breakpoint-sync-test
   (let [started (promise)]
     (dap-util/with-adapter
+      "/project"
       {}
       (fn [request _ _ _]
         (is (= "setBreakpoints" (:command request)))
@@ -661,6 +672,7 @@
   (let [started (promise)
         release (CountDownLatch. 1)]
     (dap-util/with-adapter
+      "/project"
       {}
       (fn [request _ out _]
         (is (= "setBreakpoints" (:command request)))
@@ -683,6 +695,7 @@
 (deftest close-scheduled-from-callback-test
   (let [closed (promise)]
     (dap-util/with-adapter
+      "/project"
       {:on-output (fn [session _ _]
                     (is (ui/on-ui-thread?))
                     (future/io
@@ -703,6 +716,7 @@
         proceed (CountDownLatch. 1)]
     (try
       (dap-util/with-adapter
+        "/project"
         {:on-output (fn [_ _ _] (deliver notified true))}
         (fn [request _ out _]
           ;; Queue the notification before the response releases the caller to close.

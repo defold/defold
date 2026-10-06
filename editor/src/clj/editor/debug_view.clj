@@ -528,16 +528,16 @@
                   (engine/debugger-port target)))))
 
         session
-        (dap/connect! (:address target "localhost") resolve-port
-                      (assoc (make-debugger-callbacks debug-view)
-                        :target target
-                        :local-root (.getAbsolutePath (workspace/project-directory workspace))
-                        :stop-on-entry stop-on-entry
-                        :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))
-                        :on-error
-                        (fn [session _snapshot exception]
-                          (when (identical? session (g/node-value debug-view :debug-session))
-                            (show-connect-failed-info! exception workspace)))))]
+        (dap/connect! (:address target "localhost")
+                      resolve-port
+                      (.getAbsolutePath (workspace/project-directory workspace))
+                      :target target
+                      :stop-on-entry stop-on-entry
+                      :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))
+                      :on-error (fn [session _snapshot exception]
+                                  (when (identical? session (g/node-value debug-view :debug-session))
+                                    (show-connect-failed-info! exception workspace)))
+                      (make-debugger-callbacks debug-view))]
     (g/transact
       {:undoable false}
       (g/set-properties debug-view

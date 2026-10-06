@@ -119,7 +119,7 @@
                  org.httpkit.server/with-channel [[:inner 0]]
                  schema.core/defrecord [[:inner 0] [:inner 1]]
                  schema.core/enum [[:block 0] [:inner 1 -1]]
-                 support.dap-util/with-adapter [[:block 2]]
+                 support.dap-util/with-adapter [[:block 3]]
                  support.dap-util/with-server [[:block 1]]
                  support.test-support/with-clean-system [[:inner 0]]
                  util.bit-set/into-> [[:inner 0]]

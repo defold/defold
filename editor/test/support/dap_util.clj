@@ -92,8 +92,8 @@
   (.flush out))
 
 (defn respond! [out request body]
-  (send! out {:seq 1 
-              :type "response" 
+  (send! out {:seq 1
+              :type "response"
               :request_seq (:seq request)
               :command (:command request)
               :success true
@@ -101,7 +101,7 @@
 
 (defn reject! [out request message]
   (send! out {:seq 1
-              :type "response" 
+              :type "response"
               :request_seq (:seq request)
               :command (:command request)
               :success false
@@ -161,29 +161,28 @@
 (defmacro with-adapter
   "Runs the body with a connected DAP session, binding session and events.
 
-  Also binds port and requests from with-server. The callbacks override the
-  default event collectors. The session is closed when the body exits."
-  [callbacks handler & body]
-  `(let [callbacks# ~callbacks]
-     (with-server
-       ~handler
-       (let [ready# (future/make)
-             ~'events (LinkedBlockingQueue.)
-             ~'session
-             (dap/connect! "127.0.0.1" (constantly ~'port)
-                           (merge {:local-root "/project"
-                                   :on-connected (fn [session# _#]
-                                                   (future/complete! ready# session#))
-                                   :on-suspended (fn [_# snapshot# body#] (.add ~'events [:stopped (dap/suspension snapshot#) body#]))
-                                   :on-resumed (fn [_# _snapshot#] (.add ~'events [:continued]))
-                                   :on-output (fn [_# _snapshot# body#] (.add ~'events [:output body#]))
-                                   :on-closed (fn [_# _snapshot#] (.add ~'events [:closed]))
-                                   :on-error (fn [_# _snapshot# exception#]
-                                               (future/fail! ready# exception#)
-                                               (.add ~'events [:error exception#]))}
-                                  callbacks#))]
-         (try
-           (is (identical? ~'session (await! ready#)))
-           ~@body
-           (finally
-             (await! (future/io (dap/close! ~'session)))))))))
+  Also binds port and requests from with-server. Options are passed to
+  connect!; callbacks override the default event collectors. The session
+  is closed when the body exits."
+  [local-root options handler & body]
+  `(with-server
+     ~handler
+     (let [ready# (future/make)
+           ~'events (LinkedBlockingQueue.)
+           ~'session
+           (dap/connect! "127.0.0.1" (constantly ~'port) ~local-root
+                         :on-connected (fn [session# _#]
+                                         (future/complete! ready# session#))
+                         :on-suspended (fn [_# snapshot# body#] (.add ~'events [:stopped (dap/suspension snapshot#) body#]))
+                         :on-resumed (fn [_# _snapshot#] (.add ~'events [:continued]))
+                         :on-output (fn [_# _snapshot# body#] (.add ~'events [:output body#]))
+                         :on-closed (fn [_# _snapshot#] (.add ~'events [:closed]))
+                         :on-error (fn [_# _snapshot# exception#]
+                                     (future/fail! ready# exception#)
+                                     (.add ~'events [:error exception#]))
+                         ~options)]
+       (try
+         (is (identical? ~'session (await! ready#)))
+         ~@body
+         (finally
+           (await! (future/io (dap/close! ~'session))))))))

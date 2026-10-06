@@ -36,9 +36,9 @@
       body)))
 
 (defn with-adapter [{:keys [node]}]
-  (let [[_ callbacks handler & body] (:children node)]
+  (let [[_ local-root options handler & body] (:children node)]
     (with-implicit-bindings
-      [callbacks handler]
+      [local-root options handler]
       {'port (api/token-node 0)
        'requests (api/list-node [(api/token-node 'atom) (api/vector-node [])])
        'session (api/list-node [(api/token-node 'atom) (api/map-node [])])

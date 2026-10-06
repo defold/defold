@@ -22,10 +22,11 @@
     {:node
      (test-util/body-with-preserved-nodes
        [root-variables child-variables]
-       [(api/list-node
-          (list* (api/token-node 'fn)
-                 (api/vector-node (into []
-                                        (comp (filter #(contains? body-symbols %))
-                                              (map api/token-node))
-                                        '[view session events]))
-                 body))])}))
+       [(test-util/let-node
+          (into []
+                (comp (filter (fn [[name _]] (contains? body-symbols name)))
+                      (mapcat (fn [[name init]] [(api/token-node name) init])))
+                {'view (api/list-node [(api/token-node 'javafx.scene.control.TreeView.)])
+                 'session (api/list-node [(api/token-node 'atom) (api/map-node [])])
+                 'events (api/list-node [(api/token-node 'java.util.concurrent.LinkedBlockingQueue.)])})
+          body)])}))
