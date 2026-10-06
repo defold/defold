@@ -1759,38 +1759,19 @@ TEST_F(FontTest, LayoutWhitespaceMetrics)
     const struct
     {
         const char* m_Text;
-        const char* m_MarkupText;
         const char* m_BaseText;
         uint32_t    m_SpaceCount;
+        const char* m_MarkupText;
     } cases[] = {
-        // Plain and markup inputs, then expected base text and space count.
-        { "",
-          "<color=#ff0000></color>",
-          "", 0 },
-        { " ",
-          "<color=#ff0000> </color>",
-          "", 1 },
-        { "   ",
-          "<color=#ff0000> </color> <color=#00ff00> </color>",
-          "", 3 },
-        { "Trailing ",
-          "<color=#ff0000>Trailing </color>",
-          "Trailing", 1 },
-        { "Trailing   ",
-          "Trailing<color=#ff0000> </color><color=#00ff00>  </color>",
-          "Trailing", 3 },
-        { " Leading",
-          "<color=#ff0000> </color>Leading",
-          "Leading", 1 },
-        { "   Leading",
-          "<color=#ff0000>  </color> Leading",
-          "Leading", 3 },
-        { " Both ",
-          "<color=#ff0000> </color>Both<color=#00ff00> </color>",
-          "Both", 2 },
-        { "120 ",
-          "<color=#ff0000>120</color> ",
-          "120", 1 },
+        { "",             "",         0, "<color=#ff0000></color>" },
+        { " ",            "",         1, "<color=#ff0000> </color>" },
+        { "   ",          "",         3, "<color=#ff0000> </color> <color=#00ff00> </color>" },
+        { "Trailing ",    "Trailing", 1, "<color=#ff0000>Trailing </color>" },
+        { "Trailing   ",  "Trailing", 3, "Trailing<color=#ff0000> </color><color=#00ff00>  </color>" },
+        { " Leading",     "Leading",  1, "<color=#ff0000> </color>Leading" },
+        { "   Leading",   "Leading",  3, "<color=#ff0000>  </color> Leading" },
+        { " Both ",       "Both",     2, "<color=#ff0000> </color>Both<color=#00ff00> </color>" },
+        { "120 ",         "120",      1, "<color=#ff0000>120</color> " },
     };
 
     TextLayoutSettings settings = {};
@@ -1859,16 +1840,11 @@ TEST_F(FontTest, LayoutMarkupWhitespaceFontSize)
         uint32_t    m_SpaceCount;
     } cases[] = {
         // Markup input, then expected base text, base size and space count.
-        { "<size=28> </size>",
-          "", 14.0f, 1 },
-        { "<size=28>   </size>",
-          "", 14.0f, 3 },
-        { "Trailing<size=28> </size>",
-          "Trailing", 14.0f, 1 },
-        { "<size=28> </size>Leading",
-          "Leading", 14.0f, 1 },
-        { "<size=28>Trailing </size>",
-          "Trailing", 28.0f, 1 },
+        { "<size=28> </size>",         "",         14.0f, 1 },
+        { "<size=28>   </size>",       "",         14.0f, 3 },
+        { "Trailing<size=28> </size>", "Trailing", 14.0f, 1 },
+        { "<size=28> </size>Leading",  "Leading",  14.0f, 1 },
+        { "<size=28>Trailing </size>", "Trailing", 28.0f, 1 },
     };
 
     TextLayoutSettings settings = {};
@@ -2178,34 +2154,20 @@ TEST_F(FontTest, LayoutExplicitLineBreakMetrics)
         uint32_t    m_ExpectedLineCount;
     } cases[] = {
         // Input, then the single-line width reference and expected line count.
-        { "XX",
-          "XX", 1 },
-        { "XX\nA",
-          "XX", 2 },
-        { "A\nXX",
-          "XX", 2 },
-        { "A\nXX\nA",
-          "XX", 3 },
-        { "XX\r\nA",
-          "XX", 2 },
-        { "XX\n\nA",
-          "XX", 3 },
-        { "XX\r\n\r\nA",
-          "XX", 3 },
-        { "XX\nA\n",
-          "XX", 2 },
-        { "XX \nA",
-          "XX ", 2 },
-        { "XX   \r\nA",
-          "XX   ", 2 },
-        { "A\nXX \nA",
-          "XX ", 3 },
-        { "XX \n\nA",
-          "XX ", 3 },
-        { "A\nXX ",
-          "XX ", 2 },
-        { "XX \nA\n",
-          "XX ", 2 },
+        { "XX",          "XX",    1 },
+        { "XX\nA",       "XX",    2 },
+        { "A\nXX",       "XX",    2 },
+        { "A\nXX\nA",    "XX",    3 },
+        { "XX\r\nA",     "XX",    2 },
+        { "XX\n\nA",     "XX",    3 },
+        { "XX\r\n\r\nA", "XX",    3 },
+        { "XX\nA\n",     "XX",    2 },
+        { "XX \nA",      "XX ",   2 },
+        { "XX   \r\nA",  "XX   ", 2 },
+        { "A\nXX \nA",   "XX ",   3 },
+        { "XX \n\nA",    "XX ",   3 },
+        { "A\nXX ",      "XX ",   2 },
+        { "XX \nA\n",    "XX ",   2 },
     };
     const float tracking[] = { 0.0f, 0.25f, -0.05f };
 
@@ -2256,18 +2218,12 @@ TEST_F(FontTest, LayoutCRLFMetrics)
         const char* m_ExpectedText;
         uint32_t    m_ExpectedLineCount;
     } cases[] = {
-        { "XX\r\nA",
-          "XX\nA", 2 },
-        { "XX \r\nA",
-          "XX \nA", 2 },
-        { "XX   \r\nA",
-          "XX   \nA", 2 },
-        { "XX\r\n\r\nA",
-          "XX\n\nA", 3 },
-        { "XX \r\nA\r\n",
-          "XX \nA\n", 2 },
-        { " \r\nA",
-          " \nA", 2 },
+        { "XX\r\nA",      "XX\nA",    2 },
+        { "XX \r\nA",     "XX \nA",   2 },
+        { "XX   \r\nA",   "XX   \nA", 2 },
+        { "XX\r\n\r\nA",  "XX\n\nA",  3 },
+        { "XX \r\nA\r\n", "XX \nA\n", 2 },
+        { " \r\nA",       " \nA",     2 },
     };
 
     TextLayoutSettings settings = {};
@@ -2311,18 +2267,12 @@ TEST_F(FontTest, LayoutNegativeTrackingMetrics)
         const char* m_Text;
         float       m_ExpectedWidth;
     } cases[] = {
-        { "A",
-          0.0f },
-        { "AA",
-          0.0f },
-        { "A A",
-          0.0f },
-        { "   ",
-          0.0f },
-        { "XX\nA",
-          0.0f },
-        { "XX\nA\n",
-          0.0f },
+        { "A",       0.0f },
+        { "AA",      0.0f },
+        { "A A",     0.0f },
+        { "   ",     0.0f },
+        { "XX\nA",   0.0f },
+        { "XX\nA\n", 0.0f },
     };
 
     TextLayoutSettings settings = {};
