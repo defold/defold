@@ -1161,6 +1161,7 @@ var Module = {
         return { stack:stack, message:message };
     },
 
+    {{#DEFOLD_HAS_WEBGPU}}
     probeWebGPUSupport: function(callback) {
         Module._webgpuAdapterAvailable = false;
         var can_probe_adapter = false;
@@ -1196,6 +1197,7 @@ var Module = {
     hasWebGPUSupport: function() {
         return Module._webgpuAdapterAvailable === true;
     },
+    {{/DEFOLD_HAS_WEBGPU}}
 
     hasWebGLSupport: function() {
         var webgl_support = false;
@@ -1240,13 +1242,8 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        // Adapter selection in the engine is synchronous, while WebGPU's only
-        // reliable availability check is requestAdapter(). Resolve it before
-        // starting Wasm so WebGPUIsSupported() can use the cached result.
-        Module.probeWebGPUSupport(function() {
-            if (Module.hasWebGLSupport() || Module.hasWebGPUSupport()) {
-                // Do not let archive or persistent-storage callbacks start the
-                // engine until the asynchronous WebGPU probe has completed.
+        function startApp() {
+            if (Module.hasWebGLSupport(){{#DEFOLD_HAS_WEBGPU}} || Module.hasWebGPUSupport(){{/DEFOLD_HAS_WEBGPU}}) {
                 Module._isEngineLoaded = true;
                 Module.canvas.focus();
 
@@ -1276,7 +1273,16 @@ var Module = {
                     CUSTOM_PARAMETERS["unsupported_webgl_callback"]();
                 }
             }
-        });
+        }
+        {{#DEFOLD_HAS_WEBGPU}}
+        // Adapter selection in the engine is synchronous. Resolve the WebGPU
+        // adapter before marking the engine loaded so other callbacks cannot
+        // start main() before WebGPUIsSupported() can use the cached result.
+        Module.probeWebGPUSupport(startApp);
+        {{/DEFOLD_HAS_WEBGPU}}
+        {{^DEFOLD_HAS_WEBGPU}}
+        startApp();
+        {{/DEFOLD_HAS_WEBGPU}}
     },
 
     onArchiveFileLoaded: function(file) {

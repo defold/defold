@@ -88,18 +88,85 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
 }
 
-function loadLoaderEnvironment() {
+function loadLoaderEnvironment(hasWebGPU = false) {
     const loaderPath = path.resolve(__dirname,
         "../../../../com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/bundle/resources/web/dmloader.js");
-    // Keep download size verification; other template options are not needed by these tests.
+    const flags = { "html5.verify_downloaded_file_size": true, DEFOLD_HAS_WASM_ENGINE: true,
+                    DEFOLD_HAS_WEBGPU: hasWebGPU };
     const loader = fs.readFileSync(loaderPath, "utf8")
         .replace(/\{\{![\s\S]*?\}\}/g, "")
         .replace(/\{\{([#^])([^}]+)\}\}([\s\S]*?)\{\{\/\2\}\}/g,
-            (_, kind, name, content) => kind === "#" && name === "html5.verify_downloaded_file_size" ? content : "")
+            (_, kind, name, content) => (kind === "#" ? !!flags[name] : !flags[name]) ? content : "")
         .replace(/\{\{[^}]+\}\}/g, "0");
     const context = loadEnvironment();
     vm.runInContext(loader, context, { filename: loaderPath });
     return context;
+}
+
+function setupLoaderStartup(hasWebGPU, hasWebGL) {
+    const context = loadLoaderEnvironment(hasWebGPU);
+    const calls = { started: 0, unsupported: 0, probes: 0 };
+    context.Module.setupCanvas = () => {
+        context.Module.canvas = { focus() {}, addEventListener() {} };
+    };
+    context.Module.hasWebGLSupport = () => hasWebGL;
+    context.Module._preloadAndCallMain = () => ++calls.started;
+    context.CUSTOM_PARAMETERS.full_screen_container = null;
+    context.CUSTOM_PARAMETERS.unsupported_webgl_callback = () => ++calls.unsupported;
+    context.document.createElement = () => ({ getContext: () => ({}) });
+    return { context, calls };
+}
+
+// Verify WebGL-only builds start synchronously without waiting for or querying a WebGPU adapter.
+function testLoaderWebGLSkipsWebGPUProbe() {
+    for (const hasWebGL of [true, false]) {
+        const { context, calls } = setupLoaderStartup(false, hasWebGL);
+        context.navigator.gpu = { requestAdapter() {
+            ++calls.probes;
+            return new Promise(() => {});
+        } };
+
+        context.Module.runApp();
+        assert.strictEqual(calls.probes, 0);
+        assert.strictEqual(calls.started, hasWebGL ? 1 : 0);
+        assert.strictEqual(calls.unsupported, hasWebGL ? 0 : 1);
+        assert.strictEqual(context.Module.probeWebGPUSupport, undefined);
+        assert.strictEqual(context.Module.hasWebGPUSupport, undefined);
+    }
+}
+
+// Verify WebGPU builds await adapter discovery and retain WebGL fallback when discovery fails.
+async function testLoaderWebGPUProbeGatesStartup() {
+    for (const hasWebGL of [true, false]) {
+        for (const outcome of ["adapter", "null", "rejected", "throws", "unavailable"]) {
+            const { context, calls } = setupLoaderStartup(true, hasWebGL);
+            let resolveProbe, rejectProbe;
+            context.console = { log() {} };
+            if (outcome !== "unavailable") {
+                context.navigator.gpu = { requestAdapter() {
+                    ++calls.probes;
+                    if (outcome === "throws") throw new Error("Adapter unavailable");
+                    return new Promise((resolve, reject) => { resolveProbe = resolve; rejectProbe = reject; });
+                } };
+            }
+
+            context.Module.runApp();
+            if (resolveProbe) {
+                assert.strictEqual(calls.started, 0);
+                assert.strictEqual(calls.unsupported, 0);
+                assert.strictEqual(context.Module._isEngineLoaded, false);
+                if (outcome === "rejected") rejectProbe(new Error("Adapter unavailable"));
+                else resolveProbe(outcome === "adapter" ? {} : null);
+                await Promise.resolve();
+            }
+
+            const supported = hasWebGL || outcome === "adapter";
+            assert.strictEqual(calls.probes, outcome === "unavailable" ? 0 : 1);
+            assert.strictEqual(calls.started, supported ? 1 : 0);
+            assert.strictEqual(calls.unsupported, supported ? 0 : 1);
+            assert.strictEqual(context.Module.hasWebGPUSupport(), outcome === "adapter");
+        }
+    }
 }
 
 // Verify the bundled loader enters and exits fullscreen through the renamed backend for every supported target.
@@ -303,7 +370,8 @@ function testMixedTouchAndMouseSources() {
 }
 
 async function runTests() {
-    for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle, testLoaderArchiveConcurrency,
+    for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
+                       testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderArchiveConcurrency,
                        testLoaderArchiveBufferOwnership,
                        testTouchMouseSources, testMixedTouchAndMouseSources]) {
         try {
