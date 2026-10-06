@@ -43,6 +43,7 @@
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [internal.util :as iutil]
             [service.log :as log]
             [util.coll :as coll])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
@@ -389,16 +390,16 @@
         (g/node-value project :breakpoints)))
 
 (defn- breakpoints-by-path [breakpoints]
-  (coll/aggregate-into
-    {} conj []
-    (eduction
-      (keep (fn [{:keys [resource row condition]}]
-              (when-let [path (resource/proj-path resource)]
-                (coll/pair path
-                           (cond-> {:line (inc (long row))}
-                             (not (string/blank? condition))
-                             (assoc :condition condition))))))
-      (sort-by (juxt #(resource/proj-path (:resource %)) :row) breakpoints))))
+  (->> breakpoints
+       (coll/sort-by (coll/pair-fn #(resource/proj-path (:resource %)) :row))
+       (eduction
+         (keep (fn [{:keys [resource row condition]}]
+                 (when-let [path (resource/proj-path resource)]
+                   (coll/pair path
+                              (cond-> {:line (inc (long row))}
+                                (not (string/blank? condition))
+                                (assoc :condition condition)))))))
+       (iutil/group-into {} [] key val)))
 
 (defn- make-update-timer
   [project debug-view]

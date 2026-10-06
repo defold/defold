@@ -102,6 +102,27 @@
               {:key 2 :value :middle}]
              (into [] (coll/sort #(compare (:key %1) (:key %2)) items)))))))
 
+;; Verify projected ordering, stability, and reducible consumption.
+;; Guard against changing sort-by semantics when replacing sequence-based sorting.
+(deftest sort-by-test
+  (testing "Sorts by projected keys and preserves equal-key order."
+    (let [items [{:key 2 :value :middle}
+                 {:key 1 :value :first}
+                 {:key 1 :value :last}]]
+      (is (= [{:key 1 :value :first}
+              {:key 1 :value :last}
+              {:key 2 :value :middle}]
+             (into [] (coll/sort-by :key items))))))
+
+  (testing "Accepts numeric, boolean, and Java comparators over projected keys."
+    (doseq [comparator [coll/descending-order > (java.util.Comparator/reverseOrder)]]
+      (is (= ["bbb" "cc" "a"]
+             (into [] (coll/sort-by count comparator ["a" "bbb" "cc"]))))))
+
+  (testing "Accepts reducible inputs."
+    (is (= ["a" "cc" "bbb"]
+           (into [] (coll/sort-by count (eduction (map str) ["bbb" "a" "cc"])))))))
+
 (defn- java-map
   ^Hashtable [& key-vals]
   {:pre [(even? (count key-vals))]}

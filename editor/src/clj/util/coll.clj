@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [any? bounded-count empty? every? keys mapcat merge merge-with not-any? not-empty not-every? some sort update-vals vals])
+  (:refer-clojure :exclude [any? bounded-count empty? every? keys mapcat merge merge-with not-any? not-empty not-every? some sort sort-by update-vals vals])
   (:require [util.task :as task])
   (:import [clojure.core Eduction Vec]
            [clojure.lang Cons Cycle IEditableCollection IReduceInit LazilyPersistentVector LazySeq MapEntry Repeat]
@@ -1206,6 +1206,19 @@
                (if (reduced? result)
                  @result
                  (recur (inc index) result))))))))))
+
+(defn sort-by
+  "Returns a stable, eagerly-sorted reducible ordered by (key-fn item).
+
+  Supports the same arities and comparator semantics as core.sort-by. Accepts
+  reducible inputs. Returns an IReduceInit that is not seqable; consume it using
+  reduce, into, mapv, or an eduction."
+  ([key-fn coll]
+   (sort-by key-fn compare coll))
+  ([key-fn ^Comparator comparator coll]
+   (sort (fn compare-keys [a b]
+           (.compare comparator (key-fn a) (key-fn b)))
+         coll)))
 
 (defn filterv->
   "Like core.filterv, but takes the input sequence as the first argument and
