@@ -147,6 +147,6 @@ if(AUTOMATION_BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM AND
       --engine "$<TARGET_FILE:dmengine>" --fixture "${AUTOMATION_TEST_FIXTURE}"
       RuntimeTest.test_pointer_hold_and_move RuntimeTest.test_drag_holds
       RuntimeTest.test_touch_taps RuntimeTest.test_touch_hold_and_move RuntimeTest.test_touch_cancellation
-      RuntimeTest.test_debugger_pause_and_resume)
+      RuntimeTest.test_debugger_pause_and_resume RuntimeTest.test_input_sources)
   endif()
 endif()

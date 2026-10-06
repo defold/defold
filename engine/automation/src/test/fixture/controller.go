@@ -10,3 +10,7 @@ components {
   id: "secondary"
   component: "/secondary.collectionproxy"
 }
+components {
+  id: "input_gui"
+  component: "/input.gui"
+}

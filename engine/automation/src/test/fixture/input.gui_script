@@ -1,0 +1,21 @@
+local input_log = require "input_log"
+
+function init(self)
+    msg.post(".", "acquire_input_focus")
+    self.frame = 0
+    self.inputs = {}
+    if not automation_bridge then return end
+    automation_bridge.command("gui_reset_input", function()
+        self.inputs = {}
+        return true
+    end)
+    automation_bridge.command("gui_input_events", function() return self.inputs end)
+end
+
+function update(self, dt)
+    self.frame = self.frame + 1
+end
+
+function on_input(self, action_id, action)
+    if automation_bridge then input_log.record(self, action_id, action) end
+end

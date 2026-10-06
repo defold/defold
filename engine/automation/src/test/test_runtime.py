@@ -497,6 +497,39 @@ class RuntimeTest(unittest.TestCase):
         finally:
             self.request('/input/flush', 'POST', dict(owner, release=True))
 
+    # Synthetic HID events retain the upstream source classification in both GO and GUI callbacks.
+    def test_input_sources(self):
+        owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False}
+        cases = [('/input/key', {'keys': '{KEY_SPACE}'}, 'space', 'keyboard'),
+                 ('/input/key', {'text': 'aé'}, 'text', 'text'),
+                 ('/input/click', {'x': 20, 'y': 20, 'device': 'touch'}, 'touch', 'touch'),
+                 ('/input/click', {'x': 60, 'y': 40, 'device': 'mouse'}, 'pointer', 'mouse')]
+        try:
+            for path, body, action, source in cases:
+                with self.subTest(source=source):
+                    self.command('reset_input')
+                    self.command('gui_reset_input')
+                    status, response = self.request(path, 'POST', dict(owner, **body))
+                    self.assertEqual(202, status)
+                    self.delivered_input(response['data']['input_id'])
+                    for command in ('input_events', 'gui_input_events'):
+                        with self.subTest(callback=command):
+                            events = self.command(command)
+                            samples = [event for event in events if event['action'] == action]
+                            self.assertTrue(samples)
+                            self.assertEqual({source}, {sample['source'] for sample in samples})
+                            if source == 'text':
+                                self.assertEqual(body['text'], ''.join(sample['text'] for sample in samples))
+                            else:
+                                self.assertEqual(1, sum(sample['pressed'] for sample in samples))
+                                self.assertEqual(1, sum(sample['released'] for sample in samples))
+                            if source == 'mouse':
+                                moves = [event for event in events if event['action'] == 'move']
+                                self.assertTrue(moves)
+                                self.assertEqual({'mouse'}, {event['source'] for event in moves})
+        finally:
+            self.request('/input/flush', 'POST', dict(owner, release=True))
+
     # DAP stops keep diagnostics/cancellation responsive, expire leases, and resume without stuck input.
     def test_debugger_pause_and_resume(self):
         port = self.command('start_debugger')
