@@ -1115,8 +1115,9 @@
       (with-adapter
         {:on-output (fn [_ _ _] (deliver notified true))}
         (fn [request _ out _]
-          (respond! out request {})
-          (event! out "output" {:output "queued notification"}))
+          ;; Queue the notification before the response releases the caller to close.
+          (event! out "output" {:output "queued notification"})
+          (respond! out request {}))
         (fn [session _ _]
           (ui/run-later
             (deliver started true)
