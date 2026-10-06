@@ -18,7 +18,7 @@
             [editor.geom :as geom]
             [editor.math :as math]
             [editor.types :as t])
-  (:import [javax.vecmath Point3d Vector3d]))
+  (:import [javax.vecmath Point3d Quat4d Vector3d Vector4d]))
 
 (deftest frame-zero-aabb
   (testing "Framing an orthographic camera on a zero AABB should produce a valid projection matrix"
@@ -136,3 +136,55 @@
         speed-after (.length velocity)]
     (is (> speed-before 0.1) "Should have built up velocity")
     (is (< speed-after 0.001) "Velocity should have decayed to near zero")))
+
+(defn- framed-test-camera []
+  (assoc (c/make-camera :perspective)
+    :position (Point3d. 13.0 24.0 35.0)
+    :focus-point (Vector4d. 10.0 20.0 30.0 1.0)))
+
+(defn- same-rotation? [^Quat4d a ^Quat4d b]
+  (let [dot (+ (* (.x a) (.x b)) (* (.y a) (.y b)) (* (.z a) (.z b)) (* (.w a) (.w b)))]
+    (< (Math/abs (- 1.0 (Math/abs dot))) 1e-9)))
+
+;; Verifies that framing to each axis looks down that axis from the same
+;; distance, without moving the focus point.
+(deftest frame-camera-to-axis-faces-axis-at-same-distance
+  (let [camera (framed-test-camera)
+        focus (c/camera-focus-point camera)
+        distance (.distance focus ^Point3d (:position camera))]
+    (doseq [[axis ^Vector3d direction] {:+x (Vector3d. 1.0 0.0 0.0)
+                                        :-x (Vector3d. -1.0 0.0 0.0)
+                                        :+y (Vector3d. 0.0 1.0 0.0)
+                                        :-y (Vector3d. 0.0 -1.0 0.0)
+                                        :+z (Vector3d. 0.0 0.0 1.0)
+                                        :-z (Vector3d. 0.0 0.0 -1.0)}]
+      (testing axis
+        (let [framed (c/frame-camera-to-axis camera axis)
+              expected-forward (doto (Vector3d. direction) (.negate))]
+          (is (.epsilonEquals expected-forward (c/camera-forward-vector framed) 1e-9))
+          (is (< (Math/abs (- distance (.distance focus ^Point3d (:position framed)))) 1e-9))
+          (is (.epsilonEquals focus (c/camera-focus-point framed) 1e-9)))))))
+
+;; Verifies that the orbit interpolation starts at the start camera and ends at
+;; the end camera.
+(deftest interpolate-orbit-matches-endpoints
+  (let [from (c/frame-camera-to-axis (framed-test-camera) :+x)
+        to (c/frame-camera-to-axis (framed-test-camera) :+y)
+        start (#'c/interpolate-orbit from to 0.0)
+        end (#'c/interpolate-orbit from to 1.0)]
+    (is (.epsilonEquals ^Point3d (:position from) ^Point3d (:position start) 1e-9))
+    (is (same-rotation? (:rotation from) (:rotation start)))
+    (is (.epsilonEquals ^Point3d (:position to) ^Point3d (:position end) 1e-9))
+    (is (same-rotation? (:rotation to) (:rotation end)))))
+
+;; Verifies that turning to the opposite axis keeps the camera at the same
+;; distance halfway through. Guards against moving in a straight line through
+;; the focus point.
+(deftest interpolate-orbit-to-opposite-axis-keeps-distance
+  (let [from (c/frame-camera-to-axis (framed-test-camera) :+x)
+        to (c/frame-camera-to-axis (framed-test-camera) :-x)
+        focus (c/camera-focus-point from)
+        distance (.distance focus ^Point3d (:position from))
+        halfway (#'c/interpolate-orbit from to 0.5)]
+    (is (< (Math/abs (- distance (.distance focus ^Point3d (:position to)))) 1e-9))
+    (is (< (Math/abs (- distance (.distance focus ^Point3d (:position halfway)))) 1e-9))))
