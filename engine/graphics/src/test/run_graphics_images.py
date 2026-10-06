@@ -43,6 +43,7 @@ SIZE = (256, 256)
 GRAPHICS_ERROR = re.compile(r'(?:ERROR|FATAL):|Validation Error|VUID-', re.IGNORECASE)
 DIAGNOSTICS = (
     ('repeated', 'repeated', None, 'Repeated render', 'First render'),
+    ('async-upload', 'async-upload', None, 'Asynchronous upload', 'Synchronous upload'),
     ('viewport', 'viewport-actual', 'viewport-expected', 'After readback', 'Without readback'),
     ('depth-stencil', 'depth-stencil-actual', 'depth-stencil-expected', 'After readback', 'Without readback'),
 )

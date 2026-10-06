@@ -280,6 +280,40 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertIn('First render', page)
         self.assertIn('Repeated render', page)
 
+    # Verifies PVRTC async failures retain portable image diagnostics and remove them before another capture.
+    def test_pvrtc_async_failure_diagnostics_and_cleanup(self):
+        self.add_backend('metal')
+        cases = ('texture_pvrtc4_rgb', 'texture_pvrtc4_rgba')
+        for case in cases:
+            record = next(record for record in self.records if record['case'] == case)
+            record.update(status='fail', exit_code=1, reason='Capture process exited with 1')
+            original = self.images / 'metal' / (case + '.png')
+            image = report.read_png(original)
+            image.putpixel((0, 0), (38, 73, 109))
+            image.save(report.diagnostic_path(original, 'async-upload'))
+        (self.images / 'captures.json').write_text(json.dumps(self.records))
+        moved = self.root / 'moved'
+        self.images.rename(moved)
+        result = self.make_report([moved])
+        self.assertEqual({'pass': len(report.CASES) - 2, 'fail': 2, 'skip': 0}, result['counts'])
+        page = (self.output / 'index.html').read_text(encoding='utf-8')
+        for case in cases:
+            with self.subTest(case=case):
+                checks = [check for check in result['comparisons'] if check['case'] == case]
+                self.assertEqual(['reference', 'async-upload'], [check['kind'] for check in checks])
+                self.assertEqual(['pass', 'fail'], [check['status'] for check in checks])
+                self.assertTrue(checks[1]['exact_pixels'])
+                self.assertGreater(checks[1]['likeness_percent'], 99)
+                original = moved / 'metal' / (case + '.png')
+                diagnostic = report.diagnostic_path(original, 'async-upload')
+                for path in (original, diagnostic, Path(checks[1]['difference'])):
+                    self.assertIn(report.base64.b64encode(path.read_bytes()).decode(), page)
+                report.capture(self.root / 'missing-executable', moved, 'metal', case)
+                self.assertFalse(original.exists())
+                self.assertFalse(diagnostic.exists())
+        self.assertIn('Asynchronous upload', page)
+        self.assertIn('Synchronous upload', page)
+
     # Verifies moved continuation diagnostics remain usable and failures count once.
     def test_continuation_diagnostics_relocate_and_count_once(self):
         self.add_backend('metal')
