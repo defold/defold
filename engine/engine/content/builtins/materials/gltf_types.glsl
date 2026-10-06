@@ -1,11 +1,11 @@
 #ifndef DEFOLD_PBR_TYPES
 #define DEFOLD_PBR_TYPES
 
-const int PBR_ALPHA_OPAQUE = 0;
-const int PBR_ALPHA_MASK = 1;
-const int PBR_ALPHA_BLEND = 2;
+#define PBR_ALPHA_OPAQUE 0
+#define PBR_ALPHA_MASK   1
+#define PBR_ALPHA_BLEND  2
 
-// Resolved, linear material inputs. Modify these before get_material_info().
+// Resolved, linear material inputs. Modify these before pbr_create_material_info().
 struct PBRMaterial
 {
     vec4 baseColor;

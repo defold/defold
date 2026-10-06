@@ -33,7 +33,7 @@ uniform PbrMaterial
 };
 
 // TODO: Base-color and emissive textures currently use ordinary texture formats,
-// so texture() filters sRGB-encoded texels before to_linear() decodes the result.
+// so texture() filters sRGB-encoded texels before pbr_srgb_to_linear() decodes the result.
 // Correct color filtering decodes each texel first; our ordering can darken
 // transitions. The current 8-bit mipmap path also averages encoded values, which
 // cannot be corrected by decoding the resulting mip texels in this shader.
@@ -42,7 +42,7 @@ uniform PbrMaterial
 // decoding twice. Alpha and normal/metallic/roughness/occlusion data stay linear.
 //
 // Sample once. Subsequent material/lighting functions consume explicit data.
-PBRMaterial sample_pbr_material(vec2 uv, vec4 vertex_color)
+PBRMaterial pbr_sample_material(vec2 uv, vec4 vertex_color)
 {
     PBRMaterial material;
     material.baseColor = pbrMetallicRoughness.baseColorFactor * vertex_color;
@@ -63,8 +63,8 @@ PBRMaterial sample_pbr_material(vec2 uv, vec4 vertex_color)
     if (has_base_color_texture)
     {
         // Color textures are sRGB; factors and vertex colors are already linear.
-        // to_linear() converts RGB while leaving alpha unchanged.
-        material.baseColor *= to_linear(texture(PbrMetallicRoughness_baseColorTexture, uv));
+        // pbr_srgb_to_linear() converts RGB while leaving alpha unchanged.
+        material.baseColor *= pbr_srgb_to_linear(texture(PbrMetallicRoughness_baseColorTexture, uv));
     }
 
     if (!material.unlit)
@@ -84,7 +84,7 @@ PBRMaterial sample_pbr_material(vec2 uv, vec4 vertex_color)
         {
             // Strength zero disables occlusion; strength one uses the sampled R channel.
             float sampled_occlusion = texture(PbrMaterial_occlusionTexture, uv).r;
-            float occlusion_strength = saturate(pbrNormalScaleAndOcclusionStrength.y);
+            float occlusion_strength = pbr_saturate(pbrNormalScaleAndOcclusionStrength.y);
             material.occlusion = mix(1.0, sampled_occlusion, occlusion_strength);
         }
 
@@ -94,14 +94,14 @@ PBRMaterial sample_pbr_material(vec2 uv, vec4 vertex_color)
         {
             // Emission has the same sRGB filtering limitation described above.
             // Decode before lighting, leaving alpha unchanged.
-            material.emissive *= to_linear(texture(PbrMaterial_emissiveTexture, uv)).rgb;
+            material.emissive *= pbr_srgb_to_linear(texture(PbrMaterial_emissiveTexture, uv)).rgb;
         }
     }
 
     return material;
 }
 
-PBRSurface get_pbr_surface(PBRMaterial material)
+PBRSurface pbr_sample_surface(PBRMaterial material)
 {
     PBRSurface surface;
     surface.position = var_position.xyz;

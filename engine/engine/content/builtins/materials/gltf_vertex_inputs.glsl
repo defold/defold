@@ -18,9 +18,8 @@ in mediump mat4 mtx_normal;
 
 #ifdef PBR_SKINNED
 in highp vec4 animation_data;
-#endif
-
-#endif
+#endif // PBR_SKINNED
+#endif // PBR_INSTANCED
 
 out highp vec4 var_position;
 out mediump vec3 var_normal;
@@ -40,8 +39,8 @@ uniform vs_uniforms
     mediump mat4 mtx_normal;
 #ifdef PBR_SKINNED
     highp vec4 animation_data;
-#endif
-#endif
+#endif // PBR_SKINNED
+#endif // PBR_INSTANCED
 };
 
 #endif

@@ -5,11 +5,11 @@
 #include "/builtins/materials/gltf_common.glsl"
 
 // Pure derivation: callers may edit resolved inputs before this step.
-MaterialInfo get_material_info(PBRMaterial input_material)
+MaterialInfo pbr_create_material_info(PBRMaterial input_material)
 {
     MaterialInfo material;
     material.baseColor = input_material.baseColor;
-    material.metallic = saturate(input_material.metallic);
+    material.metallic = pbr_saturate(input_material.metallic);
 
     // Keep the specular lobe finite, then square the artist-facing roughness
     // to obtain the alpha parameter used by the GGX functions.
@@ -29,12 +29,12 @@ MaterialInfo get_material_info(PBRMaterial input_material)
 
 // BLEND outputs straight alpha; OPAQUE and surviving MASK fragments are opaque.
 // The render pass owns blend factors and depth writes.
-float get_pbr_alpha(PBRMaterial material)
+float pbr_get_alpha(PBRMaterial material)
 {
-    return material.alphaMode == PBR_ALPHA_BLEND ? saturate(material.baseColor.a) : 1.0;
+    return material.alphaMode == PBR_ALPHA_BLEND ? pbr_saturate(material.baseColor.a) : 1.0;
 }
 
-bool pbr_alpha_discard(PBRMaterial material)
+bool pbr_should_discard_alpha(PBRMaterial material)
 {
     return material.alphaMode == PBR_ALPHA_MASK && material.baseColor.a < material.alphaCutoff;
 }

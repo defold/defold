@@ -4,7 +4,8 @@
 #include "/builtins/materials/gltf_brdf.glsl"
 #include "/builtins/materials/lighting.glsl"
 
-PBRLightContribution empty_pbr_contribution()
+// Start with no light so callers can accumulate contributions.
+PBRLightContribution pbr_create_light_contribution()
 {
     PBRLightContribution result;
     result.diffuse = vec3(0.0);
@@ -12,32 +13,32 @@ PBRLightContribution empty_pbr_contribution()
     return result;
 }
 
-PBRLighting empty_pbr_lighting()
+PBRLighting pbr_create_lighting()
 {
     PBRLighting result;
-    result.direct = empty_pbr_contribution();
-    result.indirect = empty_pbr_contribution();
+    result.direct = pbr_create_light_contribution();
+    result.indirect = pbr_create_light_contribution();
     return result;
 }
 
-void add_pbr_contribution(inout PBRLightContribution total, PBRLightContribution value)
+void pbr_add_light_contribution(inout PBRLightContribution total, PBRLightContribution value)
 {
     total.diffuse += value.diffuse;
     total.specular += value.specular;
 }
 
-PBRLightContribution evaluate_pbr_light(MaterialInfo material, PBRSurface surface, PBRLightSample light)
+PBRLightContribution pbr_evaluate_light(MaterialInfo material, PBRSurface surface, PBRLightSample light)
 {
     PBRLightContribution result;
-    evaluate_brdf(material, surface.normal, surface.view, light.direction, light.radiance,
-                  result.diffuse, result.specular);
+    pbr_evaluate_brdf(material, surface.normal, surface.view, light.direction, light.radiance,
+                      result.diffuse, result.specular);
     return result;
 }
 
 // Convenience path; extensions can write the same loop to inject per-light visibility.
-PBRLightContribution evaluate_pbr_direct(MaterialInfo material, PBRSurface surface, mat4 view_matrix)
+PBRLightContribution pbr_evaluate_direct_lighting(MaterialInfo material, PBRSurface surface, mat4 view_matrix)
 {
-    PBRLightContribution total = empty_pbr_contribution();
+    PBRLightContribution total = pbr_create_light_contribution();
     int count = light_count();
 
     for (int i = 0; i < MAX_LIGHT_COUNT; ++i)
@@ -49,7 +50,7 @@ PBRLightContribution evaluate_pbr_direct(MaterialInfo material, PBRSurface surfa
 
         PBRLightSample light;
         sample_light(i, surface.position, view_matrix, light.direction, light.radiance);
-        add_pbr_contribution(total, evaluate_pbr_light(material, surface, light));
+        pbr_add_light_contribution(total, pbr_evaluate_light(material, surface, light));
     }
 
     return total;
@@ -57,7 +58,7 @@ PBRLightContribution evaluate_pbr_direct(MaterialInfo material, PBRSurface surfa
 
 // Simple ambient fallback rather than a sampled environment. Roughness reduces
 // its approximate specular contribution; IBL/GI can replace this function's result.
-PBRLightContribution evaluate_pbr_ambient(MaterialInfo material, vec3 ambient)
+PBRLightContribution pbr_evaluate_ambient_lighting(MaterialInfo material, vec3 ambient)
 {
     PBRLightContribution result;
     result.diffuse = material.diffuseColor * ambient;
@@ -67,8 +68,8 @@ PBRLightContribution evaluate_pbr_ambient(MaterialInfo material, vec3 ambient)
 
 // Material AO, SSAO and GI visibility attenuate indirect lighting only.
 // Any per-light shadow visibility must already be applied to direct lighting.
-vec3 composite_pbr_lighting(PBRMaterial material, PBRLighting lighting,
-                           float diffuse_visibility, float specular_visibility)
+vec3 pbr_compose_lighting(PBRMaterial material, PBRLighting lighting,
+                          float diffuse_visibility, float specular_visibility)
 {
     if (material.unlit)
     {

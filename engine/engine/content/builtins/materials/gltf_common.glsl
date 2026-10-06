@@ -7,20 +7,21 @@
  * see gltf_sampling.glsl for filtering limitations. Output encoding preserves HDR
  * values; tone mapping belongs to the application.
  */
+
 const float PBR_PI = 3.1415926535897932384626433832795;
 const float PBR_EPSILON = 0.00001;
 
-float saturate(float value)
+float pbr_saturate(float value)
 {
     return clamp(value, 0.0, 1.0);
 }
 
-vec3 saturate(vec3 value)
+vec3 pbr_saturate(vec3 value)
 {
     return clamp(value, vec3(0.0), vec3(1.0));
 }
 
-vec4 to_linear(vec4 color)
+vec4 pbr_srgb_to_linear(vec4 color)
 {
     // sRGB has a linear segment near black. Alpha is already linear.
     vec3 low = color.rgb / 12.92;
@@ -28,7 +29,7 @@ vec4 to_linear(vec4 color)
     return vec4(mix(high, low, lessThanEqual(color.rgb, vec3(0.04045))), color.a);
 }
 
-vec3 to_output(vec3 color)
+vec3 pbr_linear_to_srgb(vec3 color)
 {
     // Encode linear RGB as sRGB without clipping highlights above one.
     color = max(color, vec3(0.0));
@@ -37,9 +38,9 @@ vec3 to_output(vec3 color)
     return mix(high, low, lessThanEqual(color, vec3(0.0031308)));
 }
 
-float clamped_dot(vec3 a, vec3 b)
+float pbr_clamped_dot(vec3 a, vec3 b)
 {
-    return saturate(dot(a, b));
+    return pbr_saturate(dot(a, b));
 }
 
 vec3 pbr_normalize(vec3 value, vec3 fallback)
