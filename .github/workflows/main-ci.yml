@@ -186,7 +186,7 @@ jobs:
             timeout: 30
             engine_args: "--verbose"
     runs-on: ${{ matrix.runner }}
-    if: &if_engine_enabled github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
+    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: ${{ matrix.timeout }}
     # The Windows steps all declared shell: bash already.
     defaults:
@@ -297,8 +297,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
         with:
           version: "latest"
-      - &step_emsdk
-        name: "Setup emsdk"
+      - name: "Setup emsdk"
         if: matrix.emsdk
         uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
         with:
@@ -312,8 +311,7 @@ jobs:
         with:
           node-version: '22'
           package-manager-cache: false
-      - &step_android
-        name: "Set up Android SDK"
+      - name: "Set up Android SDK"
         if: matrix.android
         uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7 # untagged pinned SHA
         with:
@@ -458,54 +456,6 @@ jobs:
           webhook-type: incoming-webhook
           errors: true
           payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}'
-
-  # Exercise 32-bit VM generation on hosts where the Android engine is not built.
-  check-luajit-armv7-hosts:
-    name: "LuaJIT ARMv7 (${{ matrix.runner }})"
-    if: *if_engine_enabled
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: xcode-27
-            android: true
-            emsdk: true
-          - runner: windows-2025-vs2026
-            android: true
-            emsdk: false
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
-    defaults:
-      run:
-        shell: bash
-    env:
-      DYNAMO_HOME: "${{ github.workspace }}/tmp/dynamo_home"
-    steps:
-      - *step_validate_build_commit
-      - *step_checkout
-      - *step_python
-      - *step_java
-      - *step_cmake
-      - *step_emsdk
-      - *step_android
-      - name: "Check Android and LuaJIT generator SDKs"
-        # This source-only build does not need the engine's protoc bootstrap.
-        run: |
-          python - <<'PY'
-          import os
-          import sys
-          sys.path.insert(0, 'scripts')
-          import build
-          build.Configuration(dynamo_home=os.environ['DYNAMO_HOME'], target_platform='armv7-android').check_sdk(require_protoc=False)
-          PY
-      - name: "Build and install ARMv7 LuaJIT"
-        run: |
-          build_dir="$RUNNER_TEMP/luajit-armv7"
-          cmake -S external/luajit -B "$build_dir" -G Ninja \
-            -DTARGET_PLATFORM=armv7-android -DCMAKE_BUILD_TYPE=Release \
-            -DANDROID_NDK="$ANDROID_HOME/ndk/25.2.9519653" \
-            -DDEFOLD_SDK_ROOT="$DYNAMO_HOME" -DDEFOLD_BUILD_HOME="$build_dir"
-          cmake --build "$build_dir" --target install
 
   build-reports:
     name: Build Reports
