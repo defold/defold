@@ -285,21 +285,25 @@
       (.setColumn 3 (.x center) (.y center) (.z center) 1.0))))
 
 (defn- handle-billboards
-  "Balls and lines as {:depth :texture :matrix :alpha} maps, back to front,
-  after the backdrop while it's faded in. The camera rotation maps screen axes
-  into the gizmo's model space."
-  [^Quat4d camera-rotation ^double backdrop-alpha]
+  "Balls and lines as {:depth :texture :matrix :alpha :brightness} maps, back
+  to front, after the backdrop while it's faded in. The hovered axis is
+  brighter and its ball bigger. The camera rotation maps screen axes into the
+  gizmo's model space."
+  [^Quat4d camera-rotation ^double backdrop-alpha hot-handle]
   (let [screen-axis (fn [x y z] (math/rotate camera-rotation (Vector3d. x y z)))
         ^Vector3d right (screen-axis 1.0 0.0 0.0)
         ^Vector3d up (screen-axis 0.0 1.0 0.0)
         ^Vector3d toward (screen-axis 0.0 0.0 1.0)
         balls (into []
                     (map (fn [axis]
-                           (let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))]
+                           (let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))
+                                 hovered (= hot-handle axis)
+                                 radius (cond-> ^double ball-radius hovered (* 1.15))]
                              {:depth (.dot toward center)
                               :texture (@ball-textures axis)
-                              :matrix (billboard-matrix center right up toward ball-radius ball-radius)
-                              :alpha 1.0})))
+                              :matrix (billboard-matrix center right up toward radius radius)
+                              :alpha 1.0
+                              :brightness (if hovered 1.25 1.0)})))
                     axis-order)
         lines (into []
                     (keep (fn [axis]
@@ -315,26 +319,29 @@
                                    :texture (@line-textures axis)
                                    :matrix (billboard-matrix center (doto side (.normalize)) normal toward
                                                              (* 2.0 ^double line-half-width) (* 0.5 length))
-                                   :alpha 1.0})))))
+                                   :alpha 1.0
+                                   :brightness (if (= hot-handle axis) 1.25 1.0)})))))
                     [:+x :+y :+z])]
     (cond->> (sort-by :depth (into balls lines))
       (pos? backdrop-alpha) (cons {:texture @backdrop-texture
                                    :matrix (billboard-matrix (Vector3d.) right up toward backdrop-radius backdrop-radius)
-                                   :alpha backdrop-alpha}))))
+                                   :alpha backdrop-alpha
+                                   :brightness 1.0}))))
 
 (defn- draw-handles!
   "Draws the handles back to front, blending their premultiplied textures.
   Without a depth test they always draw over the scene."
-  [^GL2 gl render-args ^Camera camera backdrop-alpha]
+  [^GL2 gl render-args ^Camera camera backdrop-alpha hot-handle]
   (.glDisable gl GL2/GL_DEPTH_TEST)
   (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
-  (doseq [{:keys [texture matrix alpha]} (handle-billboards (:rotation camera) backdrop-alpha)
+  (doseq [{:keys [texture matrix alpha brightness]} (handle-billboards (:rotation camera) backdrop-alpha hot-handle)
           :let [vertex-binding (vtx/use-with [::billboard-quad] @billboard-quad billboard-shader)
                 handle-args (assoc render-args :world-view-proj (doto (Matrix4d. ^Matrix4d (:world-view-proj render-args)) (.mul ^Matrix4d matrix)))
-                alpha (double alpha)]]
+                alpha (double alpha)
+                color (* alpha (double brightness))]]
     (gl/with-gl-bindings gl handle-args [billboard-shader vertex-binding texture]
       (shader/set-samplers-by-index billboard-shader gl 0 (:texture-units texture))
-      (shader/set-uniform billboard-shader gl "tint" (Vector4d. alpha alpha alpha alpha))
+      (shader/set-uniform billboard-shader gl "tint" (Vector4d. color color color alpha))
       (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 6)))
   (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
 
@@ -372,9 +379,10 @@
                                                          (:texture render-args)))]
     (if (= pass/manipulator-selection (:pass render-args))
       (pick-handles! gl gizmo-args (into {} (map (juxt :selection-data identity)) renderables))
-      (draw-handles! gl gizmo-args camera (double (get-in (first renderables) [:user-data :backdrop-alpha] 0.0))))))
+      (let [{:keys [backdrop-alpha hot-handle]} (:user-data (first renderables))]
+        (draw-handles! gl gizmo-args camera (double (or backdrop-alpha 0.0)) hot-handle)))))
 
-(g/defnk produce-renderables [_node-id backdrop-alpha camera]
+(g/defnk produce-renderables [_node-id backdrop-alpha camera hot-handle]
   ;; Hidden in 2D, like Unity. The rulers only show in 2D, so the gizmo can
   ;; sit closer to the corner without overlapping them.
   (if (c/mode-2d? camera)
@@ -388,7 +396,8 @@
                                 :select-batch-key gizmo-batch-key
                                 :selection-data selection-data
                                 :tags #{:axis-gizmo}
-                                :user-data {:backdrop-alpha backdrop-alpha}})))]
+                                :user-data {:backdrop-alpha backdrop-alpha
+                                            :hot-handle hot-handle}})))]
       {pass/manipulator renderables
        pass/manipulator-selection renderables})))
 
