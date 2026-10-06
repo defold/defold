@@ -308,6 +308,38 @@ namespace dmShaderc
         return 0;
     }
 
+    static bool IsHLSLStorageBuffer(D3D_SHADER_INPUT_TYPE input_type)
+    {
+        switch (input_type)
+        {
+            case D3D_SIT_STRUCTURED:
+            case D3D_SIT_BYTEADDRESS:
+            case D3D_SIT_UAV_RWTYPED:
+            case D3D_SIT_UAV_RWSTRUCTURED:
+            case D3D_SIT_UAV_RWBYTEADDRESS:
+            case D3D_SIT_UAV_APPEND_STRUCTURED:
+            case D3D_SIT_UAV_CONSUME_STRUCTURED:
+            case D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static const ShaderResource* FindStorageBufferByBinding(HShaderContext context, uint32_t set, uint32_t binding)
+    {
+        const ShaderReflection* reflection = GetReflection(context);
+        for (uint32_t i = 0; i < reflection->m_StorageBuffers.Size(); ++i)
+        {
+            const ShaderResource& resource = reflection->m_StorageBuffers[i];
+            if (resource.m_Set == set && resource.m_Binding == binding)
+            {
+                return &resource;
+            }
+        }
+        return 0;
+    }
+
     static void FillResourceEntryArray(HShaderContext context, ID3D12ShaderReflection* hlsl_reflection, D3D12_SHADER_DESC* shaderDesc, dmArray<CombinedSampler>& combined_samplers, dmArray<HLSLResourceMapping>& resource_entries)
     {
         DM_TRACE_LINE();
@@ -352,6 +384,14 @@ namespace dmShaderc
                 }
             }
 
+            // Unnamed GLSL storage-block instances are emitted by SPIRV-Cross with generated
+            // HLSL identifiers (for example `_15`). Register space and binding remain stable,
+            // so use those as the authoritative fallback instead of the generated name.
+            if (!resource && IsHLSLStorageBuffer(bindDesc.Type))
+            {
+                resource = FindStorageBufferByBinding(context, bindDesc.Space, bindDesc.BindPoint);
+            }
+
             if (resource)
             {
                 resource_entries[i].m_ShaderResourceSet     = resource->m_Set;
@@ -385,8 +425,10 @@ namespace dmShaderc
                 case D3D_SIT_TEXTURE:          typeStr = "SRV (Texture)"; break;
                 case D3D_SIT_SAMPLER:          typeStr = "Sampler"; break;
                 case D3D_SIT_STRUCTURED:       typeStr = "SRV (StructuredBuffer)"; break;
+                case D3D_SIT_BYTEADDRESS:      typeStr = "SRV (ByteAddressBuffer)"; break;
                 case D3D_SIT_UAV_RWTYPED:      typeStr = "UAV"; break;
                 case D3D_SIT_UAV_RWSTRUCTURED: typeStr = "UAV (RWStructuredBuffer)"; break;
+                case D3D_SIT_UAV_RWBYTEADDRESS:typeStr = "UAV (RWByteAddressBuffer)"; break;
                 default:                       typeStr = "UNDEFINED"; break;
             }
 
@@ -411,6 +453,7 @@ namespace dmShaderc
                 break;
             case D3D_SIT_TEXTURE:
             case D3D_SIT_STRUCTURED:
+            case D3D_SIT_BYTEADDRESS:
                 dmLogInfo("  RootParameter[%u] = SRV(slot = %u)", i, bindDesc.BindPoint);
                 break;
             case D3D_SIT_SAMPLER:
@@ -418,6 +461,10 @@ namespace dmShaderc
                 break;
             case D3D_SIT_UAV_RWTYPED:
             case D3D_SIT_UAV_RWSTRUCTURED:
+            case D3D_SIT_UAV_RWBYTEADDRESS:
+            case D3D_SIT_UAV_APPEND_STRUCTURED:
+            case D3D_SIT_UAV_CONSUME_STRUCTURED:
+            case D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER:
                 dmLogInfo("  RootParameter[%u] = UAV(slot = %u)", i, bindDesc.BindPoint);
                 break;
             default:
@@ -695,39 +742,54 @@ namespace dmShaderc
         uint32_t pos = 0;
         bool ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, "[RootSignature(\"");
 
+        uint32_t parameter_count = 0;
         for (uint32_t i = 0; ok && i < shader_desc->BoundResources; ++i)
         {
             D3D12_SHADER_INPUT_BIND_DESC bind_desc;
             reflection->GetResourceBindingDesc(i, &bind_desc);
 
-            if (i > 0)
-            {
-                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, ",");
-            }
-
+            const char* parameter_format;
             switch (bind_desc.Type)
             {
             case D3D_SIT_CBUFFER:
-                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, "CBV(b%u,space=%u,visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
+                parameter_format = "CBV(b%u,space=%u,visibility=%s)";
                 break;
+            case D3D_SIT_TBUFFER:
             case D3D_SIT_TEXTURE:
-                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, "DescriptorTable(SRV(t%u,space=%u),visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
+            case D3D_SIT_STRUCTURED:
+            case D3D_SIT_BYTEADDRESS:
+                parameter_format = "DescriptorTable(SRV(t%u,space=%u),visibility=%s)";
                 break;
             case D3D_SIT_SAMPLER:
-                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, "DescriptorTable(Sampler(s%u,space=%u),visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
+                parameter_format = "DescriptorTable(Sampler(s%u,space=%u),visibility=%s)";
                 break;
             case D3D_SIT_UAV_RWTYPED:
-                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, "DescriptorTable(UAV(u%u,space=%u),visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
+            case D3D_SIT_UAV_RWSTRUCTURED:
+            case D3D_SIT_UAV_RWBYTEADDRESS:
+            case D3D_SIT_UAV_APPEND_STRUCTURED:
+            case D3D_SIT_UAV_CONSUME_STRUCTURED:
+            case D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER:
+                parameter_format = "DescriptorTable(UAV(u%u,space=%u),visibility=%s)";
                 break;
             default:
-                break;
+                continue;
+            }
+
+            if (parameter_count > 0)
+            {
+                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, ",");
+            }
+            if (ok)
+            {
+                ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, parameter_format, bind_desc.BindPoint, bind_desc.Space, visibility);
+                ++parameter_count;
             }
         }
 
         // Scope the root signature to the shader stages in the pipeline to reduce command processor work.
         if (ok && has_root_signature_flags)
         {
-            if (shader_desc->BoundResources > 0)
+            if (parameter_count > 0)
             {
                 ok = AppendRootSignatureText(out, BUFFER_SIZE, &pos, ",");
             }

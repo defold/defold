@@ -79,6 +79,7 @@ struct ShaderResourceJNI {
     jfieldID binding;
     jfieldID set;
     jfieldID stageFlags;
+    jfieldID accessFlags;
 };
 struct ShaderReflectionJNI {
     jclass cls;

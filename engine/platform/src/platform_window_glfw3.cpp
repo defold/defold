@@ -596,6 +596,16 @@ namespace dmPlatform
         return glfwGetMouseButton(window->m_Window, button);
     }
 
+    bool IsMouseLeftButtonFromTouch(HWindow window)
+    {
+        return false;
+    }
+
+    bool IsMousePositionFromTouch(HWindow window)
+    {
+        return false;
+    }
+
     void GetMousePosition(HWindow window, int32_t* x, int32_t* y)
     {
         double xpos, ypos;

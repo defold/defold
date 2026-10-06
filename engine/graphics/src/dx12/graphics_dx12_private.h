@@ -95,6 +95,13 @@ namespace dmGraphics
         DX12DeviceBuffer m_DeviceBuffer;
     };
 
+    struct DX12StorageBuffer
+    {
+        StorageBuffer         m_BaseStorageBuffer;
+        DX12DeviceBuffer      m_DeviceBuffer;
+        D3D12_RESOURCE_STATES m_ResourceState;
+    };
+
     struct DX12VertexBuffer
     {
         DX12DeviceBuffer         m_DeviceBuffer;
@@ -196,6 +203,7 @@ namespace dmGraphics
         void  AllocateSampler(DX12Context* context, DX12PipelineType pipeline_type, const DX12TextureSampler& sampler, uint32_t sampler_index);
         bool  AllocateImage(DX12Context* context, DX12PipelineType pipeline_type, DX12Texture* texture, uint32_t index);
         void  AllocateTexture2D(DX12Context* context, DX12PipelineType pipeline_type, DX12Texture* texture, uint32_t texture_index);
+        void  AllocateStorageBuffer(DX12Context* context, DX12PipelineType pipeline_type, DX12StorageBuffer* buffer, bool read_only, uint32_t buffer_index);
         void  Reset(DX12Context* context);
     };
 
@@ -279,6 +287,7 @@ namespace dmGraphics
         uint32_t                           m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         HTexture                           m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
         DX12UniformBuffer*                 m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        DX12StorageBuffer*                 m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         DX12Viewport                       m_CurrentViewport;
 
         uint32_t                           m_CurrentFrameIndex;

@@ -40,14 +40,17 @@ target_compile_definitions(skribidi PRIVATE NDEBUG SKB_NO_OPEN)
 target_include_directories(skribidi PRIVATE
   "${SKRIBIDI_SRC_DIR}"
   "${SKRIBIDI_INCLUDE_DIR}"
-  "${BUDOUX_ROOT}/include"
-  "${DEFOLD_SDK_ROOT}/ext/include"
-  "${DEFOLD_SDK_ROOT}/ext/include/harfbuzz"
-  "${DEFOLD_SDK_ROOT}/ext/include/libunibreak")
+  "${BUDOUX_ROOT}/include")
 target_link_libraries(skribidi PRIVATE defold_sdk)
 
-if(MSVC)
-  set_property(TARGET skribidi PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# The combined build uses source headers before any dependencies are installed.
+if(TARGET harfbuzz AND TARGET sheenbidi AND TARGET unibreak)
+  target_link_libraries(skribidi PRIVATE harfbuzz sheenbidi unibreak)
+else()
+  target_include_directories(skribidi PRIVATE
+    "${DEFOLD_SDK_ROOT}/ext/include"
+    "${DEFOLD_SDK_ROOT}/ext/include/harfbuzz"
+    "${DEFOLD_SDK_ROOT}/ext/include/libunibreak")
 endif()
 
 set_target_properties(skribidi PROPERTIES

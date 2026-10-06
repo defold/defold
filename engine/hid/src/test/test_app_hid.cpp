@@ -23,7 +23,7 @@
 #if defined(ANDROID)
 #include <assert.h>
 #include <android_native_app_glue.h>
-#include <glfw/glfw.h>
+#include <platform/platform_app.h>
 #include <dmsdk/dlib/android.h>
 #endif
 
@@ -303,7 +303,7 @@ static void AppendGamepadStatus(EngineCtx* engine, char* buffer, uint32_t buffer
 #if defined(ANDROID)
 static bool WaitForWindow()
 {
-    while (glfwAndroidWindowOpened() == 0)
+    while (dmPlatform::AndroidIsWindowOpened() == 0)
     {
         void* data = 0;
         int ident = ALooper_pollOnce(300, 0, 0, &data);
@@ -326,7 +326,7 @@ static bool WaitForWindow()
             return false;
         }
 
-        glfwAndroidFlushEvents();
+        dmPlatform::AndroidFlushEvents();
         if (app->destroyRequested)
         {
             return false;

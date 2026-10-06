@@ -74,8 +74,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, index, &receiver, 0x0);
 
         dmScript::GetURL(L, &sender);
-        dmGameObject::HInstance sender_instance = dmGameSystem::CheckGoInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::HCollection collection = dmScript::CheckCollection(L);
         dmGameObject::HInstance receiver_instance = dmGameObject::GetInstanceFromIdentifier(collection, receiver.m_Path);
 
         if (receiver_instance == 0x0)
@@ -90,7 +89,7 @@ namespace dmGameSystem
         dmGameObject::GetComponentFromLua(L, index, collection, COLLECTION_PROXY_EXT, &user_data, &receiver, (dmGameObject::HComponentWorld*)&world);
 
         if (factory)
-            *factory = dmGameObject::GetFactory(receiver_instance);
+            *factory = dmGameObject::GetFactory(collection);
 
         return dmGameSystem::GetCollectionUrlHashFromComponent(world, dmGameObject::GetIdentifier(receiver_instance), component_index);
     }

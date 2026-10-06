@@ -1,17 +1,3 @@
-;; Copyright 2020-2026 The Defold Foundation
-;; Copyright 2014-2020 King
-;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
-;; Licensed under the Defold License version 1.0 (the "License"); you may not use
-;; this file except in compliance with the License.
-;;
-;; You may obtain a copy of the License, together with FAQs at
-;; https://www.defold.com/license
-;;
-;; Unless required by applicable law or agreed to in writing, software distributed
-;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
-;; specific language governing permissions and limitations under the License.
-
 {:function-arguments-indentation :cursive
  :indent-line-comments? true
  :extra-indents {.addEventFilter [[:inner 0]]
@@ -19,10 +5,10 @@
                  assoc [[:block 1]]
                  assoc! [[:block 1]]
                  cljfx.composite/props [[:inner 0]]
-                 clojure.core.cache/defcache [[:inner 0]]
+                 clojure.core.cache/defcache [[:inner 0] [:inner 1]]
                  clojure.core/defmulti [[:inner 0]]
                  clojure.core/defonce [[:inner 0]]
-                 clojure.core/vector-of [[:inner 0]]
+                 vector-of [[:block 1]]
                  clojure.test.check.properties/for-all [[:block 1]]
                  clojure.test/are [[:inner 0]]
                  cond-> [[:inner 0]]
@@ -36,6 +22,7 @@
                  dynamo.graph/make-nodes [[:inner 0]]
                  dynamo.graph/fnk [[:block 1]]
                  dynamo.graph/override [[:inner 0]]
+                 dynamo.graph/package-errors [[:block 1]]
                  dynamo.graph/precluding-errors [[:inner 0]]
                  dynamo.graph/set-properties [[:inner 0]]
                  dynamo.graph/set-properties! [[:inner 0]]
@@ -43,6 +30,7 @@
                  dynamo.graph/set-property! [[:inner 0]]
                  dynamo.graph/transact [[:inner 0]]
                  dynamo.graph/tx-cached-value! [[:inner 0]]
+                 dynamo.graph/user-data-swap! [[:block 3]]
                  dynamo.graph/with-auto-evaluation-context [[:inner 0]]
                  dynamo.graph/with-auto-or-fake-evaluation-context [[:inner 0]]
                  dynamo.graph/with-system [[:inner 0]]
@@ -77,6 +65,7 @@
                  editor.handler/register-dynamic! [[:inner 0]]
                  editor.handler/register-menu! [[:inner 0]]
                  editor.lsp.async/with-auto-evaluation-context [[:inner 0]]
+                 editor.pipeline/make-protobuf-build-target [[:block 3]]
                  editor.prefs-test/with-schemas [[:inner 0]]
                  editor.protobuf/assign [[:inner 0]]
                  editor.protobuf/assign-repeated [[:inner 0]]
@@ -104,6 +93,7 @@
                  editor.workspace/register-resource-type [[:inner 0]]
                  editor.workspace/register-view-type [[:inner 0]]
                  editor.yaml/with-error-translation [[:inner 0]]
+                 gen-query [[:block 2]]
                  integration.build-test/with-build-results [[:inner 0]]
                  integration.gui-test/with-visible-layout! [[:inner 0]]
                  integration.lsp-test/await-lsp [[:block 1]]
@@ -117,6 +107,14 @@
                  integration.test-util/with-scratch-project [[:inner 0]]
                  integration.test-util/with-temp-dir! [[:inner 0]]
                  integration.test-util/write-file-resource! [[:inner 0]]
+                 internal.node/apply-default-property-shortcut-form [[:inner 0]]
+                 internal.node/cache-result-form [[:inner 0]]
+                 internal.node/call-production-function-form [[:inner 0]]
+                 internal.node/check-caches-form [[:inner 0]]
+                 internal.node/check-jammed-form [[:inner 0]]
+                 internal.node/gather-arguments-form [[:inner 0]]
+                 internal.node/mark-in-production-form [[:inner 0]]
+                 internal.node/schema-check-result-form [[:inner 0]]
                  org.httpkit.server/with-channel [[:inner 0]]
                  schema.core/defrecord [[:inner 0] [:inner 1]]
                  schema.core/enum [[:block 0] [:inner 1 -1]]
@@ -136,11 +134,12 @@
                  util.debug-util/measuring [[:inner 0]]
                  util.debug-util/metrics-time [[:inner 0]]
                  util.defonce/interface [[:block 1] [:inner 1]]
-                 util.defonce/protocol [[:block 1] [:inner 1]]
+                 util.defonce/protocol [[:inner 0] [:inner 1]]
                  util.defonce/record [[:inner 0] [:inner 1]]
                  util.defonce/type [[:inner 0] [:inner 1]]
                  util.profiler/profile [[:inner 0]]
                  vlaaad.reveal/defaction [[:inner 0]]
                  vlaaad.reveal/defstream [[:inner 0]]}
  :alias-map {g dynamo.graph
-             handler editor.handler}}
+             handler editor.handler
+             pipeline editor.pipeline}}

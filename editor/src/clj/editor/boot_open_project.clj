@@ -313,10 +313,10 @@
                                               (clean-up-resource-prefs prefs changes)))))
 
       (.addEventFilter scene
-                       InputEvent/ANY
-                       (ui/event-handler e
-                         (when (contains? interaction-event-types (.getEventType ^InputEvent e))
-                           (ui/user-data! scene ::ui/refresh-requested? true))))
+        InputEvent/ANY
+        (ui/event-handler e
+          (when (contains? interaction-event-types (.getEventType ^InputEvent e))
+            (ui/user-data! scene ::ui/refresh-requested? true))))
 
       (ui/observe (.focusedProperty stage)
                   (fn [_ _ focused]

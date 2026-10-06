@@ -45,6 +45,10 @@ if(DEFINED ENV{GITHUB_ACTIONS} AND TARGET_PLATFORM MATCHES "macos$")
 endif()
 
 set(DLIB_TEST_DEFINES "DLIB_LOG_DOMAIN=\"DLIB\"")
+if(DLIB_TEST_SKIP_THREADS)
+  # Keep non-threaded message coverage while omitting cases that create threads.
+  list(APPEND DLIB_TEST_DEFINES DM_NO_THREAD_SUPPORT)
+endif()
 if(TARGET_PLATFORM MATCHES "ios$")
   list(APPEND DLIB_TEST_DEFINES DM_TEST_SKIP_NETWORK_DNS)
 endif()
@@ -121,8 +125,15 @@ dlib_add_test(test_hash C TARGET_NAME test_hash_c)
 dlib_add_test(test_context_registry C)
 dlib_add_test(test_time)
 
+set(_dlib_test_socket_defines)
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  # WebSocket emulation does not provide native TCP, socket options or DNS.
+  # Keep the portable address tests enabled on both web variants.
+  list(APPEND _dlib_test_socket_defines DM_TEST_NO_NATIVE_SOCKETS)
+endif()
+dlib_add_test(test_socket DEFINES ${_dlib_test_socket_defines})
+
 if(NOT DLIB_TEST_SKIP_THREADS)
-  dlib_add_test(test_socket)
   dlib_add_test(test_thread)
   dlib_add_test(test_mutex)
 endif()
@@ -199,6 +210,7 @@ if(NOT DLIB_TEST_SKIP_HTTP)
   dlib_add_test(test_httpcache SKIP_RUN)
   dlib_add_test(test_httpserver SKIP_RUN)
   dlib_add_test(test_webserver SKIP_RUN)
+  dlib_add_test(test_webserver_openapi)
   dlib_add_test(test_connection_pool SKIP_RUN)
 endif()
 

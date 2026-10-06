@@ -603,8 +603,10 @@ namespace dmGameSystem
         params->m_CacheCellHeight    = glyph_bank->m_CacheCellHeight;
         params->m_CacheCellMaxAscent = glyph_bank->m_CacheCellMaxAscent;
         params->m_CacheCellPadding   = glyph_bank->m_GlyphPadding;
-        params->m_IsMonospaced       = glyph_bank->m_IsMonospaced;
-        params->m_Padding            = glyph_bank->m_Padding;
+        // These settings compensate for legacy bitmap-based measurement.
+        // Native layout metrics already match the editor's text measurement.
+        params->m_IsMonospaced       = glyph_bank->m_IsMonospaced && !glyph_bank->m_HasLayoutMetrics;
+        params->m_Padding            = glyph_bank->m_HasLayoutMetrics ? 0 : glyph_bank->m_Padding;
     }
 
     HFontCollection ResFontGetFontCollection(FontResource* resource)

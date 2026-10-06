@@ -41,6 +41,9 @@ namespace dmLuaDDF
 
 namespace dmScript
 {
+    // Push the hash for a dmHID::InputSource stored in an input action bitfield.
+    void PushInputSource(lua_State* L, uint32_t source);
+
     typedef struct ScriptWorld* HScriptWorld;
     typedef struct ScriptExtension* HScriptExtension;
 

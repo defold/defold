@@ -66,7 +66,7 @@
                                                           "/test.tilemap"
                                                           "/test.wav"]
    "/test.collectionfactory" ["/test.collection"]
-   "/test.collectionproxy" ["/test.collection"]   
+   "/test.collectionproxy" ["/test.collection"]
    "/test.collisionobject" ["/test.tilemap"]
    "/test.cubemap" ["/builtins/graphics/particle_blob.png"]
    "/test.gltf" []
