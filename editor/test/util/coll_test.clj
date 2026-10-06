@@ -21,7 +21,7 @@
             [util.fn :as fn])
   (:import [clojure.lang ExceptionInfo IPersistentVector PersistentArrayMap PersistentHashMap PersistentHashSet PersistentTreeMap PersistentTreeSet]
            [java.util Hashtable]
-           [java.util.concurrent CountDownLatch TimeUnit]))
+           [java.util.concurrent CountDownLatch Semaphore]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -2258,11 +2258,14 @@
            (coll/pmapv + [1 2 3] [10 20]))))
 
   (testing "Preserves order."
-    (is (= (range 32)
-           (coll/pmapv (fn [^long value]
-                         (Thread/sleep ^long (- 31 value))
-                         value)
-                       (range 32)))))
+    (let [second-ready (CountDownLatch. 1)]
+      (is (= [0 1]
+             (coll/pmapv (fn [value]
+                           (if (zero? (long value))
+                             (.await second-ready)
+                             (.countDown second-ready))
+                           value)
+                         [0 1])))))
 
   (testing "Propagates thread bindings."
     (binding [*pmapv-binding-test-value* :bound]
@@ -2284,8 +2287,7 @@
   (testing "Cancels remaining tasks on failure."
     (let [task-count 4
           all-started (CountDownLatch. task-count)
-          cancellation-count (atom 0)
-          completed-values (atom [])]
+          cancellation-count (atom 0)]
       (is (thrown-with-msg?
             ExceptionInfo
             #"boom"
@@ -2293,22 +2295,13 @@
                           (.countDown all-started)
                           (if (zero? value)
                             (do
-                              (when-not (.await all-started 1 TimeUnit/SECONDS)
-                                (throw (ex-info "timed out waiting for tasks to start" {})))
+                              (.await all-started)
                               (throw (ex-info "boom" {})))
                             (try
-                              (Thread/sleep 10000)
-                              (swap! completed-values conj value)
-                              :completed
+                              (.await (CountDownLatch. 1))
                               (catch InterruptedException _
-                                (swap! cancellation-count inc)
-                                :interrupted))))
+                                (swap! cancellation-count inc)))))
                         (range task-count))))
-      (is (= true (.await all-started 1 TimeUnit/SECONDS)))
-      (dotimes [_ 100]
-        (when (< ^long @cancellation-count (dec task-count))
-          (Thread/sleep 10)))
-      (is (coll/empty? @completed-values))
       (is (= (dec task-count) @cancellation-count)))))
 
 (deftest ptree-test
@@ -2325,15 +2318,18 @@
                          tree)))))
 
   (testing "Preserves child order."
-    (is (= (vec (range 32))
-           (coll/ptree :children
-                       (fn [node children]
-                         (if-let [value (:value node)]
-                           (do
-                             (Thread/sleep ^long (- 31 (long value)))
-                             value)
-                           children))
-                       {:children (mapv (fn [value] {:value value}) (range 32))}))))
+    (let [second-ready (CountDownLatch. 1)]
+      (is (= [0 1]
+             (coll/ptree :children
+                         (fn [node children]
+                           (if-let [value (:value node)]
+                             (do
+                               (if (zero? (long value))
+                                 (.await second-ready)
+                                 (.countDown second-ready))
+                               value)
+                             children))
+                         {:children [{:value 0} {:value 1}]})))))
 
   (testing "Propagates thread bindings."
     (binding [*pmapv-binding-test-value* :bound]
@@ -2345,48 +2341,52 @@
                              children))
                          {:children (mapv (fn [value] {:value value}) (range 4))})))))
 
-  (testing "Rethrows task failure."
-    (is (thrown-with-msg?
-          ExceptionInfo
-          #"boom 2"
-          (coll/ptree :children
-                      (fn [node children]
-                        (if-let [value (:value node)]
-                          (if (= 2 value)
-                            (throw (ex-info (str "boom " value) {:value value}))
-                            value)
-                          children))
-                      {:children (mapv (fn [value] {:value value}) (range 4))}))))
+  (testing "Preserves original failures in inline and parallel visits."
+    (doseq [child-count [1 4]]
+      (let [exception (ex-info "build failed" {})
+            outcome (try
+                      (coll/ptree :children
+                                  (fn [_ _] (throw exception))
+                                  {:children (vec (repeat child-count {}))})
+                      (catch Throwable exception exception))]
+        (is (identical? exception outcome)))))
 
-  (testing "An inline failure preserves its exception and joins forked siblings."
-    (let [parallelism (#'coll/default-parallelism)
-          exception (ex-info "inline failure" {:original true})
-          owner (Thread/currentThread)
-          started (CountDownLatch. parallelism)
-          finished (CountDownLatch. parallelism)
+  (testing "A builder failure waits for a cancelled sibling's cleanup."
+    (let [exception (ex-info "build failed" {})
+          started (CountDownLatch. 1)
+          cancelled (CountDownLatch. 1)
+          release (Semaphore. 0)
+          child (promise)
           outcome
-          (try
-            (coll/ptree
-              :children
-              (fn [node children]
-                (case (:value node)
-                  :blocked
-                  (try
-                    (.countDown started)
-                    (.await (CountDownLatch. 1))
-                    (finally
-                      (.countDown finished)))
+          (future
+            (try
+              (coll/ptree
+                :children
+                (fn [node children]
+                  (case (:value node)
+                    :blocked
+                    (do
+                      (deliver child (Thread/currentThread))
+                      (.countDown started)
+                      (try
+                        (.await (CountDownLatch. 1))
+                        (finally
+                          (.countDown cancelled)
+                          (.acquireUninterruptibly release))))
 
-                  :fail
-                  (do
-                    (is (identical? owner (Thread/currentThread)))
-                    (when-not (.await started 10 TimeUnit/SECONDS)
-                      (throw (ex-info "Timed out waiting for siblings" {})))
-                    (throw exception))
+                    :fail
+                    (do
+                      (.await started)
+                      (throw exception))
 
-                  children))
-              {:children (conj (mapv (fn [_] {:value :blocked}) (range parallelism))
-                               {:value :fail})})
-            (catch Throwable exception exception))]
-      (is (identical? exception outcome))
-      (is (zero? (.getCount finished))))))
+                    children))
+                {:children [{:value :blocked} {:value :fail}]})
+              (catch Throwable exception exception)))]
+      (try
+        (.await cancelled)
+        (is (not (realized? outcome)))
+        (finally
+          (.release release)
+          (.interrupt ^Thread @child)
+          @outcome))
+      (is (identical? exception @outcome)))))

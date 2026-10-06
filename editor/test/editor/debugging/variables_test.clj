@@ -16,8 +16,8 @@
   (:require [clojure.test :refer :all]
             [editor.debugging.dap :as dap]
             [editor.debugging.variables :as variables]
-            [editor.future :as future]
             [editor.ui :as ui]
+            [support.dap-util :as dap-util]
             [util.coll :as coll])
   (:import [com.defold.control ExtendedTreeViewSkin]
            [javafx.geometry Orientation]
@@ -28,17 +28,6 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(defn- await-ui! [f]
-  (let [deadline (+ (System/nanoTime) 10000000000)]
-    (loop []
-      (if-let [result (ui/run-now (f))]
-        result
-        (if (> (System/nanoTime) deadline)
-          (throw (IllegalStateException. "Timed out waiting for debugger variables"))
-          (do
-            (Thread/sleep 10)
-            (recur)))))))
 
 (defn- variable [name value reference]
   {:name name
@@ -54,159 +43,150 @@
     (.getRoot view)
     names))
 
-(defn- pause! [view session generation frame-id]
-  (ui/run-now
-    (await (send-via future/io-executor session assoc :status :running))
-    (variables/clear! view)
-    (await (send-via future/io-executor session assoc :status :suspended :generation generation))
-    (variables/show-frame! view session (dap/suspension @session) frame-id)))
+(defmacro ^:private with-view
+  "Runs the body with a variables view, binding view, session, and events."
+  [root-variables child-variables & body]
+  `(let [root-variables# ~root-variables
+         child-variables# ~child-variables
+         ;; Keep with-adapter's port and requests bindings out of the test body.
+         f# (fn [~(with-meta 'view {:tag 'javafx.scene.control.TreeView}) ~'session ~'events]
+              ~@body)
+         view# (ui/run-now
+                 (let [view# (doto (variables/make-view!) (.setFixedCellSize 24.0))
+                       pane# (doto (StackPane.) (ui/children! [view#]))]
+                   (Scene. pane# 400.0 200.0)
+                   (doto pane# (.resize 400.0 200.0) (.applyCss) (.layout))
+                   view#))]
+     (try
+       (dap-util/with-adapter
+         {}
+         (fn [request# _# out# _socket#]
+           (case (:command request#)
+             "evaluate"
+             (do
+               (dap-util/event! out# "continued" {:threadId 7 :allThreadsContinued true})
+               (dap-util/event! out# "stopped" {:threadId 7})
+               (dap-util/respond! out# request# {}))
 
-;; Verify opened paths reload fresh values/references across stops, unopened and
-;; collapsed branches stay closed, and cycles reopen only to the saved depth.
+             "scopes"
+             (dap-util/respond! out# request# {:scopes [{:name "Locals"
+                                                         :variablesReference (+ 10000 (long (get-in request# [:arguments :frameId])))}]})
+
+             "variables"
+             (let [reference# (long (get-in request# [:arguments :variablesReference]))
+                   values# (if (>= reference# 10000)
+                             (root-variables# (- reference# 10000))
+                             (child-variables# request# out# reference#))]
+               (when values#
+                 (dap-util/respond! out# request# {:variables values#})))))
+         (f# view# ~'session ~'events))
+       (finally (ui/run-now (variables/clear! view#))))))
+
+(defn- pause! [view session events frame-id]
+  (dap/evaluate! session nil "pause")
+  (let [event (dap-util/take-event! events)
+        [_ snapshot] (if (= :continued (first event)) (dap-util/take-event! events) event)]
+    (ui/run-now (variables/show-frame! view session snapshot frame-id))))
+
+;; Opened paths reload new references and values across stops; collapsed branches stay closed.
 (deftest restore-expanded-paths-test
-  (let [view (ui/run-now (variables/make-view!))
-        session
-        (agent {:status :suspended
-                :generation 1
-                :threadId 7})
-        requests (atom [])]
-    (with-redefs [dap/frame-variables
-                  (fn [_ {:keys [generation]} _]
-                    (let [base (* (long generation) 100)]
-                      [(variable "self" "table" (+ base 1))
-                       (variable "_G" "table" (+ base 3))
-                       (variable "unopened" "table" (+ base 99))]))
-                  dap/variables
-                  (fn [_ {:keys [generation]} reference]
-                    (swap! requests conj [generation reference])
-                    (let [base (* (long generation) 100)]
-                      (cond
-                        (= reference (+ base 1))
-                        [(variable "nested" "table" (+ base 2))
-                         (variable "cycle" "table" (+ base 1))]
-
-                        (= reference (+ base 2))
-                        [(variable "count" (str generation) 0)]
-
-                        (= reference (+ base 3))
-                        [(variable "global" (str generation) 0)]
-
-                        :else
-                        (throw (IllegalArgumentException. (str "Unexpected or expired table reference: " reference))))))]
-      (pause! view session 1 42)
-      (await-ui! #(item-at view ["self"]))
+  (let [requests (atom [])]
+    (with-view
+      (fn [generation]
+        (let [base (* (long generation) 100)]
+          [(variable "self" "table" (+ base 1))
+           (variable "_G" "table" (+ base 3))
+           (variable "unopened" "table" (+ base 99))]))
+      (fn [_ _ reference]
+        (let [generation (quot (long reference) 100)
+              base (* generation 100)]
+          (swap! requests conj [generation reference])
+          (cond
+            (= reference (+ base 1)) [(variable "nested" "table" (+ base 2))
+                                      (variable "cycle" "table" (+ base 1))]
+            (= reference (+ base 2)) [(variable "count" (str generation) 0)]
+            (= reference (+ base 3)) [(variable "global" (str generation) 0)])))
+      (pause! view session events 1)
+      (dap-util/await-ui! view #(item-at view ["self"]))
       (is (= [] @requests))
       (let [^TreeItem self (ui/run-now (item-at view ["self"]))]
         (ui/run-now (.setExpanded self true))
-        (await-ui! #(item-at view ["self" "nested"]))
-        (is (identical? self (ui/run-now (item-at view ["self"])))))
+        (dap-util/await-ui! view #(item-at view ["self" "nested"])))
       (ui/run-now
         (.setExpanded (item-at view ["self" "nested"]) true)
         (.setExpanded (item-at view ["self" "cycle"]) true)
         (.setExpanded (item-at view ["_G"]) true))
-      (await-ui! #(and (item-at view ["self" "nested" "count"])
-                       (item-at view ["self" "cycle" "cycle"])
-                       (item-at view ["_G" "global"])))
+      (dap-util/await-ui! view #(and (item-at view ["self" "nested" "count"])
+                                     (item-at view ["self" "cycle" "cycle"])
+                                     (item-at view ["_G" "global"])))
       (reset! requests [])
+      (pause! view session events 2)
+      (dap-util/await-ui! view #(and (item-at view ["self" "nested" "count"])
+                                     (item-at view ["self" "cycle" "cycle"])
+                                     (item-at view ["_G" "global"])))
+      (ui/run-now
+        (is (= "2" (:value (.getValue (item-at view ["self" "nested" "count"])))))
+        (is (.isExpanded (item-at view ["self" "cycle"])))
+        (is (not (.isExpanded (item-at view ["self" "cycle" "cycle"]))))
+        (is (not (.isExpanded (item-at view ["unopened"])))))
+      (is (= {[2 201] 2 [2 202] 1 [2 203] 1} (frequencies @requests)))
+      (ui/run-now (.setExpanded (item-at view ["self" "nested"]) false))
+      (reset! requests [])
+      (pause! view session events 3)
+      (dap-util/await-ui! view #(and (item-at view ["self" "cycle" "cycle"])
+                                     (item-at view ["_G" "global"])))
+      (ui/run-now (is (not (.isExpanded (item-at view ["self" "nested"])))))
+      (is (= {[3 301] 2 [3 303] 1} (frequencies @requests))))))
 
-      (testing "New frame and table IDs retain opened paths and fetch fresh values"
-        (pause! view session 2 99)
-        (await-ui! #(and (item-at view ["self" "nested" "count"])
-                         (item-at view ["self" "cycle" "cycle"])
-                         (item-at view ["_G" "global"])))
-        (ui/run-now
-          (is (= "2" (:value (.getValue (item-at view ["self" "nested" "count"])))))
-          (is (.isExpanded (item-at view ["self" "cycle"])))
-          (is (false? (.isExpanded (item-at view ["self" "cycle" "cycle"]))))
-          (is (false? (.isExpanded (item-at view ["unopened"])))))
-        (is (= {[2 201] 2 [2 202] 1 [2 203] 1} (frequencies @requests))))
-
-      (testing "An explicitly collapsed branch stays collapsed at the next breakpoint"
-        (ui/run-now (.setExpanded (item-at view ["self" "nested"]) false))
-        (reset! requests [])
-        (pause! view session 3 111)
-        (await-ui! #(and (item-at view ["self" "cycle" "cycle"])
-                         (item-at view ["_G" "global"])))
-        (ui/run-now
-          (is (false? (.isExpanded (item-at view ["self" "nested"])))))
-        (is (= {[3 301] 2 [3 303] 1} (frequencies @requests))))
-      (ui/run-now (variables/clear! view)))))
-
-;; Verify a saved path survives a variable becoming scalar or disappearing,
-;; without fetching children until a table with that name returns.
+;; Saved expansion survives a table becoming scalar or absent without fetching its children.
 (deftest changing-variable-shapes-test
-  (let [view (ui/run-now (variables/make-view!))
-        session
-        (agent {:status :suspended
-                :generation 1
-                :threadId 7})
-        requests (atom [])]
-    (with-redefs [dap/frame-variables
-                  (fn [_ {:keys [generation]} _]
-                    (case (long generation)
-                      2 [(variable "self" "nil" 0)]
-                      3 []
-                      [(variable "self" "table" generation)]))
-                  dap/variables
-                  (fn [_ {:keys [generation]} reference]
-                    (swap! requests conj [generation reference])
-                    [(variable "value" (str generation) 0)])]
-      (pause! view session 1 42)
-      (await-ui! #(item-at view ["self"]))
+  (let [requests (atom [])]
+    (with-view
+      (fn [generation]
+        (case (long generation)
+          2 [(variable "self" "nil" 0)]
+          3 []
+          [(variable "self" "table" generation)]))
+      (fn [_ _ reference]
+        (swap! requests conj reference)
+        [(variable "value" (str reference) 0)])
+      (pause! view session events 1)
+      (dap-util/await-ui! view #(item-at view ["self"]))
       (ui/run-now (.setExpanded (item-at view ["self"]) true))
-      (await-ui! #(item-at view ["self" "value"]))
+      (dap-util/await-ui! view #(item-at view ["self" "value"]))
+      (pause! view session events 2)
+      (dap-util/await-ui! view #(= "nil" (some-> (item-at view ["self"]) .getValue :value)))
+      (pause! view session events 3)
+      (dap-util/await-ui! view #(zero? (count (.getChildren (.getRoot ^TreeView view)))))
+      (is (= [1] @requests))
+      (pause! view session events 4)
+      (dap-util/await-ui! view #(item-at view ["self" "value"]))
+      (ui/run-now (is (= "4" (:value (.getValue (item-at view ["self" "value"]))))))
+      (is (= [1 4] @requests)))))
 
-      (testing "A scalar or absent variable does not fetch children"
-        (doseq [generation [2 3]]
-          (pause! view session generation 42)
-          (await-ui! #(coll/empty? (:pending @(ui/user-data view :editor.debugging.variables/state)))))
-        (is (= [[1 1]] @requests)))
-
-      (testing "The path reopens if a table with that name appears again"
-        (pause! view session 4 99)
-        (await-ui! #(item-at view ["self" "value"]))
-        (ui/run-now
-          (is (= "4" (:value (.getValue (item-at view ["self" "value"]))))))
-        (is (= [[1 1] [4 4]] @requests)))
-      (ui/run-now (variables/clear! view)))))
-
-;; Verify a table response from an earlier stop cannot overwrite the refreshed
-;; tree, even when that old request completes after the new one.
+;; A delayed table response cannot overwrite another frame in the same suspension,
+;; where DAP's stop-generation checks alone cannot reject the old result.
 (deftest stale-table-response-test
-  (let [view (ui/run-now (variables/make-view!))
-        session
-        (agent {:status :suspended
-                :generation 1
-                :threadId 7})
-        started (promise)
-        response (promise)]
-    (with-redefs [dap/frame-variables
-                  (fn [_ {:keys [generation]} _]
-                    [(variable "self" "table" generation)])
-                  dap/variables
-                  (fn [_ _ reference]
-                    (if-not (= 1 reference)
-                      [(variable "new" "2" 0)]
-                      (do
-                        (deliver started (Thread/currentThread))
-                        @response)))]
-      (try
-        (pause! view session 1 42)
-        (await-ui! #(item-at view ["self"]))
-        (ui/run-now (.setExpanded (item-at view ["self"]) true))
-        (let [old-worker (deref started 10000 ::timeout)]
-          (is (instance? Thread old-worker))
-          (pause! view session 2 99)
-          (await-ui! #(item-at view ["self" "new"]))
-          (deliver response [(variable "old" "1" 0)])
-          (.join ^Thread old-worker 10000)
-          (is (not (.isAlive ^Thread old-worker)))
-          (ui/run-now
-            (is (nil? (item-at view ["self" "old"])))
-            (is (= "2" (:value (.getValue (item-at view ["self" "new"])))))))
-        (finally
-          (deliver response [])
-          (ui/run-now (variables/clear! view)))))))
+  (let [pending (promise)]
+    (with-view
+      (fn [frame-id] [(variable "self" "table" frame-id)])
+      (fn [request out reference]
+        (if (= 1 reference)
+          (do (deliver pending [request out]) nil)
+          [(variable "new" (str reference) 0)]))
+      (pause! view session events 1)
+      (dap-util/await-ui! view #(item-at view ["self"]))
+      (ui/run-now (.setExpanded (item-at view ["self"]) true))
+      (let [[request out] (dap-util/await! pending)
+            snapshot (dap/suspension @session)]
+        (ui/run-now (variables/show-frame! view session snapshot 2))
+        (dap-util/await-ui! view #(= "2" (some-> (item-at view ["self" "new"]) .getValue :value)))
+        (dap-util/respond! out request {:variables [(variable "old" "1" 0)]})
+        ;; A later inspection fences the reader without resuming or changing frames.
+        (is (= [(variable "new" "2" 0)] (dap/variables session snapshot 2)))
+        (ui/run-now
+          (is (nil? (item-at view ["self" "old"])))
+          (is (= "2" (:value (.getValue (item-at view ["self" "new"]))))))))))
 
 (defn- viewport [^TreeView view]
   (let [skin ^ExtendedTreeViewSkin (.getSkin view)
@@ -219,40 +199,19 @@
      :selection (:name (first (ui/selection view)))
      :horizontal (some-> bar .getValue)}))
 
-;; Clearing selection with the keyboard must survive a pending table response
-;; and the next pause.
+;; Clearing selection with the keyboard survives a pending wire response and the next stop.
 (deftest cleared-selection-survives-loading-test
-  (let [^TreeView view
-        (ui/run-now
-          (let [view (variables/make-view!)
-                pane (doto (StackPane.)
-                       (ui/children! [view]))]
-            (Scene. pane 400.0 200.0)
-            (doto pane
-              (.resize 400.0 200.0)
-              (.applyCss)
-              (.layout))
-            view))
-        session
-        (agent {:status :suspended
-                :generation 1
-                :threadId 7})
-        started (future/make)
-        response (future/make)]
-    (with-redefs [dap/frame-variables
-                  (fn [_ _ _]
-                    [(variable "self" "table" 1)
-                     (variable "other" "scalar" 0)])
-
-                  dap/variables
-                  (fn [_ _ _]
-                    (future/complete! started true)
-                    @response)]
-      (try
-        (pause! view session 1 42)
-        (await-ui! #(item-at view ["self"]))
-        (ui/run-now (.setExpanded (item-at view ["self"]) true))
-        (is (= true (deref started 10000 ::timeout)))
+  (let [pending (promise)]
+    (with-view
+      (fn [frame-id] [(variable "self" "table" frame-id) (variable "other" "scalar" 0)])
+      (fn [request out reference]
+        (if (realized? pending)
+          [(variable "child" (str reference) 0)]
+          (do (deliver pending [request out]) nil)))
+      (pause! view session events 1)
+      (dap-util/await-ui! view #(item-at view ["self"]))
+      (ui/run-now (.setExpanded (item-at view ["self"]) true))
+      (let [[request out] (dap-util/await! pending)]
         (ui/run-now
           (.applyCss view)
           (.layout view)
@@ -261,105 +220,68 @@
             (.select (.getSelectionModel view) other)
             (.focus (.getFocusModel view) (.getRow view other))
             (is (= "other" (:name (first (ui/selection view)))))
-            ;; JavaFX uses Ctrl+Space, with Command also held on macOS.
             (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" KeyCode/SPACE false true false mac))
             (is (coll/empty? (ui/selection view)))))
-        (future/complete! response [(variable "child" "value" 0)])
-        (await-ui! #(item-at view ["self" "child"]))
-        (ui/run-now
-          (is (coll/empty? (ui/selection view))))
-        (pause! view session 2 99)
-        (await-ui! #(and (item-at view ["self" "child"])
-                         (coll/empty? (:pending @(ui/user-data view :editor.debugging.variables/state)))))
-        (ui/run-now
-          (is (coll/empty? (ui/selection view))))
-        (finally
-          (future/complete! response [])
-          (ui/run-now
-            (variables/clear! view)))))))
+        (dap-util/respond! out request {:variables [(variable "child" "value" 0)]})
+        (dap-util/await-ui! view #(item-at view ["self" "child"]))
+        (ui/run-now (is (coll/empty? (ui/selection view))))
+        (pause! view session events 2)
+        (dap-util/await-ui! view #(= "2" (some-> (item-at view ["self" "child"]) .getValue :value)))
+        (ui/run-now (is (coll/empty? (ui/selection view))))))))
 
-;; Verify selection and both scroll positions survive changed table rows, and
-;; user navigation takes precedence over a delayed viewport restoration.
+;; Selection and scroll positions survive refreshed rows; user navigation overrides delayed restoration.
 (deftest restore-scroll-position-test
-  (let [^TreeView view
-        (ui/run-now
-          (let [view (doto (variables/make-view!)
-                       (.setShowRoot false)
-                       (.setFixedCellSize 24.0))
-                pane (doto (StackPane.)
-                       (ui/children! [view]))]
-            (Scene. pane 400.0 200.0)
-            (doto pane
-              (.resize 400.0 200.0)
-              (.applyCss)
-              (.layout))
-            view))
-        session
-        (agent {:status :suspended
-                :generation 1
-                :threadId 7})
-        started (promise)
-        response (promise)]
-    (with-redefs [dap/frame-variables
-                  (fn [_ {:keys [generation]} _]
-                    [(variable "self" "table" generation)
-                     (variable "other" "scalar" 0)])
-                  dap/variables
-                  (fn [_ {:keys [generation]} _]
-                    (when (= 3 generation)
-                      (deliver started true)
-                      @response)
-                    (into (if (= 1 generation) [] [(variable "new sibling" "added" 0)])
-                          (map #(variable (str "field-" %) (str generation) 0))
-                          (range 100)))]
-      (try
-        (pause! view session 1 42)
-        (await-ui! #(item-at view ["self"]))
-        (ui/run-now (.setExpanded (item-at view ["self"]) true))
-        (await-ui! #(item-at view ["self" "field-99"]))
-        (let [before
-              (ui/run-now
-                (.applyCss view)
-                (.layout view)
-                (let [flow (.getVirtualFlowInstance ^ExtendedTreeViewSkin (.getSkin view))]
-                  (.select (.getSelectionModel view) (item-at view ["self" "field-44"]))
-                  (.scrollToTop flow (int 40))
-                  (.layout flow)
-                  (.scrollPixels flow 7.0))
-                (let [bar ^ScrollBar (coll/first-where #(= Orientation/HORIZONTAL (.getOrientation ^ScrollBar %))
-                                                       (.lookupAll view ".scroll-bar"))]
-                  (.setValue bar 20.0))
-                (viewport view))]
-          (is (string? (:name before)))
-          (is (= "field-44" (:selection before)))
-          (is (= 20.0 (:horizontal before)))
-          (pause! view session 2 99)
-          (await-ui! #(and (item-at view ["self" "field-99"])
-                           (nil? (:scroll-to-restore @(ui/user-data view :editor.debugging.variables/state)))))
-          (ui/run-now
-            (let [after (viewport view)]
-              (is (= (:name before) (:name after)))
-              (is (= (:selection before) (:selection after)))
-              (is (= (:horizontal before) (:horizontal after)))
-              (is (< (Math/abs (- (double (:offset before)) (double (:offset after)))) 0.5))))
-
-          (testing "User navigation takes precedence over a delayed scroll restoration"
-            (pause! view session 3 111)
-            (is (= true (deref started 10000 ::timeout)))
-            (await-ui! #(= 3 (some-> (item-at view ["self"]) .getValue :variablesReference)))
+  (let [pending (promise)
+        values (fn [generation]
+                 (into (if (= 1 generation) [] [(variable "new sibling" "added" 0)])
+                       (map #(variable (str "field-" %) (str generation) 0))
+                       (range 100)))]
+    (with-view
+      (fn [generation] [(variable "self" "table" generation) (variable "other" "scalar" 0)])
+      (fn [request out reference]
+        (if (= 3 reference)
+          (do (deliver pending [request out]) nil)
+          (values reference)))
+      (pause! view session events 1)
+      (dap-util/await-ui! view #(item-at view ["self"]))
+      (ui/run-now (.setExpanded (item-at view ["self"]) true))
+      (dap-util/await-ui! view #(item-at view ["self" "field-99"]))
+      (let [before
             (ui/run-now
               (.applyCss view)
               (.layout view)
-              (.select (.getSelectionModel view) (item-at view ["self"]))
-              (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" KeyCode/END false false false false))
-              (is (= "other" (:name (first (ui/selection view))))))
-            (deliver response true)
-            (await-ui! #(and (item-at view ["self" "field-99"])
-                             (coll/empty? (:pending @(ui/user-data view :editor.debugging.variables/state)))))
-            (ui/run-now
-              (.layout view)
-              (is (= "other" (:name (first (ui/selection view))))))))
-        (finally
-          (deliver response true)
+              (let [flow (.getVirtualFlowInstance ^ExtendedTreeViewSkin (.getSkin view))]
+                (.select (.getSelectionModel view) (item-at view ["self" "field-44"]))
+                (.scrollToTop flow (int 40))
+                (.layout flow)
+                (.scrollPixels flow 7.0))
+              (let [bar ^ScrollBar (coll/first-where #(= Orientation/HORIZONTAL (.getOrientation ^ScrollBar %))
+                                                     (.lookupAll view ".scroll-bar"))]
+                (.setValue bar 20.0))
+              (viewport view))]
+        (is (= "field-44" (:selection before)))
+        (is (= 20.0 (:horizontal before)))
+        (pause! view session events 2)
+        (dap-util/await-ui! view #(and (= "2" (some-> (item-at view ["self" "field-99"]) .getValue :value))
+                                       (item-at view ["self" "new sibling"])
+                                       (= (:name before) (:name (viewport view)))))
+        (ui/run-now
+          (let [after (viewport view)]
+            (is (= (:name before) (:name after)))
+            (is (= (:selection before) (:selection after)))
+            (is (= (:horizontal before) (:horizontal after)))
+            (is (< (Math/abs (- (double (:offset before)) (double (:offset after)))) 0.5))))
+        (pause! view session events 3)
+        (let [[request out] (dap-util/await! pending)]
+          (dap-util/await-ui! view #(= 3 (some-> (item-at view ["self"]) .getValue :variablesReference)))
           (ui/run-now
-            (variables/clear! view)))))))
+            (.applyCss view)
+            (.layout view)
+            (.select (.getSelectionModel view) (item-at view ["self"]))
+            (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" KeyCode/END false false false false))
+            (is (= "other" (:name (first (ui/selection view))))))
+          (dap-util/respond! out request {:variables (values 3)})
+          (dap-util/await-ui! view #(= "3" (some-> (item-at view ["self" "field-99"]) .getValue :value)))
+          (ui/run-now
+            (.layout view)
+            (is (= "other" (:name (first (ui/selection view)))))))))))

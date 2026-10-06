@@ -77,7 +77,7 @@ since the debugger can evaluate Lua.
 From `editor`, run:
 
 ```sh
-lein test editor.debugging.dap-test editor.debugging.variables-test editor.debug-view-test editor.engine-test editor.app-view-test editor.targets-test
+lein test editor.debugging.dap-test editor.debugging.variables-test editor.debug-view-test editor.engine-test util.task-test util.coll-test
 ```
 
 The protocol tests use a local TCP adapter to check initialization ordering,
@@ -85,12 +85,6 @@ UTF-8 framing, out-of-order responses, breakpoint replacement, inspection,
 control, cancellation, and disconnects. The JavaFX tests exercise stale session,
 stack, and variable responses, restoring expanded paths with fresh values, cyclic
 tables, and preserving the viewport when table entries change.
-
-To additionally run the editor client against a built native Lua test host, set
-the JVM property `defold.dap.debuggee` to the absolute path of `dap_debuggee`,
-`dap_debuggee_lua`, or `dap_debuggee_engine` when running
-`editor.debugging.dap-test`. The test checks a real breakpoint, nested table
-inspection, evaluation, stepping, and detachment followed by normal Lua exit.
 
 For an editor smoke test, use `lein run`, set Preferences > Dev > Custom Engine
 to a debug engine built from this branch, and open a Lua project. Exercise both

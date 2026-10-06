@@ -33,6 +33,7 @@
                         dynamo.graph/make-nodes hooks.dynamo-graph/make-nodes
                         dynamo.graph/with-auto-or-fake-evaluation-context hooks.dynamo-graph/with-auto-or-fake-evaluation-context
                         dynamo.graph/with-auto-evaluation-context hooks.dynamo-graph/with-auto-evaluation-context
+                        editor.debugging.variables-test/with-view hooks.editor-debugging-variables-test/with-view
                         editor.editor-extensions.commands/gen-query hooks.editor-editor-extensions-commands/gen-query
                         editor.editor-extensions.runtime/lua-fn hooks.editor-editor-extensions-runtime/lua-fn
                         editor.editor-extensions.runtime/suspendable-lua-fn hooks.editor-editor-extensions-runtime/suspendable-lua-fn
@@ -74,6 +75,8 @@
                         potemkin.namespaces/import-fn hooks.potemkin-namespaces/import-fn
                         potemkin.namespaces/import-macro hooks.potemkin-namespaces/import-macro
                         potemkin.namespaces/import-vars hooks.potemkin-namespaces/import-vars
+                        support.dap-util/with-adapter hooks.support-dap-util/with-adapter
+                        support.dap-util/with-server hooks.support-dap-util/with-server
                         support.test-support/with-clean-system hooks.support-test-support/with-clean-system
                         util.defonce/interface hooks.util-defonce/interface
                         util.defonce/protocol hooks.util-defonce/protocol

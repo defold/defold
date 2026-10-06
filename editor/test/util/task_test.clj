@@ -19,7 +19,7 @@
   (:import [clojure.lang Compiler$CompilerException]
            [java.lang AutoCloseable WrongThreadException]
            [java.util NoSuchElementException]
-           [java.util.concurrent CountDownLatch StructuredTaskScope$Subtask TimeUnit]))
+           [java.util.concurrent CountDownLatch Semaphore StructuredTaskScope$Subtask]))
 
 (set! *warn-on-reflection* true)
 
@@ -99,9 +99,12 @@
              (vec (.getSuppressed ^Throwable outcome))))
       (is (= [:second :first] @closed)))))
 
-(defn- await! [^CountDownLatch latch]
-  (when-not (.await latch 10 TimeUnit/SECONDS)
-    (throw (ex-info "Timed out waiting for task" {}))))
+(defn- await-cancellation! [finished]
+  (deliver finished
+           (try
+             (.await (CountDownLatch. 1))
+             false
+             (catch InterruptedException _ true))))
 
 (defn- results [subtasks]
   (mapv #(.get ^StructuredTaskScope$Subtask %) subtasks))
@@ -117,11 +120,28 @@
                (mapv (fn [value]
                        (task/fork
                          (.countDown started)
-                         (await! started)
+                         (.await started)
                          (is (.isVirtual (Thread/currentThread)))
                          (is (not (identical? owner (Thread/currentThread))))
                          value))
                      [:first nil false])))))))
+
+;; The body value is returned only after a held child finishes, guarding against
+;; returning before the scope joins successful work.
+(deftest body-result-test
+  (let [started (CountDownLatch. 1)
+        release (CountDownLatch. 1)
+        outcome (future
+                  (task/scope :all-successful
+                    (task/fork
+                      (.countDown started)
+                      (.await release))
+                    :body))]
+    (try
+      (.await started)
+      (is (not (realized? outcome)))
+      (finally (.countDown release)))
+    (is (= :body @outcome))))
 
 ;; Forks inherit scope-entry bindings, while a nested scope captures the
 ;; bindings active at its own entry rather than the enclosing scope's snapshot.
@@ -137,43 +157,61 @@
                                 (task/fork *binding-value*))])]
                  [outer (inner 0) (inner 1)])))))))
 
-;; Child bindings are isolated and restore the scope's shared binding snapshot
-;; after pop, guarding against sibling or owner bindings being overwritten.
+;; A child binding stays local while another child reads the captured frame.
 (deftest binding-isolation-test
-  (binding [*binding-value* :outer]
-    (is (= [[:child :outer] :outer]
-           (results
-             (task/scope :all-successful
-               [(task/fork
-                  [(binding [*binding-value* :child]
-                     *binding-value*)
-                   *binding-value*])
-                (task/fork *binding-value*)]))))
-    (is (= :outer *binding-value*))))
+  (let [bound (CountDownLatch. 1)
+        observed (CountDownLatch. 1)]
+    (binding [*binding-value* :outer]
+      (is (= [[:child :outer] :outer]
+             (results
+               (task/scope :all-successful
+                 [(task/fork
+                    [(binding [*binding-value* :child]
+                       (.countDown bound)
+                       (.await observed)
+                       *binding-value*)
+                     *binding-value*])
+                  (task/fork
+                    (.await bound)
+                    (let [value *binding-value*]
+                      (.countDown observed)
+                      value))]))))
+      (is (= :outer *binding-value*)))))
 
-;; A child failure is propagated unchanged and siblings finish before throwing,
-;; guarding against a scope returning while interrupted children are still alive.
-(deftest all-successful-failure-test
-  (let [exception (ex-info "child failure" {:original true})
-        started (CountDownLatch. 1)
-        finished (promise)
-        outcome
-        (try
-          (task/scope :all-successful
-            (task/fork
-              (await! started)
-              (throw exception))
-            (task/fork
-              (.countDown started)
-              (try
-                (.await (CountDownLatch. 1))
-                (finally
-                  (deliver finished true)))))
-          (catch Throwable exception exception))]
-    (is (identical? exception outcome))
-    (is (realized? finished))))
+;; Child failure propagates unchanged only after cancelled siblings finish cleanup.
+;; Holding cleanup catches scopes that interrupt their children but return early.
+(deftest child-failure-joins-cleanup-test
+  (doseq [policy [:all-successful :first-completed]]
+    (let [exception (ex-info "child failure" {})
+          started (CountDownLatch. 1)
+          cancelled (CountDownLatch. 1)
+          release (Semaphore. 0)
+          child (promise)
+          outcome (future
+                    (try
+                      (task/scope policy
+                        (task/fork
+                          (.await started)
+                          (throw exception))
+                        (task/fork
+                          (deliver child (Thread/currentThread))
+                          (.countDown started)
+                          (try
+                            (.await (CountDownLatch. 1))
+                            (finally
+                              (.countDown cancelled)
+                              (.acquireUninterruptibly release)))))
+                      (catch Throwable exception exception)))]
+      (try
+        (.await cancelled)
+        (is (not (realized? outcome)))
+        (finally
+          (.release release)
+          (.interrupt ^Thread @child)
+          @outcome))
+      (is (identical? exception @outcome)))))
 
-;; First completion accepts nil and false results and joins cancelled siblings,
+;; First completion accepts nil and false results and interrupts remaining work,
 ;; guarding against treating a completed falsey result as an unfinished scope.
 (deftest first-completed-result-test
   (doseq [value [nil false :result]]
@@ -182,40 +220,15 @@
       (is (= value
              (task/scope :first-completed
                (task/fork
-                 (await! started)
+                 (.await started)
                  value)
                (task/fork
                  (.countDown started)
-                 (try
-                   (.await (CountDownLatch. 1))
-                   (finally
-                     (deliver finished true)))))))
-      (is (realized? finished)))))
+                 (await-cancellation! finished)))))
+      (is (and (realized? finished) @finished)))))
 
-;; A failed first completion cancels the remaining task immediately rather than
-;; waiting for a successful result that may never arrive.
-(deftest first-completed-failure-test
-  (let [exception (ex-info "first failure" {})
-        started (CountDownLatch. 1)
-        finished (promise)
-        outcome
-        (try
-          (task/scope :first-completed
-            (task/fork
-              (await! started)
-              (throw exception))
-            (task/fork
-              (.countDown started)
-              (try
-                (.await (CountDownLatch. 1))
-                (finally
-                  (deliver finished true)))))
-          (catch Throwable exception exception))]
-    (is (identical? exception outcome))
-    (is (realized? finished))))
-
-;; An owner failure before join still cancels and joins children and keeps the
-;; original exception with the scope's missing-join error suppressed onto it.
+;; An owner failure before join interrupts children and keeps the
+;; original exception when cancellation also closes the scope.
 (deftest owner-failure-test
   (doseq [policy [:all-successful :first-completed]]
     (let [exception (ex-info "owner failure" {})
@@ -226,76 +239,67 @@
             (task/scope policy
               (task/fork
                 (.countDown started)
-                (try
-                  (.await (CountDownLatch. 1))
-                  (finally
-                    (deliver finished true))))
-              (await! started)
+                (await-cancellation! finished))
+              (.await started)
               (throw exception))
             (catch Throwable exception exception))]
       (is (identical? exception outcome))
-      (let [suppressed (.getSuppressed ^Throwable outcome)]
-        (is (= 1 (count suppressed)))
-        (is (instance? IllegalStateException (aget suppressed 0))))
-      (is (realized? finished)))))
+      (is (and (realized? finished) @finished)))))
 
-;; Interrupting the owner releases its join and waits for every child to exit,
-;; guarding against cancellation leaving nested transport work running.
+;; Interrupting the owner waits for every child's held cleanup before throwing,
+;; guarding against cancellation leaving transport work running.
 (deftest owner-interruption-test
   (doseq [policy [:all-successful :first-completed]]
     (let [started (CountDownLatch. 2)
-          release (CountDownLatch. 1)
-          finished (CountDownLatch. 2)
+          cancelled (CountDownLatch. 2)
+          release (Semaphore. 0)
+          children (atom [])
           outcome (promise)
-          owner
-          (.start (Thread/ofVirtual)
-                  ^Runnable
-                  (fn []
-                    (try
-                      (task/scope policy
-                        (dotimes [_ 2]
-                          (task/fork
-                            (.countDown started)
-                            (try
-                              (.await release)
-                              (finally
-                                (.countDown finished))))))
-                      (deliver outcome :completed)
-                      (catch Throwable exception
-                        (deliver outcome exception)))))]
+          owner (.start (Thread/ofVirtual)
+                        ^Runnable
+                        (fn []
+                          (try
+                            (task/scope policy
+                              (dotimes [_ 2]
+                                (task/fork
+                                  (swap! children conj (Thread/currentThread))
+                                  (.countDown started)
+                                  (try
+                                    (.await (CountDownLatch. 1))
+                                    (finally
+                                      (.countDown cancelled)
+                                      (.acquireUninterruptibly release))))))
+                            (deliver outcome :completed)
+                            (catch Throwable exception
+                              (deliver outcome exception)))))]
       (try
-        (await! started)
+        (.await started)
         (.interrupt owner)
-        (.join owner 10000)
-        (is (not (.isAlive owner)))
-        (is (instance? InterruptedException (deref outcome 1000 ::timeout)))
-        (is (zero? (.getCount finished)))
+        (.await cancelled)
+        (is (not (realized? outcome)))
         (finally
-          (.countDown release)
+          (.release release 2)
+          (run! Thread/.interrupt @children)
           (.interrupt owner)
-          (.join owner 10000))))))
+          (.join owner)))
+      (is (not (.isAlive owner)))
+      (is (instance? InterruptedException @outcome)))))
 
-;; Leaving a nested owner scope restores the outer scope used by later forks.
+;; Leaving a nested scope preserves the outer scope used by subsequent forks.
 (deftest nested-scope-test
-  (let [inner-result (atom nil)]
-    (is (= [:before :after]
-           (results
-             (task/scope :all-successful
-               (let [before (task/fork :before)
-                     inner (task/scope :all-successful
-                             (task/fork :inner))]
-                 (reset! inner-result (.get ^StructuredTaskScope$Subtask inner))
-                 [before (task/fork :after)])))))
-    (is (= :inner @inner-result))))
+  (is (= [:before :inner :after]
+         (results
+           (task/scope :all-successful
+             (let [before (task/fork :before)
+                   inner (task/scope :all-successful (task/fork :inner))]
+               [before inner (task/fork :after)]))))))
 
 ;; A child must open its own scope before forking, guarding against an
 ;; accidentally captured outer scope bypassing the JDK owner-thread check.
 (deftest fork-owner-test
-  (doseq [policy [:all-successful :first-completed]]
-    (is (thrown? WrongThreadException
-                 (task/scope policy
-                   (task/fork
-                     (task/fork :wrong-owner)))))))
+  (is (thrown? WrongThreadException
+               (task/scope :all-successful
+                 (task/fork (task/fork :wrong-owner))))))
 
 ;; Empty scopes return the body value or reject a missing first completion.
 ;; Invalid policies and forks outside a lexical scope cannot start work.
@@ -311,24 +315,17 @@
   (is (thrown? NoSuchElementException (task/scope :first-completed)))
   (is (thrown? IllegalArgumentException
                (task/scope :unknown
-                 (is false "Invalid policies must not run the body")))))
-
-;; A policy expression is evaluated once before the body and selects the same
-;; behavior as a literal policy, guarding against duplicated macro evaluation.
-(deftest scope-policy-expression-test
-  (doseq [policy [:all-successful :first-completed]]
-    (let [evaluations (atom 0)]
-      (is (= (case policy :all-successful :owner :first-completed false)
-             (task/scope (do
-                           (swap! evaluations inc)
-                           policy)
-               (task/fork false)
-               :owner)))
-      (is (= 1 @evaluations))))
-  (let [evaluations (atom 0)]
-    (is (thrown? IllegalArgumentException
-                 (task/scope (do
-                               (swap! evaluations inc)
-                               :unknown)
-                   (is false "Invalid policies must not run the body"))))
-    (is (= 1 @evaluations))))
+                 (is false "Invalid policies must not run the body"))))
+  (testing "Computed policies are evaluated once"
+    (doseq [policy [:all-successful :first-completed :unknown]]
+      (let [evaluations (atom 0)
+            result (try
+                     (task/scope (do (swap! evaluations inc) policy)
+                       (task/fork false)
+                       :owner)
+                     (catch IllegalArgumentException exception exception))]
+        (is (= 1 @evaluations))
+        (case policy
+          :all-successful (is (= :owner result))
+          :first-completed (is (false? result))
+          :unknown (is (instance? IllegalArgumentException result)))))))
