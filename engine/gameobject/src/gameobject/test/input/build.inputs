@@ -8,3 +8,5 @@ component_input4.go
 component_input4.script
 component_text_input.go
 component_text_input.script
+component_input_source.go
+component_input_source.script

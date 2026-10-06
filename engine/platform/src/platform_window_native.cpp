@@ -412,6 +412,16 @@ namespace dmPlatform
         return dmNativeGetMouseButton(button);
     }
 
+    bool IsMouseLeftButtonFromTouch(HWindow window)
+    {
+        return dmNativeIsMouseLeftButtonFromTouch();
+    }
+
+    bool IsMousePositionFromTouch(HWindow window)
+    {
+        return dmNativeIsMousePositionFromTouch();
+    }
+
     int32_t GetMouseWheel(HWindow window)
     {
         return dmNativeGetMouseWheel();

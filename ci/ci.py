@@ -179,6 +179,7 @@ def install_linux(args):
         "libopenal-dev",
         "libgl1-mesa-dev",
         "libgl1-mesa-dri",
+        "mesa-vulkan-drivers",
         "libglw1-mesa-dev",
         "openssl",
         "tofrodos",
@@ -263,6 +264,8 @@ def build_engine(channel, platform, args):
     cmd_opts.append('--platform=%s' % platform)
     # ccache isn't needed on CI
     cmd_opts.append('--disable-ccache')
+    if platform in ('x86_64-linux', 'arm64-linux'):
+        build_opts.append('--with-vulkan')
     if args.verbose:
         cmd_opts.append('--verbose')
 

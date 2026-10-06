@@ -98,7 +98,7 @@
                     (when-not data-is-body (http-server.types/content-length data)))
          headers (-> headers
                      (provide-header "content-type" (or (http-server.types/content-type body)
-                                                      (when-not data-is-body (http-server.types/content-type data))))
+                                                        (when-not data-is-body (http-server.types/content-type data))))
                      (provide-header "content-length" length))]
      (cond-> {:status status}
        headers (assoc :headers headers)
