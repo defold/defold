@@ -88,18 +88,24 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
 }
 
-// Verify the bundled loader enters and exits fullscreen through the renamed backend for every supported target.
-function testLoaderFullscreenToggle() {
+function loadLoaderEnvironment() {
     const loaderPath = path.resolve(__dirname,
         "../../../../com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/bundle/resources/web/dmloader.js");
-    // Fullscreen has no template inputs; omit optional sections and fill scalar placeholders for evaluation.
+    // Keep download size verification; other template options are not needed by these tests.
     const loader = fs.readFileSync(loaderPath, "utf8")
         .replace(/\{\{![\s\S]*?\}\}/g, "")
-        .replace(/\{\{[#^]([^}]+)\}\}[\s\S]*?\{\{\/\1\}\}/g, "")
+        .replace(/\{\{([#^])([^}]+)\}\}([\s\S]*?)\{\{\/\2\}\}/g,
+            (_, kind, name, content) => kind === "#" && name === "html5.verify_downloaded_file_size" ? content : "")
         .replace(/\{\{[^}]+\}\}/g, "0");
+    const context = loadEnvironment();
+    vm.runInContext(loader, context, { filename: loaderPath });
+    return context;
+}
+
+// Verify the bundled loader enters and exits fullscreen through the renamed backend for every supported target.
+function testLoaderFullscreenToggle() {
     for (const target of ["canvas", "container", "explicit"]) {
-        const context = loadEnvironment();
-        vm.runInContext(loader, context, { filename: loaderPath });
+        const context = loadLoaderEnvironment();
         context.Module.canvas = context.createFullscreenElement();
         if (target !== "canvas")
             context.Module.fullScreenContainer = context.createFullscreenElement();
@@ -112,6 +118,52 @@ function testLoaderFullscreenToggle() {
         context.Module.toggleFullscreen(explicit);
         assert.strictEqual(context.document.fullscreenElement, null);
         assert.strictEqual(context.DefoldPlatform.isFullscreen, false);
+    }
+}
+
+// Verify limited and unlimited downloads reconstruct every file and finish when pieces arrive out of order.
+async function testLoaderArchiveConcurrency() {
+    for (const limit of [1, 2, 6, undefined]) {
+        const context = loadLoaderEnvironment();
+        const loader = context.GameArchiveLoader;
+        const pending = [];
+        const responses = new Map();
+        const expectedFiles = [];
+        const loadedFiles = [];
+        let completed = 0;
+        let maxPending = 0;
+        loader.MAX_CONCURRENT_XHR = limit;
+        loader._files = [8, 3].map((pieceCount, fileIndex) => {
+            const file = { name: "file" + fileIndex, size: pieceCount * 2, pieces: [] };
+            const data = [];
+            for (let index = 0; index < pieceCount; ++index) {
+                const name = file.name + "-piece" + index;
+                const bytes = Uint8Array.of(fileIndex, index);
+                file.pieces.push({ name, offset: index * 2 });
+                responses.set("split/" + name, bytes.buffer);
+                data.push(...bytes);
+            }
+            expectedFiles.push({ name: file.name, data });
+            return file;
+        });
+        loader.addFileLoadedListener(file => loadedFiles.push({ name: file.name, data: Array.from(file.data) }));
+        loader.addArchiveLoadedListener(() => ++completed);
+        context.FileLoader.load = (url, responseType, onprogress, onerror, onload) => {
+            assert.strictEqual(responseType, "arraybuffer");
+            pending.push(() => onload(responses.get(url(0))));
+            maxPending = Math.max(maxPending, pending.length);
+        };
+
+        await loader.downloadContent();
+        while (pending.length > 0) {
+            pending.pop()();
+            // Let completed file verification enqueue the next file's downloads.
+            await Promise.resolve();
+        }
+
+        assert.strictEqual(completed, 1, "archive did not complete with concurrency " + limit);
+        assert.deepStrictEqual(loadedFiles, expectedFiles);
+        assert.strictEqual(maxPending, limit === undefined ? 8 : limit);
     }
 }
 
@@ -219,13 +271,17 @@ function testMixedTouchAndMouseSources() {
     assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
 }
 
-for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
-                   testTouchMouseSources, testMixedTouchAndMouseSources]) {
-    try {
-        test();
-        process.stdout.write(test.name + " passed\n");
-    } catch (error) {
-        console.error(test.name, error);
-        process.exitCode = 1;
+async function runTests() {
+    for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle, testLoaderArchiveConcurrency,
+                       testTouchMouseSources, testMixedTouchAndMouseSources]) {
+        try {
+            await test();
+            process.stdout.write(test.name + " passed\n");
+        } catch (error) {
+            console.error(test.name, error);
+            process.exitCode = 1;
+        }
     }
 }
+
+runTests();

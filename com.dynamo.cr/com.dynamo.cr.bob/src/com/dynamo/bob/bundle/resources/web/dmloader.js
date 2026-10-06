@@ -752,6 +752,8 @@ var GameArchiveLoader = {
             file.stream = FS.open(path, "w+");
         }
 
+        file.totalLoadedPieces = 0;
+
         // how many pieces to download at a time
         var limit = file.pieces.length;
         if (typeof this.MAX_CONCURRENT_XHR !== 'undefined') {
@@ -774,7 +776,6 @@ var GameArchiveLoader = {
 
         var piece = file.pieces[index];
         file.lastRequestedPiece = index;
-        file.totalLoadedPieces = 0;
 
         FileLoader.load(
             this.archiveLocationProvider('/' + piece.name, file.verificationAttempt), "arraybuffer",
