@@ -1753,6 +1753,144 @@ static TextResult TestLayout(HFontCollection coll, dmArray<uint32_t>& codepoints
     return r;
 }
 
+// Verifies legacy and full layout count whitespace in plain text and markup (#13375).
+TEST_F(FontTest, LayoutWhitespaceMetrics)
+{
+    const struct
+    {
+        const char* m_Text;
+        const char* m_BaseText;
+        uint32_t    m_SpaceCount;
+        const char* m_MarkupText;
+    } cases[] = {
+        { "",             "",         0, "<color=#ff0000></color>" },
+        { " ",            "",         1, "<color=#ff0000> </color>" },
+        { "   ",          "",         3, "<color=#ff0000> </color> <color=#00ff00> </color>" },
+        { "Trailing ",    "Trailing", 1, "<color=#ff0000>Trailing </color>" },
+        { "Trailing   ",  "Trailing", 3, "Trailing<color=#ff0000> </color><color=#00ff00>  </color>" },
+        { " Leading",     "Leading",  1, "<color=#ff0000> </color>Leading" },
+        { "   Leading",   "Leading",  3, "<color=#ff0000>  </color> Leading" },
+        { " Both ",       "Both",     2, "<color=#ff0000> </color>Both<color=#00ff00> </color>" },
+        { "120 ",         "120",      1, "<color=#ff0000>120</color> " },
+    };
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+
+    FontGlyphOptions options;
+    FontGlyph space;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(m_Font, FontGetGlyphIndex(m_Font, ' '), &options, &space));
+    const float scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    const float space_advance = space.m_Advance * scale;
+    const float line_height = FontGetAscent(m_Font, scale) + fabsf(FontGetDescent(m_Font, scale));
+    ASSERT_GT(space_advance, 0.0f);
+    FontFreeGlyph(m_Font, &space);
+
+    dmArray<uint32_t> codepoints;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        TextToCodePoints(cases[i].m_BaseText, codepoints);
+        HTextLayout base_layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &base_layout));
+        float base_width, base_height;
+        TextLayoutGetBounds(base_layout, &base_width, &base_height);
+        TextLayoutRelease(base_layout);
+
+        for (uint32_t markup = 0; markup < 2; ++markup)
+        {
+            HTextLayout layout = 0;
+            if (markup)
+            {
+                HMarkup parsed = 0;
+                ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(cases[i].m_MarkupText, strlen(cases[i].m_MarkupText), &parsed, 0));
+                TextResult result = TextLayoutCreateMarkup(m_FontCollection, parsed, &settings, &layout);
+                MarkupDestroy(parsed);
+                ASSERT_EQ(TEXT_RESULT_OK, result);
+            }
+            else
+            {
+                TextToCodePoints(cases[i].m_Text, codepoints);
+                ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
+            }
+
+            float width, height;
+            TextLayoutGetBounds(layout, &width, &height);
+            const float expected_width = base_width + cases[i].m_SpaceCount * space_advance;
+            printf("%s metrics for '%s': width %g, expected %g\n", markup ? "Markup" : "Plain", cases[i].m_Text, width, expected_width);
+            EXPECT_NEAR(expected_width, width, 0.0001f);
+            const bool empty = cases[i].m_Text[0] == 0;
+            EXPECT_NEAR(empty ? 0.0f : line_height, height, 0.0001f);
+            EXPECT_EQ(empty ? 0u : 1u, layout->m_Lines.Size());
+            if (!layout->m_Lines.Empty())
+                EXPECT_NEAR(expected_width, layout->m_Lines[0].m_Width, 0.0001f);
+            TextLayoutRelease(layout);
+        }
+    }
+}
+
+// Verifies whitespace uses its markup font size in legacy and full layout (#13375).
+TEST_F(FontTest, LayoutMarkupWhitespaceFontSize)
+{
+    const struct
+    {
+        const char* m_MarkupText;
+        const char* m_BaseText;
+        float       m_BaseSize;
+        uint32_t    m_SpaceCount;
+    } cases[] = {
+        { "<size=28> </size>",              "",         14.0f, 1 },
+        { "<size=28>   </size>",            "",         14.0f, 3 },
+        { "Trailing<size=28> </size>",      "Trailing", 14.0f, 1 },
+        { "<size=28> </size>Leading",        "Leading",  14.0f, 1 },
+        { "<size=28>Trailing </size>",       "Trailing", 28.0f, 1 },
+    };
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+
+    FontGlyphOptions options;
+    FontGlyph space;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(m_Font, FontGetGlyphIndex(m_Font, ' '), &options, &space));
+    const float scale = FontGetScaleFromSize(m_Font, 28.0f);
+    const float space_advance = space.m_Advance * scale;
+    const float line_height = FontGetAscent(m_Font, scale) + fabsf(FontGetDescent(m_Font, scale));
+    FontFreeGlyph(m_Font, &space);
+    ASSERT_GT(space_advance, 0.0f);
+
+    dmArray<uint32_t> codepoints;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        TextLayoutSettings base_settings = settings;
+        base_settings.m_Size = cases[i].m_BaseSize;
+        TextToCodePoints(cases[i].m_BaseText, codepoints);
+        HTextLayout base_layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &base_settings, &base_layout));
+        float base_width, base_height;
+        TextLayoutGetBounds(base_layout, &base_width, &base_height);
+        TextLayoutRelease(base_layout);
+
+        HMarkup parsed = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(cases[i].m_MarkupText, strlen(cases[i].m_MarkupText), &parsed, 0));
+        HTextLayout layout = 0;
+        TextResult result = TextLayoutCreateMarkup(m_FontCollection, parsed, &settings, &layout);
+        MarkupDestroy(parsed);
+        ASSERT_EQ(TEXT_RESULT_OK, result);
+
+        float width, height;
+        TextLayoutGetBounds(layout, &width, &height);
+        const float expected_width = base_width + cases[i].m_SpaceCount * space_advance;
+        printf("Markup metrics for '%s': width %g, expected %g\n", cases[i].m_MarkupText, width, expected_width);
+        EXPECT_NEAR(expected_width, width, 0.0001f);
+        EXPECT_NEAR(line_height, height, 0.0001f);
+        EXPECT_EQ(1u, layout->m_Lines.Size());
+        if (!layout->m_Lines.Empty())
+            EXPECT_NEAR(expected_width, layout->m_Lines[0].m_Width, 0.0001f);
+        TextLayoutRelease(layout);
+    }
+}
+
 static void DebugPrintLayout(HTextLayout layout)
 {
     printf("Layout:\n");

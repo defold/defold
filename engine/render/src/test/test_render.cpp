@@ -1897,6 +1897,47 @@ TEST_F(dmRenderTest, GetTextMetrics)
     ASSERT_EQ(3u, metrics.m_LineCount);
 }
 
+// Verifies unwrapped glyph-bank metrics preserve whitespace, guarding against #13375.
+TEST_F(dmRenderTest, GetTextMetricsWhitespace)
+{
+    // Spaces have an advance but no visible glyph bounds.
+    m_GlyphBank->m_Glyphs[' '].m_Width = 0;
+    m_GlyphBank->m_Glyphs[' '].m_LeftBearing = 0;
+
+    const struct
+    {
+        const char* m_Text;
+        float       m_Width;
+    } cases[] = {
+        { "",              0.0f },
+        { " ",             2.0f },
+        { "   ",           6.0f },
+        { "Trailing",     16.0f },
+        { "Trailing ",    18.0f },
+        { "Trailing   ",  22.0f },
+        { "Leading",      14.0f },
+        { " Leading",     16.0f },
+        { "   Leading",   20.0f },
+        { " Both ",       12.0f },
+        { "120",           6.0f },
+        { "120 ",          8.0f },
+    };
+
+    TextLayoutSettings settings = {};
+    settings.m_Leading = 1.0f;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        dmRender::TextMetrics metrics = {};
+        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics);
+        printf("Text metrics for '%s': width %g, expected %g\n", cases[i].m_Text, metrics.m_Width, cases[i].m_Width);
+        EXPECT_EQ(cases[i].m_Width, metrics.m_Width);
+        EXPECT_EQ(i == 0 ? 0.0f : 3.0f, metrics.m_Height);
+        EXPECT_EQ(i == 0 ? 0u : 1u, metrics.m_LineCount);
+        EXPECT_EQ(2.0f, metrics.m_MaxAscent);
+        EXPECT_EQ(1.0f, metrics.m_MaxDescent);
+    }
+}
+
 TEST_F(dmRenderTest, GetPreparedTextMetrics)
 {
     const char* text = "Hello World Bonanza";

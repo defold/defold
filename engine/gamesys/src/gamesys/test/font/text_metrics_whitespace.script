@@ -1,0 +1,57 @@
+go.property("glyph_bank_font", resource.font("/font/glyph_bank_test_1.font"))
+go.property("runtime_font", resource.font("/font/dyn_glyph_bank_test_1.font"))
+
+local function assert_near(expected, actual, name)
+    assert(math.abs(expected - actual) < 0.0001,
+        string.format("%s: expected %g, got %g", name, expected, actual))
+end
+
+-- Verifies unwrapped glyph-bank and runtime font metrics preserve whitespace (#13375).
+local function test_whitespace_metrics(font, text, base_text, space_count)
+    -- Both fixtures use Vera Sans Mono. Measure an internal space independently.
+    local space_width = resource.get_text_metrics(font, "A A").width
+        - resource.get_text_metrics(font, "AA").width
+    assert(space_width > 0, "an internal space must have a positive advance")
+
+    local base = resource.get_text_metrics(font, base_text)
+    local expected_width = base.width + space_count * space_width
+    local default = resource.get_text_metrics(font, text)
+    local narrow = resource.get_text_metrics(font, text, { line_break = false, width = 1 })
+    assert_near(expected_width, default.width, string.format("width of %q", text))
+    for _, name in ipairs({ "width", "height", "max_ascent", "max_descent" }) do
+        assert_near(default[name], narrow[name], name .. " ignores width without wrapping")
+    end
+    if text == "" then
+        assert_near(0, default.height, "empty height")
+    else
+        local reference = resource.get_text_metrics(font, "A")
+        assert_near(reference.height, default.height, "whitespace preserves line height")
+        assert_near(reference.max_ascent, default.max_ascent, "whitespace preserves ascent")
+        assert_near(reference.max_descent, default.max_descent, "whitespace preserves descent")
+    end
+end
+
+function init(self)
+    local cases = {
+        { "", "", 0 },
+        { " ", "", 1 },
+        { "   ", "", 3 },
+        { "Trailing ", "Trailing", 1 },
+        { "Trailing   ", "Trailing", 3 },
+        { " Leading", "Leading", 1 },
+        { "   Leading", "Leading", 3 },
+        { " Both ", "Both", 2 },
+        { "120 ", "120", 1 },
+    }
+    text_metrics_whitespace_passed = true
+    for _, fixture in ipairs({
+        { "glyph bank", self.glyph_bank_font },
+        { "runtime SDF", self.runtime_font },
+    }) do
+        for _, case in ipairs(cases) do
+            local ok, err = pcall(test_whitespace_metrics, fixture[2], case[1], case[2], case[3])
+            print(string.format("resource.get_text_metrics %s / %q: %s", fixture[1], case[1], ok and "PASS" or err))
+            text_metrics_whitespace_passed = ok and text_metrics_whitespace_passed
+        end
+    end
+end
