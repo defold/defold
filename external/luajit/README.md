@@ -31,13 +31,21 @@ cross-target directly with CMake, build and install the host first.
 Desktop targets also install `ext/bin/<platform>/luajit-64` (with `.exe` on
 Windows), which Bob uses to compile both 32-bit and 64-bit bytecode.
 
-The runtime inherits `defold_sdk` compiler, SDK and platform settings. Native
-CMake host tools generate the VM and headers using the target compiler's
+The runtime inherits `defold_sdk` compiler, SDK and platform settings. CMake
+host tools generate the VM and headers using the target compiler's
 LuaJIT architecture settings. Mobile targets keep JIT disabled and dual-number
 mode; `armv7-android` also disables GC64 and uses internal unwinding. Console
 targets disable JIT and use the system allocator. Xbox keeps FFI enabled;
 other console targets disable FFI. A 32-bit target requires a matching 32-bit host
-toolchain, such as Linux with `libc6-dev-i386` and `gcc-multilib` installed.
+toolchain, such as Linux with `libc6-dev-i386` and `gcc-multilib` installed. On
+Windows, CMake selects the x86 compiler and SDK libraries for these generators.
+On macOS, the generators are built as 32-bit WebAssembly and run in Node.
+`./scripts/build.py --platform=armv7-android install_sdk` also installs the Web
+SDK needed for these generators. A local Emscripten installation can be selected
+through `EMSDK` or `EMSCRIPTEN`. `./scripts/build.py check_sdk --platform=armv7-android`
+verifies the Android toolchain and, on macOS, the Emscripten compiler and Node
+needed by the generators. The runtime still uses the Android SDK and its platform
+flags.
 See the [upstream cross-compilation requirements](https://luajit.org/install.html#cross).
 
 To update, change the revision in `version.sh` and `CMakeLists.txt`, bundle

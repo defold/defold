@@ -1,20 +1,32 @@
 cmake_minimum_required(VERSION 4.0)
 
-# This project builds native generators; it must not inherit the target SDK.
+file(READ "${LUAJIT_ARCH_FILE}" arch_config)
+string(REGEX MATCH "LJ_BITS ([0-9]+)" unused "${arch_config}")
+set(target_pointer_size "${CMAKE_MATCH_1}")
+
+# These generators run on the host and must not inherit the target SDK.
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
   # Discover the native Windows compiler, headers and libraries outside a VS shell.
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../scripts/cmake")
   include(functions)
+  if(target_pointer_size STREQUAL "32")
+    set(DEFOLD_WINDOWS_ARCH x86)
+  endif()
   include(sdk_windows)
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND target_pointer_size STREQUAL "32")
+  # Modern macOS cannot run 32-bit native programs. Use the Web SDK to build
+  # 32-bit generators that run in Node, preserving LuaJIT's target struct layout.
+  include("${CMAKE_CURRENT_LIST_DIR}/emscripten.cmake")
 endif()
 project(luajit_host LANGUAGES C)
 set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded)
-file(READ "${LUAJIT_ARCH_FILE}" arch_config)
-string(REGEX MATCH "LJ_BITS ([0-9]+)" unused "${arch_config}")
-set(target_pointer_size "${CMAKE_MATCH_1}")
+if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+  # Let the generators read source files and write outputs in the build tree.
+  add_link_options(-sNODERAWFS=1 -sENVIRONMENT=node)
+endif()
 if(target_pointer_size STREQUAL "32" AND MSVC AND NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
   message(FATAL_ERROR "LuaJIT's VM generator requires a 32-bit host compiler for this target")
-elseif(target_pointer_size STREQUAL "32" AND NOT MSVC)
+elseif(target_pointer_size STREQUAL "32" AND NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
   add_compile_options(-m32)
   add_link_options(-m32)
 elseif(NOT CMAKE_SIZEOF_VOID_P EQUAL 8 AND target_pointer_size STREQUAL "64")
@@ -22,7 +34,7 @@ elseif(NOT CMAKE_SIZEOF_VOID_P EQUAL 8 AND target_pointer_size STREQUAL "64")
 endif()
 string(REGEX MATCH "LJ_ARCH ([a-z0-9]+)" unused "${arch_config}")
 set(dasm_arch "${CMAKE_MATCH_1}")
-string(REGEX MATCHALL "LJ_DASM [A-Z_]+" dasm_settings "${arch_config}")
+string(REGEX MATCHALL "LJ_DASM [A-Z0-9_]+" dasm_settings "${arch_config}")
 set(dasm_flags)
 foreach(setting IN LISTS dasm_settings)
   string(REPLACE "LJ_DASM " "" setting "${setting}")

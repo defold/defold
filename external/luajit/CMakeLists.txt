@@ -137,6 +137,7 @@ add_custom_command(OUTPUT ${LUAJIT_GENERATED_FILES}
   COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/run_host-$<CONFIG>.cmake"
   DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/run_host-$<CONFIG>.cmake"
     "${CMAKE_CURRENT_SOURCE_DIR}/target_arch.h" "${CMAKE_CURRENT_SOURCE_DIR}/host/CMakeLists.txt"
+    "${CMAKE_CURRENT_SOURCE_DIR}/host/emscripten.cmake"
     ${LUAJIT_GENERATOR_INPUTS} ${LUAJIT_LIB_SOURCES} "${LUAJIT_SRC}/lj_opt_fold.c"
   COMMENT "Generating LuaJIT VM and headers for ${TARGET_PLATFORM}"
   VERBATIM)

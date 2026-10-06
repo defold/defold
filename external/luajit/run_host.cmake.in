@@ -19,8 +19,17 @@ execute_process(COMMAND "@CMAKE_C_COMPILER@" ${compiler_flags} ${options} ${defi
   OUTPUT_FILE "@LUAJIT_HOST_BUILD_DIR@-arch.txt" COMMAND_ERROR_IS_FATAL ANY)
 
 set(host_args)
+file(READ "@LUAJIT_HOST_BUILD_DIR@-arch.txt" arch_config)
+set(host_build_dir "@LUAJIT_HOST_BUILD_DIR@")
+if("@CMAKE_HOST_SYSTEM_NAME@" STREQUAL "Darwin" AND arch_config MATCHES "LJ_BITS 32")
+  # Keep the Web SDK separate from an existing native compiler cache.
+  string(APPEND host_build_dir "-wasm")
+elseif("@CMAKE_HOST_SYSTEM_NAME@" STREQUAL "Windows" AND arch_config MATCHES "LJ_BITS 32" AND
+    NOT "@CMAKE_GENERATOR@" MATCHES "Visual Studio")
+  # Do not reuse the x64 compiler cached by an earlier Ninja build.
+  string(APPEND host_build_dir "-x86")
+endif()
 if("@CMAKE_GENERATOR@" MATCHES "Visual Studio")
-  file(READ "@LUAJIT_HOST_BUILD_DIR@-arch.txt" arch_config)
   if(arch_config MATCHES "LJ_BITS 32")
     list(APPEND host_args -A Win32)
   elseif("@HOST_PLATFORM@" MATCHES "^arm64-")
@@ -31,14 +40,15 @@ if("@CMAKE_GENERATOR@" MATCHES "Visual Studio")
   if("@CMAKE_GENERATOR_INSTANCE@")
     list(APPEND host_args "-DCMAKE_GENERATOR_INSTANCE:PATH=@CMAKE_GENERATOR_INSTANCE@")
   endif()
-elseif(NOT "@CMAKE_HOST_SYSTEM_NAME@" STREQUAL "Windows")
+elseif(NOT "@CMAKE_HOST_SYSTEM_NAME@" STREQUAL "Windows" AND
+    NOT ("@CMAKE_HOST_SYSTEM_NAME@" STREQUAL "Darwin" AND arch_config MATCHES "LJ_BITS 32"))
   find_program(host_cc clang gcc cc REQUIRED)
   list(APPEND host_args "-DCMAKE_C_COMPILER:FILEPATH=${host_cc}")
 endif()
 execute_process(COMMAND "@CMAKE_COMMAND@" -E env --unset=CC --unset=CFLAGS --unset=LDFLAGS
     --unset=CMAKE_TOOLCHAIN_FILE --unset=SDKROOT
     "@CMAKE_COMMAND@" -S "@CMAKE_CURRENT_SOURCE_DIR@/host"
-    -B "@LUAJIT_HOST_BUILD_DIR@" -G "@CMAKE_GENERATOR@" ${host_args}
+    -B "${host_build_dir}" -G "@CMAKE_GENERATOR@" ${host_args}
     "-DDEFOLD_SDK_ROOT:PATH=@DEFOLD_SDK_ROOT@"
     "-DLUAJIT_SOURCE_DIR:PATH=@LUAJIT_SOURCE_DIR@"
     "-DLUAJIT_GENERATED_DIR:PATH=@LUAJIT_GENERATED_DIR@"
@@ -48,5 +58,5 @@ execute_process(COMMAND "@CMAKE_COMMAND@" -E env --unset=CC --unset=CFLAGS --uns
     "-DLUAJIT_VM_FILE:FILEPATH=@LUAJIT_VM_FILE@"
     -DCMAKE_BUILD_TYPE=Release
   COMMAND_ERROR_IS_FATAL ANY)
-execute_process(COMMAND "@CMAKE_COMMAND@" --build "@LUAJIT_HOST_BUILD_DIR@" --config Release
+execute_process(COMMAND "@CMAKE_COMMAND@" --build "${host_build_dir}" --config Release
   COMMAND_ERROR_IS_FATAL ANY)

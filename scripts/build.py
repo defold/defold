@@ -1162,6 +1162,12 @@ class Configuration(object):
         output = run.command(args)
         self._log(output)
 
+        if self.target_platform == 'armv7-android' and self.host.endswith('-macos'):
+            args = ["cmake", f"-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}", "-DLUAJIT_CHECK_SDK=ON",
+                    "-P", join(self.defold_root, "external/luajit/host/emscripten.cmake")]
+            output = run.command(args)
+            self._log(output)
+
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
         target_platform = self.target_platform
@@ -1188,7 +1194,9 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
-        if target_platform in ('wasm-web', 'wasm_pthread-web'):
+        # ARMv7's 32-bit LuaJIT generators run through the Web SDK on macOS.
+        if target_platform in ('wasm-web', 'wasm_pthread-web') or \
+                (target_platform == 'armv7-android' and self.host.endswith('-macos')):
             emsdk_folder = sdk.get_defold_emsdk()
             download_sdk(self,'%s/%s-%s.tar.gz' % (self.package_path, sdk.PACKAGES_EMSCRIPTEN_SDK, self.host), emsdk_folder)
 
