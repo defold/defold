@@ -72,7 +72,7 @@
 (defn- await-response! [session command ^CompletableFuture response]
   (try
     (.get (CompletableFuture/anyOf (into-array CompletableFuture [response (:ended session)]))
-          (long request-timeout-ms) 
+          (long request-timeout-ms)
           TimeUnit/MILLISECONDS)
     (catch ExecutionException exception (throw (.getCause exception)))
     (catch TimeoutException _
