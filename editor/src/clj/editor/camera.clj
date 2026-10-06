@@ -67,17 +67,12 @@
   (math/rotate (types/rotation camera)
                (Vector3d. 1.0 0.0 0.0)))
 
-(defn- normalized-vector3d
-  ^Vector3d [^Vector3d vector]
-  (doto (Vector3d. vector)
-    (.normalize)))
-
 (defn- camera-rotation-from-forward+up
   ^Quat4d [^Vector3d forward ^Vector3d up]
   (let [backward (doto (Vector3d. forward)
                    (.negate)
                    (.normalize))
-        up (normalized-vector3d up)
+        up (doto (Vector3d. up) (.normalize))
         right (doto (Vector3d.)
                 (.cross up backward)
                 (.normalize))
@@ -90,19 +85,15 @@
               (.setColumn 1 up)
               (.setColumn 2 backward))))))
 
-(defn- view-axis->forward+up
-  [axis]
-  (case axis
-    :+x [(Vector3d. -1.0 0.0 0.0) vector3-up]
-    :-x [(Vector3d. 1.0 0.0 0.0) vector3-up]
-    :+y [(Vector3d. 0.0 -1.0 0.0) (Vector3d. 0.0 0.0 -1.0)]
-    :-y [(Vector3d. 0.0 1.0 0.0) (Vector3d. 0.0 0.0 1.0)]
-    :+z [(Vector3d. 0.0 0.0 -1.0) vector3-up]
-    :-z [(Vector3d. 0.0 0.0 1.0) vector3-up]))
-
 (defn frame-camera-to-axis
   ^Camera [^Camera camera axis]
-  (let [[^Vector3d forward up] (view-axis->forward+up axis)
+  (let [[^Vector3d forward up] (case axis
+                                 :+x [(Vector3d. -1.0 0.0 0.0) vector3-up]
+                                 :-x [(Vector3d. 1.0 0.0 0.0) vector3-up]
+                                 :+y [(Vector3d. 0.0 -1.0 0.0) (Vector3d. 0.0 0.0 -1.0)]
+                                 :-y [(Vector3d. 0.0 1.0 0.0) (Vector3d. 0.0 0.0 1.0)]
+                                 :+z [(Vector3d. 0.0 0.0 -1.0) vector3-up]
+                                 :-z [(Vector3d. 0.0 0.0 1.0) vector3-up])
         rotation (camera-rotation-from-forward+up forward up)
         ^Vector4d fp (:focus-point camera)
         focus (Point3d. (.x fp) (.y fp) (.z fp))

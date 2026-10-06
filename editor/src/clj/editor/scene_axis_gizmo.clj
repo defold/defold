@@ -49,24 +49,12 @@
    :+z (Vector3d. 0.0 0.0 1.0)
    :-z (Vector3d. 0.0 0.0 -1.0)})
 
-(def ^:private opposite-axis
-  {:+x :-x
-   :-x :+x
-   :+y :-y
-   :-y :+y
-   :+z :-z
-   :-z :+z})
-
 (def ^:private axis-alignment-epsilon
   "Minimum dot product between the current and requested camera forward vector
   that's considered to be facing that axis. Keeps the toggle-on-re-click logic
   robust against tiny numerical drift that would otherwise require the user to
   click twice to flip to the opposite axis."
   0.999)
-
-(defn- gizmo-center [^Region viewport]
-  [(+ (.left viewport) gizmo-margin gizmo-scale)
-   (- (.bottom viewport) gizmo-margin gizmo-scale)])
 
 (defn- gizmo-model-matrix
   ^Matrix4d [^Camera camera ^Region viewport]
@@ -77,7 +65,8 @@
   ;; to match screen-space Y just before translation. Composing the Y flip this
   ;; way avoids the gimbal-lock issues of trying to mirror individual Euler
   ;; components of the camera rotation.
-  (let [[x y] (gizmo-center viewport)
+  (let [x (+ (.left viewport) gizmo-margin gizmo-scale)
+        y (- (.bottom viewport) gizmo-margin gizmo-scale)
         rotation (doto (Quat4d. ^Quat4d (:rotation camera)) (.conjugate))
         rs ^Matrix4d (math/->mat4-uniform (Vector3d. 0.0 0.0 0.0) rotation gizmo-scale)
         reflect-y ^Matrix4d (doto ^Matrix4d (math/->mat4)
@@ -103,24 +92,6 @@
       (doto (Matrix4d. picking-matrix) (.mul base))
       base)))
 
-(defn- gizmo-render-args
-  "Replaces the render-args transforms with the gizmo's own model and
-  projection matrices."
-  [render-args ^Camera camera ^Region viewport]
-  (merge render-args
-         (math/derive-render-transforms (gizmo-model-matrix camera viewport)
-                                        geom/Identity4d
-                                        (gizmo-projection-matrix render-args viewport)
-                                        (:texture render-args))))
-
-(defn- camera-facing-axis?
-  "Returns true when the camera is (almost exactly) looking down `axis` at the
-  scene, i.e. the clicked axis is the one already centered in the viewport."
-  [^Camera camera axis]
-  (let [target-forward (doto (Vector3d. ^Vector3d (axis->normal axis))
-                         (.negate))
-        current-forward ^Vector3d (c/camera-forward-vector camera)]
-    (>= (.dot current-forward target-forward) axis-alignment-epsilon)))
 
 ;; Blender-style axis handles: a line from the center to a ball on each positive
 ;; axis, and a darker ball without a line on each negative axis.
@@ -152,14 +123,13 @@
 (defn- positive-axis? [axis]
   (contains? #{:+x :+y :+z} axis))
 
-(defn- desaturate [rgb]
-  (let [[r g b] rgb
-        gray (+ (* 0.299 (double r)) (* 0.587 (double g)) (* 0.114 (double b)))]
-    (mapv #(+ gray (* ^double color-saturation (- (double %) gray))) rgb)))
-
 (defn- axis-color [axis]
-  (cond->> (desaturate (stub-colors (axis-index axis)))
-    (not (positive-axis? axis)) (mapv #(* (double %) (double (:brightness negative-stub))))))
+  (let [[r g b :as rgb] (stub-colors (axis-index axis))
+        ;; Blend toward the gray of the same brightness.
+        gray (+ (* 0.299 (double r)) (* 0.587 (double g)) (* 0.114 (double b)))
+        desaturated (mapv #(+ gray (* ^double color-saturation (- (double %) gray))) rgb)]
+    (cond->> desaturated
+      (not (positive-axis? axis)) (mapv #(* (double %) (double (:brightness negative-stub)))))))
 
 ;; Picking geometry: a sphere per ball, a box per line, and a sphere around
 ;; everything for the backdrop.
@@ -190,12 +160,6 @@
                lon (range n)]
            [(point lat lon) (point lat (inc lon)) (point (inc lat) (inc lon)) (point (inc lat) lon)]))))
 
-(defn- handle-pick-quads [axis]
-  (let [^Vector3d n (axis->normal axis)
-        center (mapv #(* ^double ball-distance ^double %) [(.x n) (.y n) (.z n)])]
-    (cond-> (sphere-quads center ball-radius)
-      (positive-axis? axis) (into (line-quads axis)))))
-
 (def ^:private pick-shader shaders/uniform-color-local-space)
 
 (defn- make-pick-vertex-buffer [quads]
@@ -210,16 +174,17 @@
     (.position byte-buffer (* (.position float-buffer) Float/BYTES))
     (vtx/flip! vertex-buffer)))
 
-(defn- buffer-key
-  "Tells static buffers apart in the GPU cache, so a reload that rebuilds them
-  isn't masked by the old upload."
-  [vertex-buffer]
-  (System/identityHashCode vertex-buffer))
-
 (def ^:private backdrop-radius (+ ^double ball-distance ^double ball-radius 0.1))
 
 (def ^:private pick-vertex-buffers
-  (delay (assoc (into {} (map (juxt identity (comp make-pick-vertex-buffer handle-pick-quads))) axis-order)
+  (delay (assoc (into {}
+                      (map (fn [axis]
+                             (let [^Vector3d n (axis->normal axis)
+                                   center (mapv #(* ^double ball-distance ^double %) [(.x n) (.y n) (.z n)])]
+                               [axis (make-pick-vertex-buffer
+                                       (cond-> (sphere-quads center ball-radius)
+                                         (positive-axis? axis) (into (line-quads axis))))])))
+                      axis-order)
            :backdrop (make-pick-vertex-buffer (sphere-quads [0.0 0.0 0.0] backdrop-radius)))))
 
 ;; The scene view has no multisampling, so the visible handles are drawn as
@@ -395,7 +360,8 @@
         pick! (fn [selection-data]
                 (let [vertex-buffer (vertex-buffers selection-data)
                       id-color (scene-picking/renderable-picking-id-uniform (renderable-by-selection-data selection-data))
-                      vertex-binding (vtx/use-with [::pick selection-data (buffer-key vertex-buffer)] vertex-buffer pick-shader)]
+                      ;; The identity hash keeps a reload's rebuilt buffers from being masked by the old upload.
+                      vertex-binding (vtx/use-with [::pick selection-data (System/identityHashCode vertex-buffer)] vertex-buffer pick-shader)]
                   (gl/with-gl-bindings gl render-args [pick-shader vertex-binding]
                     (shader/set-uniform pick-shader gl "color" id-color)
                     (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vertex-buffer)))))]
@@ -412,7 +378,13 @@
 
 (defn- render-axis-gizmo [^GL2 gl render-args renderables _rcount]
   (let [camera ^Camera (:camera render-args)
-        gizmo-args (gizmo-render-args render-args camera (:viewport render-args))]
+        viewport (:viewport render-args)
+        ;; The gizmo's own model and projection replace the scene's transforms.
+        gizmo-args (merge render-args
+                          (math/derive-render-transforms (gizmo-model-matrix camera viewport)
+                                                         geom/Identity4d
+                                                         (gizmo-projection-matrix render-args viewport)
+                                                         (:texture render-args)))]
     (if (= pass/manipulator-selection (:pass render-args))
       (pick-handles! gl gizmo-args (into {} (map (juxt :selection-data identity)) renderables))
       (draw-handles! gl gizmo-args camera (double (get-in (first renderables) [:user-data :backdrop-alpha] 0.0))))))
@@ -445,18 +417,12 @@
           current-camera (g/node-value camera-node-id :local-camera evaluation-context)
           ;; If the camera is already aligned with the clicked axis, flip to
           ;; the opposite axis so re-clicking toggles between +/- views.
-          target-axis (if (camera-facing-axis? current-camera axis)
-                        (opposite-axis axis)
+          axis-forward (doto (Vector3d. ^Vector3d (axis->normal axis)) (.negate))
+          target-axis (if (>= (.dot ^Vector3d (c/camera-forward-vector current-camera) axis-forward)
+                              axis-alignment-epsilon)
+                        ({:+x :-x :-x :+x :+y :-y :-y :+y :+z :-z :-z :+z} axis)
                         axis)]
       (c/frame-camera-to-axis! camera-node-id target-axis true))))
-
-(defn- tumble-camera! [self ^double dx ^double dy]
-  (let [camera-node-id (g/node-value self :camera-node-id)
-        camera (g/node-value camera-node-id :local-camera)]
-    (c/cancel-dolly! camera-node-id)
-    (g/transact
-      {:undoable false}
-      (g/set-property camera-node-id :local-camera (c/tumble camera dx dy)))))
 
 (defn- camera-animating? [self]
   (g/node-value (g/node-value self :camera-node-id) :animating))
@@ -481,7 +447,8 @@
                                                        (- (double y) (double (:y press))))
                                            drag-threshold))]
                        (if dragging
-                         (let [image-view (g/node-value (g/node-value self :camera-node-id) :image-view)
+                         (let [camera-node-id (g/node-value self :camera-node-id)
+                               image-view (g/node-value camera-node-id :image-view)
                                ;; Wraps the cursor at the window edges like the camera's own orbit.
                                [x y] (c/warp-mouse-around-edges image-view screen-x screen-y x y last-x last-y)
                                dx (- last-x (double (:x action)))
@@ -490,7 +457,10 @@
                            ;; events from before a warp, so skip them.
                            (when (and (< (max (abs dx) (abs dy)) 150.0)
                                       (not (camera-animating? self)))
-                             (tumble-camera! self dx dy))
+                             (c/cancel-dolly! camera-node-id)
+                             (g/transact
+                               {:undoable false}
+                               (g/set-property camera-node-id :local-camera (c/tumble (g/node-value camera-node-id :local-camera) dx dy))))
                            (g/user-data! self ::press (assoc press :dragging true :last-x x :last-y y)))
                          (g/user-data! self ::press (assoc press :dragging false)))
                        nil)
