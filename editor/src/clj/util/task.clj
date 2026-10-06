@@ -15,7 +15,8 @@
 (ns util.task
   (:refer-clojure :exclude [with-open])
   (:import [clojure.lang Var]
-           [java.util.concurrent StructuredTaskScope StructuredTaskScope$FailedException StructuredTaskScope$Joiner StructuredTaskScope$Subtask$State]))
+           [java.util.concurrent Callable StructuredTaskScope StructuredTaskScope$FailedException StructuredTaskScope$Joiner StructuredTaskScope$Subtask StructuredTaskScope$Subtask$State]
+           [java.util.stream Stream]))
 
 (set! *warn-on-reflection* true)
 
@@ -82,15 +83,16 @@
          ~'task-binding-frame# (Var/cloneThreadBindingFrame)]
      (with-open [~'task-scope# (StructuredTaskScope/open joiner#)]
        (let [result# (do ~@body)
-             joined# (try
-                       (.join ~'task-scope#)
-                       (catch StructuredTaskScope$FailedException exception#
-                         (throw (.getCause exception#))))]
+             ^Stream joined#
+             (try
+               (.join ~'task-scope#)
+               (catch StructuredTaskScope$FailedException exception#
+                 (throw (.getCause exception#))))]
          (if (= :all-successful policy#)
            result#
-           (let [^java.util.concurrent.StructuredTaskScope$Subtask subtask#
-                 (-> ^java.util.stream.Stream joined#
-                     (.filter (fn [^java.util.concurrent.StructuredTaskScope$Subtask subtask#]
+           (let [^StructuredTaskScope$Subtask subtask#
+                 (-> joined#
+                     (.filter (fn [^StructuredTaskScope$Subtask subtask#]
                                 (not= StructuredTaskScope$Subtask$State/UNAVAILABLE
                                       (.state subtask#))))
                      (.findFirst)
@@ -111,9 +113,9 @@
   [& body]
   (when-not (contains? &env 'task-scope#)
     (throw (IllegalArgumentException. "task/fork must appear inside task/scope")))
-  `(let [^java.util.concurrent.StructuredTaskScope scope# ~'task-scope#]
+  `(let [^StructuredTaskScope scope# ~'task-scope#]
      (.fork scope#
-            ^java.util.concurrent.Callable
+            ^Callable
             (fn []
               (Var/resetThreadBindingFrame ~'task-binding-frame#)
               ~@body))))

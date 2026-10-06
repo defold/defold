@@ -2258,12 +2258,12 @@
            (coll/pmapv + [1 2 3] [10 20]))))
 
   (testing "Preserves order."
-    (let [second-ready (CountDownLatch. 1)]
+    (let [second-thread (promise)]
       (is (= [0 1]
              (coll/pmapv (fn [value]
                            (if (zero? (long value))
-                             (.await second-ready)
-                             (.countDown second-ready))
+                             (.join ^Thread @second-thread)
+                             (deliver second-thread (Thread/currentThread)))
                            value)
                          [0 1])))))
 
@@ -2318,15 +2318,15 @@
                          tree)))))
 
   (testing "Preserves child order."
-    (let [second-ready (CountDownLatch. 1)]
+    (let [second-thread (promise)]
       (is (= [0 1]
              (coll/ptree :children
                          (fn [node children]
                            (if-let [value (:value node)]
                              (do
                                (if (zero? (long value))
-                                 (.await second-ready)
-                                 (.countDown second-ready))
+                                 (.join ^Thread @second-thread)
+                                 (deliver second-thread (Thread/currentThread)))
                                value)
                              children))
                          {:children [{:value 0} {:value 1}]})))))
@@ -2351,12 +2351,30 @@
                       (catch Throwable exception exception))]
         (is (identical? exception outcome)))))
 
+  (testing "Preserves a builder failure after exhausting the parallelism budget."
+    (let [exception (ex-info "inline build failed" {})
+          outcome (try
+                    (coll/ptree
+                      (fn [{:keys [parent blocked]}]
+                        (when-not (or blocked (identical? parent (Thread/currentThread)))
+                          [{:parent (Thread/currentThread) :blocked true}
+                           {:parent (Thread/currentThread)}]))
+                      (fn [{:keys [parent blocked]} _]
+                        (if (identical? parent (Thread/currentThread))
+                          (throw exception)
+                          (when blocked
+                            (.await (CountDownLatch. 1)))))
+                      {})
+                    (catch Throwable exception exception))]
+      (is (identical? exception outcome))))
+
   (testing "A builder failure waits for a cancelled sibling's cleanup."
     (let [exception (ex-info "build failed" {})
           started (CountDownLatch. 1)
           cancelled (CountDownLatch. 1)
           release (Semaphore. 0)
           child (promise)
+          finished (atom false)
           outcome
           (future
             (try
@@ -2372,7 +2390,8 @@
                         (.await (CountDownLatch. 1))
                         (finally
                           (.countDown cancelled)
-                          (.acquireUninterruptibly release))))
+                          (.acquireUninterruptibly release)
+                          (reset! finished true))))
 
                     :fail
                     (do
@@ -2381,12 +2400,13 @@
 
                     children))
                 {:children [{:value :blocked} {:value :fail}]})
-              (catch Throwable exception exception)))]
+              (catch Throwable exception [exception @finished])))]
       (try
         (.await cancelled)
-        (is (not (realized? outcome)))
         (finally
           (.release release)
           (.interrupt ^Thread @child)
-          @outcome))
-      (is (identical? exception @outcome)))))
+          (.join ^Thread @child)))
+      (let [[error cleanup-finished] @outcome]
+        (is (identical? exception error))
+        (is cleanup-finished)))))

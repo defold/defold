@@ -42,7 +42,9 @@
                        (future/complete! finished result))
                      (catch Throwable exception
                        (future/fail! finished exception)))))
-        ;; Check after the tree update and its deferred viewport restoration.
+        ;; Tree events fire inside cljfx advancement. The first queued callback
+        ;; runs after advancement has queued viewport restoration; the second
+        ;; checks the tree after that restoration.
         schedule-check! (fn [] (ui/run-later (ui/run-later (check!))))
         tree-changed (ui/event-handler _ (schedule-check!))
         root-changed (ui/change-listener _ old-root new-root
@@ -90,12 +92,20 @@
   (.flush out))
 
 (defn respond! [out request body]
-  (send! out {:seq 1 :type "response" :request_seq (:seq request)
-              :command (:command request) :success true :body body}))
+  (send! out {:seq 1 
+              :type "response" 
+              :request_seq (:seq request)
+              :command (:command request)
+              :success true
+              :body body}))
 
 (defn reject! [out request message]
-  (send! out {:seq 1 :type "response" :request_seq (:seq request)
-              :command (:command request) :success false :message message}))
+  (send! out {:seq 1
+              :type "response" 
+              :request_seq (:seq request)
+              :command (:command request)
+              :success false
+              :message message}))
 
 (defn event! [out event body]
   (send! out {:seq 1 :type "event" :event event :body body}))
@@ -112,30 +122,33 @@
            connection# (atom nil)
            adapter#
            (future/io
-             (with-open [socket# (.accept server#)]
-               (reset! connection# socket#)
-               (let [in# (DataInputStream. (.getInputStream socket#))
-                     out# (.getOutputStream socket#)]
-                 (try
-                   (loop [attach# nil configured# false]
-                     (let [request# (receive! in#)
-                           command# (:command request#)]
-                       (swap! requests# conj request#)
-                       (case command#
-                         "initialize" (respond! out# request# {:supportsConfigurationDoneRequest true})
-                         "attach" (event! out# "initialized" {})
-                         "configurationDone" (do (respond! out# request# {}) (respond! out# attach# {}))
-                         "setBreakpoints" (if configured#
-                                            (handler# request# in# out# socket#)
-                                            (respond! out# request# {:breakpoints []}))
-                         "disconnect" (do (respond! out# request# {}) (event! out# "terminated" {}))
-                         (handler# request# in# out# socket#))
-                       (when-not (or (= "disconnect" command#) (.isClosed socket#))
-                         (recur (if (= "attach" command#) request# attach#)
-                                (or configured# (= "configurationDone" command#))))))
-                   (catch EOFException _#)
-                   (catch SocketException exception#
-                     (when-not (.isClosed socket#) (throw exception#)))))))]
+             (try
+               (with-open [socket# (.accept server#)]
+                 (reset! connection# socket#)
+                 (let [in# (DataInputStream. (.getInputStream socket#))
+                       out# (.getOutputStream socket#)]
+                   (try
+                     (loop [attach# nil configured# false]
+                       (let [request# (receive! in#)
+                             command# (:command request#)]
+                         (swap! requests# conj request#)
+                         (case command#
+                           "initialize" (respond! out# request# {:supportsConfigurationDoneRequest true})
+                           "attach" (event! out# "initialized" {})
+                           "configurationDone" (do (respond! out# request# {}) (respond! out# attach# {}))
+                           "setBreakpoints" (if configured#
+                                              (handler# request# in# out# socket#)
+                                              (respond! out# request# {:breakpoints []}))
+                           "disconnect" (do (respond! out# request# {}) (event! out# "terminated" {}))
+                           (handler# request# in# out# socket#))
+                         (when-not (or (= "disconnect" command#) (.isClosed socket#))
+                           (recur (if (= "attach" command#) request# attach#)
+                                  (or configured# (= "configurationDone" command#))))))
+                     (catch EOFException _#)
+                     (catch SocketException exception#
+                       (when-not (.isClosed socket#) (throw exception#))))))
+               (catch SocketException exception#
+                 (when-not (.isClosed server#) (throw exception#)))))]
        (try
          (let [~'port (.getLocalPort server#)
                ~'requests requests#]
@@ -160,14 +173,12 @@
              (dap/connect! "127.0.0.1" (constantly ~'port)
                            (merge {:local-root "/project"
                                    :on-connected (fn [session# _#]
-                                                   (is (ui/on-ui-thread?))
                                                    (future/complete! ready# session#))
                                    :on-suspended (fn [_# snapshot# body#] (.add ~'events [:stopped (dap/suspension snapshot#) body#]))
                                    :on-resumed (fn [_# _snapshot#] (.add ~'events [:continued]))
                                    :on-output (fn [_# _snapshot# body#] (.add ~'events [:output body#]))
                                    :on-closed (fn [_# _snapshot#] (.add ~'events [:closed]))
                                    :on-error (fn [_# _snapshot# exception#]
-                                               (is (ui/on-ui-thread?))
                                                (future/fail! ready# exception#)
                                                (.add ~'events [:error exception#]))}
                                   callbacks#))]

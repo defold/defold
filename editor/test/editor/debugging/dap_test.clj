@@ -247,9 +247,9 @@
           (do (is (string/includes? output "child = table: 17"))
               (is (= (vec (range 1 17)) references))))))))
 
-;; Resume during scopes or variables retrieval discards stale frame contents.
+;; Resume during stack, scopes or variables retrieval discards stale frame contents.
 (deftest stale-frame-variables-test
-  (doseq [resume-command ["scopes" "variables"]]
+  (doseq [resume-command ["stackTrace" "scopes" "variables"]]
     (testing (str "Resume during " resume-command)
       (dap-util/with-adapter
         {}
@@ -257,6 +257,9 @@
           (when (= resume-command command)
             (dap-util/event! out "continued" {:threadId 7}))
           (case command
+            "stackTrace"
+            (dap-util/respond! out request {:stackFrames [{:id 42 :name "old" :line 5}]})
+
             "threads"
             (dap-util/respond! out request {:threads [{:id 7 :name "Lua"}]})
 
@@ -276,7 +279,9 @@
         (dap/control! session "pause")
         (let [[event snapshot] (dap-util/take-event! events)]
           (is (= :stopped event))
-          (is (nil? (dap/frame-variables session snapshot 42)))
+          (is (nil? (if (= "stackTrace" resume-command)
+                      (dap/stack session snapshot)
+                      (dap/frame-variables session snapshot 42))))
           (is (= [:continued] (dap-util/take-event! events)))
           (is (nil? (dap/suspension @session))))))))
 
@@ -340,7 +345,7 @@
           "from-callback" (dap-util/respond! out request {:result "callback response"})))
       (is (= {} (dap/evaluate! session nil "trigger")))
       (is (= {:result "callback response"} (dap-util/await! result)))
-      (is (true? (dap-util/await! second-output)))
+      (is (dap-util/await! second-output))
       (is (= ["first" "second"] @order)))))
 
 ;; Callbacks retain event snapshots and wire order even when events arrive together.
@@ -364,7 +369,7 @@
         (dap-util/event! out "continued" {})
         (dap-util/event! out "terminated" {}))
       (is (= {} (dap/evaluate! session nil "trigger")))
-      (is (true? (dap-util/await! closed)))
+      (is (dap-util/await! closed))
       (dap/close! session)
       (is (= [[:stopped :suspended {:threadId 7}]
               [:continued :running]
@@ -404,10 +409,14 @@
         (.flush out)
         (.close socket))
       (is (thrown? IOException (dap/evaluate! session nil "waiting")))
-      (let [[event exception] (dap-util/take-event! events)]
-        (is (= :error event))
-        (is (instance? Throwable exception)))
-      (is (= [:closed] (dap-util/take-event! events)))
+      (let [notifications (loop [notifications []]
+                            (let [event (dap-util/take-event! events)
+                                  notifications (conj notifications event)]
+                              (if (= :closed (first event))
+                                notifications
+                                (recur notifications))))]
+        (is (= [:error :closed] (mapv first notifications)))
+        (is (instance? Throwable (second (first notifications)))))
       (is (= :closed (dap/status session)))
       (is (thrown? IOException (dap/evaluate! session nil "after-close"))))))
 
@@ -572,24 +581,23 @@
 (deftest pending-breakpoint-edits-coalesce-test
   (let [started (promise)
         release (CountDownLatch. 1)]
-    (try
-      (dap-util/with-adapter
-        {:breakpoints {"/main.script" [{:line 5}]}}
-        (fn [{:keys [command arguments] :as request} _ out _]
-          (when (and (= "setBreakpoints" command) (= 9 (get-in arguments [:breakpoints 0 :line])))
-            (deliver started true)
-            (.await release))
-          (dap-util/respond! out request {}))
+    (dap-util/with-adapter
+      {:breakpoints {"/main.script" [{:line 5}]}}
+      (fn [{:keys [command arguments] :as request} _ out _]
+        (when (and (= "setBreakpoints" command) (= 9 (get-in arguments [:breakpoints 0 :line])))
+          (deliver started true)
+          (.await release))
+        (dap-util/respond! out request {}))
+      (try
         (dap/set-breakpoints! session {"/main.script" [{:line 9}]})
         (dap-util/await! started)
         (dap/set-breakpoints! session {"/main.script" [{:line 11}]})
         (dap/set-breakpoints! session {"/main.script" [{:line 13}]})
-        (.countDown release)
-        (is (= {} (dap/evaluate! session nil "after-edit")))
-        (is (= [5 9 13] (into [] (comp (filter #(= "setBreakpoints" (:command %)))
-                                       (map #(get-in % [:arguments :breakpoints 0 :line]))) @requests)))
-        (is (= "evaluate" (:command (peek @requests)))))
-      (finally (.countDown release)))))
+        (finally (.countDown release)))
+      (is (= {} (dap/evaluate! session nil "after-edit")))
+      (is (= [5 9 13] (into [] (comp (filter #(= "setBreakpoints" (:command %)))
+                                     (map #(get-in % [:arguments :breakpoints 0 :line]))) @requests)))
+      (is (= "evaluate" (:command (peek @requests)))))))
 
 ;; Close rejects work immediately but waits for an interrupted resolver's cleanup.
 (deftest close-joins-connection-test
@@ -598,6 +606,7 @@
         release (CountDownLatch. 1)
         closed (promise)
         errors (atom [])
+        finished (atom false)
         session
         (dap/connect! "127.0.0.1"
                       (fn []
@@ -608,19 +617,21 @@
                           (catch InterruptedException exception
                             (deliver interrupted true)
                             (.await release)
+                            (reset! finished true)
                             (throw exception))))
                       {:local-root "/project"
                        :on-closed (fn [_ _] (deliver closed true))
                        :on-error (fn [_ _ exception] (swap! errors conj exception))})]
     (try
       (dap-util/await! started)
-      (let [closing (future/io (dap/close! session))]
+      (let [closing (future/io
+                      (let [result (dap/close! session)]
+                        [result @finished]))]
         (dap-util/await! interrupted)
-        (is (not (future/done? closing)))
         (is (thrown? IOException (dap/evaluate! session nil "late")))
         (.countDown release)
-        (is (nil? (dap-util/await! closing)))
-        (is (true? (dap-util/await! closed)))
+        (is (= [nil true] (dap-util/await! closing)))
+        (is (dap-util/await! closed))
         (is (= :closed (dap/status session)))
         (is (= [] @errors)))
       (finally
@@ -649,25 +660,24 @@
 (deftest breakpoint-failure-closes-session-test
   (let [started (promise)
         release (CountDownLatch. 1)]
-    (try
-      (dap-util/with-adapter
-        {}
-        (fn [request _ out _]
-          (is (= "setBreakpoints" (:command request)))
-          (deliver started true)
-          (.await release)
-          (dap-util/reject! out request "Breakpoint rejected"))
+    (dap-util/with-adapter
+      {}
+      (fn [request _ out _]
+        (is (= "setBreakpoints" (:command request)))
+        (deliver started true)
+        (.await release)
+        (dap-util/reject! out request "Breakpoint rejected"))
+      (try
         (dap/set-breakpoints! session {"/main.script" [{:line 9}]})
         (dap-util/await! started)
-        (.countDown release)
-        (let [[event exception] (dap-util/take-event! events)]
-          (is (= :error event))
-          (is (= "Breakpoint rejected" (ex-message exception))))
-        (is (= [:closed] (dap-util/take-event! events)))
-        (is (= :closed (dap/status session)))
-        (is (thrown? IOException (dap/evaluate! session nil "after-failure")))
-        (is (coll/not-any? #(= "evaluate" (:command %)) @requests)))
-      (finally (.countDown release)))))
+        (finally (.countDown release)))
+      (let [[event exception] (dap-util/take-event! events)]
+        (is (= :error event))
+        (is (= "Breakpoint rejected" (ex-message exception))))
+      (is (= [:closed] (dap-util/take-event! events)))
+      (is (= :closed (dap/status session)))
+      (is (thrown? IOException (dap/evaluate! session nil "after-failure")))
+      (is (coll/not-any? #(= "evaluate" (:command %)) @requests)))))
 
 ;; A UI callback can schedule background close without deadlocking transport cleanup.
 (deftest close-scheduled-from-callback-test
@@ -707,4 +717,4 @@
         (is (= :closed (dap/status session)))
         (is (not (realized? notified))))
       (finally (.countDown proceed)))
-    (is (true? (dap-util/await! notified)))))
+    (is (dap-util/await! notified))))

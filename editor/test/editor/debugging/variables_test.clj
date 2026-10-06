@@ -75,7 +75,7 @@
              "variables"
              (let [reference# (long (get-in request# [:arguments :variablesReference]))
                    values# (if (>= reference# 10000)
-                             (root-variables# (- reference# 10000))
+                             (root-variables# request# out# (- reference# 10000))
                              (child-variables# request# out# reference#))]
                (when values#
                  (dap-util/respond! out# request# {:variables values#})))))
@@ -92,7 +92,7 @@
 (deftest restore-expanded-paths-test
   (let [requests (atom [])]
     (with-view
-      (fn [generation]
+      (fn [_ _ generation]
         (let [base (* (long generation) 100)]
           [(variable "self" "table" (+ base 1))
            (variable "_G" "table" (+ base 3))
@@ -106,7 +106,7 @@
                                       (variable "cycle" "table" (+ base 1))]
             (= reference (+ base 2)) [(variable "count" (str generation) 0)]
             (= reference (+ base 3)) [(variable "global" (str generation) 0)])))
-      (pause! view session events 1)
+      (dap-util/await! (pause! view session events 1))
       (dap-util/await-ui! view #(item-at view ["self"]))
       (is (= [] @requests))
       (let [^TreeItem self (ui/run-now (item-at view ["self"]))]
@@ -120,7 +120,7 @@
                                      (item-at view ["self" "cycle" "cycle"])
                                      (item-at view ["_G" "global"])))
       (reset! requests [])
-      (pause! view session events 2)
+      (dap-util/await! (pause! view session events 2))
       (dap-util/await-ui! view #(and (item-at view ["self" "nested" "count"])
                                      (item-at view ["self" "cycle" "cycle"])
                                      (item-at view ["_G" "global"])))
@@ -132,7 +132,7 @@
       (is (= {[2 201] 2 [2 202] 1 [2 203] 1} (frequencies @requests)))
       (ui/run-now (.setExpanded (item-at view ["self" "nested"]) false))
       (reset! requests [])
-      (pause! view session events 3)
+      (dap-util/await! (pause! view session events 3))
       (dap-util/await-ui! view #(and (item-at view ["self" "cycle" "cycle"])
                                      (item-at view ["_G" "global"])))
       (ui/run-now (is (not (.isExpanded (item-at view ["self" "nested"])))))
@@ -142,7 +142,7 @@
 (deftest changing-variable-shapes-test
   (let [requests (atom [])]
     (with-view
-      (fn [generation]
+      (fn [_ _ generation]
         (case (long generation)
           2 [(variable "self" "nil" 0)]
           3 []
@@ -150,43 +150,43 @@
       (fn [_ _ reference]
         (swap! requests conj reference)
         [(variable "value" (str reference) 0)])
-      (pause! view session events 1)
+      (dap-util/await! (pause! view session events 1))
       (dap-util/await-ui! view #(item-at view ["self"]))
       (ui/run-now (.setExpanded (item-at view ["self"]) true))
       (dap-util/await-ui! view #(item-at view ["self" "value"]))
-      (pause! view session events 2)
+      (dap-util/await! (pause! view session events 2))
       (dap-util/await-ui! view #(= "nil" (some-> (item-at view ["self"]) .getValue :value)))
-      (pause! view session events 3)
-      (dap-util/await-ui! view #(zero? (count (.getChildren (.getRoot ^TreeView view)))))
+      (dap-util/await! (pause! view session events 3))
+      (ui/run-now (is (zero? (count (.getChildren (.getRoot view))))))
       (is (= [1] @requests))
-      (pause! view session events 4)
+      (dap-util/await! (pause! view session events 4))
       (dap-util/await-ui! view #(item-at view ["self" "value"]))
       (ui/run-now (is (= "4" (:value (.getValue (item-at view ["self" "value"]))))))
       (is (= [1 4] @requests)))))
 
-;; A delayed table response cannot overwrite another frame in the same suspension,
-;; where DAP's stop-generation checks alone cannot reject the old result.
-(deftest stale-table-response-test
+;; A completed old frame refresh cannot overwrite another frame in the same
+;; suspension, guarding against relying only on DAP stop-generation checks.
+(deftest stale-frame-response-test
   (let [pending (promise)]
     (with-view
-      (fn [frame-id] [(variable "self" "table" frame-id)])
-      (fn [request out reference]
-        (if (= 1 reference)
+      (fn [request out frame-id]
+        (if (= 1 frame-id)
           (do (deliver pending [request out]) nil)
-          [(variable "new" (str reference) 0)]))
-      (pause! view session events 1)
-      (dap-util/await-ui! view #(item-at view ["self"]))
-      (ui/run-now (.setExpanded (item-at view ["self"]) true))
-      (let [[request out] (dap-util/await! pending)
+          [(variable "new" "2" 0)]))
+      (fn [_ _ _] [])
+      (let [old-refresh (pause! view session events 1)
+            [request out] (dap-util/await! pending)
             snapshot (dap/suspension @session)]
-        (ui/run-now (variables/show-frame! view session snapshot 2))
-        (dap-util/await-ui! view #(= "2" (some-> (item-at view ["self" "new"]) .getValue :value)))
-        (dap-util/respond! out request {:variables [(variable "old" "1" 0)]})
-        ;; A later inspection fences the reader without resuming or changing frames.
-        (is (= [(variable "new" "2" 0)] (dap/variables session snapshot 2)))
+        (try
+          (dap-util/await! (ui/run-now (variables/show-frame! view session snapshot 2)))
+          (dap-util/await-ui! view #(item-at view ["new"]))
+          (finally
+            (dap-util/respond! out request {:variables [(variable "old" "1" 0)]})
+            (dap-util/await! old-refresh)))
         (ui/run-now
-          (is (nil? (item-at view ["self" "old"])))
-          (is (= "2" (:value (.getValue (item-at view ["self" "new"]))))))))))
+          (is (= ["new"] (mapv #(-> ^TreeItem % .getValue :name)
+                               (.getChildren (.getRoot view)))))
+          (is (= "2" (:value (.getValue (item-at view ["new"]))))))))))
 
 (defn- viewport [^TreeView view]
   (let [skin ^ExtendedTreeViewSkin (.getSkin view)
@@ -203,12 +203,12 @@
 (deftest cleared-selection-survives-loading-test
   (let [pending (promise)]
     (with-view
-      (fn [frame-id] [(variable "self" "table" frame-id) (variable "other" "scalar" 0)])
+      (fn [_ _ frame-id] [(variable "self" "table" frame-id) (variable "other" "scalar" 0)])
       (fn [request out reference]
         (if (realized? pending)
           [(variable "child" (str reference) 0)]
           (do (deliver pending [request out]) nil)))
-      (pause! view session events 1)
+      (dap-util/await! (pause! view session events 1))
       (dap-util/await-ui! view #(item-at view ["self"]))
       (ui/run-now (.setExpanded (item-at view ["self"]) true))
       (let [[request out] (dap-util/await! pending)]
@@ -225,7 +225,7 @@
         (dap-util/respond! out request {:variables [(variable "child" "value" 0)]})
         (dap-util/await-ui! view #(item-at view ["self" "child"]))
         (ui/run-now (is (coll/empty? (ui/selection view))))
-        (pause! view session events 2)
+        (dap-util/await! (pause! view session events 2))
         (dap-util/await-ui! view #(= "2" (some-> (item-at view ["self" "child"]) .getValue :value)))
         (ui/run-now (is (coll/empty? (ui/selection view))))))))
 
@@ -237,12 +237,12 @@
                        (map #(variable (str "field-" %) (str generation) 0))
                        (range 100)))]
     (with-view
-      (fn [generation] [(variable "self" "table" generation) (variable "other" "scalar" 0)])
+      (fn [_ _ generation] [(variable "self" "table" generation) (variable "other" (.repeat "wide " 100) 0)])
       (fn [request out reference]
         (if (= 3 reference)
           (do (deliver pending [request out]) nil)
           (values reference)))
-      (pause! view session events 1)
+      (dap-util/await! (pause! view session events 1))
       (dap-util/await-ui! view #(item-at view ["self"]))
       (ui/run-now (.setExpanded (item-at view ["self"]) true))
       (dap-util/await-ui! view #(item-at view ["self" "field-99"]))
@@ -261,17 +261,16 @@
               (viewport view))]
         (is (= "field-44" (:selection before)))
         (is (= 20.0 (:horizontal before)))
-        (pause! view session events 2)
+        (dap-util/await! (pause! view session events 2))
         (dap-util/await-ui! view #(and (= "2" (some-> (item-at view ["self" "field-99"]) .getValue :value))
-                                       (item-at view ["self" "new sibling"])
-                                       (= (:name before) (:name (viewport view)))))
+                                       (item-at view ["self" "new sibling"])))
         (ui/run-now
           (let [after (viewport view)]
             (is (= (:name before) (:name after)))
             (is (= (:selection before) (:selection after)))
             (is (= (:horizontal before) (:horizontal after)))
             (is (< (Math/abs (- (double (:offset before)) (double (:offset after)))) 0.5))))
-        (pause! view session events 3)
+        (dap-util/await! (pause! view session events 3))
         (let [[request out] (dap-util/await! pending)]
           (dap-util/await-ui! view #(= 3 (some-> (item-at view ["self"]) .getValue :variablesReference)))
           (ui/run-now
@@ -279,9 +278,13 @@
             (.layout view)
             (.select (.getSelectionModel view) (item-at view ["self"]))
             (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" KeyCode/END false false false false))
+            (.setValue ^ScrollBar (coll/first-where #(= Orientation/HORIZONTAL (.getOrientation ^ScrollBar %))
+                                                    (.lookupAll view ".scroll-bar")) 40.0)
             (is (= "other" (:name (first (ui/selection view))))))
           (dap-util/respond! out request {:variables (values 3)})
           (dap-util/await-ui! view #(= "3" (some-> (item-at view ["self" "field-99"]) .getValue :value)))
           (ui/run-now
             (.layout view)
-            (is (= "other" (:name (first (ui/selection view)))))))))))
+            (is (= "other" (:name (first (ui/selection view)))))
+            (is (= 40.0 (:horizontal (viewport view))))
+            (is (not= (:name before) (:name (viewport view))))))))))

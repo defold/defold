@@ -34,9 +34,9 @@ listener uses a dynamically selected port.
 
 ### Source discovery and retrieval
 
-Implement `source`, `loadedSources`, and `loadedSource` events using an engine
-source catalog. Track code loaded before attachment, reloads, and dynamic Lua
-chunks. Packaged bytecode may require retaining original source text in debug
+Implement the `source` and `loadedSources` requests and the `loadedSource` event
+using an engine source catalog. Track code loaded before attachment, reloads,
+and dynamic Lua chunks. Packaged bytecode may require retaining original source text in debug
 builds. Keep source references stable during a session and distinguish unavailable
 source from a file that the client can read locally.
 

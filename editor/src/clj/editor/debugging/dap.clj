@@ -87,25 +87,28 @@
       (write-message! out {:seq id :type "request" :command command :arguments arguments})
       (-> state (assoc :next-seq id) (assoc-in [:pending id] response)))))
 
-(defn- enqueue-request! [{:keys [inbox]} command arguments]
+(defn- enqueue-request! [{:keys [^LinkedBlockingQueue protocol-queue]} command arguments]
   (let [response (future/make)]
-    (.add ^LinkedBlockingQueue inbox (request-operation command arguments response))
+    (.add protocol-queue (request-operation command arguments response))
     response))
 
 (defn- send-request! [session command arguments]
-  (if-let [^LinkedBlockingQueue work (get-in @(:data session) [:transport :work])]
+  (if-let [^LinkedBlockingQueue coordinator-queue (get-in @(:data session) [:transport :coordinator-queue])]
     (let [response (future/make)
           operation (request-operation command arguments response)]
-      (.add work
-            (fn [{:keys [inbox] :as state}]
-              (.add ^LinkedBlockingQueue inbox operation)
+      (.add coordinator-queue
+            (fn [{:keys [^LinkedBlockingQueue protocol-queue] :as state}]
+              (.add protocol-queue operation)
               state))
       response)
     (future/failed (IOException. "Debugger disconnected"))))
 
+;; External callers enqueue through the coordinator and wait on their own thread.
 (defn- request! [session command arguments]
   (await-response! session command (send-request! session command arguments)))
 
+;; The coordinator sends directly to the protocol task: queuing behind its own
+;; current operation and waiting for the response would deadlock.
 (defn- protocol-request! [{:keys [session] :as state} command arguments]
   (await-response! session command (enqueue-request! state command arguments)))
 
@@ -153,7 +156,7 @@
 
     (throw (IOException. "Invalid debugger message"))))
 
-(defn- read-messages! [^LinkedBlockingQueue inbox ^InputStream in]
+(defn- read-messages! [^LinkedBlockingQueue protocol-queue ^InputStream in]
   (let [failure
         (try
           (loop []
@@ -185,12 +188,12 @@
                     (let [message (json/read-str (String. bytes StandardCharsets/UTF_8) :key-fn keyword)]
                       (when-not (and (map? message) (string? (:type message)))
                         (throw (IOException. "Invalid debugger message")))
-                      (.add inbox #(handle-message! % message)))))
+                      (.add protocol-queue #(handle-message! % message)))))
                 (recur))))
           (catch SocketException _ nil)
           (catch Throwable exception exception))]
     (when-not (.isInterrupted (Thread/currentThread))
-      (.add inbox
+      (.add protocol-queue
             (fn [{:keys [session stop-requested]}]
               (when failure (throw failure))
               (if (= :connecting (status session))
@@ -198,6 +201,8 @@
                 (future/complete! stop-requested nil))
               nil)))))
 
+;; Each task owns its loop state; queued operations return the next state.
+;; Shared debugger state lives in the session atom.
 (defn- run-operations! [^LinkedBlockingQueue queue state]
   (loop [state state]
     (when-let [state ((.take queue) state)]
@@ -215,11 +220,11 @@
   [session breakpoints]
   (let [data (swap! (:data session)
                     #(if-not (:transport %) % (assoc-in % [:debugger :desired-breakpoints] breakpoints)))]
-    (when-let [^LinkedBlockingQueue work (get-in data [:transport :work])]
-      (.add work sync-breakpoints!)))
+    (when-let [^LinkedBlockingQueue coordinator-queue (get-in data [:transport :coordinator-queue])]
+      (.add coordinator-queue sync-breakpoints!)))
   session)
 
-(defn- initialize! [{:keys [session inbox initialized local-root stop-on-entry] :as state}]
+(defn- initialize! [{:keys [session ^LinkedBlockingQueue protocol-queue initialized local-root stop-on-entry] :as state}]
   (let [capabilities
         (protocol-request! state "initialize"
                            {:clientID "defold"
@@ -230,8 +235,10 @@
                             :columnsStartAt1 true
                             :supportsVariableType true
                             :supportsInvalidatedEvent true})
-        attach (enqueue-request! state "attach"
-                                 {:localRoot local-root :stopOnEntry (boolean stop-on-entry)})]
+        ;; Attach may need configurationDone before replying. Keep its response
+        ;; future while configuring breakpoints, then await it below.
+        attach-response (enqueue-request! state "attach"
+                                          {:localRoot local-root :stopOnEntry (boolean stop-on-entry)})]
     (await-response! session "initialized" initialized)
     (let [state
           (loop [state (assoc state :breakpoints {})]
@@ -240,8 +247,8 @@
               (recur (sync-breakpoints! state))))]
       (when (:supportsConfigurationDoneRequest capabilities)
         (protocol-request! state "configurationDone" {}))
-      (await-response! session "attach" attach)
-      (.add ^LinkedBlockingQueue inbox
+      (await-response! session "attach" attach-response)
+      (.add protocol-queue
             (fn [{:keys [session] :as state}]
               (swap! (:data session) update :debugger
                      #(cond-> % (= :connecting (:status %)) (assoc :status :running)))
@@ -250,14 +257,14 @@
       state)))
 
 (defn- connect-socket!
-  ^Socket [address resolve-port]
+  ^Socket [^String address resolve-port]
   (let [deadline (+ (System/nanoTime) (* 1000000 (long request-timeout-ms)))]
     (loop []
       (let [port (resolve-port)
             socket (Socket.)
             error (try
                     (when port
-                      (.connect socket (InetSocketAddress. ^String address (int port)) 1000)
+                      (.connect socket (InetSocketAddress. address (int port)) 1000)
                       (.setTcpNoDelay socket true))
                     nil
                     (catch IOException exception exception)
@@ -272,21 +279,28 @@
             (Thread/sleep 100)
             (recur)))))))
 
-(defn- run-connection! [{:keys [inbox work] :as state} address resolve-port]
+(defn- run-connection! [{:keys [protocol-queue coordinator-queue] :as state} address resolve-port]
   (task/with-open [socket (connect-socket! address resolve-port)]
     (let [in (BufferedInputStream. (.getInputStream socket))
           out (.getOutputStream socket)]
       (task/scope :all-successful
-        (task/fork (read-messages! inbox in))
-        (task/fork (run-operations! inbox (assoc state :out out :next-seq 0 :pending {})))
-        (task/fork (run-operations! work (initialize! state))))))
+        ;; Reader: read and parse socket messages, then queue protocol operations.
+        (task/fork (read-messages! protocol-queue in))
+
+        ;; Protocol: own socket writes, sequence numbers and pending responses.
+        ;; Handle messages without waiting for responses.
+        (task/fork (run-operations! protocol-queue (assoc state :out out :next-seq 0 :pending {})))
+
+        ;; Coordinator: initialize, then process caller operations in order.
+        ;; Own synchronized breakpoints; may wait for protocol responses.
+        (task/fork (run-operations! coordinator-queue (initialize! state))))))
   nil)
 
-(defn- run-session! [{:keys [session stop-requested] :as state} address resolve-port]
+(defn- run-session! [{:keys [session ^CompletableFuture stop-requested] :as state} address resolve-port]
   (let [exception
         (try
           (task/scope :first-completed
-            (task/fork (.get ^CompletableFuture stop-requested))
+            (task/fork (.get stop-requested))
             (task/fork (run-connection! state address resolve-port)))
           (catch Throwable exception exception))]
     (swap! (:data session) #(-> %
@@ -301,8 +315,8 @@
 
 (defn connect!
   [address resolve-port {:keys [local-root breakpoints target] :as options}]
-  (let [transport {:inbox (LinkedBlockingQueue.)
-                   :work (LinkedBlockingQueue.)
+  (let [transport {:protocol-queue (LinkedBlockingQueue.)
+                   :coordinator-queue (LinkedBlockingQueue.)
                    :stop-requested (future/make)
                    :initialized (future/make)}
         session (->Session (atom {:debugger {:status :connecting
@@ -415,8 +429,17 @@
 (defn evaluation-result->string
   [session snapshot result]
   (let [output
-        (evaluation-value->string-impl session snapshot (volatile! #{}) 0
-                                       (assoc result :value (:result result)))]
+        (if (:defoldResultCount result)
+          (if-let [children (variables session snapshot (:variablesReference result))]
+            (coll/join-to-string
+              "\n"
+              (eduction
+                (map (fn [child]
+                       (evaluation-value->string-impl session snapshot (volatile! #{}) 0 child)))
+                children))
+            (:result result))
+          (evaluation-value->string-impl session snapshot (volatile! #{}) 0
+                                         (assoc result :value (:result result))))]
     (if (= snapshot (suspension @session))
       output
       (:result result))))

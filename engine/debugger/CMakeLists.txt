@@ -28,8 +28,6 @@ defold_add_library(debugger STATIC src/dap.cpp src/debugger.cpp src/debugger_val
 target_include_directories(debugger PUBLIC "${CMAKE_CURRENT_LIST_DIR}/src")
 target_include_directories(debugger PRIVATE "${DEFOLD_HOME}/engine/script/src" "${DEFOLD_HOME}/engine")
 target_compile_definitions(debugger PRIVATE DLIB_LOG_DOMAIN="DEBUGGER")
-# gui_script.h includes installed script headers; refresh them before compiling.
-add_dependencies(debugger script_sdk_headers)
 defold_target_link_libraries(debugger "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
 defold_target_link_lua(debugger "${TARGET_PLATFORM}" SCOPE PUBLIC)
 defold_target_link_socket(debugger "${TARGET_PLATFORM}" PUBLIC)

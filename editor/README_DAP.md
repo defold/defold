@@ -47,11 +47,22 @@ request still loads all its direct children without pagination.
 
 Inspection runs off the JavaFX thread, and responses from a previous stop or
 frame selection are discarded. Engine console output still uses the existing
-log stream; DAP output events supply debugger messages and logpoints. Transport
-reading, transport writing, protocol handling, and ordered callbacks run in
-separate loops. Callbacks may make blocking DAP requests. Apart from connection
-setup, client operations are blocking; UI callers dispatch them to background
-threads.
+log stream; DAP output events supply debugger messages and logpoints.
+
+The DAP connection runs three concurrent tasks. The reader parses socket messages
+and queues them through `:protocol-queue`. The protocol task consumes that queue,
+owns socket writes and pending responses, and handles incoming responses and
+events. The coordinator initializes the connection, then consumes caller
+operations from `:coordinator-queue` and tracks synchronized breakpoints. It can
+wait for protocol responses while the reader and protocol task keep running.
+External requests pass through the coordinator, but their callers wait for the
+responses on their own threads. Shared debugger status, suspension generation,
+and desired breakpoints live in the session atom.
+
+Callbacks run on JavaFX and must dispatch blocking DAP requests to background
+threads. `connect!` and `set-breakpoints!` return without waiting for protocol
+responses; control, inspection, evaluation, and disconnect operations are
+blocking, so UI callers dispatch them to background threads.
 
 Detach closes the DAP session and leaves the engine running. Stop first detaches
 so a paused engine can process its exit request, then uses the editor's existing

@@ -167,35 +167,53 @@
           (.destroyForcibly process)
           (ui/run-now (.close stage)))))))
 
-;; A stack reply arriving after continue cannot restore the previous stop in the editor.
-(deftest stale-stack-response-test
-  (test-support/with-clean-system
-    (let [workspace (workspace/make-workspace "test/resources/empty_project" {} {} nil)
-          project (g/make-node! project/Project :workspace workspace)
-          changes (LinkedBlockingQueue.)
-          pending (promise)
-          view (g/make-node! debug-view/DebugView :state-changed-fn (fn [_] (.add changes true)))]
-      (dap-util/with-server
-        (fn [{:keys [command] :as request} _ out _]
-          (case command
-            "threads" (dap-util/respond! out request {:threads [{:id 7 :name "Lua"}]})
-            "pause" (do (dap-util/respond! out request {}) (dap-util/event! out "stopped" {:threadId 7}))
-            "stackTrace" (if (realized? pending)
-                           (dap-util/respond! out request {:stackFrames [{:id 99 :name "fresh" :line 9}]})
-                           (deliver pending [request out]))
-            "continue" (do (dap-util/event! out "continued" {:threadId 7}) (dap-util/respond! out request {}))))
-        (debug-view/start-debugger! view project {:address "127.0.0.1" :debugger-port port} false)
-        (let [session (debug-view/current-session view)]
-          (try
-            (await-state! changes #(= :running (dap/status session)))
-            (dap/control! session "pause")
-            (let [[request out] (dap-util/await! pending)]
-              (dap/control! session "continue")
-              (dap-util/respond! out request {:stackFrames [{:id 42 :name "stale" :line 5}]})
-              (dap/control! session "pause")
-              (await-state! changes #(g/with-auto-evaluation-context ec (debug-view/suspended? view ec)))
-              (is (= [99] (mapv :id (:stack (g/node-value view :suspension-state))))))
-            (finally (dap/close! session))))))))
+;; A newer start or detach supersedes a pending replacement before it connects,
+;; guarding against an old close callback starting an unwanted debugger session.
+(deftest superseded-debugger-start-test
+  (doseq [action [:start :detach]]
+    (testing (str "Superseded by " action)
+      (test-support/with-clean-system
+        (let [workspace (workspace/make-workspace "test/resources/empty_project" {} {} nil)
+              project (g/make-node! project/Project :workspace workspace)
+              changes (LinkedBlockingQueue.)
+              view (g/make-node! debug-view/DebugView :state-changed-fn (fn [_] (.add changes true)))]
+          (dap-util/with-server
+            (fn [request _ out _] (dap-util/respond! out request {}))
+            (debug-view/start-debugger! view project {:address "127.0.0.1" :debugger-port port} false)
+            (let [old-session (debug-view/current-session view)]
+              (try
+                (await-state! changes #(= :running (dap/status old-session)))
+                (is (= 1 (count (filterv #(= "initialize" (:command %)) @requests))))
+                (dap-util/with-server
+                  (fn [request _ out _] (dap-util/respond! out request {}))
+                  (let [target {:address "127.0.0.1" :debugger-port port}
+                        replacements
+                        ;; Both actions run in one FX invocation, so the earlier
+                        ;; replacement cannot run its queued connection callback yet.
+                        (ui/run-now
+                          (let [first-start (debug-view/start-debugger! view project target false)]
+                            [first-start
+                             (case action
+                               :start (debug-view/start-debugger! view project target true)
+                               :detach (debug-view/detach! view))]))]
+                    (try
+                      (run! dap-util/await! replacements)
+                      (is (= :closed (dap/status old-session)))
+                      (case action
+                        :start
+                        (let [session (debug-view/current-session view)]
+                          (await-state! changes #(= :running (dap/status session)))
+                          (is (true? (get-in (first (filterv #(= "attach" (:command %)) @requests))
+                                             [:arguments :stopOnEntry])))
+                          (is (= 1 (count (filterv #(= "initialize" (:command %)) @requests)))))
+                        :detach
+                        (do
+                          (is (nil? (debug-view/current-session view)))
+                          (is (= [] @requests))))
+                      (finally
+                        (when-let [session (debug-view/current-session view)]
+                          (dap/close! session))))))
+                (finally (dap/close! old-session))))))))))
 
 ;; Prompt evaluation uses the selected frame during selection notifications,
 ;; and the public console stream contains the evaluated table's formatted result.

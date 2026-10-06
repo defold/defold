@@ -119,8 +119,9 @@
                  "--config=display.focus_on_show=0" "http://editor:8000/game.projectc"]]]]
         (let [target (cond-> {:url (str "http://127.0.0.1:" (.getPort (.getAddress server)))
                               :instance-index instance-index}
-                       (not remote) (assoc :process ::process))]
-          (is (= :ok (engine/reboot! target "http://editor:8000" debug focus)))
+                       (not remote) (assoc :process ::process))
+              result (engine/reboot! target "http://editor:8000" debug focus)]
+          (is (= :ok result))
           (let [[method bytes] (.take requests)
                 message (protobuf/bytes->map-without-defaults System$Reboot bytes)
                 arguments (into [] (keep message) [:arg1 :arg2 :arg3 :arg4 :arg5 :arg6 :arg7 :arg8])]

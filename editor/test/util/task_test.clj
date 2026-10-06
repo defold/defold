@@ -56,9 +56,9 @@
     (is (= :result
            (task/with-open [first-resource (resource closed :first nil)
                             second-resource (do
-                                              (is (instance? java.lang.AutoCloseable first-resource))
+                                              (is (instance? AutoCloseable first-resource))
                                               (resource closed :second nil))]
-             (is (instance? java.lang.AutoCloseable second-resource))
+             (is (instance? AutoCloseable second-resource))
              :result)))
     (is (= [:second :first] @closed)))
   (is (nil? (task/with-open [])))
@@ -131,17 +131,19 @@
 (deftest body-result-test
   (let [started (CountDownLatch. 1)
         release (CountDownLatch. 1)
+        finished (atom false)
         outcome (future
-                  (task/scope :all-successful
-                    (task/fork
-                      (.countDown started)
-                      (.await release))
-                    :body))]
+                  (let [result (task/scope :all-successful
+                                 (task/fork
+                                   (.countDown started)
+                                   (.await release)
+                                   (reset! finished true))
+                                 :body)]
+                    [result @finished]))]
     (try
       (.await started)
-      (is (not (realized? outcome)))
       (finally (.countDown release)))
-    (is (= :body @outcome))))
+    (is (= [:body true] @outcome))))
 
 ;; Forks inherit scope-entry bindings, while a nested scope captures the
 ;; bindings active at its own entry rather than the enclosing scope's snapshot.
@@ -187,6 +189,7 @@
           cancelled (CountDownLatch. 1)
           release (Semaphore. 0)
           child (promise)
+          finished (atom false)
           outcome (future
                     (try
                       (task/scope policy
@@ -200,16 +203,18 @@
                             (.await (CountDownLatch. 1))
                             (finally
                               (.countDown cancelled)
-                              (.acquireUninterruptibly release)))))
-                      (catch Throwable exception exception)))]
+                              (.acquireUninterruptibly release)
+                              (reset! finished true)))))
+                      (catch Throwable exception [exception @finished])))]
       (try
         (.await cancelled)
-        (is (not (realized? outcome)))
         (finally
           (.release release)
           (.interrupt ^Thread @child)
-          @outcome))
-      (is (identical? exception @outcome)))))
+          (.join ^Thread @child)))
+      (let [[error cleanup-finished] @outcome]
+        (is (identical? exception error))
+        (is cleanup-finished)))))
 
 ;; First completion accepts nil and false results and interrupts remaining work,
 ;; guarding against treating a completed falsey result as an unfinished scope.
@@ -220,11 +225,11 @@
       (is (= value
              (task/scope :first-completed
                (task/fork
-                 (.await started)
-                 value)
-               (task/fork
                  (.countDown started)
-                 (await-cancellation! finished)))))
+                 (await-cancellation! finished))
+               (task/fork
+                 (.await started)
+                 value))))
       (is (and (realized? finished) @finished)))))
 
 ;; An owner failure before join interrupts children and keeps the
@@ -254,6 +259,7 @@
           cancelled (CountDownLatch. 2)
           release (Semaphore. 0)
           children (atom [])
+          finished (atom 0)
           outcome (promise)
           owner (.start (Thread/ofVirtual)
                         ^Runnable
@@ -268,22 +274,24 @@
                                     (.await (CountDownLatch. 1))
                                     (finally
                                       (.countDown cancelled)
-                                      (.acquireUninterruptibly release))))))
-                            (deliver outcome :completed)
+                                      (.acquireUninterruptibly release)
+                                      (swap! finished inc))))))
+                            (deliver outcome [nil @finished])
                             (catch Throwable exception
-                              (deliver outcome exception)))))]
+                              (deliver outcome [exception @finished])))))]
       (try
         (.await started)
         (.interrupt owner)
         (.await cancelled)
-        (is (not (realized? outcome)))
         (finally
           (.release release 2)
           (run! Thread/.interrupt @children)
-          (.interrupt owner)
-          (.join owner)))
+          (.join owner)
+          (run! #(.join ^Thread %) @children)))
       (is (not (.isAlive owner)))
-      (is (instance? InterruptedException @outcome)))))
+      (let [[error cleanup-count] @outcome]
+        (is (instance? InterruptedException error))
+        (is (= 2 cleanup-count))))))
 
 ;; Leaving a nested scope preserves the outer scope used by subsequent forks.
 (deftest nested-scope-test
