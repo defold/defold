@@ -8,7 +8,14 @@ out vec4 out_fragColor;
 void main()
 {
     PBRMaterial inputs = pbr_sample_material(var_texcoord0, var_color);
-    PBRSurface surface = pbr_sample_surface(inputs);
+
+    // Edit sampled material properties here, before sidedness, alpha testing
+    // and BRDF derivation. A custom material sampler can replace the call above.
+    PBRSurface surface = pbr_sample_surface(inputs, var_texcoord0);
+
+    // Edit view-space surface fields here (normals are already facing the correct
+    // side), then call pbr_finalize_surface(surface, var_view) to refresh world*.
+    // Procedural geometry/normals can use pbr_create_surface() instead of sampling.
 
     // Sample all material textures, including the normal map, before discarding.
     // Implicit texture derivatives need neighboring fragments at cutout edges.
@@ -17,7 +24,7 @@ void main()
         discard;
     }
 
-    // Modify inputs here before deriving dependent BRDF properties.
+    // Derive BRDF properties after material edits. Rebuild if the inputs change.
     MaterialInfo material = pbr_create_material_info(inputs);
     PBRLighting lighting = pbr_create_lighting();
 

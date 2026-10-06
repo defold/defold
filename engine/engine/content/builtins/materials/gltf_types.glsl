@@ -19,7 +19,8 @@ struct PBRMaterial
     bool unlit;
 };
 
-// Unit directions. Position/normal/view are view-space; world* are world-space.
+// View-space position and unit directions are authoritative; world* are derived.
+// After editing view-space fields, call pbr_finalize_surface() to synchronize them.
 struct PBRSurface
 {
     vec3 position;

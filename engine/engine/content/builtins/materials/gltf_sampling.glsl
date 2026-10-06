@@ -56,6 +56,8 @@ PBRMaterial pbr_sample_material(vec2 uv, vec4 vertex_color)
 
     // Missing textures leave the material factors unchanged. Unlit materials
     // use only base color and alpha, so lighting-only textures are not sampled.
+    // To turn an unlit input into a lit material, also supply the skipped values
+    // procedurally or use a custom sampler; changing unlit alone cannot recover them.
     material.occlusion = 1.0;
     material.emissive = vec3(0.0);
 
@@ -101,59 +103,30 @@ PBRMaterial pbr_sample_material(vec2 uv, vec4 vertex_color)
     return material;
 }
 
-PBRSurface pbr_sample_surface(PBRMaterial material)
+// Default adapter from glTF varyings/textures to the explicit surface helpers.
+// normal_uv can differ from the UVs passed to pbr_sample_material(). For custom
+// geometry or procedural normals, call pbr_create_surface() directly instead.
+PBRSurface pbr_sample_surface(PBRMaterial material, vec2 normal_uv)
 {
-    PBRSurface surface;
-    surface.position = var_position.xyz;
-    // The camera is at the origin in view space, so the view direction points
-    // from the surface back toward that origin.
-    surface.view = pbr_normalize(-surface.position, vec3(0.0, 0.0, 1.0));
+    vec3 geometric_normal = pbr_normalize(var_normal, vec3(0.0, 0.0, 1.0));
+    vec3 shading_normal = geometric_normal;
 
-    vec3 view_normal = pbr_normalize(var_normal, vec3(0.0, 0.0, 1.0));
-    float facing_sign = material.doubleSided && !gl_FrontFacing ? -1.0 : 1.0;
-    // Keep the unperturbed mesh normal available separately from the normal map.
-    surface.geometricNormal = view_normal * facing_sign;
-
-    // Tangent-space normal maps require a valid mesh tangent frame. Otherwise
-    // keep the mesh normal; unlit materials do not need normal-map sampling.
+    // Without a tangent frame, retain the mesh normal. Unlit materials do not
+    // need the normal texture; all remaining sampling happens before discard.
     bool has_normal_texture = pbrCommonTextures.x > 0.5;
     bool has_tangent_frame = var_has_tangent > 0.5;
     if (!material.unlit && has_normal_texture && has_tangent_frame)
     {
-        // Interpolation can make the tangent and normal non-orthogonal. Remove
-        // the tangent's normal component before rebuilding the tangent frame.
-        vec3 view_tangent = var_tangent - view_normal * dot(view_normal, var_tangent);
-        view_tangent = pbr_normalize(view_tangent, vec3(0.0));
-
-        // Recover the frame's handedness from the interpolated bitangent. This
-        // preserves mirrored UVs and reflections introduced by model transforms.
-        vec3 view_bitangent = cross(view_normal, view_tangent);
-        float handedness = dot(view_bitangent, var_bitangent) < 0.0 ? -1.0 : 1.0;
-        view_bitangent *= handedness;
-
-        // Normal textures store tangent-space directions in [0, 1]. Decode to
-        // [-1, 1], then apply glTF's normal scale to X/Y only, leaving Z unchanged.
-        vec3 tangent_space_normal = texture(PbrMaterial_normalTexture, var_texcoord0).xyz * 2.0 - 1.0;
-        tangent_space_normal.xy *= pbrNormalScaleAndOcclusionStrength.x;
-
-        // The frame's columns convert the sampled direction into view space.
-        // Normalize after scaling, retaining the mesh normal if the result degenerates.
-        mat3 tangent_to_view = mat3(view_tangent, view_bitangent, view_normal);
-        view_normal = pbr_normalize(tangent_to_view * tangent_space_normal, view_normal);
+        mat3 tangent_frame = pbr_create_tangent_frame(geometric_normal, var_tangent, var_bitangent);
+        vec3 normal_texel = texture(PbrMaterial_normalTexture, normal_uv).xyz;
+        vec3 tangent_space_normal = pbr_decode_normal(normal_texel, pbrNormalScaleAndOcclusionStrength.x);
+        shading_normal = pbr_transform_normal(tangent_frame, tangent_space_normal);
     }
 
-    // Double-sided back faces need the final, normal-mapped direction flipped too.
-    surface.normal = view_normal * facing_sign;
-
-    // Defold camera views are rigid transforms: the inverse rotation is its
-    // transpose. Positions also need the view translation removed first.
-    mat3 inverse_view_rotation = transpose(mat3(var_view));
-    surface.worldPosition = inverse_view_rotation * (surface.position - var_view[3].xyz);
-    surface.worldNormal = inverse_view_rotation * surface.normal;
-    surface.worldGeometricNormal = inverse_view_rotation * surface.geometricNormal;
-    surface.worldView = inverse_view_rotation * surface.view;
-
-    return surface;
+    // The perspective camera is at the origin in view space. Custom callers
+    // can supply a different view direction through pbr_create_surface().
+    return pbr_create_surface(var_position.xyz, geometric_normal, shading_normal, -var_position.xyz,
+                              material.doubleSided, gl_FrontFacing, var_view);
 }
 
 #endif

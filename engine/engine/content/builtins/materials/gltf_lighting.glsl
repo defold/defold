@@ -30,8 +30,13 @@ void pbr_add_light_contribution(inout PBRLightContribution total, PBRLightContri
 PBRLightContribution pbr_evaluate_light(MaterialInfo material, PBRSurface surface, PBRLightSample light)
 {
     PBRLightContribution result;
-    pbr_evaluate_brdf(material, surface.normal, surface.view, light.direction, light.radiance,
+    pbr_evaluate_brdf(material, surface.normal, surface.view, light.direction,
                       result.diffuse, result.specular);
+    // Convert the material's BRDF to outgoing light exactly once. Radiance
+    // already contains light color, intensity and distance/spot attenuation.
+    vec3 incident_light = light.radiance * pbr_clamped_dot(surface.normal, light.direction);
+    result.diffuse = incident_light * result.diffuse;
+    result.specular = incident_light * result.specular;
     return result;
 }
 

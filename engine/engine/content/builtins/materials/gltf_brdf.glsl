@@ -7,9 +7,8 @@
 /*
  * Microfacet BRDF helpers for metallic-roughness PBR.
  *
- * The public entry point is pbr_evaluate_brdf(), which separates diffuse and
- * specular light so downstream lighting extensions can add to either contribution
- * before final composition.
+ * The public entry point is pbr_evaluate_brdf(), which returns separate diffuse
+ * and specular BRDF values. The lighting layer applies radiance and N dot L.
  */
 
 // Approximates the fraction of light reflected by a microfacet at the viewing
@@ -59,13 +58,13 @@ vec3 pbr_evaluate_brdf_specular_ggx(MaterialInfo material, float v_dot_h, float 
     return material.specularWeight * fresnel * visibility * distribution;
 }
 
-// All directions are unit vectors in view space. Radiance already includes
-// the light's color, intensity and distance/spot attenuation.
+// All directions are unit vectors in the same coordinate space. Outputs are
+// BRDF values, without incoming radiance or the projected-area factor N dot L.
 void pbr_evaluate_brdf(MaterialInfo material, vec3 normal, vec3 view_direction, vec3 light_direction,
-                       vec3 radiance, out vec3 diffuse_light, out vec3 specular_light)
+                       out vec3 diffuse_brdf, out vec3 specular_brdf)
 {
-    diffuse_light = vec3(0.0);
-    specular_light = vec3(0.0);
+    diffuse_brdf = vec3(0.0);
+    specular_brdf = vec3(0.0);
 
     // A microfacet reflects this light toward the viewer when its normal is
     // aligned with the halfway direction between the light and view vectors.
@@ -81,10 +80,8 @@ void pbr_evaluate_brdf(MaterialInfo material, vec3 normal, vec3 view_direction, 
         return;
     }
 
-    vec3 diffuse = pbr_evaluate_brdf_lambertian(material, v_dot_h);
-    vec3 specular = pbr_evaluate_brdf_specular_ggx(material, v_dot_h, n_dot_l, n_dot_v, n_dot_h);
-    diffuse_light = radiance * n_dot_l * diffuse;
-    specular_light = radiance * n_dot_l * specular;
+    diffuse_brdf = pbr_evaluate_brdf_lambertian(material, v_dot_h);
+    specular_brdf = pbr_evaluate_brdf_specular_ggx(material, v_dot_h, n_dot_l, n_dot_v, n_dot_h);
 }
 
 #endif
