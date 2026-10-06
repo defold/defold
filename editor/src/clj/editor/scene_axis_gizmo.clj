@@ -403,8 +403,6 @@
 
 (defn- frame-to-axis! [camera-node-id current-camera axis]
   (let [axis-forward (doto (Vector3d. ^Vector3d (axis->normal axis)) (.negate))
-        ;; Tolerates numerical drift, so one click is enough to flip to the
-        ;; opposite axis when already facing this one.
         target-axis (if (>= (.dot ^Vector3d (c/camera-forward-vector current-camera) axis-forward)
                             0.999)
                       ({:+x :-x :-x :+x :+y :-y :-y :+y :+z :-z :-z :+z} axis)
@@ -463,19 +461,25 @@
   (g/let-ec [alpha (double (g/node-value self :backdrop-alpha evaluation-context))
              hot-handle (g/node-value self :hot-handle evaluation-context)
              camera-node-id (g/node-value self :camera-node-id evaluation-context)]
-    (when (and (g/user-data self ::dragging)
-               (not= :tumble (:movement (g/user-data camera-node-id ::c/camera-state))))
-      (g/user-data! self ::dragging false))
-    (let [target (if (or hot-handle (g/user-data self ::press) (g/user-data self ::dragging)) 1.0 0.0)
-          step (/ (double dt) 0.15)
-          next-alpha (if (< alpha target)
-                       (min target (+ alpha step))
-                       (max target (- alpha step)))]
-      (when (not= next-alpha alpha)
-        (g/transact
-          {:undoable false}
-          (g/set-property self :backdrop-alpha next-alpha)))
-      input-state)))
+    (let [drag-ended (and (g/user-data self ::dragging)
+                          (not= :tumble (:movement (g/user-data camera-node-id ::c/camera-state))))]
+      (when drag-ended
+        (g/user-data! self ::dragging false)
+        (g/transact {:undoable false} (g/set-property self :hot-handle nil)))
+      (let [target (if (or (and hot-handle (not drag-ended))
+                           (g/user-data self ::press)
+                           (g/user-data self ::dragging))
+                     1.0
+                     0.0)
+            step (/ (double dt) 0.15)
+            next-alpha (if (< alpha target)
+                         (min target (+ alpha step))
+                         (max target (- alpha step)))]
+        (when (not= next-alpha alpha)
+          (g/transact
+            {:undoable false}
+            (g/set-property self :backdrop-alpha next-alpha)))
+        input-state))))
 
 (g/defnode AxisGizmoController
   (property hot-handle g/Keyword)

@@ -863,12 +863,25 @@
                    (.interpolate (Quat4d. ^Quat4d (:rotation from)) (Quat4d. ^Quat4d (:rotation to)) t))
         fp (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
         focus (Point3d. (.x fp) (.y fp) (.z fp))
-        ;; The offset from the focus point in the camera's own frame, so a
-        ;; camera dollied past its focus point keeps its starting position.
         local-offset (fn [^Camera camera]
                        (math/rotate (doto (Quat4d. ^Quat4d (:rotation camera)) (.conjugate))
                                     (doto (Vector3d. (types/position camera)) (.sub (camera-focus-point camera)))))
-        offset (doto (Vector3d.) (.interpolate ^Tuple3d (local-offset from) ^Tuple3d (local-offset to) t))
+        ^Vector3d from-offset (local-offset from)
+        ^Vector3d to-offset (local-offset to)
+        unit (fn [^Vector3d v]
+               (if (pos? (.length v))
+                 (doto (Vector3d. v) (.normalize))
+                 (Vector3d. 0.0 0.0 1.0)))
+        ^Vector3d from-direction (unit from-offset)
+        ^Vector3d to-direction (unit to-offset)
+        cross (doto (Vector3d.) (.cross from-direction to-direction))
+        angle (Math/atan2 (.length cross) (.dot from-direction to-direction))
+        turn-axis (if (> (.length cross) 1e-9)
+                    cross
+                    (Vector3d. 0.0 1.0 0.0))
+        turn (doto (Quat4d.) (.set (AxisAngle4d. turn-axis (* angle t))))
+        offset (doto (math/rotate turn from-direction)
+                 (.scale (lerp (.length from-offset) (.length to-offset) t)))
         position (doto (Point3d. focus) (.add (math/rotate rotation offset)))
         distance (.distance position focus)]
     (Camera. (:type to) position rotation
