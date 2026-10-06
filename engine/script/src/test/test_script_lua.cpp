@@ -503,6 +503,8 @@ static int CheckArgumentWithStackBuffers(lua_State* L)
     return 0;
 }
 
+// Verifies that a LuaJIT argument error clears Android ASAN stack poisoning
+// after unwinding past temporary stack buffers.
 TEST_F(ScriptTestLua, TestArgumentErrorClearsAsanStack)
 {
     LuaErrorStackRange range = {};
