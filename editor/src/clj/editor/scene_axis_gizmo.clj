@@ -444,7 +444,8 @@
                            (when-not animating
                              (c/cancel-dolly! camera-node-id)
                              (c/start-tumble! camera-node-id x y)
-                             (g/user-data! self ::press nil))))
+                             (g/user-data! self ::press nil)
+                             (g/user-data! self ::dragging true))))
                        nil)
                      (g/let-ec [hot-handle (g/node-value self :hot-handle evaluation-context)]
                        (when (not= handle hot-handle)
@@ -473,8 +474,12 @@
   "Fades the backdrop in while the gizmo is hovered or dragged, and out after."
   [self input-state dt]
   (g/let-ec [alpha (double (g/node-value self :backdrop-alpha evaluation-context))
-             hot-handle (g/node-value self :hot-handle evaluation-context)]
-    (let [target (if (or hot-handle (g/user-data self ::press)) 1.0 0.0)
+             hot-handle (g/node-value self :hot-handle evaluation-context)
+             camera-node-id (g/node-value self :camera-node-id evaluation-context)]
+    (when (and (g/user-data self ::dragging)
+               (not= :tumble (:movement (g/user-data camera-node-id ::c/camera-state))))
+      (g/user-data! self ::dragging false))
+    (let [target (if (or hot-handle (g/user-data self ::press) (g/user-data self ::dragging)) 1.0 0.0)
           step (/ (double dt) ^double backdrop-fade-seconds)
           next-alpha (if (< alpha target)
                        (min target (+ alpha step))
