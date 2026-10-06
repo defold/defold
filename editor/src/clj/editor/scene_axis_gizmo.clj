@@ -453,6 +453,7 @@
 (defn- tumble-camera! [self ^double dx ^double dy]
   (let [camera-node-id (g/node-value self :camera-node-id)
         camera (g/node-value camera-node-id :local-camera)]
+    (c/cancel-dolly! camera-node-id)
     (g/transact
       {:undoable false}
       (g/set-property camera-node-id :local-camera (c/tumble camera dx dy)))))

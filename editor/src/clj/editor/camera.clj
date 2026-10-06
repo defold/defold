@@ -116,7 +116,9 @@
   (let [start-camera (g/node-value camera-node :local-camera)
         end-camera (frame-camera-to-axis start-camera axis)]
     (when (not= (:type end-camera) :orthographic)
-      (g/set-property! camera-node :cached-3d-camera end-camera))
+      (g/transact
+        {:undoable false}
+        (g/set-property camera-node :cached-3d-camera end-camera)))
     (set-camera! camera-node start-camera end-camera animate nil {:interpolate-fn interpolate-orbit :duration align-duration})))
 
 (defn camera-focus-point
@@ -525,6 +527,10 @@
                       new-target)]
      (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera new-target))))
 
+(defn cancel-dolly! [camera-node]
+  (when (:dolly-target-camera (g/user-data camera-node ::camera-state))
+    (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil)))
+
 (defn- reset-dolly! [camera-node]
   (when-let [target-camera (:dolly-target-camera (g/user-data camera-node ::camera-state))]
     (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil)
@@ -885,8 +891,7 @@
          {:undoable false}
          (g/set-property camera-node :animating true))
        ;; NOTE: If the user was dollying during an animation, cancel the dolly
-       (when (:dolly-target-camera (g/user-data camera-node ::camera-state))
-         (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil))
+       (cancel-dolly! camera-node)
        (ui/anim! duration
                  (fn [^double t]
                    (let [t (- (* t t 3) (* t t t 2))

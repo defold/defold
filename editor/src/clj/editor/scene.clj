@@ -914,6 +914,7 @@
   (input rulers-id g/NodeID :cascade-delete)
   (input selection-id g/NodeID :cascade-delete)
   (input tool-controller-id g/NodeID :cascade-delete)
+  (input axis-gizmo-id g/NodeID :cascade-delete)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
@@ -2255,6 +2256,7 @@
       ;; before the selection controller so it gets clicks first.
       (when-not (:manual-refresh? opts)
         (g/make-nodes [axis-gizmo scene-axis-gizmo/AxisGizmoController]
+          (g/connect axis-gizmo  :_node-id                      view-id         :axis-gizmo-id)
           (g/connect axis-gizmo  :update-tick-handler           view-id         :update-tick-handlers)
           (g/connect axis-gizmo  :input-handler                 view-id         :input-handlers)
           (g/connect axis-gizmo  :renderables                   view-id         :tool-renderables)
