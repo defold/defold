@@ -422,36 +422,25 @@
   (let [hits (get selection-data self)
         handle (or (first (remove #{:backdrop} hits)) (first hits))
         press (g/user-data self ::press)
-        {:keys [x y screen-x screen-y]} action]
+        {:keys [x y]} action]
     (case (:type action)
       :mouse-pressed (if (and (= :primary (:button action))
                               handle)
                        (do
-                         (g/user-data! self ::press {:handle handle :x x :y y :last-x x :last-y y :dragging false})
+                         (g/user-data! self ::press {:handle handle :x x :y y})
                          nil)
                        action)
       :mouse-moved (if press
-                     (let [{:keys [^double last-x ^double last-y]} press
-                           dragging (or (:dragging press)
-                                        (> (Math/hypot (- (double x) (double (:x press)))
-                                                       (- (double y) (double (:y press))))
-                                           drag-threshold))]
-                       (if dragging
+                     (do
+                       (when (> (Math/hypot (- (double x) (double (:x press)))
+                                            (- (double y) (double (:y press))))
+                                drag-threshold)
                          (g/let-ec [camera-node-id (g/node-value self :camera-node-id evaluation-context)
-                                    image-view (g/node-value camera-node-id :image-view evaluation-context)
-                                    animating (g/node-value camera-node-id :animating evaluation-context)
-                                    local-camera (g/node-value camera-node-id :local-camera evaluation-context)]
-                           (let [[x y] (c/warp-mouse-around-edges image-view screen-x screen-y x y last-x last-y)
-                                 dx (- last-x (double (:x action)))
-                                 dy (- last-y (double (:y action)))]
-                             (when (and (< (max (abs dx) (abs dy)) 150.0)
-                                        (not animating))
-                               (c/cancel-dolly! camera-node-id)
-                               (g/transact
-                                 {:undoable false}
-                                 (g/set-property camera-node-id :local-camera (c/tumble local-camera dx dy))))
-                             (g/user-data! self ::press (assoc press :dragging true :last-x x :last-y y))))
-                         (g/user-data! self ::press (assoc press :dragging false)))
+                                    animating (g/node-value camera-node-id :animating evaluation-context)]
+                           (when-not animating
+                             (c/cancel-dolly! camera-node-id)
+                             (c/start-tumble! camera-node-id x y)
+                             (g/user-data! self ::press nil))))
                        nil)
                      (g/let-ec [hot-handle (g/node-value self :hot-handle evaluation-context)]
                        (when (not= handle hot-handle)
@@ -460,8 +449,7 @@
       :mouse-released (if press
                         (do
                           (g/user-data! self ::press nil)
-                          (when-not (or (:dragging press)
-                                        (= :backdrop (:handle press)))
+                          (when-not (= :backdrop (:handle press))
                             (g/let-ec [camera-node-id (g/node-value self :camera-node-id evaluation-context)
                                        animating (g/node-value camera-node-id :animating evaluation-context)
                                        local-camera (g/node-value camera-node-id :local-camera evaluation-context)]

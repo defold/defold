@@ -520,6 +520,17 @@
   (when (:dolly-target-camera (g/user-data camera-node ::camera-state))
     (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil)))
 
+(defn start-tumble! [camera-node x y]
+  (g/user-data-swap! camera-node ::camera-state assoc
+    :last-x x
+    :last-y y
+    :initial-x x
+    :initial-y y
+    :movement :tumble)
+  (g/transact
+    {:undoable false}
+    (g/set-property camera-node :cursor-type :pan)))
+
 (defn- reset-dolly! [camera-node]
   (when-let [target-camera (:dolly-target-camera (g/user-data camera-node ::camera-state))]
     (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil)
