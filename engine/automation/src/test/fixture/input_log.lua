@@ -12,7 +12,7 @@ end
 
 function M.record(self, action_id, action)
     local input = {
-        action = action_id and (actions[action_id] or "other") or "move",
+        action = action_id and (actions[action_id] or "other") or (action.source == hash("accelerometer") and "accelerometer" or "move"),
         source = sources[action.source] or "unknown",
         pressed = action.pressed,
         released = action.released,

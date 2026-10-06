@@ -11,12 +11,17 @@ function init(self)
     end)
     automation_bridge.command("gui_input_events", function() return self.inputs end)
     automation_bridge.command("capture_fixture", function()
-        assert(not self.capture_nodes)
+        if self.capture_nodes then
+            for _, name in ipairs({"capture_fill", "capture_mask", "capture_red", "capture_green", "capture_blue"}) do
+                gui.delete_node(self.capture_nodes[name])
+            end
+        end
         self.capture_nodes = {}
         self.capture_picks = {}
         local function box(name, x, y, w, h, r, g, b)
             local node = gui.new_box_node(vmath.vector3(x, y, 0), vmath.vector3(w, h, 0))
             gui.set_id(node, name)
+            gui.set_adjust_mode(node, gui.ADJUST_STRETCH)
             gui.set_color(node, vmath.vector4(r / 255, g / 255, b / 255, 1))
             self.capture_nodes[name] = node
             return node

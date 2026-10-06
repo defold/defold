@@ -21,6 +21,20 @@ ARGS = None
 class EngineTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.process = None
+        cls.log = None
+        cls.runtime = None
+        service_url = getattr(ARGS, 'service_url', None)
+        if service_url:
+            cls.url = service_url.rstrip('/')
+            if not cls.url.endswith('/automation-bridge/v3'):
+                cls.url += '/automation-bridge/v3'
+            health = cls.until(lambda: cls.request('/health')[1].get('data'), 15)
+            cls.runtime = health['engine_instance_id']
+            states = cls.request('/state?name=fixture.ready')[1]['data']['states']
+            if not any(state['value'] is True for state in states):
+                raise AssertionError('supplied service must run the automation acceptance fixture')
+            return
         with socket.socket() as reservation:
             reservation.bind(('127.0.0.1', 0))
             port = reservation.getsockname()[1]
@@ -51,6 +65,8 @@ class EngineTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        if cls.process is None:
+            return
         cls.process.terminate()
         try:
             cls.process.wait(timeout=5)
@@ -69,7 +85,7 @@ class EngineTest(unittest.TestCase):
                     return value
             except (OSError, urllib.error.URLError):
                 pass
-            if cls.process.poll() is not None:
+            if cls.process is not None and cls.process.poll() is not None:
                 raise AssertionError('engine exited; see runtime.log')
             if time.monotonic() >= deadline:
                 raise AssertionError('completion was not observed before deadline')
@@ -95,6 +111,8 @@ class EngineTest(unittest.TestCase):
         command_id = response['data']['command_id']
         def completed():
             current = self.request('/commands?id=' + str(command_id))[1]['data']
+            if current['state'] in ('failed', 'cancelled'):
+                self.fail(str(current))
             return current if current['state'] == 'completed' else None
         return self.until(completed)['result']
 
@@ -179,6 +197,7 @@ class RuntimeTest(EngineTest):
         health = response['data']
         self.assertEqual('3', health['version'])
         self.assertTrue(health['backend']['headless'])
+        self.assertEqual('null', health['backend']['adapter'])
         self.assertNotIn('native_version', health)
         for name in ('scene', 'observations', 'input.key', 'application.state'):
             self.assertIn(name, health['capabilities'])
@@ -342,7 +361,10 @@ class RuntimeTest(EngineTest):
             value = self.request(path)[1]['data']
             return value if value['state'] == 'complete' else None
         observation = self.until(complete)
-        self.assertIsNone(observation['render_frame'])
+        if self.request('/health')[1]['data']['backend']['headless']:
+            self.assertIsNone(observation['render_frame'])
+        else:
+            self.assertEqual(observation['simulation_frame'], observation['render_frame'])
         self.assertTrue(observation['published_state']['states'])
         for _ in range(17): self.request('/elements?limit=0')
         status, response = self.request('/elements?cursor=' + urllib.parse.quote(cursor))
@@ -455,7 +477,7 @@ class RuntimeTest(EngineTest):
     def test_drag_holds(self):
         owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False}
         self.command('reset_input')
-        status, response = self.request('/input/drag', 'POST', dict(owner, x1=20, y1=20, x2=40, y2=40,
+        status, response = self.request('/input/drag', 'POST', dict(owner, x1=20, y1=20, x2=40, y2=40, device='mouse',
                                                                  duration=0.1, hold_before=0.1, hold_after=0.1))
         self.assertEqual(202, status)
         self.delivered_input(response['data']['input_id'])

@@ -14,17 +14,25 @@
 
 #pragma once
 
-
-#include <dmsdk/sdk.h>
+// Keep native graphics headers out of common code: X11's Font typedef conflicts with text layout.
+#include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/configfile_gen.hpp>
+#include <dmsdk/dlib/dstrings.h>
+#include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/mutex.h>
+#include <dmsdk/dlib/time.h>
+#include <dmsdk/dlib/webserver.h>
+#include <dmsdk/engine/extension.h>
+#include <dmsdk/extension/extension.hpp>
+#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/lua/lauxlib.h>
 #include <dmsdk/render/render.h>
+#include <dmsdk/script.h>
 
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <dmsdk/dlib/mutex.h>
-#include <dmsdk/dlib/array.h>
-#include <dmsdk/dlib/webserver.h>
 
 namespace dmAutomation
 {

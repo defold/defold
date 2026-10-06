@@ -16,6 +16,8 @@
 
 #if defined(DM_PLATFORM_MACOS)
 
+#include <dmsdk/graphics/graphics_native.h>
+
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import <Metal/Metal.h>

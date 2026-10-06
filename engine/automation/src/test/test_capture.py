@@ -71,6 +71,9 @@ class CaptureTest(test_runtime.EngineTest):
         self.assertIsNotNone(likeness.Image, 'Pillow is required; use the Defold build Python environment')
         health = self.request('/health')[1]['data']
         self.assertIn('screenshot', health['capabilities'])
+        self.assertEqual(test_runtime.ARGS.adapter, health['backend']['adapter'])
+        self.addCleanup(self.request, '/input/flush', 'POST',
+                        {'client_id': 'runtime-test', 'session_id': 'fixture', 'release': True})
         self.command('capture_fixture')
         output = Path(test_runtime.ARGS.fixture) / ('capture-' + test_runtime.ARGS.adapter)
         output.mkdir(exist_ok=True)
@@ -109,7 +112,7 @@ class CaptureTest(test_runtime.EngineTest):
                          round(center['y'] * actual.height / screen['window']['height']))
                 self.assertEqual(color, actual.getpixel(pixel))
                 if index == 0:
-                    status, receipt = self.request('/input/click', 'POST', dict(center, client_id='capture-test',
+                    status, receipt = self.request('/input/click', 'POST', dict(center, client_id='runtime-test',
                         session_id='fixture', visualize=False, device='mouse'))
                     self.assertEqual(202, status, receipt)
                     self.delivered_input(receipt['data']['input_id'])

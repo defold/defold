@@ -119,6 +119,10 @@ if(AUTOMATION_BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM AND
     endif()
   endfunction()
 
+  # Borrowed device services must pass fixture checks and never be terminated by cleanup.
+  automation_add_test(automation_test_harness dmengine_headless "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_harness.py")
+
   # Real HTTP against an extension-free project verifies ordering and lifecycle contracts.
   automation_add_test(automation_runtime dmengine_headless "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_runtime.py"
@@ -136,7 +140,7 @@ if(AUTOMATION_BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM AND
     "$<TARGET_FILE:dmengine_automation_legacy>" "${AUTOMATION_TEST_FIXTURE}")
 
   set(native_input_default OFF)
-  if(TARGET_PLATFORM MATCHES "macos$")
+  if(TARGET_PLATFORM MATCHES "macos$" OR (TARGET_PLATFORM MATCHES "linux$" AND DEFINED ENV{DISPLAY}))
     set(native_input_default ON)
   endif()
   option(AUTOMATION_TEST_NATIVE_INPUT "Run automation input tests with a native window (requires a display)" ${native_input_default})
@@ -157,6 +161,10 @@ if(AUTOMATION_BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM AND
         list(APPEND capture_adapters ${adapter})
       endif()
     endforeach()
+    if(DEFINED ENV{GITHUB_ACTIONS} AND TARGET_PLATFORM MATCHES "linux$" AND "vulkan" IN_LIST capture_adapters)
+      # Hosted Linux uses Mesa software Vulkan under Xvfb, matching the graphics suite.
+      set(capture_adapters vulkan)
+    endif()
     set(AUTOMATION_TEST_CAPTURE_ADAPTERS "${capture_adapters}" CACHE STRING "Graphics adapters required by automation capture tests")
     foreach(adapter IN LISTS AUTOMATION_TEST_CAPTURE_ADAPTERS)
       # Known pixels, scene bounds, GUI picking and repeated stencil rendering must agree after readback.

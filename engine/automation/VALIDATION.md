@@ -117,20 +117,72 @@ handler with `/events`.
   These are compilation checks; no physical mobile device was exercised.
 - Diff whitespace checks pass. The platform acceptance gates below remain open.
 
+## Dev merge follow-up (2026-10-06)
+
+Merged `dev` at `bbb6666175`. The follow-up adds debugger pause servicing,
+automation OpenAPI metadata, source-aware GO/GUI input regressions, graphics
+likeness acceptance, and a reusable supplied-service runner. The companion
+Python catalog refresh includes schema-helper expansion and 109 preferences.
+
+Verified on Apple Silicon macOS 27.0.1:
+
+- All nine automation CTest checks pass. The stock and unrelated-extension
+  headless fixtures each run 25 cases; native input runs seven. Two harness
+  regressions verify that borrowed services are checked and never terminated.
+- Metal, OpenGL and Vulkan (MoltenVK) each match independently specified pixels
+  at 100% across three successive screenshots, including stencil clipping,
+  Retina scaling, scene bounds, coordinate conversion and actual GUI picking.
+- The debugger engine suite reports 139 tests, 21 documented fixture skips,
+  and no failures; the release exclusion check passes. Debugger stops retain
+  responsive health, expire input leases and reject Lua/frame-dependent work
+  until resumption.
+- All 211 companion Python unit/tooling tests pass. The catalog generator runs
+  successfully against the merged editor schema, including 2D/3D grid axes.
+
+Verified on native `arm64-linux` in an Ubuntu 24.04 container, using Xvfb and
+Mesa llvmpipe software Vulkan (Clang 18, Java 25):
+
+- All seven automation CTest checks pass: harness ownership, stock headless
+  runtime, release exclusion, unrelated-extension coexistence, legacy rejection,
+  native input, and Vulkan capture. Both headless fixtures run 25 cases and
+  native input runs seven; all three Vulkan captures match at 100%.
+- The build caught and fixed a Linux-only collision between X11's `Font` typedef
+  and Defold's text-layout header. Common automation code now includes the SDK
+  headers it uses; native graphics headers stay in the platform implementation.
+- The source checkout was mounted read-only; SDK/JNI dependencies and engines
+  were built in a separate temporary root. Runtime checks used no network access
+  beyond container-local services. This validates software graphics, not a
+  physical Linux GPU or desktop recording permissions.
+
+Verified on an iPhone 17 Pro simulator running iOS 26.4, using a locally built
+`arm64_sim-ios` debug engine and Metal:
+
+- All 23 supplied-service acceptance checks pass: 21 protocol/input/lifecycle
+  cases, capture/artifact/coordinate acceptance, and reboot invalidation.
+- All three simulator captures match at 100%. The native release binary passes
+  the automation/inspection exclusion check. The simulator bundle helper stages
+  the chosen local engine after Bob's engine-cache cleanup.
+- This is simulator evidence. No physical iOS or Android behavior is claimed.
+
+The runner saves `acceptance.json` and capture PNGs/likeness metadata locally.
+Health records the active adapter, and the launcher explicitly supplies device
+kind and OS/device name. Failed or skipped required checks fail acceptance.
+
 ## Outstanding acceptance gates
 
 - Windows compilation and runtime, including Windows Graphics Capture and its
   optional API loading; no Windows SDK/toolchain was available here.
-- Linux debug/headless/release runtime and graphics checks; no Linux execution
-  environment was available here.
 - Physical Android and iOS execution, including forwarded service URLs, touch,
-  storage, lifecycle, and OpenGL ES/Vulkan/Metal capture. No connected device was
-  available; cross-compilation does not establish device behavior.
+  storage, lifecycle, and OpenGL ES/Vulkan/Metal capture. The paired iPhone had
+  no matching provisioning profile, so iOS acceptance used the simulator as
+  requested. No Android device was available; cross-compilation does not establish
+  physical-device behavior.
 - An actual Extender service build of debug, headless, and release variants,
   including a project with an unrelated extension. Local CMake coexistence and
   manifest parsing do not validate the Extender build service.
-- OpenGL/OpenGL ES/Vulkan runtime capture and coordinate checks. The graphical
-  tests in this run used Metal; headless tests used the null adapter.
+- Physical OpenGL ES capture and coordinate checks remain open. Metal, OpenGL
+  and Vulkan captures on macOS, software Vulkan on Linux, and Metal captures in
+  the iOS simulator now pass.
 - OS-level recording permission denial, minimum-supported-OS execution, and
   shutdown/error behavior on the other supported platforms.
 

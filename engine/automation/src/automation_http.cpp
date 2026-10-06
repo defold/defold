@@ -440,6 +440,21 @@ namespace dmAutomation
         return g_AutomationBridge.m_Register != 0;
     }
 
+    static const char* GraphicsAdapterName()
+    {
+        switch (dmGraphics::GetInstalledAdapterFamily())
+        {
+            case dmGraphics::ADAPTER_FAMILY_NULL: return "null";
+            case dmGraphics::ADAPTER_FAMILY_OPENGL: return "opengl";
+            case dmGraphics::ADAPTER_FAMILY_OPENGLES: return "opengles";
+            case dmGraphics::ADAPTER_FAMILY_VULKAN: return "vulkan";
+            case dmGraphics::ADAPTER_FAMILY_METAL: return "metal";
+            case dmGraphics::ADAPTER_FAMILY_WEBGPU: return "webgpu";
+            case dmGraphics::ADAPTER_FAMILY_DIRECTX: return "directx";
+            default: return "unknown";
+        }
+    }
+
     static bool HasScreenCapability()
     {
         return g_AutomationBridge.m_GraphicsContext && dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_NULL;
@@ -640,7 +655,9 @@ namespace dmAutomation
 #else
         AppendJsonString(&response, "unknown");
 #endif
-        StringBufferAppend(&response, ",\"backend\":{\"headless\":");
+        StringBufferAppend(&response, ",\"backend\":{\"adapter\":");
+        AppendJsonString(&response, GraphicsAdapterName());
+        StringBufferAppend(&response, ",\"headless\":");
         StringBufferAppend(&response, dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_NULL ? "true" : "false");
         StringBufferAppend(&response, ",\"graphics\":");
         StringBufferAppend(&response, HasScreenCapability() ? "true" : "false");

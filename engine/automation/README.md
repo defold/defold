@@ -81,6 +81,8 @@ query selectors, the runtime identity header, and artifact range downloads.
 Metadata is generated from the same route and mutation-field tables used by
 validation. It remains valid across runtime reboots and describes optional
 backend features; consult `/health` capabilities before using those features.
+Health also reports the installed graphics adapter as `backend.adapter`; use it
+to verify the actual backend when collecting platform acceptance evidence.
 
 Success responses have `{"ok":true,"data":...}`; errors have
 `{"ok":false,"error":{"code":...,"message":...,"status":...}}` with the
@@ -181,7 +183,8 @@ ctest --test-dir engine/build/arm64-macos -R '^automation_' --output-on-failure
 ```
 
 Native input checks use a graphical engine and require a display. They default
-to enabled on macOS; use `-DAUTOMATION_TEST_NATIVE_INPUT=ON` on other desktop
+to enabled on macOS and Linux with `DISPLAY` set (including Xvfb); use
+`-DAUTOMATION_TEST_NATIVE_INPUT=ON` on other desktop
 hosts with a display, or `OFF` for a headless build host. These checks verify
 mouse holds and touch lifecycle through the game's input callbacks. The
 headless runtime suite always runs on supported host desktop builds.
@@ -204,6 +207,68 @@ delivery, immutable pagination, and a legacy-extension rejection binary. Release
 inspection allows the null API symbols but rejects automation implementation,
 projection-table implementation, route strings, and optional capture imports.
 The separate Python repository supplies graphical/application/capture integration
-tests and the pip package. Device, Windows/Linux runtime, graphics-backend, and
-actual Extender service checks remain required platform acceptance gates; a
-successful cross-compilation alone does not satisfy them.
+tests and the pip package. Device, desktop runtime, graphics-backend, and actual Extender service checks
+are required platform acceptance gates; a successful cross-compilation alone
+does not satisfy them. See `VALIDATION.md` for completed checks and remaining
+environment requirements.
+
+### Simulator and supplied device services
+
+Build the iOS simulator engine with CMake, then use full Bob to package the
+extension-free fixture with that exact binary. From the repository root:
+
+```sh
+cmake --build engine/build/arm64_sim-ios --target dmengine dmengine_release
+python3 engine/automation/src/test/build_test_content.py \
+  --java "$JAVA_HOME/bin/java" --bob "$DYNAMO_HOME/share/java/bob.jar" \
+  --builtins "$PWD/engine/engine/content" --platform arm64_sim-ios \
+  --bundle-engine "$PWD/engine/engine/build/arm64_sim-ios/dmengine" \
+  --output /tmp/automation-simulator
+```
+
+The output includes `bundles/Defold Automation Acceptance.app`, with bundle ID
+`com.defold.automation.acceptance`. Boot a concrete simulator, install this app
+with `xcrun simctl install`, and launch it with
+`SIMCTL_CHILD_DM_SERVICE_PORT=8001 xcrun simctl launch <simulator-id>
+com.defold.automation.acceptance`. Pick an unused service port and use the same
+port below. For Android or physical iOS, install the fixture with the matching
+branch's debug engine and supply its forwarded or directly reachable service URL.
+
+```sh
+python3 engine/automation/src/test/run_device_acceptance.py \
+  --service-url http://127.0.0.1:8001 --platform ios --adapter metal \
+  --device-kind simulator --device-name 'iPhone 17 Pro, iOS 26.4' \
+  --output /tmp/automation-simulator-results
+```
+
+The runner checks the fixture marker, platform and actual graphics adapter
+before mutations. It exercises transport validation, immutable observations,
+application state/events, script and GUI input sources, touch lifecycle, owner
+cleanup, screenshot/artifact storage and deletion, GUI picking, and reboot.
+It uses one test controller identity across suites. It never terminates the
+supplied process; the launcher owns installation and shutdown. The fixture is
+disposable: the suite intentionally changes its state and reboots it.
+
+`acceptance.json` records the health response, test results, and the launcher's
+explicit device/simulator provenance. Captures, expected pixels, differences,
+and likeness results stay in `capture-<adapter>/`. A requested capability,
+platform/adapter mismatch, failed check, or skipped test makes acceptance fail.
+No results are uploaded. This suite does not validate OS recording permissions
+or physical-device behavior when run in a simulator.
+
+### Extender builds
+
+Use an Extender service with an SDK built from this branch. For each of `debug`,
+`headless`, and `release`, copy the fixture to a separate build root, add an
+unrelated extension with `ext.manifest` containing `name: AutomationFixtureExtension`,
+and copy `src/test/extension.cpp` into that extension's `src/` directory. Run full
+Bob with `--build-server <service-url> --defoldsdk <matching-sdk-sha>
+--variant <variant> --platform <platform> build`. Keep the service response/logs
+and exact SDK SHA with the acceptance evidence.
+
+Run `test_runtime.py --extension --engine <headless-binary> --fixture <root>`
+against its headless output, `test_capture.py --engine <debug-binary>
+--fixture <root> --adapter <adapter>` against debug, and
+`test_release.py <release-binary>` for exclusion. The CMake unrelated-extension
+fixture verifies local linking only; it cannot substitute for these service
+builds. No Extender service is contacted by the local acceptance runner.

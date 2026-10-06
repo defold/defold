@@ -14,7 +14,7 @@
 
 // Debug-only runtime inspection and input API for automation-driven Defold testing.
 
-#include <dmsdk/sdk.h>
+#include "automation_private.h"
 
 #if defined(DM_PLATFORM_WINDOWS)
 #include <windows.h>
@@ -25,7 +25,6 @@
 #define MODULE_NAME EngineAutomation
 #define LIB_NAME "Automation"
 
-#include "automation_private.h"
 #include "automation_artifact.h"
 #include "automation.h"
 #include <hid.h>
