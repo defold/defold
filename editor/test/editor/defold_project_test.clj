@@ -18,10 +18,12 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.placeholder-resource :as placeholder-resource]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [service.log :as log]
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
             [util.eduction :as e]))
@@ -331,3 +333,73 @@
           (is (= source-value (g/node-value node-id :source-value)))
           (is (= disk-sha256 (g/node-value node-id :disk-sha256)))
           (is (false? (g/node-value node-id :dirty))))))))
+
+(deftest loading-initializes-disk-state-before-setters
+  ;; Verifies that a batch's disk state is initialized before any load setters,
+  ;; including source-value conversion, without materializing other nodes.
+  (with-clean-system
+    (test-util/with-ui-run-later-rebound
+      (let [workspace (workspace/make-workspace (.getAbsolutePath (io/file "test/resources/load_project")) {} {} test-util/localization)]
+        (g/transact
+          [(placeholder-resource/register-resource-types workspace)
+           (workspace/register-resource-type workspace
+             :ext "type_a"
+             :node-type BNode
+             :read-fn (fn [_read-opts _resource readable] (slurp readable))
+             :write-fn identity
+             :source-value-fn hash
+             :load-fn (fn [{:keys [project]} {:keys [node-id source-value]}]
+                        [(g/set-property node-id :value source-value)
+                         (g/callback-ec
+                           (fn [evaluation-context]
+                             (doseq [proj-path ["/a1.type_a" "/a2.type_a"]]
+                               (let [node-id (project/get-resource-node project proj-path evaluation-context)
+                                     resource (resource-node/resource (g/ec-basis evaluation-context) node-id)]
+                                 (is (= (hash (slurp resource)) (g/node-value node-id :source-value evaluation-context)))
+                                 (is (= (resource/resource->sha256-hex resource) (g/node-value node-id :disk-sha256 evaluation-context)))))))]))])
+        (workspace/resource-sync! workspace)
+        (let [project (test-util/setup-project! workspace)
+              node-id+resource-pairs (mapv (fn [proj-path]
+                                            [(project/get-resource-node project proj-path)
+                                             (workspace/find-resource workspace proj-path)])
+                                          ["/a1.type_a" "/a2.type_a"])
+              node-load-infos (project/read-nodes node-id+resource-pairs :force-read true)]
+          (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {:undoable false})
+          (doseq [[node-id _resource] node-id+resource-pairs]
+            (is (false? (g/node-value node-id :dirty))))
+          (is (not (resource-node/loaded? (project/get-resource-node project "/b.type_b")))))))))
+
+(deftest loading-preserves-read-errors-in-disk-state
+  ;; Verifies that eager loading and materialization retain the read error as
+  ;; source-value instead of dropping it because no save-value was read.
+  (doseq [materialize [false true]]
+    (testing (str "materialize: " materialize)
+      (with-clean-system
+        (test-util/with-ui-run-later-rebound
+          (let [workspace (workspace/make-workspace (.getAbsolutePath (io/file "test/resources/load_project")) {} {} test-util/localization)]
+            (g/transact
+              [(placeholder-resource/register-resource-types workspace)
+               (workspace/register-resource-type workspace
+                 :ext "type_a"
+                 :node-type BNode
+                 :read-fn (fn [_read-opts _resource _readable]
+                            (throw (ex-info "Cannot read resource" {})))
+                 :write-fn pr-str
+                 :load-fn (fn [_load-opts _node-load-info]
+                            (is false "A resource with a read error must not be loaded.")))])
+            (workspace/resource-sync! workspace)
+            (let [project (test-util/setup-project! workspace)
+                  node-id (project/get-resource-node project "/a1.type_a")
+                  resource (resource-node/resource node-id)]
+              (log/without-logging
+                (if materialize
+                  (g/with-auto-evaluation-context evaluation-context
+                    (g/materialize-node! node-id evaluation-context)
+                    (is (g/error-value? (g/node-value node-id :source-value evaluation-context)))
+                    (is (nil? (g/node-value node-id :source-value))))
+                  (let [node-load-infos (project/read-nodes [[node-id resource]] :force-read true)]
+                    (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {:undoable false}))))
+              (is (resource-node/loaded? node-id))
+              (is (g/error-value? (g/node-value node-id :source-value)))
+              (is (g/error-value? (g/node-value node-id :save-data)))
+              (is (nil? (g/node-value node-id :disk-sha256))))))))))

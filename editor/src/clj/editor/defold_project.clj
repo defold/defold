@@ -317,7 +317,7 @@
 (defn- sort-node-ids-for-loading [node-ids node-id->dependency-node-ids]
   (first (sort-node-ids-for-loading-impl node-ids #{} [] #{} (set node-ids) node-id->dependency-node-ids)))
 
-(defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} load-opts _transpiler-tx-data-fn]
+(defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} load-opts]
   ;; At this point, the node-id refers to a created node in the graph.
   (e/concat
     (g/materialize-shell node-id)
@@ -394,7 +394,7 @@
       (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context))))
 
 (defn load-nodes-tx-data
-  [load-opts transpiler-tx-data-fn node-load-infos render-generate-tx-data-progress! render-apply-tx-data-progress! resource-metrics]
+  [load-opts node-load-infos render-generate-tx-data-progress! render-apply-tx-data-progress! resource-metrics]
   {:pre [(ifn? render-generate-tx-data-progress!)
          (ifn? render-apply-tx-data-progress!)]}
   (let [node-count (count node-load-infos)
@@ -418,10 +418,10 @@
         node-load-info-tx-data-fn
         (if (identical? progress/null-render-progress! render-generate-tx-data-progress!)
           (fn node-load-info-tx-data-fn [node-load-info _progress]
-            (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn))
+            (node-load-info-tx-data node-load-info load-opts))
           (fn node-load-info-tx-data-fn [node-load-info progress]
             (render-generate-tx-data-progress! (update progress :message localization/set-message-key "progress.processing-resource"))
-            (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn)))]
+            (node-load-info-tx-data node-load-info load-opts)))]
 
     (e/concat
       ;; Property setters can load embedded or previously unloaded resources.
@@ -464,33 +464,21 @@
           (read-node-load-info read-opts node-id resource)))
       node-id+resource-pairs)))
 
-(defn node-load-infos->stored-disk-state [node-load-infos]
-  (let [[disk-sha256s-by-node-id
-         node-id+source-value-pairs]
-        (iutil/into-multiple
-          [{} []]
-          [(keep (fn [{:keys [resource] :as node-load-info}]
-                   (when (and (resource/file-resource? resource)
-                              (resource/stateful? resource))
-                     (let [{:keys [disk-sha256 node-id]} node-load-info]
-                       (pair node-id disk-sha256)))))
-           (keep (fn [{:keys [node-id read-error resource source-value] :as _node-load-info}]
-                   ;; The source-value output will never be evaluated for
-                   ;; non-editable or stateless resources, so there is no need
-                   ;; to store their entries.
-                   (when (and (some? source-value)
-                              (resource/editable? resource)
-                              (resource/stateful? resource))
-                     (pair node-id
-                           (or read-error
-                               (let [resource-type (resource/resource-type resource)]
-                                 ;; Note: Here, source-value is whatever was
-                                 ;; returned by the read-fn, so it's technically
-                                 ;; a save-value.
-                                 (resource-node/save-value->source-value source-value resource-type)))))))]
-          node-load-infos)]
-    {:disk-sha256s-by-node-id disk-sha256s-by-node-id
-     :node-id+source-value-pairs node-id+source-value-pairs}))
+(defn node-load-info->disk-state-tx-data
+  "Initializes a resource node's disk state non-undoably before loading it."
+  [{:keys [disk-sha256 node-id read-error resource source-value]}]
+  (when (resource/stateful? resource)
+    (g/non-undoable
+      (e/concat
+        (when (resource/file-resource? resource)
+          (g/set-property node-id :disk-sha256 disk-sha256))
+        (when (and (resource/editable? resource)
+                   (or read-error (some? source-value)))
+          (g/set-property node-id :source-value
+            (or read-error
+                ;; The read-fn returns a save-value, which may need converting
+                ;; to the resource type's representation of disk state.
+                (resource-node/save-value->source-value source-value (resource/resource-type resource)))))))))
 
 (defn log-cache-info! [cache message]
   ;; Disabled during tests to minimize log spam.
@@ -962,20 +950,15 @@
 (declare workspace)
 
 (defn load-nodes! [project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts]
-  (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]}
-        (node-load-infos->stored-disk-state node-load-infos)
-
-        {:keys [basis] :as tx-result}
+  (let [{:keys [basis] :as tx-result}
         (g/transact transact-opts
           (e/concat
             prelude-tx-data
-            (resource-node/merge-disk-sha256s disk-sha256s-by-node-id)
-            (resource-node/merge-source-values node-id+source-value-pairs)
+            (e/mapcat node-load-info->disk-state-tx-data node-load-infos)
             (g/expand-ec
               (fn [evaluation-context]
                 (load-nodes-tx-data
                   (make-load-opts-in-evaluation-context project evaluation-context)
-                  (get-transpiler-tx-data-fn! evaluation-context)
                   node-load-infos progress/null-render-progress! render-progress! resource-metrics)))
             (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
@@ -1063,7 +1046,6 @@
         resource (resource-node/resource basis node-id)
         workspace (resource/workspace resource)
         project (get-project basis)
-        transpiler-tx-data-fn (get-transpiler-tx-data-fn! evaluation-context)
         read-opts (g/tx-cached-value! evaluation-context [:read-opts]
                     (workspace/make-read-opts basis workspace :include-editor-dependencies true))
         load-opts (g/tx-cached-value! evaluation-context [:load-opts]
@@ -1081,13 +1063,10 @@
                            (doseq [{prerequisite-id :node-id} node-load-infos
                                    :when (not= node-id prerequisite-id)]
                              (g/materialize-node! prerequisite-id evaluation-context))
-                           (get-in @(:tx-data-context evaluation-context) [::node-load-infos node-id])))
-        node-load-infos [node-load-info]
-        {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state node-load-infos)]
+                           (get-in @(:tx-data-context evaluation-context) [::node-load-infos node-id])))]
     (e/concat
-      (resource-node/merge-disk-sha256s disk-sha256s-by-node-id)
-      (resource-node/merge-source-values node-id+source-value-pairs)
-      (load-nodes-tx-data load-opts transpiler-tx-data-fn node-load-infos progress/null-render-progress! progress/null-render-progress! nil))))
+      (node-load-info->disk-state-tx-data node-load-info)
+      (load-nodes-tx-data load-opts [node-load-info] progress/null-render-progress! progress/null-render-progress! nil))))
 
 (defn make-resource-node-tx-data [project node-type node-id resource]
   {:pre [(g/node-id? project)
@@ -1824,7 +1803,7 @@
             tx-data-context-map' (assoc tx-data-context-map :created-resource-nodes created-resource-nodes')]
         [tx-data-context-map' created-resource-node-id creation-tx-data]))))
 
-(defn- ensure-resource-node-loaded [tx-data-context-map basis node-id resource transpiler-tx-data-fn load-opts]
+(defn- ensure-resource-node-loaded [tx-data-context-map basis node-id resource load-opts]
   {:pre [(resource/resource? resource)]}
   (let [loaded-resources (:loaded-resources tx-data-context-map)]
     (if (contains? loaded-resources resource)
@@ -1841,11 +1820,9 @@
             tx-data-context-map' (assoc tx-data-context-map' :load-opts load-opts)
 
             node-load-info (read-node-load-info read-opts node-id resource)
-            {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state [node-load-info])
             load-tx-data (e/concat
-                           (resource-node/merge-disk-sha256s disk-sha256s-by-node-id)
-                           (resource-node/merge-source-values node-id+source-value-pairs)
-                           (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn))
+                           (node-load-info->disk-state-tx-data node-load-info)
+                           (node-load-info-tx-data node-load-info load-opts))
             loaded-resources' (conj (or loaded-resources #{}) resource)
             tx-data-context-map' (assoc tx-data-context-map' :loaded-resources loaded-resources')]
         [tx-data-context-map' load-tx-data]))))
@@ -1879,7 +1856,7 @@
             ;; during resource-sync. Mark it as loaded and defective.
             creation-tx-data
             (let [node-load-info (make-file-not-found-node-load-info node-id resource)]
-              (node-load-info-tx-data node-load-info (make-load-opts-in-evaluation-context project evaluation-context) nil))
+              (node-load-info-tx-data node-load-info (make-load-opts-in-evaluation-context project evaluation-context)))
 
             ;; If we're about to connect a defunloaded resource that does not
             ;; :allow-unloaded-use, ensure it is loaded as part of this
@@ -1888,11 +1865,10 @@
                  (not (resource/loaded? resource))
                  (not (:allow-unloaded-use resource-type))
                  (not (resource-node/loaded? basis existing-resource-node-id)))
-            (let [transpiler-tx-data-fn (get-transpiler-tx-data-fn! evaluation-context)
-                  load-opts (g/tx-cached-value! evaluation-context [:load-opts]
+            (let [load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                               (make-load-opts-in-evaluation-context project evaluation-context))
                   basis (g/ec-basis evaluation-context)
-                  [load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded basis node-id resource transpiler-tx-data-fn load-opts)]
+                  [load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded basis node-id resource load-opts)]
               load-tx-data))]
 
       {:node-id node-id

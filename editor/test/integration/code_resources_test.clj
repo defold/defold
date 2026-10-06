@@ -125,6 +125,33 @@
       (set-code-resource-node-lines! original-lines-by-code-resource-node-id)
       (is (all-dirty?) "Dirty after edit -> save -> paste-original"))))
 
+(deftest lazy-disk-state-loads-shell-test
+  ;; Verifies that initializing lazy disk state materializes an untouched shell
+  ;; before reading its properties, without creating an undo entry.
+  (with-clean-system
+    (test-util/with-ui-run-later-rebound
+      (let [workspace (test-util/setup-workspace! "test/resources/reload_unchanged_project")
+            project (test-util/setup-project! workspace)
+            node-id (project/get-resource-node project "/editable/json.json")
+            resource (resource-node/resource node-id)
+            lines (code.resource/read-fn {} resource resource)
+            disk-sha256 (resource/resource->sha256-hex resource)
+            initial-basis (g/now)]
+        (is (not (resource-node/loaded? node-id)))
+        (g/reset-undo! :undo/global)
+        (g/with-auto-evaluation-context evaluation-context
+          (code.resource/ensure-loaded! node-id evaluation-context))
+        (is (resource-node/loaded? node-id))
+        (is (= lines (g/node-value node-id :unmodified-lines)))
+        (is (= lines (g/node-value node-id :save-value)))
+        (is (= (hash lines) (g/node-value node-id :source-value)))
+        (is (= disk-sha256 (g/node-value node-id :disk-sha256)))
+        (is (false? (g/node-value node-id :dirty)))
+        (is (zero? (g/undo-stack-count :undo/global)))
+        (is (not (resource-node/loaded? initial-basis node-id)))
+        (is (nil? (g/raw-property-value initial-basis node-id :source-value)))
+        (is (nil? (g/raw-property-value initial-basis node-id :disk-sha256)))))))
+
 (deftest lazy-disk-state-transaction-test
   ;; Verifies that lazy disk baselines are transactional, guarding against dry
   ;; runs and failed edits changing the live resource or previously captured

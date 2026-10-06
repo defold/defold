@@ -1796,7 +1796,7 @@
 
         (testing "No graph queries during load."
           (with-redefs [project/node-load-info-tx-data
-                        (fn [node-load-info load-opts transpiler-tx-data-fn]
+                        (fn [node-load-info load-opts]
                           (let [resolve-resource-fn (:resolve-resource-fn load-opts)
                                 load-opts (assoc load-opts
                                             :resolve-resource-fn
@@ -1804,7 +1804,7 @@
                                               (swap! resolved-paths conj path)
                                               (resolve-resource-fn owner-resource path)))]
                             (test-util/with-graph-queries-blocked :allow-unsafe-basis
-                              (coll/into-> (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn) []
+                              (coll/into-> (node-load-info-tx-data node-load-info load-opts) []
                                 coll/flatten-xf))))]
             (test-util/materialize-project! (test-util/setup-project! workspace))))
 

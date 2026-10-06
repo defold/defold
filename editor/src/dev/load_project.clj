@@ -262,14 +262,12 @@
   (let [tx-data
         (run-and-measure-task!
           :generate-load-tx-data
-          (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]}
-                (project/node-load-infos->stored-disk-state node-load-infos)]
+          (let [load-opts (project/make-load-opts project)]
             (cond->
               (e/concat
                 (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-                (resource-node/merge-disk-sha256s disk-sha256s-by-node-id)
-                (resource-node/merge-source-values node-id+source-value-pairs)
-                (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
+                (e/mapcat project/node-load-info->disk-state-tx-data node-load-infos)
+                (project/load-nodes-tx-data load-opts node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
               separate-load-tx-data-generation
               g/eager-tx-data)))
 

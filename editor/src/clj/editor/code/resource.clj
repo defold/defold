@@ -112,6 +112,7 @@
   state non-undoably, or nil if it is already initialized in the supplied
   evaluation context. The caller must apply the returned transaction steps."
   [node-id evaluation-context]
+  (g/materialize-node! node-id evaluation-context)
   (when-not (g/raw-property-value (g/ec-basis evaluation-context) node-id :unmodified-lines)
     (let [resource (g/node-value node-id :resource evaluation-context)
           [lines-or-error-value disk-sha256] (read-lines+disk-sha256 node-id resource)
