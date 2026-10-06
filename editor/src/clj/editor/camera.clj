@@ -1218,7 +1218,7 @@
 (def ^:private camera-speed-boost 3.0)
 (def ^:private camera-speed-precision 0.35)
 
-(defn warp-mouse-around-edges [^ImageView image-view screen-x screen-y view-x view-y last-x last-y]
+(defn- warp-mouse-around-edges [^ImageView image-view screen-x screen-y view-x view-y last-x last-y]
   ;; NOTE: Unfortunately, Wayland doesn't support XWarpPointer, so we can't support this feature on Wayland just yet
   ;; TODO: We shouldn't have to check for image-view here, we shold be doing it before
   (if (and (not (os/is-wayland?)) image-view screen-x last-x)

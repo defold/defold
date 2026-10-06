@@ -244,14 +244,16 @@
     image))
 
 (def ^:private ball-textures
-  (into {}
-        (map (fn [axis] [axis (texture/image-texture [::ball axis] (make-ball-image axis))]))
-        axis-order))
+  (delay
+    (into {}
+          (map (fn [axis] [axis (texture/image-texture [::ball axis] (make-ball-image axis))]))
+          axis-order)))
 
 (def ^:private line-textures
-  (into {}
-        (map (fn [axis] [axis (texture/image-texture [::line axis] (make-line-image axis))]))
-        [:+x :+y :+z]))
+  (delay
+    (into {}
+          (map (fn [axis] [axis (texture/image-texture [::line axis] (make-line-image axis))]))
+          [:+x :+y :+z])))
 
 (def ^:private line-quad-half-width
   "Wider than the picking line, since a quarter of the texture on each side is
@@ -276,7 +278,7 @@
     image))
 
 (def ^:private backdrop-texture
-  (texture/image-texture [::backdrop] (make-backdrop-image)))
+  (delay (texture/image-texture [::backdrop] (make-backdrop-image))))
 
 (def ^:private billboard-shader shaders/basic-texture-tint-local-space)
 
@@ -317,7 +319,7 @@
         balls (for [axis axis-order
                     :let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))]]
                 {:depth (.dot toward center)
-                 :texture (ball-textures axis)
+                 :texture (@ball-textures axis)
                  :matrix (billboard-matrix center right up toward ball-radius ball-radius)
                  :alpha 1.0})
         lines (for [axis [:+x :+y :+z]
@@ -330,12 +332,12 @@
                     :when (pos? length)
                     :let [center (doto (Vector3d. normal) (.scale (* 0.5 length)))]]
                 {:depth (.dot toward center)
-                 :texture (line-textures axis)
+                 :texture (@line-textures axis)
                  :matrix (billboard-matrix center (doto side (.normalize)) normal toward
                                            line-quad-half-width (* 0.5 length))
                  :alpha 1.0})]
     (cond->> (sort-by :depth (concat balls lines))
-      (pos? backdrop-alpha) (cons {:texture backdrop-texture
+      (pos? backdrop-alpha) (cons {:texture @backdrop-texture
                                    :matrix (billboard-matrix (Vector3d.) right up toward backdrop-radius backdrop-radius)
                                    :alpha backdrop-alpha}))))
 
@@ -363,8 +365,7 @@
         pick! (fn [selection-data]
                 (let [vertex-buffer (vertex-buffers selection-data)
                       id-color (scene-picking/renderable-picking-id-uniform (renderable-by-selection-data selection-data))
-                      ;; The identity hash keeps a reload's rebuilt buffers from being masked by the old upload.
-                      vertex-binding (vtx/use-with [::pick selection-data (System/identityHashCode vertex-buffer)] vertex-buffer pick-shader)]
+                      vertex-binding (vtx/use-with [::pick selection-data] vertex-buffer pick-shader)]
                   (gl/with-gl-bindings gl render-args [pick-shader vertex-binding]
                     (shader/set-uniform pick-shader gl "color" id-color)
                     (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vertex-buffer)))))]
