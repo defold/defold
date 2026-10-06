@@ -92,7 +92,6 @@
       (doto (Matrix4d. picking-matrix) (.mul base))
       base)))
 
-
 ;; Blender-style axis handles: a line from the center to a ball on each positive
 ;; axis, and a darker ball without a line on each negative axis.
 
@@ -411,25 +410,16 @@
   "Pixels the cursor must move after pressing on the gizmo before it's a drag."
   4.0)
 
-(defn- frame-to-axis! [self axis]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [camera-node-id (g/node-value self :camera-node-id evaluation-context)
-          current-camera (g/node-value camera-node-id :local-camera evaluation-context)
-          ;; If the camera is already aligned with the clicked axis, flip to
-          ;; the opposite axis so re-clicking toggles between +/- views.
-          axis-forward (doto (Vector3d. ^Vector3d (axis->normal axis)) (.negate))
-          target-axis (if (>= (.dot ^Vector3d (c/camera-forward-vector current-camera) axis-forward)
-                              axis-alignment-epsilon)
-                        ({:+x :-x :-x :+x :+y :-y :-y :+y :+z :-z :-z :+z} axis)
-                        axis)]
-      (c/frame-camera-to-axis! camera-node-id target-axis true))))
-
-(defn- camera-animating? [self]
-  (g/node-value (g/node-value self :camera-node-id) :animating))
+(defn- frame-to-axis! [camera-node-id current-camera axis]
+  (let [axis-forward (doto (Vector3d. ^Vector3d (axis->normal axis)) (.negate))
+        target-axis (if (>= (.dot ^Vector3d (c/camera-forward-vector current-camera) axis-forward)
+                            axis-alignment-epsilon)
+                      ({:+x :-x :-x :+x :+y :-y :-y :+y :+z :-z :-z :+z} axis)
+                      axis)]
+    (c/frame-camera-to-axis! camera-node-id current-camera target-axis true)))
 
 (defn handle-input [self _input-state action selection-data]
   (let [hits (get selection-data self)
-        ;; Handles win over the backdrop behind them.
         handle (or (first (remove #{:backdrop} hits)) (first hits))
         press (g/user-data self ::press)
         {:keys [x y screen-x screen-y]} action]
@@ -447,38 +437,40 @@
                                                        (- (double y) (double (:y press))))
                                            drag-threshold))]
                        (if dragging
-                         (let [camera-node-id (g/node-value self :camera-node-id)
-                               image-view (g/node-value camera-node-id :image-view)
-                               ;; Wraps the cursor at the window edges like the camera's own orbit.
-                               [x y] (c/warp-mouse-around-edges image-view screen-x screen-y x y last-x last-y)
-                               dx (- last-x (double (:x action)))
-                               dy (- last-y (double (:y action)))]
-                           ;; Same direction as the camera's own orbit. Huge jumps are stale
-                           ;; events from before a warp, so skip them.
-                           (when (and (< (max (abs dx) (abs dy)) 150.0)
-                                      (not (camera-animating? self)))
-                             (c/cancel-dolly! camera-node-id)
-                             (g/transact
-                               {:undoable false}
-                               (g/set-property camera-node-id :local-camera (c/tumble (g/node-value camera-node-id :local-camera) dx dy))))
-                           (g/user-data! self ::press (assoc press :dragging true :last-x x :last-y y)))
+                         (g/let-ec [camera-node-id (g/node-value self :camera-node-id evaluation-context)
+                                    image-view (g/node-value camera-node-id :image-view evaluation-context)
+                                    animating (g/node-value camera-node-id :animating evaluation-context)
+                                    local-camera (g/node-value camera-node-id :local-camera evaluation-context)]
+                           (let [[x y] (c/warp-mouse-around-edges image-view screen-x screen-y x y last-x last-y)
+                                 dx (- last-x (double (:x action)))
+                                 dy (- last-y (double (:y action)))]
+                             (when (and (< (max (abs dx) (abs dy)) 150.0)
+                                        (not animating))
+                               (c/cancel-dolly! camera-node-id)
+                               (g/transact
+                                 {:undoable false}
+                                 (g/set-property camera-node-id :local-camera (c/tumble local-camera dx dy))))
+                             (g/user-data! self ::press (assoc press :dragging true :last-x x :last-y y))))
                          (g/user-data! self ::press (assoc press :dragging false)))
                        nil)
-                     (do
-                       (when (not= handle (g/node-value self :hot-handle))
+                     (g/let-ec [hot-handle (g/node-value self :hot-handle evaluation-context)]
+                       (when (not= handle hot-handle)
                          (g/transact {:undoable false} (g/set-property self :hot-handle handle)))
                        action))
       :mouse-released (if press
                         (do
                           (g/user-data! self ::press nil)
                           (when-not (or (:dragging press)
-                                        (= :backdrop (:handle press))
-                                        (camera-animating? self))
-                            (frame-to-axis! self (:handle press)))
+                                        (= :backdrop (:handle press)))
+                            (g/let-ec [camera-node-id (g/node-value self :camera-node-id evaluation-context)
+                                       animating (g/node-value camera-node-id :animating evaluation-context)
+                                       local-camera (g/node-value camera-node-id :local-camera evaluation-context)]
+                              (when-not animating
+                                (frame-to-axis! camera-node-id local-camera (:handle press)))))
                           nil)
                         action)
-      :mouse-exited (do
-                      (when (g/node-value self :hot-handle)
+      :mouse-exited (g/let-ec [hot-handle (g/node-value self :hot-handle evaluation-context)]
+                      (when hot-handle
                         (g/transact {:undoable false} (g/set-property self :hot-handle nil)))
                       action)
       action)))
@@ -488,17 +480,18 @@
 (defn- handle-update-tick
   "Fades the backdrop in while the gizmo is hovered or dragged, and out after."
   [self input-state dt]
-  (let [alpha (double (g/node-value self :backdrop-alpha))
-        target (if (or (g/node-value self :hot-handle) (g/user-data self ::press)) 1.0 0.0)
-        step (/ (double dt) ^double backdrop-fade-seconds)
-        next-alpha (if (< alpha target)
-                     (min target (+ alpha step))
-                     (max target (- alpha step)))]
-    (when (not= next-alpha alpha)
-      (g/transact
-        {:undoable false}
-        (g/set-property self :backdrop-alpha next-alpha)))
-    input-state))
+  (g/let-ec [alpha (double (g/node-value self :backdrop-alpha evaluation-context))
+             hot-handle (g/node-value self :hot-handle evaluation-context)]
+    (let [target (if (or hot-handle (g/user-data self ::press)) 1.0 0.0)
+          step (/ (double dt) ^double backdrop-fade-seconds)
+          next-alpha (if (< alpha target)
+                       (min target (+ alpha step))
+                       (max target (- alpha step)))]
+      (when (not= next-alpha alpha)
+        (g/transact
+          {:undoable false}
+          (g/set-property self :backdrop-alpha next-alpha)))
+      input-state)))
 
 (g/defnode AxisGizmoController
   (property hot-handle g/Keyword)

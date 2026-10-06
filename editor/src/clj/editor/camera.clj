@@ -102,10 +102,8 @@
                    (.scaleAdd (- distance) forward focus))]
     (assoc camera :rotation rotation :position position)))
 
-(defn frame-camera-to-axis!
-  [camera-node axis animate]
-  (let [start-camera (g/node-value camera-node :local-camera)
-        end-camera (frame-camera-to-axis start-camera axis)]
+(defn frame-camera-to-axis! [camera-node start-camera axis animate]
+  (let [end-camera (frame-camera-to-axis start-camera axis)]
     (when (not= (:type end-camera) :orthographic)
       (g/transact
         {:undoable false}
