@@ -201,6 +201,44 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(405, self.request('/health', 'POST', {})[0])
         self.assertEqual(400, self.request('/input/click?x=1', 'POST', {})[0])
 
+    def openapi(self):
+        with urllib.request.urlopen(self.url.split('/automation-bridge/')[0] + '/openapi.json', timeout=2) as response:
+            return json.load(response)
+
+    # Discovery includes typed mutations, selectors, opaque path IDs, and bounded binary artifact transfers.
+    def test_openapi_discovery(self):
+        document = self.openapi()
+        self.assertEqual('3.0.3', document['openapi'])
+        paths = document['paths']
+        prefix = '/automation-bridge/v3'
+        self.assertEqual({'get', 'put'}, set(paths[prefix + '/screen']))
+        self.assertEqual({'get', 'post', 'delete'}, set(paths[prefix + '/commands']))
+        self.assertEqual({'200', 'default'}, set(paths[prefix + '/health']['get']['responses']))
+        self.assertEqual({'202', 'default'}, set(paths[prefix + '/commands']['post']['responses']))
+        click = paths[prefix + '/input/click']['post']
+        schema = click['requestBody']['content']['application/json']['schema']
+        self.assertFalse(schema['additionalProperties'])
+        self.assertEqual('number', schema['properties']['x']['type'])
+        self.assertEqual('array', schema['properties']['modifiers']['type'])
+        self.assertEqual('string', schema['properties']['client_id']['type'])
+        observation = paths[prefix + '/observations']['post']['requestBody']['content']['application/json']['schema']
+        self.assertEqual('string', observation['properties']['automation_id']['type'])
+        self.assertEqual({'type': 'string'}, observation['properties']['ids']['items'])
+        self.assertEqual({}, paths[prefix + '/commands']['post']['requestBody']['content']['application/json']['schema']['properties']['data'])
+        elements = paths[prefix + '/elements']['get']['parameters']
+        self.assertEqual('string', next(p for p in elements if p['name'] == 'cursor')['schema']['type'])
+        self.assertIn('X-Automation-Runtime', [p['name'] for p in elements])
+        self.assertEqual('boolean', next(p for p in elements if p['name'] == 'visible')['schema']['type'])
+        artifact = paths[prefix + '/artifacts/{id}']
+        self.assertTrue(next(p for p in artifact['get']['parameters'] if p['name'] == 'id')['required'])
+        self.assertTrue(next(p for p in artifact['get']['parameters'] if p['name'] == 'Range')['required'])
+        self.assertEqual('binary', artifact['get']['responses']['206']['content']['application/octet-stream']['schema']['format'])
+        self.assertIn('204', artifact['delete']['responses'])
+        self.assertIn(prefix + '/observations/{id}', paths)
+        self.assertIn(prefix + '/events/wait', paths)
+        self.assertIn('/ping', paths)
+        self.assertEqual(200, self.request('/health')[0])
+
     # Route schemas reject coerced strings, mixed-type IDs, invalid selectors, and misspelled options.
     def test_request_field_types(self):
         cases = [('POST', '/input/key', {'text': value}) for value in (123, [1, 2], {}, True, None)]
@@ -557,6 +595,7 @@ class RuntimeTest(unittest.TestCase):
     # Reboot replaces the attached runtime and invalidates retained snapshots and client guards.
     def test_z_reboot_invalidates_runtime_and_snapshots(self):
         old_runtime = self.runtime
+        old_openapi = self.openapi()
         snapshot_id = self.request('/elements?limit=1')[1]['data']['snapshot_id']
         request = urllib.request.Request(self.url.split('/automation-bridge/')[0] + '/post/@system/reboot',
                                          data=b'', method='POST')
@@ -567,6 +606,7 @@ class RuntimeTest(unittest.TestCase):
             return data if data.get('engine_instance_id') not in (None, old_runtime) else None
         health = self.until(restarted)
         type(self).runtime = health['engine_instance_id']
+        self.assertEqual(old_openapi, self.openapi())
         status, response = self.request('/observations/' + urllib.parse.quote(snapshot_id, safe=''))
         self.assertEqual((410, 'stale_snapshot'), (status, response['error']['code']))
         status, response = self.request('/frame', headers={'X-Automation-Runtime': old_runtime})

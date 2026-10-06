@@ -2884,7 +2884,7 @@ namespace dmAutomation
         {0, JSON_FIELD_ANY}
     };
 
-    static const JsonFieldRule OBSERVATION_FIELDS[] = {
+    static const JsonFieldRule SELECTOR_FIELDS[] = {
         {"id", JSON_FIELD_STRING},
         {"type", JSON_FIELD_STRING},
         {"type_exact", JSON_FIELD_STRING},
@@ -2907,6 +2907,10 @@ namespace dmAutomation
         {"enabled", JSON_FIELD_BOOL},
         {"has_bounds", JSON_FIELD_BOOL},
         {"visible_and_enabled", JSON_FIELD_BOOL},
+        {0, JSON_FIELD_ANY}
+    };
+
+    static const JsonFieldRule OBSERVATION_FIELDS[] = {
         {"screenshot", JSON_FIELD_BOOL},
         {"frame", JSON_FIELD_UINT},
         {"limit", JSON_FIELD_UINT},
@@ -2923,7 +2927,7 @@ namespace dmAutomation
         {"/frame", "GET", HandleFrame},
         {"/scene", "GET", HandleScene},
         {"/elements", "GET", HandleElements},
-        {"/observations", "POST", HandleObservationPost, OBSERVATION_FIELDS, 0},
+        {"/observations", "POST", HandleObservationPost, OBSERVATION_FIELDS, SELECTOR_FIELDS},
         {"/element", "GET", HandleElement},
         {"/input/click", "POST", HandleClick, CLICK_FIELDS, INPUT_FIELDS},
         {"/input/drag", "POST", HandleDrag, DRAG_FIELDS, INPUT_FIELDS},
@@ -2958,6 +2962,186 @@ namespace dmAutomation
         {"/metal", "POST", HandleMetalPost, METAL_FIELDS, 0},
         {"/metal", "DELETE", HandleMetalDelete}
     };
+
+    static const JsonFieldRule PAGE_QUERY[] = {
+        {"limit", JSON_FIELD_UINT}, {"offset", JSON_FIELD_UINT}, {"cursor", JSON_FIELD_STRING}, {0, JSON_FIELD_ANY}
+    };
+    static const JsonFieldRule EVENT_QUERY[] = {
+        {"cursor", JSON_FIELD_UINT}, {"limit", JSON_FIELD_UINT}, {"timeout_ms", JSON_FIELD_UINT}, {0, JSON_FIELD_ANY}
+    };
+    static const JsonFieldRule STATE_QUERY[] = {
+        {"name", JSON_FIELD_STRING}, {"after_revision", JSON_FIELD_UINT}, {"timeout_ms", JSON_FIELD_UINT}, {0, JSON_FIELD_ANY}
+    };
+    static const JsonFieldRule CATALOG_QUERY[] = {
+        {"kind", JSON_FIELD_STRING}, {"name", JSON_FIELD_STRING}, {"limit", JSON_FIELD_UINT},
+        {"offset", JSON_FIELD_UINT}, {"cursor", JSON_FIELD_UINT}, {0, JSON_FIELD_ANY}
+    };
+    static const JsonFieldRule SCENE_QUERY[] = {
+        {"include", JSON_FIELD_STRING}, {"visible", JSON_FIELD_BOOL}, {0, JSON_FIELD_ANY}
+    };
+    static const JsonFieldRule ELEMENT_QUERY[] = {
+        {"id", JSON_FIELD_STRING}, {"include", JSON_FIELD_STRING}, {0, JSON_FIELD_ANY}
+    };
+    static const JsonFieldRule INPUT_STATUS_QUERY[] = {{"input_id", JSON_FIELD_UINT}, {0, JSON_FIELD_ANY}};
+    static const JsonFieldRule COMMAND_STATUS_QUERY[] = {{"id", JSON_FIELD_UINT}, {0, JSON_FIELD_ANY}};
+    static const JsonFieldRule SCREENSHOT_STATUS_QUERY[] = {
+        {"capture_id", JSON_FIELD_UINT}, {"id", JSON_FIELD_UINT}, {0, JSON_FIELD_ANY}
+    };
+
+    static void AppendOpenAPIField(StringBuffer* out, const JsonFieldRule* field)
+    {
+        switch (field->m_Type)
+        {
+        case JSON_FIELD_STRING: StringBufferAppend(out, "{\"type\":\"string\"}"); break;
+        case JSON_FIELD_FLOAT: StringBufferAppend(out, "{\"type\":\"number\"}"); break;
+        case JSON_FIELD_UINT: StringBufferAppend(out, "{\"type\":\"integer\",\"minimum\":0}"); break;
+        case JSON_FIELD_BOOL: StringBufferAppend(out, "{\"type\":\"boolean\"}"); break;
+        case JSON_FIELD_ARRAY: StringBufferAppend(out, "{\"type\":\"array\",\"items\":{}}"); break;
+        case JSON_FIELD_STRING_ARRAY: StringBufferAppend(out, "{\"type\":\"array\",\"items\":{\"type\":\"string\"}}"); break;
+        case JSON_FIELD_OBJECT: StringBufferAppend(out, "{\"type\":\"object\"}"); break;
+        case JSON_FIELD_ANY: StringBufferAppend(out, "{}"); break;
+        }
+    }
+
+    static void AppendOpenAPIQuery(StringBuffer* out, const JsonFieldRule* fields)
+    {
+        for (; fields && fields->m_Name; ++fields)
+        {
+            StringBufferAppend(out, ",{\"in\":\"query\",\"name\":");
+            AppendJsonString(out, fields->m_Name);
+            StringBufferAppend(out, ",\"schema\":");
+            AppendOpenAPIField(out, fields);
+            StringBufferAppendChar(out, '}');
+        }
+    }
+
+    static void AppendOpenAPIOperation(StringBuffer* out, const RouteDefinition* route)
+    {
+        char method[16];
+        uint32_t length = (uint32_t)strlen(route->m_Method);
+        for (uint32_t i = 0; i <= length; ++i) method[i] = (char)tolower(route->m_Method[i]);
+        AppendJsonString(out, method);
+        StringBufferAppend(out, ":{\"tags\":[\"Automation\"],\"summary\":");
+        AppendJsonString(out, route->m_Route);
+        StringBufferAppend(out, ",\"description\":\"Debug engine automation v3. Check health capabilities for backend support. Frame-dependent requests return 409 debugger_paused during a Lua debugger stop.\",\"parameters\":[{\"in\":\"header\",\"name\":\"X-Automation-Runtime\",\"description\":\"Runtime identity from health; stale identities return 410.\",\"schema\":{\"type\":\"string\"}} ");
+        bool artifact = StringsEqual(route->m_Route, "/artifacts/{id}");
+        bool observation = StringsEqual(route->m_Route, "/observations/{id}");
+        bool get = StringsEqual(route->m_Method, "GET");
+        if (artifact || observation)
+            StringBufferAppend(out, ",{\"in\":\"path\",\"name\":\"id\",\"required\":true,\"schema\":{\"type\":\"string\"}}");
+        if (artifact && get)
+            StringBufferAppend(out, ",{\"in\":\"header\",\"name\":\"Range\",\"required\":true,\"description\":\"One inclusive bytes=start-end range, at most 1048576 bytes. Invalid ranges return 416.\",\"schema\":{\"type\":\"string\",\"pattern\":\"^bytes=[0-9]+-[0-9]+$\"}}");
+        if (get)
+        {
+            if (route->m_Handler == HandleElements) AppendOpenAPIQuery(out, SELECTOR_FIELDS);
+            if (observation || route->m_Handler == HandleElements) AppendOpenAPIQuery(out, PAGE_QUERY);
+            if (route->m_Handler == HandleEvents) AppendOpenAPIQuery(out, EVENT_QUERY);
+            if (route->m_Handler == HandleState || route->m_Handler == HandleStateWait) AppendOpenAPIQuery(out, STATE_QUERY);
+            if (route->m_Handler == HandleApplicationCatalog) AppendOpenAPIQuery(out, CATALOG_QUERY);
+            if (route->m_Handler == HandleScene) AppendOpenAPIQuery(out, SCENE_QUERY);
+            if (route->m_Handler == HandleElement) AppendOpenAPIQuery(out, ELEMENT_QUERY);
+            if (route->m_Handler == HandleInputStatus) AppendOpenAPIQuery(out, INPUT_STATUS_QUERY);
+            if (route->m_Handler == HandleCommandStatus) AppendOpenAPIQuery(out, COMMAND_STATUS_QUERY);
+            if (route->m_Handler == HandleScreenshotStatus) AppendOpenAPIQuery(out, SCREENSHOT_STATUS_QUERY);
+        }
+        StringBufferAppendChar(out, ']');
+        if (!get && !artifact)
+        {
+            StringBufferAppend(out, ",\"requestBody\":{\"description\":\"Typed JSON fields; omitted optional values use defaults. Handlers also validate required fields and domain bounds. Mutation query parameters are rejected.\",\"content\":{\"application/json\":{\"schema\":{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{");
+            bool first = true;
+            const JsonFieldRule* groups[] = {route->m_Fields, route->m_CommonFields};
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(groups); ++i)
+                for (const JsonFieldRule* field = groups[i]; field && field->m_Name; ++field)
+                {
+                    if (!first) StringBufferAppendChar(out, ',');
+                    first = false;
+                    AppendJsonString(out, field->m_Name);
+                    StringBufferAppendChar(out, ':');
+                    AppendOpenAPIField(out, field);
+                }
+            StringBufferAppend(out, "}}}}}");
+        }
+        StringBufferAppend(out, ",\"responses\":{");
+        if (artifact)
+        {
+            if (get) StringBufferAppend(out, "\"206\":{\"description\":\"Artifact byte range\",\"headers\":{\"Content-Range\":{\"schema\":{\"type\":\"string\"}},\"ETag\":{\"description\":\"SHA-256 checksum\",\"schema\":{\"type\":\"string\"}}},\"content\":{\"application/octet-stream\":{\"schema\":{\"type\":\"string\",\"format\":\"binary\"}}}},");
+            else StringBufferAppend(out, "\"204\":{\"description\":\"Artifact deleted\"},");
+        }
+        else
+        {
+            bool accepted_only = route->m_Handler == HandleClick || route->m_Handler == HandleDrag ||
+                route->m_Handler == HandleDragPath || route->m_Handler == HandleKey ||
+                route->m_Handler == HandlePointerOpen || route->m_Handler == HandleObservationPost ||
+                route->m_Handler == HandleCommandSubmit;
+            bool pending = accepted_only || observation || route->m_Handler == HandleElements ||
+                route->m_Handler == HandleRecordingStart || route->m_Handler == HandleRecordingStop ||
+                route->m_Handler == HandleRecordingStatus || route->m_Handler == HandleInputCancel ||
+                route->m_Handler == HandlePointerMove || route->m_Handler == HandlePointerHold ||
+                route->m_Handler == HandlePointerUp;
+            for (uint32_t status = 200; status <= 202; status += 2)
+            {
+                if ((status == 200 && accepted_only) || (status == 202 && !pending)) continue;
+                StringBufferAppend(out, status == 200 ? "\"200\":" : "\"202\":");
+                StringBufferAppend(out, "{\"description\":");
+                AppendJsonString(out, status == 200 ? "Result or operation receipt" : "Accepted; poll the returned receipt or observation until complete");
+                StringBufferAppend(out, ",\"content\":{\"application/json\":{\"schema\":{\"type\":\"object\",\"required\":[\"ok\",\"data\"],\"properties\":{\"ok\":{\"type\":\"boolean\",\"enum\":[true]},\"data\":{}}}}}},");
+            }
+        }
+        StringBufferAppend(out, "\"default\":{\"description\":\"Structured HTTP error, including 409 debugger_paused, 410 stale runtime/snapshot/artifact, and 501 unsupported capability\",\"content\":{\"application/json\":{\"schema\":{\"type\":\"object\",\"required\":[\"ok\",\"error\"],\"properties\":{\"ok\":{\"type\":\"boolean\",\"enum\":[false]},\"error\":{\"type\":\"object\",\"properties\":{\"code\":{\"type\":\"string\"},\"message\":{\"type\":\"string\"},\"status\":{\"type\":\"integer\"}}}}}}}}}}");
+    }
+
+    static const char* AutomationOpenAPI()
+    {
+        // The service keeps its handler across reboots and borrows this string.
+        // Static array storage stays valid until process teardown, independently
+        // of the runtime context. Build once from the route/validation tables.
+        static dmArray<char> paths;
+        if (!paths.Empty()) return paths.Begin();
+        const RouteDefinition dynamic_routes[] = {
+            {"/observations/{id}", "GET", 0},
+            {"/artifacts/{id}", "GET", 0},
+            {"/artifacts/{id}", "DELETE", 0}
+        };
+        StringBuffer out;
+        StringBufferInit(&out);
+        StringBufferAppendChar(&out, '{');
+        const RouteDefinition* groups[] = {ROUTES, dynamic_routes};
+        const uint32_t sizes[] = {DM_ARRAY_SIZE(ROUTES), DM_ARRAY_SIZE(dynamic_routes)};
+        bool first_path = true;
+        for (uint32_t g = 0; g < DM_ARRAY_SIZE(groups); ++g)
+            for (uint32_t i = 0; i < sizes[g]; ++i)
+            {
+                const RouteDefinition* route = &groups[g][i];
+                bool seen = false;
+                for (uint32_t j = 0; j < i; ++j)
+                    if (StringsEqual(groups[g][j].m_Route, route->m_Route)) seen = true;
+                if (seen) continue;
+                if (!first_path) StringBufferAppendChar(&out, ',');
+                first_path = false;
+                StringBufferAppendChar(&out, '"');
+                StringBufferAppend(&out, API_PREFIX);
+                StringBufferAppend(&out, route->m_Route);
+                StringBufferAppend(&out, "\":{");
+                bool first_method = true;
+                for (uint32_t j = i; j < sizes[g]; ++j)
+                    if (StringsEqual(groups[g][j].m_Route, route->m_Route))
+                    {
+                        if (!first_method) StringBufferAppendChar(&out, ',');
+                        first_method = false;
+                        AppendOpenAPIOperation(&out, &groups[g][j]);
+                    }
+                StringBufferAppendChar(&out, '}');
+            }
+        StringBufferAppendChar(&out, '}');
+        if (!out.m_Failed)
+        {
+            paths.SetCapacity(out.m_Size + 1);
+            paths.SetSize(out.m_Size + 1);
+            memcpy(paths.Begin(), out.m_Data, out.m_Size + 1);
+        }
+        StringBufferFree(&out);
+        return paths.Empty() ? 0 : paths.Begin();
+    }
 
     static bool CanRequestWhilePaused(const RequestContext* ctx)
     {
@@ -3109,7 +3293,13 @@ namespace dmAutomation
         handler_params.m_Userdata = 0;
         handler_params.m_Handler = AutomationBridgeHandler;
 
-        dmWebServer::Result result = dmWebServer::AddHandler(server, API_PREFIX, &handler_params);
+        const char* openapi = AutomationOpenAPI();
+        if (!openapi)
+        {
+            dmLogError("Unable to build automation OpenAPI metadata");
+            return;
+        }
+        dmWebServer::Result result = dmWebServer::AddHandler(server, API_PREFIX, &handler_params, openapi);
         // The service owns the route across reboots. Keep its registration order
         // ahead of the profiler's catch-all route; the handler reads the current runtime.
         if (result == dmWebServer::RESULT_OK || result == dmWebServer::RESULT_HANDLER_ALREADY_REGISTRED)

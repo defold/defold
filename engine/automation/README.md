@@ -76,6 +76,12 @@ engines, including engine tests, link the capture stubs.
 
 ## HTTP v3
 
+The engine's `/openapi.json` includes automation routes, typed mutation bodies,
+query selectors, the runtime identity header, and artifact range downloads.
+Metadata is generated from the same route and mutation-field tables used by
+validation. It remains valid across runtime reboots and describes optional
+backend features; consult `/health` capabilities before using those features.
+
 Success responses have `{"ok":true,"data":...}`; errors have
 `{"ok":false,"error":{"code":...,"message":...,"status":...}}` with the
 matching HTTP status. There is no v2 route. GET uses query filters; mutations use
