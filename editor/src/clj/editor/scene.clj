@@ -2210,6 +2210,7 @@
                                     :prefs prefs]
                    grid            (grid-type :prefs prefs)
                    tool-controller [tool-controller-type :prefs prefs]
+                   axis-gizmo      [scene-axis-gizmo/AxisGizmoController]
                    rulers          [rulers/Rulers]]
 
       (g/connect resource-node   :scene                         view-id         :scene)
@@ -2242,11 +2243,10 @@
       (g/connect app-view-id     :keymap                        camera          :keymap)
 
       (when-not (:manual-refresh? opts)
-        (g/make-nodes [axis-gizmo scene-axis-gizmo/AxisGizmoController]
+        (concat
           (g/connect axis-gizmo  :_node-id                      view-id         :axis-gizmo-id)
           (g/connect axis-gizmo  :update-tick-handler           view-id         :update-tick-handlers)
           (g/connect axis-gizmo  :input-handler                 view-id         :input-handlers)
-          (g/connect axis-gizmo  :renderables                   view-id         :tool-renderables)
           (g/connect camera      :_node-id                      axis-gizmo      :camera-node-id)
           (g/connect camera      :camera                        axis-gizmo      :camera)))
 
@@ -2260,6 +2260,10 @@
       (g/connect view-id         :viewport                      tool-controller :viewport)
       (g/connect camera          :camera                        tool-controller :camera)
       (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
+
+      (if (:manual-refresh? opts)
+        (g/delete-node axis-gizmo)
+        (g/connect axis-gizmo    :renderables                   view-id         :tool-renderables))
 
       (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 
