@@ -108,6 +108,9 @@
             :zoom-on-scroll {:type :boolean}
             :hover {:type :boolean
                     :default true}
+            :enable-lua-language-server {:type :boolean
+                                         :scope :project
+                                         :default true}
             :font {:type :object
                    :properties
                    {:name {:type :string

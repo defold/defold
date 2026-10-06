@@ -279,6 +279,10 @@ namespace dmPlatform
 
         wnd->m_SwapIntervalSupported = 1;
 
+#if defined(DM_PLATFORM_MACOS)
+        SetOpenGLWindowColorSpaceNative(wnd);
+#endif
+
         glfwMakeContextCurrent(wnd->m_Window);
 
         // Create aux context
@@ -594,6 +598,16 @@ namespace dmPlatform
     int32_t GetMouseButton(HWindow window, int32_t button)
     {
         return glfwGetMouseButton(window->m_Window, button);
+    }
+
+    bool IsMouseLeftButtonFromTouch(HWindow window)
+    {
+        return false;
+    }
+
+    bool IsMousePositionFromTouch(HWindow window)
+    {
+        return false;
     }
 
     void GetMousePosition(HWindow window, int32_t* x, int32_t* y)

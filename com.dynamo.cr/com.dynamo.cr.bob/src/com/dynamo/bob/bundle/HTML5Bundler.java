@@ -102,7 +102,7 @@ public class HTML5Bundler implements IBundler {
 
 
         // Same value as engine is compiled with; 268435456
-        int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
+        long customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024L * 1024;
 
         {// Deprecated method of setting the heap size. For backwards compatibility
             if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
