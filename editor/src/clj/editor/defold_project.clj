@@ -36,6 +36,7 @@
             [editor.lsp :as lsp]
             [editor.notifications :as notifications]
             [editor.placeholder-resource :as placeholder-resource]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
@@ -1851,6 +1852,16 @@
   resource/ResourceListener
   (handle-changes [this changes render-progress!]
     (handle-resource-changes project-id changes render-progress!)))
+
+(defn update-language-servers! [project prefs server-definitions]
+  {:pre [(ui/on-ui-thread?)]}
+  (let [{:keys [extension-language-servers lua-language-servers project-language-server]}
+        (g/user-data-swap! project ::language-servers coll/merge server-definitions)]
+    (lsp/set-servers!
+      (lsp/get-lsp)
+      (cond-> (set extension-language-servers)
+        project-language-server (conj project-language-server)
+        (prefs/get prefs [:code :enable-lua-language-server]) (into lua-language-servers)))))
 
 (defn make-project [workspace-id extensions]
   (let [code-preprocessors (workspace/code-preprocessors workspace-id)
