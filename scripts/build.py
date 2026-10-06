@@ -3178,7 +3178,9 @@ class Configuration(object):
             if response[0] != 'y':
                 return
 
-        if tag_name:
+        # Console publication uses archived public-build artifacts; it must not
+        # create or force-push tags from either source checkout.
+        if tag_name and not build_private.is_repo_private():
             self.push_tag(self.create_tag())
 
         # Only release the web pages for the public repo

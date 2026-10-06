@@ -3417,6 +3417,7 @@ namespace dmGameSystem
             dmGui::HScene scene = gui_component->m_Scene;
             dmGui::InputAction gui_input_action;
             gui_input_action.m_ActionId = params.m_InputAction->m_ActionId;
+            gui_input_action.m_Source = params.m_InputAction->m_Source;
             gui_input_action.m_Value = params.m_InputAction->m_Value;
             gui_input_action.m_Pressed = params.m_InputAction->m_Pressed;
             gui_input_action.m_Released = params.m_InputAction->m_Released;
@@ -4183,7 +4184,9 @@ namespace dmGameSystem
                 uint32_t capacity = comp_gui_context->m_CustomNodeTypes.Capacity() + 4;
                 comp_gui_context->m_CustomNodeTypes.SetCapacity(dmMath::Max(1U, capacity/3), capacity);
             }
-            comp_gui_context->m_CustomNodeTypes.Put(type_desc->m_NameHash, node_type);
+            // Descriptors register before reverse hashing is enabled at startup.
+            // Record the name now so inspection can resolve custom node subtypes.
+            comp_gui_context->m_CustomNodeTypes.Put(dmHashString32(type_desc->m_Name), node_type);
 
             type_desc = type_desc->m_Next;
         }

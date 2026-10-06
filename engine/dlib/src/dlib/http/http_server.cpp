@@ -264,7 +264,6 @@ namespace dmHttpServer
             case 206: return "Partial Content";
             case 400: return "Bad Request";
             case 403: return "Forbidden";
-            case 405: return "Method Not Allowed";
             case 409: return "Conflict";
             case 410: return "Gone";
             case 413: return "Content Too Large";
@@ -278,6 +277,8 @@ namespace dmHttpServer
                 return "OK";
             case 404:
                 return "Not Found";
+            case 405:
+                return "Method Not Allowed";
             case 500:
                 return "Internal Server Error";
             case 302:

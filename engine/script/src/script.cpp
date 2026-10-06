@@ -14,11 +14,14 @@
 
 #include "script.h"
 
+#include <assert.h>
+
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/pprint.h>
 #include <dlib/profile.h>
+#include <dmsdk/hid/hid.h>
 
 #include "script_private.h"
 #include "script_hash.h"
@@ -43,6 +46,41 @@ DM_PROPERTY_GROUP(rmtp_Script, "", 0);
 
 namespace dmScript
 {
+    void PushInputSource(lua_State* L, uint32_t source)
+    {
+        static const dmhash_t keyboard = dmHashString64("keyboard");
+        static const dmhash_t text = dmHashString64("text");
+        static const dmhash_t mouse = dmHashString64("mouse");
+        static const dmhash_t touch = dmHashString64("touch");
+        static const dmhash_t gamepad = dmHashString64("gamepad");
+        static const dmhash_t accelerometer = dmHashString64("accelerometer");
+
+        switch (source)
+        {
+        case dmHID::INPUT_SOURCE_KEYBOARD:
+            PushHash(L, keyboard);
+            break;
+        case dmHID::INPUT_SOURCE_TEXT:
+            PushHash(L, text);
+            break;
+        case dmHID::INPUT_SOURCE_MOUSE:
+            PushHash(L, mouse);
+            break;
+        case dmHID::INPUT_SOURCE_TOUCH:
+            PushHash(L, touch);
+            break;
+        case dmHID::INPUT_SOURCE_GAMEPAD:
+            PushHash(L, gamepad);
+            break;
+        case dmHID::INPUT_SOURCE_ACCELEROMETER:
+            PushHash(L, accelerometer);
+            break;
+        default:
+            assert(false);
+            break;
+        }
+    }
+
     /*# Built-ins API documentation
      *
      * Built-in scripting functions.
@@ -707,6 +745,15 @@ namespace dmScript
         // [-1] instance
     }
 
+    void GetInstanceRaw(lua_State* L)
+    {
+        lua_pushinteger(L, (lua_Integer)INSTANCE_NAME_HASH);
+        // [-1] name_hash
+
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        // [-1] instance
+    }
+
     void SetInstance(lua_State* L)
     {
         // [-1] instance
@@ -755,6 +802,18 @@ namespace dmScript
         // [-3] meta table
 
         lua_settable(L, -3);
+        // [-1] meta table
+
+        lua_pushliteral(L, "__name");
+        // [-1] __name
+        // [-2] meta table
+
+        lua_pushstring(L, name);
+        // [-1] name
+        // [-2] __name
+        // [-3] meta table
+
+        lua_rawset(L, -3);
         // [-1] meta table
 
         lua_pop(L, 1);
@@ -1534,6 +1593,15 @@ namespace dmScript
     }
 
     static int BacktraceErrorHandler(lua_State *m_state) {
+        HContext context = GetScriptContext(m_state);
+        if (context)
+        {
+            for (HScriptExtension* extension = context->m_ScriptExtensions.Begin(); extension != context->m_ScriptExtensions.End(); ++extension)
+            {
+                if ((*extension)->OnError)
+                    (*extension)->OnError(context, m_state);
+            }
+        }
         lua_createtable(m_state, 0, 2);
         int result_table = lua_gettop(m_state);
 

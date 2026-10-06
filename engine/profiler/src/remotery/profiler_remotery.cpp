@@ -428,8 +428,9 @@ static dmExtension::Result ProfilerRemotery_AppInitialize(dmExtension::AppParams
 {
     using namespace dmProfilerRemotery;
 
+    int server_sleep = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.sleep_between_server_updates", 0);
     g_ProfilerOptions_Port                      = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_port", 0);
-    g_ProfilerOptions_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_sleep_between_server_updates", 0);
+    g_ProfilerOptions_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_sleep_between_server_updates", server_sleep);
 
     if (!IsInitialized())
     {
