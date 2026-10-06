@@ -49,13 +49,6 @@
    :+z (Vector3d. 0.0 0.0 1.0)
    :-z (Vector3d. 0.0 0.0 -1.0)})
 
-(def ^:private axis-alignment-epsilon
-  "Minimum dot product between the current and requested camera forward vector
-  that's considered to be facing that axis. Keeps the toggle-on-re-click logic
-  robust against tiny numerical drift that would otherwise require the user to
-  click twice to flip to the opposite axis."
-  0.999)
-
 (defn- gizmo-model-matrix
   ^Matrix4d [^Camera camera ^Region viewport]
   ;; The overlay ortho projection maps pixel-space Y downward, so GL +Y ends up
@@ -103,17 +96,9 @@
 (def ^:private line-half-width 0.04)
 (def ^:private ball-distance 1.1)
 (def ^:private ball-radius 0.3)
-(def ^:private ball-segments 12)
 
-(def ^:private negative-stub
-  "Brightness factor for the balls on negative axes."
-  {:brightness 0.55})
-
-(def ^:private color-saturation
-  "How much of the stub colors' saturation is kept; the rest blends to gray."
-  0.75)
-
-(defn- axis-index ^long [axis]
+(defn- axis-index
+  ^long [axis]
   (let [^Vector3d n (axis->normal axis)]
     (cond (not (zero? (.x n))) 0
           (not (zero? (.y n))) 1
@@ -126,9 +111,9 @@
   (let [[r g b :as rgb] (stub-colors (axis-index axis))
         ;; Blend toward the gray of the same brightness.
         gray (+ (* 0.299 (double r)) (* 0.587 (double g)) (* 0.114 (double b)))
-        desaturated (mapv #(+ gray (* ^double color-saturation (- (double %) gray))) rgb)]
+        desaturated (mapv #(+ gray (* 0.75 (- (double %) gray))) rgb)]
     (cond->> desaturated
-      (not (positive-axis? axis)) (mapv #(* (double %) (double (:brightness negative-stub)))))))
+      (not (positive-axis? axis)) (mapv #(* 0.55 (double %))))))
 
 ;; Picking geometry: a sphere per ball, a box per line, and a sphere around
 ;; everything for the backdrop.
@@ -137,7 +122,7 @@
   "Box from the center out to the ball along `axis`."
   [axis]
   (let [i (axis-index axis)
-        [u v] (remove #{i} [0 1 2])
+        [u v] (into [] (remove #{i}) [0 1 2])
         point (fn [^double along ^double du ^double dv]
                 (-> [0.0 0.0 0.0]
                     (assoc i along)
@@ -149,15 +134,18 @@
     (mapv side corners (conj (subvec corners 1) (first corners)))))
 
 (defn- sphere-quads [center ^double radius]
-  (let [n (long ball-segments)
+  (let [n 12
         point (fn [^long lat ^long lon]
                 (let [theta (* Math/PI (/ (double lat) n))
                       phi (* 2.0 Math/PI (/ (double lon) n))
                       r (* radius (Math/sin theta))]
                   (mapv + center [(* r (Math/cos phi)) (* radius (Math/cos theta)) (* r (Math/sin phi))])))]
-    (vec (for [lat (range n)
-               lon (range n)]
-           [(point lat lon) (point lat (inc lon)) (point (inc lat) (inc lon)) (point (inc lat) lon)]))))
+    (into []
+          (mapcat (fn [^long lat]
+                    (mapv (fn [^long lon]
+                            [(point lat lon) (point lat (inc lon)) (point (inc lat) (inc lon)) (point (inc lat) lon)])
+                          (range n))))
+          (range n))))
 
 (def ^:private pick-shader shaders/uniform-color-local-space)
 
@@ -189,10 +177,6 @@
 ;; The scene view has no multisampling, so the visible handles are drawn as
 ;; screen-facing quads with anti-aliased textures.
 
-(def ^:private axis-letters {:+x "X" :+y "Y" :+z "Z"})
-(def ^:private letter-color Color/BLACK)
-
-(def ^:private ball-fill-alpha 0.3)
 (def ^:private ball-outline-width 6.0)
 
 (defn- ->awt-color
@@ -206,11 +190,11 @@
   (let [size 64
         image (BufferedImage. size size BufferedImage/TYPE_INT_ARGB)
         gfx (.createGraphics image)
-        ^String letter (axis-letters axis)]
+        ^String letter ({:+x "X" :+y "Y" :+z "Z"} axis)]
     (doto gfx
       (.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
       (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_ON)
-      (.setColor (->awt-color (axis-color axis) (if letter 1.0 ball-fill-alpha)))
+      (.setColor (->awt-color (axis-color axis) (if letter 1.0 0.3)))
       (.fillOval 1 1 (- size 2) (- size 2)))
     (let [inset (+ 1.0 (* 0.5 ^double ball-outline-width))
           diameter (- size (* 2.0 inset))]
@@ -220,7 +204,7 @@
         (.draw (Ellipse2D$Double. inset inset diameter diameter))))
     (when letter
       (doto gfx
-        (.setColor letter-color)
+        (.setColor Color/BLACK)
         (.setFont (Font. Font/SANS_SERIF Font/BOLD 44)))
       (let [metrics (.getFontMetrics gfx)
             x (quot (- size (.stringWidth metrics letter)) 2)
@@ -255,15 +239,8 @@
           (map (fn [axis] [axis (texture/image-texture [::line axis] (make-line-image axis))]))
           [:+x :+y :+z])))
 
-(def ^:private line-quad-half-width
-  "Wider than the picking line, since a quarter of the texture on each side is
-  the fade."
-  (* 2.0 ^double line-half-width))
-
 ;; Godot-style backdrop: a sphere around the handles that can be grabbed to
 ;; orbit, shown as a faint disc while the gizmo is hovered or dragged.
-
-(def ^:private backdrop-color (Color. 0.3 0.3 0.3 0.20))
 
 (defn- make-backdrop-image
   ^BufferedImage []
@@ -272,7 +249,7 @@
         gfx (.createGraphics image)]
     (doto gfx
       (.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
-      (.setColor backdrop-color)
+      (.setColor (Color. 0.3 0.3 0.3 0.20))
       (.fillOval 1 1 (- size 2) (- size 2))
       (.dispose))
     image))
@@ -316,27 +293,31 @@
         ^Vector3d right (screen-axis 1.0 0.0 0.0)
         ^Vector3d up (screen-axis 0.0 1.0 0.0)
         ^Vector3d toward (screen-axis 0.0 0.0 1.0)
-        balls (for [axis axis-order
-                    :let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))]]
-                {:depth (.dot toward center)
-                 :texture (@ball-textures axis)
-                 :matrix (billboard-matrix center right up toward ball-radius ball-radius)
-                 :alpha 1.0})
-        lines (for [axis [:+x :+y :+z]
-                    :let [normal ^Vector3d (axis->normal axis)
-                          side (doto (Vector3d.) (.cross toward normal))
-                          ;; The negative balls are see-through, so stop the
-                          ;; line at the ball's outline as seen on screen.
-                          screen-length (* (.length side) ^double ball-distance)
-                          length (* ^double ball-distance (- 1.0 (/ ^double ball-radius (max screen-length 1e-6))))]
-                    :when (pos? length)
-                    :let [center (doto (Vector3d. normal) (.scale (* 0.5 length)))]]
-                {:depth (.dot toward center)
-                 :texture (@line-textures axis)
-                 :matrix (billboard-matrix center (doto side (.normalize)) normal toward
-                                           line-quad-half-width (* 0.5 length))
-                 :alpha 1.0})]
-    (cond->> (sort-by :depth (concat balls lines))
+        balls (into []
+                    (map (fn [axis]
+                           (let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))]
+                             {:depth (.dot toward center)
+                              :texture (@ball-textures axis)
+                              :matrix (billboard-matrix center right up toward ball-radius ball-radius)
+                              :alpha 1.0})))
+                    axis-order)
+        lines (into []
+                    (keep (fn [axis]
+                            (let [normal ^Vector3d (axis->normal axis)
+                                  side (doto (Vector3d.) (.cross toward normal))
+                                  ;; The negative balls are see-through, so stop the
+                                  ;; line at the ball's outline as seen on screen.
+                                  screen-length (* (.length side) ^double ball-distance)
+                                  length (* ^double ball-distance (- 1.0 (/ ^double ball-radius (max screen-length 1e-6))))]
+                              (when (pos? length)
+                                (let [center (doto (Vector3d. normal) (.scale (* 0.5 length)))]
+                                  {:depth (.dot toward center)
+                                   :texture (@line-textures axis)
+                                   :matrix (billboard-matrix center (doto side (.normalize)) normal toward
+                                                             (* 2.0 ^double line-half-width) (* 0.5 length))
+                                   :alpha 1.0})))))
+                    [:+x :+y :+z])]
+    (cond->> (sort-by :depth (into balls lines))
       (pos? backdrop-alpha) (cons {:texture @backdrop-texture
                                    :matrix (billboard-matrix (Vector3d.) right up toward backdrop-radius backdrop-radius)
                                    :alpha backdrop-alpha}))))
@@ -411,35 +392,33 @@
       {pass/manipulator renderables
        pass/manipulator-selection renderables})))
 
-(def ^:private drag-threshold
-  "Pixels the cursor must move after pressing on the gizmo before it's a drag."
-  4.0)
-
 (defn- frame-to-axis! [camera-node-id current-camera axis]
   (let [axis-forward (doto (Vector3d. ^Vector3d (axis->normal axis)) (.negate))
+        ;; Tolerates numerical drift, so one click is enough to flip to the
+        ;; opposite axis when already facing this one.
         target-axis (if (>= (.dot ^Vector3d (c/camera-forward-vector current-camera) axis-forward)
-                            axis-alignment-epsilon)
+                            0.999)
                       ({:+x :-x :-x :+x :+y :-y :-y :+y :+z :-z :-z :+z} axis)
                       axis)]
     (c/frame-camera-to-axis! camera-node-id current-camera target-axis true)))
 
 (defn handle-input [self _input-state action selection-data]
   (let [hits (get selection-data self)
-        handle (or (first (remove #{:backdrop} hits)) (first hits))
+        handle (or (coll/first-where #(not= :backdrop %) hits) (first hits))
         press (g/user-data self ::press)
         {:keys [x y]} action]
     (case (:type action)
-      :mouse-pressed (if (and (= :primary (:button action))
-                              handle)
+      :mouse-pressed (if-not (and (= :primary (:button action))
+                                  handle)
+                       action
                        (do
                          (g/user-data! self ::press {:handle handle :x x :y y})
-                         nil)
-                       action)
+                         nil))
       :mouse-moved (if press
                      (do
                        (when (> (Math/hypot (- (double x) (double (:x press)))
                                             (- (double y) (double (:y press))))
-                                drag-threshold)
+                                4.0)
                          (g/let-ec [camera-node-id (g/node-value self :camera-node-id evaluation-context)
                                     animating (g/node-value camera-node-id :animating evaluation-context)]
                            (when-not animating
@@ -452,7 +431,8 @@
                        (when (not= handle hot-handle)
                          (g/transact {:undoable false} (g/set-property self :hot-handle handle)))
                        action))
-      :mouse-released (if press
+      :mouse-released (if-not press
+                        action
                         (do
                           (g/user-data! self ::press nil)
                           (when-not (= :backdrop (:handle press))
@@ -461,15 +441,12 @@
                                        local-camera (g/node-value camera-node-id :local-camera evaluation-context)]
                               (when-not animating
                                 (frame-to-axis! camera-node-id local-camera (:handle press)))))
-                          nil)
-                        action)
+                          nil))
       :mouse-exited (g/let-ec [hot-handle (g/node-value self :hot-handle evaluation-context)]
                       (when hot-handle
                         (g/transact {:undoable false} (g/set-property self :hot-handle nil)))
                       action)
       action)))
-
-(def ^:private backdrop-fade-seconds 0.15)
 
 (defn- handle-update-tick
   "Fades the backdrop in while the gizmo is hovered or dragged, and out after."
@@ -481,7 +458,7 @@
                (not= :tumble (:movement (g/user-data camera-node-id ::c/camera-state))))
       (g/user-data! self ::dragging false))
     (let [target (if (or hot-handle (g/user-data self ::press) (g/user-data self ::dragging)) 1.0 0.0)
-          step (/ (double dt) ^double backdrop-fade-seconds)
+          step (/ (double dt) 0.15)
           next-alpha (if (< alpha target)
                        (min target (+ alpha step))
                        (max target (- alpha step)))]
