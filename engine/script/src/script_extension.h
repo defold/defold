@@ -53,10 +53,14 @@ namespace dmScript
         // Called inside the protected-call error handler, before stack unwinding.
         // Error value is at index 1. Must preserve the stack and must not raise.
         void (*OnError)(HContext context, lua_State* L);
+        // Service native work during debugger stops; false marks resume/disconnect.
+        // Must not execute Lua or traverse/mutate the suspended scene.
+        void (*UpdateDebugger)(HContext context, bool paused);
     };
 
     HContext   GetScriptContext(lua_State* L);
     lua_State* GetLuaState(HContext context);
     void       RegisterScriptExtension(HContext context, HScriptExtension script_extension);
+    void       UpdateDebugger(HContext context, bool paused);
 } // namespace dmScript
 #endif

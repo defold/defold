@@ -24,6 +24,7 @@
 #include <string.h>
 #include <dmsdk/dlib/mutex.h>
 #include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/webserver.h>
 
 namespace dmAutomation
 {
@@ -389,6 +390,8 @@ namespace dmAutomation
         uint32_t                m_DisplayHeight;
         bool                    m_ApplicationApiEnabled;
         bool                    m_CommandExecuting;
+        bool                    m_DebuggerPaused;
+        dmWebServer::HServer     m_WebServer;
         dmMutex::HMutex         m_ApplicationMutex;
         dmArray<BridgeEvent>      m_Events;
         dmArray<PublishedState>   m_PublishedStates;

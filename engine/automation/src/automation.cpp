@@ -31,6 +31,8 @@
 #include <hid.h>
 #include <graphics.h>
 #include <extension.hpp>
+#include <script_extension.h>
+#include <dlib/webserver.h>
 #include "automation_engine_access.h"
 #include "automation_recording.h"
 
@@ -143,6 +145,7 @@ namespace dmAutomation
         g_AutomationBridge.m_ScreenshotCounter = dmTime::GetMonotonicTime();
         g_AutomationBridge.m_Register = dmEngine::GetGameObjectRegister(params);
         g_AutomationBridge.m_HidContext = dmEngine::GetHIDContext(params);
+        g_AutomationBridge.m_WebServer = dmEngine::GetWebServer(params);
         if (params->m_ConfigFile)
         {
             int32_t display_width = dmConfigFile::GetInt(params->m_ConfigFile, "display.width", 960);
@@ -168,11 +171,26 @@ namespace dmAutomation
         return dmExtension::RESULT_OK;
     }
 
+    static void UpdateDebugger(dmScript::HContext, bool paused)
+    {
+        if (!g_AutomationBridge.m_Initialized) return;
+        g_AutomationBridge.m_DebuggerPaused = paused;
+        // Leases retain their wall-clock meaning. This only releases expired or
+        // cancelled input; input dispatch and frame-dependent work wait for resume.
+        MaintainInput();
+        if (paused && g_AutomationBridge.m_WebServer)
+            dmWebServer::Update(g_AutomationBridge.m_WebServer);
+    }
+
     static dmExtension::Result Initialize(dmExtension::Params* params)
     {
         g_AutomationBridge.m_GraphicsContext = (dmGraphics::HContext)ExtensionParamsGetContextByName((ExtensionParams*)params, "graphics");
         EngineAccessInitialize(params);
-        RegisterApplicationLua(params->m_L, (dmScript::HContext)ExtensionParamsGetContextByName(params, SCRIPT_CONTEXT_NAME));
+        dmScript::HContext context = (dmScript::HContext)ExtensionParamsGetContextByName(params, SCRIPT_CONTEXT_NAME);
+        static dmScript::ScriptExtension debugger_extension = {};
+        debugger_extension.UpdateDebugger = UpdateDebugger;
+        dmScript::RegisterScriptExtension(context, &debugger_extension);
+        RegisterApplicationLua(params->m_L, context);
         dmLogInfo("Registered %s extension", LIB_NAME);
         return dmExtension::RESULT_OK;
     }

@@ -624,6 +624,8 @@ namespace dmAutomation
             StringBufferAppend(&response, ",\"path\":\"/rmt\"}");
         }
         else StringBufferAppend(&response, "null");
+        StringBufferAppend(&response, ",\"debugger_paused\":");
+        StringBufferAppend(&response, g_AutomationBridge.m_DebuggerPaused ? "true" : "false");
         StringBufferAppend(&response, ",\"debug\":true,\"platform\":");
 #if defined(DM_PLATFORM_MACOS)
         AppendJsonString(&response, "macos");
@@ -2957,6 +2959,16 @@ namespace dmAutomation
         {"/metal", "DELETE", HandleMetalDelete}
     };
 
+    static bool CanRequestWhilePaused(const RequestContext* ctx)
+    {
+        if (RequestIsMethod(ctx, "GET"))
+            return StringsEqual(ctx->m_Route, "/health") || StringsEqual(ctx->m_Route, "/frame") ||
+                   StringsEqual(ctx->m_Route, "/lifecycle") || StringsEqual(ctx->m_Route, "/input/status") ||
+                   StringsEqual(ctx->m_Route, "/input/pending");
+        return RequestIsMethod(ctx, "POST") &&
+               (StringsEqual(ctx->m_Route, "/input/cancel") || StringsEqual(ctx->m_Route, "/input/flush"));
+    }
+
     void AutomationBridgeHandler(void* user_data, dmWebServer::Request* request)
     {
         (void)user_data;
@@ -2975,6 +2987,13 @@ namespace dmAutomation
         {
             DiscardRequestBody(request);
             RequestSendError(&ctx, 410, "stale_runtime", "engine has rebooted; obtain health and reacquire references before continuing");
+            FreeRequestContext(&ctx);
+            return;
+        }
+        if (g_AutomationBridge.m_DebuggerPaused && !CanRequestWhilePaused(&ctx))
+        {
+            DiscardRequestBody(request);
+            RequestSendError(&ctx, 409, "debugger_paused", "resume the Lua debugger before requesting scene, application, or frame-dependent work");
             FreeRequestContext(&ctx);
             return;
         }

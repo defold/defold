@@ -331,6 +331,15 @@ namespace dmScript
         context->m_ScriptExtensions.Push(script_extension);
     }
 
+    void UpdateDebugger(HContext context, bool paused)
+    {
+        for (HScriptExtension* extension = context->m_ScriptExtensions.Begin(); extension != context->m_ScriptExtensions.End(); ++extension)
+        {
+            if ((*extension)->UpdateDebugger)
+                (*extension)->UpdateDebugger(context, paused);
+        }
+    }
+
     void Update(HContext context)
     {
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)

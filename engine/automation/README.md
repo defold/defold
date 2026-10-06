@@ -31,6 +31,15 @@ accidentally addressing a replacement runtime. Snapshot IDs, artifacts, and
 element IDs include this identity. Numeric receipts use a new monotonic seed.
 Clients must discard receipts and event cursors when the identity changes.
 
+During a native Lua debugger stop, health reports `debugger_paused: true`.
+Health, lifecycle, frame, input status/pending, and input cancel/flush remain
+responsive. Other automation requests return `409 debugger_paused` without
+traversing the suspended scene or executing application Lua. Input leases still
+expire in wall-clock time and release native holds; delivery is acknowledged only
+after simulation resumes. Pending frame-dependent work remains pending until
+resume, subject to its existing deadline. DAP continue, stepping, and disconnect
+clear the paused state. This does not add automation pause/step commands.
+
 Synthetic input runs after HID sampling and before input binding and dispatch.
 Delivery is recorded after dispatch; Lua acknowledgement is separate. Gestures
 advance with engine delta time, while leases and deadlines use monotonic time.

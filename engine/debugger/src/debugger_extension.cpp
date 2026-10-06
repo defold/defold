@@ -169,6 +169,11 @@ namespace dmDebugger
         AddLuaState(g_Debugger, state.m_L, name);
     }
 
+    static void UpdatePaused(lua_State* L, bool paused)
+    {
+        dmScript::UpdateDebugger(dmScript::GetScriptContext(L), paused);
+    }
+
     static bool Start(int port, const char* address)
     {
         if (g_Debugger)
@@ -178,6 +183,7 @@ namespace dmDebugger
             return false;
         SetUserdataTableResolver(g_Debugger, ResolveUserdataTable);
         SetUserdataFormatter(g_Debugger, FormatUserdata);
+        SetPauseCallback(g_Debugger, UpdatePaused);
         for (uint32_t i = 0; i < g_States.Size(); ++i)
             AddState(g_States[i]);
         dmLogInfo("Lua DAP debugger listening on %s:%u", address, GetPort(g_Debugger));

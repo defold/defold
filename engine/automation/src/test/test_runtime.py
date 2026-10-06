@@ -5,12 +5,16 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import threading
 import time
 import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'debugger/src/test'))
+from test_dap import Client as DAPClient
 
 ARGS = None
 
@@ -454,6 +458,47 @@ class RuntimeTest(unittest.TestCase):
             self.assertEqual(events, self.input_events('touch'))
         finally:
             self.request('/input/flush', 'POST', dict(owner, release=True))
+
+    # DAP stops keep diagnostics/cancellation responsive, expire leases, and resume without stuck input.
+    def test_debugger_pause_and_resume(self):
+        port = self.command('start_debugger')
+        for resume in ('continue', 'disconnect'):
+            with self.subTest(resume=resume):
+                client = DAPClient(port)
+                try:
+                    client.initialize()
+                    client.attach()
+                    client.configured()
+                    self.command('reset_input')
+                    owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False}
+                    status, response = self.request('/input/pointer/open', 'POST',
+                                                    dict(owner, x=20, y=20, lease=10, pointer_lease=1))
+                    self.assertEqual(202, status)
+                    input_id = response['data']['input_id']
+                    self.until(lambda: any(event['pressed'] for event in self.input_events('pointer')))
+                    thread_id = client.request('threads')['threads'][0]['id']
+                    client.request('pause', {'threadId': thread_id})
+                    stopped = client.event('stopped')
+                    self.assertTrue(self.request('/health')[1]['data']['debugger_paused'])
+                    frame = self.request('/frame')[1]['data']['engine_frame']
+                    for path, method, body in (('/scene', 'GET', None), ('/commands', 'POST', {'name': 'echo'}),
+                                               ('/observations', 'POST', {}), ('/input/click', 'POST', {'x': 1, 'y': 1})):
+                        status, response = self.request(path, method, body)
+                        self.assertEqual((409, 'debugger_paused'), (status, response['error']['code']))
+                    def expired():
+                        receipt = self.request('/input/status?input_id=' + str(input_id))[1]['data']
+                        return receipt if receipt['state'] == 'cancelled' else None
+                    self.assertEqual('pointer_lease_expired', self.until(expired)['reason'])
+                    self.assertEqual(frame, self.request('/frame')[1]['data']['engine_frame'])
+                    self.assertEqual(200, self.request('/input/flush', 'POST', dict(owner, release=True))[0])
+                    client.request(resume, {'threadId': stopped['threadId']})
+                    self.until(lambda: not self.request('/health')[1]['data']['debugger_paused'])
+                    self.advance_frames(3)
+                    events = self.input_events('pointer')
+                    self.assertEqual(1, sum(event['released'] for event in events))
+                    self.assertEqual({'resumed': True}, self.command('echo', {'resumed': True}))
+                finally:
+                    client.close()
 
     # Script/GUI owner cleanup removes callbacks and annotations; recreated GUI nodes get new IDs.
     def test_owner_deletion_and_recreation(self):

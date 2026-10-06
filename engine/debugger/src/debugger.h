@@ -45,6 +45,12 @@ namespace dmDebugger
     void AddLuaState(HDebugger debugger, lua_State* L, const char* name);
     void RemoveLuaState(HDebugger debugger, lua_State* L);
     void Update(HDebugger debugger);
+
+    // The host may service non-Lua work while execution is stopped. Called with
+    // paused=true on each stop-loop iteration and false once on resume/disconnect.
+    // Must preserve the Lua stack and must not execute Lua or delete the debugger.
+    typedef void (*PauseCallback)(lua_State* L, bool paused);
+    void SetPauseCallback(HDebugger debugger, PauseCallback callback);
     void WaitForClient(HDebugger debugger);
 
     // Call from a protected-call error handler BEFORE unwinding the Lua stack.

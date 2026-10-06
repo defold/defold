@@ -32,6 +32,7 @@ namespace dmDebugger
         , m_Client(dmSocket::INVALID_SOCKET_HANDLE)
         , m_UserdataTableResolver(0)
         , m_UserdataFormatter(0)
+        , m_PauseCallback(0)
         , m_LocalRoot(0)
         , m_CloseDeadline(0)
         , m_Sequence(1)
@@ -777,6 +778,10 @@ namespace dmDebugger
     void SetUserdataFormatter(HDebugger d, UserdataFormatter formatter)
     {
         d->m_UserdataFormatter = formatter;
+    }
+    void SetPauseCallback(HDebugger d, PauseCallback callback)
+    {
+        d->m_PauseCallback = callback;
     }
     void Delete(HDebugger d)
     {
@@ -1540,10 +1545,14 @@ namespace dmDebugger
         Event(d, "stopped", &body);
         while (d->m_Paused)
         {
+            if (d->m_PauseCallback)
+                d->m_PauseCallback(L, true);
             Update(d);
             if (d->m_Paused)
                 dmTime::Sleep(1000);
         }
+        if (d->m_PauseCallback)
+            d->m_PauseCallback(L, false);
     }
 
     static const char* LogExpressionEnd(const char* p)

@@ -139,6 +139,7 @@ namespace dmDebugger
         dmArray<Reference>    m_References;
         UserdataTableResolver m_UserdataTableResolver;
         UserdataFormatter     m_UserdataFormatter;
+        PauseCallback         m_PauseCallback;
         char*                 m_LocalRoot;
         Buffer                m_Exception;
         uint64_t              m_CloseDeadline;
