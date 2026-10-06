@@ -28,8 +28,11 @@ import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.SocketAddress;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -42,6 +45,8 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.HTML5Bundler;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.util.BobProjectProperties;
 
 /**
  * Tests for HTML5Bundler.getUrlOrigin(), which decides if index.html should contain a
@@ -51,6 +56,60 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 public class HTML5BundlerTest {
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    private Project createHeapSizeProject() {
+        MockFileSystem fileSystem = new MockFileSystem();
+        fileSystem.addFile("/style.css", new byte[0]);
+        Project project = new Project(fileSystem);
+        project.getProjectProperties().putStringValue("html5", "cssfile", "/style.css");
+        return project;
+    }
+
+    private void assertHeapSize(Project project, long expectedSize) throws IOException {
+        Map<String, Map<String, Object>> propertiesMap = new HashMap<>();
+        Map<String, Object> properties = new HashMap<>();
+        new HTML5Bundler().updateManifestProperties(project, Platform.WasmWeb,
+                project.getProjectProperties(), propertiesMap, properties);
+        String heapSize = BundleHelper.formatResource(propertiesMap, properties,
+                "{{DEFOLD_HEAP_SIZE}}".getBytes(StandardCharsets.UTF_8), "heap size");
+        assertEquals(Long.toString(expectedSize), heapSize);
+    }
+
+    // An unset heap size must still render the default 256 MiB as a byte count.
+    @Test
+    public void testDefaultHeapSize() throws IOException {
+        try (Project project = createHeapSizeProject()) {
+            assertHeapSize(project, 268435456L);
+        }
+    }
+
+    // Heap sizes at and above 2048 MiB must not overflow into negative or zero byte counts (#12753).
+    @Test
+    public void testHeapSizeDoesNotOverflow() throws IOException {
+        try (Project project = createHeapSizeProject()) {
+            int[] heapSizes = {32, 256, 2047, 2048, 4096};
+            long[] expectedSizes = {33554432L, 268435456L, 2146435072L, 2147483648L, 4294967296L};
+            for (int i = 0; i < heapSizes.length; ++i) {
+                project.getProjectProperties().putIntValue("html5", "heap_size", heapSizes[i]);
+                assertHeapSize(project, expectedSizes[i]);
+            }
+        }
+    }
+
+    // The deprecated byte count must override heap_size only when set_custom_heap_size is enabled.
+    @Test
+    public void testDeprecatedHeapSizeOverride() throws IOException {
+        try (Project project = createHeapSizeProject()) {
+            BobProjectProperties projectProperties = project.getProjectProperties();
+            projectProperties.putIntValue("html5", "heap_size", 4096);
+            projectProperties.putIntValue("html5", "custom_heap_size", 134217728);
+            assertHeapSize(project, 4294967296L);
+            projectProperties.putBooleanValue("html5", "set_custom_heap_size", true);
+            assertHeapSize(project, 134217728L);
+            projectProperties.putBooleanValue("html5", "set_custom_heap_size", false);
+            assertHeapSize(project, 4294967296L);
+        }
+    }
 
     @Test
     public void testMissingPthreadEngineAbortsBundle() throws Exception {

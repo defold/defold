@@ -39,7 +39,6 @@
 (def R8G8B8   Texc$PixelFormat/PF_R8G8B8)
 (def R8G8B8A8 Texc$PixelFormat/PF_R8G8B8A8)
 
-
 (def TEXTURE_FORMAT_LUMINANCE Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE)
 (def TEXTURE_FORMAT_RGB       Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB)
 (def TEXTURE_FORMAT_RGBA      Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA)

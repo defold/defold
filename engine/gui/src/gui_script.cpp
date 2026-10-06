@@ -16,12 +16,14 @@
 #include <float.h>
 
 #include <dlib/hash.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
 
 #include <script/script.h>
+#include <gameobject/script.h>
 #include <gameobject/gameobject_props_lua.h>
 #include <gameobject/gameobject_script_util.h>
 
@@ -467,12 +469,7 @@ namespace dmGui
     static int GuiScriptInstanceGetUserData(lua_State* L)
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
-        uintptr_t user_data = 0;
-        if (scene != 0 && scene->m_Context->m_GetUserDataCallback != 0)
-        {
-            user_data = scene->m_Context->m_GetUserDataCallback(scene);
-        }
-        lua_pushlightuserdata(L, (void*)user_data);
+        lua_pushlightuserdata(L, scene == 0 ? 0 : GetSceneUserData(scene));
         return 1;
     }
 
@@ -558,6 +555,49 @@ namespace dmGui
         {
             return false;
         }
+    }
+
+    bool GetNodeTypeName(lua_State* L, int index, char* buffer, uint32_t buffer_size)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        if (NODE_PROXY_TYPE_HASH == 0 || lua_objlen(L, index) != sizeof(NodeProxy))
+            return false;
+        NodeProxy* np = (NodeProxy*)dmScript::ToUserType(L, index, NODE_PROXY_TYPE_HASH);
+        if (!np)
+            return false;
+        dmScript::GetInstanceRaw(L);
+        HScene scene = (Scene*)dmScript::ToUserType(L, -1, GUI_SCRIPT_INSTANCE_TYPE_HASH);
+        lua_pop(L, 1);
+        if (!scene || np->m_Scene != scene || !IsValidNode(scene, np->m_Node))
+            return false;
+
+        InternalNode* n = GetNode(scene, np->m_Node);
+        if (n->m_Deleted)
+            return false;
+        const char* name = "unknown";
+        if (n->m_Node.m_IsBone)
+            name = "bone";
+        else
+        {
+            switch (n->m_Node.m_NodeType)
+            {
+                case NODE_TYPE_BOX:        name = "box"; break;
+                case NODE_TYPE_TEXT:       name = "text"; break;
+                case NODE_TYPE_PIE:        name = "pie"; break;
+                case NODE_TYPE_TEMPLATE:   name = "template"; break;
+                case NODE_TYPE_PARTICLEFX: name = "particlefx"; break;
+                case NODE_TYPE_CUSTOM:
+                    name = (const char*)dmHashReverse32(n->m_Node.m_CustomType, 0);
+                    if (!name)
+                    {
+                        dmSnPrintf(buffer, buffer_size, "gui.custom_%u", n->m_Node.m_CustomType);
+                        return true;
+                    }
+                    break;
+            }
+        }
+        dmSnPrintf(buffer, buffer_size, "gui.%s", name);
+        return true;
     }
 
     static InternalNode* LuaCheckNodeInternal(lua_State* L, int index, HNode* hnode)
@@ -1145,12 +1185,16 @@ namespace dmGui
                 return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
             }
 
-            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
+            dmGameObject::HInstance hinstance = dmGameObject::GetInstanceFromLua(L);
+            if (!hinstance)
+            {
+                return DM_LUA_ERROR("'gui.set()' could not resolve the current game object");
+            }
 
             dmhash_t key = 0;
             if (dmGameObject::GetPropertyOptionsKey((dmGameObject::HPropertyOptions)&options_result.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
-                return HandleGoSetResult(L, dmGameObject::PROPERTY_RESULT_INVALID_KEY, property_hash, instance, target, options_result.m_Options);
+                return HandleGoSetResult(L, dmGameObject::PROPERTY_RESULT_INVALID_KEY, property_hash, hinstance, target, options_result.m_Options);
             }
 
             Result r = DeleteDynamicTexture(scene, key);
@@ -1183,11 +1227,15 @@ namespace dmGui
             {
                 return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
             }
-            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
-            result = dmGameObject::SetProperty(instance, target.m_Fragment, property_hash, options_result.m_Options, property_var);
+            dmGameObject::HInstance hinstance = dmGameObject::GetInstanceFromLua(L);
+            if (!hinstance)
+            {
+                return DM_LUA_ERROR("'gui.set()' could not resolve the current game object");
+            }
+            result = dmGameObject::SetProperty(hinstance, target.m_Fragment, property_hash, options_result.m_Options, property_var);
             if (result != dmGameObject::PROPERTY_RESULT_OK)
             {
-                return HandleGoSetResult(L, result, property_hash, instance, target, options_result.m_Options);
+                return HandleGoSetResult(L, result, property_hash, hinstance, target, options_result.m_Options);
             }
             return 0;
         }
@@ -5146,6 +5194,17 @@ namespace dmGui
 
 
 
+    void SetScriptInstanceMetaData(dmScript::HContext script_context, const char* name, void* data)
+    {
+        lua_State* L = dmScript::GetLuaState(script_context);
+        DM_LUA_STACK_CHECK(L, 0);
+
+        luaL_getmetatable(L, GUI_SCRIPT_INSTANCE);
+        lua_pushlightuserdata(L, data);
+        lua_setfield(L, -2, name);
+        lua_pop(L, 1);
+    }
+
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = dmScript::GetLuaState(script_context);
@@ -5501,7 +5560,7 @@ namespace dmGui
      *
      * @name on_input
      * @param self [type:script_instance] script instance used for storing state
-     * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for mouse movement
+     * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for pointer movement and accelerometer samples; check `action.source` to distinguish them
      * @param action [type:on_input.action] input data for the action
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples

@@ -64,7 +64,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -748,8 +748,9 @@
       (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :app.preferences :global
-  (run [workspace prefs app-view localization]
+  (run [workspace prefs app-view project localization]
     (prefs-dialog/open! prefs localization)
+    (project/update-language-servers! project prefs {})
     (workspace/update-build-settings! workspace prefs)
     (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
@@ -2855,7 +2856,7 @@
       view :view
       {:fx/type fxui/ext-with-anchor-pane-props
        :desc {:fx/type ui/ext-value :value parent}
-       :props {:children [{:fx/type markdown/view
+       :props {:children [{:fx/type markdown-view/view
                            :anchor-pane/top 0
                            :anchor-pane/right 0
                            :anchor-pane/bottom 0

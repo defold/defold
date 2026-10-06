@@ -360,12 +360,12 @@
 
 (defn setup-prompt-field! [debug-view ^TextField text-field]
   (.addEventFilter text-field KeyEvent/KEY_PRESSED
-                   (ui/event-handler e
-                     (condp = (.getCode ^KeyEvent e)
-                       KeyCode/ENTER (eval-input! text-field debug-view e)
-                       KeyCode/UP (prev-history-entry! text-field debug-view e)
-                       KeyCode/DOWN (next-history-entry! text-field debug-view e)
-                       nil))))
+    (ui/event-handler e
+      (condp = (.getCode ^KeyEvent e)
+        KeyCode/ENTER (eval-input! text-field debug-view e)
+        KeyCode/UP (prev-history-entry! text-field debug-view e)
+        KeyCode/DOWN (next-history-entry! text-field debug-view e)
+        nil))))
 
 (defn- setup-controls!
   [debug-view ^Parent console-grid-pane ^ListView call-stack-view ^TreeView variables-view localization]
@@ -613,7 +613,7 @@
 
 (handler/defhandler :debugger.break :global
   (enabled? [debug-view evaluation-context]
-            (= :running (some-> (current-session debug-view evaluation-context) mobdebug/state)))
+    (= :running (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/suspend! (current-session debug-view))))
 
 (handler/defhandler :debugger.continue :global
@@ -621,38 +621,38 @@
   ;; Only one of them can be active at a time. This creates the impression that
   ;; there is a single menu item whose label changes in various states.
   (active? [debug-view evaluation-context]
-           (debugging? debug-view evaluation-context))
+    (debugging? debug-view evaluation-context))
   (enabled? [debug-view evaluation-context]
-            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/run! (current-session debug-view)
                                    (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :debugger.step-over :global
   (enabled? [debug-view evaluation-context]
-            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/step-over! (current-session debug-view)
                                          (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :debugger.step-into :global
   (enabled? [debug-view evaluation-context]
-            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/step-into! (current-session debug-view)
                                          (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :debugger.step-out :global
   (enabled? [debug-view evaluation-context]
-            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/step-out! (current-session debug-view)
                                         (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :debugger.detach :global
   (enabled? [debug-view evaluation-context]
-            (current-session debug-view evaluation-context))
+    (current-session debug-view evaluation-context))
   (run [debug-view] (mobdebug/done! (current-session debug-view))))
 
 (handler/defhandler :debugger.stop :global
   (enabled? [debug-view evaluation-context]
-            (current-session debug-view evaluation-context))
+    (current-session debug-view evaluation-context))
   (run [debug-view] (mobdebug/exit! (current-session debug-view))))
 
 (defn- simulate-rotated-device? [prefs]
@@ -899,17 +899,17 @@
 (handler/defhandler :run.reset-resolution :global
   (enabled? [prefs] (prefs/get prefs [:run :simulated-resolution]))
   (run [project prefs]
-       (prefs/set! prefs [:run :simulated-resolution] nil)
-       (prefs/set! prefs [:run :simulate-rotated-device] false)
-       (let [project-settings-data (project-settings-screen-data project)]
-         (change-resolution! prefs (:width project-settings-data) (:height project-settings-data)))))
+    (prefs/set! prefs [:run :simulated-resolution] nil)
+    (prefs/set! prefs [:run :simulate-rotated-device] false)
+    (let [project-settings-data (project-settings-screen-data project)]
+      (change-resolution! prefs (:width project-settings-data) (:height project-settings-data)))))
 
 (handler/defhandler :run.toggle-device-rotated :global
   (run [project app-view prefs build-errors-view selection user-data workspace]
-       (prefs/set! prefs [:run :simulate-rotated-device] (not (simulate-rotated-device? prefs)))
-       (let [data (prefs/get prefs [:run :simulated-resolution])]
-         (when data
-           (change-resolution! prefs (:width data) (:height data)))))
+    (prefs/set! prefs [:run :simulate-rotated-device] (not (simulate-rotated-device? prefs)))
+    (let [data (prefs/get prefs [:run :simulated-resolution])]
+      (when data
+        (change-resolution! prefs (:width data) (:height data)))))
   (state [app-view user-data prefs workspace] (simulate-rotated-device? prefs)))
 
 (handler/defhandler :private/disabled-menu-label :global

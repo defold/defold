@@ -21,6 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/thread.h>
+#include <dlib/time.h>
 #include <dlib/hash.h>
 
 #include <platform/window.hpp>
@@ -1102,10 +1103,10 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
                 depthstencil_desc.stencilFront.failOp      = g_webgpu_stencil_ops[context->m_CurrentPipelineState.m_StencilFrontOpFail];
                 depthstencil_desc.stencilFront.depthFailOp = g_webgpu_stencil_ops[context->m_CurrentPipelineState.m_StencilFrontOpDepthFail];
                 depthstencil_desc.stencilFront.passOp      = g_webgpu_stencil_ops[context->m_CurrentPipelineState.m_StencilFrontOpPass];
-                depthstencil_desc.stencilBack.compare      = g_webgpu_compare_funcs[context->m_CurrentPipelineState.m_StencilFrontTestFunc];
+                depthstencil_desc.stencilBack.compare      = g_webgpu_compare_funcs[context->m_CurrentPipelineState.m_StencilBackTestFunc];
                 depthstencil_desc.stencilBack.failOp       = g_webgpu_stencil_ops[context->m_CurrentPipelineState.m_StencilBackOpFail];
                 depthstencil_desc.stencilBack.depthFailOp  = g_webgpu_stencil_ops[context->m_CurrentPipelineState.m_StencilBackOpDepthFail];
-                depthstencil_desc.stencilBack.passOp       = g_webgpu_stencil_ops[context->m_CurrentPipelineState.m_StencilFrontOpPass];
+                depthstencil_desc.stencilBack.passOp       = g_webgpu_stencil_ops[context->m_CurrentPipelineState.m_StencilBackOpPass];
             }
             else
             {
@@ -1227,6 +1228,19 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
 #endif
         surface_conf.device                   = context->m_Device;
         surface_conf.usage                    = g_rendertarget_usage;
+#if defined(DM_GRAPHICS_WEBGPU2)
+        // Surface copy usage is optional. Keep unsupported surfaces renderable.
+        WGPUSurfaceCapabilities capabilities = WGPU_SURFACE_CAPABILITIES_INIT;
+        if (wgpuSurfaceGetCapabilities(context->m_Surface, context->m_Adapter, &capabilities) == WGPUStatus_Success)
+        {
+            surface_conf.usage |= capabilities.usages & WGPUTextureUsage_CopySrc;
+        }
+        wgpuSurfaceCapabilitiesFreeMembers(capabilities);
+#else
+        // The legacy Emscripten API has no usage capabilities; canvas textures
+        // support COPY_SRC when it is requested during configuration.
+        surface_conf.usage |= WGPUTextureUsage_CopySrc;
+#endif
         surface_conf.format                   = context->m_Format;
         surface_conf.width                    = width;
         surface_conf.height                   = height;
@@ -1529,6 +1543,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+    SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
 
@@ -1619,6 +1634,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
 
         limits.m_MaxSamplersPerStage             = (uint32_t) DEV_LIMIT(maxSamplersPerShaderStage);
         limits.m_MaxTexturesPerStage             = (uint32_t) DEV_LIMIT(maxSampledTexturesPerShaderStage);
+        limits.m_MaxStorageBuffersPerStage       = (uint32_t) DEV_LIMIT(maxStorageBuffersPerShaderStage);
         limits.m_MaxVertexAttributes             = (uint32_t) DEV_LIMIT(maxVertexAttributes);
         limits.m_MaxVertexBuffers                = (uint32_t) DEV_LIMIT(maxVertexBuffers);
 
@@ -1940,6 +1956,7 @@ static void WebGPUCreateCommandEncoder(WebGPUContext* context)
 }
 
 static void WebGPUEndRenderPass(WebGPUContext* context);
+static void WebGPUInvalidateBindGroups(WebGPUContext* context);
 
 static void WebGPUEndComputePass(WebGPUContext* context)
 {
@@ -2036,23 +2053,15 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, uint32_t cl
             WebGPUTexture* texture            = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureResolve[i]);
             colorAttachments[i].resolveTarget = texture->m_TextureView;
         }
-        WebGPUTexture* color_texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureColor[i]);
         const BufferType color_buffer_type = context->m_CurrentRenderPass.m_Target->m_ColorBufferTypes[i];
         // A resolve target does not make the multisampled attachment
         // disposable. Rendering can return to this target later in the frame,
         // in which case LOAD must restore the previous samples before resolving
-        // again. Discard only when the target explicitly permits it.
-        const bool discard_color = context->m_CurrentRenderPass.m_Target->m_ColorBufferStoreOps[i] == ATTACHMENT_OP_DONT_CARE ||
-            (context->m_CurrentRenderPass.m_Target->m_TransientBufferTypes & color_buffer_type) ||
-            (color_texture->m_Base.m_UsageHintFlags & TEXTURE_USAGE_FLAG_MEMORYLESS);
-        if (discard_color)
-        {
-            colorAttachments[i].storeOp = WGPUStoreOp_Discard;
-        }
-        else
-        {
-            colorAttachments[i].storeOp = WGPUStoreOp_Store;
-        }
+        // again.
+        // Store/discard hints apply to a logical target activation. SSBO
+        // dependencies can end this native pass early, so retain attachments
+        // until the next activation applies its load operation.
+        colorAttachments[i].storeOp = WGPUStoreOp_Store;
 
         const bool explicit_clear = clear_flags != 0;
         const bool initialize_opaque_surface = i == 0 &&
@@ -2139,10 +2148,9 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, uint32_t cl
             dsAttachment.view = rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP
                 ? rt->m_CubeMapDepthStencilViews[rt->m_Base.m_CubeMapFace]
                 : (texture->m_RenderTargetView ? texture->m_RenderTargetView : texture->m_TextureView);
-            const bool memoryless = texture->m_Base.m_UsageHintFlags & TEXTURE_USAGE_FLAG_MEMORYLESS;
             if (rt->m_BufferTypeFlags & BUFFER_TYPE_DEPTH_BIT)
             {
-                dsAttachment.depthStoreOp = (memoryless || (rt->m_TransientBufferTypes & BUFFER_TYPE_DEPTH_BIT)) ? WGPUStoreOp_Discard : WGPUStoreOp_Store;
+                dsAttachment.depthStoreOp = WGPUStoreOp_Store;
                 if (clear_flags && (clear_flags & BUFFER_TYPE_DEPTH_BIT))
                 {
                     dsAttachment.depthLoadOp = WGPULoadOp_Clear;
@@ -2155,7 +2163,7 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, uint32_t cl
             }
             if (rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT)
             {
-                dsAttachment.stencilStoreOp = (memoryless || (rt->m_TransientBufferTypes & BUFFER_TYPE_STENCIL_BIT)) ? WGPUStoreOp_Discard : WGPUStoreOp_Store;
+                dsAttachment.stencilStoreOp = WGPUStoreOp_Store;
                 if (clear_flags && (clear_flags & BUFFER_TYPE_STENCIL_BIT))
                 {
                     dsAttachment.stencilLoadOp = WGPULoadOp_Clear;
@@ -2179,6 +2187,7 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
     WebGPUEndComputePass(context);
     if (context->m_CurrentRenderPass.m_Target != context->m_CurrentRenderTarget)
     {
+        const bool first_pass = context->m_ApplyRenderTargetLoadOps;
         WebGPUEndRenderPass(context);
         WebGPUCreateCommandEncoder(context);
         ++context->m_RenderPasses;
@@ -2188,11 +2197,15 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
         if (context->m_CurrentRenderPass.m_Target == context->m_MainRenderTarget)
             context->m_InitializeOpaqueSurface = 0;
         context->m_ApplyRenderTargetLoadOps = 0;
+        context->m_ViewportChanged = 1;
 
-        context->m_CurrentRenderPass.m_Target->m_Scissor[0] = 0;
-        context->m_CurrentRenderPass.m_Target->m_Scissor[1] = 0;
-        context->m_CurrentRenderPass.m_Target->m_Scissor[2] = context->m_CurrentRenderPass.m_Target->m_Width;
-        context->m_CurrentRenderPass.m_Target->m_Scissor[3] = context->m_CurrentRenderPass.m_Target->m_Height;
+        if (first_pass)
+        {
+            context->m_CurrentRenderPass.m_Target->m_Scissor[0] = 0;
+            context->m_CurrentRenderPass.m_Target->m_Scissor[1] = 0;
+            context->m_CurrentRenderPass.m_Target->m_Scissor[2] = context->m_CurrentRenderPass.m_Target->m_Width;
+            context->m_CurrentRenderPass.m_Target->m_Scissor[3] = context->m_CurrentRenderPass.m_Target->m_Height;
+        }
     }
 
     if (context->m_ViewportChanged)
@@ -2536,6 +2549,102 @@ static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_
 
     wgpuBufferRelease(ubo->m_Buffer);
     delete ubo;
+}
+
+static HStorageBuffer WebGPUNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPUStorageBuffer* buffer = new WebGPUStorageBuffer();
+    buffer->m_Base.m_Size = size;
+    buffer->m_Base.m_Usage = buffer_usage;
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+#else
+    WGPUBufferDescriptor desc = {};
+#endif
+    desc.size = size;
+    desc.usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
+    buffer->m_Buffer = wgpuDeviceCreateBuffer(context->m_Device, &desc);
+    if (data) wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, 0, data, size);
+    return (HStorageBuffer) buffer;
+}
+
+static void WebGPUDisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPUStorageBuffer* buffer = (WebGPUStorageBuffer*) storage_buffer;
+    for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+    {
+        bool changed = false;
+        for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+        {
+            if (context->m_CurrentStorageBuffers[set][binding] == buffer)
+            {
+                context->m_CurrentStorageBuffers[set][binding] = 0;
+                changed = true;
+            }
+        }
+        if (changed && context->m_CurrentProgram)
+            context->m_CurrentProgram->m_BindGroups[set] = NULL;
+    }
+}
+
+static void WebGPUDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+{
+    WebGPUStorageBuffer* buffer = (WebGPUStorageBuffer*) storage_buffer;
+    WebGPUDisableStorageBuffer(_context, storage_buffer);
+    // Recorded commands retain their own references. Drop cache ownership of
+    // the old native buffer, including groups for programs no longer selected.
+    WebGPUInvalidateBindGroups((WebGPUContext*) _context);
+    wgpuBufferRelease(buffer->m_Buffer);
+    delete buffer;
+}
+
+static void WebGPUSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPUStorageBuffer* buffer = (WebGPUStorageBuffer*) storage_buffer;
+    WebGPUSubmitCommandEncoder(context);
+    if (size != buffer->m_Base.m_Size)
+    {
+        WebGPUInvalidateBindGroups(context);
+        wgpuBufferRelease(buffer->m_Buffer);
+#if defined(DM_GRAPHICS_WEBGPU2)
+        WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+#else
+        WGPUBufferDescriptor desc = {};
+#endif
+        desc.size = size;
+        desc.usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
+        buffer->m_Buffer = wgpuDeviceCreateBuffer(context->m_Device, &desc);
+        buffer->m_Base.m_Size = size;
+        buffer->m_LastRenderPass = 0;
+    }
+    buffer->m_Base.m_Usage = buffer_usage;
+    if (data) wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, 0, data, size);
+}
+
+static void WebGPUSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPUStorageBuffer* buffer = (WebGPUStorageBuffer*) storage_buffer;
+    assert(offset + size <= buffer->m_Base.m_Size);
+    WebGPUSubmitCommandEncoder(context);
+    wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
+}
+
+static uint32_t WebGPUGetStorageBufferSize(HContext _context, HStorageBuffer storage_buffer)
+{
+    return ((WebGPUStorageBuffer*) storage_buffer)->m_Base.m_Size;
+}
+
+static void WebGPUEnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+{
+    assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+    WebGPUContext* context = (WebGPUContext*) _context;
+    context->m_CurrentStorageBuffers[set][binding] = (WebGPUStorageBuffer*) storage_buffer;
+    if (context->m_CurrentProgram)
+        context->m_CurrentProgram->m_BindGroups[set] = NULL;
 }
 
 static HVertexBuffer WebGPUNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2912,8 +3021,11 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     break;
                 }
                 case BINDING_FAMILY_STORAGE_BUFFER: {
-                    // const uint32_t ssbo_alignment = context->m_DeviceLimits.minStorageBufferOffsetAlignment;
-                    assert(false);
+                    WebGPUStorageBuffer* buffer = context->m_CurrentStorageBuffers[set][binding];
+                    assert(buffer);
+                    entries[desc.entryCount].buffer = buffer->m_Buffer;
+                    entries[desc.entryCount].offset = 0;
+                    entries[desc.entryCount].size = buffer->m_Base.m_Size;
                     break;
                 }
                 case BINDING_FAMILY_UNIFORM_BUFFER: {
@@ -3039,7 +3151,34 @@ static void WebGPUSetupComputePipeline(WebGPUContext* context)
 static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* indexBuffer, Type indexBufferType)
 {
     TRACE_CALL;
+    const dmArray<ShaderResourceBinding>& resources = context->m_CurrentProgram->m_BaseProgram.m_ShaderMeta.m_StorageBuffers;
+    // A render pass is one WebGPU usage scope. Conflicting storage accesses,
+    // including two writable draws, need separate scopes for ordered results.
+    for (uint32_t i = 0; i < resources.Size(); ++i)
+    {
+        const ShaderResourceBinding& resource = resources[i];
+        WebGPUStorageBuffer* buffer = context->m_CurrentStorageBuffers[resource.m_Set][resource.m_Binding];
+        const uint8_t access = resource.m_AccessFlags ? resource.m_AccessFlags : SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+        if (buffer && context->m_CurrentRenderPass.m_Encoder && buffer->m_LastRenderPass == context->m_RenderPasses &&
+            ((access | buffer->m_RenderPassAccess) & SHADER_RESOURCE_ACCESS_WRITE))
+        {
+            WebGPUEndRenderPass(context);
+            break;
+        }
+    }
     WebGPUBeginRenderPass(context, 0, 0, 0, 0);
+    for (uint32_t i = 0; i < resources.Size(); ++i)
+    {
+        const ShaderResourceBinding& resource = resources[i];
+        WebGPUStorageBuffer* buffer = context->m_CurrentStorageBuffers[resource.m_Set][resource.m_Binding];
+        if (buffer)
+        {
+            if (buffer->m_LastRenderPass != context->m_RenderPasses)
+                buffer->m_RenderPassAccess = 0;
+            buffer->m_LastRenderPass = context->m_RenderPasses;
+            buffer->m_RenderPassAccess |= resource.m_AccessFlags ? resource.m_AccessFlags : SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+        }
+    }
     WebGPUUpdateBindGroups(context);
 
     // Get the pipeline for the active draw state
@@ -3278,9 +3417,9 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     }
                     break;
                 case BINDING_FAMILY_STORAGE_BUFFER: {
-                    assert(false);
-                    // const uint32_t ssbo_alignment = context->m_DeviceLimits.minStorageBufferOffsetAlignment;
-                    binding.buffer.type = WGPUBufferBindingType_Storage;
+                    binding.buffer.type = res.m_AccessFlags == SHADER_RESOURCE_ACCESS_READ
+                        ? WGPUBufferBindingType_ReadOnlyStorage
+                        : WGPUBufferBindingType_Storage;
 
                     program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                     info.m_StorageBufferCount++;
@@ -3427,7 +3566,7 @@ static HProgram WebGPUNewProgram(HContext _context, ShaderDesc* ddf, char* error
     WebGPUProgram* program = new WebGPUProgram;
     WebGPUContext* context = (WebGPUContext*) _context;
 
-    CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+    CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
 
     if (ddf_cp)
     {
@@ -3564,7 +3703,7 @@ static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc
             return false;
         }
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
         WebGPUCreateComputeProgram(context, program, compute_module);
     }
     else
@@ -3586,7 +3725,7 @@ static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc
             return false;
         }
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
         WebGPUCreateGraphicsProgram(context, program, vertex_module, fragment_module);
     }
 
@@ -3816,10 +3955,154 @@ static void WebGPUDisableTexture(HContext _context, uint32_t unit, HTexture text
     }
 }
 
-static void WebGPUReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
+struct WebGPUReadback
+{
+    bool m_Done;
+    bool m_Success;
+};
+
+#if defined(DM_GRAPHICS_WEBGPU2)
+static void WebGPUReadbackMapped(WGPUMapAsyncStatus status, WGPUStringView message, void* userdata, void*)
+#else
+static void WebGPUReadbackMapped(WGPUBufferMapAsyncStatus status, void* userdata)
+#endif
+{
+    WebGPUReadback* readback = (WebGPUReadback*) userdata;
+#if defined(DM_GRAPHICS_WEBGPU2)
+    readback->m_Success = status == WGPUMapAsyncStatus_Success;
+#else
+    readback->m_Success = status == WGPUBufferMapAsyncStatus_Success;
+#endif
+    readback->m_Done = true;
+}
+
+static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
 {
     TRACE_CALL;
-    assert(false);
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPURenderTarget* rt = context->m_CurrentRenderTarget;
+    HTexture color_handle = 0;
+    if (rt)
+    {
+        color_handle = rt->m_Base.m_TextureColor[0];
+        if (rt->m_Base.m_TextureColorResolve[0])
+        {
+            color_handle = rt->m_Base.m_TextureColorResolve[0];
+        }
+    }
+
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, color_handle);
+    if (!texture)
+    {
+        dmLogError("WebGPUReadPixels: no color attachment to read");
+        return;
+    }
+
+    if (!buffer || !width || !height || x < 0 || y < 0 ||
+        uint64_t(width) * height * 4 > buffer_size)
+    {
+        dmLogError("WebGPUReadPixels: invalid destination or region");
+        return;
+    }
+
+    if (uint64_t(x) + width > rt->m_Width ||
+        uint64_t(y) + height > rt->m_Height)
+    {
+        dmLogError("WebGPUReadPixels: region is outside the color attachment");
+        return;
+    }
+
+    if (!(wgpuTextureGetUsage(texture->m_Texture) & WGPUTextureUsage_CopySrc))
+    {
+        dmLogError("WebGPUReadPixels: color attachment does not support copy-source usage");
+        return;
+    }
+
+    const bool is_rgba = texture->m_Format == WGPUTextureFormat_RGBA8Unorm || texture->m_Format == WGPUTextureFormat_RGBA8UnormSrgb;
+    const bool is_bgra = texture->m_Format == WGPUTextureFormat_BGRA8Unorm || texture->m_Format == WGPUTextureFormat_BGRA8UnormSrgb;
+    if (!is_rgba && !is_bgra)
+    {
+        dmLogError("WebGPUReadPixels: expected an RGBA8/BGRA8 color attachment");
+        return;
+    }
+
+    // WebGPU copies pad each row to 256 bytes, even for narrow subregions.
+    const uint32_t row_pitch = (width * 4 + 255) & ~255u;
+    const uint64_t size = uint64_t(row_pitch) * height;
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+    WGPUTexelCopyTextureInfo source = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    WGPUTexelCopyBufferInfo destination = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
+#else
+    WGPUBufferDescriptor desc = {};
+    WGPUImageCopyTexture source = {};
+    WGPUImageCopyBuffer destination = {};
+#endif
+    desc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
+    desc.size  = size;
+    WGPUBuffer staging = wgpuDeviceCreateBuffer(context->m_Device, &desc);
+
+    source.texture  = texture->m_Texture;
+    source.origin.x = x;
+    source.origin.y = y;
+    source.aspect   = WGPUTextureAspect_All;
+
+    destination.buffer              = staging;
+    destination.layout.bytesPerRow  = row_pitch;
+    destination.layout.rowsPerImage = height;
+
+    // Submit pending rendering and the copy before mapping the staging buffer.
+    WGPUExtent3D extent = { width, height, 1 };
+    WebGPUEndComputePass(context);
+    WebGPUEndRenderPass(context);
+    WebGPUCreateCommandEncoder(context);
+    wgpuCommandEncoderCopyTextureToBuffer(context->m_CommandEncoder, &source, &destination, &extent);
+    WebGPUSubmitCommandEncoder(context);
+
+    // ReadPixels is synchronous; keep the callback state alive until mapping completes.
+    WebGPUReadback readback = {};
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUBufferMapCallbackInfo callback = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+    callback.mode      = WGPUCallbackMode_AllowProcessEvents;
+    callback.callback  = WebGPUReadbackMapped;
+    callback.userdata1 = &readback;
+    wgpuBufferMapAsync(staging, WGPUMapMode_Read, 0, size, callback);
+#else
+    wgpuBufferMapAsync(staging, WGPUMapMode_Read, 0, size, WebGPUReadbackMapped, &readback);
+#endif
+    while (!readback.m_Done)
+    {
+#if defined(__EMSCRIPTEN__)
+        emscripten_sleep(1);
+#else
+        wgpuInstanceProcessEvents(context->m_Instance);
+        dmTime::Sleep(1000);
+#endif
+    }
+
+    if (readback.m_Success)
+    {
+        const uint8_t* mapped = (const uint8_t*) wgpuBufferGetConstMappedRange(staging, 0, size);
+        uint8_t* pixels = (uint8_t*) buffer;
+        for (uint32_t row = 0; row < height; ++row)
+        {
+            memcpy(pixels + row * width * 4, mapped + row * row_pitch, width * 4);
+        }
+
+        if (is_rgba)
+        {
+            SwizzleRGBAToBGRA(buffer, width * height);
+        }
+        wgpuBufferUnmap(staging);
+    }
+    else
+    {
+        dmLogError("WebGPUReadPixels: buffer mapping failed");
+    }
+
+    wgpuBufferRelease(staging);
+    // Submission ended the pass and invalidated its cached bindings. The next
+    // draw creates an encoder and reloads this target without clearing it.
 }
 
 static bool WebGPUIsRenderTargetTextureType(TextureType type)
@@ -3994,6 +4277,14 @@ static WebGPUTexture* WebGPUCreateRenderTargetTexture(const TextureCreationParam
     texture->m_Base.m_Format      = params.m_Format;
     texture->m_Base.m_MipMapCount = 1;
     texture->m_Base.m_PageCount   = creation_params.m_Type == TEXTURE_TYPE_CUBE_MAP || creation_params.m_Type == TEXTURE_TYPE_TEXTURE_CUBE ? CUBEMAP_FACE_COUNT : 1;
+
+    const bool is_rgba = format == WGPUTextureFormat_RGBA8Unorm || format == WGPUTextureFormat_RGBA8UnormSrgb;
+    const bool is_bgra = format == WGPUTextureFormat_BGRA8Unorm || format == WGPUTextureFormat_BGRA8UnormSrgb;
+    const bool memoryless = (creation_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_MEMORYLESS) != 0;
+    if (sample_count == 1 && !memoryless && (is_rgba || is_bgra))
+    {
+        usage = (WGPUTextureUsage) (usage | WGPUTextureUsage_CopySrc);
+    }
 
     const WGPUTextureAspect view_aspect = depth_only_sample_view ? WGPUTextureAspect_DepthOnly : WGPUTextureAspect_All;
     if (!WebGPURealizeTexture(texture, format, 1, sample_count, usage, view_aspect))

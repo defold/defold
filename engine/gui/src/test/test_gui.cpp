@@ -1895,6 +1895,98 @@ TEST_F(dmGuiTest, ScriptInput)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+// Verifies every source hash reaches GUI callbacks without changing input consumption.
+TEST_F(dmGuiTest, ScriptInputSources)
+{
+    const char* script = "function on_input(self, action_id, action)\n"
+                         "    assert(action_id == hash('test_action'))\n"
+                         "    input_source_received = action.source\n"
+                         "    return true\n"
+                         "end\n";
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetScript(m_Script, LuaSourceFromStr(script)));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const char* names[] = {"keyboard", "text", "mouse", "touch", "gamepad", "accelerometer"};
+    const dmHID::InputSource sources[] = {
+        dmHID::INPUT_SOURCE_KEYBOARD, dmHID::INPUT_SOURCE_TEXT, dmHID::INPUT_SOURCE_MOUSE,
+        dmHID::INPUT_SOURCE_TOUCH, dmHID::INPUT_SOURCE_GAMEPAD, dmHID::INPUT_SOURCE_ACCELEROMETER,
+    };
+    dmGui::InputAction action;
+    ASSERT_EQ(dmHID::INPUT_SOURCE_KEYBOARD, action.m_Source);
+    action.m_ActionId = dmHashString64("test_action");
+    for (uint32_t i = 0; i < sizeof(sources) / sizeof(sources[0]); ++i)
+    {
+        lua_pushnil(L);
+        lua_setglobal(L, "input_source_received");
+        action.m_Source = sources[i];
+        bool consumed = false;
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::DispatchInput(m_Scene, &action, 1, &consumed));
+        ASSERT_TRUE(consumed);
+        lua_getglobal(L, "input_source_received");
+        ASSERT_TRUE(dmScript::IsHash(L, -1));
+        ASSERT_EQ(dmHashString64(names[i]), dmScript::CheckHash(L, -1));
+        lua_pop(L, 1);
+    }
+}
+
+// Verifies separate mouse, touch, and accelerometer GUI payloads without consumption leaking into the next callback.
+TEST_F(dmGuiTest, ScriptUnnamedInputSources)
+{
+    const char* script = "input_pointer_received = 0\n"
+                         "input_accelerometer_received = 0\n"
+                         "function on_input(self, action_id, action)\n"
+                         "    assert(action_id == nil)\n"
+                         "    assert(action.value == nil and action.pressed == nil)\n"
+                         "    assert(action.released == nil and action.repeated == nil)\n"
+                         "    if action.source == hash('mouse') or action.source == hash('touch') then\n"
+                         "        assert(action.x == 1 and action.y == 2)\n"
+                         "        assert(action.dx == 3 and action.dy == 4)\n"
+                         "        assert(action.screen_x == 5 and action.screen_y == 6)\n"
+                         "        assert(action.screen_dx == 7 and action.screen_dy == 8)\n"
+                         "        assert(action.acc_x == nil and action.acc_y == nil and action.acc_z == nil)\n"
+                         "        input_pointer_received = input_pointer_received + 1\n"
+                         "        return true\n"
+                         "    end\n"
+                         "    assert(action.source == hash('accelerometer'))\n"
+                         "    assert(action.acc_x == 0.25 and action.acc_y == -0.5 and action.acc_z == 1)\n"
+                         "    assert(action.x == nil and action.y == nil and action.dx == nil and action.dy == nil)\n"
+                         "    assert(action.screen_x == nil and action.screen_y == nil)\n"
+                         "    assert(action.screen_dx == nil and action.screen_dy == nil)\n"
+                         "    input_accelerometer_received = input_accelerometer_received + 1\n"
+                         "end\n";
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetScript(m_Script, LuaSourceFromStr(script)));
+    dmGui::InputAction actions[2];
+    actions[0].m_PositionSet = 1;
+    actions[0].m_X = 1.0f;
+    actions[0].m_Y = 2.0f;
+    actions[0].m_DX = 3.0f;
+    actions[0].m_DY = 4.0f;
+    actions[0].m_ScreenX = 5.0f;
+    actions[0].m_ScreenY = 6.0f;
+    actions[0].m_ScreenDX = 7.0f;
+    actions[0].m_ScreenDY = 8.0f;
+    actions[1].m_Source = dmHID::INPUT_SOURCE_ACCELEROMETER;
+    actions[1].m_AccelerationSet = 1;
+    actions[1].m_AccX = 0.25f;
+    actions[1].m_AccY = -0.5f;
+    actions[1].m_AccZ = 1.0f;
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const dmHID::InputSource pointer_sources[] = {dmHID::INPUT_SOURCE_MOUSE, dmHID::INPUT_SOURCE_TOUCH};
+    for (uint32_t i = 0; i < sizeof(pointer_sources) / sizeof(pointer_sources[0]); ++i)
+    {
+        actions[0].m_Source = pointer_sources[i];
+        bool consumed[2] = {};
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::DispatchInput(m_Scene, actions, 2, consumed));
+        ASSERT_TRUE(consumed[0]);
+        ASSERT_FALSE(consumed[1]);
+        lua_getglobal(L, "input_pointer_received");
+        ASSERT_EQ(i + 1, lua_tointeger(L, -1));
+        lua_pop(L, 1);
+        lua_getglobal(L, "input_accelerometer_received");
+        ASSERT_EQ(i + 1, lua_tointeger(L, -1));
+        lua_pop(L, 1);
+    }
+}
+
 TEST_F(dmGuiTest, ScriptInputConsume)
 {
     const char* s = "function update(self)\n"
@@ -5637,6 +5729,187 @@ TEST_F(dmGuiTest, SetGetScreenPositionSafeArea)
     Point3 local_from_after = dmGui::ScreenToLocalPosition(m_Scene, root, Point3(after_set.getXYZ()));
     ASSERT_NEAR(local_after.getX(), local_from_after.getX(), EPSILON);
     ASSERT_NEAR(local_after.getY(), local_from_after.getY(), EPSILON);
+}
+
+// Verifies safe-area anchoring translates root and child rendering once and preserves picking; guards against #13331.
+TEST_F(dmGuiTest, SafeAreaAnchoring)
+{
+    struct TestCase
+    {
+        dmGui::SafeAreaMode m_Mode;
+        uint32_t           m_WindowWidth;
+        uint32_t           m_WindowHeight;
+        int32_t            m_Left;
+        int32_t            m_Top;
+        int32_t            m_Right;
+        int32_t            m_Bottom;
+        uint32_t           m_AdjustWidth;
+        uint32_t           m_AdjustHeight;
+        float              m_OffsetX;
+        float              m_OffsetY;
+    };
+    const TestCase cases[] = {
+        {dmGui::SAFE_AREA_LONG,  400, 300, 40, 20, 10, 30, 350, 300, 40,  0},
+        {dmGui::SAFE_AREA_SHORT, 400, 300, 40, 20, 10, 30, 400, 250,  0, 30},
+        {dmGui::SAFE_AREA_BOTH,  400, 300, 40, 20, 10, 30, 350, 250, 40, 30},
+        {dmGui::SAFE_AREA_LONG,  300, 400, 40, 20, 10, 30, 300, 350,  0, 30},
+        {dmGui::SAFE_AREA_SHORT, 300, 400, 40, 20, 10, 30, 250, 400, 40,  0},
+        {dmGui::SAFE_AREA_BOTH,  300, 400, 40, 20, 10, 30, 250, 350, 40, 30},
+        {dmGui::SAFE_AREA_NONE,  400, 300, 40, 20, 10, 30, 400, 300,  0,  0},
+        {dmGui::SAFE_AREA_LONG,  400, 300,  0,  0, 50,  0, 350, 300,  0,  0},
+        {dmGui::SAFE_AREA_LONG,  300, 400,  0, 50,  0,  0, 300, 350,  0,  0},
+        {dmGui::SAFE_AREA_LONG, 2408, 1080, 65, 0, 0, 0, 2343, 1080, 65, 0},
+    };
+    const dmGui::AdjustReference references[] = {dmGui::ADJUST_REFERENCE_LEGACY, dmGui::ADJUST_REFERENCE_PARENT};
+    const dmGui::AdjustMode adjust_modes[] = {dmGui::ADJUST_MODE_FIT, dmGui::ADJUST_MODE_ZOOM, dmGui::ADJUST_MODE_STRETCH};
+    const dmGui::XAnchor xanchors[] = {dmGui::XANCHOR_NONE, dmGui::XANCHOR_LEFT, dmGui::XANCHOR_RIGHT};
+    const dmGui::YAnchor yanchors[] = {dmGui::YANCHOR_NONE, dmGui::YANCHOR_BOTTOM, dmGui::YANCHOR_TOP};
+    dmGui::HNode nodes[6];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        nodes[i * 2] = dmGui::NewNode(m_Scene, Point3(16.0f + i * 144.0f, 16.0f + i * 84.0f, 0), Vector3(20, 20, 0), dmGui::NODE_TYPE_BOX, 0);
+        nodes[i * 2 + 1] = dmGui::NewNode(m_Scene, Point3(7, 11, 0), Vector3(8, 8, 0), dmGui::NODE_TYPE_BOX, 0);
+        dmGui::SetNodeParent(m_Scene, nodes[i * 2 + 1], nodes[i * 2], false);
+        for (uint32_t j = 0; j < 2; ++j)
+        {
+            dmGui::SetNodeXAnchor(m_Scene, nodes[i * 2 + j], xanchors[i]);
+            dmGui::SetNodeYAnchor(m_Scene, nodes[i * 2 + j], yanchors[i]);
+        }
+    }
+    dmGui::SetDefaultResolution(m_Context, 320, 200);
+    dmGui::SetSceneResolution(m_Scene, 320, 200);
+    dmGui::CalculateNodeTransformFlags flags = dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT);
+    for (uint32_t r = 0; r < sizeof(references) / sizeof(references[0]); ++r)
+    {
+        dmGui::SetSceneAdjustReference(m_Scene, references[r]);
+        for (uint32_t a = 0; a < sizeof(adjust_modes) / sizeof(adjust_modes[0]); ++a)
+        {
+            for (uint32_t n = 0; n < 6; ++n)
+            {
+                dmGui::SetNodeAdjustMode(m_Scene, nodes[n], adjust_modes[a]);
+            }
+            for (uint32_t c = 0; c < sizeof(cases) / sizeof(cases[0]); ++c)
+            {
+                const TestCase& tc = cases[c];
+                // A safe area must render like a window of the same size, translated to its origin.
+                dmGui::SetPhysicalResolution(m_Context, tc.m_AdjustWidth, tc.m_AdjustHeight);
+                dmGui::UpdateSafeAreaAdjust(m_Context, dmGui::SAFE_AREA_NONE, tc.m_AdjustWidth, tc.m_AdjustHeight, 0, 0, 0, 0);
+                Matrix4 expected[6];
+                for (uint32_t n = 0; n < 6; ++n)
+                {
+                    dmGui::CalculateNodeTransform(m_Scene, dmGui::GetNode(m_Scene, nodes[n]), flags, expected[n]);
+                }
+                dmGui::SetPhysicalResolution(m_Context, tc.m_WindowWidth, tc.m_WindowHeight);
+                dmGui::UpdateSafeAreaAdjust(m_Context, tc.m_Mode, tc.m_WindowWidth, tc.m_WindowHeight, tc.m_Left, tc.m_Top, tc.m_Right, tc.m_Bottom);
+                for (uint32_t n = 0; n < 6; ++n)
+                {
+                    Matrix4 actual;
+                    dmGui::CalculateNodeTransform(m_Scene, dmGui::GetNode(m_Scene, nodes[n]), flags, actual);
+                    ASSERT_NEAR(expected[n].getCol3().getX() + tc.m_OffsetX, actual.getCol3().getX(), 0.001f);
+                    ASSERT_NEAR(expected[n].getCol3().getY() + tc.m_OffsetY, actual.getCol3().getY(), 0.001f);
+                    ASSERT_NEAR(expected[n].getCol0().getX(), actual.getCol0().getX(), 0.001f);
+                    ASSERT_NEAR(expected[n].getCol1().getY(), actual.getCol1().getY(), 0.001f);
+
+                    Vector4 center = expected[n] * Vector4(0.5f, 0.5f, 0, 1);
+                    float x = (center.getX() + tc.m_OffsetX) * 320.0f / tc.m_WindowWidth;
+                    float y = (center.getY() + tc.m_OffsetY) * 200.0f / tc.m_WindowHeight;
+                    ASSERT_TRUE(dmGui::PickNode(m_Scene, nodes[n], x, y));
+                    float outside_x = x + expected[n].getCol0().getX() * 320.0f / tc.m_WindowWidth;
+                    ASSERT_FALSE(dmGui::PickNode(m_Scene, nodes[n], outside_x, y));
+                }
+            }
+        }
+    }
+}
+
+// Verifies cached node positions and scene overrides follow inset changes at the same window size; guards against stale offsets after a 180-degree rotation.
+TEST_F(dmGuiTest, SafeAreaChangeWithoutResize)
+{
+    dmGui::SetPhysicalResolution(m_Context, 2034, 1398);
+    dmGui::SetDefaultResolution(m_Context, 1920, 1080);
+    dmGui::SetSceneResolution(m_Scene, 1920, 1080);
+    const dmGui::XAnchor anchors[] = {dmGui::XANCHOR_LEFT, dmGui::XANCHOR_NONE, dmGui::XANCHOR_RIGHT};
+    const float positions[] = {120.0f, 960.0f, 1800.0f};
+    const int32_t left_insets[] = {0, 252, 0};
+    dmGui::HNode nodes[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        nodes[i] = dmGui::NewNode(m_Scene, Point3(positions[i], 690, 0), Vector3(220, 220, 0), dmGui::NODE_TYPE_BOX, 0);
+        dmGui::SetNodeXAnchor(m_Scene, nodes[i], anchors[i]);
+    }
+
+    for (uint32_t override_mode = 0; override_mode < 2; ++override_mode)
+    {
+        if (override_mode)
+        {
+            dmGui::SetSceneSafeAreaMode(m_Scene, dmGui::SAFE_AREA_LONG);
+        }
+        dmGui::SafeAreaMode context_mode = override_mode ? dmGui::SAFE_AREA_NONE : dmGui::SAFE_AREA_LONG;
+        for (uint32_t i = 0; i < sizeof(left_insets) / sizeof(left_insets[0]); ++i)
+        {
+            int32_t left = left_insets[i];
+            dmGui::UpdateSafeAreaAdjust(m_Context, context_mode, 2034, 1398, left, 0, 252 - left, 0);
+            // Rendering consumes the resolution-change flag, so the next inset update must invalidate cached transforms.
+            dmGui::RenderScene(m_Scene, m_RenderParams, this);
+            for (uint32_t n = 0; n < 3; ++n)
+            {
+                float expected_x = left + positions[n] * 1782.0f / 1920.0f;
+                Vector4 actual = _GET_NODE_SCENE_POSITION(m_Scene, nodes[n]);
+                ASSERT_NEAR(expected_x, actual.getX(), 0.001f);
+                ASSERT_TRUE(dmGui::PickNode(m_Scene, nodes[n], expected_x * 1920.0f / 2034.0f, actual.getY() * 1080.0f / 1398.0f));
+            }
+        }
+    }
+}
+
+// Verifies anchored roots and children round-trip screen positions with asymmetric insets; guards against #13331 inverse-offset regressions.
+TEST_F(dmGuiTest, SetGetScreenPositionSafeAreaAnchoring)
+{
+    dmGui::SetPhysicalResolution(m_Context, 400, 300);
+    dmGui::SetDefaultResolution(m_Context, 320, 200);
+    dmGui::SetSceneResolution(m_Scene, 320, 200);
+    dmGui::UpdateSafeAreaAdjust(m_Context, dmGui::SAFE_AREA_BOTH, 400, 300, 40, 20, 10, 30);
+    const dmGui::AdjustReference references[] = {dmGui::ADJUST_REFERENCE_LEGACY, dmGui::ADJUST_REFERENCE_PARENT};
+    const dmGui::AdjustMode adjust_modes[] = {dmGui::ADJUST_MODE_FIT, dmGui::ADJUST_MODE_ZOOM, dmGui::ADJUST_MODE_STRETCH};
+    const dmGui::XAnchor xanchors[] = {dmGui::XANCHOR_NONE, dmGui::XANCHOR_LEFT, dmGui::XANCHOR_RIGHT};
+    const dmGui::YAnchor yanchors[] = {dmGui::YANCHOR_NONE, dmGui::YANCHOR_BOTTOM, dmGui::YANCHOR_TOP};
+    dmGui::HNode nodes[2];
+    nodes[0] = dmGui::NewNode(m_Scene, Point3(120, 90, 0), Vector3(120, 90, 0), dmGui::NODE_TYPE_BOX, 0);
+    nodes[1] = dmGui::NewNode(m_Scene, Point3(15, 20, 0), Vector3(20, 20, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeParent(m_Scene, nodes[1], nodes[0], false);
+    for (uint32_t r = 0; r < sizeof(references) / sizeof(references[0]); ++r)
+    {
+        dmGui::SetSceneAdjustReference(m_Scene, references[r]);
+        for (uint32_t a = 0; a < sizeof(adjust_modes) / sizeof(adjust_modes[0]); ++a)
+        {
+            dmGui::SetNodeAdjustMode(m_Scene, nodes[0], adjust_modes[a]);
+            dmGui::SetNodeAdjustMode(m_Scene, nodes[1], adjust_modes[(a + 1) % 3]);
+            for (uint32_t x = 0; x < sizeof(xanchors) / sizeof(xanchors[0]); ++x)
+            {
+                for (uint32_t y = 0; y < sizeof(yanchors) / sizeof(yanchors[0]); ++y)
+                {
+                    dmGui::SetNodePosition(m_Scene, nodes[0], Point3(120, 90, 0));
+                    dmGui::SetNodePosition(m_Scene, nodes[1], Point3(15, 20, 0));
+                    for (uint32_t n = 0; n < 2; ++n)
+                    {
+                        dmGui::SetNodeXAnchor(m_Scene, nodes[n], xanchors[x]);
+                        dmGui::SetNodeYAnchor(m_Scene, nodes[n], yanchors[y]);
+                        Vector4 before = _GET_NODE_SCENE_POSITION(m_Scene, nodes[n]);
+                        Point3 local = dmGui::GetNodePosition(m_Scene, nodes[n]);
+                        Point3 from_screen = dmGui::ScreenToLocalPosition(m_Scene, nodes[n], Point3(before.getXYZ()));
+                        ASSERT_NEAR(local.getX(), from_screen.getX(), 0.0001f);
+                        ASSERT_NEAR(local.getY(), from_screen.getY(), 0.0001f);
+
+                        Point3 target(before.getX() + 7.0f, before.getY() + 11.0f, 0);
+                        dmGui::SetScreenPosition(m_Scene, nodes[n], target);
+                        Vector4 after = _GET_NODE_SCENE_POSITION(m_Scene, nodes[n]);
+                        ASSERT_NEAR(target.getX(), after.getX(), 0.0001f);
+                        ASSERT_NEAR(target.getY(), after.getY(), 0.0001f);
+                    }
+                }
+            }
+        }
+    }
 }
 
 TEST_F(dmGuiTest, SetGetScreenPositionAdjustDisabledRoot)

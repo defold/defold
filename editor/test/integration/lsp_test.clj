@@ -21,11 +21,13 @@
             [editor.asset-browser :as asset-browser]
             [editor.code.data :as data]
             [editor.defold-project :as project]
+            [editor.fs :as fs]
             [editor.lsp :as lsp]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
             [editor.lsp.project :as lsp.project]
             [editor.lsp.server :as lsp.server]
+            [editor.prefs :as prefs]
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.util :as util]
@@ -452,20 +454,20 @@
 
       (testing "Broken unrelated collection does not prevent URL completion"
         (test-util/write-file-resource! workspace "/broken.collection"
-                                        {:name "broken"
-                                         :collection-instances [{:id "missing"
-                                                                 :collection "/does-not-exist.collection"}]})
+          {:name "broken"
+           :collection-instances [{:id "missing"
+                                   :collection "/does-not-exist.collection"}]})
         (resource-sync! lsp workspace)
         (is (= player-urls
                (completion-labels! "/scripts/player.script" "local path_double = \"/pla"))))
 
       (testing "Broken nested collection preserves valid sibling URL completions"
         (test-util/write-file-resource! workspace "/main/main.collection"
-                                        {:name "main"
-                                         :instances [{:id "exclusive"
-                                                      :prototype "/objects/player.go"}]
-                                         :collection-instances [{:id "missing"
-                                                                 :collection "/does-not-exist.collection"}]})
+          {:name "main"
+           :instances [{:id "exclusive"
+                        :prototype "/objects/player.go"}]
+           :collection-instances [{:id "missing"
+                                   :collection "/does-not-exist.collection"}]})
         (resource-sync! lsp workspace)
         (let [completion-labels (completion-labels! "/scripts/player.script" "local path_double = \"/pla")]
           (is (contains? completion-labels "/exclusive"))
@@ -497,6 +499,66 @@
       (open-view! lsp view-node resource (g/node-value (project/get-resource-node project resource) :lines))
       (is (await= #{"#" "/" ":"} (g/node-value view-node :completion-trigger-characters)))
       (close-view! lsp view-node))))
+
+;; Verifies that the Lua server preference stops and restarts both servers for open files while preserving project completions.
+(deftest lua-language-server-preference-test
+  (with-scratch-project "test/resources/project_lsp_completion_project"
+    (let [lsp (lsp/get-lsp)
+          preferences (prefs/make :scopes {:global (fs/create-temp-file! "lsp-preferences" ".editor_settings")
+                                           :project (fs/create-temp-file! "lsp-project-preferences" ".editor_settings")}
+                                  :schemas [:default])
+          events (a/chan 10)
+          make-lua-server (fn [extension]
+                            {:languages #{"lua"}
+                             :extensions #{extension}
+                             :launcher (make-test-server-launcher
+                                         {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental
+                                                                                   :hoverProvider true}})
+                                          "initialized" (constantly nil)
+                                          "textDocument/didOpen" (fn [_ _] (a/put! events [:opened extension]))
+                                          "textDocument/hover" (fn [_ _] {:contents {:kind :markdown :value extension}})
+                                          "shutdown" (fn [_ _] (a/put! events [:shutdown extension]) nil)
+                                          "exit" (constantly nil)})})
+          game-resource (test-util/resource workspace "/scripts/player.script")
+          game-lines (g/node-value (project/get-resource-node project game-resource) :lines)
+          editor-node (test-util/make-code-resource-node! project "/test.editor_script" "return {}")
+          editor-resource (g/node-value editor-node :resource)
+          game-view (make-lsp-view-node! app-view)
+          editor-view (make-lsp-view-node! app-view)]
+      (open-view! lsp game-view game-resource game-lines)
+      (open-view! lsp editor-view editor-resource (g/node-value editor-node :lines))
+      (ui/run-now
+        (await-lsp lsp
+          (project/update-language-servers!
+            project preferences
+            {:project-language-server (lsp.project/language-server project)
+             :lua-language-servers #{(make-lua-server "script") (make-lua-server "editor_script")}})))
+
+      (doseq [enabled [true false true]]
+        (testing (str "Lua language servers enabled: " enabled)
+          (prefs/set! preferences [:code :enable-lua-language-server] enabled)
+          (ui/run-now
+            (await-lsp lsp
+              (project/update-language-servers! project preferences {})))
+          (is (= (if enabled
+                   #{[:opened "script"] [:opened "editor_script"]}
+                   #{[:shutdown "script"] [:shutdown "editor_script"]})
+                 (async-support/eventually
+                   (a/go (set [(<! events) (<! events)])))))
+          (is (= (if enabled ["script"] [])
+                 (mapv (comp :value :content) (hover! lsp game-resource (data/->Cursor 0 0)))))
+          (is (= (if enabled ["editor_script"] [])
+                 (mapv (comp :value :content) (hover! lsp editor-resource (data/->Cursor 0 0)))))
+          (is (= #{"controller" "player-visual"}
+                 (await-lsp lsp
+                   (let [result (promise)]
+                     (lsp/request-completions!
+                       lsp game-resource
+                       (data/->Cursor 2 (count "local hash_double = \"#"))
+                       {:trigger-kind :invoked} result)
+                     (into #{} (map :display-string) (:items @result))))))))
+      (close-view! lsp game-view)
+      (close-view! lsp editor-view))))
 
 (deftest start-open-order-test
   (with-scratch-project "test/resources/lsp_project"

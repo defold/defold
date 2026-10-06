@@ -2226,7 +2226,7 @@ namespace dmGui
                 {
                     InputArgs* input_args = (InputArgs*)args;
                     const InputAction* ia = input_args->m_Action;
-                    // 0 is reserved for mouse movement
+                    // 0 is reserved for pointer movement and accelerometer samples
                     if (ia->m_ActionId != 0)
                     {
                         dmScript::PushHash(L, ia->m_ActionId);
@@ -2237,6 +2237,9 @@ namespace dmGui
                     }
 
                     lua_newtable(L);
+
+                    dmScript::PushInputSource(L, ia->m_Source);
+                    lua_setfield(L, -2, "source");
 
                     if (ia->m_IsGamepad) {
                         lua_pushnumber(L, ia->m_GamepadIndex);
@@ -2713,9 +2716,9 @@ namespace dmGui
     Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count, bool* input_consumed)
     {
         InputArgs args;
-        args.m_Consumed = false;
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
+            args.m_Consumed = false;
             args.m_Action = &input_actions[i];
             Result result = RunScript(scene, SCRIPT_FUNCTION_ONINPUT, LUA_NOREF, (void*)&args);
             if (result != RESULT_OK)
@@ -3219,17 +3222,17 @@ namespace dmGui
             ref_size = Vector4(parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getX() * reference_scale.getX(), parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getY() * reference_scale.getY(), 0.0f, 1.0f);
         }
 
-        // Apply anchoring
+        // Anchoring removes centering, but root nodes still use the safe-area origin.
         Vector4 scaled_position = mulPerElem(position, adjust_scale);
         if (node.m_XAnchor == XANCHOR_LEFT || node.m_XAnchor == XANCHOR_RIGHT)
         {
-            offset.setX(0.0f);
+            offset.setX(n->m_ParentIndex == INVALID_INDEX ? scene->m_AdjustOffsetX : 0.0f);
             scaled_position.setX(position.getX() * reference_scale.getX());
         }
 
         if (node.m_YAnchor == YANCHOR_TOP || node.m_YAnchor == YANCHOR_BOTTOM)
         {
-            offset.setY(0.0f);
+            offset.setY(n->m_ParentIndex == INVALID_INDEX ? scene->m_AdjustOffsetY : 0.0f);
             scaled_position.setY(position.getY() * reference_scale.getY());
         }
 
@@ -4763,10 +4766,10 @@ namespace dmGui
         // it will be applied during next call to CalculateNodeTransform.
         // See AdjustPosScale for comparison on the steps being performed/inversed.
         if (node->m_Node.m_XAnchor == XANCHOR_LEFT || node->m_Node.m_XAnchor == XANCHOR_RIGHT) {
-            offset.setX(0.0f);
+            offset.setX(parent_node == 0x0 ? scene->m_AdjustOffsetX : 0.0f);
         }
         if (node->m_Node.m_YAnchor == YANCHOR_TOP || node->m_Node.m_YAnchor == YANCHOR_BOTTOM) {
-            offset.setY(0.0f);
+            offset.setY(parent_node == 0x0 ? scene->m_AdjustOffsetY : 0.0f);
         }
 
         Vector3 scaled_position = position - offset.getXYZ();

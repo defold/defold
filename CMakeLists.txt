@@ -170,6 +170,7 @@ set(DEFOLD_ENGINE_LIBS
   resource
   extension
   script
+  debugger
   render
   rig
   gameobject

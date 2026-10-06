@@ -34,6 +34,10 @@ namespace dmGui
         return 0;
     }
 
+    void LuaPushNode(lua_State* L, HScene scene, HNode node)
+    {
+    }
+
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         return 0;
@@ -43,6 +47,14 @@ namespace dmGui
     {
     }
 
+    bool GetNodeTypeName(lua_State* L, int index, char* buffer, uint32_t buffer_size)
+    {
+        return false;
+    }
+
+    void SetScriptInstanceMetaData(dmScript::HContext, const char*, void*)
+    {
+    }
 
     // gui_null.cpp
     const dmhash_t DEFAULT_LAYER = dmHashString64("");

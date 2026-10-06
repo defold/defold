@@ -20,6 +20,7 @@
 #include "gamesys.h"
 #include "gamesys_private.h"
 
+#include "components/comp_collision_object.h"
 #include "components/box2d/comp_collision_object_box2d.h"
 
 #include <extension/extension.hpp>
@@ -83,15 +84,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-        dmMessage::URL url;
         dmGameObject::HComponent component = 0;
-        GetCollisionObject(L, 1, collection, &url, &component, 0);
+        GetCollisionObject(L, 1, collection, 0, &component, 0);
 
         void* body = dmGameSystem::CompCollisionObjectGetBox2DBody(component);
 
         if (body)
         {
-            PushBody(L, body, collection, url.m_Path);
+            PushBody(L, body, CompCollisionObjectGetInstance(component));
         }
         else
             lua_pushnil(L);

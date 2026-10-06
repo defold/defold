@@ -45,6 +45,10 @@ if(DEFINED ENV{GITHUB_ACTIONS} AND TARGET_PLATFORM MATCHES "macos$")
 endif()
 
 set(DLIB_TEST_DEFINES "DLIB_LOG_DOMAIN=\"DLIB\"")
+if(DLIB_TEST_SKIP_THREADS)
+  # Keep non-threaded message coverage while omitting cases that create threads.
+  list(APPEND DLIB_TEST_DEFINES DM_NO_THREAD_SUPPORT)
+endif()
 if(TARGET_PLATFORM MATCHES "ios$")
   list(APPEND DLIB_TEST_DEFINES DM_TEST_SKIP_NETWORK_DNS)
 endif()
@@ -53,7 +57,7 @@ if(DEFINED ENV{DM_IPV6_UNSUPPORTED})
 endif()
 
 function(dlib_add_test name)
-  set(options SKIP_RUN)
+  set(options SKIP_RUN C)
   set(oneValueArgs TARGET_NAME)
   set(multiValueArgs SOURCES LIBS DEFINES INCLUDES)
   cmake_parse_arguments(DTEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -65,9 +69,16 @@ function(dlib_add_test name)
   endif()
 
   set(_sources ${DTEST_SOURCES})
-  list(APPEND _sources "${DLIB_TEST_ROOT}/${name}.cpp")
+  if(DTEST_C)
+    list(APPEND _sources "${DLIB_TEST_ROOT}/${name}.c")
+  else()
+    list(APPEND _sources "${DLIB_TEST_ROOT}/${name}.cpp")
+  endif()
 
   defold_add_executable(${_target} ${_sources})
+  if(DTEST_C)
+    target_compile_features(${_target} PRIVATE c_std_11)
+  endif()
   target_include_directories(${_target} PRIVATE
     "${DLIB_TEST_ROOT}"
     "${DLIB_SRC_DIR}"
@@ -107,12 +118,22 @@ dlib_add_test(test_array)
 dlib_add_test(test_double_linked_list)
 dlib_add_test(test_set)
 dlib_add_test(test_indexpool)
-dlib_add_test(test_dlib SOURCES "${DLIB_TEST_ROOT}/test_endian.c")
-dlib_add_test(test_hash SOURCES "${DLIB_TEST_ROOT}/test_hash.c")
+dlib_add_test(test_dlib)
+dlib_add_test(test_hash)
+dlib_add_test(test_endian C)
+dlib_add_test(test_hash C TARGET_NAME test_hash_c)
+dlib_add_test(test_context_registry C)
 dlib_add_test(test_time)
 
+set(_dlib_test_socket_defines)
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  # WebSocket emulation does not provide native TCP, socket options or DNS.
+  # Keep the portable address tests enabled on both web variants.
+  list(APPEND _dlib_test_socket_defines DM_TEST_NO_NATIVE_SOCKETS)
+endif()
+dlib_add_test(test_socket DEFINES ${_dlib_test_socket_defines})
+
 if(NOT DLIB_TEST_SKIP_THREADS)
-  dlib_add_test(test_socket)
   dlib_add_test(test_thread)
   dlib_add_test(test_mutex)
 endif()
@@ -135,10 +156,61 @@ dlib_add_test(test_configfile SKIP_RUN)
 dlib_add_test(test_dstrings)
 
 if(NOT DLIB_TEST_SKIP_HTTP)
+  dlib_add_test(test_http C SKIP_RUN)
+  if(NOT DLIB_TEST_SKIP_HTTP_RUN AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
+    # The C HTTP tests use endpoints provided by dlib's Java server.
+    set(_http_server_classes "${CMAKE_CURRENT_BINARY_DIR}/http_server")
+    set(_http_server_classpath
+      "${DLIB_ROOT}/ext/*:${DLIB_ROOT}/ext/jetty/*:${DLIB_ROOT}/ext/jetty/logging/*:${_http_server_classes}")
+    file(GLOB _http_server_jars CONFIGURE_DEPENDS
+      "${DLIB_ROOT}/ext/*.jar"
+      "${DLIB_ROOT}/ext/jetty/*.jar"
+      "${DLIB_ROOT}/ext/jetty/logging/*.jar")
+    add_custom_command(
+      OUTPUT "${_http_server_classes}/TestHttpServer.class"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_http_server_classes}"
+      COMMAND "${DEFOLD_JAVAC_EXECUTABLE}" -g --release 8 -Xlint:-options
+        -cp "${_http_server_classpath}" -d "${_http_server_classes}"
+        "${DLIB_TEST_ROOT}/http_server/TestHttpServer.java"
+      DEPENDS "${DLIB_TEST_ROOT}/http_server/TestHttpServer.java" ${_http_server_jars}
+      VERBATIM)
+    add_custom_target(test_http_server
+      DEPENDS "${_http_server_classes}/TestHttpServer.class")
+    add_dependencies(test_http test_http_server)
+
+    _defold_find_python(_http_test_python)
+    set(_http_test_command
+      "${_http_test_python}" "${DLIB_ROOT}/scripts/run_test_http.py"
+      --java "${DEFOLD_JAVA_EXECUTABLE}"
+      --classpath "${_http_server_classpath}"
+      --keystore "${DLIB_TEST_ROOT}/data/keystore"
+      "$<TARGET_FILE:test_http>")
+    defold_test_run_settings(_http_test_runner _http_test_options shared)
+    add_custom_target(run_test_http
+      COMMAND ${_http_test_runner} ${_http_test_command}
+      DEPENDS test_http
+      ${_http_test_options}
+      VERBATIM
+      COMMENT "Running test_http with dlib's HTTP test server")
+    set(_http_test_dependency test_http)
+    if(CMAKE_GENERATOR STREQUAL "Xcode")
+      add_custom_target(prepare_run_test_http DEPENDS test_http)
+      set(_http_test_dependency prepare_run_test_http)
+    endif()
+    defold_register_sequential_test_command(run_test_http
+      COMMAND ${_http_test_command}
+      DEPENDS ${_http_test_dependency})
+    if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+      defold_add_to_run_tests(run_test_http
+        COMMAND ${_http_test_command}
+        DEPENDS test_http)
+    endif()
+  endif()
   dlib_add_test(test_httpclient SKIP_RUN)
   dlib_add_test(test_httpcache SKIP_RUN)
   dlib_add_test(test_httpserver SKIP_RUN)
   dlib_add_test(test_webserver SKIP_RUN)
+  dlib_add_test(test_webserver_openapi)
   dlib_add_test(test_connection_pool SKIP_RUN)
 endif()
 

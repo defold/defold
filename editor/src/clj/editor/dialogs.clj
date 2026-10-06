@@ -962,10 +962,11 @@
 (defn sanitize-file-name [extension name]
   (let [name (sanitize-common name)]
     (cond-> name
-            ; disallow "." and ".." names (only necessary when there is no extension)
-            (not (seq extension)) (string/replace #"^\.{1,2}$" "")
-            ; append extension if there was one
-            (and (seq extension) (seq name)) (str "." extension))))
+      ;; Disallow "." and ".." names when there is no extension.
+      (not (seq extension)) (string/replace #"^\.{1,2}$" "")
+
+      ;; Append extension if there was one.
+      (and (seq extension) (seq name)) (str "." extension))))
 
 (defn- apply-extension [name extension]
   (cond-> name (seq extension) (str "." extension)))
@@ -1058,21 +1059,22 @@
                      (case (:event-type event)
                        :set-name (assoc state :name (:fx/event event))
                        :cancel (assoc state ::fxui/result nil)
-                       :confirm (assoc state ::fxui/result
-                                             (sanitize-against-extensions
-                                               (:name state)
-                                               (:extensions options)))))
-    :description (assoc options :fx/type rename-dialog
-                                :localization (:localization options)
-                                :initial-name name)))
+                       :confirm (assoc state
+                                  ::fxui/result (sanitize-against-extensions
+                                                  (:name state)
+                                                  (:extensions options)))))
+    :description (assoc options
+                   :fx/type rename-dialog
+                   :localization (:localization options)
+                   :initial-name name)))
 
 (defn- relativize [^File base ^File path]
   (let [[^Path base ^Path path] (map #(Paths/get (.toURI ^File %)) [base path])]
     (str ""
          (when (.startsWith path base)
            (-> base
-             (.relativize path)
-             (.toString))))))
+               (.relativize path)
+               (.toString))))))
 
 (defn- new-file-dialog
   [{:keys [^File base-dir ^File location type ext name localization] :as props}]
@@ -1147,26 +1149,26 @@
                      (case event-type
                        :set-file-name (assoc state :name event)
                        :set-location (assoc state :location (io/file base-dir (sanitize-path event)))
-                       :pick-location (assoc state :location
-                                             (let [window (fxui/event->window event)
-                                                   previous-location (:location state)
-                                                   initial-dir (if (.exists ^File previous-location)
-                                                                 previous-location
-                                                                 base-dir)
-                                                   path (make-directory-dialog (localization (localization/message "dialog.directory.title.set-path")) initial-dir window)]
-                                               (if path
-                                                 (io/file base-dir (relativize base-dir path))
-                                                 previous-location)))
+                       :pick-location (assoc state
+                                        :location (let [window (fxui/event->window event)
+                                                        previous-location (:location state)
+                                                        initial-dir (if (.exists ^File previous-location)
+                                                                      previous-location
+                                                                      base-dir)
+                                                        path (make-directory-dialog (localization (localization/message "dialog.directory.title.set-path")) initial-dir window)]
+                                                    (if path
+                                                      (io/file base-dir (relativize base-dir path))
+                                                      previous-location)))
                        :cancel (assoc state ::fxui/result nil)
-                       :confirm (assoc state ::fxui/result
-                                             ;; We need to the actual case of
-                                             ;; the path in the file system for
-                                             ;; an exact match in the internal
-                                             ;; resource maps, which are
-                                             ;; case-sensitive unlike the NTFS
-                                             ;; file system.
-                                             (-> (path/actual-cased (:location state))
-                                                 (io/file (sanitize-file-name ext (:name state)))))))
+                       :confirm (assoc state
+                                  ;; We need to the actual case of
+                                  ;; the path in the file system for
+                                  ;; an exact match in the internal
+                                  ;; resource maps, which are
+                                  ;; case-sensitive unlike the NTFS
+                                  ;; file system.
+                                  ::fxui/result (-> (path/actual-cased (:location state))
+                                                    (io/file (sanitize-file-name ext (:name state)))))))
     :description {:fx/type new-file-dialog
                   :localization localization}))
 
@@ -1192,10 +1194,10 @@
                          {:text (localization/message "dialog.name-conflict.button.name-differently")
                           :result :rename}]
 
-                        (not any-dest-is-broken-symlink)
-                        (conj {:text (localization/message "dialog.name-conflict.button.overwrite-files")
-                               :variant :danger
-                               :result :overwrite}))})))
+                  (not any-dest-is-broken-symlink)
+                  (conj {:text (localization/message "dialog.name-conflict.button.overwrite-files")
+                         :variant :danger
+                         :result :overwrite}))})))
 
 (def ext-with-selection-props
   (fx/make-ext-with-props

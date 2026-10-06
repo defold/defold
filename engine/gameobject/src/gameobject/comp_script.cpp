@@ -79,6 +79,12 @@ namespace dmGameObject
             return CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
+        if (script_world->m_Collection == 0x0)
+        {
+            if (GetInstanceFromHandle(params.m_Instance, &script_world->m_Collection) == 0x0)
+                return CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         HScriptInstance script_instance = NewScriptInstance(script_world, script, params.m_Instance, params.m_ComponentIndex);
         SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_PROTOTYPE, params.m_PropertySet);
         if (script_instance == 0x0)
@@ -495,7 +501,7 @@ namespace dmGameObject
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
-            // 0 is reserved for pure mouse movement
+            // 0 is reserved for pointer movement and accelerometer samples
             if (params.m_InputAction->m_ActionId != 0)
             {
                 dmScript::PushHash(L, params.m_InputAction->m_ActionId);
@@ -508,6 +514,9 @@ namespace dmGameObject
             lua_createtable(L, 0, 16);
 
             int action_table = lua_gettop(L);
+
+            dmScript::PushInputSource(L, params.m_InputAction->m_Source);
+            lua_setfield(L, action_table, "source");
 
             if (params.m_InputAction->m_IsGamepad)
             {

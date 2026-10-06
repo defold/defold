@@ -76,6 +76,7 @@
                 [:code :font :name]
                 [:code :zoom-on-scroll]
                 [:code :hover]
+                [:code :enable-lua-language-server]
                 [:code :auto-closing-parens]
                 [:code :format-on-save]]}
        {:pattern (localization/message "prefs.tab.extensions")
@@ -113,8 +114,8 @@
       (assoc desc :prompt-text unlocalizable-prompt)
       (let [prompt-key (str "prefs.prompt." (coll/join-to-string "." (e/map name path)))]
         (cond-> desc
-                (localization/defines-message-key? localization-state prompt-key)
-                (assoc :prompt-text (localization-state (localization/message prompt-key))))))))
+          (localization/defines-message-key? localization-state prompt-key)
+          (assoc :prompt-text (localization-state (localization/message prompt-key))))))))
 
 (defmethod form-input :string [path schema value on-value-changed localization-state _]
   (text-input path value on-value-changed localization-state (if (:multiline (:ui schema)) fxui/value-area fxui/value-field) (:prompt (:ui schema))))
@@ -140,7 +141,6 @@
        (e/map camel/->TitleCase)
        (coll/join-to-string " ")))
 
-
 (defn- normalize-binding [binding]
   ;; `:modifiers` is a set (compares by value); coerce defensively for nil/seq.
   (update binding :modifiers set))
@@ -160,7 +160,6 @@
         acc))
     {}
     mouse-binding-rows))
-
 
 (defn- mouse-modifier->cmds
   "Returns {[context modifier] -> #{action-display-str ...}}"
@@ -645,7 +644,6 @@
                                                    #(mouse-binding/remove-command-binding % context command idx)))})))
                              bindings))]
 
-
     (e/cons
       {:fx/type fx.menu-item/lifecycle
        :text (localization-state (localization/message "prefs.keymap.context-menu.add-mouse-binding"))
@@ -708,12 +706,12 @@
         mouse-binding-rows (mapv (fn [{:keys [context command bindings modifier] :as row}]
                                    (case (:kind row)
                                      :mouse-binding
-                                     (assoc row :binding-warnings
-                                            (mapv (fn [b]
-                                                    (when (:button b)
-                                                      (when-let [conflicting (seq (disj (get conflicts [context (normalize-binding b)] #{}) command))]
-                                                        (mapv #(hash-map :type :conflict :command %) conflicting))))
-                                                  bindings))
+                                     (assoc row
+                                       :binding-warnings (mapv (fn [b]
+                                                                 (when (:button b)
+                                                                   (when-let [conflicting (seq (disj (get conflicts [context (normalize-binding b)] #{}) command))]
+                                                                     (mapv #(hash-map :type :conflict :command %) conflicting))))
+                                                               bindings))
                                      :mouse-modifier
                                      (if-let [conflicting (seq (disj (get modifier-conflicts [context modifier] #{}) (coll/join-to-string " → " (:action row))))]
                                        (assoc row :binding-warnings conflicting)
@@ -916,7 +914,6 @@
                           :update-keymap (fn/partial prefs/update! prefs [:window :keymap])
                           :mouse-bindings (prefs/get prefs-state prefs [:window :mouse-bindings])
                           :update-mouse-bindings (fn/partial prefs/update! prefs [:window :mouse-bindings])}}))}}})
-
 
 (defn open!
   "Show the prefs dialog and block the thread until the dialog is closed"

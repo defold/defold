@@ -48,9 +48,9 @@
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (g/set-property node-id property
-                  (if-not (= :constants property)
-                    value
-                    (mapv render-program-utils/coerce-constant value))))
+    (if-not (= :constants property)
+      value
+      (mapv render-program-utils/coerce-constant value))))
 
 (g/defnk produce-form-data [_node-id compute-program constants samplers :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))

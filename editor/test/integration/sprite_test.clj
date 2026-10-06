@@ -26,7 +26,7 @@
           old-texture-binding-node-id (:_node-id old-texture-binding-info)
           old-image (:texture old-texture-binding-info)
           old-default-animation (g/node-value sprite-id :default-animation)
-           _ (g/set-property! sprite-id :default-animation "test")
+          _ (g/set-property! sprite-id :default-animation "test")
           old-build-resources (mapv :resource (test-util/resolve-build-dependencies sprite-id project))]
       (g/transact
         [(g/set-property old-texture-binding-node-id :texture (workspace/find-resource workspace "/switcher/switcher.atlas"))
