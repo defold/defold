@@ -3301,6 +3301,9 @@ class Configuration(object):
             source = join(local_dir, sha1, 'engine', platform, name)
             if os.path.isfile(source):
                 destination = join(self.dynamo_home, 'ext', 'bin', platform, name)
+                # Keep tools installed by build_ext for the host and selected target.
+                if platform in (self.host, self.target_platform) and os.path.isfile(destination):
+                    continue
                 self._mkdirs(os.path.dirname(destination))
                 shutil.copy2(source, destination)
                 os.chmod(destination, 0o755)

@@ -42,7 +42,8 @@ Tool packaging is defined by two additional manifests:
 
 Compiler libraries resolve from local engine builds or archive paths listed in
 `archive-artifacts.json`. `sync_archive` installs archived LuaJIT executables into
-their usual `$DYNAMO_HOME/ext/bin/<platform>` paths. Full Bob requires them for
+their usual `$DYNAMO_HOME/ext/bin/<platform>` paths, preserving an installed
+compiler for the current host and selected target. Full Bob requires them for
 all desktop hosts; Bob Light requires the current host's executable.
 The LuaJIT modules installed in `$DYNAMO_HOME/ext` are assembled into
 `tmp/luajit-share.zip` and packaged inside each JAR as `lib/luajit-share.zip`.
