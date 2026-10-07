@@ -60,7 +60,8 @@ vec3 world_to_view_dir(vec3 d, mat4 view_matrix)
 
 int light_count()
 {
-    return clamp(int(light_info.w), 0, MAX_LIGHT_COUNT);
+    // Older GLSL targets only support the floating-point clamp overload.
+    return int(clamp(light_info.w, 0.0, float(MAX_LIGHT_COUNT)));
 }
 
 vec3 ambient_light()
