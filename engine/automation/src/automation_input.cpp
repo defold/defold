@@ -206,11 +206,16 @@ namespace dmAutomation
         }
     }
 
+    static void ReleaseModifiers(InputEvent* event)
+    {
+        dmHID::HKeyboard keyboard = dmHID::GetKeyboard(g_AutomationBridge.m_HidContext, 0);
+        for (uint32_t i = 0; i < event->m_ModifierCount; ++i) dmHID::SetKey(keyboard, event->m_Modifiers[i], false);
+    }
+
     static void RemoveFinishedEvent(uint32_t index)
     {
         InputEvent* event = &g_AutomationBridge.m_InputEvents.Begin()[index];
-        dmHID::HKeyboard keyboard = dmHID::GetKeyboard(g_AutomationBridge.m_HidContext, 0);
-        for (uint32_t i = 0; i < event->m_ModifierCount; ++i) dmHID::SetKey(keyboard, event->m_Modifiers[i], false);
+        ReleaseModifiers(event);
         MoveReceiptToHistory(event);
         FreeInputEvent(event);
         ArrayErase(&g_AutomationBridge.m_InputEvents, index);
@@ -1025,7 +1030,7 @@ namespace dmAutomation
         return count;
     }
 
-    void MaintainInput()
+    void MaintainInput(bool discard_cancelled)
     {
         if (!g_AutomationBridge.m_HidContext) return;
         uint64_t now = dmTime::GetMonotonicTime();
@@ -1043,11 +1048,18 @@ namespace dmAutomation
                 event->m_ReleaseOnCancel = true;
                 ReceiptSetReason(&event->m_Receipt, "pointer_lease_expired");
             }
-            // Service iterations can run without simulation or rendering. Only
-            // release cancelled input here; new input starts after HID sampling.
+            // Service iterations can run without input dispatch. Retain started
+            // cancellations and reassert their release after HID sampling until
+            // AfterInput acknowledges delivery. Never restage a delivered release.
             if (event->m_CancelRequested &&
-                (event->m_Type == INPUT_EVENT_KEYS ? UpdateKeyEvent(0.0f, event) : UpdateMouseEvent(0.0f, event)))
-                RemoveFinishedEvent(i);
+                (event->m_Receipt.m_DeliveredFrame ||
+                 (event->m_Type == INPUT_EVENT_KEYS ? UpdateKeyEvent(0.0f, event) : UpdateMouseEvent(0.0f, event))))
+            {
+                ReleaseModifiers(event);
+                if (discard_cancelled || !event->m_Receipt.m_StartFrame || event->m_Receipt.m_DeliveredFrame)
+                    RemoveFinishedEvent(i);
+                else ++i;
+            }
             else ++i;
         }
     }
@@ -1062,12 +1074,12 @@ namespace dmAutomation
             RefreshKeyCompletionDeadline(&g_AutomationBridge.m_InputEvents.Begin()[0], now);
         }
         MaintainInput();
-        // A service-tick cancellation may have staged a release before HID polling.
-        // Dispatch it before starting another queued touch with the same pointer ID.
         if (dmHID::HasSyntheticTouch(g_AutomationBridge.m_HidContext)) return;
         if (g_AutomationBridge.m_InputEvents.Size() == 0) return;
 
         InputEvent* event = &g_AutomationBridge.m_InputEvents.Begin()[0];
+        // The cancelled action owns this dispatch, including its modifier releases.
+        if (event->m_CancelRequested) return;
         if (event->m_ReleaseModifiers) { RemoveFinishedEvent(0); return; }
         if (!event->m_TargetValidated && (!IsEmpty(event->m_Target) || !IsEmpty(event->m_EndTarget)))
         {

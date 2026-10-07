@@ -594,7 +594,7 @@ namespace dmAutomation
     bool CancelInput(uint64_t input_id, bool release, const char* reason);
     uint32_t FlushInput(const char* client_id, const char* session_id, bool release, const char* reason);
     bool GetNodeCenter(const char* id, float* x, float* y, const char** error);
-    void MaintainInput();
+    void MaintainInput(bool discard_cancelled = false);
     void UpdateInput(float dt);
 
     bool IsScreenshotSupported();

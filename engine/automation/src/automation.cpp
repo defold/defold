@@ -303,7 +303,8 @@ namespace dmAutomation
         if (event->m_Event != EXTENSION_EVENT_ID_ENGINE_DELETE || !g_AutomationBridge.m_Initialized) return;
         EngineAccessFinalize();
         FlushInput(0, 0, true, "engine_deleted");
-        while (g_AutomationBridge.m_InputEvents.Size()) UpdateInput(0.0f);
+        // There is no further input dispatch after engine deletion.
+        MaintainInput(true);
         if (g_AutomationBridge.m_HidContext) dmHID::ClearSyntheticTouch(g_AutomationBridge.m_HidContext);
         StopMetalCapture();
         FinalizeRecording();

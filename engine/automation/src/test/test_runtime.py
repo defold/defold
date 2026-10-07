@@ -505,28 +505,49 @@ class RuntimeTest(EngineTest):
         self.advance_frames(3)
         self.assertEqual(events, self.input_events('touch'))
 
-    # Cancellation must dispatch exactly one release even when another touch is queued behind it.
-    def test_touch_cancellation(self):
-        owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False, 'device': 'touch'}
+    def check_input_cancellation(self, action, device=None):
+        owner = {'client_id': 'runtime-test', 'session_id': 'fixture', 'visualize': False}
+        if device:
+            owner['device'] = device
+        path = '/input/pointer/open' if device else '/input/key'
+        held = {'x': 20, 'y': 20, 'pointer_lease': 5} if device else {'keys': '{KEY_SPACE}', 'hold': 5}
+        next_path = '/input/click' if device else '/input/key'
+        next_body = {'x': 40, 'y': 40} if device else {'keys': '{KEY_SPACE}'}
         self.command('reset_input')
-        status, response = self.request('/input/pointer/open', 'POST', dict(owner, x=20, y=20, pointer_lease=5))
+        status, response = self.request(path, 'POST', dict(owner, **held))
         self.assertEqual(202, status)
         input_id = response['data']['input_id']
         try:
-            self.advance_frames(3)
-            status, queued = self.request('/input/click', 'POST', dict(owner, x=40, y=40))
+            self.until(lambda: any(event['pressed'] for event in self.input_events(action)))
+            status, queued = self.request(next_path, 'POST', dict(owner, **next_body))
             self.assertEqual(202, status)
             self.assertEqual(200, self.request('/input/cancel', 'POST', dict(owner, input_id=input_id))[0])
-            self.assertEqual('cancelled', self.delivered_input(input_id)['state'])
-            self.delivered_input(queued['data']['input_id'])
-            events = self.input_events('touch')
-            self.assertEqual(2, sum(event['pressed'] for event in events))
-            self.assertEqual(2, sum(event['released'] for event in events))
+            cancelled = self.delivered_input(input_id)
+            following = self.delivered_input(queued['data']['input_id'])
+            self.assertEqual('cancelled', cancelled['state'])
+            self.assertLess(cancelled['delivered_frame'], following['start_frame'])
+            events = self.input_events(action)
+            transitions = [event for event in events if event['pressed'] or event['released']]
+            self.assertEqual([(True, False), (False, True), (True, False), (False, True)],
+                             [(event['pressed'], event['released']) for event in transitions])
+            self.assertLess(transitions[1]['frame'], transitions[2]['frame'])
             self.assertTrue(events[-1]['released'])
             self.advance_frames(3)
-            self.assertEqual(events, self.input_events('touch'))
+            self.assertEqual(events, self.input_events(action))
         finally:
             self.request('/input/flush', 'POST', dict(owner, release=True))
+
+    # Cancelling a held mouse button dispatches its release before the next queued click.
+    def test_mouse_cancellation(self):
+        self.check_input_cancellation('pointer', 'mouse')
+
+    # Cancelling a held key cannot merge its release with the next press of the same key.
+    def test_key_cancellation(self):
+        self.check_input_cancellation('space')
+
+    # Cancellation must dispatch exactly one release even when another touch is queued behind it.
+    def test_touch_cancellation(self):
+        self.check_input_cancellation('touch', 'touch')
 
     # Synthetic HID events retain the upstream source classification in both GO and GUI callbacks.
     def test_input_sources(self):
