@@ -1,0 +1,859 @@
+<!doctype html>
+<!--
+Copyright 2026 The Defold Foundation
+Licensed under the Defold License version 1.0 (the "License"); you may not use
+this file except in compliance with the License.
+
+You may obtain a copy of the License, together with FAQs at
+https://www.defold.com/license
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Defold data API examples</title><style>
+:root{--ink:#172e36;--muted:#596b70;--line:#d8e1de;--paper:#f4f6f2;--teal:#087c70;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:30px}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--teal);text-underline-offset:3px}header{border-bottom:1px solid var(--line);background:white;padding:18px 32px;display:flex;justify-content:space-between;gap:20px;font-size:12px;letter-spacing:.06em}.brand{font-weight:750}header nav{display:flex;gap:22px}.layout{max-width:1500px;margin:auto;display:grid;grid-template-columns:225px minmax(0,1fr);gap:50px;padding:48px 40px}aside{position:sticky;top:26px;align-self:start;font-size:13px}aside a{display:block;text-decoration:none;color:var(--muted);padding:8px 10px;border-radius:5px}aside a:hover,aside a.active{background:#e2ebe5;color:var(--teal)}aside b{font:11px var(--mono);display:inline-block;width:26px;color:var(--teal)}.nav-label,.eyebrow{text-transform:uppercase;font-size:11px;letter-spacing:.12em;font-weight:700;color:var(--teal)}.nav-label{padding:0 10px 12px}.nav-extra{border-top:1px solid var(--line);margin-top:15px;padding-top:12px}main{min-width:0;max-width:1100px}h1{font-size:clamp(34px,4vw,52px);line-height:1.1;letter-spacing:-.045em;margin:14px 0 20px}h2{font-size:29px;line-height:1.2;letter-spacing:-.025em;margin:8px 0 15px}h3{font-size:16px;margin:26px 0 9px}p{margin:10px 0 15px}.lead{font-size:18px;max-width:750px;color:var(--muted)}section{border-top:1px solid var(--line);margin-top:45px;padding-top:32px}.intent{font-size:17px;max-width:850px}.note{border-left:3px solid var(--teal);padding:12px 18px;background:#e9efea;font-size:14px;margin:22px 0}.small,.source{font-size:13px;color:var(--muted)}.source{margin-top:20px;overflow-wrap:anywhere}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;background:white;font-size:13px;margin:18px 0}th,td{padding:10px 14px;border-bottom:1px solid var(--line);text-align:left}th{font-size:11px;text-transform:uppercase;color:var(--muted)}code{font: .9em var(--mono)}p code,td code,li code{background:#e7ece6;border-radius:3px;padding:1px 4px}.code-block{margin:12px 0 22px;border:1px solid #233d45;border-radius:8px;overflow:hidden;background:#11272e;color:#e5eee9}.code-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#1b343c;color:#a9c4be;font:11px var(--mono);border-bottom:1px solid #2a444c}pre{margin:0;padding:20px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.7 var(--mono);tab-size:4}pre code{font:inherit}button{cursor:pointer;border:1px solid var(--line);border-radius:5px;background:white;padding:7px 12px;color:var(--ink);font:inherit;font-size:12px}.copy{background:transparent;border-color:#466167;color:#e5eee9;padding:3px 9px}.copy:hover{background:#2a474e}details{border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:20px 0;background:white}summary{cursor:pointer;font-weight:650}details .code-block{margin-bottom:4px}.job-flow{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:22px 0}.job-flow span{border:1px solid var(--line);background:white;padding:10px 15px;border-radius:5px;font-size:13px}.job-flow i{font-style:normal;color:var(--teal)}.actions{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}footer{border-top:1px solid var(--line);margin-top:50px;padding:25px 0;color:var(--muted);font-size:12px}.tok-comment{color:#91b6a7}.tok-keyword{color:#96cff3}.tok-string{color:#edcc94}.tok-api{color:#91e0d2}a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #c16c29;outline-offset:3px}@media(max-width:1000px){.layout{grid-template-columns:185px minmax(0,1fr);gap:24px;padding:30px 20px}pre{font-size:11px;padding:14px}}@media(max-width:740px){.layout{display:block;padding:26px 18px}aside{position:static;margin-bottom:30px;display:grid;grid-template-columns:1fr 1fr}.nav-label,.nav-extra{grid-column:1/-1}.nav-extra{display:flex;flex-wrap:wrap}header{padding:15px 18px}header nav{gap:12px}h1{font-size:38px}section{margin-top:30px;padding-top:24px}pre{font-size:11px}.intent{font-size:16px}}@media print{body{background:white;font-size:11px}.layout{display:block;padding:0;max-width:none}aside,header,button,.actions{display:none}main{max-width:none}h1{font-size:32px}h2{font-size:23px}h3{break-after:avoid}.code-block{background:#f6f8f6;color:#172e36;border-color:#cbd6d0;break-inside:auto}.code-bar{background:#e7ede8;color:#172e36}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:9px}.tok-comment{color:#537464}.tok-keyword,.tok-api{color:#08616c}.tok-string{color:#875320}section{margin-top:25px}.note{background:#edf2ed}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:16mm}}
+</style></head><body>
+<header><div class="brand">DEFOLD / DATA</div><nav><a href="report.html#performance">ECS Benchmarks</a><a href="#split-query">Split a query into jobs</a></nav></header><div class="layout"><aside aria-label="Contents"><div class="nav-label">API examples</div>
+<a href="#create-population"><b>01</b>Create population</a><a href="#spawn-wave"><b>02</b>Spawn wave</a><a href="#despawn-wave"><b>03</b>Despawn wave</a><a href="#boids"><b>04</b>Boids</a><a href="#explosion"><b>05</b>Explosion</a><a href="#nearby-lights"><b>06</b>Nearby light contribution</a><a href="#shuffled-lookup"><b>07</b>Shuffled position lookup</a><a href="#threaded-update"><b>08</b>Threaded update</a>
+<div class="nav-extra"><a href="#split-query">Query jobs example</a><a href="#lifetime">Cleanup</a></div></aside><main>
+<h1>Defold data API examples</h1><p class="lead">Query/Setup, field access and row iteration using the public C API from C++.</p>
+
+
+<section id="create-population" class="benchmark"><div class="eyebrow">01 / 08</div><h2>Create population</h2><p class="intent">Populate a table in the existing store in bulk. This example adds two Enemies; the benchmark compares the AoS and SoA paths across all six types using identical values.</p>
+<h3>Query/Setup</h3><p>No query is needed. The application already owns a global store, passed here as <code>store</code>. Call <code>CreateEnemyTable(store)</code> once and check for <code>DATA_RESULT_OK</code> before adding Enemies. The table contains health, velocity and position. <code>offsetof</code> and <code>sizeof</code> describe the native C layout.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="create-setup" aria-label="Copy create setup">Copy</button></div><pre><code id="create-setup" data-api="public">#include &lt;stddef.h&gt;
+#include &lt;dmsdk/data/data.h&gt;
+
+struct Enemy
+{
+    double      m_Health;
+    DataVector3 m_Velocity;
+    DataVector3 m_Position;
+};
+
+static DataResult CreateEnemyTable(HDataStore store)
+{
+    DataFieldDesc fields[] = {
+        { .m_Field = dmHashString64("health"), .m_Type = DATA_TYPE_NUMBER, .m_Offset = offsetof(Enemy, m_Health) },
+        { .m_Field = dmHashString64("velocity"), .m_Type = DATA_TYPE_VECTOR3, .m_Offset = offsetof(Enemy, m_Velocity) },
+        { .m_Field = dmHashString64("position"), .m_Type = DATA_TYPE_VECTOR3, .m_Offset = offsetof(Enemy, m_Position) }
+    };
+    DataTableDesc table = {
+        .m_Type = dmHashString64("Enemy"),
+        .m_Fields = fields,
+        .m_FieldCount = 3,
+        .m_RowStride = sizeof(Enemy)
+    };
+    return DataRegisterTable(store, &amp;table);
+}
+</code></pre></div>
+<h3>Population creation · AoS</h3><p>Pass an array of structures (AoS): each Enemy contains its health, velocity and position. One group is assigned to every added row. Different groups can share the same Enemy table; each row still receives its own DataId.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="create-operation" aria-label="Copy AoS creation">Copy</button></div><pre><code id="create-operation" data-api="public">static DataResult CreatePopulationAoS(HDataStore store, DataId out_ids[2])
+{
+    Enemy enemies[] = {
+        { .m_Health = 100.0, .m_Velocity = { .m_Values = { 1.0f, 0.0f, 0.0f } }, .m_Position = { .m_Values = { 10.0f, 0.0f, 0.0f } } },
+        { .m_Health = 80.0, .m_Velocity = { .m_Values = { 1.0f, 0.0f, 0.0f } }, .m_Position = { .m_Values = { -20.0f, 0.0f, 5.0f } } }
+    };
+    return DataCreateRows(store, dmHashString64("Enemy"), dmHashString64("group1"), 2, enemies, out_ids);
+}
+</code></pre></div>
+<h3>Population creation · SoA input</h3><p>Pass separate arrays for health, velocity and position directly to <code>DataCreateRowsSoA</code>. Each array contains one value per Enemy. Field hashes identify the arrays, so their order is independent of the registered layout. The library copies into the same stored byte rows without a temporary Enemy array.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="create-soa-operation" aria-label="Copy SoA creation">Copy</button></div><pre><code id="create-soa-operation" data-api="public">static DataResult CreatePopulationSoA(HDataStore store, DataId out_ids[2])
+{
+    double      health[] = { 100.0, 80.0 };
+    DataVector3 velocity[] = {
+        { .m_Values = { 1.0f, 0.0f, 0.0f } },
+        { .m_Values = { 1.0f, 0.0f, 0.0f } }
+    };
+    DataVector3 position[] = {
+        { .m_Values = { 10.0f, 0.0f, 0.0f } },
+        { .m_Values = { -20.0f, 0.0f, 5.0f } }
+    };
+
+    DataFieldArray fields[] = {
+        { .m_Field = dmHashString64("health"), .m_Values = health },
+        { .m_Field = dmHashString64("velocity"), .m_Values = velocity },
+        { .m_Field = dmHashString64("position"), .m_Values = position }
+    };
+    return DataCreateRowsSoA(store, dmHashString64("Enemy"), dmHashString64("group1"), 2, 3, fields, out_ids);
+}
+</code></pre></div>
+<p class="small"><code>DataRegisterTable</code> copies the layout. <code>DataCreateRows</code> copies complete native rows and assigns the supplied group to each row. The registered layout determines the row size. <code>DataCreateRowsSoA</code> takes one array for every root field; inline structs use arrays of complete structs. Types and element sizes come from the registered layout. Both APIs copy the supplied values, so inputs can leave scope after the call. Both population functions return the insertion result; use the returned row IDs only after <code>DATA_RESULT_OK</code>. Each row’s initial values become its reset defaults. Store lifetime remains with the application.</p>
+<div id="create-population-references"><h3>Population creation - references</h3><p>Create Enemy rows directly from C data, with a name string, dynamic attributes and a loot list. Both AoS and SoA creation copy these payloads into table-owned storage.</p>
+<h4>Query/Setup</h4><p>The application already owns the store. Call <code>CreateEnemyReferencesTable</code> once before either creation function. This variant uses its own type name so it can coexist with the first example’s Enemy table. No query is needed.</p>
+<p>Use <code>DataReference</code> for string, dynamic struct and list fields. It keeps each reference slot eight bytes on both 32-bit and 64-bit hosts. <code>DataStructInput</code> pairs a native struct with its member layout; <code>DataListInput</code> describes a contiguous array and its element kind. These are creation inputs, not the stored representation.</p>
+<div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="references-setup" aria-label="Copy reference example">Copy</button></div><pre><code id="references-setup" data-api="public">struct EnemyAttributes
+{
+    DataReference m_Faction;
+    double        m_AlertRadius;
+};
+
+struct EnemyReferences
+{
+    DataReference m_Name;
+    DataReference m_Attributes;
+    DataReference m_Loot;
+};
+
+static const DataStructDesc* EnemyAttributesLayout()
+{
+    static const DataFieldDesc fields[] = {
+        { .m_Field = dmHashString64(&quot;faction&quot;), .m_Type = DATA_TYPE_STRING, .m_Offset = offsetof(EnemyAttributes, m_Faction) },
+        { .m_Field = dmHashString64(&quot;alert_radius&quot;), .m_Type = DATA_TYPE_NUMBER, .m_Offset = offsetof(EnemyAttributes, m_AlertRadius) }
+    };
+    static const DataStructDesc layout = { .m_Fields = fields, .m_FieldCount = 2, .m_Size = sizeof(EnemyAttributes) };
+    return &amp;layout;
+}
+
+static DataResult CreateEnemyReferencesTable(HDataStore store)
+{
+    DataFieldDesc fields[] = {
+        { .m_Field = dmHashString64(&quot;name&quot;), .m_Type = DATA_TYPE_STRING, .m_Offset = offsetof(EnemyReferences, m_Name) },
+        { .m_Field = dmHashString64(&quot;attributes&quot;), .m_Type = DATA_TYPE_STRUCT, .m_Offset = offsetof(EnemyReferences, m_Attributes) },
+        { .m_Field = dmHashString64(&quot;loot&quot;), .m_Type = DATA_TYPE_LIST, .m_Offset = offsetof(EnemyReferences, m_Loot) }
+    };
+    DataTableDesc table = {
+        .m_Type = dmHashString64(&quot;EnemyReferences&quot;),
+        .m_Fields = fields,
+        .m_FieldCount = 3,
+        .m_RowStride = sizeof(EnemyReferences)
+    };
+    return DataRegisterTable(store, &amp;table);
+}
+</code></pre></div>
+<p>A dynamic struct has no <code>m_Struct</code> layout in the table’s field description: each supplied <code>DataStructInput</code> can describe different members. An inline struct instead sets <code>DataFieldDesc.m_Struct</code> and stores those members directly in every row.</p>
+<h4>Population creation · AoS</h4><p>Supply complete Enemy rows. Here both rows use the same temporary attributes and mixed loot list <code>["coin", 25]</code>. <code>m_Types</code> supplies the kind of each element; <code>loot</code> supplies its payload pointer. The library copies each row’s payloads; it does not retain these pointers or deduplicate equal strings on this creation path.</p>
+<div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="references-create" aria-label="Copy reference example">Copy</button></div><pre><code id="references-create" data-api="public">static DataResult CreatePopulationReferencesAoS(HDataStore store, DataGroupId group, DataId out_ids[2])
+{
+    EnemyAttributes attributes = { .m_Faction = { .m_String = &quot;guards&quot; }, .m_AlertRadius = 15.0 };
+    DataStructInput object = { .m_Layout = EnemyAttributesLayout(), .m_Values = &amp;attributes };
+    double          amount = 25.0;
+    DataValueType   loot_types[] = { DATA_TYPE_STRING, DATA_TYPE_NUMBER };
+    const void*     loot[] = { &quot;coin&quot;, &amp;amount };
+    DataListInput   list = { .m_Count = 2, .m_Values = loot, .m_Types = loot_types };
+
+    EnemyReferences enemies[] = {
+        { .m_Name = { .m_String = &quot;Guard&quot; }, .m_Attributes = { .m_Struct = &amp;object }, .m_Loot = { .m_List = &amp;list } },
+        { .m_Name = { .m_String = &quot;Captain&quot; }, .m_Attributes = { .m_Struct = &amp;object }, .m_Loot = { .m_List = &amp;list } }
+    };
+    // Copies all payloads during this call; no pointers to these locals are retained.
+    return DataCreateRows(store, dmHashString64(&quot;EnemyReferences&quot;), group, 2, enemies, out_ids);
+}
+</code></pre></div>
+<h4>Population creation · SoA input</h4><p>Supply separate arrays for names, attributes and loot. Every reference column has one <code>DataReference</code> per row, with the same mixed string/number loot list as the AoS version.</p>
+<div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="references-soa" aria-label="Copy reference example">Copy</button></div><pre><code id="references-soa" data-api="public">static DataResult CreatePopulationReferencesSoA(HDataStore store, DataGroupId group, DataId out_ids[2])
+{
+    EnemyAttributes attributes = { .m_Faction = { .m_String = &quot;guards&quot; }, .m_AlertRadius = 15.0 };
+    DataStructInput object = { .m_Layout = EnemyAttributesLayout(), .m_Values = &amp;attributes };
+    double          amount = 25.0;
+    DataValueType   loot_types[] = { DATA_TYPE_STRING, DATA_TYPE_NUMBER };
+    const void*     loot[] = { &quot;coin&quot;, &amp;amount };
+    DataListInput   list = { .m_Count = 2, .m_Values = loot, .m_Types = loot_types };
+
+    DataReference   names[] = { { .m_String = &quot;Guard&quot; }, { .m_String = &quot;Captain&quot; } };
+    DataReference   objects[] = { { .m_Struct = &amp;object }, { .m_Struct = &amp;object } };
+    DataReference   lists[] = { { .m_List = &amp;list }, { .m_List = &amp;list } };
+    DataFieldArray  fields[] = {
+        { .m_Field = dmHashString64(&quot;name&quot;), .m_Values = names },
+        { .m_Field = dmHashString64(&quot;attributes&quot;), .m_Values = objects },
+        { .m_Field = dmHashString64(&quot;loot&quot;), .m_Values = lists }
+    };
+    // Copies all payloads during this call; no pointers to these locals are retained.
+    return DataCreateRowsSoA(store, dmHashString64(&quot;EnemyReferences&quot;), group, 2, 3, fields, out_ids);
+}
+</code></pre></div>
+<p class="small">All input arrays, strings and descriptors only need to live through the call. The supplied group is assigned to both rows. Use <code>out_ids</code> after <code>DATA_RESULT_OK</code>; on error no rows are added. Both APIs reserve string/list payload storage for the batch. Dynamic attributes use separate child rows with shared member metadata; lists keep packed containers. Fixed-size fields keep the native copy path.</p>
+<p>Homogeneous lists keep one <code>m_Type</code> and a contiguous native array, such as <code>double[]</code> or <code>DataReference[]</code>. Set <code>m_Types</code> to supply different kinds in the same list.</p>
+<h4 id="different-loot-types">List input and memory ownership</h4>
+<p>The examples above put two different kinds in one list: the string <code>"coin"</code> and the number <code>25.0</code>. <code>loot</code> holds pointers to those input values; <code>loot_types</code> identifies their kinds.</p>
+<p>Building <code>DataListInput</code> only borrows those pointers. During <code>DataCreateRows</code> or <code>DataCreateRowsSoA</code>, the library synchronously copies every value, string and nested container into table-owned storage. Dynamic attributes share copied member metadata in a child table; list elements retain their kinds in the packed list. The stored row refers to that owned payload; no pointer to <code>amount</code>, <code>loot</code>, <code>loot_types</code>, <code>list</code> or the local struct inputs is retained.</p>
+<p>After the call returns, all those stack variables may leave scope. Changing or freeing the inputs cannot change the created rows. Their copied initial values remain available for reset.</p>
+<p class="small">The caller owns the inputs; each Enemy exclusively owns its copied attributes row. Removing an Enemy releases its child rows for reuse. Reset releases replacement child rows and restores the original attributes. String/list arena allocations remain until the table is unregistered or the store is destroyed.</p>
+<h4>Replace and reset a string</h4><p>After query iteration and reservations finish, use a returned row ID to replace its name. The setter copies this temporary string. <code>DataResetRow(store, out_ids[0])</code> restores all that row’s original values, including its name, attributes and loot.</p>
+<div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="references-rename" aria-label="Copy reference example">Copy</button></div><pre><code id="references-rename" data-api="public">static DataResult RenameReferenceEnemy(HDataStore store, DataId enemy)
+{
+    char name[] = &quot;Guard captain&quot;;
+    return DataSetFieldString(store, enemy, dmHashString64(&quot;name&quot;), name);
+}
+</code></pre></div>
+<p class="small"><code>DataFieldGetString</code> returns a borrowed string. Finish using it before a store write, reset or iterator step. Remove rows with <code>DataRemoveRow</code>; their default and replacement payload allocations remain table-owned until <code>DataUnregisterTable</code> or store destruction.</p>
+<p class="note">Strings have public read/write access. Dynamic structs and lists can now be constructed through these public creation APIs; public traversal and replacement of their contents remain future work.</p></div></section>
+<section id="spawn-wave" class="benchmark"><div class="eyebrow">02 / 08</div><h2>Spawn wave</h2><p class="intent">Add new Enemies to an existing store in batches of up to 100.</p>
+<h3>Query/Setup</h3><p>No query is needed. Register the <code>Enemy</code> table once, as shown in <a href="#create-population">Create population</a>. Supply one group for the wave and the initial positions, plus space for the returned row IDs. Each Enemy starts with 100 health and velocity (1, 0, 0).</p>
+<h3>Wave insertion</h3><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="spawn-operation" aria-label="Copy spawn operation">Copy</button></div><pre><code id="spawn-operation" data-api="public">static DataResult SpawnWave(HDataStore store, DataGroupId group, uint32_t count, const DataVector3* positions, DataId* out_ids, uint32_t* out_added)
+{
+    Enemy defaults = { .m_Health = 100.0, .m_Velocity = { .m_Values = { 1.0f, 0.0f, 0.0f } } };
+
+    *out_added = 0;
+    while (*out_added &lt; count)
+    {
+        uint32_t first = *out_added;
+        uint32_t batch_count = count - first;
+        if (batch_count &gt; 100)
+            batch_count = 100;
+
+        Enemy enemies[100];
+        for (uint32_t i = 0; i &lt; batch_count; ++i)
+        {
+            enemies[i] = defaults;
+            enemies[i].m_Position = positions[first + i];
+        }
+
+        DataResult result = DataCreateRows(store, dmHashString64("Enemy"), group, batch_count, enemies, out_ids + first);
+        if (result != DATA_RESULT_OK)
+            return result;
+        *out_added += batch_count;
+    }
+    return DATA_RESULT_OK;
+}
+</code></pre></div>
+<p class="small"><code>DataCreateRows</code> creates the rows, copies the supplied Enemy values, and returns stable <code>DataId</code> handles. Inputs can be released after the call. On error, <code>out_added</code> identifies the successfully added prefix of <code>out_ids</code>; those rows remain in the store. Add rows while the store is unlocked and no query reservation is active.</p>
+<p class="small">The benchmark keeps two Boids flock queries, Explosion and nearby-light queries alive to include the cost of maintaining existing queries during insertion. They are not required for spawning.</p></section>
+<section id="despawn-wave" class="benchmark"><div class="eyebrow">03 / 08</div><h2>Despawn wave</h2><p class="intent">Remove selected instances by their stable row IDs.</p>
+<h3>Query/Setup</h3><p>No query is needed. The caller owns <code>ids_by_type</code> (IDs returned when adding rows) and <code>order</code> (which rows to remove). <code>DataRemoveRow</code> uses those IDs directly; it does not run a query.</p><h3>Wave removal</h3><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="despawn-operation" aria-label="Copy despawn operation">Copy</button></div><pre><code id="despawn-operation" data-api="public">static DataResult DespawnWave(HDataStore store, DataId* const ids_by_type[6], const struct RowKey* order, uint32_t initial_count, uint32_t* out_removed)
+{
+    *out_removed = 0;
+    for (uint32_t i = 0; i &lt; initial_count / 100; ++i)
+    {
+        struct RowKey key = order[i];
+        DataId        id = ids_by_type[key.m_Type][key.m_Row];
+        DataResult    result = DataRemoveRow(store, id);
+        if (result != DATA_RESULT_OK)
+            return result;
+        ++*out_removed;
+    }
+    return DATA_RESULT_OK;
+}
+</code></pre></div>
+<p class="small">Row removal swaps dense storage while preserving other live IDs. Removed IDs become stale. On error, <code>out_removed</code> reports the successfully removed prefix; the caller can resume at the failing entry. To remove during a query, collect IDs first and apply deletions after unlocking or after all query reservations end.</p></section>
+<section id="boids" class="benchmark"><div class="eyebrow">04 / 08</div><h2>Boids</h2><p class="intent">Steer a flock using nearby agents, targets and an obstacle. Read a completed snapshot so an agent never sees another agent's partially updated position.</p>
+<h3>Query/Setup</h3><p>Create one query per flock: pass <code>dmHashString64("player")</code> or <code>dmHashString64("enemy")</code> for this fixture. Both position and velocity are writable. Each flock owns a snapshot large enough for its query's population and a reusable spatial index; reserve that storage before updating.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="boids-setup" aria-label="Copy Boids setup">Copy</button></div><pre><code id="boids-setup" data-api="public">static HDataQuery CreateBoidsQuery(HDataStore store, uint64_t flock_tag, uint32_t* out_position, uint32_t* out_velocity)
+{
+    DataQueryField fields[] = {
+        { .m_Field = dmHashString64("position"), .m_Type = DATA_TYPE_VECTOR3, .m_Access = DATA_ACCESS_READ_WRITE },
+        { .m_Field = dmHashString64("velocity"), .m_Type = DATA_TYPE_VECTOR3, .m_Access = DATA_ACCESS_READ_WRITE }
+    };
+    DataQueryDesc desc = { .m_AllTags = &amp;flock_tag, .m_AllTagCount = 1, .m_Fields = fields, .m_FieldCount = 2 };
+    HDataQuery    query = NULL;
+    if (DataCreateQuery(store, &amp;desc, &amp;query) == DATA_RESULT_OK)
+    {
+        *out_position = DataQueryFindField(query, &amp;fields[0]);
+        *out_velocity = DataQueryFindField(query, &amp;fields[1]);
+    }
+    return query;
+}
+</code></pre></div>
+<h3>Query iteration</h3><p>The first pass copies position and velocity into the snapshot. The game helper groups agents into 8-unit cells, compares full cell coordinates to distinguish hash collisions, and accumulates positions and velocities within this flock. The second pass applies alignment, separation, target attraction and radius-30 obstacle avoidance, then writes speed-25 velocity and position. The lock keeps query order stable across both passes. Reuse each flock's buffers on later frames.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="boids-iteration" aria-label="Copy Boids iteration">Copy</button></div><pre><code id="boids-iteration" data-api="public">struct Boid
+{
+    DataVector3 m_Position;
+    DataVector3 m_Velocity;
+};
+
+// Game-owned spatial index and steering helpers, not datastore API functions.
+// Build cells from the completed snapshot, retaining full cell coordinates.
+// Steer using cell-local alignment/separation, target attraction and avoidance.
+struct BoidsGrid;
+void        BuildBoidCells(BoidsGrid* grid, const Boid* snapshot, uint32_t num_rows);
+Boid        SteerBoid(const BoidsGrid* grid, const Boid* snapshot, uint32_t row, float dt);
+
+static void Boids(HDataStore store, HDataQuery query, uint32_t position_field, uint32_t velocity_field, Boid* snapshot, BoidsGrid* grid)
+{
+    DataStoreLock(store);
+    uint32_t     index = 0;
+    DataIterator it = DataQueryIter(query);
+    while (DataIterNext(&amp;it) == DATA_RESULT_OK)
+    {
+        DataRowIterator rows = DataIterRows(&amp;it);
+        while (DataRowIterNext(&amp;rows) == DATA_RESULT_OK)
+        {
+            snapshot[index++] = Boid {
+                .m_Position = *DataRowIterGetVector3(&amp;rows, position_field),
+                .m_Velocity = *DataRowIterGetVector3(&amp;rows, velocity_field)
+            };
+        }
+    }
+
+    BuildBoidCells(grid, snapshot, index);
+    index = 0;
+    it = DataQueryIter(query);
+    while (DataIterNext(&amp;it) == DATA_RESULT_OK)
+    {
+        DataRowIterator rows = DataIterRows(&amp;it);
+        while (DataRowIterNext(&amp;rows) == DATA_RESULT_OK)
+        {
+            Boid next = SteerBoid(grid, snapshot, index++, 1.0f / 64.0f);
+            *DataRowIterGetVector3Mut(&amp;rows, position_field) = next.m_Position;
+            *DataRowIterGetVector3Mut(&amp;rows, velocity_field) = next.m_Velocity;
+        }
+    }
+    DataStoreUnlock(store);
+}
+</code></pre></div><p class="small">The spatial-index and steering helpers are application code. They operate on the snapshot; only the public data API reads or writes stored rows. The benchmark includes both passes, cell construction and steering, with no rendering or game-object work.</p></section>
+<section id="explosion" class="benchmark"><div class="eyebrow">05 / 08</div><h2>Explosion</h2><p class="intent">Push Players, Enemies and Breakables away from an explosion, apply damage from the impulse, and mark depleted instances for later removal.</p>
+<h3>Query/Setup</h3><p>Match position and health on the same row, regardless of type or field offset. Declare both writable: the game helpers update position and health.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="explosion-setup" aria-label="Copy explosion setup">Copy</button></div><pre><code id="explosion-setup" data-api="public">static HDataQuery CreateExplosionQuery(HDataStore store, uint32_t* out_position, uint32_t* out_health)
+{
+    DataQueryField fields[] = {
+        { .m_Field = dmHashString64("position"), .m_Type = DATA_TYPE_VECTOR3, .m_Access = DATA_ACCESS_READ_WRITE },
+        { .m_Field = dmHashString64("health"), .m_Type = DATA_TYPE_NUMBER, .m_Access = DATA_ACCESS_READ_WRITE }
+    };
+    DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 2 };
+    HDataQuery    query = NULL;
+    if (DataCreateQuery(store, &amp;desc, &amp;query) == DATA_RESULT_OK)
+    {
+        *out_position = DataQueryFindField(query, &amp;fields[0]);
+        *out_health = DataQueryFindField(query, &amp;fields[1]);
+    }
+    return query;
+}
+</code></pre></div>
+<h3>Query iteration</h3><p>The caller supplies the two game helpers: <code>MoveExplosion</code> updates position and returns an impulse (zero outside its area of effect); <code>ApplyDamage</code> updates health and returns a negative value when the instance should be removed. The removal branch is an integration point: collect IDs there, then remove them after unlocking or after all query reservations end.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="explosion-iteration" aria-label="Copy explosion iteration">Copy</button></div><pre><code id="explosion-iteration" data-api="public">// Game-specific helpers implemented by the caller, not datastore API functions.
+float       MoveExplosion(const DataVector3* explosion_center, DataVector3* position);
+double      ApplyDamage(double* health, float impulse);
+
+static void ExplosionRows(DataIterator* it, uint32_t position_field, uint32_t health_field, const DataVector3* explosion_center)
+{
+    while (DataIterNext(it) == DATA_RESULT_OK)
+    {
+        DataRowIterator rows = DataIterRows(it);
+        while (DataRowIterNext(&amp;rows) == DATA_RESULT_OK)
+        {
+            DataVector3* position = DataRowIterGetVector3Mut(&amp;rows, position_field);
+            double*      health = DataRowIterGetNumberMut(&amp;rows, health_field);
+            float        impulse = MoveExplosion(explosion_center, position); // Apply force.
+            if (ApplyDamage(health, impulse) &lt; 0)
+            {
+                // Mark for removal: save DataRowIterGetId(&amp;rows) in a caller-owned list.
+                // Remove after iteration; each worker uses its own list.
+            }
+        }
+    }
+}
+
+static void Explosion(HDataStore store, HDataQuery query, uint32_t position_field, uint32_t health_field, const DataVector3* explosion_center)
+{
+    DataStoreLock(store);
+    DataIterator it = DataQueryIter(query);
+    ExplosionRows(&amp;it, position_field, health_field, explosion_center);
+    DataStoreUnlock(store);
+}
+</code></pre></div>
+<p class="small">The game helpers illustrate application logic. The timed benchmark applies fixed damage within radius 50; this example also shows writable position access and deferred removal.</p></section>
+<section id="nearby-lights" class="benchmark"><div class="eyebrow">06 / 08</div><h2>Nearby light contribution</h2><p class="intent">Select tables tagged <code>light</code> (SpotLight and PointLight) and sum their contribution inside radius 50: <code>(r + g + b) × intensity × (1 − distance² / 2500)</code>.</p>
+<h3>Query/Setup</h3><p>Register both light tables with the <code>dmHashString64("light")</code> tag. The query requires that tag through <code>m_AllTags</code>, plus all three fields below; having the fields alone does not match. Tags belong to the table and apply to all its rows. <code>position</code> belongs to the outer light row. Both SpotLight and PointLight contain <code>Light light</code>; <code>light.color</code> and <code>light.intensity</code> are full-name hashes of its inline members. Their bindings resolve once per matching table.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="lights-setup" aria-label="Copy lights setup">Copy</button></div><pre><code id="lights-setup" data-api="public">static HDataQuery CreateNearbyLightsQuery(HDataStore store, uint32_t* out_position, uint32_t* out_color, uint32_t* out_intensity)
+{
+    DataQueryField fields[] = {
+        { .m_Field = dmHashString64("position"), .m_Type = DATA_TYPE_VECTOR3 },
+        { .m_Field = dmHashString64("light.color"), .m_Type = DATA_TYPE_VECTOR3 },
+        { .m_Field = dmHashString64("light.intensity"), .m_Type = DATA_TYPE_NUMBER }
+    };
+    uint64_t      light_tag = dmHashString64("light");
+    DataQueryDesc desc = { .m_AllTags = &amp;light_tag, .m_AllTagCount = 1, .m_Fields = fields, .m_FieldCount = 3 };
+    HDataQuery    query = NULL;
+    if (DataCreateQuery(store, &amp;desc, &amp;query) == DATA_RESULT_OK)
+    {
+        *out_position = DataQueryFindField(query, &amp;fields[0]);
+        *out_color = DataQueryFindField(query, &amp;fields[1]);
+        *out_intensity = DataQueryFindField(query, &amp;fields[2]);
+    }
+    return query;
+}
+</code></pre></div>
+<h3>Query iteration</h3><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="lights-iteration" aria-label="Copy lights iteration">Copy</button></div><pre><code id="lights-iteration" data-api="public">static double NearbyLightsRows(DataIterator* it, uint32_t position_field, uint32_t color_field, uint32_t intensity_field)
+{
+    double contribution = 0;
+    while (DataIterNext(it) == DATA_RESULT_OK)
+    {
+        DataRowIterator rows = DataIterRows(it);
+        while (DataRowIterNext(&amp;rows) == DATA_RESULT_OK)
+        {
+            const DataVector3* position = DataRowIterGetVector3(&amp;rows, position_field);
+            float              distance_squared = DistanceSquared(position);
+            if (distance_squared &lt;= 2500.0f)
+            {
+                const DataVector3* color = DataRowIterGetVector3(&amp;rows, color_field);
+                double             intensity = *DataRowIterGetNumber(&amp;rows, intensity_field);
+                double             rgb = (double)color-&gt;m_Values[0] + color-&gt;m_Values[1] + color-&gt;m_Values[2];
+                contribution += rgb * intensity * (1.0 - distance_squared / 2500.0);
+            }
+        }
+    }
+    return contribution;
+}
+
+static double NearbyLights(HDataStore store, HDataQuery query, uint32_t position_field, uint32_t color_field, uint32_t intensity_field)
+{
+    DataStoreLock(store);
+    DataIterator it = DataQueryIter(query);
+    double       contribution = NearbyLightsRows(&amp;it, position_field, color_field, intensity_field);
+    DataStoreUnlock(store);
+    return contribution;
+}
+</code></pre></div>
+<p class="small">This is a simple lighting workload, not a renderer: spot cone angles and individual light ranges do not enter the formula.</p></section>
+<section id="shuffled-lookup" class="benchmark"><div class="eyebrow">07 / 08</div><h2>Shuffled position lookup</h2><p class="intent">Read every initial instance’s position once in seeded shuffled order, then sum the coordinates.</p>
+<h3>Query/Setup</h3><p>No query is created. Prepare a shuffled array of <code>RowKey { type, row }</code> entries and retain the runtime IDs from creation. The <code>RowKey</code> definition is in the shared helpers at the end.</p><h3>ID access</h3><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="lookup-operation" aria-label="Copy lookup operation">Copy</button></div><pre><code id="lookup-operation" data-api="public">static DataResult ShuffledPositionLookup(HDataStore store, DataId* const ids_by_type[6], const struct RowKey* order, uint32_t count, double* out_sum)
+{
+    uint64_t position_field = dmHashString64("position");
+    double   sum = 0;
+    for (uint32_t first = 0; first &lt; count; first += 256)
+    {
+        uint32_t batch_count = count - first;
+        if (batch_count &gt; 256)
+            batch_count = 256;
+        DataId      ids[256];
+        DataVector3 positions[256];
+        for (uint32_t i = 0; i &lt; batch_count; ++i)
+        {
+            struct RowKey key = order[first + i];
+            ids[i] = ids_by_type[key.m_Type][key.m_Row];
+        }
+        DataResult result = DataFieldGetVector3Batch(store, batch_count, ids, position_field, positions);
+        if (result != DATA_RESULT_OK)
+            return result;
+        for (uint32_t i = 0; i &lt; batch_count; ++i)
+        {
+            const float* p = positions[i].m_Values;
+            sum += (double)p[0] + p[1] + p[2];
+        }
+    }
+    *out_sum = sum;
+    return DATA_RESULT_OK;
+}
+</code></pre></div>
+<p class="small">Gather IDs in groups of 256 and read them with the typed batch getter. It returns one aggregate status; consume outputs only on success. The helper leaves <code>out_sum</code> untouched on failure. Run outside concurrent query reservations.</p></section>
+<section id="threaded-update" class="benchmark"><div class="eyebrow">08 / 08</div><h2>Threaded update</h2><p class="intent">Run Movement, Explosion, Regenerate and nearby-light updates on workers while the main thread prepares content. Then replace content and spawn/despawn enemy waves.</p>
+<h3>Locking scope</h3>
+<p><code>DataStoreLock</code> holds the whole store mutex throughout single-threaded traversal. The job path uses <code>DataQueryTryBegin</code>: under that mutex it checks conflicts, prepares row ranges and records an active reservation, then releases the mutex. The reservation remains active while workers iterate. Structural operations acquire the same mutex and return <code>DATA_RESULT_LOCKED</code> if any reservation is active, so they cannot add, remove, move or free row storage during iteration. The caller finishes every job before calling <code>DataQueryEnd</code>; structural changes can succeed after the last reservation ends. Rejected operations are not queued automatically.</p>
+<p>Reservations also protect requested field bytes on matching tables: compatible queries can access different tables or non-overlapping fields concurrently. There are no per-table mutexes.</p>
+<div class="note"><strong>Concurrency follow-up:</strong> any active query currently blocks additions/removals across the entire store, including unrelated tables. Investigate allowing structural changes on unreserved tables while preserving active row pointers, IDs and query bindings. Also examine contention during query admission and range rebuilding. These are planned investigations; the examples use the current synchronization rules.</div>
+<div class="table-wrap"><table><thead><tr><th>Update</th><th>Reads</th><th>Writes</th><th>Conflicting updates</th></tr></thead><tbody><tr><td>Movement</td><td>velocity</td><td>position</td><td>Explosion</td></tr><tr><td>Explosion</td><td>position, health</td><td>position, health</td><td>Movement, Regenerate</td></tr><tr><td>Regenerate</td><td>health</td><td>health</td><td>Explosion</td></tr><tr><td>Nearby lights</td><td>position, light.color, light.intensity</td><td>—</td><td>None: different matching tables</td></tr></tbody></table></div>
+<h3>Query/Setup</h3><p>This concurrency workload uses simple movement alongside Explosion, Regenerate and nearby lights. It keeps the movement kernel small to exercise query reservations and content streaming independently of the standalone Boids simulation.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="threaded-movement" aria-label="Copy threaded movement query and iteration">Copy</button></div><pre><code id="threaded-movement" data-api="public">static HDataQuery CreateMovementQuery(HDataStore store, uint32_t* out_position, uint32_t* out_velocity)
+{
+    DataQueryField fields[] = {
+        { .m_Field = dmHashString64("position"), .m_Type = DATA_TYPE_VECTOR3, .m_Access = DATA_ACCESS_READ_WRITE },
+        { .m_Field = dmHashString64("velocity"), .m_Type = DATA_TYPE_VECTOR3 }
+    };
+    DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 2 };
+    HDataQuery    query = NULL;
+    if (DataCreateQuery(store, &amp;desc, &amp;query) == DATA_RESULT_OK)
+    {
+        *out_position = DataQueryFindField(query, &amp;fields[0]);
+        *out_velocity = DataQueryFindField(query, &amp;fields[1]);
+    }
+    return query;
+}
+
+static void MovementRows(DataIterator* it, uint32_t position_field, uint32_t velocity_field)
+{
+    while (DataIterNext(it) == DATA_RESULT_OK)
+    {
+        DataRowIterator rows = DataIterRows(it);
+        while (DataRowIterNext(&amp;rows) == DATA_RESULT_OK)
+        {
+            DataVector3*       position = DataRowIterGetVector3Mut(&amp;rows, position_field);
+            const DataVector3* velocity = DataRowIterGetVector3(&amp;rows, velocity_field);
+            for (uint32_t axis = 0; axis &lt; 3; ++axis)
+                position-&gt;m_Values[axis] += velocity-&gt;m_Values[axis] * 0.015625f;
+        }
+    }
+}
+</code></pre></div><p>Reuse the three named-field queries above and add a writable health query for Regenerate. Both health writers compete for access: neither has a fixed dependency on the other. <code>CreateUpdates</code> returns <code>false</code> after releasing partially created queries; schedule frames only on success.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="regenerate-setup" aria-label="Copy regenerate setup">Copy</button></div><pre><code id="regenerate-setup" data-api="public">static HDataQuery CreateRegenerateQuery(HDataStore store, uint32_t* out_health)
+{
+    DataQueryField field = {
+        .m_Field = dmHashString64("health"),
+        .m_Type = DATA_TYPE_NUMBER,
+        .m_Access = DATA_ACCESS_READ_WRITE
+    };
+    DataQueryDesc desc = { .m_Fields = &amp;field, .m_FieldCount = 1 };
+    HDataQuery    query = NULL;
+    if (DataCreateQuery(store, &amp;desc, &amp;query) == DATA_RESULT_OK)
+    {
+        *out_health = DataQueryFindField(query, &amp;field);
+    }
+    return query;
+}
+</code></pre></div><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="threaded-setup" aria-label="Copy threaded setup">Copy</button></div><pre><code id="threaded-setup" data-api="public">// QueryJobs and the worker callbacks are defined in the jobs example below.
+static bool CreateUpdates(HDataStore store, struct QueryJobs updates[4], struct QueryRange* ranges[4], uint32_t range_capacity)
+{
+    FJobProcess processes[] = { MovementJob, ExplosionJob, RegenerateJob, NearbyLightsJob };
+    for (uint32_t i = 0; i &lt; 4; ++i)
+    {
+        struct QueryJobs group = {
+            .m_Query = NULL,
+            .m_Process = processes[i],
+            .m_Ranges = ranges[i],
+            .m_RangeCapacity = range_capacity,
+            .m_State = UPDATE_WAITING
+        };
+        updates[i] = group;
+    }
+    updates[0].m_Query = CreateMovementQuery(store, &amp;updates[0].m_Position, &amp;updates[0].m_Velocity);
+    updates[1].m_Query = CreateExplosionQuery(store, &amp;updates[1].m_Position, &amp;updates[1].m_Health);
+    updates[2].m_Query = CreateRegenerateQuery(store, &amp;updates[2].m_Health);
+    updates[3].m_Query = CreateNearbyLightsQuery(store, &amp;updates[3].m_Position, &amp;updates[3].m_Color, &amp;updates[3].m_Intensity);
+    for (uint32_t i = 0; i &lt; 4; ++i)
+    {
+        if (updates[i].m_Query == NULL)
+        {
+            for (uint32_t j = 0; j &lt; 4; ++j)
+            {
+                if (updates[j].m_Query)
+                    DataDestroyQuery(updates[j].m_Query);
+                updates[j].m_Query = NULL;
+            }
+            return false;
+        }
+    }
+    return true;
+}
+</code></pre></div>
+<h3>Query iteration</h3><p>Workers use <code>DataQueryIterRange</code> and the same row functions shown above. Regenerate adds 0.25 health, capped at 100:</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="regenerate-iteration" aria-label="Copy regenerate iteration">Copy</button></div><pre><code id="regenerate-iteration" data-api="public">static void RegenerateRows(DataIterator* it, uint32_t health_field)
+{
+    while (DataIterNext(it) == DATA_RESULT_OK)
+    {
+        DataRowIterator rows = DataIterRows(it);
+        while (DataRowIterNext(&amp;rows) == DATA_RESULT_OK)
+        {
+            double* health = DataRowIterGetNumberMut(&amp;rows, health_field);
+            *health = Clamp(*health + 0.25, 0.0, 100.0);
+        }
+    }
+}
+</code></pre></div>
+<h3>Main-thread scheduling</h3><p>Try waiting updates in a seeded, shuffled order each frame. A BUSY query stays pending; other compatible queries can still start. The helpers and job state used here are defined in the final example.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="threaded-frame" aria-label="Copy threaded frame">Copy</button></div><pre><code id="threaded-frame" data-api="public">// The caller supplies content preparation, structural commits and idle policy.
+// order is a seeded permutation of { Movement, Explosion, Regenerate, Lights }.
+static bool ThreadedFrame(HJobContext jobs, struct QueryJobs updates[4], const uint32_t order[4], void* content, void (*prepare)(void*), void (*commit)(void*), void (*idle)(void))
+{
+    for (uint32_t i = 0; i &lt; 4; ++i)
+    {
+        updates[i].m_State = UPDATE_WAITING;
+        updates[i].m_Failed = false;
+    }
+    bool     success = false;
+    uint32_t prepared = 0, done = 0;
+    while (done != 4)
+    {
+        uint32_t progress = 0;
+        for (uint32_t i = 0; i &lt; 4; ++i)
+        {
+            struct QueryJobs* group = &amp;updates[order[i]];
+            if (group-&gt;m_State != UPDATE_WAITING)
+                continue;
+            DataResult result = DataQueryTryBegin(group-&gt;m_Query);
+            if (result == DATA_RESULT_BUSY)
+                continue; // Retry after other updates release their reservations.
+            if (result != DATA_RESULT_OK)
+                goto complete;
+            SubmitQueryRanges(jobs, group);
+            if (group-&gt;m_Failed)
+                goto complete;
+            progress = 1;
+        }
+        if (!prepared)
+        {
+            prepare(content); // Resource preparation only; no datastore mutation.
+            prepared = 1;
+        }
+        uint32_t before = 0, after = 0;
+        for (uint32_t i = 0; i &lt; 4; ++i)
+            before += updates[i].m_Remaining;
+        JobSystemUpdate(jobs, 0); // Main-thread callbacks release finished queries.
+        done = 0;
+        for (uint32_t i = 0; i &lt; 4; ++i)
+        {
+            after += updates[i].m_Remaining;
+            done += updates[i].m_State == UPDATE_DONE;
+            if (updates[i].m_Failed)
+                goto complete;
+        }
+        if (done != 4 &amp;&amp; !progress &amp;&amp; before == after)
+            idle(); // Yield while workers run.
+    }
+    success = true;
+
+complete:
+    for (uint32_t i = 0; i &lt; 4; ++i)
+        if (updates[i].m_State == UPDATE_RUNNING &amp;&amp; !WaitForQueryJobs(jobs, &amp;updates[i], idle))
+            success = false;
+    if (success)
+        commit(content); // Replace mixed content; spawn/despawn enemy waves.
+    return success;
+}
+</code></pre></div>
+<div class="note"><strong>Main thread:</strong> reserve queries, push jobs, process completion callbacks and retry conflicts. Prepare incoming blob handles from bytes already in memory while workers run. After every update finishes, unload/reload mixed bundles and apply variable enemy waves.<br><strong>Workers:</strong> update existing rows in their assigned ranges; each job has its own iterator and reduction result. They do not add or remove rows.</div>
+<p class="small">The <code>prepare</code> and <code>commit</code> callbacks are caller-supplied integration points. Use <code>DataLoadBlob</code> during preparation, then <code>DataRemoveBlob</code>/<code>DataAddBlob</code> and temporary handle cleanup during commit. Keep borrowed blob bytes alive until every resource and instance reference is gone. On failure, <code>ThreadedFrame</code> drains running jobs and returns <code>false</code> without calling <code>commit</code>. The caller releases any prepared content; completed row writes are not rolled back.</p></section>
+<section id="split-query"><div class="eyebrow">Caller-owned parallelism</div><h2>Split one query across multiple jobs</h2><p class="intent">Reserve once, divide the matching rows into disjoint 4,096-row ranges, and give each job its own iterator. The datastore owns synchronization; the caller owns the job system.</p>
+<div class="job-flow" aria-label="Query job lifecycle"><span>TryBegin</span><i>→</i><span>GetRowCount</span><i>→</i><span>Push range jobs</span><i>→</i><span>Complete all jobs</span><i>→</i><span>QueryEnd</span></div>
+<p><code>first</code> and <code>count</code> address the reserved sequence of matching rows, which may span multiple tables. They are not row IDs or per-table offsets. Disjoint ranges permit concurrent writes within one reservation; the caller is responsible for making them disjoint.</p>
+<h3>1. Keep group and range storage stable</h3><p>Allocate reusable range arrays before dispatch. Each group needs capacity for <code>ceil(maximum_matching_rows / 4096)</code> ranges, including later enemy waves. State and completion counters are main-thread-only; workers touch only their own rows and range result.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="job-state" aria-label="Copy job state">Copy</button></div><pre><code id="job-state" data-api="public">enum UpdateState
+{
+    UPDATE_WAITING,
+    UPDATE_RUNNING,
+    UPDATE_DONE
+};
+struct QueryJobs;
+
+struct QueryRange
+{
+    const struct QueryJobs* m_Group;
+    uint32_t                m_First, m_Count;
+    double                  m_Sum; // Each worker writes only its own range result.
+};
+
+struct QueryJobs
+{
+    HDataQuery         m_Query;
+    uint32_t           m_Position, m_Velocity, m_Health, m_Color, m_Intensity;
+    FJobProcess        m_Process;
+    struct QueryRange* m_Ranges; // Caller-owned; stable until completion.
+    uint32_t           m_RangeCapacity, m_RangeCount, m_Remaining;
+    enum UpdateState   m_State;  // Main-thread bookkeeping only.
+    bool               m_Failed; // Main-thread submission/completion status.
+    double             m_Sum;
+};
+</code></pre></div>
+<h3>2. Create an iterator inside each worker</h3><p>Every callback constructs its cursor locally and passes it by address to the corresponding row loop. It never calls <code>DataStoreLock</code> or <code>DataQueryEnd</code>.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="job-workers" aria-label="Copy job workers">Copy</button></div><pre><code id="job-workers" data-api="public">static int32_t MovementJob(HJobContext jobs, HJob job, void* context, void* data)
+{
+    (void)jobs;
+    (void)job;
+    (void)context;
+    struct QueryRange*      range = (struct QueryRange*)data;
+    const struct QueryJobs* group = range-&gt;m_Group;
+    DataIterator            it = DataQueryIterRange(group-&gt;m_Query, range-&gt;m_First, range-&gt;m_Count);
+    MovementRows(&amp;it, group-&gt;m_Position, group-&gt;m_Velocity);
+    return 0;
+}
+
+static int32_t ExplosionJob(HJobContext jobs, HJob job, void* context, void* data)
+{
+    (void)jobs;
+    (void)job;
+    (void)context;
+    struct QueryRange*      range = (struct QueryRange*)data;
+    const struct QueryJobs* group = range-&gt;m_Group;
+    DataIterator            it = DataQueryIterRange(group-&gt;m_Query, range-&gt;m_First, range-&gt;m_Count);
+    DataVector3             explosion_center = { .m_Values = { 0.0f, 0.0f, 0.0f } };
+    ExplosionRows(&amp;it, group-&gt;m_Position, group-&gt;m_Health, &amp;explosion_center);
+    return 0;
+}
+
+static int32_t RegenerateJob(HJobContext jobs, HJob job, void* context, void* data)
+{
+    (void)jobs;
+    (void)job;
+    (void)context;
+    struct QueryRange*      range = (struct QueryRange*)data;
+    const struct QueryJobs* group = range-&gt;m_Group;
+    DataIterator            it = DataQueryIterRange(group-&gt;m_Query, range-&gt;m_First, range-&gt;m_Count);
+    RegenerateRows(&amp;it, group-&gt;m_Health);
+    return 0;
+}
+
+static int32_t NearbyLightsJob(HJobContext jobs, HJob job, void* context, void* data)
+{
+    (void)jobs;
+    (void)job;
+    (void)context;
+    struct QueryRange*      range = (struct QueryRange*)data;
+    const struct QueryJobs* group = range-&gt;m_Group;
+    DataIterator            it = DataQueryIterRange(group-&gt;m_Query, range-&gt;m_First, range-&gt;m_Count);
+    range-&gt;m_Sum = NearbyLightsRows(&amp;it, group-&gt;m_Position, group-&gt;m_Color, group-&gt;m_Intensity);
+    return 0;
+}
+</code></pre></div>
+<h3>3. End the reservation after the final completion callback</h3><p><code>JobSystemUpdate</code> delivers callbacks on the main thread after worker completion. Record job failures, wait for every callback, then release query access once. Use the reduction only when <code>WaitForQueryJobs</code> returns <code>true</code>.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="job-completion" aria-label="Copy job completion">Copy</button></div><pre><code id="job-completion" data-api="public">static void FinishQueryJobs(struct QueryJobs* group)
+{
+    group-&gt;m_Sum = 0;
+    if (!group-&gt;m_Failed)
+        for (uint32_t i = 0; i &lt; group-&gt;m_RangeCount; ++i)
+            group-&gt;m_Sum += group-&gt;m_Ranges[i].m_Sum;
+    DataQueryEnd(group-&gt;m_Query);
+    group-&gt;m_State = UPDATE_DONE;
+}
+
+// Invoked on the main thread by JobSystemUpdate, after the worker has finished.
+static void RangeFinished(HJobContext jobs, HJob job, enum JobSystemStatus status, void* context, void* data, int32_t result)
+{
+    (void)jobs;
+    (void)job;
+    (void)data;
+    struct QueryJobs* group = (struct QueryJobs*)context;
+    if (status != JOBSYSTEM_STATUS_FINISHED || result != 0)
+        group-&gt;m_Failed = true;
+    if (--group-&gt;m_Remaining == 0)
+        FinishQueryJobs(group);
+}
+
+static bool WaitForQueryJobs(HJobContext jobs, struct QueryJobs* group, void (*idle)(void))
+{
+    while (group-&gt;m_State != UPDATE_DONE)
+    {
+        JobSystemUpdate(jobs, 0);
+        if (group-&gt;m_State != UPDATE_DONE)
+            idle();
+    }
+    return !group-&gt;m_Failed; // All callbacks finished and DataQueryEnd has run.
+}
+</code></pre></div>
+<h3>4. Push each row range to the job system</h3><p>Get the row count only after a successful reservation. All jobs share that reservation, but each receives a distinct range and its own result storage. If the range buffer is too small or job creation fails, record the failure and drain any jobs already submitted. Keep the job context alive and new job handles private to the submitting thread.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="job-submission" aria-label="Copy job submission">Copy</button></div><pre><code id="job-submission" data-api="public">// Call only after DataQueryTryBegin succeeds for this group.
+static void SubmitQueryRanges(HJobContext jobs, struct QueryJobs* group)
+{
+    const uint32_t chunk = 4096;
+    uint32_t       count = DataQueryGetRowCount(group-&gt;m_Query);
+    uint32_t       job_count = count / chunk + (count % chunk != 0);
+    group-&gt;m_RangeCount = group-&gt;m_Remaining = 0;
+    group-&gt;m_State = UPDATE_RUNNING;
+    group-&gt;m_Failed = false;
+    if (job_count &gt; group-&gt;m_RangeCapacity)
+    {
+        group-&gt;m_Failed = true;
+        FinishQueryJobs(group);
+        return;
+    }
+    for (uint32_t i = 0; i &lt; job_count; ++i)
+    {
+        uint32_t          first = i * chunk;
+        uint32_t          remaining = count - first;
+        struct QueryRange range = {
+            .m_Group = group,
+            .m_First = first,
+            .m_Count = remaining &lt; chunk ? remaining : chunk
+        };
+        group-&gt;m_Ranges[i] = range;
+        struct Job job = {
+            .m_Process = group-&gt;m_Process,
+            .m_Callback = RangeFinished,
+            .m_Context = group,
+            .m_Data = &amp;group-&gt;m_Ranges[i]
+        };
+        HJob handle = JobSystemCreateJob(jobs, &amp;job);
+        if (handle == 0)
+        {
+            group-&gt;m_Failed = true;
+            break; // Already submitted jobs must finish before releasing the query.
+        }
+        // This thread owns the new handle; the job context stays alive through completion.
+        JobSystemPushJob(jobs, handle);
+        ++group-&gt;m_RangeCount;
+        ++group-&gt;m_Remaining;
+    }
+    if (group-&gt;m_Remaining == 0)
+        FinishQueryJobs(group); // Empty queries and failed submissions still release access.
+}
+</code></pre></div>
+<h3>5. Start and wait from the caller</h3><p>Create an <code>HJobContext</code> with <code>JobSystemCreate</code> before dispatch. Initialize a group with a Movement query, <code>MovementJob</code> and its preallocated range array (as in <code>CreateUpdates</code>). After <code>TryMovementJobs</code> returns OK, always call <code>WaitForQueryJobs</code> and check its boolean result. On BUSY, do other work and retry. The wait helper is defined with the completion callback above.</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="job-example" aria-label="Copy job example">Copy</button></div><pre><code id="job-example" data-api="public">// jobs and group are initialized once; group uses MovementJob and a Movement query.
+// Its range buffer covers ceil(maximum_matching_rows / 4096) jobs.
+static DataResult TryMovementJobs(HJobContext jobs, struct QueryJobs* group)
+{
+    DataResult result = DataQueryTryBegin(group-&gt;m_Query);
+    if (result != DATA_RESULT_OK)
+        return result; // BUSY means no reservation was acquired and no jobs were queued.
+    SubmitQueryRanges(jobs, group);
+    return DATA_RESULT_OK;
+}
+
+// After TryMovementJobs returns OK, always call WaitForQueryJobs(jobs, group, idle).
+// It returns false if submission or a worker failed, after draining all callbacks.
+// On BUSY, no reservation was acquired; do other work and retry instead.
+</code></pre></div>
+<p class="small">The full threaded frame uses the same submission/completion path for all four updates, allowing independent queries to overlap. Read/read access can overlap on the same table; an overlapping writer conflicts. Group filters do not narrow reservations. Structural mutation waits until every active reservation has ended. Failed groups still retain their reservation until all submitted jobs finish; the caller receives failure after cleanup.</p></section>
+<section id="lifetime"><h2>Cleanup</h2><p>Finish every iterator and job before destroying queries. Destroy any queries you created when they are no longer needed. For threaded updates:</p><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="cleanup" aria-label="Copy cleanup">Copy</button></div><pre><code id="cleanup" data-api="public">// After the last iteration/job callback; the caller owns these handles.
+static DataResult DestroyUpdates(struct QueryJobs updates[4])
+{
+    for (uint32_t i = 0; i &lt; 4; ++i)
+    {
+        if (updates[i].m_Query == NULL)
+            continue;
+        DataResult result = DataDestroyQuery(updates[i].m_Query);
+        if (result != DATA_RESULT_OK)
+            return result; // Keep the remaining handles so the caller can finish work and retry.
+        updates[i].m_Query = NULL;
+    }
+    return DATA_RESULT_OK;
+}
+// Destroy the job context after all callbacks and release caller-owned buffers.
+// The application destroys its global store at shutdown, after all queries.
+</code></pre></div>
+<details><summary>Shared helpers</summary><div class="code-block"><div class="code-bar"><span>C++ · public C API</span><button class="copy" data-copy="common" aria-label="Copy common">Copy</button></div><pre><code id="common" data-api="public">#include &lt;stdint.h&gt;
+#include &lt;stdbool.h&gt;
+#include &lt;stddef.h&gt;
+#include &lt;dmsdk/data/data.h&gt;
+#include &lt;dmsdk/dlib/hash.h&gt;
+#include &lt;dmsdk/dlib/jobsystem.h&gt;
+
+// Example-owned state, not datastore API types.
+struct RowKey
+{
+    uint32_t m_Type;
+    uint32_t m_Row;
+};
+
+static double Clamp(double value, double min, double max)
+{
+    if (value &lt; min)
+        return min;
+    if (value &gt; max)
+        return max;
+    return value;
+}
+
+static float DistanceSquared(const DataVector3* position)
+{
+    const float* p = position-&gt;m_Values;
+    return p[0] * p[0] + p[1] * p[1] + p[2] * p[2];
+}
+</code></pre></div></details>
+<div class="actions"><button id="download-public">Download C++ examples</button><button id="print">Print / PDF</button></div><p class="small">Downloads combine the snippets in dependency order with the Defold license header. All examples need a caller to supply prepared inputs and run them.</p></section>
+<footer>Defold data API examples · <a href="report.html#performance">Open the benchmark report</a><br>Copyright 2026 The Defold Foundation · <a href="https://www.defold.com/license">Defold License 1.0</a></footer></main></div>
+<script>
+const sourceOrder=["common", "create-setup", "create-operation", "create-soa-operation", "references-setup", "references-create", "references-soa", "references-rename", "spawn-operation", "despawn-operation", "boids-setup", "boids-iteration", "explosion-setup", "explosion-iteration", "lights-setup", "lights-iteration", "lookup-operation", "threaded-movement", "regenerate-setup", "regenerate-iteration", "job-state", "job-workers", "job-completion", "job-submission", "threaded-setup", "threaded-frame", "job-example", "cleanup"];
+const licenseHeader="// Copyright 2020-2026 The Defold Foundation\n// Copyright 2014-2020 King\n// Copyright 2009-2014 Ragnar Svensson, Christian Murray\n// Licensed under the Defold License version 1.0 (the \"License\"); you may not use\n// this file except in compliance with the License.\n//\n// You may obtain a copy of the License, together with FAQs at\n// https://www.defold.com/license\n//\n// Unless required by applicable law or agreed to in writing, software distributed\n// under the License is distributed on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR\n// CONDITIONS OF ANY KIND, either express or implied. See the License for the\n// specific language governing permissions and limitations under the License.\n\n";
+
+const snippets = new Map([...document.querySelectorAll('code[data-api]')].map(el => [el.id, {text: el.textContent, api: el.dataset.api}]));
+const escapeHTML = value => value.replace(/[&<>]/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;'}[c]));
+const token = /\/\/[^\n]*|"(?:\\.|[^"\\])*"|\b(?:static|const|struct|enum|void|double|float|int|if|else|while|for|return|sizeof|continue|uint8_t|uint32_t|uint64_t|int32_t)\b|\b(?:Data\w+|JobSystem\w+)\b/g;
+for (const el of document.querySelectorAll('code[data-api]')) {
+    const text = el.textContent;
+    let out = '', last = 0;
+    for (const match of text.matchAll(token)) {
+        const value = match[0];
+        const kind = value.startsWith('//') ? 'comment' : value.startsWith('"') ? 'string' : /^(Data|JobSystem)/.test(value) ? 'api' : 'keyword';
+        out += escapeHTML(text.slice(last, match.index)) + `<span class="tok-${kind}">${escapeHTML(value)}</span>`;
+        last = match.index + value.length;
+    }
+    el.innerHTML = out + escapeHTML(text.slice(last));
+}
+for (const button of document.querySelectorAll('[data-copy]')) {
+    button.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(snippets.get(button.dataset.copy).text);
+            button.textContent = 'Copied';
+            setTimeout(() => button.textContent = 'Copy', 1500);
+        } catch {
+            const range = document.createRange();
+            range.selectNodeContents(document.getElementById(button.dataset.copy));
+            const selection = window.getSelection();
+            selection.removeAllRanges(); selection.addRange(range);
+            button.textContent = 'Selected — copy with keyboard';
+        }
+    });
+}
+function download() {
+    let text = licenseHeader;
+    for (const id of sourceOrder) {
+        const snippet = snippets.get(id);
+        text += snippet.text + '\n';
+    }
+    const url = URL.createObjectURL(new Blob([text], {type:'text/plain'}));
+    const a = document.createElement('a'); a.href = url;
+    a.download = 'defold-benchmark-examples.cpp';
+    a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+document.getElementById('download-public').addEventListener('click', download);
+document.getElementById('print').addEventListener('click', () => window.print());
+const links = [...document.querySelectorAll('aside a')];
+function updateNavigation() {
+    for (const link of links) link.classList.toggle('active', link.hash === window.location.hash);
+}
+window.addEventListener('hashchange', updateNavigation);
+updateNavigation();
+</script></body></html>

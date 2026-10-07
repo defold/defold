@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="484" viewBox="0 0 1080 484" role="img" aria-labelledby="title desc">
+<!-- Copyright 2026 The Defold Foundation
+Licensed under the Defold License version 1.0 (the "License"); you may not use
+this file except in compliance with the License.
+
+You may obtain a copy of the License, together with FAQs at
+https://www.defold.com/license
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License. -->
+<title id="title">Owned dynamic structs: shared metadata, separate child rows</title>
+<desc id="desc">Enemy A and Enemy B hold indices into an attributes child table. Each attributes row has an eight-byte faction string reference and an eight-byte alert radius. One shared layout describes both. A freed third slot is available for reuse. Removing a parent releases its children recursively; reset retains original child rows and releases replacements. Lists keep their packed representation.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}.small{font-size:15px;fill:#52657a}.mono{font-family:Menlo,Consolas,monospace;font-size:15px}.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
+<rect width="1080" height="484" rx="12" fill="#f5f8fc"/>
+<text x="28" y="40" class="title">Owned dynamic structs: shared metadata, separate child rows</text>
+<text x="28" y="72" class="small">Runtime storage within one component table. Child rows have no public DataId.</text>
+<rect x="28" y="108" width="360" height="245" rx="8" fill="#fff" stroke="#b7c9dc"/>
+<text x="48" y="139" class="label">Enemy component rows</text>
+<rect x="48" y="159" width="320" height="70" rx="5" fill="#e4efff"/>
+<text x="64" y="185">Enemy A · attributes</text><text x="64" y="211" class="mono">{ table: 0, row: 0, tag: 2 }</text>
+<rect x="48" y="246" width="320" height="70" rx="5" fill="#e4efff"/>
+<text x="64" y="272">Enemy B · attributes</text><text x="64" y="298" class="mono">{ table: 0, row: 1, tag: 2 }</text>
+<rect x="462" y="108" width="590" height="245" rx="8" fill="#fff" stroke="#b7c9dc"/>
+<text x="482" y="139" class="label">Attributes child table 0 · stride 16 bytes</text>
+<text x="482" y="169" class="mono">offset 0: faction (String reference)</text>
+<text x="482" y="193" class="mono">offset 8: alert_radius (Number)</text>
+<rect x="482" y="216" width="550" height="36" fill="#ddf3ec" stroke="#a7cbbd"/>
+<text x="498" y="240" class="mono">row 0   [ faction ref | 15.0 ]  owned by A</text>
+<rect x="482" y="252" width="550" height="36" fill="#ddf3ec" stroke="#a7cbbd"/>
+<text x="498" y="276" class="mono">row 1   [ faction ref | 20.0 ]  owned by B</text>
+<rect x="482" y="288" width="550" height="36" fill="#edf0f4" stroke="#c3ccd7"/>
+<text x="498" y="312" class="mono">row 2   [ next free slot ]     reusable</text>
+<path class="arrow" d="M368 207 H423 V234 H480"/>
+<path class="arrow" d="M368 294 H439 V270 H480"/>
+<text x="28" y="395" class="label">One parent owns each child tree</text>
+<text x="28" y="424">Remove parent → release original and replacement child rows for reuse.</text>
+<text x="28" y="451">Reset parent → release replacements; restore original child-row references.</text>
+</svg>

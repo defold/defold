@@ -3,11 +3,13 @@
 !/.gitignore
 !/.gitattributes
 !/report.html
+!/examples.html
 !/file-loading.csv
 !/threaded/
 !/core/
 !/comparisons/
 /comparisons/*
 !/comparisons/c21-case-queries/
+!/comparisons/full-field-hashes/
 
 !/unity/

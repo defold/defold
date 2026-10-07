@@ -6,16 +6,17 @@ A blob contains multiple component tables and one shared string area. Version 1
 starts with an **eight-byte `DataFileHeader`**: FOURCC `DMDT`, followed by a
 little-endian uint32 version. `DataFileDirectory` contains the table count and
 string-area offset; an array of uint32 table offsets follows it. References are
-blob-relative offsets; runtime pointers, owner IDs and row IDs are not saved.
+blob-relative offsets; runtime pointers, group IDs and row IDs are not saved.
 
 Each table stores its type hash, tags, field metadata, component name hashes,
 fixed-stride byte rows and any dynamic payloads. **Metadata is shared by all rows
-in a table**: a field has a name hash, kind and byte offset; an inline struct
+in a table**: a field has a full-name hash, kind and absolute row byte offset; an inline struct
 also identifies its child metadata and size. Rows contain only values and
 alignment padding. Serialization saves current values as the next load's defaults.
 The fixed layouts are declared in the private [data.h](../data/src/data.h):
 `DataTableHeader` describes each table, and `DataFileFieldMeta` describes each
-field. Both occupy 24 bytes. Counts and indices into metadata use uint16:
+field. These occupy 24 and 32 bytes respectively. Field metadata also retains
+the local member hash for constructing or reading nested values. Counts and indices into metadata use uint16:
 a type allows at most 65,535 metadata entries including nested members, and a
 table allows at most 65,535 tags. Row counts, byte sizes and offsets remain uint32.
 The reader and writer use these structs' sizes and member offsets.
@@ -47,10 +48,15 @@ the producer conversion is not implemented yet.
 ![PointLight and SpotLight embed the same Light layout. Their metadata describes
 the members once; every row contains its own color, intensity and other values.](images/datastore-composition.svg)
 
-The internal producer can reuse one `DataStructDesc` for Light. Each containing
+A producer can reuse one `DataStructDesc` for Light. Each containing
 table compiles its own metadata, shared by that table's rows. `light.color` is
 at `offset(light) + offset(color)`; its offset can differ between containing
-types. Embedding Light does not make SpotLight a standalone Light component or
+types. The producer supplies local text names for inline parents and members in
+`DataFieldDesc::m_Name`; registration hashes each complete name, such as
+`light.color`, and stores its absolute row offset. Registration and loading reject
+duplicate full-name hashes across the layout, including inline members.
+Text names are not retained.
+Embedding Light does not make SpotLight a standalone Light component or
 assign it a tag. There is no full schema system beyond these layouts.
 
 ### Value layout and alignment
@@ -79,7 +85,7 @@ remain supported, including null. Declared structs live inline; lists and struct
 without a fixed member layout use dynamic payloads. A `DataFileContainerHeader`
 stores the payload size and child count, followed by struct member names (structs
 only), child kinds, offsets and payloads. Their children may differ between rows,
-with a maximum of 64 container levels. Equal strings share bytes in
+with a maximum of 64 container levels including enclosing inline structs. Equal strings share bytes in
 the blob's final string area. String/container accessors resolve offsets rather
 than treating reference slots as native pointers.
 
@@ -89,8 +95,10 @@ A **datastore** holds runtime tables, stable row IDs, resource registrations and
 queries for many game objects. A **table** groups rows with the same type, tags
 and field layout. Each data component occupies one row. A game object can have
 multiple data components of different types, or several of the same type; they
-share its `DataOwnerId`. Each component has a runtime `DataId` and a prototype-local
-component name hash.
+can share its `DataGroupId`. A group is a caller-defined identifier stored on each
+row; it may also identify a wave or other collection of rows. Different groups
+share the same type table. Each row has a runtime `DataId`; loaded components also
+retain their prototype-local component name hash.
 
 `DataTable` holds runtime storage and ownership, separate from the file's
 `DataTableHeader`. `DataValue`, `DataStruct` and `DataList` are temporary input or
@@ -108,17 +116,65 @@ metadata indexes. They verify the full name hash and scan on collisions. This
 costs 32 bytes plus one metadata pointer per runtime table, shared by all rows,
 with no extra allocations or changes to the file format.
 
-For construction without a blob, `DataRowDesc` and `DataStruct` provide separate
-`m_Types` (`DataValueType[]`) and `m_Values` (`DataValueData[]`) arrays. Multiple rows
-can share one type array; structs also supply member names. Insertion reads these
-arrays and copies values into native row storage. The input arrays only need to
-live through the call; stored rows carry no per-value type tags.
+For construction without a blob, public `DataRegisterTable` copies a native C
+layout and its tags. `DataCreateRows(store, type, group, count, rows, out_ids)`
+copies complete native rows, including inline members, using the registered row
+size. One group is assigned to every row; each receives its own ID. Native rows
+have no component name. The caller prepares defaults and per-instance values.
+Group membership does not imply ownership or deletion. Supplied values become
+reset defaults, kept in the same dense row order as current values. Swap removal
+moves both rows together and reuses the removed default slot. Inputs live only
+through the call. Native reference fields use
+`DataReference`: a string pointer, `DataStructInput` (member layout plus native
+bytes), or `DataListInput` (typed array or mixed payloads). These eight-byte
+input slots work inside inline structs too. Creation measures payloads for the
+whole batch, reserves arena storage for strings/lists, and copies dynamic struct
+fields into owned child tables. It does not retain input pointers or deduplicate
+equal strings. String/list arena blocks remain allocated until the table becomes
+empty or is destroyed; fixed row capacity remains available for later insertions.
+List inputs can use one shared element kind and a contiguous native array, or
+per-element `m_Types` with `m_Values` holding payload pointers. Mixed lists support
+all recursive DDF kinds and the runtime math types; both forms store a kind per
+element. Struct elements can each describe different members. `DataValue` and
+serialization stay internal.
 
-The internal `DataAddRowsFromTemplate` path prepares one default row, binds native
-scalar overrides by name/path once, then copies rows and applies overrides in
-bounded blocks. `DataRowDesc` still supplies owner/component IDs. All values are
-validated before publication; the final overridden values become reset defaults.
-Strings and containers come from the default and share its copied payloads.
+`DataCreateRowsSoA(store, type, group, count, field_count, fields, out_ids)`
+accepts separate native field arrays. Each `DataFieldArray` pairs a root field
+hash with `count` values; supply every root field once in any order. Inline
+structs use arrays of complete structs. Field names resolve once per batch, then
+values copy directly into the table's byte rows without a temporary AoS buffer.
+Types and sizes come from the registered layout. Ownership, reset and locking
+rules are the same as for `DataCreateRows`; this changes input layout, not storage.
+
+### Owned dynamic structs
+
+A dynamic struct field is an eight-byte **child-table index and row index**.
+Within a component table, objects with the same member hashes and kinds share
+one `DataStructTable`, regardless of input member order. Its metadata supplies
+C-aligned offsets; its fixed-stride rows contain only values. Nested struct
+members use the same representation recursively. These are private storage
+tables, with no public `DataId`, tags or separate query membership. Inline
+structs such as `Light` above remain in the component row.
+
+![An Enemy row owns a dynamic attributes row. Two attributes rows share metadata
+but have separate values. Freed child slots are reused without moving another
+parent's child.](images/datastore-owned-structs.svg)
+
+Each child row belongs exclusively to one parent. Reusing an input pointer makes
+independent copies, not shared mutable references. Reset keeps the original tree
+and releases any replacement tree; removing the parent releases both. Free slots
+are linked through their unused row bytes and reused by later insertions. Child
+rows do not move, so removal needs no global ID lookup or reference fixups.
+Capacity and shared layouts remain allocated until the component table is freed.
+Strings and lists inside child rows still use the containing table/registration's
+payload arena and follow its reclamation rules.
+
+This applies to owned dynamic struct **fields**. Mixed lists, including their
+struct elements, keep the packed container representation. Loaded dynamic
+structs continue to reference immutable blob payloads directly; an explicitly
+replaced struct uses child rows, and reset returns to the blob. Serialization
+writes current child values into the existing version-1 container format. There
+is no change to the zero-copy blob loading path.
 
 For scattered reads, public `DataFieldGet*Batch` functions accept an ID array and
 one field hash. They stage addresses before copying values, with no allocation.
@@ -140,7 +196,7 @@ runtime tables and registration records connecting game objects to their rows.](
 
 ### Adding and removing game objects
 
-`DataAddBlob(store, blob, owner, &instance)` instantiates all component rows from
+`DataAddBlob(store, blob, group, &instance)` instantiates all component rows from
 the blob in one operation. It copies their fixed-size value bytes into the
 resource's shared dense tables once. Metadata and defaults remain in the blob;
 strings and dynamic containers initially reference its payloads. Pooled
@@ -154,15 +210,16 @@ appends a point-light row and a spot-light row to the existing runtime tables.](
 
 Numeric and math writes modify these mutable rows directly, without first-write
 allocation or a second private copy of defaults. Replacement strings/containers
-belong to the registration. Runtime reference slots distinguish blob offsets from
-owned payload pointers; file bytes remain unchanged. Rows added without a blob
+belong to the registration. Runtime reference slots distinguish blob offsets,
+owned string/list pointers and owned child-row indices; file bytes remain unchanged. Rows added without a blob
 retain table-owned defaults instead.
 
 Reset restores loaded/added values: `DataResetRow` targets one component,
 `DataResetBlob` targets one registration's remaining rows, and field reset
 targets one value. IDs survive reset; added/removed rows are not undone. Resetting
 one game object's registration does not affect another. Component/field reset
-keeps replacement payload blocks; complete registration reset frees them.
+releases replacement child rows but keeps string/list payload blocks; complete
+registration reset also frees those blocks.
 
 `DataRemoveBlob` removes the registration's remaining rows, invalidates their IDs
 and frees replacement payloads. Dense removal can move another row; its ID remains
@@ -183,8 +240,8 @@ aggregation and gamesys resource/game-object integration remain future work.
 
 ## Queries
 
-A query describes required table tags and field paths with exact kinds, plus
-optional owner filters. All requested fields must belong to the same table;
+A query describes required table tags and full field-name hashes with exact kinds, plus
+optional group filters. All requested fields must belong to the same table;
 queries do not join separate component rows. For example, require the `light` tag
 and `light.color` as Vector3 to visit both light types above, provided their tables
 were assigned that tag. Value tests, such as a radius check, run in the row loop.
@@ -193,9 +250,9 @@ were assigned that tag. Value tests, such as a radius check, run in the row loop
 access and iterate batches and rows using a stable field handle.](images/datastore-queries.svg)
 
 1. **Create once:** `DataCreateQuery` copies a `DataQueryDesc`. For `light.color`,
-   its `DataQueryField` uses the light hash as `m_Field`, the color hash in
-   `m_Path`, `m_PathCount = 1`, and `m_Type = DATA_VALUE_TYPE_VECTOR3`.
-2. **Bind once:** `DataQueryFindField` returns a handle for that complete path and
+   its `DataQueryField` uses `m_Field = dmHashString64("light.color")` and
+   `m_Type = DATA_TYPE_VECTOR3`. No path array or runtime string parsing is needed.
+2. **Bind once:** `DataQueryFindField` returns a handle for that full-name hash and
    kind. Each matching table caches its own byte offset under the handle. Missing
    or incompatible fields exclude a table. Adding/removing tables updates
    matches without invalidating the handle.
@@ -208,20 +265,18 @@ access and iterate batches and rows using a stable field handle.](images/datasto
 5. **Release:** after all iterators and borrowed pointers finish, call
    `DataQueryEnd`. Reuse the query on the next update; destroy it when no longer needed.
 
-A field handle is neither a byte offset nor a field iteration index. Requested
-fields have no ordering guarantee. Each query match stores a compact array of
-uint32 byte offsets alongside its bindings. Typed pointer getters calculate
+A field handle is neither a byte offset nor an index in the query descriptor.
+Each query match stores a compact array of uint32 byte offsets alongside its bindings. Typed pointer getters calculate
 `batch base + row × stride + field offset` inline, without copying, allocation,
 hash lookup or repeated kind checks.
 Writable getters such as `DataRowIterGetNumberMut` require a field declared with
 `DATA_ACCESS_READ_WRITE`; read-only access is the default. Number, Boolean,
 Vector3, Vector4 and Matrix4 have typed pointer accessors.
 
-`DataFieldIterator` remains available for field enumeration and copying accessors.
-It visits the requested fields, or all top-level fields if none were requested.
-Dynamic container paths cannot bind because their layout may differ per row.
+Dynamic container members cannot bind because their layout may differ per row.
 ID-based access uses typed functions such as `DataFieldGetVector3` and
-`DataSetFieldVector3`; generic `DataValue` is internal.
+`DataSetFieldVector3`, using the same full-name hash for inline members.
+Generic `DataValue` is internal.
 
 Cursors allocate nothing and borrow their parent's current batch/row. Do not copy
 active cursors; finish using children and pointers before stepping a parent,
@@ -231,10 +286,20 @@ value pointers must also be reacquired after mutations affecting their storage.
 
 ### Parallel access and structural changes
 
-The library provides synchronization; the caller owns threads and jobs. Admission
-uses a short mutex to compare field byte ranges on matching physical tables.
+The library provides synchronization; the caller owns threads and jobs.
+`DataQueryTryBegin` holds the store mutex while checking conflicts, refreshing row
+ranges and recording an active reservation. It then releases the mutex, but the
+reservation remains active throughout iteration. Structural operations acquire
+the same mutex and return `DATA_RESULT_LOCKED` while any reservation is active,
+preventing row storage from moving or being freed. The caller finishes all jobs
+before `DataQueryEnd` removes the reservation under the mutex. Structural changes
+can succeed after the last reservation ends; rejected operations must be retried
+by the caller.
+
+There are no per-table mutexes. Reservations allow concurrent access to different
+tables or non-overlapping fields in the same table.
 Read/read overlaps are allowed; overlapping writes conflict. Reading a whole
-inline struct conflicts with writing a member. Owner filters do not narrow these
+inline struct conflicts with writing a member. Group filters do not narrow these
 reservations. Queries without requested fields reserve reads of complete rows.
 
 Explosion reads position and writes health. Regenerate also writes health,
@@ -244,8 +309,7 @@ Each query handle has at most one active reservation, shared by its jobs.
 Active reservations use `dmObjectPool` slots: admission scans a dense array and
 release returns the query's slot directly. Query creation reserves pool capacity;
 begin/end reuse it. This follows the instance-pool pattern in
-[rig.cpp](../rig/src/rig.cpp). Query descriptors and paths require valid caller
-storage; lookup does not repeat pointer or path-limit validation.
+[rig.cpp](../rig/src/rig.cpp). Query descriptors require valid caller storage; lookup does not repeat pointer validation.
 
 ![The caller submits jobs for admitted queries, waits for them, then releases
 access. Conflicting updates retry; structural changes wait until queries end.](images/data-query-execution.svg)
@@ -273,22 +337,30 @@ unlock after traversal, including early exits. This guard holds the store mutex
 on the calling thread and allows value writes/reset while rejecting structural
 changes. Do not mix it with active query reservations.
 
+**Concurrency follow-up:** structural changes currently require every query in
+the store to finish, even when they affect unrelated tables. Investigate allowing
+additions/removals on unreserved tables while keeping active row storage, ID slots,
+query bindings and shared resource pools stable. Also profile query admission:
+conflict scans and range rebuilding after structural changes run under the shared
+store mutex. Keep field-level access reservations and caller-owned jobs; validate
+any narrower synchronization with TSAN and concurrent spawn/despawn coverage.
+
 ## Implementation
 
 The public [data.h](../data/src/dmsdk/data/data.h) is the umbrella header: existing
 includes still provide the complete C API. It includes the responsibility headers
 below and [data_types.h](../data/src/dmsdk/data/data_types.h) for shared handles,
 IDs, results and value types. Each public header can also be included directly.
-Store creation/destruction and locking are public. Table/row management, reset
-and serialization remain internal, declared in the private [data.h](../data/src/data.h).
+Store, native table/row lifecycle, reset and opaque blob handles are public.
+Serialization and generic construction values remain in the private [data.h](../data/src/data.h).
 
 | Implementation | Public header | Responsibility |
 | --- | --- | --- |
-| [data.cpp](../data/src/data.cpp) | [data.h](../data/src/dmsdk/data/data.h) | Store, table, row and resource-instance lifetime; allocation and memory accounting. Public store creation/destruction and locking. |
+| [data.cpp](../data/src/data.cpp) | [data.h](../data/src/dmsdk/data/data.h) | Store creation/destruction and locking. Native row lifecycle is declared in [data_table.h](../data/src/dmsdk/data/data_table.h); resource instances in [data_blob.h](../data/src/dmsdk/data/data_blob.h). |
 | [data_query.cpp](../data/src/data_query.cpp) | [data_query.h](../data/src/dmsdk/data/data_query.h) | Query matching, field bindings, cached ranges and access reservations. |
 | [data_iter.cpp](../data/src/data_iter.cpp) | [data_iter.h](../data/src/dmsdk/data/data_iter.h) | Batch, row and field traversal, including iterator value access. |
-| [data_field.cpp](../data/src/data_field.cpp) | [data_field.h](../data/src/dmsdk/data/data_field.h) | Value representation, construction validation, field get/set and internal reset. |
-| [data_io.cpp](../data/src/data_io.cpp) | Internal only | Binary serialization, blob validation and loading. |
+| [data_field.cpp](../data/src/data_field.cpp) | [data_field.h](../data/src/dmsdk/data/data_field.h) | Value representation, construction validation, field get/set and reset. |
+| [data_io.cpp](../data/src/data_io.cpp) | [data_blob.h](../data/src/dmsdk/data/data_blob.h) | Public blob loading and release; private serialization. |
 
 The [library and benchmark documentation](../data/README.md) covers measurements
 and comparisons with Flecs, Bevy and EnTT. Threading tests run under TSAN;

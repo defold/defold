@@ -4,10 +4,10 @@ Experimental C API for datastore lifetime, queries, iteration and field get/set.
 Functions use the `Data` prefix (for example, `DataCreateQuery`); the previous `dmData` names are
 removed. The public umbrella header is `src/dmsdk/data/data.h`, installed as
 `<dmsdk/data/data.h>`. It includes `data_types.h`, `data_query.h`, `data_iter.h`
-and `data_field.h`; each can also be included directly. Table/row
-management, reset, binary I/O and generic `DataValue`/container access are internal,
-declared in `src/data.h` beside
-`data.cpp`. Serialization is implemented in `data_io.cpp`. The library uses dlib
+plus `data_field.h`, `data_table.h` and `data_blob.h`; each can also be included
+directly. Native table/row lifecycle, reset and opaque blob handles are public.
+Serialization and generic `DataValue`/container access remain internal, declared
+in `src/data.h` beside `data.cpp`. Serialization is implemented in `data_io.cpp`. The library uses dlib
 containers and does not depend on gameobject, gamesys, DDF or Flecs.
 
 ## Storage and lifetimes
@@ -39,23 +39,38 @@ buffer. Registrations of the same loaded resource append mutable rows to shared 
 runtime tables. Registration handles and row membership indices use pooled slots. Strings and dynamic
 containers keep referencing shared blob bytes until replaced; no payload trees
 are expanded during registration. Each registration assigns fresh row IDs and the
-supplied owner ID; a component name hash identifies each row within its prototype.
-Owner IDs are opaque uint64 values and may be shared by multiple rows, including zero.
+supplied group ID; a component name hash identifies each row within its prototype.
+Group IDs are opaque uint64 values and may be shared by multiple rows, including zero.
 
-For decoded construction, `DataRegisterTable` copies metadata/tags once.
-`DataAddRows` validates the batch, stores table-owned reset defaults and initializes
-mutable rows. Scalar validation/writes run in batch loops; row clearing, copying
-and ID bookkeeping are also batched. Row removal swaps both values and identities while preserving the
-source row index for reset. Removed default bytes remain until table destruction.
+For native construction, `DataRegisterTable` copies metadata/tags once.
+`DataCreateRows(store, type, group, count, rows, out_ids)` copies a contiguous
+array of complete native rows, using the registered row size. The caller prepares
+per-instance values before insertion. Every row receives the supplied group and a
+fresh ID; native rows have no component name. Groups share tables, and group
+membership does not imply ownership or deletion. Supplied values become reset
+defaults. Strings and dynamic structs/lists use `DataReference` input slots,
+including inside inline structs. `DataStructInput` supplies a native member layout
+and its values; `DataListInput` supplies either a contiguous array of one element
+kind, or an optional `m_Types` array with one kind per element. In the mixed form,
+`m_Values` is an array of pointers to native values, strings or container inputs.
+Creation copies reference payloads into table-owned arena storage, reserved for
+the whole batch. Inputs can leave scope after the call; string/list arena allocations
+remain until the table is empty or destroyed. Owned dynamic struct rows are reused
+after their parent is removed.
 
-`DataAddRowsFromTemplate` is an internal construction path for shared defaults
-and native scalar columns. It resolves override names, nested paths and kinds
-once per call, reserves storage, then copies defaults and applies overrides in
-bounded row blocks. `DataRowDesc` supplies owner/component identity; only the
-default row needs decoded values. All validation precedes publication, and each
-row retains its final values as reset defaults. Template strings/containers share
-copied immutable payloads. A free-slot count avoids walking reusable ID links
-during reservation; exhausted generations are retired.
+`DataCreateRowsSoA(store, type, group, count, field_count, fields, out_ids)`
+accepts one contiguous native array per root field, identified by `DataFieldArray`
+name hashes in any order. Inline structs use complete struct elements. The library
+binds names once and copies directly into stored byte rows, with no temporary
+native-row array. All fields are required; defaults, groups, IDs and locking
+follow `DataCreateRows`.
+
+Private decoded construction remains available to resource producers through
+`DataAddRows`. `DataValue` and `DataRowDesc` stay private.
+Row removal swaps values and identities. Native reset defaults move with the row,
+reusing removed default slots; blob reset indices continue to identify immutable source rows.
+A free-slot count avoids walking reusable ID links during reservation; exhausted
+generations are retired.
 
 Runtime tables cache whether their fixed rows contain references. Numeric-only
 blob instantiation/reset skips reference traversal without changing the file format.
@@ -72,16 +87,16 @@ Reset follows engine instance ownership:
 
 - `DataResetField(store, id, field)` restores one field's loaded/added value.
 - `DataResetRow(store, id)` restores every field of one component, including
-  nested values. Other components with the same owner or type are unaffected.
+  nested values. Other components with the same group or type are unaffected.
 - `DataResetBlob(instance)` restores the remaining component rows registered for
   one game object and frees that registration's replacement payload blocks. Other instances
   sharing the resource are unaffected.
 
 The engine keeps component row IDs and the game object's registration handle;
-these resets do not require searching the datastore by owner. If the engine adds
+these resets do not require searching the datastore by group. If the engine adds
 independent component rows or multiple registrations to a game object, it resets
-those retained IDs/handles as well. Owner IDs alone do not merge registrations.
-`DataResetTable` is a bulk maintenance/benchmark utility spanning owners of one
+those retained IDs/handles as well. Group IDs alone do not merge registrations.
+`DataResetTable` is a bulk maintenance/benchmark utility spanning groups of one
 independently registered type, not the normal engine reset scope.
 
 Resets preserve IDs and iterators and do not undo additions or removals. Field
@@ -101,7 +116,9 @@ top-level value. Dynamic child names/kinds may vary; declared inline structs
 require the exact member names and kinds. `DataFieldDesc.m_Struct` optionally
 points to a reusable `DataStructDesc`. Registration compiles the complete layout
 into each containing table's metadata, shared by all its rows. It is not a global
-type registry. Query paths can bind members of these fixed layouts.
+type registry. Queries bind members of these fixed layouts by full-name hash. Inline parents
+and members supply local text names in `DataFieldDesc::m_Name` at registration;
+compiled metadata keeps full-name hashes and absolute row offsets, not strings.
 For decoded input, zero-initialize `DataStruct`/`DataList` and fill their input
 arrays and counts. Use the accessors for returned views, whose arrays may be NULL.
 
@@ -112,22 +129,19 @@ Independently registered tables have unique type hashes. Internal operations tha
 address a table by type affect only these tables; blob registrations use their
 own table batches and allow repeated types. Queries and row-ID operations cover both.
 
-Queries copy owner/tag/field filters and cache matching tables. Required
-fields match both name/path and declared leaf kind in the same table; each query
-field caches its offset and kind. Stored query filters use uint16 path lengths
-(already limited to 64) and uint8 access modes; public inputs remain wide and are
+Queries copy group/tag/field filters and cache matching tables. Required
+fields match both full-name hash and declared leaf kind in the same table; each query
+field caches its offset and kind. Stored query filters use uint8 access modes; public inputs remain wide and are
 validated before narrowing. Structural mutations
 update these caches between traversals. Hold `DataStoreLock` during iteration; structural
 operations return `DATA_RESULT_LOCKED` without changes until the outermost unlock.
-Field writes and resets preserve iterators. Owner filters select contiguous matching runs within a table.
+Field writes and resets preserve iterators. Group filters select contiguous matching runs within a table.
 Iterators and reads allocate nothing. `DataIterNext` caches the current table,
-row identities, bindings, mutable bytes and stride once per batch. Typed getters
-compile to a fixed payload copy and check the requested kind. Row/field advancement
-and getters do not read a store revision, lock counter or parent-step counter.
-The row cursor borrows batch state and keeps row indices. Field cursors select
-shared metadata; numeric pointers calculate the address inline from the batch base,
-row stride and cached offset. Each query match keeps a compact uint32 offset array
-in its existing binding allocation, adding four bytes per requested field and no
+row identities, bindings, mutable bytes and stride once per batch. Typed row getters
+calculate pointers inline from the batch base, row stride and cached field offset.
+Row advancement and getters do not read a store revision, lock counter or parent-step
+counter. The row cursor borrows batch state and keeps row indices. Each query match
+keeps a compact uint32 offset array in its existing binding allocation, adding four bytes per requested field and no
 per-row storage or allocations.
 All cursors are stack-owned and allocation-free. Consumers must rebuild against the
 updated SDK header. Hash-based
@@ -165,37 +179,25 @@ The other suffixes are `Number` (`double`), `Boolean` (`uint8_t`, zero or one),
 `String` (`const char*`), `Vector4` and `Matrix4`. Scalar setters take values directly;
 string getters return borrowed bytes, and setters copy the string.
 
-Traversal has three cursors: `DataIterator` selects batches, `DataIterRows` creates
-one `DataRowIterator` for the current batch, and `DataRowIterFields` creates a
-`DataFieldIterator` for the current row. Advance with `DataIterNext`,
-`DataRowIterNext` and `DataFieldIterNext`. Each returns OK or END. Get row identity through `DataRowIterGetId` and
-`DataRowIterGetOwnerId`, without supplying an index.
+Traversal has two cursors: `DataIterator` selects batches, and `DataIterRows` creates
+a `DataRowIterator` for the current batch. Advance with `DataIterNext` and
+`DataRowIterNext`; each returns OK or END. Get row identity through
+`DataRowIterGetId` and `DataRowIterGetGroupId`.
 
-Field iteration visits requested fields, or all top-level fields when none
-are requested. Field order is unspecified; inspect names and kinds to select values.
-The requested field list is a filter set, not an output-order contract. A table
-missing a requested name/type does not match. Read-only `m_Index` identifies the
-current iteration position, not a position in the query descriptor.
-`DataFieldIterGetType` and `DataFieldIterGetNameHash` read its shared metadata on demand.
-Inline paths report the leaf name. Row cursors hold their parent batch and indices;
-field cursors hold the batch reference and selected row/field indices directly.
-Their inline Next functions perform an end check and index advancement. Getters
-resolve the row bytes and shared field binding when accessed. Typed field reads use
-inline wrappers that pass the batch, row index and field index to private library
-entry points. Callers continue to use `DataFieldIterGet<Type>(&field, &value)`;
-functions suffixed `Internal` are implementation linkage, not standalone SDK APIs.
-Holding a row index
-does not extend a field cursor's lifetime beyond the next parent step. It does not recurse
-into containers. Internal cursor members follow `// private` and are omitted from
-SDK member documentation. Do not copy active iterators. Finish using children before
+Request fields when creating the query, then bind their handles once with
+`DataQueryFindField`. A table missing a requested name/type does not match.
+Use `DataRowIterGet<Type>` and `DataRowIterGet<Type>Mut` to read/write fields through
+those handles. An empty field filter still permits row and group iteration.
+
+Do not copy active iterators. Finish using rows and borrowed pointers before
 advancing their parent, including when it returns END. Keep parents alive at the
 same address and the query/store alive throughout traversal. These lifetime rules
-are caller obligations; misuse is not detected by iterator get/set/Next.
+are caller obligations; iterator steps and getters do not check them.
 
 Use `DataStoreLock(store)` before `DataQueryIter` and `DataStoreUnlock(store)` after
 traversal, including early exits. Locks nest and allocate nothing. The lock is a
 legacy guard holding the store mutex; concurrent jobs use query executions.
-Publishing jobs and waiting for their completion remain the caller's responsibility. Starting query iteration asserts the lock once; row/field steps and getters do not check it.
+Publishing jobs and waiting for their completion remain the caller's responsibility. Starting query iteration asserts the lock once; row steps and getters do not check it.
 Existing values can still be written or reset. Destruction, row addition/removal,
 table registration/removal and instance addition/removal return LOCKED before any
 changes while a lock is held.
@@ -206,13 +208,10 @@ remain visible until deletion is applied. IDs survive swap-removal of other rows
 row indices do not. Unlock itself does not flush work. No per-row deletion flags or
 general command queue are needed.
 
-`DataFieldIterGet<Type>` / `DataFieldIterSet<Type>` take only the field cursor and
-output/value, using its selected metadata. All typed access requires the exact declared kind:
-there is no conversion, errors leave outputs/stored values unchanged, and resets
-restore loaded/added defaults. A `DataQueryField` can name an inline member
-path, e.g. `{ light_hash, DATA_VALUE_TYPE_VECTOR3, &color_hash, 1 }`. Creation
-copies the hashes and binds the full offset once per table; the row loop uses
-`DataFieldIterGetVector3` / `DataFieldIterSetVector3`.
+A `DataQueryField` can name an inline member by its full-name hash, e.g.
+`{ .m_Field = dmHashString64("light.color"), .m_Type = DATA_TYPE_VECTOR3 }`.
+Creation copies the hashes and binds the full offset once per table; the row loop
+uses `DataRowIterGetVector3` / `DataRowIterGetVector3Mut` with the bound handle.
 
 Generic `DataValue`, `DataStruct`, `DataList` and their
 accessors are internal; no general public container cursor exists yet.
@@ -235,56 +234,48 @@ DataResult SetLightColor(HDataStore store, DataId id, uint64_t color_field, floa
 The existing light templates store color as a DDF list. Converting it to Vector3
 requires an explicit producer choice; DDF conversion is not implemented yet.
 
-Queries accept owner IDs, all-required tags and required fields or inline
-member paths with exact kinds; empty filters match everything:
+Queries accept group IDs, all-required tags and required fields or inline
+full member-name hashes with exact kinds; empty filters match everything:
 
 ```c
 #include <dmsdk/data/data.h>
 
-DataResult SetOwnerNumber(HDataStore store, DataOwnerId owner, uint64_t field_hash, double value)
+DataResult SetGroupNumber(HDataStore store, DataGroupId group, uint64_t field_hash, double value)
 {
-    DataQueryField field = { .m_Field = field_hash, .m_Type = DATA_VALUE_TYPE_NUMBER };
-    DataQueryDesc desc = { &owner, 1, 0, 0, &field, 1 };
+    DataQueryField field = { .m_Field = field_hash, .m_Type = DATA_TYPE_NUMBER, .m_Access = DATA_ACCESS_READ_WRITE };
+    DataQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Fields = &field, .m_FieldCount = 1 };
     HDataQuery query;
     DataResult result = DataCreateQuery(store, &desc, &query);
     if (result != DATA_RESULT_OK)
         return result;
+    uint32_t handle = DataQueryFindField(query, &field);
     DataStoreLock(store);
     DataIterator iterator = DataQueryIter(query);
-    while ((result = DataIterNext(&iterator)) == DATA_RESULT_OK)
+    while (DataIterNext(&iterator) == DATA_RESULT_OK)
     {
         DataRowIterator rows = DataIterRows(&iterator);
-        while ((result = DataRowIterNext(&rows)) == DATA_RESULT_OK)
-        {
-            DataFieldIterator field = DataRowIterFields(&rows);
-            result = DataFieldIterNext(&field);
-            if (result == DATA_RESULT_OK)
-                result = DataFieldIterSetNumber(&field, value);
-            if (result != DATA_RESULT_OK)
-                break;
-        }
-        if (result != DATA_RESULT_END)
-            break;
+        while (DataRowIterNext(&rows) == DATA_RESULT_OK)
+            *DataRowIterGetNumberMut(&rows, handle) = value;
     }
     DataStoreUnlock(store);
     DataDestroyQuery(query);
-    return result == DATA_RESULT_END ? DATA_RESULT_OK : result;
+    return DATA_RESULT_OK;
 }
 ```
 
-This updates rows owned by the supplied owner that declare the requested Number
-field. An error stops the update; earlier writes remain applied. Read a Number
-with `DataFieldGetNumber` by row ID or `DataFieldIterGetNumber` during iteration.
+This updates rows in the supplied group that declare the requested Number
+field. Read a Number with `DataFieldGetNumber` by row ID or borrow a const pointer
+with `DataRowIterGetNumber` during iteration.
 
 For loops that know their fields, call `DataQueryFindField(query, &field)`
-once per field after query creation. It identifies the requested full path and
+once per field after query creation. It identifies the requested full-name hash and
 kind, independent of field order. The handle survives empty results, table changes
 and repeated traversals; each table caches its own offset under that handle.
 Use it for any row of that query with `DataRowIterGetNumber`, `DataRowIterGetVector3` and the Boolean,
 Vector4 and Matrix4 variants. These return borrowed const pointers without copying,
 allocation or repeated name/type/lifetime checks. Use the corresponding kind.
 An absent/unsupported field returns `UINT32_MAX` at binding; it must not be passed
-to a getter. Strings/containers retain copying and ownership-aware accessors.
+to a getter. Strings use the ID-based getter/setter; container access is internal.
 
 `DataRowIterGetNumberMut` and the corresponding fixed-type functions prepare a
 writable view of the existing row, without allocation or copying. Writes preserve
@@ -292,14 +283,11 @@ defaults and nested siblings; strings/containers retain ownership-aware setters.
 Borrowed pointers must be finished before row/batch advance, unlock, or another
 mutating accessor/reset affecting the row/table. Handles last until query destruction.
 Reacquire pointers after mutation/reset according to the borrowing contract.
-The existing field iterator remains available for inspecting arbitrary fields.
 
-Engine code uses the private header for store/table/row lifecycle and serialization.
-`DataTableDesc` supplies metadata and stride. `DataRowDesc` supplies an owner,
-separate `m_Types` and `m_Values` arrays in metadata order, their count and a component
-name hash. Rows can share one type array. Insertion reads these arrays and copies
-the values into native row storage; input arrays only need to live through the call.
-These construction operations are not part of the SDK.
+Public `DataTableDesc` supplies metadata and native row stride. `DataCreateRows`
+copies native bytes and assigns one explicit group to every row; inputs live
+only through the call. Private resource producers can also construct rows from decoded
+`DataRowDesc` type/value arrays and serialize them with `DataWriteBlob`.
 
 ## Binary format, version 1
 
@@ -328,19 +316,19 @@ An empty blob is 16 bytes. Each table has this layout:
 | 20 | uint16 total metadata count, including inline descendants |
 | 22 | uint16 reserved, zero |
 | 24 onward | uint64 tags[tag count] |
-| After tags | Metadata[total metadata count], 24 bytes per entry |
+| After tags | Metadata[total metadata count], 32 bytes per entry |
 | After metadata | uint64 component name hashes[row count] |
 | After component IDs | uint8 row bytes[row count × row stride], then padding to eight-byte boundary |
 | After row bytes | Nested containers, in row/field order |
 
-Each 24-byte metadata entry stores a uint64 name hash (byte 0), uint32 kind (8),
+Each 32-byte metadata entry stores a uint64 full-name hash (byte 0), uint32 kind (8),
 uint32 byte offset (12), uint16 first child index (16), uint16 child count (18),
-and uint32 byte size (20). A type has at most 65,535 metadata entries including
+uint32 byte size (20), and uint64 local member-name hash (24). A type has at most 65,535 metadata entries including
 nested members, and a table has at most 65,535 tags. Registration validates these
 limits before narrowing. Row counts, strides, byte offsets and dynamic container
 counts remain 32-bit. Root entries come first. A declared inline struct's nonzero child index starts its
 contiguous member range; descendant ranges follow in construction order. Member
-offsets are relative to their containing struct. Non-inline fields have zero child
+offsets are absolute within the row. Non-inline fields have zero child
 index/count and their ordinary kind size. Metadata stays in the blob on load.
 
 Fixed-size values and declared structs are inline in each row. String and dynamic
@@ -368,7 +356,7 @@ Kinds are Number=0, Boolean=1, String=2, Null=3, Struct=4, List=5, Vector3=6,
 Vector4=7, Matrix4=8. Numeric components use little-endian IEEE-754. The writer zeros
 padding and deduplicates strings by content across all tables and nesting levels,
 checking equality after hashing. Strings follow depth-first first-use order,
-without padding between them. Runtime owners, row IDs and reset history are omitted;
+without padding between them. Runtime groups, row IDs and reset history are omitted;
 current values become reset defaults on the next load.
 
 `DataWriteBlob(store, NULL, 0, &size)` determines the size; a second call writes
@@ -376,12 +364,12 @@ all tables to caller-owned memory that must not overlap a borrowed input blob.
 A producer can use a temporary store containing one prototype's components.
 The caller supplies component identities and handles file I/O.
 
-The internal resource/instance lifecycle is:
+The public resource/instance lifecycle is:
 
 1. Read the file into your allocation and pass it to `DataLoadBlob`. This validates
    all tables and borrows that exact buffer without copying bytes. Input must be
    eight-byte aligned and may be read-only. No rows are registered yet.
-2. `DataAddBlob(store, blob, owner, &instance)` creates one logical game-object
+2. `DataAddBlob(store, blob, group, &instance)` creates one logical game-object
    registration, retains the resource, assigns fresh row IDs and copies values into
    shared dense rows. Use `DataGetComponentId`
    to associate prototype component names with those IDs. Multiple instances,
@@ -454,7 +442,7 @@ allocation/growth and return IDs into caller-owned arrays. Query creation is out
 the iteration timing; no queries are registered during insertion. Stores are fresh
 for each insertion case.
 
-Both sides store two numeric fields, an owner and a tag. Flecs uses separate
+Both sides store two numeric fields, a group and a tag. Flecs uses separate
 scalar components and its C API (`ecs_insert_w_values`, `ecs_bulk_init`,
 `ecs_get_id`, `ecs_set_id`, cached queries and `ecs_delete`). Its benchmark target
 defines `FLECS_NO_CPP` and `FLECS_NDEBUG`. Defold uses the normal optimized build
@@ -462,14 +450,13 @@ with engine assertions retained. No LTO is used.
 
 Both sides use public query/get/set APIs for value access. Defold copies fixed
 rows into mutable storage on creation, retains reset defaults, and allocates
-nothing for scalar writes. Binary write/load cases are Defold-only and use the
-internal resource API. This small diagnostic has one table and two numbers;
+nothing for scalar writes. This small diagnostic has one table and two numbers;
 use the mixed suite for the main comparison.
 
 ## Core benchmark suite
 
 The [standalone report](benchmarks/report.html) contains exactly eight workloads:
-Create population, Spawn wave, Despawn wave, Movement, Explosion, Nearby light
+Create population, Spawn wave, Despawn wave, Boids, Explosion, Nearby light
 contribution, Shuffled position lookup, and Threaded update. See
 [BENCHMARKS.md](BENCHMARKS.md) for their contracts. Each has one performance card
 and one memory card; worker counts are variants within the threaded case.
@@ -494,10 +481,14 @@ checkout alongside `DEFOLD_DATA_FLECS_DIR`. No third-party source is downloaded.
 The single configuration uses runtime-created mutable rows and separate
 Flecs/Bevy components. EnTT uses separate sparse component pools with ordinary
 public views, bulk insertion and ID getters; no owning groups or custom storage.
-Read/write cases run one pass from original values.
-Movement updates position using velocity; nearby lights reads position and
-nested Light values within radius 50; shuffled lookup only reads. Spawn adds
-10% in batches of 100 with three live queries, then despawn removes a shuffled
+Read/write cases run one simulation step from original values.
+Boids snapshots positions/velocities, builds separate 8-unit cell aggregates for
+the Player and Enemy flocks, then steers and writes both fields. Alignment,
+separation, two targets and obstacle avoidance are included; scratch allocation
+and per-agent validation are outside timing. See [the workload contract](BENCHMARKS.md#core-suite).
+Nearby lights requires the `light` tag
+and reads position and nested Light values within radius 50; shuffled lookup only
+reads. Spawn adds 10% in batches of 100 with four live queries, then despawn removes a shuffled
 1% of the initial population. No packed-layout alternatives appear in the report.
 
 ## Mixed-instance diagnostics
@@ -548,14 +539,14 @@ functions. `benchmark_data_mixed.cpp` builds the fixture and runs the suite;
 
 Arguments are rows (a multiple of 1,000), samples (1–31), backend (`all`, `data`,
 `flecs_rows`, `flecs_columns`), and packed rows per registration (`0`, `1`, `4`,
-`16`; default `0` selects decoded tables). In packed mode each type's population
+`16`; default `0` selects native tables). In packed mode each type's population
 must divide evenly by the group size. One million works for all group sizes.
 
 For timing and CPU profiling, use an optimized build with all sanitizers disabled
 (including ASAN, TSAN and UBSAN) and allocation instrumentation disabled. Keep
 sanitizer validation and allocation measurements in separate runs.
 
-For CPU profiling, append `spot_color 3000` with a single backend and decoded
+For CPU profiling, append `spot_color 3000` with a single backend and native
 tables, e.g. `benchmark_data_mixed 1000000 7 data 0 spot_color 3000`. The fixture
 and query are created once; only the existing SpotLight scan repeats 3,000 times
 per sample. Attach the profiler after `Profile ready` appears on stderr. Use fewer
@@ -574,19 +565,19 @@ Setup and destruction are outside timing; filter sampled stacks to the bulk
 insertion calls to exclude them.
 
 For Spawn wave, append `spawn_wave 120` with `data` or `flecs_columns`. Each
-pass starts with one million rows and the three core queries, then adds the same
+pass starts with one million rows and the four core queries, then adds the same
 100,000 rows in batches of 100. Setup and destruction are outside timing; filter
-sampled stacks to `AddInstances`/`DataAddRows`.
+sampled stacks to `AddInstances`/`DataCreateRows`.
 
-For Movement, append `movement 40000` with `data` or `flecs_columns`. The fixture
-and query are created once, and the existing public-API movement loop repeats
-40,000 times per sample. Values accumulate during those passes; restoration and
-validation are outside timing.
+For Boids, append `boids 20` with `data` or `flecs_columns`. Each pass restores
+the fixture, then measures the same public-API snapshot, cell build and steering
+used by the core case. Restoration, scratch allocation and per-agent validation
+are outside the recorded interval.
 
 For Shuffled position lookup, append `position_lookup 200` with `data` or
 `flecs_columns`. The fixture is populated once, then the existing public ID-based
 lookup loop repeats 200 times per sample. Setup and checksum validation remain
-outside timing. Both modes print `Profile ready` before the loop.
+outside timing. The profiling modes print `Profile ready` before their loops.
 These repeated workloads are for profiling and do not replace the report's
 single-pass measurements.
 
@@ -598,10 +589,10 @@ Flecs uses inline Light structs, either in concrete components or as a separate
 component. Traversal uses `ecs_query_iter`, `ecs_query_next`, and
 `ecs_field_w_size`, followed by ordinary C member access. Bevy uses
 `QueryState::iter` / `iter_mut`, followed by Rust member access. No backend
-traverses private ECS storage. Scalar/math widths match. Both Flecs variants include owner and
+traverses private ECS storage. Scalar/math widths match. Both Flecs variants include group and
 component identity values. Input generation and serialization are outside timing.
 
-The decoded suite covers individual/bulk creation, live-query insertion of 10%
+The native suite covers individual/bulk creation, live-query insertion of 10%
 more rows in batches of 100, nested color sums, typed field queries, one
 explosion, one shuffled position update, and 1% removal/replacement. Explosion
 scans all health/position candidates and subtracts 25 health (clamped at zero)
@@ -609,15 +600,16 @@ within radius 50 of the origin. Shuffled position visits each instance once,
 reads its position, increments X by one, and writes it back. Both start from reset
 defaults and include first writes; every resulting health/position is validated.
 Each case describes the workload, independently of how a backend accesses its
-values. Query/read/write workloads use only the public SDK functions, including
-`DataRowIterGetVector3` for the bound light.color field. Fixture construction and the
-separately named engine lifecycle/I/O cases use internal creation/loading APIs.
+values. All benchmark setup, creation, query/read/write and removal use public SDK
+functions. The build-time `data_fixture_writer` separately serializes packed
+fixtures; no serializer or private data header is used by benchmark executables.
+`DATA_PUBLIC_API_ONLY` makes an accidental private include a compile error.
 Access-method comparisons belong in internal profiling and experiments.
 Writes use one pass; read cases use five warm passes. Reset, validation and
 formatting are outside measurement. Query construction is measured separately.
 
 Packed mode instantiates six prebuilt prototype blobs. Each type's values repeat
-per registration on all backends, and each group shares an owner. Population
+per registration on all backends, and each group shares a group. Population
 includes copying mutable rows and collecting runtime IDs. Defold shares blob
 metadata/defaults; Flecs and Bevy populate mutable components. The suite measures scalar writes
 on 0%, 1% and 10% of shuffled rows, first/repeat updates, full-population random
@@ -1053,7 +1045,7 @@ renderer or scheduler and is not an engine dependency. Bevy is licensed under
 MIT/Apache-2.0; the first-party harness uses the Defold license.
 
 Both complete-struct and separate-component variants match the C++ fixture's
-seed, type mix, field widths, owner/component identities, update order and query
+seed, type mix, field widths, group/component identities, update order and query
 results. Struct queries use a fixed typed adapter for common fields; they do not
 reflectively discover arbitrary same-named fields. Packed-mode values repeat
 the same prototypes but are copied into mutable Bevy storage, as in Flecs. Native
@@ -1134,6 +1126,12 @@ exactly eight performance cards followed by eight matching memory cards. The
 threaded card includes all worker counts; phase timings and p95 appear only in
 its details. Results tables use the same eight workloads. Library size is a
 separate section. The report includes the enemy-wave population timeline.
+
+The companion [Defold code examples](benchmarks/examples.html) explain each
+workload, its query setup and iteration, followed by a complete query-range job
+submission/completion example. It works offline and includes copyable snippets
+and C/C++ downloads. Engine-internal construction APIs are labelled separately
+from the public C query and field APIs.
 
 The builder reads `benchmarks/core/run.json`,
 `benchmarks/threaded/manifest.json` and optional `benchmarks/unity/run.json`, verifies result hashes and embeds raw CSVs,

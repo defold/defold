@@ -11,7 +11,7 @@ under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License. -->
 <title id="title">File Format: overview, struct layouts and references</title>
-<desc id="desc">The directory references the PointLight and SpotLight tables and the shared string area. On the right, table_offsets selects a DataTableHeader. Table counts describe the metadata array and fixed-stride rows. DataFileFieldMeta m_ChildIndex selects child entries in the same metadata array; m_ByteOffset locates a value relative to its parent row or inline struct. Solid arrows show offset or index references, and dashed arrows show layout expansion or sizes. Struct layouts list byte offsets, names and types.</desc>
+<desc id="desc">The directory references the PointLight and SpotLight tables and the shared string area. On the right, table_offsets selects a DataTableHeader. Table counts describe the metadata array and fixed-stride rows. DataFileFieldMeta m_ChildIndex selects child entries in the same metadata array; m_ByteOffset locates a value relative to the row. Solid arrows show offset or index references, and dashed arrows show layout expansion or sizes. Struct layouts list byte offsets, names and types.</desc>
 <defs>
 <marker id="reference-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#237c76"/></marker>
 <marker id="layout-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker>
@@ -99,7 +99,7 @@ text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}
 <text x="524" y="588" class="field">m_Reserved</text>
 <text x="678" y="588" class="field">uint16_t</text>
 <rect x="824" y="350" width="320" height="278" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
-<text x="838" y="379" class="label">DataFileFieldMeta · 24 bytes</text>
+<text x="838" y="379" class="label">DataFileFieldMeta · 32 bytes</text>
 <text x="838" y="407" class="small">Byte</text>
 <text x="894" y="407" class="small">Name</text>
 <text x="1048" y="407" class="small">Type</text>
@@ -122,6 +122,9 @@ text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}
 <text x="838" y="563" class="field">20</text>
 <text x="894" y="563" class="field">m_ByteSize</text>
 <text x="1048" y="563" class="field">uint32_t</text>
+<text x="838" y="588" class="field">24</text>
+<text x="894" y="588" class="field" style="font-size:12px">m_MemberNameHash</text>
+<text x="1048" y="588" class="field">uint64_t</text>
 <rect x="454" y="750" width="690" height="224" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="468" y="779" class="label">PointLight row · 32 bytes, inline Light expanded</text>
 <text x="468" y="807" class="small">Byte</text>
@@ -162,7 +165,7 @@ text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}
 <text x="637" y="704" class="small">m_RowCount ×</text>
 <text x="637" y="727" class="small">m_RowStride bytes</text>
 <path d="M 1144 488 H 1152 Q 1160 472 1168 488 H 1188 V 858 H 1144" class="reference"/>
-<text x="1209" y="676" class="reference-label" text-anchor="middle" transform="rotate(-90 1209 676)">parent + m_ByteOffset</text>
+<text x="1209" y="676" class="reference-label" text-anchor="middle" transform="rotate(-90 1209 676)">row + m_ByteOffset</text>
 <text x="64" y="758" class="label">Reading the arrows</text>
 <path d="M 64 788 H 110" class="reference"/>
 <text x="122" y="793" class="small">Offset / index reference</text>
@@ -170,7 +173,7 @@ text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}
 <text x="122" y="825" class="small">Layout expansion / size</text>
 <text x="64" y="865" class="small">Directory offsets start at the blob.</text>
 <text x="64" y="893" class="small">Field offsets start at the row</text>
-<text x="64" y="916" class="small">or containing inline struct.</text>
+<text x="64" y="916" class="small">including inline members.</text>
 <text x="64" y="954" class="small">Padding is not a named field.</text>
 <text x="28" y="1017" class="small">Within each table: header → tags → metadata → component names → rows → dynamic payloads</text>
 <text x="28" y="1051" class="small">Fixed structs are in data.h. table_offsets[] follows DataFileDirectory; reserved fields are zero. Byte is struct-relative.</text>

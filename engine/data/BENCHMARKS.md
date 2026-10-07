@@ -9,7 +9,7 @@ Diagnostic harnesses remain available for profiling, but do not feed the report.
 ## Population
 
 Use one million data-component instances. One Defold row corresponds to one Flecs,
-Bevy, EnTT or Unity entity in this fixture, not necessarily one engine game object. Owner IDs
+Bevy, EnTT or Unity entity in this fixture, not necessarily one engine game object. Group IDs
 allow several component instances to belong to the same game object.
 
 | Type | Instances | Tags | Fields |
@@ -47,19 +47,40 @@ complete operation, or a complete frame for the threaded workload.
 
 | Workload | Operation |
 | --- | --- |
-| Create population | Instantiate one million rows across the six types from prepared input data. |
-| Spawn wave | Add 100,000 instances in batches of 100 with three live queries. |
+| Create population | Instantiate one million rows across the six types; compare Defold AoS and SoA inputs. |
+| Spawn wave | Add 100,000 instances in batches of 100 with four live queries. |
 | Despawn wave | Remove 10,000 instances from a deterministic shuffled subset, after spawning. |
-| Movement | Update Player and Enemy position from velocity and a fixed timestep. |
+| Boids | Simulate 250,000 Player/Enemy agents in two isolated flocks: snapshot, cell aggregation, alignment/separation, target attraction, obstacle avoidance, and position/velocity writes. |
 | Explosion | Read position and health; subtract 25 health, clamped at zero, within radius 50 of the origin. |
-| Nearby light contribution | Match lights, read position and nested color/intensity, and sum `color * intensity * (1 - distance_squared / radius_squared)` within a fixed radius. |
+| Nearby light contribution | Require the `light` tag, read position and nested color/intensity, and sum `color * intensity * (1 - distance_squared / radius_squared)` within a fixed radius. |
 | Shuffled position lookup | Read positions through a shuffled list of instance IDs. |
 | Threaded update with content streaming | Run component updates on caller-scheduled jobs, while preparing content and applying loads/unloads at synchronization points. |
 
-Nearby light contribution uses a squared-distance falloff within radius 50. It
-replaces the overlapping SpotLight/all-light scans. Shuffled position lookup is
-read-only. Movement uses a 1/64-second timestep. Each query makes one pass; case
-setup, input generation, reset and validation are outside the measurement.
+Nearby light contribution requires the `light` tag and the `position`, `light.color`
+and `light.intensity` fields in every backend, including the threaded light update.
+It uses a squared-distance falloff within radius 50. It replaces the overlapping SpotLight/all-light scans. Shuffled position lookup is
+read-only.
+
+Boids uses the existing Player and Enemy tables as independent flocks, selected
+by their tags. This preserves the common million-instance fixture: 10,000 Players
+and 240,000 Enemies are simulated. Each flock first snapshots positions and
+velocities, then hashes positions into 8-unit cells and accumulates cell-local
+positions and velocities. Full integer cell coordinates distinguish hash
+collisions. Each cell selects the nearest of targets `(38, 27, 35)` and
+`(-42, 29, -32)`, and tests its center against an obstacle of radius 30 at the
+origin. Steering combines alignment and separation with target attraction
+(weight 2), substitutes obstacle avoidance inside that radius, blends heading
+using a 1/64-second step, and writes speed-25 velocity and the new position.
+This follows the cell-aggregate approach of the Defold boids demo; it is not an
+all-pairs or 27-neighbor-cell search. It measures simulation only, with no
+rendering or game-object transforms. The complete snapshot, cell build and
+steering/writeback are timed, on one thread in all five backends. Scratch is
+allocated before timing and reused by the passes; its retained bytes appear in
+the memory detail's starting heap, not as a per-step allocation. Query creation,
+input generation, restoration and per-agent validation are excluded.
+
+The eighth, threaded benchmark retains its simple velocity-integration task;
+it measures access conflicts and content streaming, not parallel Boids.
 
 The threaded workload makes Movement, Explosion, Regenerate and light updates
 ready together. Regenerate writes `min(100, health + 0.25)` and competes with
@@ -90,28 +111,37 @@ their measured frame overhead is included.
 
 The standalone cases use one dense mutable Defold table per type and separate
 Flecs/Bevy components. Light is inline. A fresh store is populated for each sample;
-Movement, Explosion and nearby-light queries are created before traversal and
+Two Boids flock queries, Explosion and nearby-light queries are created before traversal and
 remain alive during spawn/despawn. Query and lookup cases run before the
 spawn/despawn phases, keeping their input population at one million. Defold uses cached query field bindings and
 public typed field pointers. Flecs uses its C query/field APIs; Bevy uses cached
 QueryState iterators with ordinary change tracking. Shuffled lookup uses public
 ID getters. Defold uses typed batch reads; gathering IDs into caller buffers and
-reducing returned values are timed. Native construction binds scalar overrides
-and copies shared defaults inside the timed call, including nested Light fields;
-reset baselines and input values remain equivalent to decoded construction.
-Each case keeps query creation beside its traversal implementation.
+reducing returned values are timed. Create population measures both public
+`DataCreateRows` with prepared complete native rows (AoS) and `DataCreateRowsSoA`
+with prepared native field arrays (SoA), including inline Light values. Both use
+identical values and a fresh store; their order alternates between samples. The
+remaining cases use the AoS population. Both creation paths validate every field
+outside timing. Input generation is excluded for every backend; allocation,
+copying values into rows and ID publication are timed. The two Defold creation
+variants share one card in both the performance and memory sections.
+All benchmark setup, creation, queries, reads/writes and removal use public APIs.
+Packed fixtures are serialized by the separate build-time `data_fixture_writer`
+tool; benchmark executables only load and instantiate those files. They cannot
+include the private data header. Each case keeps query creation beside its
+traversal implementation.
 EnTT uses separate sparse component pools and ordinary public views, without
 owning groups or custom storage. It bulk-creates IDs and bulk-inserts prepared
-component values, including owner/component identities and the same type/tags.
-The three views remain alive during spawn/despawn. Its 64-bit IDs, `view.each`,
+component values, including group/component identities and the same type/tags.
+The four views remain alive during spawn/despawn. Its 64-bit IDs, `view.each`,
 `registry.get` and `registry.destroy` use the public API; C++20 is confined to
 the EnTT benchmark targets. The common allocation tracker covers its pools.
 
 Unity uses a standalone macOS arm64 player with IL2CPP and Burst AOT, pinned to
-Unity 6000.5.7f1 / Entities 1.4.8. Separate `IComponentData` components use native
+Unity 6000.6.3f1 / Entities 6.6.0. Separate `IComponentData` components use native
 archetype chunks. Public `EntityManager` bulk creation initializes prepared
 values through `ComponentLookup`; chunk queries use `IJobChunk.Run` in standalone
-cases. Shuffled lookup uses `ComponentLookup<Position>`. Spawn keeps three queries
+cases. Shuffled lookup uses `ComponentLookup<Position>`. Spawn keeps four queries
 alive; despawn calls `DestroyEntity` per ID. The threaded case uses
 `IJobChunk.ScheduleParallel`; caller-derived dependency handles exclude component
 read/write conflicts. Submission order changes each frame. Component-level
@@ -157,6 +187,11 @@ validation. Collect timings and CPU profiles separately using optimized builds
 with all sanitizers (including ASAN, TSAN and UBSAN) and allocation instrumentation
 disabled. Sanitized workload timings are validation artifacts and must never be
 included in performance comparisons.
+
+A report refresh may rerun only Defold's release measurements while retaining the
+other backends. Record each measurement date, revalidate workload counts/checksums,
+and keep the original sanitizer provenance separate. If TSAN is not rerun, state
+that its earlier pass does not validate the refreshed Defold sources.
 
 Unity's prebuilt Jobs runtime cannot undergo the same full TSAN instrumentation.
 Its threaded result therefore requires an explicit exception to use Unity's

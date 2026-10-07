@@ -54,5 +54,5 @@ specific language governing permissions and limitations under the License. -->
 <rect x="28" y="528" width="1024" height="88" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="48" y="558" class="label">Update in place · reset from the blob · remove by registration</text>
 <text x="48" y="588">Each component has a DataId; each game object’s registration groups its rows for reset/removal.</text>
-<text x="28" y="646" class="small">New rows get a new owner and stable IDs. Shared capacity grows only when needed.</text>
+<text x="28" y="646" class="small">New rows get the supplied group and stable IDs. Shared capacity grows only when needed.</text>
 </svg>

@@ -22,13 +22,13 @@ specific language governing permissions and limitations under the License. -->
 <rect x="28" y="72" width="468" height="150" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="48" y="102" class="label">1. Describe the query</text>
 <text x="48" y="134" class="mono">Tag: light</text>
-<text x="48" y="162" class="mono">Field: light.color · Vector3 · read</text>
+<text x="48" y="162" class="mono">hash("light.color") · Vector3 · read</text>
 <text x="48" y="196" class="mono">DataCreateQuery → HDataQuery</text>
 <path d="M 496 145 H 576" class="arrow"/>
 <rect x="584" y="72" width="468" height="150" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="604" y="102" class="label">2. Cache each matching table’s binding</text>
-<text x="604" y="134" class="mono">PointLight → light offset + color offset</text>
-<text x="604" y="162" class="mono">SpotLight  → light offset + color offset</text>
+<text x="604" y="134" class="mono">PointLight → absolute light.color offset</text>
+<text x="604" y="162" class="mono">SpotLight  → absolute light.color offset</text>
 <text x="604" y="196" class="mono">DataQueryFindField → color_field</text>
 <text x="28" y="257" class="small">The field handle stays the same; each table supplies its own offset. Tables may be added or removed.</text>
 <path d="M 818 222 V 280 H 540 V 304" class="arrow"/>

@@ -61,6 +61,6 @@ specific language governing permissions and limitations under the License. -->
 <text x="744" y="608" class="small">Same ownership rules</text>
 <rect x="48" y="674" width="984" height="60" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="68" y="700" class="label">Stable DataId → current table and row index</text>
-<text x="68" y="723" class="small">Rows also track their owner, component name and registration. Queries cache table bindings.</text>
+<text x="68" y="723" class="small">Rows also track their group, component name and registration. Queries cache table bindings.</text>
 <text x="28" y="785" class="small">Removing A leaves B intact. A resource pool is released when its last registration is removed.</text>
 </svg>
