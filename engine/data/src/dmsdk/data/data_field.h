@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -52,7 +54,8 @@ extern "C"
 
 /*# Data field API
  *
- * Typed access by row ID and field name hash. Types must match exactly.
+ * Typed access by row ID and full field-name hash, including inline names such as
+ * dmHashString64("light.color"). Types must match exactly.
  * Setters preserve metadata, iterators and reset defaults; failed writes change nothing.
  * Reads and fixed-size writes do not allocate. Synchronize access externally;
  * do not overlap query reservations.

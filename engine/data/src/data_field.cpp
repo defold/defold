@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -30,6 +32,7 @@ DM_STATIC_ASSERT(sizeof(float) == 4 && offsetof(DataNativeAlignment<float>, m_Va
 DM_STATIC_ASSERT(sizeof(DataVector3) == 12 && offsetof(DataNativeAlignment<DataVector3>, m_Value) <= 4, Invalid_vector3_layout);
 DM_STATIC_ASSERT(sizeof(DataVector4) == 16 && offsetof(DataNativeAlignment<DataVector4>, m_Value) <= 4, Invalid_vector4_layout);
 DM_STATIC_ASSERT(sizeof(DataMatrix4) == 64 && offsetof(DataNativeAlignment<DataMatrix4>, m_Value) <= 4, Invalid_matrix4_layout);
+DM_STATIC_ASSERT(sizeof(DataReference) == 8, Invalid_reference_input_layout);
 
 // Row storage contains payload bytes, not DataValue objects. DataFieldMeta
 // supplies each field's fixed type and byte offset once per table. Numeric
@@ -37,28 +40,28 @@ DM_STATIC_ASSERT(sizeof(DataMatrix4) == 64 && offsetof(DataNativeAlignment<DataM
 // DataValue is a temporary tagged input/result for internal generic operations. Its tag selects
 // the union member and validates writes; typed getters do not construct one.
 // Declared fixed structs are inline bytes with shared child metadata. Dynamic
-// structs/lists retain their own child type/offset arrays and struct name hashes.
+// structs share child-table metadata; lists retain packed child kind/offset arrays.
 
-// Size of a field's slot in a byte row. Reference slots hold a blob offset
-// for borrowed defaults or an arena pointer for owned values, both in 8 bytes.
+// Size of a field's slot in a byte row. Eight-byte reference slots hold a blob
+// offset, an owned string/list pointer, or owned struct table/row indices.
 uint32_t DataTypeSize(DataValueType type)
 {
     switch (type)
     {
-        case DATA_VALUE_TYPE_NULL:
+        case DATA_TYPE_NULL:
             return 0;
-        case DATA_VALUE_TYPE_BOOLEAN:
+        case DATA_TYPE_BOOLEAN:
             return 1;
-        case DATA_VALUE_TYPE_NUMBER:
-        case DATA_VALUE_TYPE_STRING:
-        case DATA_VALUE_TYPE_STRUCT:
-        case DATA_VALUE_TYPE_LIST:
+        case DATA_TYPE_NUMBER:
+        case DATA_TYPE_STRING:
+        case DATA_TYPE_STRUCT:
+        case DATA_TYPE_LIST:
             return 8;
-        case DATA_VALUE_TYPE_VECTOR3:
+        case DATA_TYPE_VECTOR3:
             return 12;
-        case DATA_VALUE_TYPE_VECTOR4:
+        case DATA_TYPE_VECTOR4:
             return 16;
-        case DATA_VALUE_TYPE_MATRIX4:
+        case DATA_TYPE_MATRIX4:
             return 64;
         default:
             return UINT32_MAX;
@@ -69,14 +72,14 @@ uint32_t DataTypeAlignment(DataValueType type)
 {
     switch (type)
     {
-        case DATA_VALUE_TYPE_NUMBER:
-        case DATA_VALUE_TYPE_STRING:
-        case DATA_VALUE_TYPE_STRUCT:
-        case DATA_VALUE_TYPE_LIST:
+        case DATA_TYPE_NUMBER:
+        case DATA_TYPE_STRING:
+        case DATA_TYPE_STRUCT:
+        case DATA_TYPE_LIST:
             return 8;
-        case DATA_VALUE_TYPE_VECTOR3:
-        case DATA_VALUE_TYPE_VECTOR4:
-        case DATA_VALUE_TYPE_MATRIX4:
+        case DATA_TYPE_VECTOR3:
+        case DATA_TYPE_VECTOR4:
+        case DATA_TYPE_MATRIX4:
             return 4;
         default:
             return 1;
@@ -92,35 +95,36 @@ static DataValue ReadPackedValue(const uint8_t* buffer, DataValueType type, uint
     const uint8_t* data = buffer + offset;
     switch (type)
     {
-        case DATA_VALUE_TYPE_NUMBER:
+        case DATA_TYPE_NUMBER:
         {
             uint64_t bits = ReadDataInteger(data, 8);
             memcpy(&value.m_Value.m_Number, &bits, 8);
             break;
         }
-        case DATA_VALUE_TYPE_BOOLEAN:
+        case DATA_TYPE_BOOLEAN:
             value.m_Value.m_Boolean = *data;
             break;
-        case DATA_VALUE_TYPE_STRING:
+        case DATA_TYPE_STRING:
             value.m_Value.m_String = (const char*)data;
             break;
-        case DATA_VALUE_TYPE_STRUCT:
-            value.m_Value.m_Struct.m_Buffer = buffer;
-            value.m_Value.m_Struct.m_Offset = offset;
+        case DATA_TYPE_STRUCT:
+            value.m_Value.m_Struct.m_Source = DATA_STRUCT_PACKED;
+            value.m_Value.m_Struct.m_View.m_Buffer = buffer;
+            value.m_Value.m_Struct.m_View.m_Offset = offset;
             value.m_Value.m_Struct.m_Count = (uint32_t)ReadDataInteger(data + offsetof(DataFileContainerHeader, m_Count), 4);
             break;
-        case DATA_VALUE_TYPE_LIST:
+        case DATA_TYPE_LIST:
             value.m_Value.m_List.m_Buffer = buffer;
             value.m_Value.m_List.m_Offset = offset;
             value.m_Value.m_List.m_Count = (uint32_t)ReadDataInteger(data + offsetof(DataFileContainerHeader, m_Count), 4);
             break;
-        case DATA_VALUE_TYPE_VECTOR3:
+        case DATA_TYPE_VECTOR3:
             ReadDataFloats(value.m_Value.m_Vector3, data, 3);
             break;
-        case DATA_VALUE_TYPE_VECTOR4:
+        case DATA_TYPE_VECTOR4:
             ReadDataFloats(value.m_Value.m_Vector4, data, 4);
             break;
-        case DATA_VALUE_TYPE_MATRIX4:
+        case DATA_TYPE_MATRIX4:
             ReadDataFloats(value.m_Value.m_Matrix4, data, 16);
             break;
         default:
@@ -131,64 +135,183 @@ static DataValue ReadPackedValue(const uint8_t* buffer, DataValueType type, uint
 
 // File references are blob-relative offsets. In mutable rows, a low-bit tag
 // distinguishes a shared blob offset (offset << 1 | 1) from an aligned arena
-// pointer (low bit zero). Only reference slots use this encoding; numeric access
+// pointer (low two bits zero). Owned struct rows use tag 2 and table/row indices.
+// Only reference slots use this encoding; numeric access
 // is a direct load. The tagged offset fits in 64 bits on 32-bit hosts too.
-// Owned payloads are eight-byte aligned; dynamic children retain root-relative
-// offsets within their original blob or owned payload, without pointer fixups.
+// Owned string/list payloads are eight-byte aligned. Packed containers retain
+// root-relative offsets within their blob or owned payload, without pointer fixups.
 static DataValue ReadStoredValue(const DataTable* table, const DataFieldMeta& meta, const uint8_t* bytes)
 {
     if (meta.m_ChildIndex)
     {
         DataStruct object = {
             .m_Count = meta.m_ChildCount,
-            .m_Buffer = bytes,
-            .m_Offset = meta.m_ChildIndex,
-            .m_Table = table
+            .m_Source = DATA_STRUCT_INLINE,
+            .m_View = { .m_Buffer = bytes ? bytes - meta.m_Offset : 0, .m_Offset = meta.m_ChildIndex, .m_Table = table }
         };
         DataValue value = {
-            .m_Type = DATA_VALUE_TYPE_STRUCT,
+            .m_Type = DATA_TYPE_STRUCT,
             .m_Value = { .m_Struct = object }
         };
         return value;
     }
-    if (meta.m_Type == DATA_VALUE_TYPE_NULL)
+    if (meta.m_Type == DATA_TYPE_NULL)
     {
-        DataValue value = { .m_Type = DATA_VALUE_TYPE_NULL };
+        DataValue value = { .m_Type = DATA_TYPE_NULL };
         return value;
     }
-    if (meta.m_Type != DATA_VALUE_TYPE_STRING && meta.m_Type != DATA_VALUE_TYPE_STRUCT && meta.m_Type != DATA_VALUE_TYPE_LIST)
+    if (meta.m_Type != DATA_TYPE_STRING && meta.m_Type != DATA_TYPE_STRUCT && meta.m_Type != DATA_TYPE_LIST)
         return ReadPackedValue(bytes, meta.m_Type, 0);
     uint64_t reference = ReadDataInteger(bytes, 8);
+    if (meta.m_Type == DATA_TYPE_STRUCT && IsStructRow(reference))
+    {
+        DataValue value = { .m_Type = DATA_TYPE_STRUCT, .m_Value = { .m_Struct = ReadStructRow(table, reference) } };
+        return value;
+    }
     return (reference & 1) ? ReadPackedValue(table->m_Blob, meta.m_Type, (uint32_t)(reference >> 1)) :
                              ReadPackedValue((const uint8_t*)(uintptr_t)reference, meta.m_Type, 0);
 }
 
+static bool IsReference(DataValueType type)
+{
+    return type == DATA_TYPE_STRING || type == DATA_TYPE_STRUCT || type == DATA_TYPE_LIST;
+}
+
+// Interpret caller-owned native input without allocating temporary value trees.
+static DataValue ReadNativeInput(DataValueType type, const DataStructDesc* layout, const uint8_t* bytes)
+{
+    DataValue value = { .m_Type = type };
+    if (layout)
+    {
+        value.m_Value.m_Struct.m_Source = DATA_STRUCT_NATIVE;
+        value.m_Value.m_Struct.m_Input.m_Layout = layout;
+        value.m_Value.m_Struct.m_Input.m_Data = bytes;
+        value.m_Value.m_Struct.m_Count = layout->m_FieldCount;
+    }
+    else if (IsReference(type))
+    {
+        DataReference reference;
+        memcpy(&reference, bytes, sizeof(reference));
+        switch (type)
+        {
+            case DATA_TYPE_STRING:
+                value.m_Value.m_String = reference.m_String;
+                break;
+            case DATA_TYPE_STRUCT:
+                if (!reference.m_Struct || !reference.m_Struct->m_Layout)
+                    value.m_Type = (DataValueType)UINT32_MAX;
+                else
+                    return ReadNativeInput(type, reference.m_Struct->m_Layout, (const uint8_t*)reference.m_Struct->m_Values);
+                break;
+            case DATA_TYPE_LIST:
+                if (!reference.m_List)
+                    value.m_Type = (DataValueType)UINT32_MAX;
+                else
+                {
+                    value.m_Value.m_List.m_Input = reference.m_List;
+                    value.m_Value.m_List.m_Count = reference.m_List->m_Count;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    else if (type != DATA_TYPE_NULL)
+        memcpy(&value.m_Value, bytes, DataTypeSize(type));
+    return value;
+}
+
 uint64_t GetChildName(const DataStruct* object, uint32_t index)
 {
-    if (object->m_Table)
-        return GetFieldMeta(object->m_Table, object->m_Offset + index).m_Field;
-    return object->m_Buffer ? ReadDataInteger(object->m_Buffer + object->m_Offset + sizeof(DataFileContainerHeader) + index * 8, 8) : object->m_Names[index];
+    if (object->m_Source == DATA_STRUCT_NATIVE)
+        return object->m_Input.m_Layout->m_Fields[index].m_Field;
+    if (object->m_Source == DATA_STRUCT_ROW)
+        return object->m_View.m_StructTable->m_Fields[index].m_Name;
+    if (object->m_Source == DATA_STRUCT_INLINE)
+        return GetFieldMeta(object->m_View.m_Table, object->m_View.m_Offset + index).m_Name;
+    return object->m_Source == DATA_STRUCT_PACKED ? ReadDataInteger(object->m_View.m_Buffer + object->m_View.m_Offset + sizeof(DataFileContainerHeader) + index * 8, 8) : object->m_Array.m_Names[index];
+}
+
+DataValueType GetStructFieldType(const DataStruct* object, uint32_t index)
+{
+    if (object->m_Source == DATA_STRUCT_NATIVE)
+        return object->m_Input.m_Layout->m_Fields[index].m_Type;
+    if (object->m_Source == DATA_STRUCT_ROW)
+        return object->m_View.m_StructTable->m_Fields[index].m_Type;
+    if (object->m_Source == DATA_STRUCT_INLINE)
+        return GetFieldMeta(object->m_View.m_Table, object->m_View.m_Offset + index).m_Type;
+    if (object->m_Source == DATA_STRUCT_PACKED)
+        return (DataValueType)ReadDataInteger(object->m_View.m_Buffer + object->m_View.m_Offset + sizeof(DataFileContainerHeader) + object->m_Count * 8 + index * 4, 4);
+    return object->m_Array.m_Types[index];
 }
 
 DataValue GetChildValue(DataValueType type, const DataValueData* value, uint32_t index)
 {
-    bool              named = type == DATA_VALUE_TYPE_STRUCT;
+    bool              named = type == DATA_TYPE_STRUCT;
     const DataStruct* object = &value->m_Struct;
-    if (named && object->m_Table)
+    if (named && object->m_Source == DATA_STRUCT_NATIVE)
     {
-        DataFieldMeta  meta = GetFieldMeta(object->m_Table, object->m_Offset + index);
-        const uint8_t* bytes = meta.m_Size ? object->m_Buffer + meta.m_Offset : 0;
-        return ReadStoredValue(object->m_Table, meta, bytes);
+        const DataFieldDesc& field = object->m_Input.m_Layout->m_Fields[index];
+        const uint8_t*       bytes = object->m_Input.m_Data ? object->m_Input.m_Data + field.m_Offset : 0;
+        return ReadNativeInput(field.m_Type, field.m_Struct, bytes);
     }
-    const uint8_t* buffer = named ? value->m_Struct.m_Buffer : value->m_List.m_Buffer;
-    if (!buffer)
+    if (!named && value->m_List.m_Input)
     {
-        if (!named)
-            return value->m_List.m_Values[index];
-        DataValue child = { .m_Type = object->m_Types[index], .m_Value = object->m_Values[index] };
+        const DataListInput* input = value->m_List.m_Input;
+        if (input->m_Types)
+        {
+            DataValueType type = input->m_Types[index];
+            const void*   payload = ((const void* const*)input->m_Values)[index];
+            uint32_t      size = DataTypeSize(type);
+            if (size == UINT32_MAX || (size && !payload))
+            {
+                DataValue invalid = { .m_Type = (DataValueType)UINT32_MAX };
+                return invalid;
+            }
+            DataReference reference = {};
+            switch (type)
+            {
+                case DATA_TYPE_STRING:
+                    reference.m_String = (const char*)payload;
+                    break;
+                case DATA_TYPE_STRUCT:
+                    reference.m_Struct = (const DataStructInput*)payload;
+                    break;
+                case DATA_TYPE_LIST:
+                    reference.m_List = (const DataListInput*)payload;
+                    break;
+                default:
+                    return ReadNativeInput(type, 0, (const uint8_t*)payload);
+            }
+            return ReadNativeInput(type, 0, (const uint8_t*)&reference);
+        }
+        uint32_t       stride = DataTypeSize(input->m_Type);
+        const uint8_t* bytes = stride ? (const uint8_t*)input->m_Values + (size_t)index * stride : 0;
+        return ReadNativeInput(input->m_Type, 0, bytes);
+    }
+    if (named && object->m_Source == DATA_STRUCT_ROW)
+    {
+        const DataStructTable* child_table = object->m_View.m_StructTable;
+        const DataStructField& field = child_table->m_Fields[index];
+        DataFieldMeta          meta = { .m_Type = field.m_Type, .m_Size = DataTypeSize(field.m_Type) };
+        const uint8_t*         bytes = child_table->m_Values.Begin() + (size_t)object->m_View.m_Offset * child_table->m_RowStride + field.m_Offset;
+        return ReadStoredValue(object->m_View.m_Table, meta, bytes);
+    }
+    if (named && object->m_Source == DATA_STRUCT_INLINE)
+    {
+        DataFieldMeta  meta = GetFieldMeta(object->m_View.m_Table, object->m_View.m_Offset + index);
+        const uint8_t* bytes = meta.m_Size ? object->m_View.m_Buffer + meta.m_Offset : 0;
+        return ReadStoredValue(object->m_View.m_Table, meta, bytes);
+    }
+    if (named && object->m_Source == DATA_STRUCT_ARRAY)
+    {
+        DataValue child = { .m_Type = object->m_Array.m_Types[index], .m_Value = object->m_Array.m_Values[index] };
         return child;
     }
-    uint32_t       offset = named ? value->m_Struct.m_Offset : value->m_List.m_Offset;
+    if (!named && !value->m_List.m_Buffer)
+        return value->m_List.m_Values[index];
+    const uint8_t* buffer = named ? value->m_Struct.m_View.m_Buffer : value->m_List.m_Buffer;
+    uint32_t       offset = named ? value->m_Struct.m_View.m_Offset : value->m_List.m_Offset;
     uint32_t       count = named ? value->m_Struct.m_Count : value->m_List.m_Count;
     const uint8_t* types = buffer + offset + sizeof(DataFileContainerHeader) + (named ? count * 8 : 0);
     DataValueType  child_type = (DataValueType)ReadDataInteger(types + index * 4, 4);
@@ -203,7 +326,7 @@ DataResult DataGetStructField(const DataStruct* object, uint64_t field, DataValu
         if (GetChildName(object, i) == field)
         {
             DataValue value = {
-                .m_Type = DATA_VALUE_TYPE_STRUCT,
+                .m_Type = DATA_TYPE_STRUCT,
                 .m_Value = { .m_Struct = *object }
             };
             *out_value = GetChildValue(value.m_Type, &value.m_Value, i);
@@ -218,39 +341,34 @@ DataResult DataGetListValue(const DataList* list, uint32_t index, DataValue* out
     if (index >= list->m_Count)
         return DATA_RESULT_NOT_FOUND;
     DataValue value = {
-        .m_Type = DATA_VALUE_TYPE_LIST,
+        .m_Type = DATA_TYPE_LIST,
         .m_Value = { .m_List = *list }
     };
     *out_value = GetChildValue(value.m_Type, &value.m_Value, index);
     return DATA_RESULT_OK;
 }
 
-static bool IsReference(DataValueType type)
-{
-    return type == DATA_VALUE_TYPE_STRING || type == DATA_VALUE_TYPE_STRUCT || type == DATA_VALUE_TYPE_LIST;
-}
-
 static void StoreScalar(uint8_t* bytes, DataValueType type, const DataValueData* value)
 {
     switch (type)
     {
-        case DATA_VALUE_TYPE_NUMBER:
+        case DATA_TYPE_NUMBER:
         {
             uint64_t bits;
             memcpy(&bits, &value->m_Number, 8);
             WriteDataInteger(bytes, bits, 8);
             break;
         }
-        case DATA_VALUE_TYPE_BOOLEAN:
+        case DATA_TYPE_BOOLEAN:
             *bytes = value->m_Boolean;
             break;
-        case DATA_VALUE_TYPE_VECTOR3:
+        case DATA_TYPE_VECTOR3:
             memcpy(bytes, value->m_Vector3, sizeof(value->m_Vector3));
             break;
-        case DATA_VALUE_TYPE_VECTOR4:
+        case DATA_TYPE_VECTOR4:
             memcpy(bytes, value->m_Vector4, sizeof(value->m_Vector4));
             break;
-        case DATA_VALUE_TYPE_MATRIX4:
+        case DATA_TYPE_MATRIX4:
             memcpy(bytes, value->m_Matrix4, sizeof(value->m_Matrix4));
             break;
         default:
@@ -263,9 +381,9 @@ static void StoreScalar(uint8_t* bytes, DataValueType type, const DataValueData*
 static size_t StoreOwnedValue(uint8_t* buffer, size_t offset, DataValueType type, const DataValueData* value)
 {
     uint8_t* bytes = buffer + offset;
-    if (type == DATA_VALUE_TYPE_STRUCT || type == DATA_VALUE_TYPE_LIST)
+    if (type == DATA_TYPE_STRUCT || type == DATA_TYPE_LIST)
     {
-        bool     named = type == DATA_VALUE_TYPE_STRUCT;
+        bool     named = type == DATA_TYPE_STRUCT;
         uint32_t count = named ? value->m_Struct.m_Count : value->m_List.m_Count;
         uint8_t* types = bytes + sizeof(DataFileContainerHeader) + (named ? count * 8 : 0);
         uint8_t* offsets = types + count * 4;
@@ -284,7 +402,7 @@ static size_t StoreOwnedValue(uint8_t* buffer, size_t offset, DataValueType type
         return offset;
     }
     size_t size = DataTypeSize(type);
-    if (type == DATA_VALUE_TYPE_STRING)
+    if (type == DATA_TYPE_STRING)
     {
         size = strlen(value->m_String) + 1;
         memcpy(bytes, value->m_String, size);
@@ -300,7 +418,7 @@ static size_t StoreOwnedValue(uint8_t* buffer, size_t offset, DataValueType type
 
 // Callers validate and reserve the complete payload before writing. Blocks never
 // move, so values borrowed from this same table remain valid during insertion/set.
-static void StoreValue(DataBlock** blocks, uint8_t* bytes, DataValueType type, const DataValueData* value)
+void StoreValue(DataBlock** blocks, uint8_t* bytes, DataValueType type, const DataValueData* value)
 {
     if (!IsReference(type))
     {
@@ -336,7 +454,7 @@ static void TagBlobReferences(const DataTable* table, const DataFieldMeta& meta,
         for (uint32_t i = 0; i < meta.m_ChildCount; ++i)
         {
             DataFieldMeta child = GetFieldMeta(table, meta.m_ChildIndex + i);
-            TagBlobReferences(table, child, bytes + child.m_Offset, rows);
+            TagBlobReferences(table, child, bytes + (child.m_Offset - meta.m_Offset), rows);
         }
     }
     else if (IsReference(meta.m_Type))
@@ -373,10 +491,39 @@ static const uint8_t* GetDefaultRow(const DataTable* table, const DataRow* row)
     return base + (size_t)row->m_BaseIndex * table->m_RowStride;
 }
 
+// The current and default references may name the same exclusively owned tree.
+// Only release replacements on reset; removal also releases the original tree.
+static void ReleaseFieldStructs(DataTable* table, DataRow* row, const DataFieldMeta& meta, bool defaults)
+{
+    if (meta.m_Type != DATA_TYPE_STRUCT)
+        return;
+    if (meta.m_ChildIndex)
+    {
+        for (uint32_t i = 0; i < meta.m_ChildCount; ++i)
+            ReleaseFieldStructs(table, row, GetFieldMeta(table, meta.m_ChildIndex + i), defaults);
+        return;
+    }
+    uint8_t* bytes = GetFieldBytes(table, row, meta.m_Offset);
+    uint64_t current = ReadDataInteger(bytes, 8);
+    uint64_t base = ReadDataInteger(GetDefaultRow(table, row) + meta.m_Offset, 8);
+    if (IsStructRow(current) && (table->m_Pool || current != base))
+        ReleaseStructRow(table, current);
+    if (defaults && !table->m_Pool && IsStructRow(base))
+        ReleaseStructRow(table, base);
+}
+
+void ReleaseRowStructs(DataTable* table, uint32_t row, bool defaults)
+{
+    for (uint32_t i = 0; i < table->m_FieldCount; ++i)
+        ReleaseFieldStructs(table, &table->m_Rows[row], GetFieldMeta(table, i), defaults);
+}
+
 static void ResetRow(DataTable* table, DataRow* row)
 {
     if (!table->m_RowStride)
         return;
+    if (table->m_Structs)
+        ReleaseRowStructs(table, (uint32_t)(row - table->m_Rows.Begin()), false);
     uint8_t* bytes = GetFieldBytes(table, row, 0);
     memcpy(bytes, GetDefaultRow(table, row), table->m_RowStride);
     if (table->m_Pool && table->m_HasReferences)
@@ -389,17 +536,17 @@ static void ResetRow(DataTable* table, DataRow* row)
     }
 }
 
-// Measure the compact payload during the existing validation pass. A complete
-// owned tree must fit 32-bit child offsets; batches may contain multiple trees.
-static DataResult ValidateValue(DataValueType type, const DataValueData* value, uint32_t depth, size_t* out_size)
+// Measure arena payloads during validation. Struct fields use separate child
+// rows; lists retain packed trees with 32-bit offsets.
+static DataResult ValidateValue(DataValueType type, const DataValueData* value, uint32_t depth, size_t* out_size, bool packed = false)
 {
     uint32_t size = DataTypeSize(type);
     if (size == UINT32_MAX)
         return DATA_RESULT_INVALID_ARGUMENT;
     *out_size = ((size_t)size + 7) & ~(size_t)7;
-    if (type == DATA_VALUE_TYPE_BOOLEAN)
+    if (type == DATA_TYPE_BOOLEAN)
         return value->m_Boolean <= 1 ? DATA_RESULT_OK : DATA_RESULT_INVALID_ARGUMENT;
-    if (type == DATA_VALUE_TYPE_STRING)
+    if (type == DATA_TYPE_STRING)
     {
         if (!value->m_String)
             return DATA_RESULT_INVALID_ARGUMENT;
@@ -409,24 +556,46 @@ static DataResult ValidateValue(DataValueType type, const DataValueData* value, 
         *out_size = (length + 8) & ~(size_t)7;
         return DATA_RESULT_OK;
     }
-    if (type != DATA_VALUE_TYPE_STRUCT && type != DATA_VALUE_TYPE_LIST)
+    if (type != DATA_TYPE_STRUCT && type != DATA_TYPE_LIST)
         return DATA_RESULT_OK;
-    bool           named = type == DATA_VALUE_TYPE_STRUCT;
+    bool           named = type == DATA_TYPE_STRUCT;
     uint32_t       count = named ? value->m_Struct.m_Count : value->m_List.m_Count;
-    const uint8_t* buffer = named ? value->m_Struct.m_Buffer : value->m_List.m_Buffer;
-    bool           missing_input = named ? (!value->m_Struct.m_Names || !value->m_Struct.m_Types || !value->m_Struct.m_Values) : !value->m_List.m_Values;
+    bool           native = named ? value->m_Struct.m_Source == DATA_STRUCT_NATIVE : value->m_List.m_Input != 0;
+    bool           arrays = named ? value->m_Struct.m_Source == DATA_STRUCT_ARRAY : !native && !value->m_List.m_Buffer;
+    bool           missing_input = arrays && (named ? (!value->m_Struct.m_Array.m_Names || !value->m_Struct.m_Array.m_Types || !value->m_Struct.m_Array.m_Values) : !value->m_List.m_Values);
     if (depth == DATA_MAX_NESTING || count > UINT32_MAX / (named ? sizeof(DataValueData) : sizeof(DataValue)) ||
-        (!buffer && count && missing_input))
+        (count && missing_input))
         return DATA_RESULT_INVALID_ARGUMENT;
-    uint64_t total = sizeof(DataFileContainerHeader) + (uint64_t)count * (named ? 16 : 8);
+    if (named && count > DATA_MAX_METADATA_COUNT)
+        return DATA_RESULT_INVALID_ARGUMENT;
+    if (native && named)
+    {
+        const DataStructDesc* layout = value->m_Struct.m_Input.m_Layout;
+        if (layout->m_Size && !value->m_Struct.m_Input.m_Data)
+            return DATA_RESULT_INVALID_ARGUMENT;
+        uint64_t   metadata_count = 0;
+        uint32_t   alignment;
+        DataResult result = ValidateLayout(layout->m_Fields, layout->m_FieldCount, layout->m_Size, 0, &metadata_count, &alignment);
+        if (result != DATA_RESULT_OK)
+            return result;
+    }
+    else if (native)
+    {
+        const DataListInput* input = value->m_List.m_Input;
+        uint32_t             stride = input->m_Types ? sizeof(void*) : DataTypeSize(input->m_Type);
+        if (stride == UINT32_MAX || (stride && count && !input->m_Values) || (uint64_t)stride * count > SIZE_MAX)
+            return DATA_RESULT_INVALID_ARGUMENT;
+    }
+    uint64_t total = named && !packed ? 0 : sizeof(DataFileContainerHeader) + (uint64_t)count * (named ? 16 : 8);
     for (uint32_t i = 0; i < count; ++i)
     {
         DataValue  child = GetChildValue(type, value, i);
         size_t     child_size;
-        DataResult result = ValidateValue(child.m_Type, &child.m_Value, depth + 1, &child_size);
+        DataResult result = ValidateValue(child.m_Type, &child.m_Value, depth + 1, &child_size, packed || !named);
         if (result != DATA_RESULT_OK)
             return result;
-        total += child_size;
+        if (packed || !named || IsReference(child.m_Type))
+            total += child_size;
         if (total > UINT32_MAX)
             return DATA_RESULT_INVALID_ARGUMENT;
         if (named)
@@ -441,13 +610,65 @@ static DataResult ValidateValue(DataValueType type, const DataValueData* value, 
     return DATA_RESULT_OK;
 }
 
+// Validate reference payloads before reserving or publishing any native rows.
+DataResult ValidateNativeReferences(const DataTable* table, const DataFieldMeta& meta, const uint8_t* values, uint32_t stride, uint32_t count, uint32_t depth, size_t* payload_size)
+{
+    if (meta.m_ChildIndex)
+    {
+        for (uint32_t i = 0; i < meta.m_ChildCount; ++i)
+        {
+            DataFieldMeta child = GetFieldMeta(table, meta.m_ChildIndex + i);
+            DataResult    result = ValidateNativeReferences(table, child, values + (child.m_Offset - meta.m_Offset), stride, count, depth + 1, payload_size);
+            if (result != DATA_RESULT_OK)
+                return result;
+        }
+    }
+    else if (IsReference(meta.m_Type))
+    {
+        for (uint32_t r = 0; r < count; ++r)
+        {
+            DataValue  value = ReadNativeInput(meta.m_Type, 0, values + (size_t)r * stride);
+            size_t     size;
+            DataResult result = ValidateValue(value.m_Type, &value.m_Value, depth, &size);
+            if (result != DATA_RESULT_OK)
+                return result;
+            if (size > SIZE_MAX - sizeof(DataBlock) - *payload_size)
+                return DATA_RESULT_INVALID_ARGUMENT;
+            *payload_size += size;
+        }
+    }
+    return DATA_RESULT_OK;
+}
+
+// Native bytes are already copied. Replace only input reference slots with
+// owned payload addresses or child-row indices. One arena reservation covers
+// strings and lists for the complete batch.
+void StoreNativeReferences(DataTable* table, uint32_t count, uint8_t* rows)
+{
+    for (uint32_t f = 0; f < table->m_MetadataCount; ++f)
+    {
+        const DataFieldMeta& meta = table->m_Owned->m_Fields[f];
+        if (meta.m_ChildIndex || !IsReference(meta.m_Type))
+            continue;
+        for (uint32_t r = 0; r < count; ++r)
+        {
+            uint8_t*  bytes = rows + (size_t)r * table->m_RowStride + meta.m_Offset;
+            DataValue value = ReadNativeInput(meta.m_Type, 0, bytes);
+            if (meta.m_Type == DATA_TYPE_STRUCT)
+                WriteDataInteger(bytes, StoreStructRow(table, &table->m_Owned->m_BaseValues, &value.m_Value.m_Struct), 8);
+            else
+                StoreValue(&table->m_Owned->m_BaseValues, bytes, meta.m_Type, &value.m_Value);
+        }
+    }
+}
+
 // Decoded input commonly follows layout order, but matching still uses names.
 static uint32_t FindDecodedField(const DataStruct* object, uint64_t name, uint32_t index)
 {
-    if (object->m_Names[index] == name)
+    if (object->m_Array.m_Names[index] == name)
         return index;
     for (uint32_t i = 0; i < object->m_Count; ++i)
-        if (object->m_Names[i] == name)
+        if (object->m_Array.m_Names[i] == name)
             return i;
     return UINT32_MAX;
 }
@@ -461,7 +682,7 @@ DataResult ValidateStoredValue(const DataTable* table, const DataFieldMeta& meta
         // Registration validated fixed kinds and sizes. Only Boolean has a
         // restricted scalar value; references still need payload validation.
         if (!IsReference(type))
-            return type != DATA_VALUE_TYPE_BOOLEAN || value->m_Boolean <= 1 ? DATA_RESULT_OK : DATA_RESULT_INVALID_ARGUMENT;
+            return type != DATA_TYPE_BOOLEAN || value->m_Boolean <= 1 ? DATA_RESULT_OK : DATA_RESULT_INVALID_ARGUMENT;
         size_t     size;
         DataResult result = ValidateValue(type, value, depth, &size);
         if (result != DATA_RESULT_OK)
@@ -473,7 +694,7 @@ DataResult ValidateStoredValue(const DataTable* table, const DataFieldMeta& meta
     }
 
     const DataStruct* object = &value->m_Struct;
-    if (object->m_Count != meta.m_ChildCount || (!object->m_Buffer && object->m_Count && (!object->m_Names || !object->m_Types || !object->m_Values)))
+    if (object->m_Count != meta.m_ChildCount || (object->m_Source == DATA_STRUCT_ARRAY && object->m_Count && (!object->m_Array.m_Names || !object->m_Array.m_Types || !object->m_Array.m_Values)))
         return DATA_RESULT_INVALID_ARGUMENT;
 
     const DataFieldMeta* fields = table->m_Blob ? 0 : table->m_Owned->m_Fields.Begin() + meta.m_ChildIndex;
@@ -486,17 +707,17 @@ DataResult ValidateStoredValue(const DataTable* table, const DataFieldMeta& meta
         DataValue            child;
         DataValueType        type;
         const DataValueData* data;
-        if (!object->m_Buffer)
+        if (object->m_Source == DATA_STRUCT_ARRAY)
         {
-            uint32_t index = FindDecodedField(object, field.m_Field, i);
+            uint32_t index = FindDecodedField(object, field.m_Name, i);
             if (index == UINT32_MAX)
                 return DATA_RESULT_INVALID_ARGUMENT;
-            type = object->m_Types[index];
-            data = &object->m_Values[index];
+            type = object->m_Array.m_Types[index];
+            data = &object->m_Array.m_Values[index];
         }
         else
         {
-            if (DataGetStructField(object, field.m_Field, &child) != DATA_RESULT_OK)
+            if (DataGetStructField(object, field.m_Name, &child) != DATA_RESULT_OK)
                 return DATA_RESULT_INVALID_ARGUMENT;
             type = child.m_Type;
             data = &child.m_Value;
@@ -504,7 +725,7 @@ DataResult ValidateStoredValue(const DataTable* table, const DataFieldMeta& meta
 
         // Registration bounds the inline depth. Scalar children need no
         // recursive traversal; references retain their payload/depth checks.
-        if (type != field.m_Type || (type == DATA_VALUE_TYPE_BOOLEAN && data->m_Boolean > 1))
+        if (type != field.m_Type || (type == DATA_TYPE_BOOLEAN && data->m_Boolean > 1))
             return DATA_RESULT_INVALID_ARGUMENT;
         if (IsReference(type))
         {
@@ -516,11 +737,14 @@ DataResult ValidateStoredValue(const DataTable* table, const DataFieldMeta& meta
     return DATA_RESULT_OK;
 }
 
-void StoreStoredValue(const DataTable* table, const DataFieldMeta& meta, DataBlock** blocks, uint8_t* bytes, const DataValueData* value)
+void StoreStoredValue(DataTable* table, const DataFieldMeta& meta, DataBlock** blocks, uint8_t* bytes, const DataValueData* value)
 {
     if (!meta.m_ChildIndex)
     {
-        StoreValue(blocks, bytes, meta.m_Type, value);
+        if (meta.m_Type == DATA_TYPE_STRUCT)
+            WriteDataInteger(bytes, StoreStructRow(table, blocks, &value->m_Struct), 8);
+        else
+            StoreValue(blocks, bytes, meta.m_Type, value);
         return;
     }
 
@@ -532,17 +756,17 @@ void StoreStoredValue(const DataTable* table, const DataFieldMeta& meta, DataBlo
         if (!fields)
             packed_field = GetFieldMeta(table, meta.m_ChildIndex + i);
         const DataFieldMeta& field = fields ? fields[i] : packed_field;
-        uint8_t*             target = field.m_Size ? bytes + field.m_Offset : 0;
+        uint8_t*             target = field.m_Size ? bytes + (field.m_Offset - meta.m_Offset) : 0;
         DataValue            child;
         const DataValueData* data;
-        if (!object->m_Buffer)
+        if (object->m_Source == DATA_STRUCT_ARRAY)
         {
-            uint32_t index = FindDecodedField(object, field.m_Field, i);
-            data = &object->m_Values[index];
+            uint32_t index = FindDecodedField(object, field.m_Name, i);
+            data = &object->m_Array.m_Values[index];
         }
         else
         {
-            DataGetStructField(object, field.m_Field, &child);
+            DataGetStructField(object, field.m_Name, &child);
             data = &child.m_Value;
         }
         if (IsReference(field.m_Type))
@@ -569,7 +793,7 @@ DataResult ValidateRowValues(const DataTable* table, const DataRowDesc* rows, ui
         {
             const DataFieldMeta& meta = fields[j];
             DataValueType        type = row.m_Types[j];
-            if (type != meta.m_Type || (type == DATA_VALUE_TYPE_BOOLEAN && row.m_Values[j].m_Boolean > 1))
+            if (type != meta.m_Type || (type == DATA_TYPE_BOOLEAN && row.m_Values[j].m_Boolean > 1))
                 return DATA_RESULT_INVALID_ARGUMENT;
             if (IsReference(type))
             {
@@ -619,10 +843,33 @@ DataResult DataFieldGet(HDataStore store, DataId id, uint64_t field, DataValue* 
     return slot ? ReadField(slot->m_Table, slot->m_Row, field, out_value) : DATA_RESULT_NOT_FOUND;
 }
 
+// A full-name lookup can start below the root. Include its inline ancestors in
+// the same container-depth budget used by row creation and blob validation.
+static uint32_t GetInlineDepth(const DataTable* table, uint64_t field)
+{
+    uint32_t index = FindField(table, field);
+    uint32_t depth = 0;
+    while (index >= table->m_FieldCount)
+    {
+        for (uint32_t i = 0; i < index; ++i)
+        {
+            DataFieldMeta parent = GetFieldMeta(table, i);
+            if (index >= parent.m_ChildIndex && index - parent.m_ChildIndex < parent.m_ChildCount)
+            {
+                index = i;
+                ++depth;
+                break;
+            }
+        }
+    }
+    return depth;
+}
+
 DataResult SetRowField(DataTable* table, DataRow* row, const DataFieldMeta& meta, const DataValue* value)
 {
     size_t     payload_size = 0;
-    DataResult result = ValidateStoredValue(table, meta, value->m_Type, &value->m_Value, 0, &payload_size);
+    uint32_t   depth = meta.m_Type == DATA_TYPE_STRUCT || meta.m_Type == DATA_TYPE_LIST ? GetInlineDepth(table, meta.m_Field) : 0;
+    DataResult result = ValidateStoredValue(table, meta, value->m_Type, &value->m_Value, depth, &payload_size);
     if (result != DATA_RESULT_OK)
         return result;
 
@@ -635,7 +882,25 @@ DataResult SetRowField(DataTable* table, DataRow* row, const DataFieldMeta& meta
     }
 
     uint8_t* bytes = meta.m_Size ? GetFieldBytes(table, row, meta.m_Offset) : 0;
-    StoreStoredValue(table, meta, payloads, bytes, &value->m_Value);
+    if (meta.m_Type == DATA_TYPE_STRUCT)
+    {
+        // Construct first: value may be a view into the struct being replaced.
+        uint8_t          local[256];
+        dmArray<uint8_t> replacement;
+        if (meta.m_Size <= sizeof(local))
+            replacement.Set(local, meta.m_Size, sizeof(local), true);
+        else
+        {
+            replacement.SetCapacity(meta.m_Size);
+            replacement.SetSize(meta.m_Size);
+        }
+        memset(replacement.Begin(), 0, meta.m_Size);
+        StoreStoredValue(table, meta, payloads, replacement.Begin(), &value->m_Value);
+        ReleaseFieldStructs(table, row, meta, false);
+        memcpy(bytes, replacement.Begin(), meta.m_Size);
+    }
+    else
+        StoreStoredValue(table, meta, payloads, bytes, &value->m_Value);
     return DATA_RESULT_OK;
 }
 
@@ -670,6 +935,8 @@ DataResult DataResetField(HDataStore store, DataId id, uint64_t field)
     DataFieldMeta meta = GetFieldMeta(table, index);
     if (meta.m_Size)
     {
+        if (table->m_Structs)
+            ReleaseFieldStructs(table, row, meta, false);
         uint8_t* bytes = GetFieldBytes(table, row, meta.m_Offset);
         memcpy(bytes, GetDefaultRow(table, row) + meta.m_Offset, meta.m_Size);
         if (table->m_Pool)
@@ -754,13 +1021,13 @@ static DataResult ResolveTypedField(HDataStore store, DataId id, uint64_t field,
     memcpy(&name, metadata + (size_t)index * DATA_FIELD_META_SIZE + offsetof(DataFileFieldMeta, m_NameHash), sizeof(name));
     if (name != field)
     {
-        for (index = 0; index < table->m_FieldCount; ++index)
+        for (index = 0; index < table->m_MetadataCount; ++index)
         {
             memcpy(&name, metadata + (size_t)index * DATA_FIELD_META_SIZE + offsetof(DataFileFieldMeta, m_NameHash), sizeof(name));
             if (name == field)
                 break;
         }
-        if (index == table->m_FieldCount)
+        if (index == table->m_MetadataCount)
             return DATA_RESULT_NOT_FOUND;
     }
 
@@ -829,18 +1096,18 @@ static DataResult GetTypedFields(HDataStore store, uint32_t count, const DataId*
 
 DataResult DataFieldGetNumber(HDataStore store, DataId id, uint64_t field, double* out_value)
 {
-    return GetTypedField<DATA_VALUE_TYPE_NUMBER>(store, id, field, out_value);
+    return GetTypedField<DATA_TYPE_NUMBER>(store, id, field, out_value);
 }
 
 DataResult DataFieldGetNumberBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, double* out_values)
 {
-    return GetTypedFields<DATA_VALUE_TYPE_NUMBER>(store, count, ids, field, out_values);
+    return GetTypedFields<DATA_TYPE_NUMBER>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldNumber(HDataStore store, DataId id, uint64_t field, double value)
 {
     DataValue input = {
-        .m_Type = DATA_VALUE_TYPE_NUMBER,
+        .m_Type = DATA_TYPE_NUMBER,
         .m_Value = { .m_Number = value }
     };
     return DataSetField(store, id, field, &input);
@@ -848,18 +1115,18 @@ DataResult DataSetFieldNumber(HDataStore store, DataId id, uint64_t field, doubl
 
 DataResult DataFieldGetBoolean(HDataStore store, DataId id, uint64_t field, uint8_t* out_value)
 {
-    return GetTypedField<DATA_VALUE_TYPE_BOOLEAN>(store, id, field, out_value);
+    return GetTypedField<DATA_TYPE_BOOLEAN>(store, id, field, out_value);
 }
 
 DataResult DataFieldGetBooleanBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, uint8_t* out_values)
 {
-    return GetTypedFields<DATA_VALUE_TYPE_BOOLEAN>(store, count, ids, field, out_values);
+    return GetTypedFields<DATA_TYPE_BOOLEAN>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldBoolean(HDataStore store, DataId id, uint64_t field, uint8_t value)
 {
     DataValue input = {
-        .m_Type = DATA_VALUE_TYPE_BOOLEAN,
+        .m_Type = DATA_TYPE_BOOLEAN,
         .m_Value = { .m_Boolean = value }
     };
     return DataSetField(store, id, field, &input);
@@ -867,18 +1134,18 @@ DataResult DataSetFieldBoolean(HDataStore store, DataId id, uint64_t field, uint
 
 DataResult DataFieldGetString(HDataStore store, DataId id, uint64_t field, const char** out_value)
 {
-    return GetTypedField<DATA_VALUE_TYPE_STRING>(store, id, field, out_value);
+    return GetTypedField<DATA_TYPE_STRING>(store, id, field, out_value);
 }
 
 DataResult DataFieldGetStringBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, const char** out_values)
 {
-    return GetTypedFields<DATA_VALUE_TYPE_STRING>(store, count, ids, field, out_values);
+    return GetTypedFields<DATA_TYPE_STRING>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldString(HDataStore store, DataId id, uint64_t field, const char* value)
 {
     DataValue input = {
-        .m_Type = DATA_VALUE_TYPE_STRING,
+        .m_Type = DATA_TYPE_STRING,
         .m_Value = { .m_String = value }
     };
     return DataSetField(store, id, field, &input);
@@ -886,151 +1153,64 @@ DataResult DataSetFieldString(HDataStore store, DataId id, uint64_t field, const
 
 DataResult DataFieldGetVector3(HDataStore store, DataId id, uint64_t field, DataVector3* out_value)
 {
-    return GetTypedField<DATA_VALUE_TYPE_VECTOR3>(store, id, field, out_value->m_Values);
+    return GetTypedField<DATA_TYPE_VECTOR3>(store, id, field, out_value->m_Values);
 }
 
 DataResult DataFieldGetVector3Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataVector3* out_values)
 {
-    return GetTypedFields<DATA_VALUE_TYPE_VECTOR3>(store, count, ids, field, out_values);
+    return GetTypedFields<DATA_TYPE_VECTOR3>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldVector3(HDataStore store, DataId id, uint64_t field, const DataVector3* value)
 {
-    DataValue input = { .m_Type = DATA_VALUE_TYPE_VECTOR3 };
+    DataValue input = { .m_Type = DATA_TYPE_VECTOR3 };
     memcpy(input.m_Value.m_Vector3, value->m_Values, sizeof(value->m_Values));
     return DataSetField(store, id, field, &input);
 }
 
 DataResult DataFieldGetVector4(HDataStore store, DataId id, uint64_t field, DataVector4* out_value)
 {
-    return GetTypedField<DATA_VALUE_TYPE_VECTOR4>(store, id, field, out_value->m_Values);
+    return GetTypedField<DATA_TYPE_VECTOR4>(store, id, field, out_value->m_Values);
 }
 
 DataResult DataFieldGetVector4Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataVector4* out_values)
 {
-    return GetTypedFields<DATA_VALUE_TYPE_VECTOR4>(store, count, ids, field, out_values);
+    return GetTypedFields<DATA_TYPE_VECTOR4>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldVector4(HDataStore store, DataId id, uint64_t field, const DataVector4* value)
 {
-    DataValue input = { .m_Type = DATA_VALUE_TYPE_VECTOR4 };
+    DataValue input = { .m_Type = DATA_TYPE_VECTOR4 };
     memcpy(input.m_Value.m_Vector4, value->m_Values, sizeof(value->m_Values));
     return DataSetField(store, id, field, &input);
 }
 
 DataResult DataFieldGetMatrix4(HDataStore store, DataId id, uint64_t field, DataMatrix4* out_value)
 {
-    return GetTypedField<DATA_VALUE_TYPE_MATRIX4>(store, id, field, out_value->m_Values);
+    return GetTypedField<DATA_TYPE_MATRIX4>(store, id, field, out_value->m_Values);
 }
 
 DataResult DataFieldGetMatrix4Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataMatrix4* out_values)
 {
-    return GetTypedFields<DATA_VALUE_TYPE_MATRIX4>(store, count, ids, field, out_values);
+    return GetTypedFields<DATA_TYPE_MATRIX4>(store, count, ids, field, out_values);
 }
 
 DataResult DataSetFieldMatrix4(HDataStore store, DataId id, uint64_t field, const DataMatrix4* value)
 {
-    DataValue input = { .m_Type = DATA_VALUE_TYPE_MATRIX4 };
+    DataValue input = { .m_Type = DATA_TYPE_MATRIX4 };
     memcpy(input.m_Value.m_Matrix4, value->m_Values, sizeof(value->m_Values));
     return DataSetField(store, id, field, &input);
 }
 
-// Bind paths and copy sizes before the native write loop. Only scalar leaves
-// are patched; strings/containers keep the copied default's immutable payloads.
-DataResult BindRowOverrides(const DataTable* table, const DataRowOverride* fields, uint32_t field_count, uint32_t count, DataRowOverrideBinding* bindings)
-{
-    for (uint32_t i = 0; i < field_count; ++i)
-    {
-        const DataRowOverride& input = fields[i];
-        DataFieldMeta          meta;
-        if (input.m_Field.m_PathCount > DATA_MAX_NESTING ||
-            !ResolveFieldPath(table, input.m_Field.m_Field, input.m_Field.m_Type, input.m_Field.m_Path, input.m_Field.m_PathCount, &meta))
-            return DATA_RESULT_INVALID_ARGUMENT;
-        if (meta.m_Type != DATA_VALUE_TYPE_BOOLEAN && meta.m_Type != DATA_VALUE_TYPE_NUMBER &&
-            (meta.m_Type < DATA_VALUE_TYPE_VECTOR3 || meta.m_Type > DATA_VALUE_TYPE_MATRIX4))
-            return DATA_RESULT_INVALID_ARGUMENT;
-        DataRowOverrideBinding binding = {
-            .m_Values = (const uint8_t*)input.m_Values,
-            .m_Stride = input.m_Stride,
-            .m_Offset = meta.m_Offset,
-            .m_Size = meta.m_Size
-        };
-        if (meta.m_Type == DATA_VALUE_TYPE_BOOLEAN)
-            for (uint32_t r = 0; r < count; ++r)
-                if (binding.m_Values[(size_t)r * binding.m_Stride] > 1)
-                    return DATA_RESULT_INVALID_ARGUMENT;
-        bindings[i] = binding;
-    }
-    return DATA_RESULT_OK;
-}
-
-template <uint32_t SIZE>
-static void CopyRowOverride(uint8_t* output, uint32_t row_stride, const DataRowOverrideBinding& field, uint32_t count, uint32_t first)
-{
-    const uint8_t* input = field.m_Values + (size_t)first * field.m_Stride;
-    const uint32_t input_stride = field.m_Stride;
-    for (uint32_t i = 0; i < count; ++i)
-    {
-        memcpy(output, input, SIZE);
-        output += row_stride;
-        input += input_stride;
-    }
-}
-
-void StoreRowOverrides(uint8_t* bytes, uint32_t stride, uint32_t count, const DataRowOverrideBinding* fields, uint32_t field_count)
-{
-    for (uint32_t first = 0; first < count; first += 1024)
-    {
-        uint32_t block_count = count - first < 1024 ? count - first : 1024;
-        for (uint32_t i = 0; i < field_count; ++i)
-        {
-            const DataRowOverrideBinding& field = fields[i];
-            uint8_t*                      output = bytes + (size_t)first * stride + field.m_Offset;
-            switch (field.m_Size)
-            {
-                case 1:
-                    CopyRowOverride<1>(output, stride, field, block_count, first);
-                    break;
-                case 8:
-                    CopyRowOverride<8>(output, stride, field, block_count, first);
-                    break;
-                case 12:
-                    CopyRowOverride<12>(output, stride, field, block_count, first);
-                    break;
-                case 16:
-                    CopyRowOverride<16>(output, stride, field, block_count, first);
-                    break;
-                case 64:
-                    CopyRowOverride<64>(output, stride, field, block_count, first);
-                    break;
-            }
-        }
-    }
-}
-
-// Resolve root/member names once while preparing a query or native write batch.
-bool ResolveFieldPath(const DataTable* table, uint64_t field, DataValueType type, const uint64_t* path, uint32_t path_count, DataFieldMeta* out_meta)
+// Resolve full names once while preparing a query.
+bool ResolveField(const DataTable* table, uint64_t field, DataValueType type, DataFieldMeta* out_meta)
 {
     uint32_t index = FindField(table, field);
     if (index == UINT32_MAX)
         return false;
-
     DataFieldMeta meta = GetFieldMeta(table, index);
-    uint32_t      offset = meta.m_Offset;
-    for (uint32_t i = 0; i < path_count; ++i)
-    {
-        if (!meta.m_ChildIndex)
-            return false;
-        uint32_t child = FindMember(table, meta.m_ChildIndex, meta.m_ChildCount, path[i]);
-        if (child == UINT32_MAX)
-            return false;
-        meta = GetFieldMeta(table, child);
-        offset += meta.m_Offset;
-    }
-
     if (meta.m_Type != type)
         return false;
-    meta.m_Offset = offset;
     *out_meta = meta;
     return true;
 }

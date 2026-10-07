@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -23,7 +25,7 @@ extern "C"
     typedef struct DataStore* HDataStore;
     typedef struct DataQuery* HDataQuery;
     typedef uint64_t          DataId;
-    typedef uint64_t          DataOwnerId;
+    typedef uint64_t          DataGroupId;
 
     typedef enum DataResult
     {
@@ -40,15 +42,15 @@ extern "C"
 
     typedef enum DataValueType
     {
-        DATA_VALUE_TYPE_NUMBER = 0,
-        DATA_VALUE_TYPE_BOOLEAN = 1,
-        DATA_VALUE_TYPE_STRING = 2,
-        DATA_VALUE_TYPE_NULL = 3,
-        DATA_VALUE_TYPE_STRUCT = 4,
-        DATA_VALUE_TYPE_LIST = 5,
-        DATA_VALUE_TYPE_VECTOR3 = 6,
-        DATA_VALUE_TYPE_VECTOR4 = 7,
-        DATA_VALUE_TYPE_MATRIX4 = 8,
+        DATA_TYPE_NUMBER = 0,
+        DATA_TYPE_BOOLEAN = 1,
+        DATA_TYPE_STRING = 2,
+        DATA_TYPE_NULL = 3,
+        DATA_TYPE_STRUCT = 4,
+        DATA_TYPE_LIST = 5,
+        DATA_TYPE_VECTOR3 = 6,
+        DATA_TYPE_VECTOR4 = 7,
+        DATA_TYPE_MATRIX4 = 8,
     } DataValueType;
 
     typedef struct DataVector3
@@ -106,12 +108,12 @@ extern "C"
  * @name DataId
  */
 
-/*# Logical owner identifier
+/*# Logical group identifier
  *
- * Caller-defined owner shared by any number of rows; zero is valid.
+ * Caller-defined group shared by any number of rows; zero is valid.
  *
  * @typedef
- * @name DataOwnerId
+ * @name DataGroupId
  */
 
 /*# Operation results
@@ -137,15 +139,15 @@ extern "C"
  *
  * @enum
  * @name DataValueType
- * @member DATA_VALUE_TYPE_NUMBER Double-precision number (0).
- * @member DATA_VALUE_TYPE_BOOLEAN Boolean encoded as zero or one (1).
- * @member DATA_VALUE_TYPE_STRING NUL-terminated string (2).
- * @member DATA_VALUE_TYPE_NULL Null value with no payload (3).
- * @member DATA_VALUE_TYPE_STRUCT Named fields (4).
- * @member DATA_VALUE_TYPE_LIST Ordered values (5).
- * @member DATA_VALUE_TYPE_VECTOR3 Three float32 components (6).
- * @member DATA_VALUE_TYPE_VECTOR4 Four float32 components (7).
- * @member DATA_VALUE_TYPE_MATRIX4 Sixteen float32 components in column-major order (8).
+ * @member DATA_TYPE_NUMBER Double-precision number (0).
+ * @member DATA_TYPE_BOOLEAN Boolean encoded as zero or one (1).
+ * @member DATA_TYPE_STRING NUL-terminated string (2).
+ * @member DATA_TYPE_NULL Null value with no payload (3).
+ * @member DATA_TYPE_STRUCT Named fields (4).
+ * @member DATA_TYPE_LIST Ordered values (5).
+ * @member DATA_TYPE_VECTOR3 Three float32 components (6).
+ * @member DATA_TYPE_VECTOR4 Four float32 components (7).
+ * @member DATA_TYPE_MATRIX4 Sixteen float32 components in column-major order (8).
  */
 
 /*# Vector3 value

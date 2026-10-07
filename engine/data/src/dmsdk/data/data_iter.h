@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -49,16 +51,6 @@ extern "C"
         uint32_t            m_NextRow;
     } DataRowIterator;
 
-    typedef struct DataFieldIterator
-    {
-        uint32_t m_Index;
-
-        // private
-        uint32_t            m_NextField;
-        const DataIterator* m_Batch;
-        uint32_t            m_RowIndex;
-    } DataFieldIterator;
-
     // Query batches
     DataIterator DataQueryIterRange(HDataQuery query, uint32_t first, uint32_t count);
     DataIterator DataQueryIter(HDataQuery query);
@@ -69,7 +61,7 @@ extern "C"
     static inline DataRowIterator DataIterRows(const DataIterator* iterator);
     static inline DataResult      DataRowIterNext(DataRowIterator* iterator);
     DataId                        DataRowIterGetId(const DataRowIterator* iterator);
-    DataOwnerId                   DataRowIterGetOwnerId(const DataRowIterator* iterator);
+    DataGroupId                   DataRowIterGetGroupId(const DataRowIterator* iterator);
 
     // Field pointers
     static inline const double*      DataRowIterGetNumber(const DataRowIterator* iterator, uint32_t field);
@@ -87,49 +79,13 @@ extern "C"
     static inline const DataMatrix4* DataRowIterGetMatrix4(const DataRowIterator* iterator, uint32_t field);
     static inline DataMatrix4*       DataRowIterGetMatrix4Mut(const DataRowIterator* iterator, uint32_t field);
 
-    // Field iteration
-    static inline DataFieldIterator DataRowIterFields(const DataRowIterator* iterator);
-    static inline DataResult        DataFieldIterNext(DataFieldIterator* iterator);
-    DataValueType                   DataFieldIterGetType(const DataFieldIterator* iterator);
-    uint64_t                        DataFieldIterGetNameHash(const DataFieldIterator* iterator);
-
-    // Field values
-    static inline DataResult DataFieldIterGetNumber(const DataFieldIterator* iterator, double* out_value);
-    DataResult               DataFieldIterSetNumber(const DataFieldIterator* iterator, double value);
-
-    static inline DataResult DataFieldIterGetBoolean(const DataFieldIterator* iterator, uint8_t* out_value);
-    DataResult               DataFieldIterSetBoolean(const DataFieldIterator* iterator, uint8_t value);
-
-    static inline DataResult DataFieldIterGetString(const DataFieldIterator* iterator, const char** out_value);
-    DataResult               DataFieldIterSetString(const DataFieldIterator* iterator, const char* value);
-
-    static inline DataResult DataFieldIterGetVector3(const DataFieldIterator* iterator, DataVector3* out_value);
-    DataResult               DataFieldIterSetVector3(const DataFieldIterator* iterator, const DataVector3* value);
-
-    static inline DataResult DataFieldIterGetVector4(const DataFieldIterator* iterator, DataVector4* out_value);
-    DataResult               DataFieldIterSetVector4(const DataFieldIterator* iterator, const DataVector4* value);
-
-    static inline DataResult DataFieldIterGetMatrix4(const DataFieldIterator* iterator, DataMatrix4* out_value);
-    DataResult               DataFieldIterSetMatrix4(const DataFieldIterator* iterator, const DataMatrix4* value);
-
     // Inline implementations
 
     // private
     // Address calculation for the public pointer wrappers. Validated field handles and current
     // row indices are caller obligations; no repeated checks occur here.
-    static inline const void* DataFieldGetPointerInternal(const DataIterator* batch, uint32_t row, uint32_t field);
-    static inline void*       DataFieldGetPointerMutInternal(const DataIterator* batch, uint32_t row, uint32_t field);
-
-    // private
-    // Linkage for the inline typed getters below, not standalone SDK entry points.
-    // Arguments borrow the locked batch and use its row/requested-field indices.
-    // UINT32_MAX denotes no current field; outputs remain unchanged on errors.
-    DataResult                    DataFieldGetNumberInternal(const DataIterator* batch, uint32_t row, uint32_t field, double* out_value);
-    DataResult                    DataFieldGetBooleanInternal(const DataIterator* batch, uint32_t row, uint32_t field, uint8_t* out_value);
-    DataResult                    DataFieldGetStringInternal(const DataIterator* batch, uint32_t row, uint32_t field, const char** out_value);
-    DataResult                    DataFieldGetVector3Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector3* out_value);
-    DataResult                    DataFieldGetVector4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector4* out_value);
-    DataResult                    DataFieldGetMatrix4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataMatrix4* out_value);
+    static inline const void*     DataFieldGetPointerInternal(const DataIterator* batch, uint32_t row, uint32_t field);
+    static inline void*           DataFieldGetPointerMutInternal(const DataIterator* batch, uint32_t row, uint32_t field);
 
     static inline DataRowIterator DataIterRows(const DataIterator* iterator)
     {
@@ -208,58 +164,6 @@ extern "C"
         return (DataMatrix4*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline DataFieldIterator DataRowIterFields(const DataRowIterator* iterator)
-    {
-        DataFieldIterator fields = {
-            .m_Index = UINT32_MAX,
-            .m_NextField = iterator->m_Index == UINT32_MAX ? iterator->m_Parent->m_FieldCount : 0,
-            .m_Batch = iterator->m_Parent,
-            .m_RowIndex = iterator->m_Index
-        };
-        return fields;
-    }
-
-    static inline DataResult DataFieldIterNext(DataFieldIterator* iterator)
-    {
-        if (iterator->m_NextField == iterator->m_Batch->m_FieldCount)
-        {
-            iterator->m_Index = UINT32_MAX;
-            return DATA_RESULT_END;
-        }
-        iterator->m_Index = iterator->m_NextField++;
-        return DATA_RESULT_OK;
-    }
-
-    static inline DataResult DataFieldIterGetNumber(const DataFieldIterator* iterator, double* out_value)
-    {
-        return DataFieldGetNumberInternal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
-    }
-
-    static inline DataResult DataFieldIterGetBoolean(const DataFieldIterator* iterator, uint8_t* out_value)
-    {
-        return DataFieldGetBooleanInternal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
-    }
-
-    static inline DataResult DataFieldIterGetString(const DataFieldIterator* iterator, const char** out_value)
-    {
-        return DataFieldGetStringInternal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
-    }
-
-    static inline DataResult DataFieldIterGetVector3(const DataFieldIterator* iterator, DataVector3* out_value)
-    {
-        return DataFieldGetVector3Internal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
-    }
-
-    static inline DataResult DataFieldIterGetVector4(const DataFieldIterator* iterator, DataVector4* out_value)
-    {
-        return DataFieldGetVector4Internal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
-    }
-
-    static inline DataResult DataFieldIterGetMatrix4(const DataFieldIterator* iterator, DataMatrix4* out_value)
-    {
-        return DataFieldGetMatrix4Internal(iterator->m_Batch, iterator->m_RowIndex, iterator->m_Index, out_value);
-    }
-
 #ifdef __cplusplus
 }
 #endif
@@ -268,7 +172,7 @@ extern "C"
 
 /*# Data iterator API
  *
- * Batch, row and field iteration with typed value access.
+ * Batch and row iteration with typed field pointers.
  *
  * @document
  * @name DataIter
@@ -281,7 +185,7 @@ extern "C"
  * Keep the query/store alive and the store locked or query reservation active.
  * Do not copy active iterators. Parents must stay at the same address; stepping
  * one invalidates its children, including on END. Lifetimes are not checked.
- * Batch, row and field order are unspecified.
+ * Batch and row order are unspecified.
  *
  * @struct
  * @name DataIterator
@@ -294,18 +198,6 @@ extern "C"
  *
  * @struct
  * @name DataRowIterator
- */
-
-/*# Field iterator
- *
- * Visits requested fields, or all top-level fields when none are requested;
- * containers are not traversed recursively. [ref:DataIterator] lifetime rules apply.
- * Typed access requires an exact kind. Writes preserve iterators and reset defaults;
- * failed writes change nothing. Reads observe current values.
- *
- * @struct
- * @name DataFieldIterator
- * @member m_Index [type:uint32_t] Read-only field index; UINT32_MAX without a current field.
  */
 
 /*# Iterate a reserved row range
@@ -357,7 +249,7 @@ extern "C"
 
 /*# Advance to the next row
  *
- * Invalidates child field iterators; clears the current row on END.
+ * Invalidates borrowed field pointers; clears the current row on END.
  *
  * @name DataRowIterNext
  * @param iterator [type:DataRowIterator*] Row iterator.
@@ -371,11 +263,11 @@ extern "C"
  * @return id [type:DataId] Store-local row ID, or zero without a valid current row.
  */
 
-/*# Get the current row owner
+/*# Get the current row group
  *
- * @name DataRowIterGetOwnerId
+ * @name DataRowIterGetGroupId
  * @param iterator [type:const DataRowIterator*] Row iterator.
- * @return owner [type:DataOwnerId] Current owner, or zero without a valid row. Zero may also be a valid owner.
+ * @return group [type:DataGroupId] Current group, or zero without a valid row. Zero may also be a valid group.
  */
 
 /*# Borrow a read-only Number field
@@ -476,138 +368,6 @@ extern "C"
  * @param iterator [type:const DataRowIterator*] Iterator on the current row.
  * @param field [type:uint32_t] Matrix4 handle from DataQueryFindField.
  * @return value [type:DataMatrix4*] Borrowed writable value.
- */
-
-/*# Start field iteration
- *
- * Borrows the current row; empty when no row is selected.
- *
- * @name DataRowIterFields
- * @param iterator [type:const DataRowIterator*] Row iterator.
- * @return fields [type:DataFieldIterator] Iterator with no current field; advance using DataFieldIterNext.
- */
-
-/*# Advance to the next field
- *
- * Sets m_Index to UINT32_MAX on END.
- *
- * @name DataFieldIterNext
- * @param iterator [type:DataFieldIterator*] Field iterator.
- * @return result [type:DataResult] OK for a field, or END when exhausted.
- */
-
-/*# Get the current field kind
- *
- * @name DataFieldIterGetType
- * @param iterator [type:const DataFieldIterator*] Field iterator.
- * @return type [type:DataValueType] Declared kind, or NULL without a current field. NULL may also be a declared kind.
- */
-
-/*# Get the current field name hash
- *
- * For a bound member path, returns the final member name.
- *
- * @name DataFieldIterGetNameHash
- * @param iterator [type:const DataFieldIterator*] Field iterator.
- * @return name [type:uint64_t] Name hash, or zero without a current field. Zero may also be a valid name hash.
- */
-
-/*# Read a Number field
- *
- * @name DataFieldIterGetNumber
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param out_value [type:double*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or a kind mismatch.
- */
-
-/*# Write a Number field
- *
- * @name DataFieldIterSetNumber
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param value [type:double] Replacement value.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or invalid value/kind/access.
- */
-
-/*# Read a Boolean field
- *
- * @name DataFieldIterGetBoolean
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param out_value [type:uint8_t*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or a kind mismatch.
- */
-
-/*# Write a Boolean field
- *
- * @name DataFieldIterSetBoolean
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param value [type:uint8_t] Zero or one.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or invalid value/kind/access.
- */
-
-/*# Read a String field
- *
- * @name DataFieldIterGetString
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param out_value [type:const char**] Borrowed string; copy before a store write, reset or iterator step.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or a kind mismatch.
- */
-
-/*# Write a String field
- *
- * Copies the NUL-terminated string into owned storage; self-assignment is supported.
- *
- * @name DataFieldIterSetString
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param value [type:const char*] Value to copy; pointer not retained.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or invalid value/kind/access.
- */
-
-/*# Read a Vector3 field
- *
- * @name DataFieldIterGetVector3
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param out_value [type:DataVector3*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or a kind mismatch.
- */
-
-/*# Write a Vector3 field
- *
- * @name DataFieldIterSetVector3
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param value [type:const DataVector3*] Value to copy; pointer not retained.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or invalid value/kind/access.
- */
-
-/*# Read a Vector4 field
- *
- * @name DataFieldIterGetVector4
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param out_value [type:DataVector4*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or a kind mismatch.
- */
-
-/*# Write a Vector4 field
- *
- * @name DataFieldIterSetVector4
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param value [type:const DataVector4*] Value to copy; pointer not retained.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or invalid value/kind/access.
- */
-
-/*# Read a Matrix4 field
- *
- * @name DataFieldIterGetMatrix4
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param out_value [type:DataMatrix4*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or a kind mismatch.
- */
-
-/*# Write a Matrix4 field
- *
- * @name DataFieldIterSetMatrix4
- * @param iterator [type:const DataFieldIterator*] Iterator on the field.
- * @param value [type:const DataMatrix4*] Value to copy; pointer not retained.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for no current field or invalid value/kind/access.
  */
 
 #endif // DMSDK_DATA_ITER_H

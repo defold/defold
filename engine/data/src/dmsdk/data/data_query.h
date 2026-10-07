@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -28,17 +30,15 @@ extern "C"
 
     typedef struct DataQueryField
     {
-        uint64_t        m_Field;
-        DataValueType   m_Type;
-        const uint64_t* m_Path;
-        uint32_t        m_PathCount;
-        DataAccess      m_Access;
+        uint64_t      m_Field;
+        DataValueType m_Type;
+        DataAccess    m_Access;
     } DataQueryField;
 
     typedef struct DataQueryDesc
     {
-        const DataOwnerId*    m_OwnerIds;
-        uint32_t              m_OwnerIdCount;
+        const DataGroupId*    m_GroupIds;
+        uint32_t              m_GroupIdCount;
         const uint64_t*       m_AllTags;
         uint32_t              m_AllTagCount;
         const DataQueryField* m_Fields;
@@ -79,28 +79,26 @@ extern "C"
 
 /*# Required query field
  *
- * Matches a name/path and exact leaf kind. Paths traverse declared inline structs,
- * not dynamic structs or lists. Zero-initialize; paths are copied during creation.
+ * Matches a full-name hash and exact kind. For an inline member use, for example,
+ * dmHashString64("light.color"). Dynamic containers cannot bind members. Zero-initialize.
  *
  * @struct
  * @name DataQueryField
- * @member m_Field [type:uint64_t] Root field name hash.
+ * @member m_Field [type:uint64_t] Full field name hash, including dot-separated inline member names.
  * @member m_Type [type:DataValueType] Exact leaf kind.
- * @member m_Path [type:const uint64_t*] Member hashes below m_Field; NULL for a top-level field.
- * @member m_PathCount [type:uint32_t] Path length, 0-64.
  * @member m_Access [type:DataAccess] Reserved access; defaults to read. Writes require fixed-size fields.
  */
 
 /*# Query filter descriptor
  *
- * Requires all tags and fields in one table, and matches any listed owner.
- * Empty filters impose no restriction. Field order does not define iteration order.
+ * Requires all tags and fields in one table, and matches any listed group.
+ * Empty filters impose no restriction. Bind requested fields with DataQueryFindField.
  * Zero-initialize; filter arrays are copied during creation.
  *
  * @struct
  * @name DataQueryDesc
- * @member m_OwnerIds [type:const DataOwnerId*] Owner IDs; optional when count is zero.
- * @member m_OwnerIdCount [type:uint32_t] Owner count; zero matches all.
+ * @member m_GroupIds [type:const DataGroupId*] Group IDs; optional when count is zero.
+ * @member m_GroupIdCount [type:uint32_t] Group count; zero matches all.
  * @member m_AllTags [type:const uint64_t*] Required tags; optional when count is zero.
  * @member m_AllTagCount [type:uint32_t] Tag count; zero matches all.
  * @member m_Fields [type:const DataQueryField*] Required fields; optional when count is zero.
@@ -132,7 +130,7 @@ extern "C"
  *
  * Thread-safe, nonblocking reservation that keeps rows and bindings stable.
  * Overlapping fields on the same table allow read/read access; writes conflict.
- * Owner filters do not narrow reservations. Empty field filters reserve whole-row reads.
+ * Group filters do not narrow reservations. Empty field filters reserve whole-row reads.
  * Writes require fixed-size fields with DATA_ACCESS_READ_WRITE;
  * string replacement and resets must happen outside reservations.
  * Each query supports one active reservation, shared by its jobs. The caller schedules
@@ -162,8 +160,8 @@ extern "C"
 
 /*# Find a query field for direct pointer access
  *
- * Binds a requested path, kind and access to a handle valid until query destruction.
- * The handle is neither a byte offset nor an iteration index. No lock or matching rows
+ * Binds a requested full-name hash, kind and access to a handle valid until query destruction.
+ * The handle is neither a byte offset nor a query descriptor index. No lock or matching rows
  * are required. Supports Number, Boolean, Vector3, Vector4 and Matrix4.
  * Pointer getters require this query's current row and matching typed handle, with
  * its store locked or reservation active. No kind, bounds or lifetime checks occur.
@@ -173,7 +171,7 @@ extern "C"
  *
  * @name DataQueryFindField
  * @param query [type:HDataQuery] Query to bind.
- * @param field [type:const DataQueryField*] Path, kind and access to match; borrowed for this call. Access must not exceed the query declaration.
+ * @param field [type:const DataQueryField*] Full-name hash, kind and access to match; borrowed for this call. Access must not exceed the query declaration.
  * @return field [type:uint32_t] Field handle, or UINT32_MAX if absent, incompatible or unsupported.
  */
 

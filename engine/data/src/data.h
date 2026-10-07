@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -9,6 +11,10 @@
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+
+#ifdef DATA_PUBLIC_API_ONLY
+#error Use the public dmsdk/data headers in benchmarks and API examples
+#endif
 
 #ifndef DM_DATA_H
 #define DM_DATA_H
@@ -37,6 +43,16 @@ struct DataFileDirectory
 };
 
 // Followed by tags, metadata, component name hashes, fixed-stride rows and payloads.
+//
+// Blob table offset --> [ DataTableHeader                        ]
+//                       [ uint64_t tags[m_TagCount]              ]
+//                       [ DataFileFieldMeta[m_MetadataCount]     ]
+//                       [ uint64_t component IDs[m_RowCount]     ]
+//                       [ row bytes[m_RowCount * m_RowStride]    ]
+//                       [ alignment padding and dynamic payloads ]
+// Each fixed row spans m_RowStride bytes. String offsets refer to the blob's
+// shared string area, after all tables. Fixed rows store values, with their
+// field names and kinds in the shared metadata.
 struct DataTableHeader
 {
     uint64_t m_TypeHash;      // Table's data type name hash.
@@ -50,12 +66,13 @@ struct DataTableHeader
 
 struct DataFileFieldMeta
 {
-    uint64_t m_NameHash;   // Field or member name hash.
-    uint32_t m_Kind;       // DataValueType encoded as uint32_t.
-    uint32_t m_ByteOffset; // Field offset within its row or containing inline struct.
-    uint16_t m_ChildIndex; // First inline member in the same metadata array; zero otherwise.
-    uint16_t m_ChildCount; // Number of immediate inline members.
-    uint32_t m_ByteSize;   // Field size; includes trailing padding for inline structs.
+    uint64_t m_NameHash;       // Full name hash, e.g. hash("light.color").
+    uint32_t m_Kind;           // DataValueType encoded as uint32_t.
+    uint32_t m_ByteOffset;     // Absolute byte offset within its row.
+    uint16_t m_ChildIndex;     // First inline member in the same metadata array; zero otherwise.
+    uint16_t m_ChildCount;     // Number of immediate inline members.
+    uint32_t m_ByteSize;       // Field size; includes trailing padding for inline structs.
+    uint64_t m_MemberNameHash; // Local member name hash for structured input/views.
 };
 
 // Dynamic structs/lists: optional uint64_t names (structs only), uint32_t kinds,
@@ -77,21 +94,46 @@ static const uint32_t DATA_FIELD_META_SIZE = sizeof(DataFileFieldMeta);
 struct DataValue;
 union DataValueData;
 struct DataTable;
+struct DataStructTable;
+struct DataStructStorage;
 
-// Borrowed named fields, backed by input arrays, a packed container or inline row bytes.
-// Decoded input uses separate name, kind and payload arrays; names must be unique.
-// Zero-initialize input; set copies names, kinds and values during the call.
-// Use DataGetStructField to read either representation.
+// Temporary struct sources. Zero-initialized construction input uses named arrays.
+enum DataStructSource
+{
+    DATA_STRUCT_ARRAY,
+    DATA_STRUCT_PACKED,
+    DATA_STRUCT_INLINE,
+    DATA_STRUCT_ROW,
+    DATA_STRUCT_NATIVE
+};
+
+// Borrowed named fields. The source selects one representation; no input pointers
+// are retained in stored rows. Read every representation with DataGetStructField.
 struct DataStruct
 {
-    const uint64_t*      m_Names;  // Decoded field hashes; unused for packed/inline views.
-    const DataValueType* m_Types;  // Decoded field kinds; shareable across inputs, unused for packed/inline views.
-    const DataValueData* m_Values; // Untagged decoded payloads in name order; unused for packed/inline views.
-    uint32_t             m_Count;  // Number of fields.
-    // private
-    const uint8_t*   m_Buffer; // Borrowed blob/container bytes, or inline struct bytes when m_Table is set.
-    uint32_t         m_Offset; // Container offset in m_Buffer, or first child metadata index for inline views.
-    const DataTable* m_Table;  // Borrowed table for inline views; NULL for decoded/dynamic structs.
+    uint32_t         m_Count;  // Number of immediate fields.
+    DataStructSource m_Source; // Selects the active union member.
+    union
+    {
+        struct
+        {
+            const uint64_t*      m_Names;  // Unique local field hashes.
+            const DataValueType* m_Types;  // Field kinds, shareable across inputs.
+            const DataValueData* m_Values; // Borrowed payloads in name order.
+        } m_Array;
+        struct
+        {
+            const uint8_t*         m_Buffer;      // Packed container or inline row bytes.
+            uint32_t               m_Offset;      // Container offset, metadata index or child-row index.
+            const DataTable*       m_Table;       // Containing component table for inline/child rows.
+            const DataStructTable* m_StructTable; // Shared child layout for DATA_STRUCT_ROW.
+        } m_View;
+        struct
+        {
+            const DataStructDesc* m_Layout; // Borrowed native input layout.
+            const uint8_t*        m_Data;   // Borrowed native struct bytes.
+        } m_Input;
+    };
 };
 
 // Borrowed ordered values; elements may have different kinds.
@@ -101,8 +143,9 @@ struct DataList
     const DataValue* m_Values; // Decoded elements; unused for packed views.
     uint32_t         m_Count;  // Number of elements.
     // private
-    const uint8_t* m_Buffer; // Borrowed bytes backing a packed container; NULL for decoded input.
-    uint32_t       m_Offset; // Container header offset in m_Buffer.
+    const uint8_t*       m_Buffer; // Borrowed bytes backing a packed container; NULL for decoded input.
+    uint32_t             m_Offset; // Container header offset in m_Buffer.
+    const DataListInput* m_Input;  // Borrowed native list input; NULL for decoded/packed views.
 };
 
 // Untagged payload selected by the input's m_Types entry or DataValue::m_Type.
@@ -128,120 +171,103 @@ struct DataValue
     DataValueData m_Value; // Input value or borrowed result; not a stored row.
 };
 
-// Engine-owned packed resource and one registration of its component rows.
-typedef struct DataBlob*         HDataBlob;
-typedef struct DataBlobInstance* HDataBlobInstance;
-
-struct DataStructDesc;
-
-/** Construction field. Offsets are bytes relative to the containing row/struct.
- * Offsets must respect field alignment: Boolean/Null 1, float math values 4,
- * Number/references 8, inline structs the maximum alignment of their members.
- * m_Struct declares a fixed inline STRUCT layout; NULL keeps dynamic container storage.
- * Registration validates and copies the complete description. The same struct
- * description can be reused in multiple parent types and need not outlive registration.
- */
-struct DataFieldDesc
-{
-    uint64_t              m_Field;  // Field name hash.
-    DataValueType         m_Type;   // Declared kind; fixed for the table lifetime.
-    uint32_t              m_Offset; // Byte offset within the containing row/struct.
-    const DataStructDesc* m_Struct; // Reusable inline layout; NULL for scalar/dynamic values.
-};
-
-/** Reusable fixed composition layout. All rows have these members and kinds.
- * Names must be unique; nonempty fields must not overlap or exceed m_Size.
- * m_Size includes trailing padding to the maximum member alignment.
- * Members may include fixed structs, strings and dynamic containers. Cycles and
- * nesting deeper than DATA_MAX_NESTING are rejected during table registration.
- */
-struct DataStructDesc
-{
-    const DataFieldDesc* m_Fields;     // Borrowed member descriptions; copied at registration.
-    uint32_t             m_FieldCount; // Number of immediate members.
-    uint32_t             m_Size;       // Struct size in bytes, including trailing padding.
-};
-
 // Compiled field layout, shared by every row of a table type. Fixed structs point
-// into the same metadata array by index; their member offsets are relative to the
-// struct's bytes. Root fields occupy the first m_FieldCount entries. A zero
-// m_ChildIndex denotes an ordinary scalar/reference, including a dynamic STRUCT.
+// into the same metadata array by index; all offsets are relative to the row.
+// Root fields occupy the first m_FieldCount entries. A zero m_ChildIndex denotes
+// an ordinary scalar/reference, including a dynamic STRUCT.
 struct DataFieldMeta
 {
-    uint64_t      m_Field;      // Field name hash.
+    uint64_t      m_Field;      // Full name hash; root fields retain their declared hash.
     DataValueType m_Type;       // Declared kind.
-    uint32_t      m_Offset;     // Byte offset within the containing row/struct.
+    uint32_t      m_Offset;     // Absolute byte offset within the row.
     uint16_t      m_ChildIndex; // First inline child metadata entry; zero for scalar/dynamic fields.
     uint16_t      m_ChildCount; // Number of immediate inline members.
     uint32_t      m_Size;       // Field byte size, including inline struct padding.
+    uint64_t      m_Name;       // Local member hash, used by structured input/views.
 };
 
-/** Construction table description. Registration copies the tags and metadata.
- * Row stride includes trailing padding to the maximum field alignment and must
- * contain every field. Invalid alignment is rejected at registration. All inserted
- * rows use these same field kinds and offsets. Zero fields/stride are allowed.
- * Tags and total metadata entries (including nested members) are limited to 65,535.
- */
-struct DataTableDesc
+// Dynamic structs share field metadata within their containing component table.
+// No child DataId or per-row metadata is needed. Slots remain stable until freed:
+// A reference: [ row index: high 32 bits | table index: 30 bits | tag: 2 bits ]
+//                        |                       |
+//                        |        m_Structs -> m_Tables[t]
+//                        |                       |
+//                        +---------------------> m_Values[r * m_RowStride]
+//                            [ B values ][ free ][ B values ] ...
+// A freed slot holds the next free index in its first four bytes. Slots are reused
+// without moving other children; capacity remains until the component table dies.
+struct DataStructField
 {
-    uint64_t             m_Type;       // Data type name hash.
-    const uint64_t*      m_Tags;       // Borrowed tag hashes; copied at registration.
-    uint32_t             m_TagCount;   // Number of tags.
-    const DataFieldDesc* m_Fields;     // Borrowed root field descriptions; copied at registration.
-    uint32_t             m_FieldCount; // Number of root fields.
-    uint32_t             m_RowStride;  // Bytes per row, including trailing alignment padding.
+    uint64_t      m_Name;   // Local member hash, shared by all child rows of this layout.
+    DataValueType m_Type;   // Member kind; nested structs use another child-row reference.
+    uint32_t      m_Offset; // C-aligned byte offset within the child row.
+};
+
+struct DataStructTable
+{
+    dmArray<DataStructField> m_Fields;    // Shared member layout; input order may differ.
+    dmArray<uint8_t>         m_Values;    // Fixed-stride owned child rows, including reusable free slots.
+    uint32_t                 m_RowStride; // Row size aligned to eight bytes; at least eight for the free link.
+    uint32_t                 m_FreeRow;   // First free row index, or UINT32_MAX.
+    uint32_t                 m_RowCount;  // Live child rows, including retained reset defaults.
+};
+
+struct DataStructStorage
+{
+    dmArray<DataStructTable*> m_Tables; // Owned layouts, allocated only for owned dynamic struct fields.
 };
 
 /** Decoded construction input, copied by DataAddRows as reset defaults.
  * Separate kind and payload arrays follow metadata order and must match its count
  * and kinds. Rows of the same layout may share one kind array. Input arrays
  * and their referenced strings/containers only need to live through insertion.
- * Component IDs identify components within a prototype; owners identify instances.
+ * Component IDs identify components within a prototype; groups associate runtime rows.
  */
+// Decoded inputs use parallel arrays, not the native byte-row layout:
+//              field 0        field 1        ...
+// m_Types  --> [ kind        ][ kind        ][...]
+// m_Values --> [DataValueData][DataValueData][...]
+//                     | insertion uses shared metadata offsets
+//                     v
+//              [ native field bytes + alignment padding ]
 struct DataRowDesc
 {
-    DataOwnerId          m_Owner;       // Runtime game object or caller-defined owner.
+    DataGroupId          m_Group;       // Runtime game object or caller-defined group.
     const DataValueType* m_Types;       // Borrowed kinds in root metadata order; may be shared across rows.
     const DataValueData* m_Values;      // Borrowed untagged payloads in root metadata order; copied on insertion.
     uint32_t             m_ValueCount;  // Number of root kinds and payloads.
     uint64_t             m_ComponentId; // Prototype-local component name hash.
 };
 
-// Native scalar overrides, resolved against the registered layout once per batch.
-struct DataRowOverride
-{
-    DataQueryField m_Field;  // Name/path and exact kind; access mode is unused.
-    const void*    m_Values; // First native scalar value, copied during insertion.
-    uint32_t       m_Stride; // Byte stride between values; zero repeats one value.
-};
-
-struct DataRowOverrideBinding
-{
-    const uint8_t* m_Values; // Borrowed first source value.
-    uint32_t       m_Stride; // Source byte stride; zero repeats one value.
-    uint32_t       m_Offset; // Destination offset relative to the row.
-    uint32_t       m_Size;   // Validated native scalar size.
-};
-
 // Row identity, source row and pooled registration indices. Mutable values follow
 // the current row order; swap removal moves these bytes and preserves registration membership.
+//
+// DataRow byte offsets (identity only; field values are in DataTable::m_Values):
+//  0                   8                 16                 20                      24
+//  +-------------------+-----------------+------------------+-----------------------+
+//  | m_Group: uint64_t | union (8 bytes) | m_Slot: uint32_t | m_BaseIndex: uint32_t |
+//  +-------------------+-----------------+------------------+-----------------------+
+//                      |                 |                  +--> reset source row
+//                      |                 +--> DataStore::m_Slots
+//                      +--> m_ComponentId (uint64_t) or m_InstanceIndex (uint32_t)
+// Packed m_BaseIndex stays unchanged on swap removal; owned defaults move with the row.
 struct DataRow
 {
-    DataOwnerId m_Owner; // Runtime owner shared by this game object's components.
+    DataGroupId m_Group; // Caller-defined group shared by any number of rows.
     union
     {
         uint64_t m_ComponentId;   // Prototype-local name for independently added rows.
         uint32_t m_InstanceIndex; // Packed rows: registration slot in the resource pool.
     };
     uint32_t m_Slot;      // Stable ID slot in DataStore::m_Slots.
-    uint32_t m_BaseIndex; // Source row index in packed or owned reset defaults.
+    uint32_t m_BaseIndex; // Packed source row index, or the current dense index for owned defaults.
 };
 
 static const uint32_t DATA_MAX_NESTING = 64;
 // One allocation in a registration, table or query arena. Payload follows the
 // header at an eight-byte boundary. Used bytes include padding; capacity excludes
 // the header. Blocks never move. Registration/table reset frees replacement
-// payloads; independently added default values remain until table destruction.
+// payloads; independent tables release payloads when emptied or destroyed.
 struct DataBlock
 {
     DataBlock* m_Next;     // Next owned arena block.
@@ -256,13 +282,26 @@ struct DataOwnedTable
 {
     dmArray<uint64_t>      m_Tags;       // Owned table tag hashes.
     dmArray<DataFieldMeta> m_Fields;     // Owned root and inline-member metadata.
-    dmArray<uint8_t>       m_BaseRows;   // Original fixed row bytes used by reset.
+    dmArray<uint8_t>       m_BaseRows;   // Original fixed row bytes in the same dense order as live rows.
     DataBlock*             m_BaseValues; // Arena blocks for original strings and dynamic containers.
-    uint32_t               m_BaseCount;  // Number of allocated default rows; removal does not reclaim them.
 };
 
 static const uint32_t DATA_FIELD_LOOKUP_SIZE = 16;
 
+// Parallel dense arrays; each identity selects the value bytes at the same index:
+// m_Rows   --> [ DataRow 0 ][ DataRow 1 ][ ... ]
+// m_Values --> [ row bytes ][ row bytes ][ ... ]  (m_RowStride bytes per row)
+//                   ^
+//                   | reset source: m_Rows[r].m_BaseIndex * m_RowStride
+//                   +-- m_Blob + m_Offsets.m_Rows     (loaded defaults)
+//                   +-- m_Owned->m_BaseRows.Begin()   (decoded defaults)
+//
+// Example PointLight value row from DATASTORE.md; offsets are bytes:
+//  0                       12        16                        24              32
+//  +-----------------------+---------+-------------------------+---------------+
+//  | light.color: float[3] | padding | light.intensity: double | range: double |
+//  +-----------------------+---------+-------------------------+---------------+
+// One shared metadata array describes all rows; inline Light needs no pointer.
 struct DataTable
 {
     uint64_t         m_Type;          // Data type name hash.
@@ -286,11 +325,17 @@ struct DataTable
             uint32_t m_FirstSlot; // First source row in each registration's slot array.
         } m_Offsets;              // Packed defaults and registration membership locations.
     };
-    DataBlock*     m_Payloads;                            // Replacement arena for independent rows; packed rows use their registration.
-    const uint8_t* m_FieldMetadata;                       // Borrowed owned/blob metadata; fixed for the table lifetime.
-    uint16_t       m_FieldLookup[DATA_FIELD_LOOKUP_SIZE]; // First root metadata index per hash bucket; UINT16_MAX means empty.
+    DataStructStorage* m_Structs;                             // Owned dynamic child tables; NULL until a dynamic struct is copied.
+    DataBlock*         m_Payloads;                            // Replacement arena for independent rows; packed rows use their registration.
+    const uint8_t*     m_FieldMetadata;                       // Borrowed owned/blob metadata; fixed for the table lifetime.
+    uint16_t           m_FieldLookup[DATA_FIELD_LOOKUP_SIZE]; // First metadata index per hash bucket; UINT16_MAX means empty.
 };
 
+// DataId: [ generation: high 32 bits | slot index: low 32 bits ]
+//                                           |
+//                                           v
+//                      m_Slots[index] --> m_Table->m_Rows[m_Row]
+// The generation rejects stale IDs; swap removal updates m_Row, not the ID.
 struct DataSlot
 {
     DataTable* m_Table;      // Borrowed owning table; NULL when the slot is free.
@@ -318,6 +363,13 @@ struct DataStore
 
 // One requested field resolved for one matching table. Cached metadata
 // supplies the field offset and kind without a name lookup per row.
+//
+// One binding allocation, count = DataQuery::m_Fields.Size():
+// DataQueryTable::m_Fields:
+//              [ DataQueryBinding x count ][ uint32_t offset x count ]
+//                                         ^
+//                                         GetQueryFieldOffsets(m_Fields, count)
+// A field handle selects offset[handle]; value = row bytes + offset[handle].
 struct DataQueryBinding
 {
     DataFieldMeta m_Meta; // Resolved leaf metadata; offset is relative to the row.
@@ -339,7 +391,7 @@ struct DataQueryTable
 };
 
 // Contiguous matching rows. Prefix indices let jobs find their first batch with
-// a binary search, including owner-filtered queries. Rebuilt only after mutation.
+// a binary search, including group-filtered queries. Rebuilt only after mutation.
 struct DataQueryRange
 {
     uint32_t m_TableIndex; // Index in DataQuery::m_Tables.
@@ -348,29 +400,26 @@ struct DataQueryRange
     uint32_t m_First;      // First row index in the complete reserved query result.
 };
 
-// Validated copy of a public query field. Paths have at most DATA_MAX_NESTING
-// members; access is READ or READ_WRITE. Public input remains wide for validation.
+// Validated copy of a public query field. Access is READ or READ_WRITE.
+// Public input remains wide for validation.
 struct DataQueryFieldInfo
 {
-    uint64_t        m_Field;     // Requested root name hash.
-    const uint64_t* m_Path;      // Borrowed slice of the query's owned path array.
-    DataValueType   m_Type;      // Required leaf kind.
-    uint16_t        m_PathCount; // Number of inline members in the path, at most 64.
-    uint8_t         m_Access;    // Validated DataAccess mode.
+    uint64_t      m_Field;  // Requested full-name hash.
+    DataValueType m_Type;   // Required leaf kind.
+    uint8_t       m_Access; // Validated DataAccess mode.
 };
 
 // Live query owned by its caller and registered with m_Store. Owns copies of
 // filters, the matching-table array and the arena holding field bindings;
 // it borrows the store/tables and must be destroyed before the store.
-// Table changes update matches; owner filtering happens during row iteration.
+// Table changes update matches; group filtering happens during row iteration.
 // While active, m_ActiveSlot identifies its reservation in the store's object pool.
 struct DataQuery
 {
     HDataStore                  m_Store;      // Borrowed store; must outlive this query.
     dmArray<DataQueryTable>     m_Tables;     // Matching tables and their field bindings.
     dmArray<DataQueryFieldInfo> m_Fields;     // Copied requested fields and access modes.
-    dmArray<uint64_t>           m_Paths;      // Owned member hashes referenced by m_Fields.
-    dmArray<DataOwnerId>        m_Owners;     // Copied owner filter; empty matches every owner.
+    dmArray<DataGroupId>        m_Groups;     // Copied group filter; empty matches every group.
     dmArray<uint64_t>           m_Tags;       // Copied all-required tag filter.
     DataBlock*                  m_Bindings;   // Owned arena for per-table field bindings.
     DataQueryBinding*           m_FreeFields; // Recycled binding arrays; first bytes hold the next pointer.
@@ -391,6 +440,14 @@ struct DataBlob
 // Shared runtime tables for one loaded resource in this store. The first
 // registration page and initial table buffers follow this header in one allocation.
 // Later registrations reuse slots; dense row arrays grow geometrically.
+//
+// Initial allocation (alignment padding omitted):
+// [ DataBlobPool ][ DataTable x table count ][ DataRow buffers ][ value buffers ]
+// [ first registration page: instance 0 | instance 1 | ... ]
+//   ^ m_FirstPage              (records are m_InstanceStride bytes apart)
+// m_Pages --> [ extra page 1* ][ extra page 2* ][ ... ]
+// m_Blob  --> DataBlob --> immutable caller-owned file bytes
+// Row/value arrays may move to larger allocations; registration records stay put.
 struct DataBlobPool
 {
     HDataStore        m_Store;          // Borrowed destination store.
@@ -408,6 +465,11 @@ struct DataBlobPool
 
 // Stable pooled handle. A uint32_t slot index for each source row follows it;
 // removed rows use UINT32_MAX. Only replacement payloads belong to this instance.
+//
+// [ DataBlobInstance ][ uint32_t slots x blob row count ][ alignment padding ]
+//                     ^ GetInstanceSlots(instance)
+// slots[table.m_Offsets.m_FirstSlot + row.m_BaseIndex] --> DataStore::m_Slots
+// m_Payloads --> [ DataBlock | replacement payload bytes ] --> next block
 struct DataBlobInstance
 {
     DataBlobPool* m_Pool;     // Borrowed owning pool; NULL when this slot is free.
@@ -445,6 +507,8 @@ struct DataMemoryStats
     uint64_t m_Tables;           // Live runtime table count.
     uint64_t m_Instances;        // Live blob registration count.
     uint64_t m_Rows;             // Live component row count.
+    uint64_t m_StructRows;       // Live exclusively owned child rows, including reset defaults.
+    uint64_t m_StructRowBytes;   // Child row capacity; included in m_ValueBytes.
     uint64_t m_ValueBytes;       // Mutable row capacity in bytes.
     uint64_t m_PayloadBlocks;    // Replacement arena block count.
     uint64_t m_PayloadUsed;      // Used replacement payload bytes, including padding.
@@ -472,28 +536,44 @@ void       DeleteBlocks(DataBlock** blocks);
 DataTable* FindTable(HDataStore store, uint64_t type);
 
 // Query table matching runs while the caller holds the store's structural mutex.
-bool ResolveFieldPath(const DataTable* table, uint64_t field, DataValueType type, const uint64_t* path, uint32_t path_count, DataFieldMeta* out_meta);
+bool ResolveField(const DataTable* table, uint64_t field, DataValueType type, DataFieldMeta* out_meta);
 void MatchTable(HDataQuery query, DataTable* table);
 void UnmatchTable(HDataQuery query, DataTable* table);
 
 // Value layout, construction and access shared by storage, iteration and I/O.
-uint32_t   DataTypeSize(DataValueType type);
-uint32_t   DataTypeAlignment(DataValueType type);
-uint64_t   GetRowComponentId(const DataTable* table, const DataRow* row);
-DataValue  ReadRowValue(const DataTable* table, const DataRow* row, uint32_t field_index);
-DataValue  GetChildValue(DataValueType type, const DataValueData* value, uint32_t index);
-uint64_t   GetChildName(const DataStruct* object, uint32_t index);
-void       InitializeBlobValues(DataTable* table, uint32_t start, uint32_t count);
-DataValue  ReadBoundValue(const DataTable* table, const DataRow* row, const DataFieldMeta& meta);
-DataResult ReadField(DataTable* table, uint32_t row, uint64_t field, DataValue* out_value);
-DataResult SetRowField(DataTable* table, DataRow* row, const DataFieldMeta& meta, const DataValue* value);
+uint32_t      DataTypeSize(DataValueType type);
+uint32_t      DataTypeAlignment(DataValueType type);
+uint64_t      GetRowComponentId(const DataTable* table, const DataRow* row);
+DataValue     ReadRowValue(const DataTable* table, const DataRow* row, uint32_t field_index);
+DataValue     GetChildValue(DataValueType type, const DataValueData* value, uint32_t index);
+uint64_t      GetChildName(const DataStruct* object, uint32_t index);
+DataValueType GetStructFieldType(const DataStruct* object, uint32_t index);
+void          InitializeBlobValues(DataTable* table, uint32_t start, uint32_t count);
+DataValue     ReadBoundValue(const DataTable* table, const DataRow* row, const DataFieldMeta& meta);
+DataResult    ReadField(DataTable* table, uint32_t row, uint64_t field, DataValue* out_value);
+DataResult    SetRowField(DataTable* table, DataRow* row, const DataFieldMeta& meta, const DataValue* value);
 // Decoded batch construction; no table/row identities are changed by these helpers.
+DataResult ValidateLayout(const DataFieldDesc* fields, uint32_t count, uint32_t size, uint32_t depth, uint64_t* metadata_count, uint32_t* out_alignment);
+bool       ValidateFieldNames(const uint8_t* metadata, uint32_t count, dmArray<uint64_t>& scratch);
+DataResult ValidateNativeReferences(const DataTable* table, const DataFieldMeta& meta, const uint8_t* values, uint32_t stride, uint32_t count, uint32_t depth, size_t* payload_size);
+void       StoreNativeReferences(DataTable* table, uint32_t count, uint8_t* rows);
 DataResult ValidateRowValues(const DataTable* table, const DataRowDesc* rows, uint32_t count, size_t* payload_size);
 void       StoreRowValues(DataTable* table, const DataRowDesc* rows, uint32_t count, uint8_t* bytes);
-DataResult BindRowOverrides(const DataTable* table, const DataRowOverride* fields, uint32_t field_count, uint32_t count, DataRowOverrideBinding* bindings);
-void       StoreRowOverrides(uint8_t* bytes, uint32_t stride, uint32_t count, const DataRowOverrideBinding* fields, uint32_t field_count);
 DataResult ValidateStoredValue(const DataTable* table, const DataFieldMeta& meta, DataValueType type, const DataValueData* value, uint32_t depth, size_t* payload_size);
-void       StoreStoredValue(const DataTable* table, const DataFieldMeta& meta, DataBlock** blocks, uint8_t* bytes, const DataValueData* value);
+void       StoreStoredValue(DataTable* table, const DataFieldMeta& meta, DataBlock** blocks, uint8_t* bytes, const DataValueData* value);
+
+// Owned dynamic structs use table/row indices. Lists retain packed containers.
+void               StoreValue(DataBlock** blocks, uint8_t* bytes, DataValueType type, const DataValueData* value);
+uint64_t           StoreStructRow(DataTable* table, DataBlock** blocks, const DataStruct* object);
+DataStruct         ReadStructRow(const DataTable* table, uint64_t reference);
+void               ReleaseStructRow(DataTable* table, uint64_t reference);
+void               DeleteStructStorage(DataTable* table);
+void               ReleaseRowStructs(DataTable* table, uint32_t row, bool defaults);
+
+static inline bool IsStructRow(uint64_t reference)
+{
+    return (reference & 3) == 2;
+}
 
 // Keep shared byte/row access inline across translation units.
 inline uint64_t ReadDataInteger(const uint8_t* bytes, uint32_t size)
@@ -525,7 +605,8 @@ inline DataFieldMeta ReadFileFieldMeta(const uint8_t* metadata, uint32_t index)
          .m_Offset = (uint32_t)ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_ByteOffset), 4),
          .m_ChildIndex = (uint16_t)ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_ChildIndex), 2),
          .m_ChildCount = (uint16_t)ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_ChildCount), 2),
-         .m_Size = (uint32_t)ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_ByteSize), 4)
+         .m_Size = (uint32_t)ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_ByteSize), 4),
+         .m_Name = ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_MemberNameHash), 8)
     };
     return result;
 }
@@ -582,7 +663,7 @@ static inline bool Contains(const dmArray<T>& array, T value)
 
 static inline uint32_t FindField(const DataTable* table, uint64_t field)
 {
-    for (uint32_t i = 0; i < table->m_FieldCount; ++i)
+    for (uint32_t i = 0; i < table->m_MetadataCount; ++i)
     {
         if (GetFieldMeta(table, i).m_Field == field)
             return i;
@@ -590,17 +671,9 @@ static inline uint32_t FindField(const DataTable* table, uint64_t field)
     return UINT32_MAX;
 }
 
-static inline uint32_t FindMember(const DataTable* table, uint32_t first, uint32_t count, uint64_t field)
+static inline bool MatchesGroup(HDataQuery query, DataGroupId group)
 {
-    for (uint32_t i = 0; i < count; ++i)
-        if (GetFieldMeta(table, first + i).m_Field == field)
-            return first + i;
-    return UINT32_MAX;
-}
-
-static inline bool MatchesOwner(HDataQuery query, DataOwnerId owner)
-{
-    return query->m_Owners.Empty() || Contains(query->m_Owners, owner);
+    return query->m_Groups.Empty() || Contains(query->m_Groups, group);
 }
 
 static inline DataId MakeId(HDataStore store, uint32_t index)
@@ -623,29 +696,29 @@ static inline DataResult CopyTypedValue(const DataTable* table, const uint8_t* b
 {
     switch (TYPE)
     {
-        case DATA_VALUE_TYPE_NUMBER:
+        case DATA_TYPE_NUMBER:
         {
             uint64_t bits = ReadDataInteger(bytes, 8);
             memcpy(out_value, &bits, 8);
             break;
         }
-        case DATA_VALUE_TYPE_BOOLEAN:
+        case DATA_TYPE_BOOLEAN:
             *(uint8_t*)out_value = *bytes;
             break;
-        case DATA_VALUE_TYPE_STRING:
+        case DATA_TYPE_STRING:
         {
             uint64_t    reference = ReadDataInteger(bytes, 8);
             const char* string = (reference & 1) ? (const char*)table->m_Blob + (reference >> 1) : (const char*)(uintptr_t)reference;
             *(const char**)out_value = string;
             break;
         }
-        case DATA_VALUE_TYPE_VECTOR3:
+        case DATA_TYPE_VECTOR3:
             ReadDataFloats(out_value, bytes, 3);
             break;
-        case DATA_VALUE_TYPE_VECTOR4:
+        case DATA_TYPE_VECTOR4:
             ReadDataFloats(out_value, bytes, 4);
             break;
-        case DATA_VALUE_TYPE_MATRIX4:
+        case DATA_TYPE_MATRIX4:
             ReadDataFloats(out_value, bytes, 16);
             break;
         default:
@@ -726,7 +799,7 @@ extern "C"
     // Internal batch helpers for engine construction and generic inspection.
     uint32_t    DataIterGetCount(const DataIterator* iterator);
     DataId      DataIterGetId(const DataIterator* iterator, uint32_t row);
-    DataOwnerId DataIterGetOwnerId(const DataIterator* iterator, uint32_t row);
+    DataGroupId DataIterGetGroupId(const DataIterator* iterator, uint32_t row);
 
     /** Read a field from the current batch
      *
@@ -770,28 +843,6 @@ extern "C"
      */
     DataResult DataIterSetField(const DataIterator* iterator, uint32_t row, uint32_t field, const DataValue* value);
 
-    /** Register an empty table
-     *
-     * Copies tags and field metadata. Fields have fixed kinds and non-overlapping byte offsets. Duplicate independently registered type hashes are rejected. Successful
-     * registration updates live queries. Requires an unlocked store.
-     *
-     * @param store [type:HDataStore] Store handle.
-     * @param desc [type:const DataTableDesc*] Table type, tags and shared field layout to copy.
-     * @return result [type:DataResult] LOCKED while the store is locked; otherwise OK, ALREADY_EXISTS for a duplicate type/field name, or INVALID_ARGUMENT for invalid tags/count/layout.
-     */
-    DataResult DataRegisterTable(HDataStore store, const DataTableDesc* desc);
-
-    /** Unregister a table
-     *
-     * Removes an independently registered table and all its rows. Their IDs become stale, even if the type is
-     * registered again. Updates live queries. Requires an unlocked store.
-     *
-     * @param store [type:HDataStore] Store handle.
-     * @param type [type:uint64_t] Table type hash.
-     * @return result [type:DataResult] LOCKED while the store is locked; otherwise OK on success, or NOT_FOUND if the type is not registered.
-     */
-    DataResult DataUnregisterTable(HDataStore store, uint64_t type);
-
     /** Insert a row
      *
      * Packs values in metadata order into the table's byte rows, retaining added values as reset defaults.
@@ -800,55 +851,30 @@ extern "C"
      *
      * @param store [type:HDataStore] Store handle.
      * @param type [type:uint64_t] Independently registered table type hash.
-     * @param owner [type:DataOwnerId] Logical row owner.
+     * @param group [type:DataGroupId] Logical row group.
      * @param types [type:const DataValueType*] Kinds in table metadata order; may be shared across rows. NULL when value_count is zero.
      * @param values [type:const DataValueData*] Untagged payloads in table metadata order; may be NULL when value_count is zero.
      * @param value_count [type:uint32_t] Must equal the table field count; kinds must match.
-     * @param out_id [type:DataId*] Receives the new store-local ID on success; unchanged on error.
+     * @param out_id [type:DataId*] Optional output receiving the new store-local ID on success; unchanged on error.
      * @param component_id [type:uint64_t] Component name hash to save in a packed blob; defaults to zero for unnamed rows.
      * @return result [type:DataResult] LOCKED while the store is locked; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
      */
-    DataResult DataAddRow(HDataStore store, uint64_t type, DataOwnerId owner, const DataValueType* types, const DataValueData* values, uint32_t value_count, DataId* out_id, uint64_t component_id = 0);
-
-    /** Remove a row
-     *
-     * Uses swap removal; other live IDs remain valid. The removed ID becomes stale.
-     * Requires an unlocked store. To remove during traversal, collect DataIds in a
-     * caller-owned reusable buffer and apply removals after the outermost unlock.
-     * Nested value storage is retained
-     * until table/instance reset (replacement payloads) or table destruction (base values).
-     * The caller keeps packed bytes alive while any resource or instance references the blob.
-     *
-     * @param store [type:HDataStore] Store handle.
-     * @param id [type:DataId] ID of the row to remove.
-     * @return result [type:DataResult] LOCKED while the store is locked; otherwise OK on success, or NOT_FOUND for an invalid or stale ID.
-     */
-    DataResult DataRemoveRow(HDataStore store, DataId id);
+    DataResult DataAddRow(HDataStore store, uint64_t type, DataGroupId group, const DataValueType* types, const DataValueData* values, uint32_t value_count, DataId* out_id, uint64_t component_id = 0);
 
     /** Insert decoded rows in bulk
      *
      * Validates the entire batch before adding anything. Value arrays must match the shared metadata. Values and nested trees are
      * copied and retained as reset defaults; output IDs are independent of the input arrays' lifetimes. Successful
-     * insertion requires an unlocked store. Zero count adds nothing.
+     * insertion requires an unlocked store. Zero count returns OK without accessing the store or arrays.
      *
      * @param store [type:HDataStore] Store handle.
      * @param type [type:uint64_t] Independently registered table type hash.
      * @param rows [type:const DataRowDesc*] Array of count row descriptors; may be NULL when count is zero.
      * @param count [type:uint32_t] Number of rows to insert.
-     * @param out_ids [type:DataId*] Array receiving count IDs; may be NULL when count is zero. Unchanged on error.
+     * @param out_ids [type:DataId*] Optional array receiving count IDs on success; unchanged on error.
      * @return result [type:DataResult] LOCKED while the store is locked; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
      */
     DataResult DataAddRows(HDataStore store, uint64_t type, const DataRowDesc* rows, uint32_t count, DataId* out_ids);
-
-    /** Construct rows from one decoded default and strided native scalar overrides.
-     * Defaults are validated/copied once; named paths and kinds bind once per batch.
-     * All inputs must remain valid and disjoint from destination storage through
-     * the call. Only owner/component identity is read from rows. Final values,
-     * including overrides, become each row's reset defaults. Validation failure
-     * publishes no rows and leaves out_ids unchanged. Repeated overrides apply in
-     * input order. Strings/containers come from defaults, not native overrides.
-     */
-    DataResult DataAddRowsFromTemplate(HDataStore store, uint64_t type, const DataRowDesc* defaults, const DataRowOverride* fields, uint32_t field_count, const DataRowDesc* rows, uint32_t count, DataId* out_ids);
 
     /** Reset a field
      *
@@ -864,28 +890,13 @@ extern "C"
      */
     DataResult DataResetField(HDataStore store, DataId id, uint64_t field);
 
-    /** Reset one component row
-     *
-     * Restores all fields, including nested values, to their loaded or added defaults.
-     * Other rows are unaffected, including other components with the same owner or type.
-     * Does not allocate, change IDs or query membership, or invalidate iterators.
-     * Mutable row storage stays in place. Registration/table-owned replacement payloads
-     * remain allocated until DataResetBlob, DataResetTable or table/instance destruction.
-     * Returns LOCKED during query reservations.
-     *
-     * @param store [type:HDataStore] Store containing the component row.
-     * @param id [type:DataId] Component's runtime row ID.
-     * @return result [type:DataResult] OK on success, or NOT_FOUND for an invalid or stale ID.
-     */
-    DataResult DataResetRow(HDataStore store, DataId id);
-
     /** Reset an independently registered table for bulk maintenance
      *
      * Restores every remaining row's fields to their loaded or added values,
-     * then releases all replacement payload blocks. Keeps row IDs, owners and tags unchanged.
+     * then releases all replacement payload blocks. Keeps row IDs, groups and tags unchanged.
      * Does not undo row additions or removals, change query membership or invalidate iterators.
      * Borrowed strings and containers from replacement payload blocks must no longer be used after this call.
-     * This spans owners and is used by benchmark setup. Engine component resets use
+     * This spans groups and is used by benchmark setup. Engine component resets use
      * DataResetRow; a game object's grouped registration uses DataResetBlob.
      *
      * @param store [type:HDataStore] Store handle.
@@ -896,7 +907,7 @@ extern "C"
 
     /** Serialize all tables as one packed component-data blob
      *
-     * Writes type/tag metadata, component IDs and current value trees. Runtime owner
+     * Writes type/tag metadata, component IDs and current value trees. Runtime group
      * IDs, row IDs and reset history are not saved. The header is FOURCC "DMDT" and
      * uint32 version 1. Fixed rows preserve the validated C-compatible layout,
      * including member and trailing padding. One directory addresses every table; all tables and nested
@@ -909,86 +920,6 @@ extern "C"
      * @return result [type:DataResult] OK, BUFFER_TOO_SMALL, INVALID_ARGUMENT for an invalid size/buffer, or LOCKED during query reservations. Buffer is unchanged on errors.
      */
     DataResult DataWriteBlob(HDataStore store, void* buffer, uint32_t buffer_size, uint32_t* out_size);
-
-    /** Load an immutable packed resource
-     *
-     * Validates all tables and borrows the supplied buffer without copying or modifying it.
-     * The input must be eight-byte aligned. Member offsets and row/struct sizes are
-     * validated for C-compatible alignment. The caller keeps the buffer unchanged and alive
-     * until the blob reference and all its registrations have been released.
-     * Loading does not register rows in a store.
-     *
-     * @param buffer [type:const void*] Caller-owned complete packed component-data blob.
-     * @param buffer_size [type:uint32_t] Blob byte size.
-     * @param out_blob [type:HDataBlob*] Receives a caller-owned reference on success; unchanged on error.
-     * @return result [type:DataResult] OK or INVALID_FORMAT for malformed/unsupported data or an unaligned buffer.
-     */
-    DataResult DataLoadBlob(const void* buffer, uint32_t buffer_size, HDataBlob* out_blob);
-
-    /** Release a loaded resource reference
-     *
-     * Resource pools retain a reference while any registrations remain. The last release frees the blob handle,
-     * never the caller's buffer. Does not remove any instance's rows. The caller may
-     * free the buffer after releasing this reference and removing all registrations.
-     *
-     * @param blob [type:HDataBlob] Reference to release; must not be used afterward.
-     */
-    void DataDestroyBlob(HDataBlob blob);
-
-    /** Add every component table for one game object instance
-     *
-     * Registers row IDs and the supplied owner, borrowing shared metadata/defaults
-     * and copying fixed row bytes into shared dense runtime tables. Registrations of
-     * the same loaded resource reuse those tables and query bindings. Different loaded
-     * resources remain separate, even if their layouts match. Strings and dynamic
-     * containers retain blob offsets; no field trees are expanded. Addition requires an unlocked store.
-     * Registration handles and row membership indices use reusable pooled slots.
-     * The first registration includes tables, initial rows and a handle page in one allocation;
-     * later registrations allocate only when shared capacity grows. Store registries and
-     * live query caches may grow separately. Packed arrays split into another pool at their size limit.
-     *
-     * @param store [type:HDataStore] Destination store.
-     * @param blob [type:HDataBlob] Loaded resource to retain.
-     * @param owner [type:DataOwnerId] Runtime game object owner assigned to every added row.
-     * @param out_instance [type:HDataBlobInstance*] Receives the registration handle on success; unchanged on error.
-     * @return result [type:DataResult] OK, LOCKED while the store is locked, or INVALID_ARGUMENT if store capacity would be exceeded. Errors leave the store unchanged.
-     */
-    DataResult DataAddBlob(HDataStore store, HDataBlob blob, DataOwnerId owner, HDataBlobInstance* out_instance);
-
-    /** Remove one instance's complete set of component tables
-     *
-     * Removes its remaining rows, invalidates their IDs, frees its replacement payloads,
-     * and returns the registration slot for reuse. Shared capacity remains while other
-     * registrations use that resource; the last removal frees the pool and its blob reference.
-     * The store also removes its instances automatically when destroyed.
-     *
-     * @param instance [type:HDataBlobInstance] Registration to remove; must not be used after success.
-     * @return result [type:DataResult] OK, or LOCKED while its store is locked (no changes).
-     */
-    DataResult DataRemoveBlob(HDataBlobInstance instance);
-
-    /** Reset a game object's grouped component registration
-     *
-     * Copies loaded values into this registration's remaining mutable rows and frees its replacement payload blocks.
-     * Does not restore removed rows or invalidate iterators. Borrowed replacement payloads expire.
-     * Other registrations are unaffected, even if they share a blob, type or owner ID.
-     * The engine retains this handle when registering a game object's component tables;
-     * no datastore-wide owner search is needed. Independently added rows are not included.
-     *
-     * @param instance [type:HDataBlobInstance] Registration to reset.
-     * @return result [type:DataResult] OK, or LOCKED during query reservations.
-     */
-    DataResult DataResetBlob(HDataBlobInstance instance);
-
-    /** Read a component's prototype-local name hash
-     *
-     * Used by game object integration to associate a runtime row with its component.
-     *
-     * @param store [type:HDataStore] Store containing the row.
-     * @param id [type:DataId] Runtime row ID.
-     * @return component [type:uint64_t] Component name hash, or zero for an invalid/stale row. Zero may also identify an unnamed row.
-     */
-    uint64_t DataGetComponentId(HDataStore store, DataId id);
 }
 
 #endif // DM_DATA_H

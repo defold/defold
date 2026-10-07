@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -15,10 +17,10 @@
 #include "data.h"
 
 // Resolve names during table matching and retain the field metadata/byte offset.
-// Dynamic containers cannot bind paths.
+// Dynamic containers do not expose fixed member offsets.
 static bool ResolveQueryField(const DataTable* table, const DataQueryFieldInfo& field, DataQueryBinding* binding)
 {
-    return ResolveFieldPath(table, field.m_Field, field.m_Type, field.m_Path, field.m_PathCount, &binding->m_Meta);
+    return ResolveField(table, field.m_Field, field.m_Type, &binding->m_Meta);
 }
 
 static DataQueryBinding* AllocateQueryFields(HDataQuery query)
@@ -90,8 +92,8 @@ void UnmatchTable(HDataQuery query, DataTable* table)
 
 static bool SupportsConcurrentWrite(DataValueType type)
 {
-    return type == DATA_VALUE_TYPE_NUMBER || type == DATA_VALUE_TYPE_BOOLEAN ||
-    (type >= DATA_VALUE_TYPE_VECTOR3 && type <= DATA_VALUE_TYPE_MATRIX4);
+    return type == DATA_TYPE_NUMBER || type == DATA_TYPE_BOOLEAN ||
+    (type >= DATA_TYPE_VECTOR3 && type <= DATA_TYPE_MATRIX4);
 }
 
 DataResult DataCreateQuery(HDataStore store, const DataQueryDesc* desc, HDataQuery* out_query)
@@ -99,20 +101,15 @@ DataResult DataCreateQuery(HDataStore store, const DataQueryDesc* desc, HDataQue
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
         return DATA_RESULT_LOCKED;
-    if (desc->m_OwnerIdCount > UINT32_MAX / sizeof(DataOwnerId) || desc->m_AllTagCount > UINT32_MAX / sizeof(uint64_t) ||
+    if (desc->m_GroupIdCount > UINT32_MAX / sizeof(DataGroupId) || desc->m_AllTagCount > UINT32_MAX / sizeof(uint64_t) ||
         desc->m_FieldCount > UINT32_MAX / (sizeof(DataQueryBinding) + sizeof(uint32_t)))
         return DATA_RESULT_INVALID_ARGUMENT;
 
-    uint64_t path_count = 0;
     for (uint32_t i = 0; i < desc->m_FieldCount; ++i)
     {
         const DataQueryField& field = desc->m_Fields[i];
-        if ((uint32_t)field.m_Type > DATA_VALUE_TYPE_MATRIX4 || (uint32_t)field.m_Access > DATA_ACCESS_READ_WRITE ||
-            (field.m_Access == DATA_ACCESS_READ_WRITE && !SupportsConcurrentWrite(field.m_Type)) ||
-            field.m_PathCount > DATA_MAX_NESTING)
-            return DATA_RESULT_INVALID_ARGUMENT;
-        path_count += field.m_PathCount;
-        if (path_count > UINT32_MAX / sizeof(uint64_t))
+        if ((uint32_t)field.m_Type > DATA_TYPE_MATRIX4 || (uint32_t)field.m_Access > DATA_ACCESS_READ_WRITE ||
+            (field.m_Access == DATA_ACCESS_READ_WRITE && !SupportsConcurrentWrite(field.m_Type)))
             return DATA_RESULT_INVALID_ARGUMENT;
     }
 
@@ -123,10 +120,10 @@ DataResult DataCreateQuery(HDataStore store, const DataQueryDesc* desc, HDataQue
     query->m_Revision = 0;
     query->m_RowCount = 0;
     query->m_ActiveSlot = UINT32_MAX;
-    if (desc->m_OwnerIdCount)
+    if (desc->m_GroupIdCount)
     {
-        query->m_Owners.SetCapacity(desc->m_OwnerIdCount);
-        query->m_Owners.PushArray(desc->m_OwnerIds, desc->m_OwnerIdCount);
+        query->m_Groups.SetCapacity(desc->m_GroupIdCount);
+        query->m_Groups.PushArray(desc->m_GroupIds, desc->m_GroupIdCount);
     }
     if (desc->m_AllTagCount)
     {
@@ -136,23 +133,14 @@ DataResult DataCreateQuery(HDataStore store, const DataQueryDesc* desc, HDataQue
     if (desc->m_FieldCount)
     {
         query->m_Fields.SetCapacity(desc->m_FieldCount);
-        query->m_Paths.SetCapacity((uint32_t)path_count);
         for (uint32_t i = 0; i < desc->m_FieldCount; ++i)
         {
             const DataQueryField& input = desc->m_Fields[i];
             DataQueryFieldInfo    field = {
                    .m_Field = input.m_Field,
-                   .m_Path = 0,
                    .m_Type = input.m_Type,
-                   .m_PathCount = (uint16_t)input.m_PathCount,
                    .m_Access = (uint8_t)input.m_Access
             };
-            if (field.m_PathCount)
-            {
-                uint32_t first = query->m_Paths.Size();
-                query->m_Paths.PushArray(input.m_Path, field.m_PathCount);
-                field.m_Path = query->m_Paths.Begin() + first;
-            }
             query->m_Fields.Push(field);
         }
     }
@@ -193,7 +181,7 @@ DataResult DataDestroyQuery(HDataQuery query)
 }
 
 // Distinct read-only queries can run together, including overlapping fields. A
-// tag-only query reads the full row. Owner filters deliberately stay conservative.
+// tag-only query reads the full row. Group filters deliberately stay conservative.
 static bool HasWrites(HDataQuery query)
 {
     for (uint32_t i = 0; i < query->m_Fields.Size(); ++i)
@@ -248,13 +236,13 @@ static void RefreshQueryRanges(HDataQuery query)
         uint32_t         row = 0;
         while (row < count)
         {
-            while (row < count && !MatchesOwner(query, table->m_Rows[row].m_Owner))
+            while (row < count && !MatchesGroup(query, table->m_Rows[row].m_Group))
                 ++row;
             uint32_t first = row;
-            if (query->m_Owners.Empty())
+            if (query->m_Groups.Empty())
                 row = count;
             else
-                while (row < count && MatchesOwner(query, table->m_Rows[row].m_Owner))
+                while (row < count && MatchesGroup(query, table->m_Rows[row].m_Group))
                     ++row;
             if (row != first)
             {
@@ -319,11 +307,11 @@ uint32_t DataQueryFindField(HDataQuery query, const DataQueryField* field)
 {
     switch (field->m_Type)
     {
-        case DATA_VALUE_TYPE_NUMBER:
-        case DATA_VALUE_TYPE_BOOLEAN:
-        case DATA_VALUE_TYPE_VECTOR3:
-        case DATA_VALUE_TYPE_VECTOR4:
-        case DATA_VALUE_TYPE_MATRIX4:
+        case DATA_TYPE_NUMBER:
+        case DATA_TYPE_BOOLEAN:
+        case DATA_TYPE_VECTOR3:
+        case DATA_TYPE_VECTOR4:
+        case DATA_TYPE_MATRIX4:
             break;
         default:
             return UINT32_MAX;
@@ -334,9 +322,7 @@ uint32_t DataQueryFindField(HDataQuery query, const DataQueryField* field)
     {
         const DataQueryFieldInfo& candidate = fields[i];
         if ((uint32_t)field->m_Access <= (uint32_t)candidate.m_Access &&
-            candidate.m_Field == field->m_Field && candidate.m_Type == field->m_Type &&
-            candidate.m_PathCount == field->m_PathCount &&
-            (!field->m_PathCount || !memcmp(candidate.m_Path, field->m_Path, field->m_PathCount * sizeof(uint64_t))))
+            candidate.m_Field == field->m_Field && candidate.m_Type == field->m_Type)
             return i;
     }
     return UINT32_MAX;

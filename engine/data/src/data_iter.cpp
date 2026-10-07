@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -11,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
-#include <string.h>
 #include "data.h"
 
 DataIterator DataQueryIterRange(HDataQuery query, uint32_t first, uint32_t count)
@@ -89,7 +90,7 @@ DataResult DataIterNext(DataIterator* iterator)
         DataTable* table = query->m_Tables[iterator->m_TableIndex].m_Table;
         uint32_t   count = table->m_Rows.Size();
         uint32_t   row = iterator->m_NextRow;
-        if (query->m_Owners.Empty())
+        if (query->m_Groups.Empty())
         {
             iterator->m_StartRow = row;
             iterator->m_Count = count - row;
@@ -97,10 +98,10 @@ DataResult DataIterNext(DataIterator* iterator)
         }
         else
         {
-            while (row < count && !MatchesOwner(query, table->m_Rows[row].m_Owner))
+            while (row < count && !MatchesGroup(query, table->m_Rows[row].m_Group))
                 ++row;
             iterator->m_StartRow = row;
-            while (row < count && MatchesOwner(query, table->m_Rows[row].m_Owner))
+            while (row < count && MatchesGroup(query, table->m_Rows[row].m_Group))
                 ++row;
             iterator->m_Count = row - iterator->m_StartRow;
             iterator->m_NextRow = row;
@@ -143,11 +144,11 @@ DataId DataIterGetId(const DataIterator* iterator, uint32_t row)
     return MakeId(iterator->m_Query->m_Store, ((const DataRow*)iterator->m_Rows)[row].m_Slot);
 }
 
-DataOwnerId DataIterGetOwnerId(const DataIterator* iterator, uint32_t row)
+DataGroupId DataIterGetGroupId(const DataIterator* iterator, uint32_t row)
 {
     if (row >= DataIterGetCount(iterator))
         return 0;
-    return ((const DataRow*)iterator->m_Rows)[row].m_Owner;
+    return ((const DataRow*)iterator->m_Rows)[row].m_Group;
 }
 
 DataResult DataIterGetFieldByHash(const DataIterator* iterator, uint32_t row, uint64_t field, DataValue* out_value)
@@ -181,152 +182,7 @@ DataId DataRowIterGetId(const DataRowIterator* iterator)
     return DataIterGetId(iterator->m_Parent, iterator->m_Index);
 }
 
-DataOwnerId DataRowIterGetOwnerId(const DataRowIterator* iterator)
+DataGroupId DataRowIterGetGroupId(const DataRowIterator* iterator)
 {
-    return DataIterGetOwnerId(iterator->m_Parent, iterator->m_Index);
-}
-
-// Cursors contain indices only. Resolve shared metadata when a caller accesses
-// a value or explicitly asks for its kind/name, never when advancing a cursor.
-static DataQueryBinding GetFieldBinding(const DataFieldIterator* iterator)
-{
-    const DataIterator* batch = iterator->m_Batch;
-    if (batch->m_Fields)
-        return ((const DataQueryBinding*)batch->m_Fields)[iterator->m_Index];
-    DataQueryBinding binding = { .m_Meta = GetFieldMeta((const DataTable*)batch->m_Table, iterator->m_Index) };
-    return binding;
-}
-
-DataValueType DataFieldIterGetType(const DataFieldIterator* iterator)
-{
-    return iterator->m_Index == UINT32_MAX ? DATA_VALUE_TYPE_NULL : GetFieldBinding(iterator).m_Meta.m_Type;
-}
-
-uint64_t DataFieldIterGetNameHash(const DataFieldIterator* iterator)
-{
-    return iterator->m_Index == UINT32_MAX ? 0 : GetFieldBinding(iterator).m_Meta.m_Field;
-}
-
-// Keep the metadata-reading fallback out of the bound getter's stack frame.
-// Requested fields already have bindings and only need direct scalar loads.
-template <DataValueType TYPE>
-#if defined(_MSC_VER)
-__declspec(noinline)
-#else
-__attribute__((noinline))
-#endif
-static DataResult
-GetUnboundTypedField(const DataIterator* batch, const DataRow* row, uint32_t field, void* out_value)
-{
-    const DataTable* table = (const DataTable*)batch->m_Table;
-    return ReadTypedValue<TYPE>(table, row, GetFieldMeta(table, field), out_value);
-}
-
-template <DataValueType TYPE>
-static DataResult GetTypedField(const DataIterator* batch, uint32_t row_index, uint32_t field_index, void* out_value)
-{
-    if (field_index == UINT32_MAX)
-        return DATA_RESULT_INVALID_ARGUMENT;
-
-    const DataRow* row = &((const DataRow*)batch->m_Rows)[row_index];
-    if (!batch->m_Fields)
-        return GetUnboundTypedField<TYPE>(batch, row, field_index, out_value);
-
-    const DataQueryBinding& binding = ((const DataQueryBinding*)batch->m_Fields)[field_index];
-    if (binding.m_Meta.m_Type != TYPE)
-        return DATA_RESULT_INVALID_ARGUMENT;
-
-    const uint8_t* bytes = batch->m_Values + (size_t)row_index * batch->m_RowStride + binding.m_Meta.m_Offset;
-    return CopyTypedValue<TYPE>((const DataTable*)batch->m_Table, bytes, out_value);
-}
-
-static DataResult SetField(const DataFieldIterator* iterator, const DataValue* value)
-{
-    if (iterator->m_Index == UINT32_MAX)
-        return DATA_RESULT_INVALID_ARGUMENT;
-    const DataIterator* batch = iterator->m_Batch;
-    if (batch->m_IsRange && (!batch->m_Fields || batch->m_Query->m_Fields[iterator->m_Index].m_Access != DATA_ACCESS_READ_WRITE))
-        return DATA_RESULT_INVALID_ARGUMENT;
-
-    DataQueryBinding binding = GetFieldBinding(iterator);
-    DataRow*         row = &((DataRow*)batch->m_Rows)[iterator->m_RowIndex];
-    return SetRowField((DataTable*)batch->m_Table, row, binding.m_Meta, value);
-}
-
-DataResult DataFieldGetNumberInternal(const DataIterator* batch, uint32_t row, uint32_t field, double* out_value)
-{
-    return GetTypedField<DATA_VALUE_TYPE_NUMBER>(batch, row, field, out_value);
-}
-
-DataResult DataFieldIterSetNumber(const DataFieldIterator* iterator, double value)
-{
-    DataValue input = {
-        .m_Type = DATA_VALUE_TYPE_NUMBER,
-        .m_Value = { .m_Number = value }
-    };
-    return SetField(iterator, &input);
-}
-
-DataResult DataFieldGetBooleanInternal(const DataIterator* batch, uint32_t row, uint32_t field, uint8_t* out_value)
-{
-    return GetTypedField<DATA_VALUE_TYPE_BOOLEAN>(batch, row, field, out_value);
-}
-
-DataResult DataFieldIterSetBoolean(const DataFieldIterator* iterator, uint8_t value)
-{
-    DataValue input = {
-        .m_Type = DATA_VALUE_TYPE_BOOLEAN,
-        .m_Value = { .m_Boolean = value }
-    };
-    return SetField(iterator, &input);
-}
-
-DataResult DataFieldGetStringInternal(const DataIterator* batch, uint32_t row, uint32_t field, const char** out_value)
-{
-    return GetTypedField<DATA_VALUE_TYPE_STRING>(batch, row, field, out_value);
-}
-
-DataResult DataFieldIterSetString(const DataFieldIterator* iterator, const char* value)
-{
-    DataValue input = {
-        .m_Type = DATA_VALUE_TYPE_STRING,
-        .m_Value = { .m_String = value }
-    };
-    return SetField(iterator, &input);
-}
-
-DataResult DataFieldGetVector3Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector3* out_value)
-{
-    return GetTypedField<DATA_VALUE_TYPE_VECTOR3>(batch, row, field, out_value->m_Values);
-}
-
-DataResult DataFieldIterSetVector3(const DataFieldIterator* iterator, const DataVector3* value)
-{
-    DataValue input = { .m_Type = DATA_VALUE_TYPE_VECTOR3 };
-    memcpy(input.m_Value.m_Vector3, value->m_Values, sizeof(value->m_Values));
-    return SetField(iterator, &input);
-}
-
-DataResult DataFieldGetVector4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataVector4* out_value)
-{
-    return GetTypedField<DATA_VALUE_TYPE_VECTOR4>(batch, row, field, out_value->m_Values);
-}
-
-DataResult DataFieldIterSetVector4(const DataFieldIterator* iterator, const DataVector4* value)
-{
-    DataValue input = { .m_Type = DATA_VALUE_TYPE_VECTOR4 };
-    memcpy(input.m_Value.m_Vector4, value->m_Values, sizeof(value->m_Values));
-    return SetField(iterator, &input);
-}
-
-DataResult DataFieldGetMatrix4Internal(const DataIterator* batch, uint32_t row, uint32_t field, DataMatrix4* out_value)
-{
-    return GetTypedField<DATA_VALUE_TYPE_MATRIX4>(batch, row, field, out_value->m_Values);
-}
-
-DataResult DataFieldIterSetMatrix4(const DataFieldIterator* iterator, const DataMatrix4* value)
-{
-    DataValue input = { .m_Type = DATA_VALUE_TYPE_MATRIX4 };
-    memcpy(input.m_Value.m_Matrix4, value->m_Values, sizeof(value->m_Values));
-    return SetField(iterator, &input);
+    return DataIterGetGroupId(iterator->m_Parent, iterator->m_Index);
 }

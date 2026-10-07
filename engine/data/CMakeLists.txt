@@ -12,13 +12,16 @@ set(DATA_DMSDK_HEADERS
   "${DATA_SRC_DIR}/dmsdk/data/data_types.h"
   "${DATA_SRC_DIR}/dmsdk/data/data_query.h"
   "${DATA_SRC_DIR}/dmsdk/data/data_iter.h"
-  "${DATA_SRC_DIR}/dmsdk/data/data_field.h")
+  "${DATA_SRC_DIR}/dmsdk/data/data_field.h"
+  "${DATA_SRC_DIR}/dmsdk/data/data_table.h"
+  "${DATA_SRC_DIR}/dmsdk/data/data_blob.h")
 
 defold_add_library(data STATIC
   "${DATA_SRC_DIR}/data.cpp"
   "${DATA_SRC_DIR}/data_query.cpp"
   "${DATA_SRC_DIR}/data_iter.cpp"
   "${DATA_SRC_DIR}/data_field.cpp"
+  "${DATA_SRC_DIR}/data_struct.cpp"
   "${DATA_SRC_DIR}/data_io.cpp")
 target_include_directories(data PUBLIC "${DATA_SRC_DIR}")
 defold_target_link_libraries(data "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)

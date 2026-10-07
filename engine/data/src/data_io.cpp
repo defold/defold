@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -22,7 +24,7 @@
 DM_STATIC_ASSERT(sizeof(DataFileHeader) == 8 && offsetof(DataFileHeader, m_Version) == 4, Invalid_data_file_header);
 DM_STATIC_ASSERT(sizeof(DataFileDirectory) == 8 && offsetof(DataFileDirectory, m_StringsOffset) == 4, Invalid_data_file_directory);
 DM_STATIC_ASSERT(sizeof(DataTableHeader) == 24 && offsetof(DataTableHeader, m_TagCount) == 8 && offsetof(DataTableHeader, m_Reserved) == 22, Invalid_data_table_header);
-DM_STATIC_ASSERT(sizeof(DataFileFieldMeta) == 24 && offsetof(DataFileFieldMeta, m_Kind) == 8 && offsetof(DataFileFieldMeta, m_ByteSize) == 20, Invalid_data_file_field_meta);
+DM_STATIC_ASSERT(sizeof(DataFileFieldMeta) == 32 && offsetof(DataFileFieldMeta, m_Kind) == 8 && offsetof(DataFileFieldMeta, m_ByteSize) == 20, Invalid_data_file_field_meta);
 DM_STATIC_ASSERT(sizeof(DataFileContainerHeader) == 8 && offsetof(DataFileContainerHeader, m_Count) == 4, Invalid_data_file_container_header);
 static const uint32_t INVALID_STRING = UINT32_MAX;
 
@@ -95,27 +97,27 @@ static bool AddString(PackedStrings* strings, const char* string)
 
 static uint32_t ChildCount(const DataValue* value)
 {
-    return value->m_Type == DATA_VALUE_TYPE_STRUCT ? value->m_Value.m_Struct.m_Count : value->m_Value.m_List.m_Count;
+    return value->m_Type == DATA_TYPE_STRUCT ? value->m_Value.m_Struct.m_Count : value->m_Value.m_List.m_Count;
 }
 
 static bool IsContainer(DataValueType type)
 {
-    return type == DATA_VALUE_TYPE_STRUCT || type == DATA_VALUE_TYPE_LIST;
+    return type == DATA_TYPE_STRUCT || type == DATA_TYPE_LIST;
 }
 
 static bool IsReference(DataValueType type)
 {
-    return type == DATA_VALUE_TYPE_STRING || IsContainer(type);
+    return type == DATA_TYPE_STRING || IsContainer(type);
 }
 
 static uint64_t ValueSize(const DataValue* value)
 {
-    if (value->m_Type == DATA_VALUE_TYPE_STRING || value->m_Type == DATA_VALUE_TYPE_NULL)
+    if (value->m_Type == DATA_TYPE_STRING || value->m_Type == DATA_TYPE_NULL)
         return 0;
     if (!IsContainer(value->m_Type))
         return DataTypeSize(value->m_Type);
     uint32_t count = ChildCount(value);
-    uint64_t size = sizeof(DataFileContainerHeader) + (uint64_t)count * (value->m_Type == DATA_VALUE_TYPE_STRUCT ? 16 : 8);
+    uint64_t size = sizeof(DataFileContainerHeader) + (uint64_t)count * (value->m_Type == DATA_TYPE_STRUCT ? 16 : 8);
     for (uint32_t i = 0; i < count; ++i)
     {
         DataValue child = GetChildValue(value->m_Type, &value->m_Value, i);
@@ -130,7 +132,7 @@ static uint64_t ValueSize(const DataValue* value)
 
 static bool AddValueStrings(PackedStrings* strings, const DataValue* value)
 {
-    if (value->m_Type == DATA_VALUE_TYPE_STRING)
+    if (value->m_Type == DATA_TYPE_STRING)
         return AddString(strings, value->m_Value.m_String);
     if (IsContainer(value->m_Type))
     {
@@ -146,19 +148,19 @@ static bool AddValueStrings(PackedStrings* strings, const DataValue* value)
 
 static void WriteScalar(const DataValue* value, uint8_t* bytes)
 {
-    if (value->m_Type == DATA_VALUE_TYPE_NUMBER)
+    if (value->m_Type == DATA_TYPE_NUMBER)
     {
         uint64_t bits;
         memcpy(&bits, &value->m_Value.m_Number, 8);
         WriteDataInteger(bytes, bits, 8);
     }
-    else if (value->m_Type == DATA_VALUE_TYPE_BOOLEAN)
+    else if (value->m_Type == DATA_TYPE_BOOLEAN)
         *bytes = value->m_Value.m_Boolean;
-    else if (value->m_Type == DATA_VALUE_TYPE_VECTOR3 || value->m_Type == DATA_VALUE_TYPE_VECTOR4 || value->m_Type == DATA_VALUE_TYPE_MATRIX4)
+    else if (value->m_Type == DATA_TYPE_VECTOR3 || value->m_Type == DATA_TYPE_VECTOR4 || value->m_Type == DATA_TYPE_MATRIX4)
     {
-        const float* values = value->m_Type == DATA_VALUE_TYPE_VECTOR3 ? value->m_Value.m_Vector3 :
-        value->m_Type == DATA_VALUE_TYPE_VECTOR4                       ? value->m_Value.m_Vector4 :
-                                                                         value->m_Value.m_Matrix4;
+        const float* values = value->m_Type == DATA_TYPE_VECTOR3 ? value->m_Value.m_Vector3 :
+        value->m_Type == DATA_TYPE_VECTOR4                       ? value->m_Value.m_Vector4 :
+                                                                   value->m_Value.m_Matrix4;
         for (uint32_t i = 0; i < DataTypeSize(value->m_Type) / 4; ++i)
         {
             uint32_t bits;
@@ -171,12 +173,12 @@ static void WriteScalar(const DataValue* value, uint8_t* bytes)
 // Appends a nested value, writing its absolute offset to a row slot or container index.
 static uint32_t WriteValue(const DataValue* value, uint8_t* file, uint32_t offset, uint8_t* out_offset, uint32_t offset_size, uint32_t string_offset, const PackedStrings* strings)
 {
-    if (value->m_Type == DATA_VALUE_TYPE_NULL)
+    if (value->m_Type == DATA_TYPE_NULL)
     {
         WriteDataInteger(out_offset, 0, offset_size);
         return offset;
     }
-    if (value->m_Type == DATA_VALUE_TYPE_STRING)
+    if (value->m_Type == DATA_TYPE_STRING)
     {
         const char*         string = value->m_Value.m_String;
         uint32_t            size = (uint32_t)strlen(string) + 1;
@@ -195,7 +197,7 @@ static uint32_t WriteValue(const DataValue* value, uint8_t* file, uint32_t offse
     uint32_t start = offset;
     uint8_t* data = file + start;
     uint32_t count = ChildCount(value);
-    bool     named = value->m_Type == DATA_VALUE_TYPE_STRUCT;
+    bool     named = value->m_Type == DATA_TYPE_STRUCT;
     uint32_t types = sizeof(DataFileContainerHeader) + (named ? count * 8 : 0);
     uint32_t offsets = types + count * 4;
     offset += offsets + count * 4;
@@ -235,7 +237,7 @@ static uint32_t WriteField(const DataTable* table, const DataFieldMeta& meta, co
         {
             DataFieldMeta member = GetFieldMeta(table, meta.m_ChildIndex + i);
             DataValue     child = GetChildValue(value->m_Type, &value->m_Value, i);
-            offset = WriteField(table, member, &child, field + member.m_Offset, file, offset, strings_offset, strings);
+            offset = WriteField(table, member, &child, field + (member.m_Offset - meta.m_Offset), file, offset, strings_offset, strings);
         }
     }
     else if (IsReference(value->m_Type))
@@ -320,6 +322,7 @@ DataResult DataWriteBlob(HDataStore store, void* buffer, uint32_t buffer_size, u
             WriteDataInteger(field + offsetof(DataFileFieldMeta, m_ChildIndex), meta.m_ChildIndex, 2);
             WriteDataInteger(field + offsetof(DataFileFieldMeta, m_ChildCount), meta.m_ChildCount, 2);
             WriteDataInteger(field + offsetof(DataFileFieldMeta, m_ByteSize), meta.m_Size, 4);
+            WriteDataInteger(field + offsetof(DataFileFieldMeta, m_MemberNameHash), meta.m_Name, 8);
         }
 
         data += table->m_MetadataCount * DATA_FIELD_META_SIZE;
@@ -350,9 +353,9 @@ DataResult DataWriteBlob(HDataStore store, void* buffer, uint32_t buffer_size, u
 
 static bool ValidateValue(const uint8_t* file, uint32_t file_size, DataValueType type, uint32_t value_offset, uint64_t* cursor, uint32_t end, uint32_t strings, uint32_t* next_string, uint32_t depth)
 {
-    if (type == DATA_VALUE_TYPE_NULL)
+    if (type == DATA_TYPE_NULL)
         return value_offset == 0;
-    if (type == DATA_VALUE_TYPE_STRING)
+    if (type == DATA_TYPE_STRING)
     {
         if (value_offset < strings || value_offset >= file_size || value_offset > *next_string ||
             (value_offset != strings && file[value_offset - 1] != 0))
@@ -372,7 +375,7 @@ static bool ValidateValue(const uint8_t* file, uint32_t file_size, DataValueType
         return false;
     if (!IsContainer(type))
     {
-        if (type == DATA_VALUE_TYPE_BOOLEAN && file[value_offset] > 1)
+        if (type == DATA_TYPE_BOOLEAN && file[value_offset] > 1)
             return false;
         *cursor += size;
         return true;
@@ -382,7 +385,7 @@ static bool ValidateValue(const uint8_t* file, uint32_t file_size, DataValueType
     const uint8_t* data = file + value_offset;
     size = (uint32_t)ReadDataInteger(data + offsetof(DataFileContainerHeader, m_ByteSize), 4);
     uint32_t count = (uint32_t)ReadDataInteger(data + offsetof(DataFileContainerHeader, m_Count), 4);
-    bool     named = type == DATA_VALUE_TYPE_STRUCT;
+    bool     named = type == DATA_TYPE_STRUCT;
     uint64_t types = sizeof(DataFileContainerHeader) + (named ? (uint64_t)count * 8 : 0);
     uint64_t offsets = types + (uint64_t)count * 4;
     uint64_t child_cursor = offsets + (uint64_t)count * 4;
@@ -411,7 +414,7 @@ static bool ValidateValue(const uint8_t* file, uint32_t file_size, DataValueType
 
 // Child ranges follow their parent ranges in construction order. Validating this
 // canonical tree rejects cycles/aliases and lets all runtime access trust offsets.
-static bool ValidateLayout(const uint8_t* metadata, uint32_t total, uint32_t first, uint32_t count, uint32_t size, uint32_t* cursor, uint32_t depth, uint32_t* out_alignment)
+static bool ValidateLayout(const uint8_t* metadata, uint32_t total, uint32_t first, uint32_t count, uint32_t base_offset, uint32_t size, uint32_t* cursor, uint32_t depth, uint32_t* out_alignment)
 {
     if (depth > DATA_MAX_NESTING || first > total || count > total - first)
         return false;
@@ -421,14 +424,14 @@ static bool ValidateLayout(const uint8_t* metadata, uint32_t total, uint32_t fir
         DataFieldMeta meta = ReadFileFieldMeta(metadata, first + i);
         uint32_t      field_size = DataTypeSize(meta.m_Type);
         uint32_t      field_alignment = DataTypeAlignment(meta.m_Type);
-        if (field_size == UINT32_MAX || meta.m_Offset > size || meta.m_Size > size - meta.m_Offset)
+        if (field_size == UINT32_MAX || meta.m_Offset < base_offset || meta.m_Offset - base_offset > size || meta.m_Size > size - (meta.m_Offset - base_offset))
             return false;
         if (meta.m_ChildIndex)
         {
-            if (meta.m_Type != DATA_VALUE_TYPE_STRUCT || meta.m_ChildIndex != *cursor || *cursor > total || meta.m_ChildCount > total - *cursor)
+            if (meta.m_Type != DATA_TYPE_STRUCT || meta.m_ChildIndex != *cursor || *cursor > total || meta.m_ChildCount > total - *cursor)
                 return false;
             *cursor += meta.m_ChildCount;
-            if (!ValidateLayout(metadata, total, meta.m_ChildIndex, meta.m_ChildCount, meta.m_Size, cursor, depth + 1, &field_alignment))
+            if (!ValidateLayout(metadata, total, meta.m_ChildIndex, meta.m_ChildCount, meta.m_Offset, meta.m_Size, cursor, depth + 1, &field_alignment))
                 return false;
         }
         else if (meta.m_ChildCount || meta.m_Size != field_size)
@@ -440,7 +443,7 @@ static bool ValidateLayout(const uint8_t* metadata, uint32_t total, uint32_t fir
         for (uint32_t j = 0; j < i; ++j)
         {
             DataFieldMeta other = ReadFileFieldMeta(metadata, first + j);
-            if (other.m_Field == meta.m_Field || (meta.m_Size && other.m_Size && meta.m_Offset < other.m_Offset + other.m_Size && other.m_Offset < meta.m_Offset + meta.m_Size))
+            if (other.m_Field == meta.m_Field || other.m_Name == meta.m_Name || (meta.m_Size && other.m_Size && meta.m_Offset < other.m_Offset + other.m_Size && other.m_Offset < meta.m_Offset + meta.m_Size))
                 return false;
         }
     }
@@ -457,12 +460,12 @@ static bool ValidateField(const uint8_t* file, uint32_t size, const uint8_t* met
         for (uint32_t i = 0; i < meta.m_ChildCount; ++i)
         {
             DataFieldMeta child = ReadFileFieldMeta(metadata, meta.m_ChildIndex + i);
-            if (!ValidateField(file, size, metadata, child, field + child.m_Offset, cursor, end, strings, next_string, depth + 1))
+            if (!ValidateField(file, size, metadata, child, field + (child.m_Offset - meta.m_Offset), cursor, end, strings, next_string, depth + 1))
                 return false;
         }
         return true;
     }
-    if (meta.m_Type == DATA_VALUE_TYPE_BOOLEAN && *field > 1)
+    if (meta.m_Type == DATA_TYPE_BOOLEAN && *field > 1)
         return false;
     if (IsReference(meta.m_Type))
     {
@@ -485,6 +488,7 @@ static bool ValidateBlob(const uint8_t* file, uint32_t size, uint32_t* out_rows)
 
     uint64_t total_rows = 0;
     uint32_t next_string = strings;
+    dmArray<uint64_t> name_scratch;
     for (uint32_t t = 0; t < tables; ++t)
     {
         uint32_t end = t + 1 < tables ? (uint32_t)ReadDataInteger(file + DATA_TABLE_OFFSETS_OFFSET + (t + 1) * 4, 4) : strings;
@@ -507,7 +511,9 @@ static bool ValidateBlob(const uint8_t* file, uint32_t size, uint32_t* out_rows)
         const uint8_t* metadata = table + DATA_TABLE_HEADER_SIZE + (size_t)tags * 8;
         uint32_t       metadata_cursor = field_count;
         uint32_t       alignment;
-        if (!ValidateLayout(metadata, metadata_count, 0, field_count, stride, &metadata_cursor, 0, &alignment) || metadata_cursor != metadata_count)
+        if (!ValidateLayout(metadata, metadata_count, 0, field_count, 0, stride, &metadata_cursor, 0, &alignment) || metadata_cursor != metadata_count)
+            return false;
+        if (metadata_count > field_count && !ValidateFieldNames(metadata, metadata_count, name_scratch))
             return false;
         cursor = values_end;
         for (uint32_t r = 0; r < rows; ++r)

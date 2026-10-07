@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -17,6 +19,7 @@
 #include <dlib/jobsystem.h>
 #include <dlib/time.h>
 #include "../data.h"
+#include <dlib/hash.h>
 
 #ifndef DM_SANITIZE_THREAD
 #error Threading tests must be built and run with WITH_TSAN=ON
@@ -31,22 +34,31 @@ struct ThreadFixture
     DataId     m_Ids[12];
 };
 
+struct StructReadTask
+{
+    HDataQuery m_Query;
+    uint32_t   m_First;
+    uint32_t   m_Count;
+    double     m_Total;
+    DataResult m_Result;
+};
+
 static ThreadFixture CreateFixture()
 {
     ThreadFixture fixture = {};
     fixture.m_Store = DataCreateStore();
-    DataFieldDesc       light_fields[] = { { COLOR, DATA_VALUE_TYPE_VECTOR3, 0, 0 }, { INTENSITY, DATA_VALUE_TYPE_NUMBER, 16, 0 } };
+    DataFieldDesc       light_fields[] = { { .m_Field = COLOR, .m_Type = DATA_TYPE_VECTOR3, .m_Name = "color" }, { .m_Field = INTENSITY, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 16, .m_Name = "intensity" } };
     DataStructDesc      light = { light_fields, 2, 24 };
-    DataFieldDesc       fields[] = { { HEALTH, DATA_VALUE_TYPE_NUMBER, 0, 0 }, { POSITION, DATA_VALUE_TYPE_VECTOR3, 8, 0 }, { LIGHT, DATA_VALUE_TYPE_STRUCT, 24, &light } };
-    const DataValueType child_types[] = { DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_NUMBER };
+    DataFieldDesc       fields[] = { { HEALTH, DATA_TYPE_NUMBER, 0, 0 }, { POSITION, DATA_TYPE_VECTOR3, 8, 0 }, { .m_Field = LIGHT, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 24, .m_Struct = &light, .m_Name = "light" } };
+    const DataValueType child_types[] = { DATA_TYPE_VECTOR3, DATA_TYPE_NUMBER };
     DataValueData       children[2] = {};
     uint64_t            names[] = { COLOR, INTENSITY };
-    const DataValueType types[] = { DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_STRUCT };
+    const DataValueType types[] = { DATA_TYPE_NUMBER, DATA_TYPE_VECTOR3, DATA_TYPE_STRUCT };
     DataValueData       values[3] = {};
     values[0].m_Number = 50;
-    values[2].m_Struct.m_Names = names;
-    values[2].m_Struct.m_Types = child_types;
-    values[2].m_Struct.m_Values = children;
+    values[2].m_Struct.m_Array.m_Names = names;
+    values[2].m_Struct.m_Array.m_Types = child_types;
+    values[2].m_Struct.m_Array.m_Values = children;
     values[2].m_Struct.m_Count = 2;
     for (uint32_t t = 0; t < 2; ++t)
     {
@@ -57,7 +69,7 @@ static ThreadFixture CreateFixture()
         DataRowDesc rows[6] = {};
         for (uint32_t r = 0; r < 6; ++r)
         {
-            rows[r].m_Owner = r % 2;
+            rows[r].m_Group = r % 2;
             rows[r].m_Types = types;
             rows[r].m_Values = values;
             rows[r].m_ValueCount = 3;
@@ -67,9 +79,9 @@ static ThreadFixture CreateFixture()
     return fixture;
 }
 
-static HDataQuery Query(HDataStore store, uint64_t field_hash, DataValueType type, DataAccess access, const uint64_t* path = 0)
+static HDataQuery Query(HDataStore store, uint64_t field_hash, DataValueType type, DataAccess access)
 {
-    DataQueryField field = { field_hash, type, path, path ? 1u : 0u, access };
+    DataQueryField field = { .m_Field = field_hash, .m_Type = type, .m_Access = access };
     DataQueryDesc  desc = { 0, 0, 0, 0, &field, 1 };
     HDataQuery     query = 0;
     EXPECT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
@@ -101,10 +113,10 @@ static DataResult TryFromWorker(HDataQuery query)
 TEST(DataThreaded, ConflictsIndependentFieldsAndRelease)
 {
     ThreadFixture fixture = CreateFixture();
-    HDataQuery    explosion = Query(fixture.m_Store, HEALTH, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ_WRITE);
-    HDataQuery    regenerate = Query(fixture.m_Store, HEALTH, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ_WRITE);
-    HDataQuery    reader = Query(fixture.m_Store, HEALTH, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ);
-    HDataQuery    movement = Query(fixture.m_Store, POSITION, DATA_VALUE_TYPE_VECTOR3, DATA_ACCESS_READ_WRITE);
+    HDataQuery    explosion = Query(fixture.m_Store, HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE);
+    HDataQuery    regenerate = Query(fixture.m_Store, HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE);
+    HDataQuery    reader = Query(fixture.m_Store, HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ);
+    HDataQuery    movement = Query(fixture.m_Store, POSITION, DATA_TYPE_VECTOR3, DATA_ACCESS_READ_WRITE);
     HDataQuery    queries[] = { explosion, regenerate, reader, movement };
     for (uint32_t first = 0; first < 2; ++first)
     {
@@ -122,15 +134,15 @@ TEST(DataThreaded, ConflictsIndependentFieldsAndRelease)
     }
     ASSERT_EQ(DATA_RESULT_OK, DataQueryTryBegin(reader));
     ASSERT_EQ(DATA_RESULT_BUSY, TryFromWorker(reader));
-    DataQueryField writable = { HEALTH, DATA_VALUE_TYPE_NUMBER, 0, 0, DATA_ACCESS_READ_WRITE };
+    DataQueryField writable = { HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE };
     ASSERT_EQ(UINT32_MAX, DataQueryFindField(reader, &writable));
     DataIterator it = DataQueryIterRange(reader, 0, 1);
     ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
     DataRowIterator row = DataIterRows(&it);
     ASSERT_EQ(DATA_RESULT_OK, DataRowIterNext(&row));
-    DataFieldIterator field = DataRowIterFields(&row);
-    ASSERT_EQ(DATA_RESULT_OK, DataFieldIterNext(&field));
-    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataFieldIterSetNumber(&field, 1));
+    DataQueryField readable = { .m_Field = HEALTH, .m_Type = DATA_TYPE_NUMBER };
+    uint32_t       health = DataQueryFindField(reader, &readable);
+    ASSERT_EQ(50.0, *DataRowIterGetNumber(&row, health));
     DataQueryEnd(reader);
     DataStoreLock(fixture.m_Store);
     ASSERT_EQ(DATA_RESULT_BUSY, TryFromWorker(reader));
@@ -144,9 +156,9 @@ TEST(DataThreaded, ReadOnlyAndEmptyQueryReservations)
 {
     ThreadFixture fixture = CreateFixture();
     HDataQuery    queries[] = {
-        Query(fixture.m_Store, HEALTH, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ),
-        Query(fixture.m_Store, HEALTH, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ),
-        Query(fixture.m_Store, 999, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ)
+        Query(fixture.m_Store, HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ),
+        Query(fixture.m_Store, HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ),
+        Query(fixture.m_Store, 999, DATA_TYPE_NUMBER, DATA_ACCESS_READ)
     };
     for (uint32_t i = 0; i < 3; ++i)
     {
@@ -177,8 +189,8 @@ TEST(DataThreaded, ActiveQueryPoolGrowthAndReuse)
     ThreadFixture fixture = CreateFixture();
     HDataQuery    readers[40];
     for (uint32_t i = 0; i < 40; ++i)
-        readers[i] = Query(fixture.m_Store, HEALTH, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ);
-    HDataQuery writer = Query(fixture.m_Store, HEALTH, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ_WRITE);
+        readers[i] = Query(fixture.m_Store, HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ);
+    HDataQuery writer = Query(fixture.m_Store, HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE);
 
     for (uint32_t pass = 0; pass < 2; ++pass)
     {
@@ -209,10 +221,9 @@ TEST(DataThreaded, ActiveQueryPoolGrowthAndReuse)
 TEST(DataThreaded, NestedRangesAndWholeRows)
 {
     ThreadFixture fixture = CreateFixture();
-    uint64_t      color = COLOR, intensity = INTENSITY;
-    HDataQuery    parent = Query(fixture.m_Store, LIGHT, DATA_VALUE_TYPE_STRUCT, DATA_ACCESS_READ);
-    HDataQuery    child = Query(fixture.m_Store, LIGHT, DATA_VALUE_TYPE_VECTOR3, DATA_ACCESS_READ_WRITE, &color);
-    HDataQuery    sibling = Query(fixture.m_Store, LIGHT, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ_WRITE, &intensity);
+    HDataQuery    parent = Query(fixture.m_Store, LIGHT, DATA_TYPE_STRUCT, DATA_ACCESS_READ);
+    HDataQuery    child = Query(fixture.m_Store, dmHashString64("light.color"), DATA_TYPE_VECTOR3, DATA_ACCESS_READ_WRITE);
+    HDataQuery    sibling = Query(fixture.m_Store, dmHashString64("light.intensity"), DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE);
     HDataQuery    whole;
     DataQueryDesc desc = {};
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(fixture.m_Store, &desc, &whole));
@@ -230,9 +241,9 @@ TEST(DataThreaded, NestedRangesAndWholeRows)
 TEST(DataThreaded, RangesCoverOwnerFilteredRowsAndRefreshAfterMutation)
 {
     ThreadFixture  fixture = CreateFixture();
-    DataOwnerId    owner = 1;
-    DataQueryField field = { HEALTH, DATA_VALUE_TYPE_NUMBER };
-    DataQueryDesc  desc = { &owner, 1, 0, 0, &field, 1 };
+    DataGroupId    group = 1;
+    DataQueryField field = { HEALTH, DATA_TYPE_NUMBER };
+    DataQueryDesc  desc = { &group, 1, 0, 0, &field, 1 };
     HDataQuery     query;
     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(fixture.m_Store, &desc, &query));
     for (uint32_t phase = 0; phase < 2; ++phase)
@@ -249,7 +260,7 @@ TEST(DataThreaded, RangesCoverOwnerFilteredRowsAndRefreshAfterMutation)
                 DataRowIterator rows = DataIterRows(&it);
                 while (DataRowIterNext(&rows) == DATA_RESULT_OK)
                 {
-                    ASSERT_EQ(owner, DataRowIterGetOwnerId(&rows));
+                    ASSERT_EQ(group, DataRowIterGetGroupId(&rows));
                     DataId   id = DataRowIterGetId(&rows);
                     uint32_t index = 0;
                     while (index < 12 && fixture.m_Ids[index] != id)
@@ -278,13 +289,16 @@ struct MutationAttempt
 {
     HDataStore m_Store;
     DataId     m_Id;
-    DataResult m_Remove, m_CreateQuery, m_DestroyStore;
+    DataResult m_Remove, m_CreateRows, m_CreateQuery, m_DestroyStore;
 };
 
 static void MutateOnThread(void* context)
 {
     MutationAttempt* attempt = (MutationAttempt*)context;
     attempt->m_Remove = DataRemoveRow(attempt->m_Store, attempt->m_Id);
+    uint64_t values[6] = {};
+    DataId   id;
+    attempt->m_CreateRows = DataCreateRows(attempt->m_Store, 100, 2, 1, values, &id);
     HDataQuery    query = 0;
     DataQueryDesc desc = {};
     attempt->m_CreateQuery = DataCreateQuery(attempt->m_Store, &desc, &query);
@@ -294,12 +308,12 @@ static void MutateOnThread(void* context)
 TEST(DataThreaded, MutationExclusionAndConservativeOwnerReservations)
 {
     ThreadFixture  fixture = CreateFixture();
-    DataQueryField field = { HEALTH, DATA_VALUE_TYPE_NUMBER, 0, 0, DATA_ACCESS_READ_WRITE };
-    DataOwnerId    owners[] = { 0, 1 };
+    DataQueryField field = { HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE };
+    DataGroupId    groups[] = { 0, 1 };
     HDataQuery     queries[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
-        DataQueryDesc desc = { &owners[i], 1, 0, 0, &field, 1 };
+        DataQueryDesc desc = { &groups[i], 1, 0, 0, &field, 1 };
         ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(fixture.m_Store, &desc, &queries[i]));
     }
     ASSERT_EQ(DATA_RESULT_OK, DataQueryTryBegin(queries[0]));
@@ -308,13 +322,14 @@ TEST(DataThreaded, MutationExclusionAndConservativeOwnerReservations)
     dmThread::Thread worker = dmThread::New(MutateOnThread, 0x80000, &attempt, "data-mutate");
     dmThread::Join(worker);
     ASSERT_EQ(DATA_RESULT_LOCKED, attempt.m_Remove);
+    ASSERT_EQ(DATA_RESULT_LOCKED, attempt.m_CreateRows);
     ASSERT_EQ(DATA_RESULT_LOCKED, attempt.m_CreateQuery);
     ASSERT_EQ(DATA_RESULT_LOCKED, attempt.m_DestroyStore);
     DataQueryEnd(queries[0]);
     ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(fixture.m_Store, fixture.m_Ids[0]));
     for (uint32_t i = 0; i < 2; ++i)
         ASSERT_EQ(DATA_RESULT_OK, DataDestroyQuery(queries[i]));
-    DataQueryField invalid = { LIGHT, DATA_VALUE_TYPE_STRUCT, 0, 0, DATA_ACCESS_READ_WRITE };
+    DataQueryField invalid = { LIGHT, DATA_TYPE_STRUCT, DATA_ACCESS_READ_WRITE };
     DataQueryDesc  desc = { 0, 0, 0, 0, &invalid, 1 };
     HDataQuery     query = 0;
     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(fixture.m_Store, &desc, &query));
@@ -364,8 +379,8 @@ TEST(DataThreaded, SimultaneousBeginsAdmitExactlyOne)
 {
     ThreadFixture fixture = CreateFixture();
     HDataQuery    queries[] = {
-        Query(fixture.m_Store, HEALTH, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ_WRITE),
-        Query(fixture.m_Store, HEALTH, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ)
+        Query(fixture.m_Store, HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE),
+        Query(fixture.m_Store, HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ)
     };
     for (uint32_t pass = 0; pass < 32; ++pass)
     {
@@ -434,8 +449,8 @@ TEST(DataThreaded, JobRangesWithOneTwoFourEightWorkers)
     for (uint32_t workers = 1; workers <= 8; workers *= 2)
     {
         ThreadFixture         fixture = CreateFixture();
-        HDataQuery            query = Query(fixture.m_Store, HEALTH, DATA_VALUE_TYPE_NUMBER, DATA_ACCESS_READ_WRITE);
-        DataQueryField        requested_field = { .m_Field = HEALTH, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Access = DATA_ACCESS_READ_WRITE };
+        HDataQuery            query = Query(fixture.m_Store, HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE);
+        DataQueryField        requested_field = { .m_Field = HEALTH, .m_Type = DATA_TYPE_NUMBER, .m_Access = DATA_ACCESS_READ_WRITE };
         uint32_t              field = DataQueryFindField(query, &requested_field);
         JobSystemCreateParams params = { "data-test", (uint8_t)workers };
         HJobContext           jobs = JobSystemCreate(&params);
@@ -525,4 +540,68 @@ TEST(DataThreaded, ConcurrentBatchReadersWithCallerSynchronization)
     }
     DataStoreUnlock(fixture.m_Store);
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(fixture.m_Store));
+}
+
+static void ReadStructRows(void* context)
+{
+    StructReadTask* task = (StructReadTask*)context;
+    for (uint32_t repeat = 0; repeat < 100; ++repeat)
+    {
+        DataIterator iterator = DataQueryIterRange(task->m_Query, task->m_First, task->m_Count);
+        while (DataIterNext(&iterator) == DATA_RESULT_OK)
+        {
+            for (uint32_t row = 0; row < iterator.m_Count; ++row)
+            {
+                DataValue object, value;
+                task->m_Result = DataIterGetField(&iterator, row, 0, &object);
+                if (task->m_Result != DATA_RESULT_OK)
+                    return;
+                task->m_Result = DataGetStructField(&object.m_Value.m_Struct, HEALTH, &value);
+                if (task->m_Result != DATA_RESULT_OK)
+                    return;
+                task->m_Total += value.m_Value.m_Number;
+            }
+        }
+    }
+}
+
+TEST(DataThreaded, OwnedStructRowsRemainStableDuringQueryJobs)
+{
+    HDataStore    store = DataCreateStore();
+    DataFieldDesc field = { .m_Field = 10, .m_Type = DATA_TYPE_STRUCT };
+    DataTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
+    ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &desc));
+    DataFieldDesc   health = { .m_Field = HEALTH, .m_Type = DATA_TYPE_NUMBER };
+    DataStructDesc  layout = { .m_Fields = &health, .m_FieldCount = 1, .m_Size = 8 };
+    double          value = 10;
+    DataStructInput input = { .m_Layout = &layout, .m_Values = &value };
+    DataReference   rows[128];
+    DataId          ids[128];
+    for (uint32_t i = 0; i < 128; ++i)
+        rows[i].m_Struct = &input;
+    ASSERT_EQ(DATA_RESULT_OK, DataCreateRows(store, 1, 0, 128, rows, ids));
+    HDataQuery query = Query(store, 10, DATA_TYPE_STRUCT, DATA_ACCESS_READ);
+    ASSERT_EQ(DATA_RESULT_OK, DataQueryTryBegin(query));
+    StructReadTask   tasks[4];
+    dmThread::Thread threads[4];
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        tasks[i] = { .m_Query = query, .m_First = i * 32, .m_Count = 32 };
+        threads[i] = dmThread::New(ReadStructRows, 0x80000, &tasks[i], "data-struct-read");
+    }
+    ASSERT_EQ(DATA_RESULT_LOCKED, DataRemoveRow(store, ids[0]));
+    ASSERT_EQ(DATA_RESULT_LOCKED, DataResetRow(store, ids[0]));
+    ASSERT_EQ(DATA_RESULT_LOCKED, DataCreateRows(store, 1, 0, 128, rows, 0));
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmThread::Join(threads[i]);
+        ASSERT_EQ(DATA_RESULT_OK, tasks[i].m_Result);
+        ASSERT_EQ(32000.0, tasks[i].m_Total);
+    }
+    DataQueryEnd(query);
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyQuery(query));
+    for (uint32_t i = 0; i < 128; ++i)
+        ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(store, ids[i]));
+    ASSERT_EQ(0u, FindTable(store, 1)->m_Structs->m_Tables[0]->m_RowCount);
+    ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
 }
