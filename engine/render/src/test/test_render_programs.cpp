@@ -152,6 +152,40 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
+// Verifies normalized particle colors reduce the declaration stride while shaders retain vec4 inputs.
+TEST_F(dmRenderMaterialTest, NormalizedParticleColorDeclaration)
+{
+    for (uint32_t paged = 0; paged < 2; ++paged)
+    {
+        dmGraphics::ShaderDescBuilder builder;
+        builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "texcoord0", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2);
+        builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "color", 2, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        if (paged)
+            builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "page_index", 3, dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
+        dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+        dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+        ASSERT_EQ(40u + paged * 4, dmGraphics::GetVertexDeclarationStride(dmRender::GetVertexDeclaration(material)));
+
+        dmGraphics::VertexAttribute color = {};
+        color.m_NameHash = dmHashString64("color");
+        color.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
+        color.m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+        color.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+        color.m_Normalize = true;
+        dmRender::SetMaterialProgramAttributes(material, &color, 1);
+        dmGraphics::VertexDeclaration* declaration = (dmGraphics::VertexDeclaration*) dmRender::GetVertexDeclaration(material);
+        ASSERT_EQ(28u + paged * 4, dmGraphics::GetVertexDeclarationStride(declaration));
+        ASSERT_EQ(dmGraphics::TYPE_UNSIGNED_BYTE, declaration->m_Streams[2].m_Type);
+        ASSERT_EQ(4u, declaration->m_Streams[2].m_Size);
+        ASSERT_TRUE(declaration->m_Streams[2].m_Normalize);
+        dmRender::DeleteMaterial(m_RenderContext, material);
+        dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    }
+}
+
 TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
 {
     const char* vs_src = \

@@ -150,15 +150,7 @@ namespace dmGameSystem
         world->m_ConstantBuffers.SetSize(max_emitter_count);
         memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*max_emitter_count);
 
-        // position   : 3
-        // color      : 4
-        // texcoord0  : 2
-        // page_index : 1
-        const uint32_t particle_buffer_count = dmMath::Min(ctx->m_MaxParticleBufferCount, ctx->m_MaxParticleCount);
-        const uint32_t default_vx_size       = sizeof(float) * (3 + 4 + 2 + 1);
-        const uint32_t buffer_size           = particle_buffer_count * VERTEX_COUNT * default_vx_size;
-        world->m_VertexBufferData.SetCapacity(buffer_size);
-        world->m_VertexBufferData.SetSize(buffer_size);
+        // Allocate the CPU scratch buffer from the actual material stride in RenderBatch.
         world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         world->m_VertexBufferSize = 0;
 
