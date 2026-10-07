@@ -647,9 +647,15 @@ static void ApplyBaseStyle(HTextLayout layout)
         const TextResolvedSpan original = layout->m_ResolvedSpans[i];
         TextResolvedSpan       span = original;
         span.m_EffectIndex = (uint16_t)layout->m_SpanEffects.Size();
-        span.m_EffectCount += effect_count;
+        const bool inline_color = (layout->m_StyleOverrideFlags[original.m_StyleIndex] & TEXT_RENDER_STYLE_FACE_COLOR) != 0;
+        // Inline colors replace base gradients, while other inherited effects remain active.
         for (uint32_t j = 0; j < effect_count; ++j)
+        {
+            if (inline_color && layout->m_Effects[effect_start + j].m_Type == TEXT_EFFECT_GRADIENT)
+                continue;
             layout->m_SpanEffects.Push((uint16_t)(effect_start + j));
+            ++span.m_EffectCount;
+        }
         for (uint32_t j = 0; j < original.m_EffectCount; ++j)
             layout->m_SpanEffects.Push(layout->m_SpanEffects[original.m_EffectIndex + j]);
         layout->m_ResolvedSpans.Push(span);
@@ -785,7 +791,8 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
             glyph.m_StyleIndex = style_index;
         }
 
-        if (object_style.m_EffectCount != 0 || object_style.m_Decoration.m_Flags != 0)
+        if (object_style.m_EffectCount != 0 || object_style.m_Decoration.m_Flags != 0 ||
+            (object_style.m_Style.m_Flags & TEXT_RENDER_STYLE_FACE_COLOR))
         {
             if (previous_span == glyph.m_MarkupSpanIndex && previous_object == object_index)
             {
@@ -798,6 +805,24 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
             {
                 span = layout->m_ResolvedSpans[glyph.m_MarkupSpanIndex];
             }
+            const uint32_t inline_count = glyph.m_BaseMarkupSpanIndex < layout->m_BaseResolvedSpanCount
+                                          ? layout->m_ResolvedSpans[glyph.m_BaseMarkupSpanIndex].m_EffectCount : 0;
+            const uint32_t base_count = span.m_EffectCount - inline_count;
+            // Solid colors only need a new span when they remove an inherited gradient.
+            if (object_style.m_EffectCount == 0 && object_style.m_Decoration.m_Flags == 0)
+            {
+                bool has_base_gradient = false;
+                for (uint32_t i = 0; i < base_count; ++i)
+                {
+                    if (layout->m_Effects[layout->m_SpanEffects[span.m_EffectIndex + i]].m_Type == TEXT_EFFECT_GRADIENT)
+                    {
+                        has_base_gradient = true;
+                        break;
+                    }
+                }
+                if (!has_base_gradient)
+                    continue;
+            }
             if (layout->m_ResolvedSpans.Size() == MARKUP_INVALID_INDEX ||
                 layout->m_SpanEffects.Size() + span.m_EffectCount + object_style.m_EffectCount > MARKUP_INVALID_INDEX)
             {
@@ -805,17 +830,25 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
             }
 
             const uint32_t effect_start = layout->m_SpanEffects.Size();
-            const uint32_t inline_count = glyph.m_BaseMarkupSpanIndex < layout->m_BaseResolvedSpanCount
-                                          ? layout->m_ResolvedSpans[glyph.m_BaseMarkupSpanIndex].m_EffectCount : 0;
-            const uint32_t base_count = span.m_EffectCount - inline_count;
+            const bool inline_color = (layout->m_StyleOverrideFlags[glyph.m_BaseStyleIndex] & TEXT_RENDER_STYLE_FACE_COLOR) != 0;
+            const bool object_color = (object_style.m_Style.m_Flags & TEXT_RENDER_STYLE_FACE_COLOR) != 0;
             if (layout->m_SpanEffects.Remaining() < span.m_EffectCount + object_style.m_EffectCount)
             {
                 layout->m_SpanEffects.OffsetCapacity(span.m_EffectCount + object_style.m_EffectCount);
             }
             for (uint32_t i = 0; i < base_count; ++i)
-                layout->m_SpanEffects.Push(layout->m_SpanEffects[span.m_EffectIndex + i]);
+            {
+                const uint16_t effect_index = layout->m_SpanEffects[span.m_EffectIndex + i];
+                if (object_color && layout->m_Effects[effect_index].m_Type == TEXT_EFFECT_GRADIENT)
+                    continue;
+                layout->m_SpanEffects.Push(effect_index);
+            }
             for (uint32_t i = 0; i < object_style.m_EffectCount; ++i)
+            {
+                if (inline_color && layout->m_Effects[object_style.m_EffectIndex + i].m_Type == TEXT_EFFECT_GRADIENT)
+                    continue;
                 layout->m_SpanEffects.Push(object_style.m_EffectIndex + i);
+            }
             for (uint32_t i = base_count; i < span.m_EffectCount; ++i)
                 layout->m_SpanEffects.Push(layout->m_SpanEffects[span.m_EffectIndex + i]);
 
@@ -834,7 +867,7 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
             span.m_DecorationFlags |= object_style.m_Decoration.m_Flags;
 
             span.m_EffectIndex = (uint16_t)effect_start;
-            span.m_EffectCount += object_style.m_EffectCount;
+            span.m_EffectCount = (uint16_t)(layout->m_SpanEffects.Size() - effect_start);
 
             if (layout->m_ResolvedSpans.Full())
             {
