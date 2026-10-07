@@ -1989,7 +1989,7 @@ bail:
             }
         }
 
-        HProfile profile = ProfileFrameBegin();
+        HProfile profile = dmProfiler::BeginFrame();
         {
             DM_PROFILE("Frame");
 
@@ -2007,7 +2007,7 @@ bail:
                 // Check if we should skip this frame
                 if (UpdateFrameThrottle(engine, dt, has_input))
                 {
-                    ProfileFrameEnd(profile);
+                    dmProfiler::EndFrame(profile);
                     return;
                 }
 
@@ -2017,7 +2017,7 @@ bail:
                         // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
                         // might have entered background at this point and OpenGL calls are not permitted and will
                         // crash the application
-                        ProfileFrameEnd(profile);
+                        dmProfiler::EndFrame(profile);
                         return;
                     }
                 }
@@ -2208,7 +2208,7 @@ bail:
                 }
             }
         }
-        ProfileFrameEnd(profile);
+        dmProfiler::EndFrame(profile);
 
         ++engine->m_Stats.m_FrameCount;
         engine->m_Stats.m_TotalTime += dt;

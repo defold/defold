@@ -26,6 +26,16 @@ void ToggleProfiler()
     // nop
 }
 
+HProfile EndFrame()
+{
+    return ProfileFrameBegin();
+}
+
+ProfileResult EndFrame(HProfile profile)
+{
+    return ProfileFrameEnd(profile);
+}
+
 void RenderProfiler(HProfile, dmGraphics::HContext, dmRender::HRenderContext, dmRender::HFontMap )
 {
     // nop
