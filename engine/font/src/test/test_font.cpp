@@ -2341,7 +2341,191 @@ TEST_F(FontTest, LayoutWrappedMetrics)
     }
 }
 
+// Verifies negative tracking does not let trimmed trailing spaces shrink wrapped widths or move visible glyphs (#13387).
+TEST_F(FontTest, LayoutWrappedNegativeTrackingWhitespace)
+{
+    const char* cases[] = {
+        "AA",
+        "AA ",
+        "AA  ",
+        "AA \n",
+        "AA  \n",
+    };
+
+    HFont font;
+    LoadFont("src/test/data/NotoSans-Regular.ttf", &font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
+
+    FontGlyph glyph = {};
+    glyph.m_Width = glyph.m_Ascent = 1.0f;
+    glyph.m_Bitmap.m_Width = glyph.m_Bitmap.m_Height = 1;
+    TestLayoutCachedGlyph cached = { &glyph };
+    FontLayoutVertexConfig config = {};
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_Width = 50.0f;
+    config.m_RecipAtlasWidth = config.m_RecipAtlasHeight = 1.0f;
+    config.m_CacheCellMaxAscent = 1;
+    config.m_MetricsFromTtf = true;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1.0f;
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Tracking = -0.30f;
+    settings.m_Width = config.m_Width;
+    dmArray<uint32_t> codepoints;
+    TextToCodePoints("AA", codepoints);
+    HTextLayout reference = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, codepoints.Begin(), codepoints.Size(), &settings, &reference));
+    ASSERT_EQ(1u, TextLayoutGetLineCount(reference));
+
+    settings.m_LineBreak = true;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        TextToCodePoints(cases[i], codepoints);
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
+        ASSERT_EQ(1u, TextLayoutGetLineCount(layout));
+        printf("Negative tracking whitespace case %u: width %.6f, expected %.6f\n", i, layout->m_Width, reference->m_Width);
+        EXPECT_NEAR(reference->m_Width, layout->m_Width, 0.0001f);
+        EXPECT_NEAR(reference->m_Lines[0].m_Width, layout->m_Lines[0].m_Width, 0.0001f);
+        EXPECT_NEAR(reference->m_Height, layout->m_Height, 0.0001f);
+
+        for (uint32_t align = 0; align < 3; ++align)
+        {
+            config.m_Align = align;
+            config.m_Layout = reference;
+            FontLayoutVertexMetrics metrics;
+            ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+            FontGlyphVertex expected_vertices[12];
+            const uint32_t expected_count = FontCreateLayoutVertices(config, metrics, expected_vertices, DM_ARRAY_SIZE(expected_vertices));
+            ASSERT_EQ(12u, expected_count);
+            config.m_Layout = layout;
+            ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+            FontGlyphVertex vertices[12];
+            const uint32_t count = FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices));
+            ASSERT_EQ(expected_count, count);
+            for (uint32_t v = 0; v < count; ++v)
+            {
+                EXPECT_NEAR(expected_vertices[v].m_Position[0], vertices[v].m_Position[0], 0.0001f);
+                EXPECT_NEAR(expected_vertices[v].m_Position[1], vertices[v].m_Position[1], 0.0001f);
+            }
+        }
+        TextLayoutRelease(layout);
+    }
+    TextLayoutRelease(reference);
+    FontCollectionDestroy(collection);
+    FontDestroy(font);
+}
+
 #if defined(FONT_USE_SKRIBIDI)
+// Verifies automatic wrapping retains logically trailing spaces inside the visual line and keeps bidi text aligned (#13387).
+TEST_F(FontTest, LayoutWrappedMixedDirectionWhitespace)
+{
+    const struct
+    {
+        const char*   m_Text;
+        TextDirection m_Direction;
+        float         m_Tracking;
+        float         m_ExpectedFirstLineWidth;
+    } cases[] = {
+        { "سلام A B",                           TEXT_DIRECTION_RTL,  0.00f, 42.364f },
+        { "سلام A B ",                          TEXT_DIRECTION_RTL,  0.00f, 42.364f },
+        { "سلام A  B",                          TEXT_DIRECTION_RTL,  0.00f, 46.004f },
+        { "<color=#ff0000>سلام</color> A B",      TEXT_DIRECTION_RTL,  0.00f, 42.364f },
+        { "A سلام سلام",                        TEXT_DIRECTION_LTR,  0.00f, 42.364f },
+        { "A سلام  سلام",                       TEXT_DIRECTION_LTR,  0.00f, 46.004f },
+        { "A سلام سلام",                        TEXT_DIRECTION_LTR, -0.30f, 29.652f },
+        { "A سلام  سلام",                       TEXT_DIRECTION_LTR, -0.30f, 29.092f },
+    };
+
+    HFont arabic_font, latin_font;
+    LoadFont("src/test/data/NotoSansArabic-Regular.ttf", &arabic_font);
+    LoadFont("src/test/data/NotoSans-Regular.ttf", &latin_font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, arabic_font));
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, latin_font));
+
+    // Unit glyph quads expose layout anchors directly, independently of sampled glyph bounds.
+    FontGlyph glyph = {};
+    glyph.m_Width = glyph.m_Ascent = 1.0f;
+    glyph.m_Bitmap.m_Width = glyph.m_Bitmap.m_Height = 1;
+    TestLayoutCachedGlyph cached = { &glyph };
+    FontLayoutVertexConfig config = {};
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_Width = 50.0f;
+    config.m_RecipAtlasWidth = config.m_RecipAtlasHeight = 1.0f;
+    config.m_CacheCellMaxAscent = 1;
+    config.m_MetricsFromTtf = true;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1.0f;
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_LineBreak = true;
+    settings.m_Width = config.m_Width;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        settings.m_Tracking = cases[i].m_Tracking;
+        HMarkup markup = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(cases[i].m_Text, strlen(cases[i].m_Text), &markup, 0));
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(collection, markup, &settings, &layout));
+        MarkupDestroy(markup);
+        ASSERT_EQ(2u, TextLayoutGetLineCount(layout));
+        ASSERT_EQ(cases[i].m_Direction, TextLayoutGetParagraphs(layout)[0].m_Direction);
+        const TextLine& line = TextLayoutGetLines(layout)[0];
+        EXPECT_NEAR(cases[i].m_ExpectedFirstLineWidth, line.m_Width, 0.0001f);
+        EXPECT_NEAR(cases[i].m_ExpectedFirstLineWidth, layout->m_Width, 0.0001f);
+        const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+        float visible_start_x = FLT_MAX;
+        for (uint32_t g = line.m_Index; g < line.m_Index + line.m_Length; ++g)
+        {
+            if (!dmUtf8::IsWhiteSpace(glyphs[g].m_Codepoint))
+                visible_start_x = fminf(visible_start_x, glyphs[g].m_X);
+        }
+
+        // Expected alignment comes from the case width, not the measured width or stored line origin.
+        for (uint32_t align = 0; align < 3; ++align)
+        {
+            const float ltr_alignment[] = { 0.0f, 0.5f, 1.0f };
+            const float rtl_alignment[] = { 1.0f, 0.5f, 0.0f };
+            const float alignment = cases[i].m_Direction == TEXT_DIRECTION_RTL ? rtl_alignment[align] : ltr_alignment[align];
+            const float expected_line_x = (config.m_Width - cases[i].m_ExpectedFirstLineWidth) * alignment;
+            config.m_Align = align;
+            config.m_Layout = layout;
+            FontLayoutVertexMetrics metrics;
+            ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+            FontGlyphVertex vertices[128];
+            const uint32_t count = FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices));
+            ASSERT_EQ(metrics.m_VertexCount, count);
+            uint32_t vertex_index = 0;
+            float right_endpoint = -FLT_MAX;
+            for (uint32_t g = line.m_Index; g < line.m_Index + line.m_Length; ++g)
+            {
+                if (dmUtf8::IsWhiteSpace(glyphs[g].m_Codepoint))
+                    continue;
+                ASSERT_LT(vertex_index, count);
+                const float anchor_x = vertices[vertex_index].m_Position[0];
+                EXPECT_NEAR(expected_line_x + glyphs[g].m_X - visible_start_x, anchor_x, 0.0001f);
+                right_endpoint = fmaxf(right_endpoint, anchor_x + glyphs[g].m_Advance);
+                vertex_index += 6;
+            }
+            EXPECT_NEAR(expected_line_x + cases[i].m_ExpectedFirstLineWidth, right_endpoint, 0.0001f);
+        }
+        TextLayoutRelease(layout);
+    }
+    FontCollectionDestroy(collection);
+    FontDestroy(latin_font);
+    FontDestroy(arabic_font);
+}
+
 // Verifies trimming wrapped trailing spaces preserves RTL and mixed-direction vertices, including across lines (#13387).
 TEST_F(FontTest, LayoutWrappedWhitespaceAlignment)
 {
