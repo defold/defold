@@ -76,6 +76,14 @@ namespace dmGameSystem
         dmVMath::Vector4  m_AnimationData;
     };
 
+    struct InstanceTransformLayout
+    {
+        // Byte offsets in the instance stream; -1 when the matrix is absent.
+        int32_t  m_WorldOffset;
+        int32_t  m_NormalOffset;
+        uint32_t m_Stride;
+    };
+
     struct MeshAttributeRenderData
     {
         dmGraphics::HVertexBuffer      m_VertexBuffer;
@@ -104,6 +112,7 @@ namespace dmGameSystem
         uint32_t                    m_MaterialIndex;
         uint16_t                    m_AttributeRenderDataIndex;
         uint16_t                    m_DynamicVertexAttributeIndex;
+        uint8_t                     m_LocalTransformIsIdentity : 1;
         uint8_t                     m_PerInstanceCustomAttributes  : 1;
         uint8_t                     m_DynamicVertexAttributesDirty : 1;
         uint8_t                     m_Enabled                      : 1;
@@ -135,7 +144,8 @@ namespace dmGameSystem
         uint8_t                          m_ReHash : 1;
         uint8_t                          m_RequiresBindPoseCaching : 1;
         uint8_t                          m_BlendWeightsOverrideActive : 1;
-        uint8_t                          : 2;
+        uint8_t                          m_TransformIsIdentity : 1;
+        uint8_t : 1;
     };
 
     struct ModelSkinnedAnimationData
@@ -407,6 +417,16 @@ namespace dmGameSystem
     static inline bool IsRigidBoneParentedRenderItem(const MeshRenderItem& item)
     {
         return item.m_BoneIndex != dmRig::INVALID_BONE_INDEX && item.m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_STATIC;
+    }
+
+    static bool IsIdentityTransform(const dmTransform::Transform& transform)
+    {
+        const Vector3 translation = transform.GetTranslation();
+        const Vector3 scale = transform.GetScale();
+        const Quat    rotation = transform.GetRotation();
+        return translation.getX() == 0 && translation.getY() == 0 && translation.getZ() == 0 &&
+        scale.getX() == 1 && scale.getY() == 1 && scale.getZ() == 1 &&
+        rotation.getX() == 0 && rotation.getY() == 0 && rotation.getZ() == 0 && fabsf(rotation.getW()) == 1;
     }
 
     static inline dmGraphics::CoordinateSpace GetRenderMaterialCoordinateSpace(dmRender::HMaterial material)
@@ -818,19 +838,17 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
     }
 
-    static bool GetMorphTargetWeightsAttributeVectorType(const dmGraphics::VertexAttributeInfos* attribute_infos, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttribute::VectorType* vector_type)
+    static const dmGraphics::VertexAttributeInfo* FindMeshAttribute(const dmGraphics::VertexAttributeInfos* attribute_infos, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttribute::SemanticType semantic_type)
     {
         for (uint32_t i = 0; i < attribute_infos->m_NumInfos; ++i)
         {
             const dmGraphics::VertexAttributeInfo& attr = attribute_infos->m_Infos[i];
-            if (attr.m_StepFunction == step_function &&
-                attr.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS)
+            if (attr.m_StepFunction == step_function && attr.m_SemanticType == semantic_type)
             {
-                *vector_type = attr.m_VectorType;
-                return true;
+                return &attr;
             }
         }
-        return false;
+        return 0;
     }
 
     static void FillMorphWeightsFloatSlots(const float* weights, uint32_t weight_count, float* out, uint32_t slot_count)
@@ -843,7 +861,11 @@ namespace dmGameSystem
 
     static uint8_t* WriteMeshAttributes(ModelWorld* world, dmRender::HRenderContext render_context, MeshRenderItem* render_item, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_count)
     {
-        dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
+        dmVMath::Matrix4 normal_matrix;
+        if (FindMeshAttribute(attribute_infos, step_function, dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX))
+        {
+            normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
+        }
 
         const float* world_matrix_channels[]         = { (float*) &render_item->m_World };
         const float* normal_matrix_channels[]        = { (float*) &normal_matrix };
@@ -862,8 +884,10 @@ namespace dmGameSystem
 
         uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
 
-        if (GetMorphTargetWeightsAttributeVectorType(attribute_infos, step_function, &morph_target_weights_vector_type))
+        const dmGraphics::VertexAttributeInfo* morph_attribute = FindMeshAttribute(attribute_infos, step_function, dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS);
+        if (morph_attribute)
         {
+            morph_target_weights_vector_type = morph_attribute->m_VectorType;
             const uint32_t weight_capacity = dmGraphics::VectorTypeToElementCount(morph_target_weights_vector_type);
             const uint32_t vec4_slots      = (weight_capacity + 3) / 4;
             const float* weights           = 0;
@@ -1135,6 +1159,7 @@ namespace dmGameSystem
             item.m_Buffers = resource->m_Meshes[i].m_Buffers;
             item.m_Component = component;
             item.m_Model = resource->m_Meshes[i].m_Model;
+            item.m_LocalTransformIsIdentity = IsIdentityTransform(item.m_Model->m_Local);
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
             item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture ? resource->m_Meshes[i].m_MorphTargetTexture->m_Texture : 0;
             item.m_MorphModelId = resource->m_Meshes[i].m_MorphModelId;
@@ -1234,6 +1259,7 @@ namespace dmGameSystem
         world->m_Components.Set(index, component);
         component->m_Instance = params.m_Instance;
         component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
+        component->m_TransformIsIdentity = IsIdentityTransform(component->m_Transform);
         ModelResource* resource = (ModelResource*)params.m_Resource;
         component->m_Resource = resource;
 
@@ -1531,6 +1557,51 @@ namespace dmGameSystem
         return constants;
     }
 
+    // Resolve native transform layouts once per batch. Other attributes and
+    // matrix conversions continue through the generic attribute writer.
+    static bool GetInstanceTransformLayout(const dmGraphics::VertexAttributeInfos& infos, InstanceTransformLayout* layout)
+    {
+        layout->m_WorldOffset = -1;
+        layout->m_NormalOffset = -1;
+        layout->m_Stride = 0;
+        for (uint32_t i = 0; i < infos.m_NumInfos; ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& info = infos.m_Infos[i];
+            if (info.m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
+                continue;
+
+            if (info.m_DataType != dmGraphics::VertexAttribute::TYPE_FLOAT || info.m_VectorType != dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4)
+                return false;
+
+            if (info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX && layout->m_WorldOffset < 0)
+                layout->m_WorldOffset = layout->m_Stride;
+            else if (info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX && layout->m_NormalOffset < 0)
+                layout->m_NormalOffset = layout->m_Stride;
+            else
+                return false;
+
+            layout->m_Stride += sizeof(dmVMath::Matrix4);
+        }
+        return layout->m_Stride != 0;
+    }
+
+    // Vertex matrices and morph weights depend on the individual instance.
+    static bool CanShareVertexData(const dmGraphics::VertexAttributeInfos& infos)
+    {
+        for (uint32_t i = 0; i < infos.m_NumInfos; ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& info = infos.m_Infos[i];
+            if (info.m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_VERTEX)
+                continue;
+            if (info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX ||
+                info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX ||
+                info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS ||
+                (info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION && info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD))
+                return false;
+        }
+        return true;
+    }
+
     static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context,
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
@@ -1556,15 +1627,19 @@ namespace dmGameSystem
         }
 
         const bool render_material_has_morph_target_weights_attribute = dmRender::GetMaterialHasMorphTargetWeightsAttribute(render_material);
+        // Cache ownership can differ across instances after a material override.
+        // Reserve and pack one instance layout for the whole batch.
+        const bool use_attribute_render_data = render_context_material_custom_attributes ||
+        render_material_has_morph_target_weights_attribute || render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED;
         uint32_t required_instance_buffer_memory = instance_count * instance_stride;
 
-        if (!render_context_material_custom_attributes && !render_material_has_morph_target_weights_attribute)
+        if (!use_attribute_render_data)
         {
             if (IsRenderItemSkinned(component, render_item))
             {
                 required_instance_buffer_memory = instance_count * sizeof(ModelSkinnedInstanceData);
             }
-            else if (render_item->m_AttributeRenderDataIndex == ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+            else
             {
                 required_instance_buffer_memory = instance_count * sizeof(ModelInstanceData);
             }
@@ -1602,82 +1677,122 @@ namespace dmGameSystem
 
         dmGraphics::VertexAttributeInfos material_infos;
         dmGraphics::VertexAttributeInfos* attribute_infos = 0;
+        FillMaterialAttributeInfos(render_material, inst_decl, &material_infos);
+        InstanceTransformLayout  transform_layout;
+        const bool               use_transform_layout = GetInstanceTransformLayout(material_infos, &transform_layout);
+        const bool               share_batch_vertex_data = use_transform_layout && CanShareVertexData(material_infos);
 
-        int32_t first_free_index = FillTextures(&ro, component, material_index);
+        int32_t                  first_free_index = FillTextures(&ro, component, material_index);
+        MeshAttributeRenderData  shared_attribute_data;
+        bool                     has_shared_attribute_data = false;
+        bool                     shared_attributes_bound = false;
 
-
-        for (uint32_t *i=begin;i!=end;i++)
+        for (uint32_t* i = begin; i != end; i++)
         {
-            MeshRenderItem* instance_render_item = (MeshRenderItem*) buf[*i].m_UserData;
-            ModelComponent* instance_component   = instance_render_item->m_Component;
+            MeshRenderItem* instance_render_item = (MeshRenderItem*)buf[*i].m_UserData;
+            ModelComponent* instance_component = instance_render_item->m_Component;
 
-            if (render_context_material_custom_attributes || render_material_has_morph_target_weights_attribute || instance_render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+            if (use_attribute_render_data)
             {
-                // The overridden material from the render script might be setup with custom vertex attributes,
-                // while the component material might not. In this case, we need to setup the attribute render data
-                // specifically for the render material.
-                if (instance_render_item->m_AttributeRenderDataIndex == ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+                // Immutable vertex attributes match within this batch. Only the matrices vary per instance.
+                const bool share_vertex_data = share_batch_vertex_data &&
+                instance_component->m_Resource == component->m_Resource &&
+                instance_render_item->m_Mesh == render_item->m_Mesh &&
+                instance_render_item->m_DynamicVertexAttributeIndex == INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+                if (share_vertex_data && has_shared_attribute_data)
                 {
-                    instance_render_item->m_AttributeRenderDataIndex = instance_component->m_MeshAttributeRenderDatas.Size();
-                    instance_component->m_MeshAttributeRenderDatas.OffsetCapacity(1);
-                    instance_component->m_MeshAttributeRenderDatas.SetSize(instance_component->m_MeshAttributeRenderDatas.Capacity());
-                    memset(&instance_component->m_MeshAttributeRenderDatas[instance_render_item->m_AttributeRenderDataIndex], 0, sizeof(MeshAttributeRenderData));
+                    attribute_rd = &shared_attribute_data;
+                }
+                else
+                {
+                    // The overridden material from the render script might be setup with custom vertex attributes,
+                    // while the component material might not. In this case, we need to setup the attribute render data
+                    // specifically for the render material.
+                    if (instance_render_item->m_AttributeRenderDataIndex == ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+                    {
+                        instance_render_item->m_AttributeRenderDataIndex = instance_component->m_MeshAttributeRenderDatas.Size();
+                        instance_component->m_MeshAttributeRenderDatas.OffsetCapacity(1);
+                        instance_component->m_MeshAttributeRenderDatas.SetSize(instance_component->m_MeshAttributeRenderDatas.Capacity());
+                        memset(&instance_component->m_MeshAttributeRenderDatas[instance_render_item->m_AttributeRenderDataIndex], 0, sizeof(MeshAttributeRenderData));
+                    }
+
+                    attribute_rd = &instance_component->m_MeshAttributeRenderDatas[instance_render_item->m_AttributeRenderDataIndex];
+
+                    // Reuse or create attribute render data for this render item + material combination
+                    attribute_rd = GetOrCreateMeshAttributeRenderDataForMaterial(world,
+                                                                                 instance_component,
+                                                                                 instance_render_item,
+                                                                                 render_context,
+                                                                                 render_material,
+                                                                                 instance_component->m_Resource->m_Materials[material_index].m_Attributes,
+                                                                                 instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                                                                                 attribute_rd);
+
+                    if (!use_transform_layout || instance_render_item->m_DynamicVertexAttributesDirty)
+                    {
+                        FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos);
+
+                        if (attribute_infos == 0)
+                        {
+                            attribute_infos = GetScratchVertexAttributeInfos(material_infos.m_NumInfos);
+                        }
+
+                        FillAttributeInfos(&world->m_DynamicVertexAttributePool,
+                                           instance_render_item->m_DynamicVertexAttributeIndex,
+                                           instance_component->m_Resource->m_Materials[material_index].m_Attributes,
+                                           instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                                           &material_infos,
+                                           attribute_infos,
+                                           GetRenderMaterialCoordinateSpace(render_material));
+
+                        if (instance_render_item->m_DynamicVertexAttributesDirty)
+                        {
+                            SetMeshAttributeRenderData(world, instance_component, render_context, &material_infos, attribute_infos, instance_render_item, instance_component->m_Resource->m_Materials[material_index].m_Attributes, instance_component->m_Resource->m_Materials[material_index].m_AttributeCount, attribute_rd);
+                        }
+                    }
+
+                    if (share_vertex_data)
+                    {
+                        // Another mesh can grow the component's cache during this batch.
+                        shared_attribute_data = *attribute_rd;
+                        has_shared_attribute_data = true;
+                        attribute_rd = &shared_attribute_data;
+                    }
                 }
 
-                attribute_rd = &instance_component->m_MeshAttributeRenderDatas[instance_render_item->m_AttributeRenderDataIndex];
-
-                // Reuse or create attribute render data for this render item + material combination
-                attribute_rd = GetOrCreateMeshAttributeRenderDataForMaterial(world,
-                        instance_component,
-                        instance_render_item,
-                        render_context,
-                        render_material,
-                        instance_component->m_Resource->m_Materials[material_index].m_Attributes,
-                        instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
-                        attribute_rd);
-
-                FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos);
-
-                if (attribute_infos == 0)
+                if (!share_vertex_data || !shared_attributes_bound)
                 {
-                    attribute_infos = GetScratchVertexAttributeInfos(material_infos.m_NumInfos);
+                    if (dmGraphics::GetVertexDeclarationStreamCount(attribute_rd->m_VertexDeclaration) > 0)
+                    {
+                        ro.m_VertexDeclarations[VX_DECL_CUSTOM_BUFFER] = attribute_rd->m_VertexDeclaration;
+                        ro.m_VertexBuffers[VX_DECL_CUSTOM_BUFFER] = attribute_rd->m_VertexBuffer;
+
+                        // Update statistics for custom vertex attributes
+                        world->m_StatisticsVertexDataSize += dmGraphics::GetVertexBufferSize(attribute_rd->m_VertexBuffer);
+                    }
+
+                    if (dmGraphics::GetVertexDeclarationStreamCount(attribute_rd->m_InstanceVertexDeclaration) > 0)
+                    {
+                        ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER] = attribute_rd->m_InstanceVertexDeclaration;
+                    }
                 }
+                shared_attributes_bound = share_vertex_data;
 
-                FillAttributeInfos(&world->m_DynamicVertexAttributePool,
-                            instance_render_item->m_DynamicVertexAttributeIndex,
-                            instance_component->m_Resource->m_Materials[material_index].m_Attributes,
-                            instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
-                            &material_infos,
-                            attribute_infos,
-                            GetRenderMaterialCoordinateSpace(render_material));
-
-                if (instance_render_item->m_DynamicVertexAttributesDirty)
+                if (use_transform_layout)
                 {
-                    SetMeshAttributeRenderData(world, instance_component,
-                        render_context,
-                        &material_infos,
-                        attribute_infos,
-                        instance_render_item,
-                        instance_component->m_Resource->m_Materials[material_index].m_Attributes,
-                        instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
-                        attribute_rd);
+                    if (transform_layout.m_WorldOffset >= 0)
+                        memcpy(instance_write_ptr + transform_layout.m_WorldOffset, &instance_render_item->m_World, sizeof(dmVMath::Matrix4));
+                    if (transform_layout.m_NormalOffset >= 0)
+                    {
+                        dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, instance_render_item->m_World);
+                        memcpy(instance_write_ptr + transform_layout.m_NormalOffset, &normal_matrix, sizeof(dmVMath::Matrix4));
+                    }
+                    instance_write_ptr += transform_layout.m_Stride;
                 }
-
-                if (dmGraphics::GetVertexDeclarationStreamCount(attribute_rd->m_VertexDeclaration) > 0)
+                else
                 {
-                    ro.m_VertexDeclarations[VX_DECL_CUSTOM_BUFFER] = attribute_rd->m_VertexDeclaration;
-                    ro.m_VertexBuffers[VX_DECL_CUSTOM_BUFFER]      = attribute_rd->m_VertexBuffer;
-
-                    // Update statistics for custom vertex attributes
-                    world->m_StatisticsVertexDataSize += dmGraphics::GetVertexBufferSize(attribute_rd->m_VertexBuffer);
+                    instance_write_ptr = WriteMeshAttributes(world, render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
                 }
-
-                if (dmGraphics::GetVertexDeclarationStreamCount(attribute_rd->m_InstanceVertexDeclaration) > 0)
-                {
-                    ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER] = attribute_rd->m_InstanceVertexDeclaration;
-                }
-
-                instance_write_ptr = WriteMeshAttributes(world, render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
             }
             else if (IsRenderItemSkinned(instance_component, render_item))
             {
@@ -2270,6 +2385,10 @@ namespace dmGameSystem
                 dmRig::BonePose bone_pose = (*pose)[item.m_BoneIndex];
                 item.m_World = world * (dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(model->m_Local));
             }
+            else if (item.m_LocalTransformIsIdentity)
+            {
+                item.m_World = world;
+            }
             else
             {
                 item.m_World = world * dmTransform::ToMatrix4(model->m_Local);
@@ -2296,8 +2415,7 @@ namespace dmGameSystem
                 continue;
 
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
-            const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
-            c->m_World = go_world * local;
+            c->m_World = c->m_TransformIsIdentity ? go_world : go_world * dmTransform::ToMatrix4(c->m_Transform);
             UpdateMeshTransforms(c);
 
             num_render_items += c->m_RenderItems.Size();
@@ -2383,6 +2501,8 @@ namespace dmGameSystem
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
 
+        // Updating a profiler property takes a lock, so publish the count once per world.
+        uint32_t num_enabled = 0;
         for (uint32_t i = 0; i < count; ++i)
         {
             ModelComponent& component = *components[i];
@@ -2421,9 +2541,9 @@ namespace dmGameSystem
             }
 
             component.m_DoRender = 1;
-
-            DM_PROPERTY_ADD_U32(rmtp_Model, 1);
+            ++num_enabled;
         }
+        DM_PROPERTY_ADD_U32(rmtp_Model, num_enabled);
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
 
