@@ -828,13 +828,15 @@ static bool LayoutText(LayoutContext* ctx,
         const skb_layout_line_t* line            = &layout_lines[li];
         const bool               has_decorations = line->decorations_range.start != line->decorations_range.end;
 
-        uint32_t prev_glyph_index = layout->m_Glyphs.Size();
-        float    content_advance  = 0.0f;
-        float    content_start_x  = FLT_MAX;
-        uint32_t content_end      = (uint32_t)line->text_range.end;
+        uint32_t prev_glyph_index    = layout->m_Glyphs.Size();
+        float    content_advance     = 0.0f;
+        float    content_start_x     = FLT_MAX;
+        uint32_t content_first_glyph = UINT32_MAX;
+        uint32_t content_last_glyph  = 0;
+        uint32_t content_end         = (uint32_t)line->text_range.end;
         if (settings->m_LineBreak)
         {
-            // Wrapped metrics trim logical trailing whitespace, including across runs before a separator.
+            // Wrapped metrics trim logical trailing whitespace at the visual edges, including across runs before a separator.
             // Tabs still allocate width in wrapped layouts.
             while (content_end > (uint32_t)line->text_range.start && codepoints[content_end - 1] != '\t' &&
                    (text_properties[content_end - 1].flags & (SKB_TEXT_PROP_WHITESPACE | SKB_TEXT_PROP_CONTROL)))
@@ -885,6 +887,9 @@ static bool LayoutText(LayoutContext* ctx,
                 {
                     content_advance += skbglyph->advance_x;
                     content_start_x = fminf(content_start_x, gx);
+                    if (content_first_glyph == UINT32_MAX)
+                        content_first_glyph = layout->m_Glyphs.Size();
+                    content_last_glyph = layout->m_Glyphs.Size();
                 }
 
                 TextGlyph glyph = {0};
@@ -928,6 +933,20 @@ static bool LayoutText(LayoutContext* ctx,
 
         // End of line
         uint32_t glyph_index = layout->m_Glyphs.Size();
+
+        if (settings->m_LineBreak && content_end < (uint32_t)line->text_range.end && content_first_glyph != UINT32_MAX)
+        {
+            // Bidi reordering can move logical trailing spaces between retained glyphs.
+            // Use visual glyph order: negative tracking can make outer spaces overlap content.
+            for (uint32_t i = content_first_glyph + 1; i < content_last_glyph; ++i)
+            {
+                const TextGlyph& glyph = layout->m_Glyphs[i];
+                if (glyph.m_Cluster >= content_end)
+                {
+                    content_advance += glyph.m_Advance;
+                }
+            }
+        }
 
         if (content_start_x == FLT_MAX)
         {
