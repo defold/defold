@@ -363,3 +363,76 @@ is a subset of sprite scratch; `component_upload_capacity_bytes` and
 `component_constant_capacity_bytes` are subsets of component-frame capacity.
 Never add those subsets twice. GPU logical buffers and retained resource sizes
 are separate from CPU allocation; WASM capacity includes unused allocator space.
+
+### Android Chrome over USB
+
+Set `ADB_SERIAL` explicitly to select a connected, unlocked Android device. The
+runner uses installed Chrome through a forwarded DevTools socket (default host
+port 9223), starts a fresh Chrome process per run, and checks real page visibility
+and focus. Existing Chrome data is retained; Chrome is force-stopped between runs.
+Serve the bundles locally with COOP/COEP headers and use `adb reverse` to make the
+server port reachable as device localhost. Keep the device awake on external
+power, with Battery Saver disabled and orientation fixed; preserve and restore
+its original settings after collection.
+
+```sh
+adb -s DEVICE_SERIAL reverse tcp:8771 tcp:8771
+ADB=/path/to/adb ADB_SERIAL=DEVICE_SERIAL \
+CASES_FILE=/path/to/private-cases.json VARIANTS_FILE=/path/to/private-variants.json \
+METRICS=0 MEMORY_PROBE=1 REPEATS=3 \
+  node scripts/web/benchmark/run.cjs tmp/private-external-benchmarks/android-results
+```
+
+During cooldown, the runner temporarily dims the screen and restores the original
+brightness and automatic-brightness setting before launch, including on errors or
+interrupts. Before each run, the runner waits for Android thermal status 0/1 (none/light) and at least 90% aggregate CPU idle while Chrome
+is stopped. This is a sustained external-power protocol without a fixed Celsius
+cutoff; charging can prevent the device from reaching a cold-start temperature. Moderate or higher thermal status waits; OS thermal
+protections are never overridden. This catches background update jobs even on a cool device. It records current thermal readings approximately
+every ten seconds during measurement, plus start/end power state. Runs retain
+any later throttling observations; they are not silently filtered for speed.
+Allocator/WASM measurements are available; process RSS is `null`, not zero.
+`AUDIO_ACTIVE=1` verifies running WebAudio during Android gameplay replays. Desktop
+autoplay/mute launch flags are not applied to the installed Android browser.
+Raw external-project evidence must remain private; publish only reviewed anonymous
+numeric measurements and plots, following the privacy guidance above.
+
+Geometry stress cases can exceed the timing histogram's 1,000 ms range. Normal
+collection rejects any overflow. An explicitly separate geometry-only collection
+may set `ALLOW_TIMING_OVERFLOW=1` to retain throughput and memory measurements
+while recording the overflow count. This does not enlarge the histogram or invent
+a percentile: an out-of-range p99 remains absent in raw evidence and exports as
+`null` with its lower bound. The Android report marks it as censored and omits
+affected p99 means and percentage comparisons. Preserve rejected attempts and
+restart the geometry comparison under the explicit policy; do not mix policies
+or silently change the validation of a running collection.
+
+### Quiet frame-pacing evaluation
+
+Worker stdout synchronously proxies to browser main in this Emscripten build.
+The interactive Bunnymark status line and periodic `WEB_MEMORY` output can
+therefore introduce long update intervals while main is rendering. To isolate
+engine pacing, rebuild content with the current `prepare.py` and
+`memory_probe.lua`, then use `STATUS_REPORTS=0 MEMORY_SAMPLES=0 METRICS=0
+DIAGNOSTICS=0 STACK_MEASURE=0 MEMORY_PROBE=1`. The runner verifies that Bunnymark
+actually suppressed its status messages. Final snapshot accounting is emitted
+after measurement as `WEB_MEMORY_FINAL`; browser allocator polling remains
+enabled. Preserve a separate logging-on diagnostic control instead of treating
+old logging-on p99 values as directly comparable.
+
+An `overlap_ready` variant can specify `"readyBudgetMs":32` to evaluate the
+opt-in readiness estimate; zero retains the original policy. Use identical
+content and Release binaries across direct, completion, ready, and budgeted
+variants. Freeze bundles, rotate three repetitions, and keep heavy geometry
+overflow reporting in its own collection. `pacing_report.py OUTPUT COLLECTION...`
+exports anonymous per-run numbers, throughput/p99 and memory graphs, capacity
+counters and explicit target calculations. Optional repeated `--diagnostic DIR`
+arguments include aggregate trace attribution separately from acceptance data.
+Keep raw game evidence private as described above.
+
+The broad component fixture accepts `ready_budget_ms` in its URL. Set
+`READY_BUDGET_MS=32` when running `test_component_2d.cjs` with ready modes to
+verify the selected policy. A budget below 2 ms with a `-slow` ready mode
+requires a nonzero budget-rejection count. Compare `readyRenders` with an
+unbudgeted control to verify changed consumption: rejection counts also include
+callbacks that would have lacked render credit.

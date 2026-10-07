@@ -81,7 +81,8 @@ namespace dmEngine
         bool m_CompletionDispatch;
         WebFrameAdmission m_Admission;
         WebRenderAdmission m_RenderAdmission;
-        uint32_t m_ReadyRenders;
+        WebReadyBudget m_ReadyBudget;
+        uint32_t m_ReadyRenders, m_ReadyBudgetDeferrals;
         uint32_t m_Schedule;
         bool m_RetryDispatch, m_CacheWindowOpened;
         uint32_t m_RetryDispatches;
@@ -170,7 +171,9 @@ namespace dmEngine
         // Hidden service still retires accepted frames; render consumption itself
         // suppresses graphics work while hidden or after context loss.
         if (WebCanRender() && !loop->m_RenderAdmission.CanConsume(true, stopping)) return false;
+        double begin = loop->m_ReadyBudget.m_BudgetMs ? emscripten_get_now() : 0;
         if (!PumpWebComponentFrame(loop->m_Engine)) return false;
+        if (loop->m_ReadyBudget.m_BudgetMs) loop->m_ReadyBudget.Consumed(begin, emscripten_get_now());
         loop->m_RenderAdmission.Consumed();
         ++loop->m_Retired;
         return true;
@@ -182,7 +185,15 @@ namespace dmEngine
         if (g_Web)
         {
             DispatchWebUpdate(1);
-            if (g_Web->m_Schedule == 4 && PumpAdmittedWebFrame(g_Web)) ++g_Web->m_ReadyRenders;
+            if (g_Web->m_Schedule == 4)
+            {
+                // Hidden/stop servicing must never depend on the visible budget.
+                bool service = !WebCanRender() || __atomic_load_n(&g_Web->m_Stop, __ATOMIC_ACQUIRE);
+                if (!service && g_Web->m_ReadyBudget.m_BudgetMs && !g_Web->m_ReadyBudget.Admit(emscripten_get_now()))
+                    ++g_Web->m_ReadyBudgetDeferrals;
+                else if (PumpAdmittedWebFrame(g_Web))
+                    ++g_Web->m_ReadyRenders;
+            }
         }
     }
 
@@ -322,8 +333,8 @@ namespace dmEngine
             if (action == RESULT_REBOOT) { dmLogError("Web component PoC does not support reboot"); code = 1; }
             if (__atomic_load_n(&loop->m_Stop, __ATOMIC_ACQUIRE)) code = 1;
             ExportSchedule(loop);
-            EM_ASM({ Module['webRenderAdmission'] = ({readyRenders:$0, retired:$1, browserTicks:$2}); },
-                loop->m_ReadyRenders, (double)loop->m_Retired, (double)loop->m_Ticks);
+            EM_ASM({ Module['webRenderAdmission'] = ({readyRenders:$0, retired:$1, browserTicks:$2, budgetMs:$3, budgetDeferrals:$4}); },
+                loop->m_ReadyRenders, (double)loop->m_Retired, (double)loop->m_Ticks, loop->m_ReadyBudget.m_BudgetMs, loop->m_ReadyBudgetDeferrals);
             if (loop->m_Diagnostics)
             {
                 EM_ASM({ Module['webUpdateDiagnostics'] = ({schema:1,dropped:$0,capacityBytes:$1,rows:[],fields:['id','browser_tick','source','dispatch_begin','dispatch_end','wake','events_end','update_end','graphics_calls','owner_queue','owner_execute','owner_return','max_owner_queue']}); },
@@ -368,6 +379,7 @@ namespace dmEngine
             // Wake before consuming to preserve simulation/preparation overlap.
             // Readiness may fill a missed tick, using the same two frame slots.
             loop->m_RenderAdmission.BrowserTick(WebCanRender());
+            if (loop->m_ReadyBudget.m_BudgetMs) loop->m_ReadyBudget.BrowserTick(emscripten_get_now());
             dispatched = DispatchWebUpdate(0);
             if (!PumpAdmittedWebFrame(loop)) ++loop->m_NoFrame;
         }
@@ -404,6 +416,10 @@ namespace dmEngine
         loop->m_PreviousTick = emscripten_get_now();
         loop->m_Schedule = dmConfigFile::GetInt(engine->m_Config, "render.poc_web_schedule", 0);
         if (loop->m_Schedule > 4) { dmLogFatal("render.poc_web_schedule must be 0..4"); abort(); }
+        loop->m_ReadyBudget.m_BudgetMs = dmConfigFile::GetFloat(engine->m_Config, "render.poc_web_ready_budget_ms", 0);
+        if (!(loop->m_ReadyBudget.m_BudgetMs >= 0 && loop->m_ReadyBudget.m_BudgetMs <= 1000) ||
+            (loop->m_ReadyBudget.m_BudgetMs != 0 && loop->m_Schedule != 4))
+        { dmLogFatal("render.poc_web_ready_budget_ms requires schedule 4 and must be 0..1000"); abort(); }
         loop->m_CompletionDispatch = loop->m_Schedule == 1 || loop->m_Schedule == 3 || loop->m_Schedule == 4;
         loop->m_RetryDispatch = loop->m_Schedule == 2;
         loop->m_Admission.m_Paced = loop->m_Schedule == 3;
@@ -438,6 +454,7 @@ namespace dmEngine
         fprintf(stderr, "WEB_POC_SCHEDULE completion_dispatch=%d metrics=%d\n", loop->m_CompletionDispatch, loop->m_MainSamples != 0);
         fprintf(stderr, "WEB_POC_DIAGNOSTICS enabled=%d\n", loop->m_Diagnostics != 0);
         fprintf(stderr, "WEB_POC_OPTIONS schedule=%d cache_window=%d\n", loop->m_Schedule, loop->m_CacheWindowOpened);
+        fprintf(stderr, "WEB_POC_READY_BUDGET milliseconds=%.3f\n", loop->m_ReadyBudget.m_BudgetMs);
         emscripten_set_timeout_loop(HiddenService, 100, 0);
         emscripten_set_main_loop_arg(WebBrowserTick, 0, 0, 1);
         return true;

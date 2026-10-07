@@ -1,5 +1,7 @@
 # Rendering decoupling: implementation and benchmark summary
 
+For the consolidated history through October 6, including desktop web and Pixel measurements, see the [benchmark overview and current readiness verdict](RENDERING_POC_BENCHMARK_OVERVIEW.md). This document preserves the October 2 native comparison.
+
 Collected on 2026-10-02; Apple M1 Pro, 16 GiB RAM, macOS 26.5.2, arm64/Metal. All threading, timer and QoS treatments remain opt-in.
 
 The render-layer PoC is implemented for the admitted sprite, GUI and particle workloads. It adds a shared immutable frame, render-owner geometry generation for GUI/particles, owned per-pass constants, and persistent graphics-owner servicing. This is an experimental native implementation, not a production rollout or support for every Defold component.

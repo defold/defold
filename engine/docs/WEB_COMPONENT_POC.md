@@ -545,6 +545,25 @@ frame queue still has two slots. Hidden-tab retirement and shutdown may drain
 accepted work without a visible presentation credit. This is opt-in and does
 not change the default scheduler. After shutdown, `Module.webRenderAdmission`
 reports `readyRenders`, `retired`, and `browserTicks` for checking the bound.
+
+For schedule 4, `render.poc_web_ready_budget_ms` optionally limits readiness
+consumption using an elapsed-time estimate. Zero preserves the existing policy.
+A positive value allows a completion callback to consume only when the time
+since the latest browser callback plus the previous consumption duration fits
+the budget. Otherwise the pending frame remains queued for the next browser
+callback. Browser-callback consumption and hidden/stop servicing bypass this
+estimate. No frame is discarded and the two-slot queue is unchanged.
+
+The Pixel experiment uses 32 ms. This is an explicit experimental setting, not
+a recommended universal value: the previous frame's CPU elapsed time cannot
+predict the next GPU stall or guarantee a presentation deadline. The accepted
+range is 0–1000 ms; nonzero values require schedule 4. The console prints
+`WEB_POC_READY_BUDGET milliseconds=32.000`, and `Module.webRenderAdmission`
+also exports `budgetMs` and `budgetDeferrals` (completion callbacks rejected by
+the estimate, not a count of dropped frames). This includes callbacks that
+would also have lacked render credit: use `readyRenders` to count actual
+outside-rAF consumption. The estimate stores three doubles
+and one counter per loop; it allocates no extra frame payload or trace buffers.
 See the [space game replay comparison](SPACE_GAME_WEB_REPLAY_RESULTS.md) for the
 vanilla control, correctness checks, memory measurements and scheduling results.
 

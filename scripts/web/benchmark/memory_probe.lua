@@ -21,6 +21,10 @@ end
 function M.finish(self)
     local p = self.memory_probe
     if p.previous and phase(self) ~= "measure" and not p.reported then
+        -- Outside the measured interval: quiet timing runs still verify the
+        -- bounded queue and retained capacities without periodic stdout calls.
+        io.write("WEB_MEMORY_FINAL " .. json.encode(sprite._get_snapshot_stats()) .. "\n")
+        io.flush()
         io.write("WEB_TIMING " .. json.encode(stats.summary(p.timing)) .. "\n")
         io.flush()
         p.reported = true

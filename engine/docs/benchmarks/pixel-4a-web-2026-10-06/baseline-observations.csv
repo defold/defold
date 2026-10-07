@@ -1,0 +1,4 @@
+reference,case,mode,repeat,seconds,updates_per_second,p99_ms,peak_live_mib,wasm_mib,cleanup_live_mib,width,height,dpr,start_thermal_status,max_thermal_status,peak_skin_c,start_skin_c,measurement_start_skin_c,battery_before_cooldown_c,battery_end_c,start_battery_c,idle_cpu_fraction_before,replay_validated
+Cooler reference,space_game,vanilla,1,295.76365017891,48.687524620721,43.4,213.45016479492188,292.5,13.932975769042969,1280,720,2.75,0,1,43.275,35.260002,36.899002,33.3,35.7,33.300003,0.95,True
+Warm reference,space_game,vanilla,1,349.19706010818,41.237460577528,56.15,213.4544219970703,292.5,13.938446044921875,1280,720,2.75,0,2,45.846,40.148003,42.045002,38,39.4,38,0.98875,True
+Final policy: first run,space_game,vanilla,1,346.87580513954,41.513417155766,55.3,213.59423828125,292.5,13.939971923828125,1280,720,2.75,1,2,47.581,42.800003,44.086002,40.5,40.9,40.500004,0.9875,True

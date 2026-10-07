@@ -61,6 +61,21 @@ namespace dmEngine
         bool CanConsume(bool visible, bool stopping) const { return stopping || (visible && m_Credit); }
         void Consumed() { m_Credit = false; }
     };
+
+    // Optional estimate for work admitted outside rAF. Expensive consumption or
+    // an old credit falls back to the next browser callback, without dropping a
+    // frame or spending the credit. This is not a GPU/presentation deadline.
+    struct WebReadyBudget
+    {
+        double m_BudgetMs, m_TickMs, m_LastConsumeMs;
+        WebReadyBudget() : m_BudgetMs(0), m_TickMs(0), m_LastConsumeMs(0) {}
+        void BrowserTick(double now) { m_TickMs = now; }
+        void Consumed(double begin, double end) { m_LastConsumeMs = end - begin; }
+        bool Admit(double now) const
+        {
+            return m_BudgetMs == 0 || now - m_TickMs + m_LastConsumeMs <= m_BudgetMs;
+        }
+    };
 }
 
 #if defined(__EMSCRIPTEN_PTHREADS__)

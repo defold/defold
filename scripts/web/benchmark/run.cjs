@@ -5,6 +5,8 @@ const crypto=require('node:crypto'),os=require('node:os');
 const {execFileSync}=require('node:child_process');
 const {validateReplay}=require('./replay_contract.cjs');
 const {validateDiagnostics}=require('./diagnostic_contract.cjs');
+const {validateTiming}=require('./timing_contract.cjs');
+const android=process.env.ADB_SERIAL?require('./android_device.cjs').createAndroid():null;
 const out=process.argv[2];if(!out)throw Error('Usage: node run.cjs NEW_OUTPUT_DIRECTORY [case-name]');
 const cases=(process.env.CASES_FILE?JSON.parse(fs.readFileSync(process.env.CASES_FILE,'utf8')):[
  {name:'bunny10k',scene:'bunny',count:10000},
@@ -30,9 +32,13 @@ manifest.audioActive=process.env.AUDIO_ACTIVE==='1';
 manifest.diagnostics=process.env.DIAGNOSTICS==='1';
 manifest.memoryDiagnostic=process.env.MEMORY_DIAGNOSTIC==='1';
 manifest.memorySamples=process.env.MEMORY_SAMPLES!=='0';
+manifest.statusReports=process.env.STATUS_REPORTS!=='0';
+manifest.allowTimingOverflow=process.env.ALLOW_TIMING_OVERFLOW==='1';
+assert(!manifest.allowTimingOverflow||cases.every(c=>c.scene==='geometry'),'Timing overflow reporting is restricted to explicit geometry stress runs');
 assert(!manifest.memoryDiagnostic||cases.every(c=>c.scene==='geometry'),'GC diagnostic currently requires geometry cases');
 if(variants)manifest.variants=variants;
-manifest.environment={platform:process.platform,arch:process.arch,os:os.release(),device:process.env.DEVICE_ID||os.hostname()};
+manifest.environment=android?android.environment:{platform:process.platform,arch:process.arch,os:os.release(),device:process.env.DEVICE_ID||os.hostname()};
+if(android){assert(!manifest.headless,'Android measurements require visible Chrome');manifest.android={thermalStartMaxStatus:1,cpuIdleMinimum:0.9,thermalProtocol:'sustained-external-power',rssAvailable:false};}
 function bundleHashes(){
  const hashDir=dir=>Object.fromEntries(fs.readdirSync(dir).filter(n=>n==='index.html'||n.startsWith('dmengine_release.')).sort().map(n=>[n,crypto.createHash('sha256').update(fs.readFileSync(path.join(dir,n))).digest('hex')]));
  if(variants&&Object.values(variants).some(v=>v.bundleDir)){
@@ -42,13 +48,13 @@ function bundleHashes(){
  return process.env.BUNDLE_DIR?hashDir(process.env.BUNDLE_DIR):undefined;
 }
 manifest.bundle=bundleHashes();
-const sourceNames=['run.cjs','replay_contract.cjs','diagnostic_contract.cjs','index.html'];
+const sourceNames=['run.cjs','replay_contract.cjs','diagnostic_contract.cjs','index.html','timing_contract.cjs',...(android?['android_device.cjs']:[])];
 manifest.runnerSources=Object.fromEntries(sourceNames.map(n=>[n,crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname,n))).digest('hex')]));
 if(process.env.GATES_FILE)manifest.gates=JSON.parse(fs.readFileSync(process.env.GATES_FILE,'utf8'));
 if(process.env.RESUME==='1'){
  const saved=JSON.parse(fs.readFileSync(path.join(out,'manifest.json'),'utf8'));
  for(const k of ['cases','modes','repeats','seconds','warmup','metrics','headless'])assert.deepEqual(saved[k],manifest[k],`Resume configuration differs: ${k}`);
- for(const k of ['memoryProbe','stackKb','stackMeasure','memoryDiagnostic','memorySamples','diagnostics','audioActive'])assert.equal(saved[k],manifest[k],`Resume configuration differs: ${k}`);
+ for(const k of ['memoryProbe','stackKb','stackMeasure','memoryDiagnostic','memorySamples','diagnostics','audioActive','allowTimingOverflow','statusReports'])assert.equal(saved[k],manifest[k],`Resume configuration differs: ${k}`);
  assert.deepEqual(saved.variants,manifest.variants,'Resume variants differ');
  assert.deepEqual(saved.bundle,manifest.bundle,'Resume bundle differs');
  assert.deepEqual(saved.runnerSources,manifest.runnerSources,'Resume runner sources differ');
@@ -61,12 +67,12 @@ if(process.env.RESUME==='1'){
 fs.writeFileSync(path.join(out,'manifest.json'),JSON.stringify(manifest,null,2));
 fs.mkdirSync(path.join(out,'sources'),{recursive:true});
 for(const n of sourceNames)fs.copyFileSync(path.join(__dirname,n),path.join(out,'sources',n));
-function power(){const p=execFileSync('pmset',['-g','batt'],{encoding:'utf8'});assert(p.includes('AC Power'));return p;}
+function power(){if(android)return android.power();const p=execFileSync('pmset',['-g','batt'],{encoding:'utf8'});assert(p.includes('AC Power'));return p;}
 async function mem(cdp,page){
- const processes=(await cdp.send('SystemInfo.getProcessInfo')).processInfo;
- const rss=execFileSync('/bin/ps',['-o','pid=,rss=','-p',processes.map(p=>p.id).join(',')],{encoding:'utf8'}).trim().split('\n').map(l=>l.trim().split(/\s+/).map(Number));
- const state=await page.evaluate(probe=>{if(probe)Module._dmEngineSampleWebMemory();return {now:performance.timeOrigin+performance.now(),hidden:document.hidden,focused:document.hasFocus(),canvas:[Module.canvas.width,Module.canvas.height],dpr:devicePixelRatio,heap:Module.HEAPU8.buffer.byteLength,allocator:Module.webAllocator};},manifest.memoryProbe);
- assert(!state.hidden,JSON.stringify(state));assert(state.focused,JSON.stringify(state));return {...state,processes,rss:rss.reduce((n,p)=>n+p[1],0)*1024};
+ const processes=android?[]:(await cdp.send('SystemInfo.getProcessInfo')).processInfo;
+ const rss=android?[]:execFileSync('/bin/ps',['-o','pid=,rss=','-p',processes.map(p=>p.id).join(',')],{encoding:'utf8'}).trim().split('\n').map(l=>l.trim().split(/\s+/).map(Number));
+ const state=await page.evaluate(probe=>{if(probe)Module._dmEngineSampleWebMemory();return {now:performance.timeOrigin+performance.now(),hidden:document.hidden,focused:document.hasFocus(),canvas:[Module.canvas.width,Module.canvas.height],dpr:devicePixelRatio,audioState:globalThis._dmJSDeviceShared?.audioCtx?.state,heap:Module.HEAPU8.buffer.byteLength,allocator:Module.webAllocator};},manifest.memoryProbe);
+ assert(!state.hidden,JSON.stringify(state));assert(state.focused,JSON.stringify(state));return {...state,processes,rss:android?null:rss.reduce((n,p)=>n+p[1],0)*1024};
 }
 (async()=>{
 for(let repeat=0;repeat<manifest.repeats;repeat++)for(const c of cases){
@@ -85,11 +91,13 @@ for(let repeat=0;repeat<manifest.repeats;repeat++)for(const c of cases){
   if(fs.existsSync(path.join(out,key+'.csv')))fs.renameSync(path.join(out,key+'.csv'),path.join(failed,`${key}-attempt-${attempt}.csv`));
  }
  console.log(`Starting ${key}`);
- const browser=await chromium.launch({headless:manifest.headless,executablePath:process.env.CHROME_EXECUTABLE||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:[...(manifest.headless?['--enable-gpu','--use-angle=metal']:['--window-size=1400,1000']),...(manifest.audioActive?['--autoplay-policy=no-user-gesture-required','--mute-audio']:[])]});
+ const mobile=android?await android.launch(chromium):null;
+ const browser=mobile?mobile.browser:await chromium.launch({headless:manifest.headless,executablePath:process.env.CHROME_EXECUTABLE||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:[...(manifest.headless?['--enable-gpu','--use-angle=metal']:['--window-size=1400,1000']),...(manifest.audioActive?['--autoplay-policy=no-user-gesture-required','--mute-audio']:[])]});
  try{
  const cdp=await browser.newBrowserCDPSession();result.browser=browser.version();result.gpu=(await cdp.send('SystemInfo.getInfo')).gpu.devices;
  if(process.env.GPU_MATCH)assert(result.gpu.some(g=>g.deviceString.includes(process.env.GPU_MATCH)));assert(result.gpu.length>0);assert(!result.gpu.some(g=>/SwiftShader|llvmpipe|Software Rasterizer/i.test(g.deviceString)));
- const page=await browser.newPage({viewport:manifest.headless?{width:1400,height:900}:null});
+ const page=mobile?mobile.page:await browser.newPage({viewport:manifest.headless?{width:1400,height:900}:null});
+ if(android){result.thermalBefore=mobile.thermalBefore;result.thermal=[];}
  const pageCdp=await page.context().newCDPSession(page);
  let measured=false,ended=false,phase="startup";
  page.on('pageerror',e=>result.errors.push(String(e)));
@@ -101,10 +109,12 @@ for(let repeat=0;repeat<manifest.repeats;repeat++)for(const c of cases){
  q.set('deferred_sprites',variant.deferredSprites?1:0);
  q.set('memory_diagnostic',manifest.memoryDiagnostic?1:0);
  q.set('memory_samples',manifest.memorySamples?1:0);
+ q.set('status_reports',manifest.statusReports?1:0);
+ q.set('ready_budget_ms',variant.readyBudgetMs??0);
  await page.goto((variant.url||c.url||'http://127.0.0.1:8766/')+'?'+q);
  await pageCdp.send('Emulation.setFocusEmulationEnabled',{enabled:false});
  result.focusEmulation=false;
- if(!manifest.headless){
+ if(!manifest.headless&&!android){
   const processes=(await cdp.send('SystemInfo.getProcessInfo')).processInfo;
   const pid=processes.find(p=>p.type==='browser').id;
   assert(Number.isSafeInteger(pid));
@@ -117,16 +127,19 @@ for(let repeat=0;repeat<manifest.repeats;repeat++)for(const c of cases){
  await page.waitForFunction(()=>document.hasFocus(),null,{timeout:3000});
  const deadline=Date.now()+(c.timeout_seconds||manifest.warmup+manifest.seconds+120)*1000;
  while(!measured&&!ended){assert(!await page.evaluate(()=>!!Module.webCpuTrace),'Engine exited before measurement');assert(Date.now()<deadline,'No measurement start');assert.equal(result.errors.length,0,result.errors.join('\n'));await page.waitForTimeout(250);}
- while(!ended){result.memory.push({...await mem(cdp,page),phase});if(result.memory.length%15===0)console.log(`${key}: ${result.memory.length*2}s sampled`);await page.waitForTimeout(2000);assert(Date.now()<deadline,'No measurement end');assert.equal(result.errors.length,0,result.errors.join('\n'));}
+ while(!ended){if(android&&result.memory.length%5===0)result.thermal.push({time:Date.now(),...android.thermal()});result.memory.push({...await mem(cdp,page),phase});if(result.memory.length%15===0)console.log(`${key}: ${result.memory.length*2}s sampled`);await page.waitForTimeout(2000);assert(Date.now()<deadline,'No measurement end');assert.equal(result.errors.length,0,result.errors.join('\n'));}
  await page.waitForFunction(()=>Module.webPocResult!==undefined||typeof EXITSTATUS==='number'||window.exitCode!==undefined,null,{timeout:20000});
  result.exit=await page.evaluate(()=>Module.webPocResult??window.exitCode??EXITSTATUS);assert.equal(result.exit,0);
  const evidence=await page.evaluate(()=>({trace:Module.webCpuTrace,schedule:Module.webSchedule,stack:Module.webStack,diagnostics:Module.webUpdateDiagnostics,renderAdmission:Module.webRenderAdmission}));
  if(manifest.memoryProbe){
   result.stack=evidence.stack;
   result.snapshots=c.scene==='replay'?result.result.memory.samples.map(s=>s.snapshot).filter(Boolean):result.log.filter(s=>s.startsWith('WEB_MEMORY ')).map(s=>JSON.parse(s.slice(11)));
+  const finalSnapshot=result.log.find(s=>s.startsWith('WEB_MEMORY_FINAL '));
+  if(finalSnapshot)result.finalSnapshot=JSON.parse(finalSnapshot.slice(17));
   result.timing=c.scene==='replay'?result.result.frame_interval:JSON.parse(result.log.find(s=>s.startsWith('WEB_TIMING ')).slice(11));
   assert(!manifest.memorySamples||result.snapshots.length>0);assert(result.memory.every(m=>m.allocator&&m.allocator.allocated>0));
-  assert.equal(result.timing.overflow_samples,0);
+  result.timingOverflowAllowed=manifest.allowTimingOverflow;
+  validateTiming(result.timing,{allowOverflow:manifest.allowTimingOverflow});
   if(policies[engineMode]){assert.equal(result.stack.reserved,stackKb*1024);assert.equal(result.stack.measured,manifest.stackMeasure);if(manifest.stackMeasure)assert(result.stack.touched>0&&result.stack.touched<result.stack.reserved);}
  }
  if(manifest.metrics){assert(evidence.trace,'Missing CPU trace');assert(evidence.trace.startsWith('# dropped=0;'));fs.writeFileSync(path.join(out,key+'.csv'),evidence.trace);}
@@ -141,7 +154,12 @@ for(let repeat=0;repeat<manifest.repeats;repeat++)for(const c of cases){
  else assert(!result.diagnostics,'Unexpected diagnostic instrumentation');
  result.renderAdmission=evidence.renderAdmission;
  if(engineMode==='overlap_ready'){assert(result.renderAdmission);assert(result.renderAdmission.retired<=result.renderAdmission.browserTicks+1);}
+ // Config GetFloat rounds fractional budgets to float32; formatted banners are
+ // not an exact numeric contract (printf and JS can round ties differently).
+ if(variant.readyBudgetMs){assert.equal(result.renderAdmission.budgetMs,Math.fround(variant.readyBudgetMs));assert(result.log.some(s=>s.includes('WEB_POC_READY_BUDGET milliseconds=')));}
+ if(!manifest.statusReports&&c.scene==='bunny')assert(!result.log.some(s=>s.startsWith('BUNNYMARK count=')),'Status reporting was not disabled by the content bundle');
  result.schedule=evidence.schedule;if(result.schedule)assert.equal(result.schedule.dropped,0);
+ if(android&&manifest.audioActive&&c.scene==='replay')assert(result.memory.filter(m=>m.phase==='measure').every(m=>m.audioState==='running'),'Android replay audio was not running');
  assert(result.result.valid);assert.equal(result.errors.length,0);assert(result.memory.length>0);assert.equal(new Set(result.memory.map(m=>JSON.stringify(m.canvas))).size,1);
  if(policies[engineMode]){const [schedule,cache]=policies[engineMode];assert(result.log.some(s=>s.includes('component-web-threaded')));assert(result.log.some(s=>s.includes(`WEB_POC_OPTIONS schedule=${schedule} cache_window=${cache}`)));assert(result.log.some(s=>s.includes('WEB_POC_SCHEDULE completion_dispatch='+(schedule===1?1:0)+' metrics='+(manifest.metrics?1:0))));}
  if(['serialized','barrier','overlap','overlap_completion','overlap_paced','overlap_ready','barrier_completion'].includes(engineMode)){
@@ -164,9 +182,9 @@ for(let repeat=0;repeat<manifest.repeats;repeat++)for(const c of cases){
   else manifest.replaySignatures[c.name]=result.replaySignature;
  }
  assert.deepEqual(bundleHashes(),manifest.bundle,'Input bundle changed during measurement');
- result.powerAfter=power();result.valid=true;
+ result.powerAfter=power();if(android){result.thermalAfter=android.thermal();result.cpuAfter=android.idleCpu();}result.valid=true;
  }catch(e){result.failure=String(e);throw e}
- finally{fs.writeFileSync(path.join(out,key+'.json'),JSON.stringify(result,null,2));await browser.close();}
+ finally{fs.writeFileSync(path.join(out,key+'.json'),JSON.stringify(result,null,2));if(android)await android.close(browser,mobile.page);else await browser.close();}
  manifest.runs.push(key);fs.writeFileSync(path.join(out,'manifest.json'),JSON.stringify(manifest,null,2));
  console.log(`${manifest.runs.length}/${cases.length*modes.length*manifest.repeats} ${key}: ${result.result.update_intervals_per_second.toFixed(2)} updates/s`);
  }

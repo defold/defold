@@ -1,0 +1,38 @@
+[
+  {
+    "mode": "vanilla",
+    "valid": true,
+    "ticks": 1800,
+    "checkpoint_count": 3,
+    "matching_checkpoints": true,
+    "cleanup_verified": true,
+    "threaded_activation": false
+  },
+  {
+    "mode": "poc_direct",
+    "valid": true,
+    "ticks": 1800,
+    "checkpoint_count": 3,
+    "matching_checkpoints": true,
+    "cleanup_verified": true,
+    "threaded_activation": false
+  },
+  {
+    "mode": "threaded",
+    "valid": true,
+    "ticks": 1800,
+    "checkpoint_count": 3,
+    "matching_checkpoints": true,
+    "cleanup_verified": true,
+    "threaded_activation": true
+  },
+  {
+    "mode": "threaded_ready",
+    "valid": true,
+    "ticks": 1800,
+    "checkpoint_count": 3,
+    "matching_checkpoints": true,
+    "cleanup_verified": true,
+    "threaded_activation": true
+  }
+]

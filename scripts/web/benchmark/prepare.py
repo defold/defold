@@ -39,6 +39,10 @@ s=s.replace('function update(self, dt)', '''function update(self, dt)
             sys.exit(0)
         end
     end''',1)
+# Console output on a pthread synchronously rendezvous with browser main.
+# Keep the interactive report by default, but permit clean timing controls.
+assert s.count('if elapsed >= 1 then') == 1, 'Unknown Bunnymark status loop'
+s=s.replace('if elapsed >= 1 then', 'if elapsed >= 1 and sys.get_config_int("benchmark.status_reports", 1) ~= 0 then')
 p.write_text(s)
 # Include bunny entry point in the archive without instantiating it in synthetic scenes.
 s=(dst/'game.project').read_text().replace('[project]','[project]\ncustom_resources = /example')

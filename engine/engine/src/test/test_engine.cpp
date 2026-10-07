@@ -1607,3 +1607,28 @@ TEST(EngineTest, WebRenderHiddenAndStopAdmission)
     ASSERT_FALSE(admission.CanConsume(true, false));
     ASSERT_TRUE(admission.CanConsume(false, true));
 }
+
+// Late or expensive outside-rAF work falls back without spending render credit;
+// a later cheap browser consumption restores readiness and zero preserves mode 4.
+TEST(EngineTest, WebReadyConsumptionBudget)
+{
+    dmEngine::WebReadyBudget budget;
+    dmEngine::WebRenderAdmission admission;
+    ASSERT_TRUE(budget.Admit(1000));
+    budget.m_BudgetMs = 32;
+    budget.BrowserTick(100);
+    admission.BrowserTick(true);
+    budget.Consumed(80, 100);
+    ASSERT_TRUE(budget.Admit(112));
+    ASSERT_FALSE(budget.Admit(113));
+    ASSERT_TRUE(admission.CanConsume(true, false));
+    budget.Consumed(100, 140);
+    budget.BrowserTick(150);
+    ASSERT_FALSE(budget.Admit(150));
+    budget.Consumed(150, 155); // rAF consumption is always allowed.
+    admission.Consumed();
+    ASSERT_TRUE(budget.Admit(155));
+    ASSERT_FALSE(admission.CanConsume(true, false));
+    budget.m_BudgetMs = 0;
+    ASSERT_TRUE(budget.Admit(10000));
+}

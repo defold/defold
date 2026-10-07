@@ -1,0 +1,37 @@
+[
+  {
+    "case": "bunny20k",
+    "throughput_ratio_to_ready": 0.9692085655695719,
+    "throughput_90_percent_pass": true,
+    "p99_ratio_to_direct": 0.816546762589928,
+    "sprite_p99_105_percent_pass": true
+  },
+  {
+    "case": "bunny30k",
+    "throughput_ratio_to_ready": 0.9902650385209916,
+    "throughput_90_percent_pass": true,
+    "p99_ratio_to_direct": 0.6697123519458545,
+    "sprite_p99_105_percent_pass": true
+  },
+  {
+    "case": "fill",
+    "throughput_ratio_to_ready": 1.001887396003721,
+    "throughput_90_percent_pass": true,
+    "p99_ratio_to_direct": 1.0323325635103928,
+    "sprite_p99_105_percent_pass": null
+  },
+  {
+    "case": "geometry100",
+    "throughput_ratio_to_ready": 0.9996026298715803,
+    "throughput_90_percent_pass": true,
+    "p99_ratio_to_direct": 1.1629834254143645,
+    "sprite_p99_105_percent_pass": null
+  },
+  {
+    "case": "geometry1000",
+    "throughput_ratio_to_ready": 0.925471171052981,
+    "throughput_90_percent_pass": true,
+    "p99_ratio_to_direct": 0.9497383503613257,
+    "sprite_p99_105_percent_pass": null
+  }
+]

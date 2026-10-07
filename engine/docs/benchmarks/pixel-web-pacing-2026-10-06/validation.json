@@ -1,0 +1,21 @@
+{
+  "native_admission_tests": 8,
+  "native_assertions": 58,
+  "launch_configuration_tests": 8,
+  "fixture_pixel_match": true,
+  "fixture_context_loss": true,
+  "fixture_forced_budget_deferral": true,
+  "fixture_simulation_overlap": true,
+  "fixture_preparation_overlap": true,
+  "browser_fixture": "headless desktop correctness only, not performance evidence",
+  "pixel_budget_ms": 32,
+  "python_report_and_attribution_tests": 12,
+  "forced_budget_ms": 1,
+  "matched_fixture_ready_consumptions": {
+    "budget_0_ms": 50,
+    "budget_1_ms": 0
+  },
+  "node_tool_tests": 15,
+  "fractional_budget_and_context_loss": true,
+  "browser_fixture_runs": 10
+}

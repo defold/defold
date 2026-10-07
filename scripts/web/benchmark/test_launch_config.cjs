@@ -66,3 +66,15 @@ test('ready render scheduling is opt-in',()=>{
     assert(args.includes('--config=render.poc_web_overlap=1'));
     assert(config('?mode=overlap_completion').includes('--config=render.poc_web_schedule=1'));
 });
+
+// Budgeted readiness and quiet measurement must be explicit, preserving old comparisons.
+test('ready budget and console reporting are independently selectable',()=>{
+    const defaults=config('?mode=overlap_ready');
+    assert(defaults.includes('--config=render.poc_web_ready_budget_ms=0'));
+    assert(defaults.includes('--config=benchmark.status_reports=1'));
+    const args=config('?mode=overlap_ready&ready_budget_ms=32&status_reports=0');
+    assert(args.includes('--config=render.poc_web_schedule=4'));
+    assert(args.includes('--config=render.poc_web_ready_budget_ms=32'));
+    assert(args.includes('--config=benchmark.status_reports=0'));
+    assert(config('?mode=overlap_ready&ready_budget_ms=32.1').includes('--config=render.poc_web_ready_budget_ms=32.1'));
+});

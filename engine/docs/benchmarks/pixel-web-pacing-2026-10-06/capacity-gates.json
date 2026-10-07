@@ -1,0 +1,27 @@
+[
+  {
+    "case": "bunny20k",
+    "no_extra_capacity_pass": true,
+    "increased_bytes": {}
+  },
+  {
+    "case": "bunny30k",
+    "no_extra_capacity_pass": true,
+    "increased_bytes": {}
+  },
+  {
+    "case": "fill",
+    "no_extra_capacity_pass": true,
+    "increased_bytes": {}
+  },
+  {
+    "case": "geometry100",
+    "no_extra_capacity_pass": true,
+    "increased_bytes": {}
+  },
+  {
+    "case": "geometry1000",
+    "no_extra_capacity_pass": true,
+    "increased_bytes": {}
+  }
+]

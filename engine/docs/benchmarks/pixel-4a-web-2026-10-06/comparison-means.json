@@ -1,0 +1,138 @@
+{
+  "bunny10k": {
+    "poc_direct": {
+      "updates_per_second": 56.112159521494334,
+      "peak_live_mib": 41.27570343017578,
+      "wasm_mib": 55.375
+    },
+    "threaded": {
+      "updates_per_second": 59.882570916261,
+      "peak_live_mib": 45.75260925292969,
+      "wasm_mib": 55.375
+    },
+    "threaded_ready": {
+      "updates_per_second": 59.929887015414664,
+      "peak_live_mib": 45.76579793294271,
+      "wasm_mib": 55.375
+    }
+  },
+  "bunny20k": {
+    "poc_direct": {
+      "updates_per_second": 30.707895768591,
+      "peak_live_mib": 49.23972829182943,
+      "wasm_mib": 66.5
+    },
+    "threaded": {
+      "updates_per_second": 43.484450037203,
+      "peak_live_mib": 55.951647440592446,
+      "wasm_mib": 66.5
+    },
+    "threaded_ready": {
+      "updates_per_second": 47.09891180578266,
+      "peak_live_mib": 56.00880686442057,
+      "wasm_mib": 66.5
+    }
+  },
+  "bunny30k": {
+    "poc_direct": {
+      "updates_per_second": 21.743138922901334,
+      "peak_live_mib": 59.013916015625,
+      "wasm_mib": 79.8125
+    },
+    "threaded": {
+      "updates_per_second": 28.868009639906333,
+      "peak_live_mib": 67.78471120198567,
+      "wasm_mib": 79.8125
+    },
+    "threaded_ready": {
+      "updates_per_second": 33.545065366625,
+      "peak_live_mib": 67.79300435384114,
+      "wasm_mib": 79.8125
+    }
+  },
+  "simulation": {
+    "poc_direct": {
+      "updates_per_second": 18.351976669623667,
+      "peak_live_mib": 38.980377197265625,
+      "wasm_mib": 46.125
+    },
+    "threaded": {
+      "updates_per_second": 18.408362448744,
+      "peak_live_mib": 41.41422780354818,
+      "wasm_mib": 55.375
+    },
+    "threaded_ready": {
+      "updates_per_second": 19.095328830695333,
+      "peak_live_mib": 41.41671498616537,
+      "wasm_mib": 55.375
+    }
+  },
+  "balanced": {
+    "poc_direct": {
+      "updates_per_second": 14.325426390406333,
+      "peak_live_mib": 49.558021545410156,
+      "wasm_mib": 66.5
+    },
+    "threaded": {
+      "updates_per_second": 16.37371594833,
+      "peak_live_mib": 53.88422393798828,
+      "wasm_mib": 66.5
+    },
+    "threaded_ready": {
+      "updates_per_second": 16.270213173877664,
+      "peak_live_mib": 53.76664733886719,
+      "wasm_mib": 66.5
+    }
+  },
+  "fill": {
+    "poc_direct": {
+      "updates_per_second": 23.349589948935332,
+      "peak_live_mib": 44.038475036621094,
+      "wasm_mib": 55.375
+    },
+    "threaded": {
+      "updates_per_second": 24.873045846154334,
+      "peak_live_mib": 48.718159993489586,
+      "wasm_mib": 66.5
+    },
+    "threaded_ready": {
+      "updates_per_second": 24.517584249946665,
+      "peak_live_mib": 48.71684773763021,
+      "wasm_mib": 66.5
+    }
+  },
+  "geometry1000": {
+    "poc_direct": {
+      "updates_per_second": 1.4382956451422333,
+      "peak_live_mib": 34.19424947102865,
+      "wasm_mib": 46.125
+    },
+    "threaded": {
+      "updates_per_second": 1.5009964821345334,
+      "peak_live_mib": 42.90809631347656,
+      "wasm_mib": 55.375
+    },
+    "threaded_ready": {
+      "updates_per_second": 0.7363723452132467,
+      "peak_live_mib": 42.84623463948568,
+      "wasm_mib": 55.375
+    }
+  },
+  "space_game": {
+    "poc_direct": {
+      "updates_per_second": 44.97896115101667,
+      "peak_live_mib": 213.6816635131836,
+      "wasm_mib": 292.5
+    },
+    "threaded": {
+      "updates_per_second": 44.570538716768,
+      "peak_live_mib": 219.4997075398763,
+      "wasm_mib": 292.5
+    },
+    "threaded_ready": {
+      "updates_per_second": 45.187529542617334,
+      "peak_live_mib": 219.48533376057944,
+      "wasm_mib": 292.5
+    }
+  }
+}

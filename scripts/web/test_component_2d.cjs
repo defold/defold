@@ -70,10 +70,12 @@ async function main() {
             });
             page.on('pageerror', error => errors.push(String(error)));
             try {
-                await page.goto(`${base}?mode=${contextLoss ? (mode === 'context-loss' ? 'threaded' : mode.slice(0, -'-context-loss'.length)) : mode}&stack_kb=${process.env.STACK_KB||5120}&stack_measure=${process.env.STACK_MEASURE==='1'?1:0}`);
+                await page.goto(`${base}?mode=${contextLoss ? (mode === 'context-loss' ? 'threaded' : mode.slice(0, -'-context-loss'.length)) : mode}&ready_budget_ms=${process.env.READY_BUDGET_MS||0}&stack_kb=${process.env.STACK_KB||5120}&stack_measure=${process.env.STACK_MEASURE==='1'?1:0}`);
                 assert(await page.evaluate(() => crossOriginIsolated));
                 if (contextLoss) {
                     await page.waitForFunction(() => (window.lines || []).some(s => s.includes('WEB_POC_ACTIVE')));
+                    if (mode.includes('ready') && process.env.READY_BUDGET_MS)
+                        assert(log.some(s=>s.includes('WEB_POC_READY_BUDGET milliseconds=')));
                     // Exercise stop wakeup under the selected policy, including
                     // paced admission with no remaining browser credit.
                     if (mode.includes('paced')) assert(log.some(s=>s.includes('WEB_POC_OPTIONS schedule=3')));
@@ -86,6 +88,8 @@ async function main() {
                     }));
                     await page.waitForFunction(() => Module.webPocResult !== undefined);
                     assert.equal(await page.evaluate(() => Module.webPocResult), 1);
+                    if (mode.includes('ready') && process.env.READY_BUDGET_MS)
+                        assert.equal(await page.evaluate(()=>Module.webRenderAdmission.budgetMs),Math.fround(Number(process.env.READY_BUDGET_MS)));
                     results.push({mode, stoppedCleanly: true});
                 } else {
                     await page.waitForFunction(() => typeof MainLoop !== 'undefined' && MainLoop.func);
@@ -127,13 +131,20 @@ async function main() {
                     const geometryDraws = await page.evaluate(() => window.webGeometryDraws);
                     assert(geometryDraws.maxInstances >= 2, 'Animated models must exercise a batched instanced draw');
                     await page.waitForFunction(() => (window.lines || []).some(s => s.includes('WEB_2D_PASS')));
+                    let renderAdmission;
                     if (threaded) {
                         await page.waitForFunction(() => Module.webPocResult !== undefined);
                         assert.equal(await page.evaluate(() => Module.webPocResult), 0);
                         if (mode.includes('ready')) {
-                            const admission = await page.evaluate(() => Module.webRenderAdmission);
+                            const admission = renderAdmission = await page.evaluate(() => Module.webRenderAdmission);
                             assert(log.some(s=>s.includes('WEB_POC_OPTIONS schedule=4')));
                             assert(admission.retired <= admission.browserTicks + 1, 'Readiness must not consume ahead of browser ticks');
+                            if (process.env.READY_BUDGET_MS) assert.equal(admission.budgetMs, Math.fround(Number(process.env.READY_BUDGET_MS)));
+                            // Each artificial draw costs 2 ms: a smaller budget
+                            // must reject callbacks. Compare readyRenders against
+                            // an unbudgeted control to count changed consumption.
+                            if (mode.endsWith('-slow') && Number(process.env.READY_BUDGET_MS)>0 && Number(process.env.READY_BUDGET_MS)<2)
+                                assert(admission.budgetDeferrals>0, 'Slow consumption must exceed the readiness budget');
                         }
                     }
                     const stack = threaded ? await page.evaluate(() => Module.webStack) : undefined;
@@ -141,7 +152,7 @@ async function main() {
                         assert.equal(stack.reserved, Number(process.env.STACK_KB||5120)*1024);
                         assert(stack.measured && stack.touched > 0 && stack.touched < stack.reserved);
                     }
-                    results.push({mode, checkpoint, stack, geometryDraws, simulationsDuringRender, preparationsDuringRender, artificialDrawDelayMs: mode.endsWith('-slow') ? 2 : 0, pixelSha256: crypto.createHash('sha256').update(png).digest('hex')});
+                    results.push({mode, checkpoint, stack, geometryDraws, renderAdmission, simulationsDuringRender, preparationsDuringRender, artificialDrawDelayMs: mode.endsWith('-slow') ? 2 : 0, pixelSha256: crypto.createHash('sha256').update(png).digest('hex')});
                 }
                 assert.deepEqual(errors, []);
             } finally {
