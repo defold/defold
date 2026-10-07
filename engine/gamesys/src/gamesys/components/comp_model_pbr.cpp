@@ -367,7 +367,12 @@ namespace dmGameSystem
         dmVMath::Vector4 emissive_factor(ddf_material.m_Emissivefactor.getX(), ddf_material.m_Emissivefactor.getY(),
                                        ddf_material.m_Emissivefactor.getZ(), ddf_material.m_Emissivestrength.m_Emissivestrength);
         dmGameSystem::SetRenderConstant(constants, PBR_EMISSIVE_FACTOR_AND_STRENGTH, &emissive_factor, 1);
-        dmVMath::Vector4 texture_factors(ddf_material.m_Normaltexture.m_Scale, ddf_material.m_Occlusiontexture.m_Scale, 0.0f, 0.0f);
+        // Absent texture views can contain zero-initialized importer values.
+        // Use neutral defaults only when the texture is absent; an authored
+        // zero scale/strength on an existing texture must remain zero.
+        float normal_scale = ddf_material.m_Normaltexture.m_Texture.m_Index != -1 ? ddf_material.m_Normaltexture.m_Scale : 1.0f;
+        float occlusion_strength = ddf_material.m_Occlusiontexture.m_Texture.m_Index != -1 ? ddf_material.m_Occlusiontexture.m_Scale : 1.0f;
+        dmVMath::Vector4 texture_factors(normal_scale, occlusion_strength, 0.0f, 0.0f);
         dmGameSystem::SetRenderConstant(constants, PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH, &texture_factors, 1);
 
         if (ddf_material.m_Normaltexture.m_Texture.m_Index != -1 ||
