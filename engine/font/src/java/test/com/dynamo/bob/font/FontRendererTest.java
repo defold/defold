@@ -692,6 +692,21 @@ public class FontRendererTest {
                         new int[] {'A', '&', 'C'}));
     }
 
+    // Verifies that literal ampersands survive filtering and output growth without introducing entities.
+    @Test
+    public void testFilterMarkupPreservesLiteralAmpersands() {
+        String filtered = FontRenderer.filterMarkup("<color=#FF0000>&am中p;</color>",
+                new int[] {'&', 'a', 'm', 'p', ';'});
+        assertEquals("<color=#FF0000>&amp;amp;</color>", filtered);
+        FontRenderer.MarkupParseResult result = FontRenderer.parseMarkup(filtered);
+        assertNull(result.error);
+        assertArrayEquals(new int[] {'&', 'a', 'm', 'p', ';'}, result.document.text);
+        assertEquals(1, result.document.spans[0].node);
+
+        assertEquals("&amp;&amp;", FontRenderer.filterMarkup("&&", new int[] {'&'}));
+        assertEquals("", FontRenderer.filterMarkup("", new int[] {'&'}));
+    }
+
     @Test
     public void testParseMarkupDocument() {
         String source = "<link id=\"<shadow blur=9>\"><outline size=1><shadow blur=2>A&amp;</shadow></outline></link>";

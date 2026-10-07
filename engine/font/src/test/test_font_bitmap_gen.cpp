@@ -472,6 +472,7 @@ static void TestFontAlignmentImage(const FontImageCase& c)
     ASSERT_NE((dmGraphics::HContext)0, g_ImageContext);
     FontAlignmentFixture fixture;
     CreateAlignmentFixture(fixture, !g_AlignmentPreview);
+    ASSERT_EQ(DM_ARRAY_SIZE(fixture.m_Glyphs), fixture.m_GlyphCount);
     CreateAlignmentVertices(fixture, FONT_ALIGNMENT_PIVOTS[c.m_Pivot]);
     dmArray<uint8_t> atlas;
     atlas.SetCapacity(256 * 32 * 4);

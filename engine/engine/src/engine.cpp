@@ -1827,6 +1827,7 @@ bail:
         dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
         dmGameObject::InputAction input_action;
         input_action.m_ActionId = action_id;
+        input_action.m_Source = action->m_Source;
         input_action.m_Value = action->m_Value;
         input_action.m_Pressed = action->m_Pressed;
         input_action.m_Released = action->m_Released;
@@ -2469,7 +2470,7 @@ bail:
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
         // This value should match the count in dmSystemDDF::Reboot
-        const int ARG_COUNT = 6;
+        const int ARG_COUNT = 8;
         const char* args[ARG_COUNT] =
         {
             reboot->m_Arg1,
@@ -2478,6 +2479,8 @@ bail:
             reboot->m_Arg4,
             reboot->m_Arg5,
             reboot->m_Arg6,
+            reboot->m_Arg7,
+            reboot->m_Arg8,
         };
 
         for (int i = 0; i < ARG_COUNT; ++i)

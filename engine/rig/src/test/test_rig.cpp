@@ -1972,6 +1972,7 @@ TEST_F(RigContextTest, DEF_3121)
     DeleteRigData(mesh_set, skeleton, animation_set);
 }
 
+// Reset clears acquired indices and animated poses; an empty reset must still allow reacquisition.
 TEST_F(RigContextTest, TestBindPoseCache)
 {
     dmRig::HRigInstance instance = 0x0;
@@ -2011,6 +2012,15 @@ TEST_F(RigContextTest, TestBindPoseCache)
 
     dmRig::ResetPoseMatrixCache(m_Context);
     ASSERT_EQ(0, cache->m_PoseMatrices.Size());
+    ASSERT_EQ(dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY, dmRig::GetPoseMatrixCacheDataOffset(m_Context, instance));
+    ASSERT_FALSE(dmRig::HasPoseMatrixCacheAnimatedPose(instance));
+
+    dmRig::ResetPoseMatrixCache(m_Context);
+    ASSERT_NE(dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY, dmRig::AcquirePoseMatrixCacheEntry(m_Context, instance));
+    ASSERT_EQ(bind_pose.Size(), cache->m_TotalPoseCount);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(bind_pose.Size(), cache->m_PoseMatrices.Size());
+    ASSERT_TRUE(dmRig::HasPoseMatrixCacheAnimatedPose(instance));
 
     dmRig::InstanceDestroy(m_Context, instance);
     DeleteRigData(mesh_set, skeleton, animation_set);
@@ -2066,6 +2076,123 @@ static dmRig::HRigInstance CreateMorphOnlyRigInstance(dmRig::HRigContext ctx, dm
     if (dmRig::InstanceCreate(ctx, ip, &inst) != dmRig::RESULT_OK)
         return 0;
     return inst;
+}
+
+static void CountPoseUpdate(void* user_data, void*)
+{
+    ++*(uint32_t*)user_data;
+}
+
+// Bone-only and animated rigs must resume pose callbacks when added to a static
+// context. Destroying and recreating them must preserve the context's update accounting.
+TEST_F(RigContextTest, StaticContextResumesPoseUpdates)
+{
+    const uint64_t model_id = dmHashString64("test");
+    dmRigDDF::MeshSet* static_mesh = NewMorphMeshSet(model_id, 0);
+    dmRigDDF::AnimationSet* empty_animations = NewEmptyAnimationSet();
+    dmRigDDF::Skeleton empty_skeleton = {};
+    dmArray<dmRig::RigBone> empty_bind_pose;
+    dmHashTable64<uint32_t> empty_bone_indices;
+    dmRig::InstanceCreateParams create = {};
+    create.m_ModelId = model_id;
+    create.m_MeshSet = static_mesh;
+    create.m_Skeleton = &empty_skeleton;
+    create.m_AnimationSet = empty_animations;
+    create.m_BindPose = &empty_bind_pose;
+    create.m_BoneIndices = &empty_bone_indices;
+    dmRig::HRigInstance static_instance;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(m_Context, create, &static_instance));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+
+    dmRigDDF::Skeleton* skeleton = new dmRigDDF::Skeleton();
+    dmRigDDF::MeshSet* mesh_set = new dmRigDDF::MeshSet();
+    dmRigDDF::AnimationSet* animations = new dmRigDDF::AnimationSet();
+    dmArray<dmRig::RigBone> bind_pose;
+    dmHashTable64<uint32_t> bone_indices;
+    SetUpSimpleRig(bind_pose, bone_indices, skeleton, mesh_set, animations);
+    uint32_t pose_updates = 0;
+    create.m_MeshSet = mesh_set;
+    create.m_Skeleton = skeleton;
+    create.m_BindPose = &bind_pose;
+    create.m_BoneIndices = &bone_indices;
+    create.m_PoseCallback = CountPoseUpdate;
+    create.m_PoseCBUserData1 = &pose_updates;
+    for (uint32_t animated = 0; animated < 2; ++animated)
+    {
+        create.m_AnimationSet = animated ? animations : empty_animations;
+        for (uint32_t repeat = 0; repeat < 2; ++repeat)
+        {
+            pose_updates = 0;
+            dmRig::HRigInstance instance;
+            ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(m_Context, create, &instance));
+            if (animated)
+                ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+            ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_Context, 1.0f));
+            ASSERT_EQ(1u, pose_updates);
+            ASSERT_EQ(bind_pose.Size(), dmRig::GetPose(instance)->Size());
+            if (animated)
+            {
+                ASSERT_NEAR(1.0f, dmRig::GetCursor(instance, false), RIG_EPSILON_FLOAT);
+                ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), (*dmRig::GetPose(instance))[1].m_World.GetRotation());
+            }
+            ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceDestroy(m_Context, instance));
+            ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+            ASSERT_EQ(1u, pose_updates);
+        }
+    }
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceDestroy(m_Context, static_instance));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    DeleteRigData(mesh_set, skeleton, animations);
+    DeleteRigData(static_mesh, 0, empty_animations);
+}
+
+// Adding and removing morph rigs must resume updates in a previously static-only context.
+TEST(RigMorphWeights, StaticContextResumesUpdates)
+{
+    dmRig::NewContextParams params = {};
+    params.m_MaxRigInstanceCount = 2;
+    dmRig::HRigContext context = 0;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::NewContext(params, &context));
+
+    const uint64_t model_id = dmHashString64("static_context");
+    dmRigDDF::MeshSet* static_mesh = NewMorphMeshSet(model_id, 0);
+    dmRigDDF::MeshSet* morph_mesh = NewMorphMeshSet(model_id, 1);
+    dmRigDDF::AnimationSet* animations = NewEmptyAnimationSet();
+    dmRigDDF::Skeleton skeleton = {};
+    dmArray<dmRig::RigBone> bind_pose;
+    dmHashTable64<uint32_t> bone_indices;
+    dmRig::InstanceCreateParams create = {};
+    create.m_ModelId = model_id;
+    create.m_BindPose = &bind_pose;
+    create.m_BoneIndices = &bone_indices;
+    create.m_Skeleton = &skeleton;
+    create.m_MeshSet = static_mesh;
+    create.m_AnimationSet = animations;
+    dmRig::HRigInstance static_instance = 0;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(context, create, &static_instance));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(context, 0.0f));
+
+    create.m_MeshSet = morph_mesh;
+    for (uint32_t repeat = 0; repeat < 2; ++repeat)
+    {
+        dmRig::HRigInstance morph_instance = 0;
+        ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(context, create, &morph_instance));
+        const float weight = 0.75f;
+        dmRig::SetMorphWeights(morph_instance, model_id, &weight, 1);
+        ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(context, 0.0f));
+        uint32_t count = 0;
+        const float* weights = dmRig::GetMorphWeights(morph_instance, model_id, &count);
+        ASSERT_EQ(1u, count);
+        ASSERT_NEAR(0.0f, weights[0], RIG_EPSILON_FLOAT);
+        ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceDestroy(context, morph_instance));
+        ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(context, 0.0f));
+    }
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceDestroy(context, static_instance));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(context, 0.0f));
+    DeleteRigData(static_mesh, 0, animations);
+    DeleteRigData(morph_mesh, 0, 0);
+    dmRig::DeleteContext(context);
 }
 
 TEST(RigMorphWeights, SetMorphWeightsWritesBuffer)

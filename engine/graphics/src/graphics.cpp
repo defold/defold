@@ -2555,6 +2555,19 @@ namespace dmGraphics
     {
         g_functions.m_ReadPixels(context, x, y, width, height, buffer, buffer_size);
     }
+
+    void SwizzleRGBAToBGRA(void* buffer, uint32_t pixel_count)
+    {
+        uint8_t* pixels = (uint8_t*) buffer;
+        for (uint32_t i = 0; i < pixel_count; ++i)
+        {
+            uint8_t red = pixels[0];
+            pixels[0] = pixels[2];
+            pixels[2] = red;
+            pixels += 4;
+        }
+    }
+
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         g_functions.m_RunApplicationLoop(user_data, step_method, is_running);

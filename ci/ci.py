@@ -179,6 +179,7 @@ def install_linux(args):
         "libopenal-dev",
         "libgl1-mesa-dev",
         "libgl1-mesa-dri",
+        "mesa-vulkan-drivers",
         "libglw1-mesa-dev",
         "openssl",
         "tofrodos",
@@ -188,6 +189,9 @@ def install_linux(args):
         "xvfb",
         "xauth"
     ]
+    # LuaJIT's VM generator needs a 32-bit host toolchain for armv7 cross-builds.
+    if args.platform == 'armv7-android':
+        packages.extend(["libc6-dev-i386", "gcc-multilib"])
     aptget(" ".join(packages))
 
 
@@ -263,6 +267,8 @@ def build_engine(channel, platform, args):
     cmd_opts.append('--platform=%s' % platform)
     # ccache isn't needed on CI
     cmd_opts.append('--disable-ccache')
+    if platform in ('x86_64-linux', 'arm64-linux'):
+        build_opts.append('--with-vulkan')
     if args.verbose:
         cmd_opts.append('--verbose')
 

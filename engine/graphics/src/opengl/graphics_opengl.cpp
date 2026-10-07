@@ -4399,7 +4399,7 @@ static void LogFrameBufferError(GLenum status)
 
         for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
         {
-            delete program_ptr->m_UniformBuffers[i].m_BlockMemory;
+            delete[] program_ptr->m_UniformBuffers[i].m_BlockMemory;
         }
 
         delete program_ptr;

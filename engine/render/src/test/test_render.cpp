@@ -1889,6 +1889,106 @@ TEST_F(dmRenderTest, TestRenderListSortNoneUsesInsertionOrder)
     ASSERT_EQ(ctx.m_Index, ctx.m_Count);
 }
 
+// Verify tag sorting keeps submission order within each tag list for sorted and unsorted input.
+TEST_F(dmRenderTest, TestRenderListTagSortStableOrder)
+{
+    const dmhash_t tags[] = { dmHashString64("sort_tag_a"), dmHashString64("sort_tag_b"), dmHashString64("sort_tag_c") };
+    uint32_t tag_keys[DM_ARRAY_SIZE(tags)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(tags); ++i)
+        tag_keys[i] = dmRender::RegisterMaterialTagList(m_Context, 1, &tags[i]);
+    std::sort(tag_keys, tag_keys + DM_ARRAY_SIZE(tag_keys));
+
+    // Empty, singleton, equal tags, ordered tags, interleaved tags, and a final inversion.
+    const uint32_t counts[] = { 0, 1, 48, 48, 48, 48 };
+    for (uint32_t layout = 0; layout < DM_ARRAY_SIZE(counts); ++layout)
+    {
+        dmRender::RenderListBegin(m_Context);
+        uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0, 0);
+        uint32_t count = counts[layout];
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            uint32_t tag_index = layout < 3 ? 0 : i / 16;
+            if (layout == 4)
+                tag_index = (i * 2) % DM_ARRAY_SIZE(tag_keys);
+            else if (layout == 5 && i == count - 1)
+                tag_index = 0;
+
+            entries[i].m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+            entries[i].m_TagListKey = tag_keys[tag_index];
+            entries[i].m_Dispatch = dispatch;
+        }
+        dmRender::RenderListSubmit(m_Context, entries, entries + count);
+        dmRender::RenderListEnd(m_Context);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+
+        dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+        ASSERT_EQ(count, context->m_RenderListSortIndices.Size());
+        uint32_t index = 0;
+        for (uint32_t tag = 0; tag < DM_ARRAY_SIZE(tag_keys); ++tag)
+        {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if (context->m_RenderList[i].m_TagListKey == tag_keys[tag])
+                {
+                    ASSERT_EQ(i, context->m_RenderListSortIndices[index]);
+                    ++index;
+                }
+            }
+        }
+        ASSERT_EQ(count, index);
+    }
+}
+
+// Verify draw sorting preserves equal-key order, including when only the final entry is out of order.
+TEST_F(dmRenderTest, TestRenderListDrawSortStableOrder)
+{
+    const dmhash_t tag = dmHashString64("sort_tag");
+    const uint32_t tag_key = dmRender::RegisterMaterialTagList(m_Context, 1, &tag);
+    const uint32_t count = 48;
+    // Ordered, interleaved, reversed, and ordered except for the final entry.
+    for (uint32_t layout = 0; layout < 4; ++layout)
+    {
+        dmRender::RenderListBegin(m_Context);
+        uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0, 0);
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            uint32_t order = i / 2;
+            if (layout == 1)
+                order = i % 6;
+            else if (layout == 2)
+                order = (count - 1 - i) / 2;
+            else if (layout == 3 && i == count - 1)
+                order = 0;
+
+            entries[i].m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+            entries[i].m_Order = order;
+            entries[i].m_TagListKey = tag_key;
+            entries[i].m_Dispatch = dispatch;
+        }
+        dmRender::RenderListSubmit(m_Context, entries, entries + count);
+        dmRender::RenderListEnd(m_Context);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+
+        dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+        ASSERT_EQ(count, context->m_RenderListSortBuffer.Size());
+        uint32_t index = 0;
+        for (uint32_t order = 0; order < count / 2; ++order)
+        {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if (context->m_RenderList[i].m_Order == order)
+                {
+                    ASSERT_EQ(i, context->m_RenderListSortBuffer[index]);
+                    ++index;
+                }
+            }
+        }
+        ASSERT_EQ(count, index);
+    }
+}
+
 TEST(Render, TextAlignmentOffsets)
 {
     const float text_width = 14.0f;
@@ -1923,6 +2023,113 @@ TEST_F(dmRenderTest, GetTextMetrics)
     ASSERT_EQ(14.0f, metrics.m_Width);
     ASSERT_EQ(9.0f, metrics.m_Height);
     ASSERT_EQ(3u, metrics.m_LineCount);
+}
+
+// Verifies unwrapped glyph-bank metrics preserve whitespace, guarding against #13375.
+TEST_F(dmRenderTest, GetTextMetricsWhitespace)
+{
+    // Spaces have an advance but no visible glyph bounds.
+    m_GlyphBank->m_Glyphs[' '].m_Width = 0;
+    m_GlyphBank->m_Glyphs[' '].m_LeftBearing = 0;
+
+    const struct
+    {
+        const char* m_Text;
+        float       m_ExpectedWidth;
+        float       m_ExpectedHeight;
+        uint32_t    m_ExpectedLineCount;
+    } cases[] = {
+        // Input, then expected width, height and line count.
+        { "",            0.0f,  0.0f, 0 },
+        { " ",           2.0f,  3.0f, 1 },
+        { "   ",         6.0f,  3.0f, 1 },
+        { "Trailing",    16.0f, 3.0f, 1 },
+        { "Trailing ",   18.0f, 3.0f, 1 },
+        { "Trailing   ", 22.0f, 3.0f, 1 },
+        { "Leading",     14.0f, 3.0f, 1 },
+        { " Leading",    16.0f, 3.0f, 1 },
+        { "   Leading",  20.0f, 3.0f, 1 },
+        { " Both ",      12.0f, 3.0f, 1 },
+        { "120",         6.0f,  3.0f, 1 },
+        { "120 ",        8.0f,  3.0f, 1 },
+        { "XX",          4.0f,  3.0f, 1 },
+        { "XX ",         6.0f,  3.0f, 1 },
+        { "A\nXX\nA",    4.0f,  9.0f, 3 },
+        { "XX\nA\n",     4.0f,  6.0f, 2 },
+        { "A\nXX \nA",   6.0f,  9.0f, 3 },
+        { "XX \nA\n",    6.0f,  6.0f, 2 },
+    };
+
+    TextLayoutSettings settings = {};
+    settings.m_Leading = 1.0f;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        dmRender::TextMetrics metrics = {};
+        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics);
+        printf("Text metrics for '%s': width %g, expected %g\n", cases[i].m_Text, metrics.m_Width, cases[i].m_ExpectedWidth);
+        EXPECT_EQ(cases[i].m_ExpectedWidth, metrics.m_Width);
+        EXPECT_EQ(cases[i].m_ExpectedHeight, metrics.m_Height);
+        EXPECT_EQ(cases[i].m_ExpectedLineCount, metrics.m_LineCount);
+        EXPECT_EQ(2.0f, metrics.m_MaxAscent);
+        EXPECT_EQ(1.0f, metrics.m_MaxDescent);
+    }
+}
+
+// Verifies raw and prepared wrapped metrics report actual line widths, including overflowing words (#13387).
+TEST_F(dmRenderTest, GetTextMetricsWrapped)
+{
+    m_GlyphBank->m_Glyphs[' '].m_Width = 0;
+    m_GlyphBank->m_Glyphs[' '].m_LeftBearing = 0;
+
+    const struct
+    {
+        const char* m_Text;
+        float       m_Width;
+        float       m_ExpectedWidth;
+        float       m_ExpectedHeight;
+        uint32_t    m_ExpectedLineCount;
+    } cases[] = {
+        { "",               100.0f,  0.0f, 0.0f, 0 },
+        { "OverflowX",        1.0f, 18.0f, 3.0f, 1 },
+        { "OverflowX",       10.0f, 18.0f, 3.0f, 1 },
+        { "OverflowX",      100.0f, 18.0f, 3.0f, 1 },
+        { "XX",             100.0f,  4.0f, 3.0f, 1 },
+        { " XX",            100.0f,  6.0f, 3.0f, 1 },
+        { "XX A",             5.0f,  4.0f, 6.0f, 2 },
+        { "A XX",             5.0f,  4.0f, 6.0f, 2 },
+        { "XX A",           100.0f,  8.0f, 3.0f, 1 },
+        { "XX A OverflowX",   5.0f, 18.0f, 9.0f, 3 },
+        { "XX\nA",          100.0f,  4.0f, 6.0f, 2 },
+        { "XX\r\nA",        100.0f,  4.0f, 6.0f, 2 },
+        { "XX\n\nA",        100.0f,  4.0f, 9.0f, 3 },
+        { "A\nXX\nA",       100.0f,  4.0f, 9.0f, 3 },
+        { "XX\nA\n",        100.0f,  4.0f, 6.0f, 2 },
+        { "XX \nA",         100.0f,  4.0f, 6.0f, 2 },
+        { "XX \nA\n",       100.0f,  4.0f, 6.0f, 2 },
+        { "XX ",            100.0f,  4.0f, 3.0f, 1 },
+    };
+
+    TextLayoutSettings settings = {};
+    settings.m_Leading = 1.0f;
+    settings.m_LineBreak = true;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        settings.m_Width = cases[i].m_Width;
+        dmRender::TextMetrics metrics[2] = {};
+        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics[0]);
+        HTextLayout layout = CreateTextLayout(m_SystemFontMap, cases[i].m_Text, settings);
+        ASSERT_NE((HTextLayout)0, layout);
+        GetTextMetrics(m_SystemFontMap, layout, &metrics[1]);
+        TextLayoutRelease(layout);
+
+        for (uint32_t m = 0; m < DM_ARRAY_SIZE(metrics); ++m)
+        {
+            printf("%s wrapped metrics for '%s', container %g: width %g, expected %g\n", m ? "Prepared" : "Raw", cases[i].m_Text, cases[i].m_Width, metrics[m].m_Width, cases[i].m_ExpectedWidth);
+            EXPECT_EQ(cases[i].m_ExpectedWidth, metrics[m].m_Width);
+            EXPECT_EQ(cases[i].m_ExpectedHeight, metrics[m].m_Height);
+            EXPECT_EQ(cases[i].m_ExpectedLineCount, metrics[m].m_LineCount);
+        }
+    }
 }
 
 TEST_F(dmRenderTest, GetPreparedTextMetrics)

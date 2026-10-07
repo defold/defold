@@ -44,7 +44,7 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
 # Private platform hooks can still list dependencies now built from source.
 SOURCE_BUILT_PACKAGE_PREFIXES = (
     'bullet-', 'protobuf-', 'box2d-', 'box2d_defold-', 'opus-',
-    'harfbuzz-', 'SheenBidi-', 'libunibreak-', 'SkriBidi-')
+    'harfbuzz-', 'SheenBidi-', 'libunibreak-', 'SkriBidi-', 'luajit-')
 
 _CMAKE_FEATURE_FLAG_MAP = {
     '--with-asan': 'WITH_ASAN',
@@ -162,7 +162,6 @@ PACKAGES_ALL=[
     "maven-3.0.1",
     "vecmath",
     "vpx-1.7.0",
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
@@ -171,20 +170,16 @@ PACKAGES_ALL=[
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_SIMULATOR=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_64=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "moltenvk-1474891"]
 
 PACKAGES_MACOS_X86_64=[
-    "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
@@ -206,7 +201,6 @@ PACKAGES_MACOS_X86_64=[
 
 PACKAGES_MACOS_ARM64=[
     "dawn-6bab1bd",
-    "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
@@ -226,7 +220,6 @@ PACKAGES_MACOS_ARM64=[
     "zipalign"]
 
 PACKAGES_WIN32_64=[
-    "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glslang-42d9adf5",
@@ -245,7 +238,6 @@ PACKAGES_WIN32_64=[
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
-    "luajit-2.1.0-3e223cb",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -265,7 +257,6 @@ PACKAGES_LINUX_X86_64=[
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
-    "luajit-2.1.0-3e223cb",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
@@ -280,17 +271,14 @@ PACKAGES_LINUX_ARM64=[
 
 # Android window backends build with the engine's platform library.
 PACKAGES_ANDROID=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "vkquality-1.1-2642a0d"]
 
 PACKAGES_ANDROID_64=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "vkquality-1.1-2642a0d"]
 
 PACKAGES_ANDROID_X86_64=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "vkquality-1.1-2642a0d"]
 
@@ -313,14 +301,6 @@ PLATFORM_PACKAGES = {
     'wasm-web':         PACKAGES_EMSCRIPTEN,
     'wasm_pthread-web': PACKAGES_EMSCRIPTEN
 }
-
-BOB_TOOL_PLATFORMS = [
-    'x86_64-macos',
-    'arm64-macos',
-    'x86_64-linux',
-    'arm64-linux',
-    'x86_64-win32'
-]
 
 # SDKs that include host-side protoc/native-extension pipeline tools.
 SDK_PIPELINE_TOOL_PLATFORMS = (
@@ -1001,10 +981,8 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            # Bob Light packages LuaJIT for every desktop host directly from ext.
             packages = [package for package in PLATFORM_PACKAGES.get(platform, [])
-                        if package not in PACKAGES_HOST or
-                        (platform in BOB_TOOL_PLATFORMS and package.startswith('luajit-'))]
+                        if package not in PACKAGES_HOST]
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
@@ -1184,6 +1162,12 @@ class Configuration(object):
         output = run.command(args)
         self._log(output)
 
+        if self.target_platform == 'armv7-android' and self.host.endswith('-macos'):
+            args = ["cmake", f"-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}", "-DLUAJIT_CHECK_SDK=ON",
+                    "-P", join(self.defold_root, "external/luajit/host/emscripten.cmake")]
+            output = run.command(args)
+            self._log(output)
+
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
         target_platform = self.target_platform
@@ -1210,7 +1194,9 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
-        if target_platform in ('wasm-web', 'wasm_pthread-web'):
+        # ARMv7's 32-bit LuaJIT generators run through the Web SDK on macOS.
+        if target_platform in ('wasm-web', 'wasm_pthread-web') or \
+                (target_platform == 'armv7-android' and self.host.endswith('-macos')):
             emsdk_folder = sdk.get_defold_emsdk()
             download_sdk(self,'%s/%s-%s.tar.gz' % (self.package_path, sdk.PACKAGES_EMSCRIPTEN_SDK, self.host), emsdk_folder)
 
@@ -1635,6 +1621,9 @@ class Configuration(object):
             gdc_bin = join(bin_dir, gdc_name)
             gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
+            luajit_name = format_exes("luajit-64", self.target_platform)[0]
+            luajit_bin = join(dynamo_home, 'ext', 'bin', self.target_platform, luajit_name)
+            self.upload_to_archive(luajit_bin, '%s/%s' % (full_archive_path, luajit_name))
 
         # upload mouse_capture lib on desktop platforms
         if self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -2566,7 +2555,7 @@ class Configuration(object):
             self.upload_to_archive(p, '%s/plugins/%s' % (full_archive_path, basename(p)))
 
     def build_bob(self):
-        """Build Bob using the cross-platform tools already installed by install_ext."""
+        """Build Bob using the installed cross-platform tools."""
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
@@ -3178,7 +3167,9 @@ class Configuration(object):
             if response[0] != 'y':
                 return
 
-        if tag_name:
+        # Console publication uses archived public-build artifacts; it must not
+        # create or force-push tags from either source checkout.
+        if tag_name and not build_private.is_repo_private():
             self.push_tag(self.create_tag())
 
         # Only release the web pages for the public repo
@@ -3305,6 +3296,19 @@ class Configuration(object):
 
         for f in futures:
             f()
+
+        # Bob packages tools from ext/bin, as it did when LuaJIT came from packages.
+        for platform in SDK_PIPELINE_TOOL_PLATFORMS:
+            name = format_exes('luajit-64', platform)[0]
+            source = join(local_dir, sha1, 'engine', platform, name)
+            if os.path.isfile(source):
+                destination = join(self.dynamo_home, 'ext', 'bin', platform, name)
+                # Keep tools installed by build_ext for the host and selected target.
+                if platform in (self.host, self.target_platform) and os.path.isfile(destination):
+                    continue
+                self._mkdirs(os.path.dirname(destination))
+                shutil.copy2(source, destination)
+                os.chmod(destination, 0o755)
 
 # ------------------------------------------------------------
 # BEGIN: SMOKE TEST

@@ -897,60 +897,37 @@ static MarkupResult DecodeCodepoint(const char* source, uint32_t length, uint32_
 
 struct Entity
 {
-    const char* m_Name;
+    const char* m_Text;
     uint8_t     m_Length;
     uint32_t    m_Codepoint;
 };
 
-static MarkupResult ParseEntity(ParseContext* context, uint32_t* codepoint, MarkupError* error)
+static uint32_t ParseEntity(ParseContext* context)
 {
     static const Entity entities[] = {
-        { "amp", 3, '&' },
-        { "apos", 4, '\'' },
-        { "gt", 2, '>' },
-        { "lt", 2, '<' },
-        { "quot", 4, '"' },
+        { "&amp;", 5, '&' },
+        { "&apos;", 6, '\'' },
+        { "&gt;", 4, '>' },
+        { "&lt;", 4, '<' },
+        { "&quot;", 6, '"' },
     };
 
-    const uint32_t start = context->m_Cursor++;
-    uint32_t       end = context->m_Cursor;
-
-    while (end < context->m_Length && context->m_Source[end] != ';' && end - context->m_Cursor <= 5)
-    {
-        ++end;
-    }
-
-    if (end == context->m_Length)
-    {
-        SetError(error, MARKUP_ERROR_INCOMPLETE_ENTITY, start);
-
-        return MARKUP_RESULT_INCOMPLETE;
-    }
-
-    if (context->m_Source[end] != ';')
-    {
-        SetError(error, MARKUP_ERROR_INVALID_ENTITY, start);
-
-        return MARKUP_RESULT_SYNTAX_ERROR;
-    }
-
-    uint32_t name_length = end - context->m_Cursor;
+    const uint32_t remaining = context->m_Length - context->m_Cursor;
 
     for (uint32_t i = 0; i < sizeof(entities) / sizeof(entities[0]); ++i)
     {
-        if (name_length == entities[i].m_Length &&
-            memcmp(context->m_Source + context->m_Cursor, entities[i].m_Name, name_length) == 0)
+        if (entities[i].m_Length <= remaining &&
+            memcmp(context->m_Source + context->m_Cursor, entities[i].m_Text, entities[i].m_Length) == 0)
         {
-            *codepoint = entities[i].m_Codepoint;
-            context->m_Cursor = end + 1;
+            context->m_Cursor += entities[i].m_Length;
 
-            return MARKUP_RESULT_OK;
+            return entities[i].m_Codepoint;
         }
     }
 
-    SetError(error, MARKUP_ERROR_INVALID_ENTITY, start);
+    ++context->m_Cursor;
 
-    return MARKUP_RESULT_SYNTAX_ERROR;
+    return '&';
 }
 
 static void PushText(ParseContext* context, uint32_t codepoint, MarkupString source)
@@ -1026,33 +1003,26 @@ static MarkupResult ParseMarkupTag(ParseContext* context, bool style_fragment, M
 static MarkupResult ParseVisibleText(ParseContext* context, MarkupError* error)
 {
     const uint32_t source_offset = context->m_Cursor;
+    uint32_t       codepoint;
 
-    if (context->m_Source[context->m_Cursor] != '&')
+    if (context->m_Source[context->m_Cursor] == '&')
     {
-        uint32_t codepoint;
+        codepoint = ParseEntity(context);
+    }
+    else
+    {
         const MarkupResult result = DecodeCodepoint(context->m_Source, context->m_Length, &context->m_Cursor, &codepoint, error);
 
         if (result != MARKUP_RESULT_OK)
         {
             return result;
         }
-
-        MarkupString source = { source_offset, (uint16_t)(context->m_Cursor - source_offset) };
-        PushText(context, codepoint, source);
-
-        return MARKUP_RESULT_OK;
     }
 
-    uint32_t codepoint;
-    const MarkupResult result = ParseEntity(context, &codepoint, error);
+    MarkupString source = { source_offset, (uint16_t)(context->m_Cursor - source_offset) };
+    PushText(context, codepoint, source);
 
-    if (result == MARKUP_RESULT_OK)
-    {
-        MarkupString source = { source_offset, (uint16_t)(context->m_Cursor - source_offset) };
-        PushText(context, codepoint, source);
-    }
-
-    return result;
+    return MARKUP_RESULT_OK;
 }
 
 static MarkupResult MarkupCreateInternal(const char* text, uint32_t text_length, HMarkup* out_markup, MarkupError* out_error, bool style_fragment, dmArray<MarkupString>* text_source_ranges)
@@ -1241,6 +1211,17 @@ MarkupResult MarkupFilterText(const char*     text,
     {
         const MarkupString& source = text_source_ranges[i];
         const uint32_t gap_length = source.m_Offset - source_cursor;
+        const bool keep = source.m_Length && ContainsCodepoint(allowed_codepoints, allowed_codepoint_count, markup->m_Text[i]);
+        const bool escape_ampersand = keep && markup->m_Text[i] == '&' && source.m_Length == 1;
+        const uint32_t filtered_length = keep ? (escape_ampersand ? 5 : source.m_Length) : 0;
+
+        if ((uint64_t)gap_length + filtered_length > output_capacity - output_cursor)
+        {
+            SetError(error, MARKUP_ERROR_LIMIT_EXCEEDED, output_capacity);
+            MarkupDestroy(markup);
+
+            return MARKUP_RESULT_LIMIT_EXCEEDED;
+        }
 
         if (gap_length)
         {
@@ -1248,16 +1229,26 @@ MarkupResult MarkupFilterText(const char*     text,
             output_cursor += gap_length;
         }
 
-        if (source.m_Length && ContainsCodepoint(allowed_codepoints, allowed_codepoint_count, markup->m_Text[i]))
+        if (keep)
         {
-            memcpy(output + output_cursor, markup->m_Source.Begin() + source.m_Offset, source.m_Length);
-            output_cursor += source.m_Length;
+            // Filtering must not join literal text into a newly recognized entity.
+            const char* filtered_source = escape_ampersand ? "&amp;" : markup->m_Source.Begin() + source.m_Offset;
+            memcpy(output + output_cursor, filtered_source, filtered_length);
+            output_cursor += filtered_length;
         }
 
         source_cursor = source.m_Offset + source.m_Length;
     }
 
     const uint32_t tail_length = text_length - source_cursor;
+
+    if (tail_length > output_capacity - output_cursor)
+    {
+        SetError(error, MARKUP_ERROR_LIMIT_EXCEEDED, output_capacity);
+        MarkupDestroy(markup);
+
+        return MARKUP_RESULT_LIMIT_EXCEEDED;
+    }
 
     if (tail_length)
     {

@@ -1905,6 +1905,98 @@ TEST_F(dmGuiTest, ScriptInput)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+// Verifies every source hash reaches GUI callbacks without changing input consumption.
+TEST_F(dmGuiTest, ScriptInputSources)
+{
+    const char* script = "function on_input(self, action_id, action)\n"
+                         "    assert(action_id == hash('test_action'))\n"
+                         "    input_source_received = action.source\n"
+                         "    return true\n"
+                         "end\n";
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetScript(m_Script, LuaSourceFromStr(script)));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const char* names[] = {"keyboard", "text", "mouse", "touch", "gamepad", "accelerometer"};
+    const dmHID::InputSource sources[] = {
+        dmHID::INPUT_SOURCE_KEYBOARD, dmHID::INPUT_SOURCE_TEXT, dmHID::INPUT_SOURCE_MOUSE,
+        dmHID::INPUT_SOURCE_TOUCH, dmHID::INPUT_SOURCE_GAMEPAD, dmHID::INPUT_SOURCE_ACCELEROMETER,
+    };
+    dmGui::InputAction action;
+    ASSERT_EQ(dmHID::INPUT_SOURCE_KEYBOARD, action.m_Source);
+    action.m_ActionId = dmHashString64("test_action");
+    for (uint32_t i = 0; i < sizeof(sources) / sizeof(sources[0]); ++i)
+    {
+        lua_pushnil(L);
+        lua_setglobal(L, "input_source_received");
+        action.m_Source = sources[i];
+        bool consumed = false;
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::DispatchInput(m_Scene, &action, 1, &consumed));
+        ASSERT_TRUE(consumed);
+        lua_getglobal(L, "input_source_received");
+        ASSERT_TRUE(dmScript::IsHash(L, -1));
+        ASSERT_EQ(dmHashString64(names[i]), dmScript::CheckHash(L, -1));
+        lua_pop(L, 1);
+    }
+}
+
+// Verifies separate mouse, touch, and accelerometer GUI payloads without consumption leaking into the next callback.
+TEST_F(dmGuiTest, ScriptUnnamedInputSources)
+{
+    const char* script = "input_pointer_received = 0\n"
+                         "input_accelerometer_received = 0\n"
+                         "function on_input(self, action_id, action)\n"
+                         "    assert(action_id == nil)\n"
+                         "    assert(action.value == nil and action.pressed == nil)\n"
+                         "    assert(action.released == nil and action.repeated == nil)\n"
+                         "    if action.source == hash('mouse') or action.source == hash('touch') then\n"
+                         "        assert(action.x == 1 and action.y == 2)\n"
+                         "        assert(action.dx == 3 and action.dy == 4)\n"
+                         "        assert(action.screen_x == 5 and action.screen_y == 6)\n"
+                         "        assert(action.screen_dx == 7 and action.screen_dy == 8)\n"
+                         "        assert(action.acc_x == nil and action.acc_y == nil and action.acc_z == nil)\n"
+                         "        input_pointer_received = input_pointer_received + 1\n"
+                         "        return true\n"
+                         "    end\n"
+                         "    assert(action.source == hash('accelerometer'))\n"
+                         "    assert(action.acc_x == 0.25 and action.acc_y == -0.5 and action.acc_z == 1)\n"
+                         "    assert(action.x == nil and action.y == nil and action.dx == nil and action.dy == nil)\n"
+                         "    assert(action.screen_x == nil and action.screen_y == nil)\n"
+                         "    assert(action.screen_dx == nil and action.screen_dy == nil)\n"
+                         "    input_accelerometer_received = input_accelerometer_received + 1\n"
+                         "end\n";
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetScript(m_Script, LuaSourceFromStr(script)));
+    dmGui::InputAction actions[2];
+    actions[0].m_PositionSet = 1;
+    actions[0].m_X = 1.0f;
+    actions[0].m_Y = 2.0f;
+    actions[0].m_DX = 3.0f;
+    actions[0].m_DY = 4.0f;
+    actions[0].m_ScreenX = 5.0f;
+    actions[0].m_ScreenY = 6.0f;
+    actions[0].m_ScreenDX = 7.0f;
+    actions[0].m_ScreenDY = 8.0f;
+    actions[1].m_Source = dmHID::INPUT_SOURCE_ACCELEROMETER;
+    actions[1].m_AccelerationSet = 1;
+    actions[1].m_AccX = 0.25f;
+    actions[1].m_AccY = -0.5f;
+    actions[1].m_AccZ = 1.0f;
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const dmHID::InputSource pointer_sources[] = {dmHID::INPUT_SOURCE_MOUSE, dmHID::INPUT_SOURCE_TOUCH};
+    for (uint32_t i = 0; i < sizeof(pointer_sources) / sizeof(pointer_sources[0]); ++i)
+    {
+        actions[0].m_Source = pointer_sources[i];
+        bool consumed[2] = {};
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::DispatchInput(m_Scene, actions, 2, consumed));
+        ASSERT_TRUE(consumed[0]);
+        ASSERT_FALSE(consumed[1]);
+        lua_getglobal(L, "input_pointer_received");
+        ASSERT_EQ(i + 1, lua_tointeger(L, -1));
+        lua_pop(L, 1);
+        lua_getglobal(L, "input_accelerometer_received");
+        ASSERT_EQ(i + 1, lua_tointeger(L, -1));
+        lua_pop(L, 1);
+    }
+}
+
 TEST_F(dmGuiTest, ScriptInputConsume)
 {
     const char* s = "function update(self)\n"
