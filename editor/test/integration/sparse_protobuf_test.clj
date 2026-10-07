@@ -254,7 +254,7 @@
      "font"
      {:font "/builtins/fonts/vera_mo_bd.ttf"
       :material "/builtins/fonts/font.material"
-      :size 10
+      :size (required 10) ; Bitmap fonts require a positive size, including at depth zero.
       :styles {:name "style_name"}}
 
      "go"
