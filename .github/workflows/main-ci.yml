@@ -429,6 +429,7 @@ jobs:
             tmp/dynamo_home/bin
             tmp/dynamo_home/lib
             tmp/dynamo_home/share
+            tmp/dynamo_home/ext/bin/${{ matrix.platform }}/luajit-64*
           if-no-files-found: "error"
           retention-days: 1
       - name: "Upload docs and builtins for the editor jobs"
@@ -564,7 +565,7 @@ jobs:
         # its bundle, where they have to be runnable.
         if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
         shell: bash
-        run: "chmod -R +x tmp/dynamo_home/bin"
+        run: "chmod -R +x tmp/dynamo_home/bin tmp/dynamo_home/ext/bin"
       - name: "Build bob"
         run: "ci/ci.sh --skip-tests ${{ env.OPTION_SKIP_ARCHIVE }} bob"
       - name: "Upload bob jar"

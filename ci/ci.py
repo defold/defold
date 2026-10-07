@@ -189,6 +189,9 @@ def install_linux(args):
         "xvfb",
         "xauth"
     ]
+    # LuaJIT's VM generator needs a 32-bit host toolchain for armv7 cross-builds.
+    if args.platform == 'armv7-android':
+        packages.extend(["libc6-dev-i386", "gcc-multilib"])
     aptget(" ".join(packages))
 
 
