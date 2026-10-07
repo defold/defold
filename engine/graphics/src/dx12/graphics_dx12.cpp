@@ -3710,8 +3710,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         for (int j = 0; j < shaders[i]->m_HlslResourceMapping.m_Count; ++j)
         {
             uint32_t index = offset + j;
-            const uint32_t root_index = shaders[i]->m_HlslResourceMapping[j].m_RootParameterIndex;
-            program->m_RootSignatureResources[index].m_RootParameterIndex = root_index == 0xffffffff ? index : root_index;
+            program->m_RootSignatureResources[index].m_RootParameterIndex = shaders[i]->m_HlslResourceMapping[j].m_RootParameterIndex;
             program->m_RootSignatureResources[index].m_NameHash = shaders[i]->m_HlslResourceMapping[j].m_NameHash;
             program->m_RootSignatureResources[index].m_Binding  = shaders[i]->m_HlslResourceMapping[j].m_Binding;
             program->m_RootSignatureResources[index].m_Set      = shaders[i]->m_HlslResourceMapping[j].m_Set;
@@ -4706,7 +4705,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             {
                 sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, wwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             }
-            texture->m_TextureSamplerIndex = sampler_index;
+            assert(sampler_index >= 0 && sampler_index <= UINT16_MAX);
+            texture->m_TextureSamplerIndex = (uint16_t) sampler_index;
         }
     }
 

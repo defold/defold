@@ -64,7 +64,7 @@ namespace dmGraphics
         dmArray<D3D12_RESOURCE_STATES> m_ResourceStates;
 
         uint16_t                m_LayerCount;
-        uint32_t                m_TextureSamplerIndex;
+        uint16_t                m_TextureSamplerIndex;
     };
 
     struct DX12TextureSampler
@@ -134,7 +134,10 @@ namespace dmGraphics
 
     enum DX12RootParameterType
     {
-        ROOT_TEXTURE_SRV, ROOT_SAMPLER, ROOT_TEXTURE_UAV, ROOT_CBV
+        ROOT_TEXTURE_SRV,
+        ROOT_SAMPLER,
+        ROOT_TEXTURE_UAV,
+        ROOT_CBV
     };
 
     struct DX12ResourceBinding
@@ -149,6 +152,7 @@ namespace dmGraphics
     {
         Program                      m_BaseProgram;
         dmArray<DX12ResourceBinding> m_RootSignatureResources;
+        // Indexed by root parameter: selects SRV/UAV/sampler binding and detects shader writes.
         dmArray<uint8_t>             m_RootParameterTypes;
         uint8_t*                     m_UniformData;
         ID3D12RootSignature*         m_RootSignature;
@@ -183,10 +187,10 @@ namespace dmGraphics
     {
         ID3D12DescriptorHeap* m_ResourceHeap;
         ID3D12DescriptorHeap* m_SamplerHeap;
-        uint32_t m_ResourceCapacity;
-        uint32_t m_SamplerCapacity;
-        uint32_t m_ResourceCursor;
-        uint32_t m_SamplerCursor;
+        uint32_t             m_ResourceCapacity;
+        uint32_t             m_SamplerCapacity;
+        uint32_t             m_ResourceCursor;
+        uint32_t             m_SamplerCursor;
     };
 
     struct DX12ScratchBuffer

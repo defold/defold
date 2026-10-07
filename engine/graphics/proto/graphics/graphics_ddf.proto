@@ -455,8 +455,9 @@ message ShaderDesc
         optional uint64 name_hash = 1;
         optional uint32 binding   = 2;
         optional uint32 set       = 3;
-        // Older assets use the concatenated per-stage mapping index.
-        optional uint32 root_parameter_index = 4 [default = 4294967295];
+        // Slot in the compiled HLSL root signature, after merging shared stage bindings.
+        // Resource reflection order can differ from root parameter order.
+        required uint32 root_parameter_index = 4;
     }
 
     message MSLResourceMapping
