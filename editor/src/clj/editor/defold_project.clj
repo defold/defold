@@ -618,16 +618,38 @@
   (let [resource (val node-id+resource-pair)]
     (resource/proj-path resource)))
 
-(defn- node-load-info-read-error [{:keys [node-id resource] :as node-load-info} exception]
-  (-> node-load-info
-      (dissoc :source-value :disk-sha256 :dependency-proj-paths :prerequisite-proj-paths)
-      (assoc :read-error (resource-io/invalid-content-error node-id nil :fatal resource exception))))
+(defn- node-load-info-read-error [{:keys [node-id resource prerequisite-proj-paths] :as node-load-info} exception causes]
+  (let [causes (into [] (distinct) causes)]
+    (-> node-load-info
+        (dissoc :source-value :disk-sha256 :dependency-proj-paths :prerequisite-proj-paths)
+        (assoc :read-error
+               (cond-> (resource-io/invalid-content-error node-id nil :fatal resource exception)
+                 (coll/not-empty causes) (assoc :causes causes)
+                 ;; Reload metadata must survive failed loading, even for cycles.
+                 ;; It is independent of executable materialization dependencies.
+                 (coll/not-empty prerequisite-proj-paths)
+                 (assoc-in [:user-data :prerequisite-proj-paths] (vec prerequisite-proj-paths)))))))
+
+(defn- check-missing-load-prerequisites [{:keys [node-id resource prerequisite-proj-paths] :as node-load-info} basis]
+  (let [missing-resource
+        (coll/some (fn [proj-path]
+                     (let [prerequisite (workspace/resolve-resource basis resource proj-path)]
+                       (when-not (resource/exists? prerequisite)
+                         prerequisite)))
+                   prerequisite-proj-paths)]
+    (if-not missing-resource
+      node-load-info
+      (let [proj-path (resource/proj-path missing-resource)
+            exception (ex-info (str "Unable to load prerequisite '" proj-path "'.")
+                               {:ex-type :prerequisite-failed :prerequisite-proj-path proj-path})]
+        (node-load-info-read-error node-load-info exception [(make-file-not-found-error node-id missing-resource)])))))
 
 (defn- validate-and-sort-load-prerequisites [node-load-infos basis old-node-ids-by-proj-path]
   ;; Bulk reloads do not claim materialization promises. Validate their read
   ;; results before any loader runs, propagating errors to dependent resources.
   ;; Preserve the dependency order where possible, giving prerequisites priority.
-  (let [proj-path->info (coll/pair-map-by (comp resource/proj-path :resource) node-load-infos)
+  (let [node-load-infos (mapv #(check-missing-load-prerequisites % basis) node-load-infos)
+        proj-path->info (coll/pair-map-by (comp resource/proj-path :resource) node-load-infos)
         failed-loaded-prerequisites
         (coll/into-> node-load-infos {}
           (mapcat :prerequisite-proj-paths)
@@ -638,7 +660,7 @@
                     (when-let [node (g/node-by-id basis node-id)]
                       (when (resource-node/node-loaded? basis node)
                         (when-let [errors (coll/not-empty (gt/get-property node basis :_output-jammers))]
-                          (pair proj-path {:read-error errors}))))))))]
+                          (pair proj-path {:read-error (g/error-aggregate (into [] (distinct) (coll/vals errors)))}))))))))]
     (loop [pending (mapv (comp vector resource/proj-path :resource) (rseq (vec node-load-infos)))
            checked failed-loaded-prerequisites
            load-order []]
@@ -665,13 +687,13 @@
                 (let [cycle (conj (into [] (drop-while #(not= cycle-start %)) path) cycle-start)
                       exception (ex-info (str "Circular resource prerequisites: " (coll/join-to-string " -> " cycle))
                                          {:ex-type :prerequisite-cycle :cycle-proj-paths cycle})]
-                  (recur (pop pending) (assoc checked proj-path (node-load-info-read-error info exception))
+                  (recur (pop pending) (assoc checked proj-path (node-load-info-read-error info exception nil))
                          (conj load-order proj-path)))
 
                 failed-prerequisite
                 (let [exception (ex-info (str "Unable to load prerequisite '" failed-prerequisite "'.")
                                          {:ex-type :prerequisite-failed :prerequisite-proj-path failed-prerequisite})]
-                  (recur (pop pending) (assoc checked proj-path (node-load-info-read-error info exception))
+                  (recur (pop pending) (assoc checked proj-path (node-load-info-read-error info exception [(:read-error (checked failed-prerequisite))]))
                          (conj load-order proj-path)))
 
                 (coll/empty? unread)
@@ -1116,7 +1138,7 @@
         load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                     (make-load-opts-in-evaluation-context project evaluation-context))
         node-load-info (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
-                         (read-node-load-info read-opts node-id resource))
+                         (check-missing-load-prerequisites (read-node-load-info read-opts node-id resource) basis))
 
         node-load-info
         (if (:read-error node-load-info)
@@ -1127,7 +1149,7 @@
               (g/materialize-prerequisites! node-id prerequisite-node-ids evaluation-context)
               node-load-info)
             (catch clojure.lang.ExceptionInfo exception
-              (let [{:keys [ex-type cycle-node-ids prerequisite-node-id]} (ex-data exception)]
+              (let [{:keys [ex-type cycle-node-ids prerequisite-node-id errors]} (ex-data exception)]
                 (if-not (contains? #{:prerequisite-cycle :prerequisite-failed} ex-type)
                   (throw exception)
                   (let [basis (g/ec-basis evaluation-context)
@@ -1138,7 +1160,7 @@
                                        (coll/join-to-string " -> " (e/map node-proj-path cycle-node-ids)))
                                   (str "Unable to load prerequisite '" (node-proj-path prerequisite-node-id) "'."))
                         exception (ex-info message (ex-data exception) exception)]
-                    (node-load-info-read-error node-load-info exception)))))))]
+                    (node-load-info-read-error node-load-info exception (coll/vals errors))))))))]
     (e/concat
       (node-load-info->disk-state-tx-data node-load-info)
       (load-nodes-tx-data load-opts [node-load-info] progress/null-render-progress! progress/null-render-progress! nil))))

@@ -459,7 +459,7 @@
         (is (= player-urls
                (completion-labels! "/scripts/player.script" "local path_double = \"/pla"))))
 
-      (testing "Broken nested collection preserves valid sibling URL completions"
+      (testing "A failed prerequisite blocks the parent collection, preserving unrelated completions"
         (test-util/write-file-resource! workspace "/main/main.collection"
           {:name "main"
            :instances [{:id "exclusive"
@@ -468,13 +468,21 @@
                                    :collection "/does-not-exist.collection"}]})
         (resource-sync! lsp workspace)
         (let [completion-labels (completion-labels! "/scripts/player.script" "local path_double = \"/pla")]
-          (is (contains? completion-labels "/exclusive"))
-          (is (contains? completion-labels "/exclusive#controller")))
+          (is (not (contains? completion-labels "/exclusive")))
+          (is (not (contains? completion-labels "/exclusive#controller")))
+          (is (coll/every? completion-labels other-urls)))
         (let [build-targets (g/node-value (project/get-resource-node project "/main/main.collection") :build-targets)]
           (is (g/error? build-targets))
           (is (coll/any? #(= :file-not-found (get-in % [:user-data :type]))
                          (coll/into-> [build-targets] []
-                           (coll/tree-xf :causes :causes)))))))))
+                           (coll/tree-xf :causes :causes))))))
+
+      (testing "Creating the missing prerequisite restores completions in its unchanged parent"
+        (test-util/write-file-resource! workspace "/does-not-exist.collection" {:name "recovered"})
+        (resource-sync! lsp workspace)
+        (let [completion-labels (completion-labels! "/scripts/player.script" "local path_double = \"/pla")]
+          (is (contains? completion-labels "/exclusive"))
+          (is (contains? completion-labels "/exclusive#controller")))))))
 
 (g/defnode LSPViewNode
   (property diagnostics g/Any (default []))

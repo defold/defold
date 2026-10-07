@@ -27,7 +27,8 @@
             [editor.graph-util :as gu]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.eduction :as e]))
 
 (set! *warn-on-reflection* true)
 
@@ -278,6 +279,28 @@
   ;; might imply different resource node types
   (filterv #(= (resource/type-ext (first %)) (resource/type-ext (second %))) moved))
 
+(defn- blocked-dependent-resources [basis old-nodes-by-path changes]
+  (let [changed-proj-paths
+        (into #{} (map resource/proj-path)
+              (e/concat (:added changes) (:removed changes) (:changed changes)
+                        (e/mapcat identity (:moved changes))))
+
+        prerequisite->dependents
+        (reduce-kv (fn [result proj-path node-id]
+                     (let [errors (g/raw-property-value basis node-id :_output-jammers)
+                           prerequisites (coll/some #(get-in % [:user-data :prerequisite-proj-paths]) (coll/vals errors))]
+                       (reduce (fn [result prerequisite]
+                                 (update result prerequisite (fnil conj #{}) proj-path))
+                               result prerequisites)))
+                   {} old-nodes-by-path)]
+    ;; Failed loads have no substructure or arcs to transfer. Follow their
+    ;; recorded paths instead, including dependents of other blocked resources.
+    (coll/into-> (g/pre-traverse basis changed-proj-paths
+                  (fn [_basis proj-path] (prerequisite->dependents proj-path))) []
+      (remove changed-proj-paths)
+      (map old-nodes-by-path)
+      (map #(resource-node/resource basis %)))))
+
 (defn resource-change-plan [old-nodes-by-path old-node->old-disk-sha256 changes]
   (let [changes (update changes :moved exclude-extension-changes)
         {:keys [added removed changed moved]} changes
@@ -318,7 +341,10 @@
     (let [plan (merge-resource-change-plans (resource-added-plan changes plan-info)
                                             (resource-removed-plan changes plan-info)
                                             (resource-changed-plan changes plan-info)
-                                            (resource-moved-plan changes plan-info))]
+                                            (resource-moved-plan changes plan-info)
+                                            (replace-resources-plan plan-info
+                                              (blocked-dependent-resources basis old-nodes-by-path changes)
+                                              true))]
       (doseq [[_ v] plan]
         ;; We should never produce lazy lists.
         (assert (or (vector? v)

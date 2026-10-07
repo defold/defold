@@ -323,3 +323,94 @@
         (is (< (order "/d.prereq") (order "/c.prereq") (order "/a.prereq")))
         (project/load-nodes! project nil infos progress/null-render-progress! nil {})
         (is (= 4 (count @load-calls)))))))
+
+;; Missing paths must block both load paths and recover unchanged transitive dependents when created.
+(deftest missing-prerequisite-recovery-test
+  (doseq [bulk [false true]]
+    (call-with-prerequisite-project
+      {"/root.prereq" {:prerequisites ["/middle.prereq"] :value 5}
+       "/middle.prereq" {:prerequisites ["/missing.prereq"] :value 2}}
+      (fn [_read-opts _resource source-value] (:prerequisites source-value))
+      (fn [project workspace load-calls]
+        (let [node-ids (g/node-value project :nodes-by-resource-path)
+              root (node-ids "/root.prereq")
+              middle (node-ids "/middle.prereq")]
+          (when bulk
+            (let [infos (project/read-nodes [(coll/pair root (resource-node/resource root))]
+                          :old-node-ids-by-proj-path node-ids)]
+              (project/load-nodes! project nil infos progress/null-render-progress! nil {})))
+          (let [error (g/node-value root :result)]
+            (is (g/error-value? error))
+            (is (coll/any? #(and (= :file-not-found (get-in % [:user-data :type]))
+                                 (= "/missing.prereq" (some-> (get-in % [:user-data :resource]) resource/proj-path)))
+                          (into [] (coll/tree-xf :causes :causes) [error]))))
+          (is (= [] @load-calls))
+          (is (nil? (get (g/node-value project :nodes-by-resource-path) "/missing.prereq")))
+
+          (test-util/write-file-resource! workspace "/unrelated.prereq" {:value 9})
+          (workspace/resource-sync! workspace)
+          (is (= root (test-util/resource-node project "/root.prereq")))
+          (is (= middle (test-util/resource-node project "/middle.prereq")))
+
+          (reset! load-calls [])
+          (test-util/write-file-resource! workspace "/missing.prereq" {:value 42})
+          (workspace/resource-sync! workspace)
+          (let [new-root (test-util/resource-node project "/root.prereq")
+                new-middle (test-util/resource-node project "/middle.prereq")]
+            (is (not= root new-root))
+            (is (not= middle new-middle))
+            (is (= 5 (g/node-value new-root :result)))
+            (is (= 2 (g/node-value new-middle :result)))
+            (is (= {"/missing.prereq" 1 "/middle.prereq" 1 "/root.prereq" 1}
+                   (frequencies @load-calls)))))))))
+
+;; Failed prerequisite metadata must survive discovery errors and cycles so either can be repaired.
+(deftest failed-prerequisite-recovery-test
+  (doseq [failure [:discovery :cycle]
+          bulk [false true]]
+    (call-with-prerequisite-project
+      {"/root.prereq" {:prerequisites ["/a.prereq"]}
+       "/a.prereq" {:prerequisites ["/b.prereq"]}
+       "/b.prereq" (case failure
+                      :discovery {:fail true}
+                      :cycle {:prerequisites ["/a.prereq"]})}
+      (fn [_read-opts _resource source-value]
+        (if-not (:fail source-value)
+          (:prerequisites source-value)
+          (throw (ex-info "Failed to discover prerequisites." {}))))
+      (fn [project workspace load-calls]
+        (when bulk
+          (let [root (test-util/resource-node project "/root.prereq")
+                infos (project/read-nodes [(coll/pair root (resource-node/resource root))]
+                        :old-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path))]
+            (project/load-nodes! project nil infos progress/null-render-progress! nil {})))
+        (is (g/error-value? (g/node-value (test-util/resource-node project "/root.prereq") :result)))
+        (is (= [] @load-calls))
+        (test-util/write-file-resource! workspace "/b.prereq" {:value 42})
+        (workspace/resource-sync! workspace)
+        (is (= 1 (g/node-value (test-util/resource-node project "/root.prereq") :result)))
+        (is (= {"/b.prereq" 1 "/a.prereq" 1 "/root.prereq" 1} (frequencies @load-calls)))))))
+
+;; Loading a missing game object must not produce a save value that silently drops its overrides.
+(deftest missing-game-object-retains-overrides-on-recovery-test
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              overrides [{:id "script" :properties [{:id "speed" :value "42.0" :type :property-type-number}]}]]
+          (test-util/write-file-resource! workspace "/main/main.collection"
+            {:name "main" :instances [{:id "missing" :prototype "/missing.go" :component-properties overrides}]})
+          (workspace/resource-sync! workspace)
+          (let [project (test-util/setup-project! workspace)
+                main (test-util/resource-node project "/main/main.collection")]
+            (is (g/error-value? (g/node-value main :save-value)))
+            (is (g/error-value? (g/node-value main :save-data)))
+            (test-util/write-file-resource! workspace "/missing.go"
+              {:components [{:id "script" :component "/component.script"}]})
+            (test-util/write-file-resource! workspace "/component.script" ["go.property(\"speed\", 1)" ""])
+            (workspace/resource-sync! workspace)
+            (let [main (test-util/resource-node project "/main/main.collection")
+                  save-value (g/node-value main :save-value)]
+              (is (not (g/error? save-value)))
+              (is (= overrides (get-in save-value [:instances 0 :component-properties])))
+              (is (false? (g/node-value main :dirty))))))))))

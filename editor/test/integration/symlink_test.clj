@@ -205,7 +205,7 @@
       (is (not (g/error? (g/node-value main-collection :scene))))
       (is (not (g/error? (g/node-value main-collection :node-outline)))))))
 
-(defn- check-stateful-directory-symlink-broken! [project referencing-directory]
+(defn- check-stateful-directory-symlink-broken! [project referencing-directory parent-load-blocked]
   (testing "Broken symlink appears as defective file."
     (let [workspace (project/workspace project)
           referencing-directory-resource (path->resource workspace referencing-directory)
@@ -220,7 +220,8 @@
           expected-error-info (expected-missing-file-error-info "/stateful_directory/referenced.go")]
       (is (= expected-error-info (as-missing-file-error-info (test-util/build-error! main-collection))))
       (is (= expected-error-info (as-missing-file-error-info (g/node-value main-collection :scene))))
-      (is (not (g/error? (g/node-value main-collection :node-outline)))))))
+      ;; Only collections loaded before the prerequisite broke retain an outline.
+      (is (= parent-load-blocked (boolean (g/error? (g/node-value main-collection :node-outline))))))))
 
 (deftest stateful-directory-valid-symlink-test
   (let [referencing-project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
@@ -249,7 +250,7 @@
             (workspace/resource-sync! workspace)
 
             (testing "After breaking symlink."
-              (check-stateful-directory-symlink-broken! project referencing-directory))
+              (check-stateful-directory-symlink-broken! project referencing-directory false))
 
             (lsp/await (lsp/get-lsp))))))))
 
@@ -274,7 +275,7 @@
           (let [[workspace project] (setup-symlink-test-project! referencing-project-path "/stateful_directory/referenced.go")]
 
             (testing "Before fixing symlink."
-              (check-stateful-directory-symlink-broken! project referencing-directory))
+              (check-stateful-directory-symlink-broken! project referencing-directory true))
 
             ;; Fix symlink.
             (path/move! referenced-directory-renamed referenced-directory)
@@ -426,7 +427,7 @@
       (is (not (g/error? (g/node-value main-collection :scene))))
       (is (not (g/error? (g/node-value main-collection :node-outline)))))))
 
-(defn- check-stateful-file-symlinks-broken! [project referencing-files referenced-project-path]
+(defn- check-stateful-file-symlinks-broken! [project referencing-files referenced-project-path parent-load-blocked]
   (testing "Broken symlinks appear as defective files of their respective resource-type."
     (let [workspace (project/workspace project)
           ext->resource-type (workspace/get-resource-type-map workspace)]
@@ -445,7 +446,9 @@
           expected-error-info (expected-broken-symlink-error-info "/stateful_files/referenced.go" referenced-project-path)]
       (is (= expected-error-info (as-broken-symlink-error-info (test-util/build-error! main-collection))))
       (is (= expected-error-info (as-broken-symlink-error-info (g/node-value main-collection :scene))))
-      (is (not (g/error? (g/node-value main-collection :node-outline)))))))
+      ;; An already loaded collection retains its outline. A collection whose
+      ;; prerequisite was broken before loading cannot safely create one.
+      (is (= parent-load-blocked (boolean (g/error? (g/node-value main-collection :node-outline))))))))
 
 (deftest stateful-file-valid-symlink-test
   (let [referencing-project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
@@ -475,7 +478,7 @@
               (workspace/resource-sync! workspace)
 
               (testing "After breaking symlinks."
-                (check-stateful-file-symlinks-broken! project referencing-files referenced-project-path))
+                (check-stateful-file-symlinks-broken! project referencing-files referenced-project-path false))
 
               (lsp/await (lsp/get-lsp)))))))))
 
@@ -501,7 +504,7 @@
             (let [[workspace project] (setup-symlink-test-project! referencing-project-path "/stateful_files/referenced.go")]
 
               (testing "Before fixing symlinks."
-                (check-stateful-file-symlinks-broken! project referencing-files referenced-project-path))
+                (check-stateful-file-symlinks-broken! project referencing-files referenced-project-path true))
 
               ;; Fix symlinks.
               (doseq [[referenced-file renamed-file] referenced-file->renamed-file]
