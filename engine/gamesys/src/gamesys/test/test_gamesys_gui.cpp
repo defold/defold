@@ -752,6 +752,42 @@ TEST_F(FontTest, GlyphBankRecreateKeepsFontHandle)
     dmResource::Release(m_Factory, font_2);
 }
 
+class FontScriptTest : public ScriptBaseTest
+{
+public:
+    FontScriptTest() { SetContentFolder("font"); }
+};
+
+// Verifies Lua whitespace metrics for glyph banks and runtime fonts on either layout backend (#13375).
+TEST_F(FontScriptTest, ScriptGetTextMetricsWhitespace)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/font/text_metrics_whitespace.goc", dmHashString64("/text_metrics_whitespace"));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    lua_getglobal(m_Scriptlibcontext.m_LuaState, "text_metrics_whitespace_passed");
+    EXPECT_TRUE(lua_toboolean(m_Scriptlibcontext.m_LuaState, -1));
+    lua_pop(m_Scriptlibcontext.m_LuaState, 1);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies Lua wrapped metrics measure overflowing words and fitting text on either layout backend (#13387).
+TEST_F(FontScriptTest, ScriptGetTextMetricsWrapped)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/font/text_metrics_whitespace.goc", dmHashString64("/text_metrics_wrapped"));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    lua_getglobal(m_Scriptlibcontext.m_LuaState, "text_metrics_wrapped_passed");
+    EXPECT_TRUE(lua_toboolean(m_Scriptlibcontext.m_LuaState, -1));
+    lua_pop(m_Scriptlibcontext.m_LuaState, 1);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(FontTest, DynamicGlyph)
 {
     const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";

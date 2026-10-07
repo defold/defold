@@ -50,6 +50,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.archive.EngineVersion;
 
@@ -193,6 +194,9 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_HAS_WASM_ENGINE", hasWasm);
 
         properties.put("DEFOLD_HAS_WASM_PTHREAD_ENGINE", architectures.contains(Platform.WasmPthreadWeb));
+
+        List<String> shaderAdapters = BundleHelper.createArrayFromString(project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, ""));
+        properties.put("DEFOLD_HAS_WEBGPU", shaderAdapters.contains(ShaderCompilers.SHADER_ADAPTER_WEBGPU));
     }
 
     static class SplitFile {

@@ -3,7 +3,7 @@
 . ./version.sh
 
 # VERSION from build_luajit.h
-readonly PATCH_FILE=patch_${VERSION}
+readonly PATCH_FILE=defold.patch
 
 ORIGINAL_REPO=git@github.com:LuaJIT/LuaJIT.git
 CHANGED_REPO=git@github.com:Defold/LuaJIT.git
