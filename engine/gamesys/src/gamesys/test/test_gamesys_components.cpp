@@ -14,6 +14,8 @@
 
 #include "test_gamesys_private.h"
 
+#include <float.h>
+
 using namespace dmVMath;
 
 class GamesysErrorLogCapture;
@@ -595,6 +597,125 @@ TEST_F(SpriteTest, Slice9FlipGeometry)
     }
 
     dmResource::Release(m_Factory, material_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static void GetSpriteTexcoordURange(dmResource::HFactory factory, dmGameObject::HCollection collection, float* min_u, float* max_u)
+{
+    dmGameSystem::MaterialResource* material_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(factory, "/sprite/sprite.materialc", (void**)&material_resource));
+    dmGraphics::HVertexDeclaration vertex_declaration = dmRender::GetVertexDeclaration(material_resource->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+    const uint32_t vertex_stride = dmGraphics::GetVertexDeclarationStride(vertex_declaration);
+    const uint32_t texcoord_offset = dmGraphics::GetVertexStreamOffset(vertex_declaration, dmHashString64("texcoord0"));
+    dmResource::Release(factory, material_resource);
+    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, texcoord_offset);
+
+    void* sprite_world = dmGameObject::GetWorld(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
+    ASSERT_NE((void*)0, sprite_world);
+    dmRender::BufferedRenderBuffer* vertex_buffer = 0;
+    dmRender::BufferedRenderBuffer* index_buffer = 0;
+    dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world, &vertex_buffer, &index_buffer);
+    ASSERT_NE((void*)0, vertex_buffer);
+    ASSERT_EQ(1u, vertex_buffer->m_Buffers.Size());
+
+    const uint32_t vertex_count = 4;
+    dmGraphics::HVertexBuffer vertex_buffer_handle = vertex_buffer->m_Buffers[0];
+    ASSERT_EQ(vertex_count * vertex_stride, dmGraphics::GetVertexBufferSize(vertex_buffer_handle));
+    const char* vertex_data = ((dmGraphics::VertexBuffer*)vertex_buffer_handle)->m_Buffer;
+
+    *min_u = FLT_MAX;
+    *max_u = -FLT_MAX;
+    for (uint32_t i = 0; i < vertex_count; ++i)
+    {
+        float u = ReadUnalignedFloat(vertex_data + i * vertex_stride + texcoord_offset);
+        *min_u = dmMath::Min(*min_u, u);
+        *max_u = dmMath::Max(*max_u, u);
+    }
+}
+
+static int GetRuntimeAtlasFrame(dmGameObject::HInstance go)
+{
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyDesc desc;
+    EXPECT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, dmHashString64("script"), dmHashString64("frame"), options, desc));
+    return (int)desc.m_Variant.m_Number;
+}
+
+static void AssertSpriteShowsRuntimeAtlasFrame(dmResource::HFactory factory, dmGameObject::HCollection collection, int frame)
+{
+    float min_u, max_u;
+    GetSpriteTexcoordURange(factory, collection, &min_u, &max_u);
+    // Frame 1 is the left half of the texture, frame 2 the right half
+    float expected_min = frame == 1 ? 0.0f : 0.5f;
+    ASSERT_NEAR(expected_min, min_u, EPSILON);
+    ASSERT_NEAR(expected_min + 0.5f, max_u, EPSILON);
+}
+
+/*
+ * Verifies that a sprite renders the current runtime atlas when the previous atlas is
+ * released and a new one is created and assigned in the same frame (issue #13167).
+ * The new TextureSetResource is often allocated at the address of the released one, and
+ * the sprite animation data cache used to return the stale entry for it (dangling DDF
+ * pointers, wrong frame, randomly flipped sprites). Address reuse is allocator dependent,
+ * so the number of observed reuses is only logged.
+ */
+TEST_F(SpriteTest, RecreatedRuntimeAtlasDoesNotReuseStaleAnimationData)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/runtime_atlas_recreate.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    void* sprite_component = GetSpriteComponent(go, dmHashString64("sprite"));
+
+    void* prev_texture_set = 0;
+    uint32_t reuse_count = 0;
+    for (uint32_t i = 0; i < 32; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        RenderCollection(m_RenderContext, m_Collection);
+
+        void* texture_set = dmGameSystem::GetSpriteComponentTextureSet(sprite_component);
+        reuse_count += texture_set == prev_texture_set ? 1 : 0;
+        prev_texture_set = texture_set;
+
+        AssertSpriteShowsRuntimeAtlasFrame(m_Factory, m_Collection, GetRuntimeAtlasFrame(go));
+    }
+    dmLogInfo("Runtime atlas address reused %u times", reuse_count);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+/*
+ * Verifies that a sprite animation data cache hit is validated against the texture sets
+ * the sprite currently uses. The cache key of an earlier atlas is forced onto the sprite
+ * to simulate, independently of the allocator, the key reuse from issue #13167 where a
+ * new atlas allocated at a freed address produced the same key as the old one.
+ */
+TEST_F(SpriteTest, AnimationDataCacheHitIsValidatedAgainstTextureSet)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/runtime_atlas_recreate.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    void* sprite_component = GetSpriteComponent(go, dmHashString64("sprite"));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    int old_frame = GetRuntimeAtlasFrame(go);
+    AssertSpriteShowsRuntimeAtlasFrame(m_Factory, m_Collection, old_frame);
+    uint32_t old_hash = dmGameSystem::GetSpriteComponentAnimationDataHash(sprite_component);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    int new_frame = GetRuntimeAtlasFrame(go);
+    ASSERT_NE(old_frame, new_frame);
+    AssertSpriteShowsRuntimeAtlasFrame(m_Factory, m_Collection, new_frame);
+
+    dmGameSystem::SetSpriteComponentAnimationDataHash(sprite_component, old_hash);
+    RenderCollection(m_RenderContext, m_Collection);
+    AssertSpriteShowsRuntimeAtlasFrame(m_Factory, m_Collection, new_frame);
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 

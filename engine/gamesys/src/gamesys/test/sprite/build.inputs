@@ -9,6 +9,7 @@
 /sprite/image_get_set_image_by_hash_noscript.go
 /sprite/image_stale_animation_id_in_range.atlas
 /sprite/invalid_sprite.go
+/sprite/runtime_atlas_recreate.go
 /sprite/invalid_vertexspace.sprite
 /sprite/sprite_flipbook_anim.go
 /sprite/sprite_property_anim.go
