@@ -1,0 +1,1548 @@
+--- a/engine/data/src/data_io.cpp
++++ b/engine/data/src/data_io.cpp
+@@ -22,7 +22,7 @@
+ DM_STATIC_ASSERT(sizeof(DataFileHeader) == 8 && offsetof(DataFileHeader, m_Version) == 4, Invalid_data_file_header);
+ DM_STATIC_ASSERT(sizeof(DataFileDirectory) == 8 && offsetof(DataFileDirectory, m_StringsOffset) == 4, Invalid_data_file_directory);
+ DM_STATIC_ASSERT(sizeof(DataTableHeader) == 24 && offsetof(DataTableHeader, m_TagCount) == 8 && offsetof(DataTableHeader, m_Reserved) == 22, Invalid_data_table_header);
+-DM_STATIC_ASSERT(sizeof(DataFileFieldMeta) == 24 && offsetof(DataFileFieldMeta, m_Kind) == 8 && offsetof(DataFileFieldMeta, m_ByteSize) == 20, Invalid_data_file_field_meta);
++DM_STATIC_ASSERT(sizeof(DataFileFieldMeta) == 32 && offsetof(DataFileFieldMeta, m_Kind) == 8 && offsetof(DataFileFieldMeta, m_ByteSize) == 20, Invalid_data_file_field_meta);
+ DM_STATIC_ASSERT(sizeof(DataFileContainerHeader) == 8 && offsetof(DataFileContainerHeader, m_Count) == 4, Invalid_data_file_container_header);
+ static const uint32_t INVALID_STRING = UINT32_MAX;
+ 
+@@ -235,7 +235,7 @@
+         {
+             DataFieldMeta member = GetFieldMeta(table, meta.m_ChildIndex + i);
+             DataValue     child = GetChildValue(value->m_Type, &value->m_Value, i);
+-            offset = WriteField(table, member, &child, field + member.m_Offset, file, offset, strings_offset, strings);
++            offset = WriteField(table, member, &child, field + (member.m_Offset - meta.m_Offset), file, offset, strings_offset, strings);
+         }
+     }
+     else if (IsReference(value->m_Type))
+@@ -320,6 +320,7 @@
+             WriteDataInteger(field + offsetof(DataFileFieldMeta, m_ChildIndex), meta.m_ChildIndex, 2);
+             WriteDataInteger(field + offsetof(DataFileFieldMeta, m_ChildCount), meta.m_ChildCount, 2);
+             WriteDataInteger(field + offsetof(DataFileFieldMeta, m_ByteSize), meta.m_Size, 4);
++            WriteDataInteger(field + offsetof(DataFileFieldMeta, m_MemberNameHash), meta.m_Name, 8);
+         }
+ 
+         data += table->m_MetadataCount * DATA_FIELD_META_SIZE;
+@@ -411,7 +412,7 @@
+ 
+ // Child ranges follow their parent ranges in construction order. Validating this
+ // canonical tree rejects cycles/aliases and lets all runtime access trust offsets.
+-static bool ValidateLayout(const uint8_t* metadata, uint32_t total, uint32_t first, uint32_t count, uint32_t size, uint32_t* cursor, uint32_t depth, uint32_t* out_alignment)
++static bool ValidateLayout(const uint8_t* metadata, uint32_t total, uint32_t first, uint32_t count, uint32_t base_offset, uint32_t size, uint32_t* cursor, uint32_t depth, uint32_t* out_alignment)
+ {
+     if (depth > DATA_MAX_NESTING || first > total || count > total - first)
+         return false;
+@@ -421,14 +422,14 @@
+         DataFieldMeta meta = ReadFileFieldMeta(metadata, first + i);
+         uint32_t      field_size = DataTypeSize(meta.m_Type);
+         uint32_t      field_alignment = DataTypeAlignment(meta.m_Type);
+-        if (field_size == UINT32_MAX || meta.m_Offset > size || meta.m_Size > size - meta.m_Offset)
++        if (field_size == UINT32_MAX || meta.m_Offset < base_offset || meta.m_Offset - base_offset > size || meta.m_Size > size - (meta.m_Offset - base_offset))
+             return false;
+         if (meta.m_ChildIndex)
+         {
+             if (meta.m_Type != DATA_TYPE_STRUCT || meta.m_ChildIndex != *cursor || *cursor > total || meta.m_ChildCount > total - *cursor)
+                 return false;
+             *cursor += meta.m_ChildCount;
+-            if (!ValidateLayout(metadata, total, meta.m_ChildIndex, meta.m_ChildCount, meta.m_Size, cursor, depth + 1, &field_alignment))
++            if (!ValidateLayout(metadata, total, meta.m_ChildIndex, meta.m_ChildCount, meta.m_Offset, meta.m_Size, cursor, depth + 1, &field_alignment))
+                 return false;
+         }
+         else if (meta.m_ChildCount || meta.m_Size != field_size)
+@@ -440,7 +441,7 @@
+         for (uint32_t j = 0; j < i; ++j)
+         {
+             DataFieldMeta other = ReadFileFieldMeta(metadata, first + j);
+-            if (other.m_Field == meta.m_Field || (meta.m_Size && other.m_Size && meta.m_Offset < other.m_Offset + other.m_Size && other.m_Offset < meta.m_Offset + meta.m_Size))
++            if (other.m_Field == meta.m_Field || other.m_Name == meta.m_Name || (meta.m_Size && other.m_Size && meta.m_Offset < other.m_Offset + other.m_Size && other.m_Offset < meta.m_Offset + meta.m_Size))
+                 return false;
+         }
+     }
+@@ -457,7 +458,7 @@
+         for (uint32_t i = 0; i < meta.m_ChildCount; ++i)
+         {
+             DataFieldMeta child = ReadFileFieldMeta(metadata, meta.m_ChildIndex + i);
+-            if (!ValidateField(file, size, metadata, child, field + child.m_Offset, cursor, end, strings, next_string, depth + 1))
++            if (!ValidateField(file, size, metadata, child, field + (child.m_Offset - meta.m_Offset), cursor, end, strings, next_string, depth + 1))
+                 return false;
+         }
+         return true;
+@@ -507,7 +508,7 @@
+         const uint8_t* metadata = table + DATA_TABLE_HEADER_SIZE + (size_t)tags * 8;
+         uint32_t       metadata_cursor = field_count;
+         uint32_t       alignment;
+-        if (!ValidateLayout(metadata, metadata_count, 0, field_count, stride, &metadata_cursor, 0, &alignment) || metadata_cursor != metadata_count)
++        if (!ValidateLayout(metadata, metadata_count, 0, field_count, 0, stride, &metadata_cursor, 0, &alignment) || metadata_cursor != metadata_count)
+             return false;
+         cursor = values_end;
+         for (uint32_t r = 0; r < rows; ++r)
+--- a/engine/data/src/data_query.cpp
++++ b/engine/data/src/data_query.cpp
+@@ -15,10 +15,10 @@
+ #include "data.h"
+ 
+ // Resolve names during table matching and retain the field metadata/byte offset.
+-// Dynamic containers cannot bind paths.
++// Dynamic containers do not expose fixed member offsets.
+ static bool ResolveQueryField(const DataTable* table, const DataQueryFieldInfo& field, DataQueryBinding* binding)
+ {
+-    return ResolveFieldPath(table, field.m_Field, field.m_Type, field.m_Path, field.m_PathCount, &binding->m_Meta);
++    return ResolveField(table, field.m_Field, field.m_Type, &binding->m_Meta);
+ }
+ 
+ static DataQueryBinding* AllocateQueryFields(HDataQuery query)
+@@ -103,16 +103,11 @@
+         desc->m_FieldCount > UINT32_MAX / (sizeof(DataQueryBinding) + sizeof(uint32_t)))
+         return DATA_RESULT_INVALID_ARGUMENT;
+ 
+-    uint64_t path_count = 0;
+     for (uint32_t i = 0; i < desc->m_FieldCount; ++i)
+     {
+         const DataQueryField& field = desc->m_Fields[i];
+         if ((uint32_t)field.m_Type > DATA_TYPE_MATRIX4 || (uint32_t)field.m_Access > DATA_ACCESS_READ_WRITE ||
+-            (field.m_Access == DATA_ACCESS_READ_WRITE && !SupportsConcurrentWrite(field.m_Type)) ||
+-            field.m_PathCount > DATA_MAX_NESTING)
+-            return DATA_RESULT_INVALID_ARGUMENT;
+-        path_count += field.m_PathCount;
+-        if (path_count > UINT32_MAX / sizeof(uint64_t))
++            (field.m_Access == DATA_ACCESS_READ_WRITE && !SupportsConcurrentWrite(field.m_Type)))
+             return DATA_RESULT_INVALID_ARGUMENT;
+     }
+ 
+@@ -136,23 +131,14 @@
+     if (desc->m_FieldCount)
+     {
+         query->m_Fields.SetCapacity(desc->m_FieldCount);
+-        query->m_Paths.SetCapacity((uint32_t)path_count);
+         for (uint32_t i = 0; i < desc->m_FieldCount; ++i)
+         {
+             const DataQueryField& input = desc->m_Fields[i];
+             DataQueryFieldInfo    field = {
+                    .m_Field = input.m_Field,
+-                   .m_Path = 0,
+                    .m_Type = input.m_Type,
+-                   .m_PathCount = (uint16_t)input.m_PathCount,
+                    .m_Access = (uint8_t)input.m_Access
+             };
+-            if (field.m_PathCount)
+-            {
+-                uint32_t first = query->m_Paths.Size();
+-                query->m_Paths.PushArray(input.m_Path, field.m_PathCount);
+-                field.m_Path = query->m_Paths.Begin() + first;
+-            }
+             query->m_Fields.Push(field);
+         }
+     }
+@@ -334,9 +320,7 @@
+     {
+         const DataQueryFieldInfo& candidate = fields[i];
+         if ((uint32_t)field->m_Access <= (uint32_t)candidate.m_Access &&
+-            candidate.m_Field == field->m_Field && candidate.m_Type == field->m_Type &&
+-            candidate.m_PathCount == field->m_PathCount &&
+-            (!field->m_PathCount || !memcmp(candidate.m_Path, field->m_Path, field->m_PathCount * sizeof(uint64_t))))
++            candidate.m_Field == field->m_Field && candidate.m_Type == field->m_Type)
+             return i;
+     }
+     return UINT32_MAX;
+--- a/engine/data/src/dmsdk/data/data_field.h
++++ b/engine/data/src/dmsdk/data/data_field.h
+@@ -52,7 +52,8 @@
+ 
+ /*# Data field API
+  *
+- * Typed access by row ID and field name hash. Types must match exactly.
++ * Typed access by row ID and full field-name hash, including inline names such as
++ * dmHashString64("light.color"). Types must match exactly.
+  * Setters preserve metadata, iterators and reset defaults; failed writes change nothing.
+  * Reads and fixed-size writes do not allocate. Synchronize access externally;
+  * do not overlap query reservations.
+--- a/engine/data/src/dmsdk/data/data_query.h
++++ b/engine/data/src/dmsdk/data/data_query.h
+@@ -28,11 +28,9 @@
+ 
+     typedef struct DataQueryField
+     {
+-        uint64_t        m_Field;
+-        DataValueType   m_Type;
+-        const uint64_t* m_Path;
+-        uint32_t        m_PathCount;
+-        DataAccess      m_Access;
++        uint64_t      m_Field;
++        DataValueType m_Type;
++        DataAccess    m_Access;
+     } DataQueryField;
+ 
+     typedef struct DataQueryDesc
+@@ -79,15 +77,13 @@
+ 
+ /*# Required query field
+  *
+- * Matches a name/path and exact leaf kind. Paths traverse declared inline structs,
+- * not dynamic structs or lists. Zero-initialize; paths are copied during creation.
++ * Matches a full-name hash and exact kind. For an inline member use, for example,
++ * dmHashString64("light.color"). Dynamic containers cannot bind members. Zero-initialize.
+  *
+  * @struct
+  * @name DataQueryField
+- * @member m_Field [type:uint64_t] Root field name hash.
++ * @member m_Field [type:uint64_t] Full field name hash, including dot-separated inline member names.
+  * @member m_Type [type:DataValueType] Exact leaf kind.
+- * @member m_Path [type:const uint64_t*] Member hashes below m_Field; NULL for a top-level field.
+- * @member m_PathCount [type:uint32_t] Path length, 0-64.
+  * @member m_Access [type:DataAccess] Reserved access; defaults to read. Writes require fixed-size fields.
+  */
+ 
+@@ -162,7 +158,7 @@
+ 
+ /*# Find a query field for direct pointer access
+  *
+- * Binds a requested path, kind and access to a handle valid until query destruction.
++ * Binds a requested full-name hash, kind and access to a handle valid until query destruction.
+  * The handle is neither a byte offset nor a query descriptor index. No lock or matching rows
+  * are required. Supports Number, Boolean, Vector3, Vector4 and Matrix4.
+  * Pointer getters require this query's current row and matching typed handle, with
+@@ -173,7 +169,7 @@
+  *
+  * @name DataQueryFindField
+  * @param query [type:HDataQuery] Query to bind.
+- * @param field [type:const DataQueryField*] Path, kind and access to match; borrowed for this call. Access must not exceed the query declaration.
++ * @param field [type:const DataQueryField*] Full-name hash, kind and access to match; borrowed for this call. Access must not exceed the query declaration.
+  * @return field [type:uint32_t] Field handle, or UINT32_MAX if absent, incompatible or unsupported.
+  */
+ 
+--- a/engine/data/src/data.cpp
++++ b/engine/data/src/data.cpp
+@@ -13,6 +13,7 @@
+ #include <assert.h>
+ #include <string.h>
+ #include <new>
++#include <dlib/hash.h>
+ #include "data.h"
+ 
+ static const uint32_t INVALID_SLOT = UINT32_MAX;
+@@ -98,7 +99,7 @@
+     {
+         HDataQuery query = store->m_Queries[i];
+         out_stats->m_QueryBytes += sizeof(DataQuery) + (uint64_t)query->m_Tables.Capacity() * sizeof(DataQueryTable) +
+-        (uint64_t)query->m_Fields.Capacity() * sizeof(DataQueryFieldInfo) + query->m_Paths.Capacity() * sizeof(uint64_t) +
++        (uint64_t)query->m_Fields.Capacity() * sizeof(DataQueryFieldInfo) +
+         (uint64_t)query->m_Owners.Capacity() * sizeof(DataOwnerId) +
+         (uint64_t)query->m_Ranges.Capacity() * sizeof(DataQueryRange) +
+         (uint64_t)query->m_Tags.Capacity() * sizeof(uint64_t);
+@@ -350,7 +351,8 @@
+     {
+         const DataFieldDesc& field = fields[i];
+         uint32_t             field_size = FieldSize(field);
+-        if (field_size == UINT32_MAX || field.m_Offset > size || field_size > size - field.m_Offset ||
++        if (((depth || field.m_Struct) && (!field.m_Name || !field.m_Name[0] || strchr(field.m_Name, '.'))) ||
++            field_size == UINT32_MAX || field.m_Offset > size || field_size > size - field.m_Offset ||
+             (field.m_Struct && field.m_Type != DATA_TYPE_STRUCT))
+             return DATA_RESULT_INVALID_ARGUMENT;
+         for (uint32_t j = 0; j < i; ++j)
+@@ -379,23 +381,37 @@
+     return DATA_RESULT_OK;
+ }
+ 
+-static void CompileLayout(dmArray<DataFieldMeta>& metadata, const DataFieldDesc* fields, uint32_t count, uint32_t first)
++static void CompileLayout(dmArray<DataFieldMeta>& metadata, const DataFieldDesc* fields, uint32_t count, uint32_t first, uint32_t base_offset, const HashState64* prefix)
+ {
+     for (uint32_t i = 0; i < count; ++i)
+     {
+         const DataFieldDesc& field = fields[i];
+-        DataFieldMeta        meta = {
+-                   .m_Field = field.m_Field,
+-                   .m_Type = field.m_Type,
+-                   .m_Offset = field.m_Offset,
+-                   .m_Size = FieldSize(field)
++        HashState64          name;
++        if (prefix)
++        {
++            dmHashClone64(&name, prefix, false);
++            dmHashUpdateBuffer64(&name, ".", 1);
++        }
++        else
++            dmHashInit64(&name, false);
++        if (field.m_Name)
++            dmHashUpdateBuffer64(&name, field.m_Name, (uint32_t)strlen(field.m_Name));
++        HashState64 full_name;
++        dmHashClone64(&full_name, &name, false);
++        uint64_t      full_hash = dmHashFinal64(&full_name);
++        DataFieldMeta meta = {
++            .m_Field = prefix ? full_hash : field.m_Field,
++            .m_Type = field.m_Type,
++            .m_Offset = base_offset + field.m_Offset,
++            .m_Size = FieldSize(field),
++            .m_Name = field.m_Field
+         };
+         if (field.m_Struct)
+         {
+             meta.m_ChildIndex = (uint16_t)metadata.Size();
+             meta.m_ChildCount = (uint16_t)field.m_Struct->m_FieldCount;
+             metadata.SetSize(metadata.Size() + meta.m_ChildCount);
+-            CompileLayout(metadata, field.m_Struct->m_Fields, meta.m_ChildCount, meta.m_ChildIndex);
++            CompileLayout(metadata, field.m_Struct->m_Fields, meta.m_ChildCount, meta.m_ChildIndex, meta.m_Offset, &name);
+         }
+         metadata[first + i] = meta;
+     }
+@@ -462,7 +478,7 @@
+         table->m_MetadataCount = (uint16_t)count;
+         table->m_Owned->m_Fields.SetCapacity(table->m_MetadataCount);
+         table->m_Owned->m_Fields.SetSize(desc->m_FieldCount);
+-        CompileLayout(table->m_Owned->m_Fields, desc->m_Fields, desc->m_FieldCount, 0);
++        CompileLayout(table->m_Owned->m_Fields, desc->m_Fields, desc->m_FieldCount, 0, 0, 0);
+     }
+ 
+     table->m_HasReferences = false;
+@@ -477,7 +493,7 @@
+     table->m_FieldMetadata = pool ? packed_table + DATA_TABLE_HEADER_SIZE + table->m_TagCount * 8 :
+                                     (const uint8_t*)table->m_Owned->m_Fields.Begin();
+     memset(table->m_FieldLookup, 0xff, sizeof(table->m_FieldLookup));
+-    for (uint32_t i = 0; i < table->m_FieldCount; ++i)
++    for (uint32_t i = 0; i < table->m_MetadataCount; ++i)
+     {
+         uint32_t bucket = (uint32_t)GetFieldMeta(table, i).m_Field & (DATA_FIELD_LOOKUP_SIZE - 1);
+         if (table->m_FieldLookup[bucket] == UINT16_MAX)
+--- a/engine/data/src/data.h
++++ b/engine/data/src/data.h
+@@ -60,12 +60,13 @@
+ 
+ struct DataFileFieldMeta
+ {
+-    uint64_t m_NameHash;   // Field or member name hash.
+-    uint32_t m_Kind;       // DataValueType encoded as uint32_t.
+-    uint32_t m_ByteOffset; // Field offset within its row or containing inline struct.
+-    uint16_t m_ChildIndex; // First inline member in the same metadata array; zero otherwise.
+-    uint16_t m_ChildCount; // Number of immediate inline members.
+-    uint32_t m_ByteSize;   // Field size; includes trailing padding for inline structs.
++    uint64_t m_NameHash;       // Full name hash, e.g. hash("light.color").
++    uint32_t m_Kind;           // DataValueType encoded as uint32_t.
++    uint32_t m_ByteOffset;     // Absolute byte offset within its row.
++    uint16_t m_ChildIndex;     // First inline member in the same metadata array; zero otherwise.
++    uint16_t m_ChildCount;     // Number of immediate inline members.
++    uint32_t m_ByteSize;       // Field size; includes trailing padding for inline structs.
++    uint64_t m_MemberNameHash; // Local member name hash for structured input/views.
+ };
+ 
+ // Dynamic structs/lists: optional uint64_t names (structs only), uint32_t kinds,
+@@ -99,7 +100,7 @@
+     const DataValueData* m_Values; // Untagged decoded payloads in name order; unused for packed/inline views.
+     uint32_t             m_Count;  // Number of fields.
+     // private
+-    const uint8_t*   m_Buffer; // Borrowed blob/container bytes, or inline struct bytes when m_Table is set.
++    const uint8_t*   m_Buffer; // Borrowed blob/container bytes, or row bytes when m_Table is set.
+     uint32_t         m_Offset; // Container offset in m_Buffer, or first child metadata index for inline views.
+     const DataTable* m_Table;  // Borrowed table for inline views; NULL for decoded/dynamic structs.
+ };
+@@ -148,8 +149,10 @@
+  * Offsets must respect field alignment: Boolean/Null 1, float math values 4,
+  * Number/references 8, inline structs the maximum alignment of their members.
+  * m_Struct declares a fixed inline STRUCT layout; NULL keeps dynamic container storage.
+- * Registration validates and copies the complete description. The same struct
+- * description can be reused in multiple parent types and need not outlive registration.
++ * Inline parents and members supply m_Name for full-name hashing at registration.
++ * Names are single segments (no dots). Registration copies the compiled metadata.
++ * The same struct description can be reused in multiple parent types and need
++ * not outlive registration.
+  */
+ struct DataFieldDesc
+ {
+@@ -157,6 +160,7 @@
+     DataValueType         m_Type;   // Declared kind; fixed for the table lifetime.
+     uint32_t              m_Offset; // Byte offset within the containing row/struct.
+     const DataStructDesc* m_Struct; // Reusable inline layout; NULL for scalar/dynamic values.
++    const char*           m_Name;   // Borrowed local name for inline composition; optional for other root fields.
+ };
+ 
+ /** Reusable fixed composition layout. All rows have these members and kinds.
+@@ -173,17 +177,18 @@
+ };
+ 
+ // Compiled field layout, shared by every row of a table type. Fixed structs point
+-// into the same metadata array by index; their member offsets are relative to the
+-// struct's bytes. Root fields occupy the first m_FieldCount entries. A zero
+-// m_ChildIndex denotes an ordinary scalar/reference, including a dynamic STRUCT.
++// into the same metadata array by index; all offsets are relative to the row.
++// Root fields occupy the first m_FieldCount entries. A zero m_ChildIndex denotes
++// an ordinary scalar/reference, including a dynamic STRUCT.
+ struct DataFieldMeta
+ {
+-    uint64_t      m_Field;      // Field name hash.
++    uint64_t      m_Field;      // Full name hash; root fields retain their declared hash.
+     DataValueType m_Type;       // Declared kind.
+-    uint32_t      m_Offset;     // Byte offset within the containing row/struct.
++    uint32_t      m_Offset;     // Absolute byte offset within the row.
+     uint16_t      m_ChildIndex; // First inline child metadata entry; zero for scalar/dynamic fields.
+     uint16_t      m_ChildCount; // Number of immediate inline members.
+     uint32_t      m_Size;       // Field byte size, including inline struct padding.
++    uint64_t      m_Name;       // Local member hash, used by structured input/views.
+ };
+ 
+ /** Construction table description. Registration copies the tags and metadata.
+@@ -227,7 +232,7 @@
+ // Native scalar overrides, resolved against the registered layout once per batch.
+ struct DataRowOverride
+ {
+-    DataQueryField m_Field;  // Name/path and exact kind; access mode is unused.
++    DataQueryField m_Field;  // Full name hash and exact kind; access mode is unused.
+     const void*    m_Values; // First native scalar value, copied during insertion.
+     uint32_t       m_Stride; // Byte stride between values; zero repeats one value.
+ };
+@@ -329,7 +334,7 @@
+     };
+     DataBlock*     m_Payloads;                            // Replacement arena for independent rows; packed rows use their registration.
+     const uint8_t* m_FieldMetadata;                       // Borrowed owned/blob metadata; fixed for the table lifetime.
+-    uint16_t       m_FieldLookup[DATA_FIELD_LOOKUP_SIZE]; // First root metadata index per hash bucket; UINT16_MAX means empty.
++    uint16_t       m_FieldLookup[DATA_FIELD_LOOKUP_SIZE]; // First metadata index per hash bucket; UINT16_MAX means empty.
+ };
+ 
+ // DataId: [ generation: high 32 bits | slot index: low 32 bits ]
+@@ -401,15 +406,13 @@
+     uint32_t m_First;      // First row index in the complete reserved query result.
+ };
+ 
+-// Validated copy of a public query field. Paths have at most DATA_MAX_NESTING
+-// members; access is READ or READ_WRITE. Public input remains wide for validation.
++// Validated copy of a public query field. Access is READ or READ_WRITE.
++// Public input remains wide for validation.
+ struct DataQueryFieldInfo
+ {
+-    uint64_t        m_Field;     // Requested root name hash.
+-    const uint64_t* m_Path;      // Borrowed slice of the query's owned path array.
+-    DataValueType   m_Type;      // Required leaf kind.
+-    uint16_t        m_PathCount; // Number of inline members in the path, at most 64.
+-    uint8_t         m_Access;    // Validated DataAccess mode.
++    uint64_t      m_Field;  // Requested full-name hash.
++    DataValueType m_Type;   // Required leaf kind.
++    uint8_t       m_Access; // Validated DataAccess mode.
+ };
+ 
+ // Live query owned by its caller and registered with m_Store. Owns copies of
+@@ -422,7 +425,6 @@
+     HDataStore                  m_Store;      // Borrowed store; must outlive this query.
+     dmArray<DataQueryTable>     m_Tables;     // Matching tables and their field bindings.
+     dmArray<DataQueryFieldInfo> m_Fields;     // Copied requested fields and access modes.
+-    dmArray<uint64_t>           m_Paths;      // Owned member hashes referenced by m_Fields.
+     dmArray<DataOwnerId>        m_Owners;     // Copied owner filter; empty matches every owner.
+     dmArray<uint64_t>           m_Tags;       // Copied all-required tag filter.
+     DataBlock*                  m_Bindings;   // Owned arena for per-table field bindings.
+@@ -538,7 +540,7 @@
+ DataTable* FindTable(HDataStore store, uint64_t type);
+ 
+ // Query table matching runs while the caller holds the store's structural mutex.
+-bool ResolveFieldPath(const DataTable* table, uint64_t field, DataValueType type, const uint64_t* path, uint32_t path_count, DataFieldMeta* out_meta);
++bool ResolveField(const DataTable* table, uint64_t field, DataValueType type, DataFieldMeta* out_meta);
+ void MatchTable(HDataQuery query, DataTable* table);
+ void UnmatchTable(HDataQuery query, DataTable* table);
+ 
+@@ -591,7 +593,8 @@
+          .m_Offset = (uint32_t)ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_ByteOffset), 4),
+          .m_ChildIndex = (uint16_t)ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_ChildIndex), 2),
+          .m_ChildCount = (uint16_t)ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_ChildCount), 2),
+-         .m_Size = (uint32_t)ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_ByteSize), 4)
++         .m_Size = (uint32_t)ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_ByteSize), 4),
++         .m_Name = ReadDataInteger(meta + offsetof(DataFileFieldMeta, m_MemberNameHash), 8)
+     };
+     return result;
+ }
+@@ -648,19 +651,11 @@
+ 
+ static inline uint32_t FindField(const DataTable* table, uint64_t field)
+ {
+-    for (uint32_t i = 0; i < table->m_FieldCount; ++i)
++    for (uint32_t i = 0; i < table->m_MetadataCount; ++i)
+     {
+         if (GetFieldMeta(table, i).m_Field == field)
+             return i;
+     }
+-    return UINT32_MAX;
+-}
+-
+-static inline uint32_t FindMember(const DataTable* table, uint32_t first, uint32_t count, uint64_t field)
+-{
+-    for (uint32_t i = 0; i < count; ++i)
+-        if (GetFieldMeta(table, first + i).m_Field == field)
+-            return first + i;
+     return UINT32_MAX;
+ }
+ 
+@@ -907,7 +902,7 @@
+     DataResult DataAddRows(HDataStore store, uint64_t type, const DataRowDesc* rows, uint32_t count, DataId* out_ids);
+ 
+     /** Construct rows from one decoded default and strided native scalar overrides.
+-     * Defaults are validated/copied once; named paths and kinds bind once per batch.
++     * Defaults are validated/copied once; full-name hashes and kinds bind once per batch.
+      * All inputs must remain valid and disjoint from destination storage through
+      * the call. Only owner/component identity is read from rows. Final values,
+      * including overrides, become each row's reset defaults. Validation failure
+--- a/engine/data/src/data_field.cpp
++++ b/engine/data/src/data_field.cpp
+@@ -141,7 +141,7 @@
+     {
+         DataStruct object = {
+             .m_Count = meta.m_ChildCount,
+-            .m_Buffer = bytes,
++            .m_Buffer = bytes ? bytes - meta.m_Offset : 0,
+             .m_Offset = meta.m_ChildIndex,
+             .m_Table = table
+         };
+@@ -166,7 +166,7 @@
+ uint64_t GetChildName(const DataStruct* object, uint32_t index)
+ {
+     if (object->m_Table)
+-        return GetFieldMeta(object->m_Table, object->m_Offset + index).m_Field;
++        return GetFieldMeta(object->m_Table, object->m_Offset + index).m_Name;
+     return object->m_Buffer ? ReadDataInteger(object->m_Buffer + object->m_Offset + sizeof(DataFileContainerHeader) + index * 8, 8) : object->m_Names[index];
+ }
+ 
+@@ -336,7 +336,7 @@
+         for (uint32_t i = 0; i < meta.m_ChildCount; ++i)
+         {
+             DataFieldMeta child = GetFieldMeta(table, meta.m_ChildIndex + i);
+-            TagBlobReferences(table, child, bytes + child.m_Offset, rows);
++            TagBlobReferences(table, child, bytes + (child.m_Offset - meta.m_Offset), rows);
+         }
+     }
+     else if (IsReference(meta.m_Type))
+@@ -488,7 +488,7 @@
+         const DataValueData* data;
+         if (!object->m_Buffer)
+         {
+-            uint32_t index = FindDecodedField(object, field.m_Field, i);
++            uint32_t index = FindDecodedField(object, field.m_Name, i);
+             if (index == UINT32_MAX)
+                 return DATA_RESULT_INVALID_ARGUMENT;
+             type = object->m_Types[index];
+@@ -496,7 +496,7 @@
+         }
+         else
+         {
+-            if (DataGetStructField(object, field.m_Field, &child) != DATA_RESULT_OK)
++            if (DataGetStructField(object, field.m_Name, &child) != DATA_RESULT_OK)
+                 return DATA_RESULT_INVALID_ARGUMENT;
+             type = child.m_Type;
+             data = &child.m_Value;
+@@ -532,17 +532,17 @@
+         if (!fields)
+             packed_field = GetFieldMeta(table, meta.m_ChildIndex + i);
+         const DataFieldMeta& field = fields ? fields[i] : packed_field;
+-        uint8_t*             target = field.m_Size ? bytes + field.m_Offset : 0;
++        uint8_t*             target = field.m_Size ? bytes + (field.m_Offset - meta.m_Offset) : 0;
+         DataValue            child;
+         const DataValueData* data;
+         if (!object->m_Buffer)
+         {
+-            uint32_t index = FindDecodedField(object, field.m_Field, i);
++            uint32_t index = FindDecodedField(object, field.m_Name, i);
+             data = &object->m_Values[index];
+         }
+         else
+         {
+-            DataGetStructField(object, field.m_Field, &child);
++            DataGetStructField(object, field.m_Name, &child);
+             data = &child.m_Value;
+         }
+         if (IsReference(field.m_Type))
+@@ -754,13 +754,13 @@
+     memcpy(&name, metadata + (size_t)index * DATA_FIELD_META_SIZE + offsetof(DataFileFieldMeta, m_NameHash), sizeof(name));
+     if (name != field)
+     {
+-        for (index = 0; index < table->m_FieldCount; ++index)
++        for (index = 0; index < table->m_MetadataCount; ++index)
+         {
+             memcpy(&name, metadata + (size_t)index * DATA_FIELD_META_SIZE + offsetof(DataFileFieldMeta, m_NameHash), sizeof(name));
+             if (name == field)
+                 break;
+         }
+-        if (index == table->m_FieldCount)
++        if (index == table->m_MetadataCount)
+             return DATA_RESULT_NOT_FOUND;
+     }
+ 
+@@ -935,7 +935,7 @@
+     return DataSetField(store, id, field, &input);
+ }
+ 
+-// Bind paths and copy sizes before the native write loop. Only scalar leaves
++// Bind full names and copy sizes before the native write loop. Only scalar leaves
+ // are patched; strings/containers keep the copied default's immutable payloads.
+ DataResult BindRowOverrides(const DataTable* table, const DataRowOverride* fields, uint32_t field_count, uint32_t count, DataRowOverrideBinding* bindings)
+ {
+@@ -943,8 +943,7 @@
+     {
+         const DataRowOverride& input = fields[i];
+         DataFieldMeta          meta;
+-        if (input.m_Field.m_PathCount > DATA_MAX_NESTING ||
+-            !ResolveFieldPath(table, input.m_Field.m_Field, input.m_Field.m_Type, input.m_Field.m_Path, input.m_Field.m_PathCount, &meta))
++        if (!ResolveField(table, input.m_Field.m_Field, input.m_Field.m_Type, &meta))
+             return DATA_RESULT_INVALID_ARGUMENT;
+         if (meta.m_Type != DATA_TYPE_BOOLEAN && meta.m_Type != DATA_TYPE_NUMBER &&
+             (meta.m_Type < DATA_TYPE_VECTOR3 || meta.m_Type > DATA_TYPE_MATRIX4))
+@@ -1008,29 +1007,15 @@
+     }
+ }
+ 
+-// Resolve root/member names once while preparing a query or native write batch.
+-bool ResolveFieldPath(const DataTable* table, uint64_t field, DataValueType type, const uint64_t* path, uint32_t path_count, DataFieldMeta* out_meta)
++// Resolve full names once while preparing a query or native write batch.
++bool ResolveField(const DataTable* table, uint64_t field, DataValueType type, DataFieldMeta* out_meta)
+ {
+     uint32_t index = FindField(table, field);
+     if (index == UINT32_MAX)
+         return false;
+-
+     DataFieldMeta meta = GetFieldMeta(table, index);
+-    uint32_t      offset = meta.m_Offset;
+-    for (uint32_t i = 0; i < path_count; ++i)
+-    {
+-        if (!meta.m_ChildIndex)
+-            return false;
+-        uint32_t child = FindMember(table, meta.m_ChildIndex, meta.m_ChildCount, path[i]);
+-        if (child == UINT32_MAX)
+-            return false;
+-        meta = GetFieldMeta(table, child);
+-        offset += meta.m_Offset;
+-    }
+-
+     if (meta.m_Type != type)
+         return false;
+-    meta.m_Offset = offset;
+     *out_meta = meta;
+     return true;
+ }
+--- a/engine/docs/DATASTORE.md
++++ b/engine/docs/DATASTORE.md
+@@ -10,12 +10,13 @@
+ 
+ Each table stores its type hash, tags, field metadata, component name hashes,
+ fixed-stride byte rows and any dynamic payloads. **Metadata is shared by all rows
+-in a table**: a field has a name hash, kind and byte offset; an inline struct
++in a table**: a field has a full-name hash, kind and absolute row byte offset; an inline struct
+ also identifies its child metadata and size. Rows contain only values and
+ alignment padding. Serialization saves current values as the next load's defaults.
+ The fixed layouts are declared in the private [data.h](../data/src/data.h):
+ `DataTableHeader` describes each table, and `DataFileFieldMeta` describes each
+-field. Both occupy 24 bytes. Counts and indices into metadata use uint16:
++field. These occupy 24 and 32 bytes respectively. Field metadata also retains
++the local member hash for constructing or reading nested values. Counts and indices into metadata use uint16:
+ a type allows at most 65,535 metadata entries including nested members, and a
+ table allows at most 65,535 tags. Row counts, byte sizes and offsets remain uint32.
+ The reader and writer use these structs' sizes and member offsets.
+@@ -50,7 +51,10 @@
+ The internal producer can reuse one `DataStructDesc` for Light. Each containing
+ table compiles its own metadata, shared by that table's rows. `light.color` is
+ at `offset(light) + offset(color)`; its offset can differ between containing
+-types. Embedding Light does not make SpotLight a standalone Light component or
++types. The producer supplies local text names for inline parents and members in
++`DataFieldDesc::m_Name`; registration hashes each complete name, such as
++`light.color`, and stores its absolute row offset. Text names are not retained.
++Embedding Light does not make SpotLight a standalone Light component or
+ assign it a tag. There is no full schema system beyond these layouts.
+ 
+ ### Value layout and alignment
+@@ -115,7 +119,7 @@
+ live through the call; stored rows carry no per-value type tags.
+ 
+ The internal `DataAddRowsFromTemplate` path prepares one default row, binds native
+-scalar overrides by name/path once, then copies rows and applies overrides in
++scalar overrides by full-name hash once, then copies rows and applies overrides in
+ bounded blocks. `DataRowDesc` still supplies owner/component IDs. All values are
+ validated before publication; the final overridden values become reset defaults.
+ Strings and containers come from the default and share its copied payloads.
+@@ -183,7 +187,7 @@
+ 
+ ## Queries
+ 
+-A query describes required table tags and field paths with exact kinds, plus
++A query describes required table tags and full field-name hashes with exact kinds, plus
+ optional owner filters. All requested fields must belong to the same table;
+ queries do not join separate component rows. For example, require the `light` tag
+ and `light.color` as Vector3 to visit both light types above, provided their tables
+@@ -193,9 +197,9 @@
+ access and iterate batches and rows using a stable field handle.](images/datastore-queries.svg)
+ 
+ 1. **Create once:** `DataCreateQuery` copies a `DataQueryDesc`. For `light.color`,
+-   its `DataQueryField` uses the light hash as `m_Field`, the color hash in
+-   `m_Path`, `m_PathCount = 1`, and `m_Type = DATA_TYPE_VECTOR3`.
+-2. **Bind once:** `DataQueryFindField` returns a handle for that complete path and
++   its `DataQueryField` uses `m_Field = dmHashString64("light.color")` and
++   `m_Type = DATA_TYPE_VECTOR3`. No path array or runtime string parsing is needed.
++2. **Bind once:** `DataQueryFindField` returns a handle for that full-name hash and
+    kind. Each matching table caches its own byte offset under the handle. Missing
+    or incompatible fields exclude a table. Adding/removing tables updates
+    matches without invalidating the handle.
+@@ -216,9 +220,10 @@
+ `DATA_ACCESS_READ_WRITE`; read-only access is the default. Number, Boolean,
+ Vector3, Vector4 and Matrix4 have typed pointer accessors.
+ 
+-Dynamic container paths cannot bind because their layout may differ per row.
++Dynamic container members cannot bind because their layout may differ per row.
+ ID-based access uses typed functions such as `DataFieldGetVector3` and
+-`DataSetFieldVector3`; generic `DataValue` is internal.
++`DataSetFieldVector3`, using the same full-name hash for inline members.
++Generic `DataValue` is internal.
+ 
+ Cursors allocate nothing and borrow their parent's current batch/row. Do not copy
+ active cursors; finish using children and pointers before stepping a parent,
+@@ -244,8 +249,7 @@
+ Active reservations use `dmObjectPool` slots: admission scans a dense array and
+ release returns the query's slot directly. Query creation reserves pool capacity;
+ begin/end reuse it. This follows the instance-pool pattern in
+-[rig.cpp](../rig/src/rig.cpp). Query descriptors and paths require valid caller
+-storage; lookup does not repeat pointer or path-limit validation.
++[rig.cpp](../rig/src/rig.cpp). Query descriptors require valid caller storage; lookup does not repeat pointer validation.
+ 
+ ![The caller submits jobs for admitted queries, waits for them, then releases
+ access. Conflicting updates retry; structural changes wait until queries end.](images/data-query-execution.svg)
+--- a/engine/data/src/test/test_data.cpp
++++ b/engine/data/src/test/test_data.cpp
+@@ -742,11 +742,11 @@
+ TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
+ {
+     DataFieldDesc members[] = {
+-        { .m_Field = 10, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0 },
+-        { .m_Field = 20, .m_Type = DATA_TYPE_BOOLEAN, .m_Offset = 12 }
++        { .m_Field = 10, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" },
++        { .m_Field = 20, .m_Type = DATA_TYPE_BOOLEAN, .m_Offset = 12, .m_Name = "20" }
+     };
+     DataStructDesc layout = { .m_Fields = members, .m_FieldCount = 2, .m_Size = 16 };
+-    DataFieldDesc  field = { .m_Field = 1, .m_Type = DATA_TYPE_STRUCT, .m_Struct = &layout };
++    DataFieldDesc  field = { .m_Field = 1, .m_Type = DATA_TYPE_STRUCT, .m_Struct = &layout, .m_Name = "1" };
+     DataTableDesc  table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 16 };
+     HDataStore     store = DataCreateStore();
+     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
+@@ -944,12 +944,12 @@
+ 
+ TEST(Data, BinaryGoldenSharedMetadata)
+ {
+-    // Two eight-byte rows share one 24-byte metadata entry.
++    // Two eight-byte rows share one 32-byte metadata entry.
+     // clang-format off
+     const uint8_t DM_ALIGNED(8) expected[] = {
+-        'D','M','D','T',1,0,0,0, 1,0,0,0,104,0,0,0, 24,0,0,0,0,0,0,0,
++        'D','M','D','T',1,0,0,0, 1,0,0,0,112,0,0,0, 24,0,0,0,0,0,0,0,
+         1,0,0,0,0,0,0,0, 0,0,1,0,2,0,0,0, 8,0,0,0,1,0,0,0,
+-        10,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,8,0,0,0,
++        10,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,8,0,0,0, 10,0,0,0,0,0,0,0,
+         7,0,0,0,0,0,0,0, 8,0,0,0,0,0,0,0,
+         0,0,0,0,0,0,0xf8,0x3f, 0,0,0,0,0,0,0,0xc0
+     };
+@@ -979,7 +979,7 @@
+     HDataStore        loaded = DataCreateStore();
+     HDataBlobInstance instance;
+     ASSERT_EQ(DATA_RESULT_OK, Load(loaded, expected, sizeof(expected), &instance));
+-    ASSERT_EQ((uintptr_t)(expected + 88), (uintptr_t)(GetInstanceTable(instance, 0)->m_Blob + GetInstanceTable(instance, 0)->m_Offsets.m_Rows));
++    ASSERT_EQ((uintptr_t)(expected + 96), (uintptr_t)(GetInstanceTable(instance, 0)->m_Blob + GetInstanceTable(instance, 0)->m_Offsets.m_Rows));
+     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(loaded, bytes, size, &size));
+     ASSERT_EQ(0, memcmp(expected, bytes, size));
+     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(loaded));
+@@ -1310,8 +1310,8 @@
+         ASSERT_EQ((uintptr_t)sentinel, (uintptr_t)output);
+     }
+     uint32_t second = (uint32_t)ReadDataInteger(bytes + 20, 4);
+-    // First table starts at 24, metadata at 48, row bytes at 128.
+-    const uint32_t corrupt[] = { 0, 4, 8, 12, 16, 20, 32, 34, 36, 40, 44, 46, 56, 60, 64, 66, 68, 80, 84, 88, 90, 92, 104, 108, 112, 114, 116, 128, 136, 144 };
++    // First table starts at 24, metadata at 48, row bytes at 152.
++    const uint32_t corrupt[] = { 0, 4, 8, 12, 16, 20, 32, 34, 36, 40, 44, 46, 56, 60, 64, 66, 68, 88, 92, 96, 98, 100, 120, 124, 128, 130, 132, 152, 160, 168 };
+     for (uint32_t i = 0; i < sizeof(corrupt) / sizeof(corrupt[0]); ++i)
+     {
+         bytes[corrupt[i]] = 0xff;
+@@ -1324,13 +1324,13 @@
+     HDataBlob output = sentinel;
+     ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &output));
+     memcpy(bytes, saved, size);
+-    memcpy(bytes + 72, bytes + 48, 8); // Repeated field name in shared metadata.
++    memcpy(bytes + 80, bytes + 48, 8); // Repeated field name in shared metadata.
+     ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &output));
+     memcpy(bytes, saved, size);
+-    WriteDataInteger(bytes + 84, 0, 4); // String overlaps boolean in every row.
++    WriteDataInteger(bytes + 92, 0, 4); // String overlaps boolean in every row.
+     ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &output));
+     memcpy(bytes, saved, size);
+-    uint32_t nested = (uint32_t)ReadDataInteger(bytes + 144, 8);
++    uint32_t nested = (uint32_t)ReadDataInteger(bytes + 168, 8);
+     bytes[nested + 8] = 99;
+     ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &output));
+     memcpy(bytes, saved, size);
+@@ -1687,11 +1687,11 @@
+ TEST(Data, InlineCompositionQueriesAndRoundtrip)
+ {
+     // Nested fixed layouts preserve C alignment and include variable data.
+-    DataFieldDesc  light_fields[] = { { 10, DATA_TYPE_VECTOR3, 0 }, { 20, DATA_TYPE_STRING, 16 }, { 30, DATA_TYPE_LIST, 24 } };
++    DataFieldDesc  light_fields[] = { { .m_Field = 10, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DATA_TYPE_STRING, .m_Offset = 16, .m_Name = "20" }, { .m_Field = 30, .m_Type = DATA_TYPE_LIST, .m_Offset = 24, .m_Name = "30" } };
+     DataStructDesc light = { light_fields, 3, 32 };
+-    DataFieldDesc  wrapper_fields[] = { { 40, DATA_TYPE_STRUCT, 8, &light } };
++    DataFieldDesc  wrapper_fields[] = { { .m_Field = 40, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 8, .m_Struct = &light, .m_Name = "40" } };
+     DataStructDesc wrapper = { wrapper_fields, 1, 40 };
+-    DataFieldDesc  fields[] = { { 1, DATA_TYPE_NUMBER, 0 }, { 2, DATA_TYPE_STRUCT, 8, &wrapper }, { 3, DATA_TYPE_BOOLEAN, 48 } };
++    DataFieldDesc  fields[] = { { .m_Field = 1, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 0, .m_Name = "1" }, { .m_Field = 2, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 8, .m_Struct = &wrapper, .m_Name = "2" }, { .m_Field = 3, .m_Type = DATA_TYPE_BOOLEAN, .m_Offset = 48, .m_Name = "3" } };
+     DataTableDesc  table = { 1, 0, 0, fields, 3, 56 };
+     HDataStore     source = DataCreateStore();
+     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &table));
+@@ -1722,18 +1722,16 @@
+         HDataBlobInstance instance = 0;
+         if (packed)
+             ASSERT_EQ(DATA_RESULT_OK, Load(store, bytes, size, &instance));
+-        uint64_t       color_path[] = { 40, 10 }, string_path[] = { 40, 20 }, list_path[] = { 40, 30 };
+         DataQueryField fields[] = {
+-            { 2, DATA_TYPE_VECTOR3, color_path, 2 },
+-            { 2, DATA_TYPE_STRING, string_path, 2 },
+-            { 2, DATA_TYPE_LIST, list_path, 2 },
++            { .m_Field = dmHashString64("2.40.10"), .m_Type = DATA_TYPE_VECTOR3 },
++            { .m_Field = dmHashString64("2.40.20"), .m_Type = DATA_TYPE_STRING },
++            { .m_Field = dmHashString64("2.40.30"), .m_Type = DATA_TYPE_LIST },
+             { 1, DATA_TYPE_NUMBER },
+             { 2, DATA_TYPE_STRUCT }
+         };
+         DataQueryDesc desc = { 0, 0, 0, 0, fields, 5 };
+         HDataQuery    query;
+         ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
+-        color_path[0] = string_path[0] = 99; // Query owns its path hashes.
+         DataStoreLock(store);
+         DataIterator it = DataQueryIter(query);
+         ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
+@@ -1764,8 +1762,7 @@
+         HDataStore        changed_store = DataCreateStore();
+         HDataBlobInstance changed_instance;
+         ASSERT_EQ(DATA_RESULT_OK, Load(changed_store, changed_blob, changed_size, &changed_instance));
+-        uint64_t       changed_paths[] = { 40, 10, 40, 20 };
+-        DataQueryField changed_fields[] = { { 2, DATA_TYPE_VECTOR3, changed_paths, 2 }, { 2, DATA_TYPE_STRING, changed_paths + 2, 2 } };
++        DataQueryField changed_fields[] = { { .m_Field = dmHashString64("2.40.10"), .m_Type = DATA_TYPE_VECTOR3 }, { .m_Field = dmHashString64("2.40.20"), .m_Type = DATA_TYPE_STRING } };
+         DataQueryDesc  changed_desc = { 0, 0, 0, 0, changed_fields, 2 };
+         HDataQuery     changed_query;
+         ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(changed_store, &changed_desc, &changed_query));
+@@ -1832,13 +1829,21 @@
+     delete[] allocation;
+ }
+ 
+-TEST(Data, InlineLayoutAndPathValidation)
++TEST(Data, InlineLayoutAndNameValidation)
+ {
+     HDataStore     store = DataCreateStore();
+-    DataFieldDesc  members[] = { { 10, DATA_TYPE_VECTOR3, 0 }, { 20, DATA_TYPE_NUMBER, 16 } };
++    DataFieldDesc  members[] = { { .m_Field = 10, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 16, .m_Name = "20" } };
+     DataStructDesc light = { members, 2, 24 };
+-    DataFieldDesc  fields[] = { { 1, DATA_TYPE_STRUCT, 0, &light } };
++    DataFieldDesc  fields[] = { { .m_Field = 1, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &light, .m_Name = "1" } };
+     DataTableDesc  table = { 1, 0, 0, fields, 1, 24 };
++    fields[0].m_Name = 0;
++    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &table));
++    fields[0].m_Name = "1";
++    members[0].m_Name = "bad.name";
++    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &table));
++    members[0].m_Name = "";
++    ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &table));
++    members[0].m_Name = "10";
+     light.m_Size = 8;
+     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataRegisterTable(store, &table));
+     light.m_Size = 24;
+@@ -1873,20 +1878,19 @@
+     child_types[1] = DATA_TYPE_BOOLEAN;
+     children[1].m_Boolean = 1;
+     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataSetField(store, id, 1, &value));
+-    uint64_t       path = 10;
+-    DataQueryField field = { 1, DATA_TYPE_VECTOR3, &path, 1 };
++    DataQueryField field = { .m_Field = dmHashString64("1.10"), .m_Type = DATA_TYPE_VECTOR3 };
+     DataQueryDesc  desc = { 0, 0, 0, 0, &field, 1 };
+     HDataQuery     query;
+-    field.m_PathCount = DATA_MAX_NESTING + 1;
++    field.m_Type = (DataValueType)99;
+     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(store, &desc, &query));
+-    field.m_PathCount = 1;
+-    path = 99;
++    field.m_Type = DATA_TYPE_VECTOR3;
++    field.m_Field = dmHashString64("1.99");
+     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
+     DataStoreLock(store);
+     DataIterator it = DataQueryIter(query);
+     ASSERT_EQ(DATA_RESULT_END, DataIterNext(&it));
+     DataDestroyQuery(query);
+-    path = 10;
++    field.m_Field = dmHashString64("1.10");
+     field.m_Type = DATA_TYPE_NUMBER;
+     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
+     it = DataQueryIter(query);
+@@ -1914,15 +1918,14 @@
+     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+ }
+ 
+-TEST(Data, InlinePathsBindDifferentTablesAndTrackRegistration)
++TEST(Data, InlineNamesBindDifferentTablesAndTrackRegistration)
+ {
+     HDataStore     store = DataCreateStore();
+-    uint64_t       path = 10;
+-    DataQueryField field = { 1, DATA_TYPE_VECTOR3, &path, 1 };
++    DataQueryField field = { .m_Field = dmHashString64("1.10"), .m_Type = DATA_TYPE_VECTOR3 };
+     DataQueryDesc  query_desc = { 0, 0, 0, 0, &field, 1 };
+     HDataQuery     query;
+     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &query_desc, &query));
+-    DataFieldDesc  members[] = { { 10, DATA_TYPE_VECTOR3, 0 }, { 20, DATA_TYPE_NUMBER, 16 } };
++    DataFieldDesc  members[] = { { .m_Field = 10, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 16, .m_Name = "20" } };
+     DataStructDesc light = { members, 2, 24 };
+     uint64_t       names[] = { 10, 20 };
+     DataValueType  child_types[] = { DATA_TYPE_VECTOR3, DATA_TYPE_NUMBER };
+@@ -1931,7 +1934,7 @@
+     DataId         ids[3];
+     for (uint32_t i = 0; i < 3; ++i)
+     {
+-        DataFieldDesc root = { 1, DATA_TYPE_STRUCT, i * 8, i < 2 ? &light : 0 };
++        DataFieldDesc root = { .m_Field = 1, .m_Type = DATA_TYPE_STRUCT, .m_Offset = i * 8, .m_Struct = i < 2 ? &light : 0, .m_Name = "1" };
+         DataTableDesc table = { i + 1, 0, 0, &root, 1, i * 8 + (i < 2 ? 24u : 8u) };
+         ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(store, &table));
+         ASSERT_EQ(DATA_RESULT_OK, AddTestRow(store, i + 1, i, &value, 1, &ids[i]));
+@@ -2263,9 +2266,9 @@
+ TEST(Data, AlignedLayoutValidation)
+ {
+     HDataStore     store = DataCreateStore();
+-    DataFieldDesc  members[] = { { 1, DATA_TYPE_NUMBER, 0 }, { 2, DATA_TYPE_BOOLEAN, 8 } };
++    DataFieldDesc  members[] = { { .m_Field = 1, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 0, .m_Name = "1" }, { .m_Field = 2, .m_Type = DATA_TYPE_BOOLEAN, .m_Offset = 8, .m_Name = "2" } };
+     DataStructDesc inner = { members, 2, 16 };
+-    DataFieldDesc  root = { 3, DATA_TYPE_STRUCT, 0, &inner };
++    DataFieldDesc  root = { .m_Field = 3, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &inner, .m_Name = "3" };
+     DataTableDesc  table = { 1, 0, 0, &root, 1, 24 };
+     members[0].m_Offset = 1;
+     members[1].m_Offset = 9;
+@@ -2399,9 +2402,10 @@
+     ASSERT_NE(UINT32_MAX, vector_field);
+     ASSERT_NE(UINT32_MAX, number_field);
+     ASSERT_NE(vector_field, number_field);
+-    DataQueryField invalid = { 30, DATA_TYPE_VECTOR3, 0, 1 };
++    DataQueryField invalid = { .m_Field = 99, .m_Type = DATA_TYPE_VECTOR3 };
+     ASSERT_EQ(UINT32_MAX, DataQueryFindField(query, &invalid));
+-    invalid.m_PathCount = DATA_MAX_NESTING + 1;
++    invalid.m_Field = 30;
++    invalid.m_Type = DATA_TYPE_NUMBER;
+     ASSERT_EQ(UINT32_MAX, DataQueryFindField(query, &invalid));
+ 
+     DataStoreLock(store);
+@@ -2445,7 +2449,7 @@
+ 
+ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
+ {
+-    DataFieldDesc       members[] = { { 10, DATA_TYPE_VECTOR3, 0 }, { 20, DATA_TYPE_NUMBER, 16 }, { 30, DATA_TYPE_STRING, 24 } };
++    DataFieldDesc       members[] = { { .m_Field = 10, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 16, .m_Name = "20" }, { .m_Field = 30, .m_Type = DATA_TYPE_STRING, .m_Offset = 24, .m_Name = "30" } };
+     DataStructDesc      light = { members, 3, 32 };
+     uint64_t            names[] = { 10, 20, 30 };
+     const DataValueType types[] = { DATA_TYPE_VECTOR3, DATA_TYPE_NUMBER, DATA_TYPE_STRING };
+@@ -2455,7 +2459,7 @@
+     HDataStore          source = DataCreateStore();
+     for (uint32_t i = 0; i < 2; ++i)
+     {
+-        DataFieldDesc roots[] = { { 1, DATA_TYPE_STRUCT, i * 8, &light }, { 2, DATA_TYPE_STRUCT, i * 8 + 32, &light } };
++        DataFieldDesc roots[] = { { .m_Field = 1, .m_Type = DATA_TYPE_STRUCT, .m_Offset = i * 8, .m_Struct = &light, .m_Name = "1" }, { .m_Field = 2, .m_Type = DATA_TYPE_STRUCT, .m_Offset = i * 8 + 32, .m_Struct = &light, .m_Name = "2" } };
+         DataTableDesc table = { i + 1, 0, 0, roots, 2, i * 8 + 64 };
+         ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &table));
+         DataId id;
+@@ -2474,12 +2478,11 @@
+     for (uint32_t packed = 0; packed < 2; ++packed)
+     {
+         HDataStore     store = stores[packed];
+-        uint64_t       color = 10;
+-        DataQueryField fields[] = { { 2, DATA_TYPE_VECTOR3, &color, 1 }, { 1, DATA_TYPE_VECTOR3, &color, 1 } };
++        DataQueryField fields[] = { { .m_Field = dmHashString64("2.10"), .m_Type = DATA_TYPE_VECTOR3 }, { .m_Field = dmHashString64("1.10"), .m_Type = DATA_TYPE_VECTOR3 } };
+         DataQueryDesc  desc = { 0, 0, 0, 0, fields, 2 };
+         HDataQuery     query;
+         ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
+-        // Lookup uses names/paths even when the descriptors change order.
++        // Lookup uses full-name hashes even when the descriptors change order.
+         DataQueryField swap = fields[0];
+         fields[0] = fields[1];
+         fields[1] = swap;
+@@ -2505,6 +2508,19 @@
+                 const DataTable* table = GetInstanceTable(instance, table_index);
+                 ASSERT_EQ((uintptr_t)(table->m_Values.Begin() + table_index * 8), (uintptr_t)original);
+             }
++            // The same full-name hash works through ID access, including packed metadata.
++            DataVector3 copy;
++            uint64_t    color_hash = dmHashString64("1.10");
++            ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector3(store, id, color_hash, &copy));
++            ASSERT_EQ(1.0f, copy.m_Values[0]);
++            ASSERT_EQ(DATA_RESULT_OK, DataFieldGetVector3Batch(store, 1, &id, color_hash, &copy));
++            copy.m_Values[0] = 17;
++            ASSERT_EQ(DATA_RESULT_OK, DataSetFieldVector3(store, id, color_hash, &copy));
++            ASSERT_EQ(17.0f, DataRowIterGetVector3(&rows, field)->m_Values[0]);
++            ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, id, color_hash));
++            ASSERT_EQ(1.0f, DataRowIterGetVector3(&rows, field)->m_Values[0]);
++            ASSERT_EQ(DATA_RESULT_OK, DataSetFieldString(store, id, dmHashString64("1.30"), "changed"));
++            ASSERT_EQ(DATA_RESULT_OK, DataResetField(store, id, dmHashString64("1.30")));
+             DataRowIterGetVector3Mut(&rows, field)->m_Values[0] = 42;
+             ASSERT_EQ(42.0f, DataRowIterGetVector3(&rows, field)->m_Values[0]);
+             ASSERT_EQ(9.0f, DataRowIterGetVector3(&rows, other)->m_Values[0]);
+@@ -2540,9 +2556,9 @@
+ 
+ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
+ {
+-    DataFieldDesc  members[] = { { 10, DATA_TYPE_NUMBER, 0 }, { 20, DATA_TYPE_STRING, 8 }, { 30, DATA_TYPE_LIST, 16 } };
++    DataFieldDesc  members[] = { { .m_Field = 10, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DATA_TYPE_STRING, .m_Offset = 8, .m_Name = "20" }, { .m_Field = 30, .m_Type = DATA_TYPE_LIST, .m_Offset = 16, .m_Name = "30" } };
+     DataStructDesc layout = { members, 3, 24 };
+-    DataFieldDesc  root = { 1, DATA_TYPE_STRUCT, 0, &layout };
++    DataFieldDesc  root = { .m_Field = 1, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &layout, .m_Name = "1" };
+     DataTableDesc  table = { 1, 0, 0, &root, 1, 24 };
+     HDataStore     source = DataCreateStore();
+     ASSERT_EQ(DATA_RESULT_OK, DataRegisterTable(source, &table));
+@@ -2570,8 +2586,7 @@
+     ASSERT_EQ(DATA_RESULT_OK, DataAddBlob(store, blob, 1, &first));
+     ASSERT_EQ(DATA_RESULT_OK, DataAddBlob(store, blob, 2, &second));
+     DataDestroyBlob(blob);
+-    uint64_t       number_name = 10, string_name = 20;
+-    DataQueryField fields[] = { { 1, DATA_TYPE_NUMBER, &number_name, 1 }, { 1, DATA_TYPE_STRING, &string_name, 1 } };
++    DataQueryField fields[] = { { .m_Field = dmHashString64("1.10"), .m_Type = DATA_TYPE_NUMBER }, { .m_Field = dmHashString64("1.20"), .m_Type = DATA_TYPE_STRING } };
+     DataQueryDesc  desc = { 0, 0, 0, 0, fields, 2 };
+     HDataQuery     query;
+     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
+@@ -2726,7 +2741,8 @@
+             DataFieldDesc field = {
+                 .m_Field = i + 1,
+                 .m_Type = depth == 14 ? DATA_TYPE_NULL : DATA_TYPE_STRUCT,
+-                .m_Struct = depth == 14 ? 0 : &layouts[depth + 1]
++                .m_Struct = depth == 14 ? 0 : &layouts[depth + 1],
++                .m_Name = i ? "right" : "left"
+             };
+             members[depth][i] = field;
+         }
+@@ -2734,8 +2750,8 @@
+         layouts[depth].m_FieldCount = 2;
+     }
+     DataFieldDesc roots[] = {
+-        { .m_Field = 1, .m_Type = DATA_TYPE_STRUCT, .m_Struct = layouts },
+-        { .m_Field = 2, .m_Type = DATA_TYPE_NULL }
++        { .m_Field = 1, .m_Type = DATA_TYPE_STRUCT, .m_Struct = layouts, .m_Name = "1" },
++        { .m_Field = 2, .m_Type = DATA_TYPE_NULL, .m_Name = "2" }
+     };
+     uint64_t* tags = new uint64_t[DATA_MAX_TAG_COUNT];
+     for (uint32_t i = 0; i < DATA_MAX_TAG_COUNT; ++i)
+@@ -2768,6 +2784,8 @@
+         DataFieldMeta expected = GetFieldMeta(store->m_Tables[0], i);
+         DataFieldMeta actual = GetFieldMeta(table, i);
+         ASSERT_EQ(expected.m_Field, actual.m_Field);
++        ASSERT_EQ(expected.m_Name, actual.m_Name);
++        ASSERT_EQ(expected.m_Offset, actual.m_Offset);
+         ASSERT_EQ(expected.m_ChildIndex, actual.m_ChildIndex);
+         ASSERT_EQ(expected.m_ChildCount, actual.m_ChildCount);
+     }
+@@ -2817,16 +2835,15 @@
+ TEST(Data, CompactQueryFieldsValidateBeforeNarrowing)
+ {
+     HDataStore     store = DataCreateStore();
+-    uint64_t       path[DATA_MAX_NESTING] = {};
+-    DataQueryField field = { .m_Field = 1, .m_Type = DATA_TYPE_VECTOR3, .m_Path = path, .m_PathCount = DATA_MAX_NESTING, .m_Access = DATA_ACCESS_READ_WRITE };
++    DataQueryField field = { .m_Field = 1, .m_Type = DATA_TYPE_VECTOR3, .m_Access = DATA_ACCESS_READ_WRITE };
+     DataQueryDesc  desc = { .m_Fields = &field, .m_FieldCount = 1 };
+     HDataQuery     query;
+     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
+     ASSERT_EQ(0u, DataQueryFindField(query, &field));
+     ASSERT_EQ(DATA_RESULT_OK, DataDestroyQuery(query));
+-    field.m_PathCount = 65536;
++    field.m_Type = (DataValueType)256;
+     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(store, &desc, &query));
+-    field.m_PathCount = DATA_MAX_NESTING;
++    field.m_Type = DATA_TYPE_VECTOR3;
+     field.m_Access = (DataAccess)256;
+     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(store, &desc, &query));
+     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(store));
+@@ -2835,18 +2852,18 @@
+ TEST(Data, TemplateRowsPreserveNativeOverridesAndSharedDefaults)
+ {
+     DataFieldDesc members[] = {
+-        { .m_Field = 60, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0 },
+-        { .m_Field = 61, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 16 }
++        { .m_Field = 60, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "60" },
++        { .m_Field = 61, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 16, .m_Name = "61" }
+     };
+     DataStructDesc light = { .m_Fields = members, .m_FieldCount = 2, .m_Size = 24 };
+     DataFieldDesc  fields[] = {
+-        { .m_Field = 1, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 0 },
+-        { .m_Field = 2, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 8 },
+-        { .m_Field = 3, .m_Type = DATA_TYPE_VECTOR4, .m_Offset = 20 },
+-        { .m_Field = 4, .m_Type = DATA_TYPE_MATRIX4, .m_Offset = 36 },
+-        { .m_Field = 5, .m_Type = DATA_TYPE_BOOLEAN, .m_Offset = 100 },
+-        { .m_Field = 6, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 104, .m_Struct = &light },
+-        { .m_Field = 7, .m_Type = DATA_TYPE_STRING, .m_Offset = 128 }
++        { .m_Field = 1, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 0, .m_Name = "1" },
++        { .m_Field = 2, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 8, .m_Name = "2" },
++        { .m_Field = 3, .m_Type = DATA_TYPE_VECTOR4, .m_Offset = 20, .m_Name = "3" },
++        { .m_Field = 4, .m_Type = DATA_TYPE_MATRIX4, .m_Offset = 36, .m_Name = "4" },
++        { .m_Field = 5, .m_Type = DATA_TYPE_BOOLEAN, .m_Offset = 100, .m_Name = "5" },
++        { .m_Field = 6, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 104, .m_Struct = &light, .m_Name = "6" },
++        { .m_Field = 7, .m_Type = DATA_TYPE_STRING, .m_Offset = 128, .m_Name = "7" }
+     };
+     DataTableDesc desc = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 7, .m_RowStride = 136 };
+     HDataStore    store = DataCreateStore();
+@@ -2883,9 +2900,8 @@
+         rows[r].m_Owner = 100 + r;
+         rows[r].m_ComponentId = 200 + r;
+     }
+-    uint64_t        color = 60;
+     DataRowOverride overrides[] = {
+-        { .m_Field = { .m_Field = 6, .m_Type = DATA_TYPE_VECTOR3, .m_Path = &color, .m_PathCount = 1 }, .m_Values = input[0].m_Vector3, .m_Stride = sizeof(NativeInput) },
++        { .m_Field = { .m_Field = dmHashString64("6.60"), .m_Type = DATA_TYPE_VECTOR3 }, .m_Values = input[0].m_Vector3, .m_Stride = sizeof(NativeInput) },
+         { .m_Field = { .m_Field = 4, .m_Type = DATA_TYPE_MATRIX4 }, .m_Values = input[0].m_Matrix4, .m_Stride = sizeof(NativeInput) },
+         { .m_Field = { .m_Field = 3, .m_Type = DATA_TYPE_VECTOR4 }, .m_Values = input[0].m_Vector4, .m_Stride = sizeof(NativeInput) },
+         { .m_Field = { .m_Field = 2, .m_Type = DATA_TYPE_VECTOR3 }, .m_Values = input[0].m_Vector3, .m_Stride = 0 }, // Broadcast one value.
+@@ -2896,9 +2912,9 @@
+     input[2].m_Boolean = 2;
+     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRowsFromTemplate(store, 1, &prototype, overrides, 6, rows, 3, ids));
+     input[2].m_Boolean = 0;
+-    color = 99;
++    overrides[0].m_Field.m_Field = dmHashString64("6.99");
+     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRowsFromTemplate(store, 1, &prototype, overrides, 6, rows, 3, ids));
+-    color = 60;
++    overrides[0].m_Field.m_Field = dmHashString64("6.60");
+     overrides[0].m_Field.m_Type = DATA_TYPE_NUMBER;
+     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataAddRowsFromTemplate(store, 1, &prototype, overrides, 6, rows, 3, ids));
+     overrides[0].m_Field.m_Type = DATA_TYPE_VECTOR3;
+--- a/engine/data/src/test/test_data_threaded.cpp
++++ b/engine/data/src/test/test_data_threaded.cpp
+@@ -17,6 +17,7 @@
+ #include <dlib/jobsystem.h>
+ #include <dlib/time.h>
+ #include "../data.h"
++#include <dlib/hash.h>
+ 
+ #ifndef DM_SANITIZE_THREAD
+ #error Threading tests must be built and run with WITH_TSAN=ON
+@@ -35,9 +36,9 @@
+ {
+     ThreadFixture fixture = {};
+     fixture.m_Store = DataCreateStore();
+-    DataFieldDesc       light_fields[] = { { COLOR, DATA_TYPE_VECTOR3, 0, 0 }, { INTENSITY, DATA_TYPE_NUMBER, 16, 0 } };
++    DataFieldDesc       light_fields[] = { { .m_Field = COLOR, .m_Type = DATA_TYPE_VECTOR3, .m_Name = "color" }, { .m_Field = INTENSITY, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 16, .m_Name = "intensity" } };
+     DataStructDesc      light = { light_fields, 2, 24 };
+-    DataFieldDesc       fields[] = { { HEALTH, DATA_TYPE_NUMBER, 0, 0 }, { POSITION, DATA_TYPE_VECTOR3, 8, 0 }, { LIGHT, DATA_TYPE_STRUCT, 24, &light } };
++    DataFieldDesc       fields[] = { { HEALTH, DATA_TYPE_NUMBER, 0, 0 }, { POSITION, DATA_TYPE_VECTOR3, 8, 0 }, { .m_Field = LIGHT, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 24, .m_Struct = &light, .m_Name = "light" } };
+     const DataValueType child_types[] = { DATA_TYPE_VECTOR3, DATA_TYPE_NUMBER };
+     DataValueData       children[2] = {};
+     uint64_t            names[] = { COLOR, INTENSITY };
+@@ -67,9 +68,9 @@
+     return fixture;
+ }
+ 
+-static HDataQuery Query(HDataStore store, uint64_t field_hash, DataValueType type, DataAccess access, const uint64_t* path = 0)
+-{
+-    DataQueryField field = { field_hash, type, path, path ? 1u : 0u, access };
++static HDataQuery Query(HDataStore store, uint64_t field_hash, DataValueType type, DataAccess access)
++{
++    DataQueryField field = { .m_Field = field_hash, .m_Type = type, .m_Access = access };
+     DataQueryDesc  desc = { 0, 0, 0, 0, &field, 1 };
+     HDataQuery     query = 0;
+     EXPECT_EQ(DATA_RESULT_OK, DataCreateQuery(store, &desc, &query));
+@@ -122,7 +123,7 @@
+     }
+     ASSERT_EQ(DATA_RESULT_OK, DataQueryTryBegin(reader));
+     ASSERT_EQ(DATA_RESULT_BUSY, TryFromWorker(reader));
+-    DataQueryField writable = { HEALTH, DATA_TYPE_NUMBER, 0, 0, DATA_ACCESS_READ_WRITE };
++    DataQueryField writable = { HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE };
+     ASSERT_EQ(UINT32_MAX, DataQueryFindField(reader, &writable));
+     DataIterator it = DataQueryIterRange(reader, 0, 1);
+     ASSERT_EQ(DATA_RESULT_OK, DataIterNext(&it));
+@@ -209,10 +210,9 @@
+ TEST(DataThreaded, NestedRangesAndWholeRows)
+ {
+     ThreadFixture fixture = CreateFixture();
+-    uint64_t      color = COLOR, intensity = INTENSITY;
+     HDataQuery    parent = Query(fixture.m_Store, LIGHT, DATA_TYPE_STRUCT, DATA_ACCESS_READ);
+-    HDataQuery    child = Query(fixture.m_Store, LIGHT, DATA_TYPE_VECTOR3, DATA_ACCESS_READ_WRITE, &color);
+-    HDataQuery    sibling = Query(fixture.m_Store, LIGHT, DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE, &intensity);
++    HDataQuery    child = Query(fixture.m_Store, dmHashString64("light.color"), DATA_TYPE_VECTOR3, DATA_ACCESS_READ_WRITE);
++    HDataQuery    sibling = Query(fixture.m_Store, dmHashString64("light.intensity"), DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE);
+     HDataQuery    whole;
+     DataQueryDesc desc = {};
+     ASSERT_EQ(DATA_RESULT_OK, DataCreateQuery(fixture.m_Store, &desc, &whole));
+@@ -294,7 +294,7 @@
+ TEST(DataThreaded, MutationExclusionAndConservativeOwnerReservations)
+ {
+     ThreadFixture  fixture = CreateFixture();
+-    DataQueryField field = { HEALTH, DATA_TYPE_NUMBER, 0, 0, DATA_ACCESS_READ_WRITE };
++    DataQueryField field = { HEALTH, DATA_TYPE_NUMBER, DATA_ACCESS_READ_WRITE };
+     DataOwnerId    owners[] = { 0, 1 };
+     HDataQuery     queries[2];
+     for (uint32_t i = 0; i < 2; ++i)
+@@ -314,7 +314,7 @@
+     ASSERT_EQ(DATA_RESULT_OK, DataRemoveRow(fixture.m_Store, fixture.m_Ids[0]));
+     for (uint32_t i = 0; i < 2; ++i)
+         ASSERT_EQ(DATA_RESULT_OK, DataDestroyQuery(queries[i]));
+-    DataQueryField invalid = { LIGHT, DATA_TYPE_STRUCT, 0, 0, DATA_ACCESS_READ_WRITE };
++    DataQueryField invalid = { LIGHT, DATA_TYPE_STRUCT, DATA_ACCESS_READ_WRITE };
+     DataQueryDesc  desc = { 0, 0, 0, 0, &invalid, 1 };
+     HDataQuery     query = 0;
+     ASSERT_EQ(DATA_RESULT_INVALID_ARGUMENT, DataCreateQuery(fixture.m_Store, &desc, &query));
+--- a/engine/data/src/test/benchmark_data_threaded_lights.cpp
++++ b/engine/data/src/test/benchmark_data_threaded_lights.cpp
+@@ -11,6 +11,7 @@
+ // specific language governing permissions and limitations under the License.
+ 
+ #include "benchmark_data_threaded.h"
++#include <dlib/hash.h>
+ 
+ static double Contribution(const DataVector3* position, const DataVector3* color, double intensity)
+ {
+@@ -58,11 +59,11 @@
+ 
+ void CreateThreadedLights(HDataStore store, ThreadedUpdate* update)
+ {
+-    uint64_t       color = THREAD_COLOR, intensity = THREAD_INTENSITY;
++    // Avoid retaining debug reverse-hash strings in the measured allocation domain.
+     DataQueryField fields[] = {
+         { .m_Field = THREAD_POSITION, .m_Type = DATA_TYPE_VECTOR3 },
+-        { .m_Field = THREAD_LIGHT, .m_Type = DATA_TYPE_VECTOR3, .m_Path = &color, .m_PathCount = 1 },
+-        { .m_Field = THREAD_LIGHT, .m_Type = DATA_TYPE_NUMBER, .m_Path = &intensity, .m_PathCount = 1 }
++        { .m_Field = dmHashBufferNoReverse64("light.color", sizeof("light.color") - 1), .m_Type = DATA_TYPE_VECTOR3 },
++        { .m_Field = dmHashBufferNoReverse64("light.intensity", sizeof("light.intensity") - 1), .m_Type = DATA_TYPE_NUMBER }
+     };
+     DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 3 };
+     ThreadedCheck(DataCreateQuery(store, &desc, &update->m_Query) == DATA_RESULT_OK, "nearby lights query");
+--- a/engine/data/src/test/test_data_c.c
++++ b/engine/data/src/test/test_data_c.c
+@@ -11,6 +11,7 @@
+ // specific language governing permissions and limitations under the License.
+ 
+ #include <dmsdk/data/data.h>
++#include <dmsdk/dlib/hash.h>
+ 
+ int TestDataStoreLifecycleFromC(void)
+ {
+@@ -132,8 +133,7 @@
+ 
+ int TestInlineDataFromC(HDataStore store)
+ {
+-    uint64_t       path[] = { 40, 10 };
+-    DataQueryField requested_field = { 2, DATA_TYPE_VECTOR3, path, 2 };
++    DataQueryField requested_field = { .m_Field = dmHashString64("2.40.10"), .m_Type = DATA_TYPE_VECTOR3 };
+     DataQueryDesc  desc = { .m_Fields = &requested_field, .m_FieldCount = 1 };
+     HDataQuery     query;
+     if (DataCreateQuery(store, &desc, &query) != DATA_RESULT_OK)
+--- a/engine/docs/images/datastore-binary.svg
++++ b/engine/docs/images/datastore-binary.svg
+@@ -11,7 +11,7 @@
+ CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ specific language governing permissions and limitations under the License. -->
+ <title id="title">File Format: overview, struct layouts and references</title>
+-<desc id="desc">The directory references the PointLight and SpotLight tables and the shared string area. On the right, table_offsets selects a DataTableHeader. Table counts describe the metadata array and fixed-stride rows. DataFileFieldMeta m_ChildIndex selects child entries in the same metadata array; m_ByteOffset locates a value relative to its parent row or inline struct. Solid arrows show offset or index references, and dashed arrows show layout expansion or sizes. Struct layouts list byte offsets, names and types.</desc>
++<desc id="desc">The directory references the PointLight and SpotLight tables and the shared string area. On the right, table_offsets selects a DataTableHeader. Table counts describe the metadata array and fixed-stride rows. DataFileFieldMeta m_ChildIndex selects child entries in the same metadata array; m_ByteOffset locates a value relative to the row. Solid arrows show offset or index references, and dashed arrows show layout expansion or sizes. Struct layouts list byte offsets, names and types.</desc>
+ <defs>
+ <marker id="reference-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#237c76"/></marker>
+ <marker id="layout-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker>
+@@ -99,7 +99,7 @@
+ <text x="524" y="588" class="field">m_Reserved</text>
+ <text x="678" y="588" class="field">uint16_t</text>
+ <rect x="824" y="350" width="320" height="278" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+-<text x="838" y="379" class="label">DataFileFieldMeta · 24 bytes</text>
++<text x="838" y="379" class="label">DataFileFieldMeta · 32 bytes</text>
+ <text x="838" y="407" class="small">Byte</text>
+ <text x="894" y="407" class="small">Name</text>
+ <text x="1048" y="407" class="small">Type</text>
+@@ -122,6 +122,9 @@
+ <text x="838" y="563" class="field">20</text>
+ <text x="894" y="563" class="field">m_ByteSize</text>
+ <text x="1048" y="563" class="field">uint32_t</text>
++<text x="838" y="588" class="field">24</text>
++<text x="894" y="588" class="field" style="font-size:12px">m_MemberNameHash</text>
++<text x="1048" y="588" class="field">uint64_t</text>
+ <rect x="454" y="750" width="690" height="224" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+ <text x="468" y="779" class="label">PointLight row · 32 bytes, inline Light expanded</text>
+ <text x="468" y="807" class="small">Byte</text>
+@@ -162,7 +165,7 @@
+ <text x="637" y="704" class="small">m_RowCount ×</text>
+ <text x="637" y="727" class="small">m_RowStride bytes</text>
+ <path d="M 1144 488 H 1152 Q 1160 472 1168 488 H 1188 V 858 H 1144" class="reference"/>
+-<text x="1209" y="676" class="reference-label" text-anchor="middle" transform="rotate(-90 1209 676)">parent + m_ByteOffset</text>
++<text x="1209" y="676" class="reference-label" text-anchor="middle" transform="rotate(-90 1209 676)">row + m_ByteOffset</text>
+ <text x="64" y="758" class="label">Reading the arrows</text>
+ <path d="M 64 788 H 110" class="reference"/>
+ <text x="122" y="793" class="small">Offset / index reference</text>
+@@ -170,7 +173,7 @@
+ <text x="122" y="825" class="small">Layout expansion / size</text>
+ <text x="64" y="865" class="small">Directory offsets start at the blob.</text>
+ <text x="64" y="893" class="small">Field offsets start at the row</text>
+-<text x="64" y="916" class="small">or containing inline struct.</text>
++<text x="64" y="916" class="small">including inline members.</text>
+ <text x="64" y="954" class="small">Padding is not a named field.</text>
+ <text x="28" y="1017" class="small">Within each table: header → tags → metadata → component names → rows → dynamic payloads</text>
+ <text x="28" y="1051" class="small">Fixed structs are in data.h. table_offsets[] follows DataFileDirectory; reserved fields are zero. Byte is struct-relative.</text>
+--- a/engine/docs/images/datastore-queries.svg
++++ b/engine/docs/images/datastore-queries.svg
+@@ -22,13 +22,13 @@
+ <rect x="28" y="72" width="468" height="150" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+ <text x="48" y="102" class="label">1. Describe the query</text>
+ <text x="48" y="134" class="mono">Tag: light</text>
+-<text x="48" y="162" class="mono">Field: light.color · Vector3 · read</text>
++<text x="48" y="162" class="mono">hash("light.color") · Vector3 · read</text>
+ <text x="48" y="196" class="mono">DataCreateQuery → HDataQuery</text>
+ <path d="M 496 145 H 576" class="arrow"/>
+ <rect x="584" y="72" width="468" height="150" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+ <text x="604" y="102" class="label">2. Cache each matching table’s binding</text>
+-<text x="604" y="134" class="mono">PointLight → light offset + color offset</text>
+-<text x="604" y="162" class="mono">SpotLight  → light offset + color offset</text>
++<text x="604" y="134" class="mono">PointLight → absolute light.color offset</text>
++<text x="604" y="162" class="mono">SpotLight  → absolute light.color offset</text>
+ <text x="604" y="196" class="mono">DataQueryFindField → color_field</text>
+ <text x="28" y="257" class="small">The field handle stays the same; each table supplies its own offset. Tables may be added or removed.</text>
+ <path d="M 818 222 V 280 H 540 V 304" class="arrow"/>
+--- a/engine/data/src/test/benchmark_data_create.cpp
++++ b/engine/data/src/test/benchmark_data_create.cpp
+@@ -47,7 +47,6 @@
+     const TypeInput* t = &input->m_Types[ti];
+     DataRowOverride  fields[MAX_FIELDS];
+     uint32_t         field_count = 0;
+-    uint64_t         color = g_Fields[COLOR];
+     for (uint32_t f = 0; f < t->m_FieldCount; ++f)
+     {
+         const Field& field = t->m_Fields[f];
+@@ -61,8 +60,7 @@
+         if (field.m_Field == LIGHT)
+         {
+             value.m_Field.m_Type = DATA_TYPE_VECTOR3;
+-            value.m_Field.m_Path = &color;
+-            value.m_Field.m_PathCount = 1;
++            value.m_Field.m_Field = g_LightColor;
+             value.m_Values = (const uint8_t*)value.m_Values + offsetof(Light, color);
+         }
+         fields[field_count++] = value;
+--- a/engine/data/src/test/benchmark_data_threaded.cpp
++++ b/engine/data/src/test/benchmark_data_threaded.cpp
+@@ -17,6 +17,7 @@
+ #include <dlib/time.h>
+ #include "../data.h"
+ #include "benchmark_data_threaded.h"
++#include <dlib/hash.h>
+ #include "benchmark_data_threaded_memory.h"
+ 
+ struct ContentGroup
+@@ -58,17 +59,17 @@
+ {
+     HDataStore    source = DataCreateStore();
+     DataFieldDesc light_fields[] = {
+-        { .m_Field = THREAD_COLOR, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0 },
+-        { .m_Field = THREAD_INTENSITY, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 16 }
++        { .m_Field = THREAD_COLOR, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "color" },
++        { .m_Field = THREAD_INTENSITY, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 16, .m_Name = "intensity" }
+     };
+     DataStructDesc light = { .m_Fields = light_fields, .m_FieldCount = 2, .m_Size = 24 };
+     DataFieldDesc  fields[THREAD_TYPE_COUNT][6] = {
+         { { .m_Field = THREAD_POSITION, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0 },
+-           { .m_Field = THREAD_LIGHT, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 16, .m_Struct = &light },
++           { .m_Field = THREAD_LIGHT, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 16, .m_Struct = &light, .m_Name = "light" },
+            { .m_Field = 7, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 40 },
+            { .m_Field = 8, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 48 },
+            { .m_Field = 9, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 56 } },
+-        { { .m_Field = THREAD_LIGHT, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &light },
++        { { .m_Field = THREAD_LIGHT, .m_Type = DATA_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &light, .m_Name = "light" },
+            { .m_Field = THREAD_POSITION, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 24 },
+            { .m_Field = 7, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 40 } },
+         { { .m_Field = THREAD_POSITION, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0 },
+@@ -479,6 +480,11 @@
+     printf(",store_requests,store_delta_bytes,job_requests,job_delta_bytes,caller_requests,caller_delta_bytes,resource_requests,resource_delta_bytes,peak_additional_bytes,update_store_requests,stream_store_requests");
+ #endif
+     printf(",movement_wait_us,explosion_wait_us,regenerate_wait_us,lights_wait_us,content_spawned,content_despawned,enemies_spawned,enemies_despawned,live_enemies\n");
++    {
++        // Initialize the process-wide hash mutex outside per-store allocation accounting.
++        ThreadMemoryScope runtime(THREAD_MEMORY_NONE);
++        dmHashEnableReverseHash(false);
++    }
+     ThreadMemorySelfTest();
+     if (workers)
+         Run(population, frames, workers);
+--- a/engine/data/src/test/benchmark_data_nearby_lights.cpp
++++ b/engine/data/src/test/benchmark_data_nearby_lights.cpp
+@@ -20,8 +20,8 @@
+     {
+         DataQueryField fields[] = {
+             { .m_Field = g_Fields[POSITION], .m_Type = DATA_TYPE_VECTOR3 },
+-            { .m_Field = g_Fields[LIGHT], .m_Type = DATA_TYPE_VECTOR3, .m_Path = &g_Fields[COLOR], .m_PathCount = 1 },
+-            { .m_Field = g_Fields[LIGHT], .m_Type = DATA_TYPE_NUMBER, .m_Path = &g_Fields[INTENSITY], .m_PathCount = 1 }
++            { .m_Field = g_LightColor, .m_Type = DATA_TYPE_VECTOR3 },
++            { .m_Field = g_LightIntensity, .m_Type = DATA_TYPE_NUMBER }
+         };
+         DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 3 };
+         Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "nearby lights query");
+--- a/engine/data/src/test/benchmark_data_light_color.cpp
++++ b/engine/data/src/test/benchmark_data_light_color.cpp
+@@ -19,7 +19,7 @@
+     out.m_Tag = tag;
+     if (!store->m_Kind)
+     {
+-        DataQueryField color = { .m_Field = g_Fields[LIGHT], .m_Type = DATA_TYPE_VECTOR3, .m_Path = &g_Fields[COLOR], .m_PathCount = 1 };
++        DataQueryField color = { .m_Field = g_LightColor, .m_Type = DATA_TYPE_VECTOR3 };
+         DataQueryDesc  desc = { .m_AllTags = tag ? &tag : 0, .m_AllTagCount = tag ? 1u : 0u, .m_Fields = &color, .m_FieldCount = 1 };
+         Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create light color query");
+         out.m_ColorField = DataQueryFindField(out.m_Data, &color);
+--- a/engine/data/src/test/benchmark_data_mixed.cpp
++++ b/engine/data/src/test/benchmark_data_mixed.cpp
+@@ -26,6 +26,7 @@
+ static const DataValueType g_LightTypes[] = { DATA_TYPE_VECTOR3, DATA_TYPE_NUMBER };
+ uint64_t                   g_LightTag;
+ static uint64_t            g_EnemyTag;
++uint64_t                   g_LightColor, g_LightIntensity;
+ static DataFieldDesc       g_LightFields[2];
+ static DataStructDesc      g_LightLayout = { .m_Fields = g_LightFields, .m_FieldCount = 2, .m_Size = sizeof(Light) };
+ 
+@@ -53,7 +54,7 @@
+     uint32_t i = type->m_FieldCount++;
+     Field    field = { .m_Field = field_id, .m_Kind = kind, .m_NativeOffset = offset, .m_NativeSize = size };
+     type->m_Fields[i] = field;
+-    DataFieldDesc meta = { .m_Field = g_Fields[field_id], .m_Type = kind, .m_Offset = offset, .m_Struct = field_id == LIGHT ? &g_LightLayout : 0 };
++    DataFieldDesc meta = { .m_Field = g_Fields[field_id], .m_Type = kind, .m_Offset = offset, .m_Struct = field_id == LIGHT ? &g_LightLayout : 0, .m_Name = FIELD_NAMES[field_id] };
+     type->m_Metadata[i] = meta;
+     type->m_ValueTypes[i] = kind;
+     type->m_Stride = type->m_NativeStride;
+@@ -456,8 +457,10 @@
+         g_Fields[p] = dmHashString64(FIELD_NAMES[p]);
+     g_LightNames[0] = g_Fields[COLOR];
+     g_LightNames[1] = g_Fields[INTENSITY];
+-    DataFieldDesc color = { .m_Field = g_Fields[COLOR], .m_Type = DATA_TYPE_VECTOR3, .m_Offset = offsetof(Light, color) };
+-    DataFieldDesc intensity = { .m_Field = g_Fields[INTENSITY], .m_Type = DATA_TYPE_NUMBER, .m_Offset = offsetof(Light, intensity) };
++    DataFieldDesc color = { .m_Field = g_Fields[COLOR], .m_Type = DATA_TYPE_VECTOR3, .m_Offset = offsetof(Light, color), .m_Name = "color" };
++    DataFieldDesc intensity = { .m_Field = g_Fields[INTENSITY], .m_Type = DATA_TYPE_NUMBER, .m_Offset = offsetof(Light, intensity), .m_Name = "intensity" };
++    g_LightColor = dmHashString64("light.color");
++    g_LightIntensity = dmHashString64("light.intensity");
+     g_LightFields[0] = color;
+     g_LightFields[1] = intensity;
+     g_LightTag = dmHashString64("light");
+--- a/engine/data/src/test/benchmark_data_common.h
++++ b/engine/data/src/test/benchmark_data_common.h
+@@ -250,4 +250,6 @@
+ Query CreateExplosionQuery(Backend* store, const Fixture* input);
+ void  DestroyQuery(Query* query);
+ 
++extern uint64_t g_LightColor, g_LightIntensity;
++
+ #endif
+--- a/engine/data/README.md
++++ b/engine/data/README.md
+@@ -49,7 +49,7 @@
+ source row index for reset. Removed default bytes remain until table destruction.
+ 
+ `DataAddRowsFromTemplate` is an internal construction path for shared defaults
+-and native scalar columns. It resolves override names, nested paths and kinds
++and native scalar columns. It resolves full field-name hashes and kinds
+ once per call, reserves storage, then copies defaults and applies overrides in
+ bounded row blocks. `DataRowDesc` supplies owner/component identity; only the
+ default row needs decoded values. All validation precedes publication, and each
+@@ -101,7 +101,9 @@
+ require the exact member names and kinds. `DataFieldDesc.m_Struct` optionally
+ points to a reusable `DataStructDesc`. Registration compiles the complete layout
+ into each containing table's metadata, shared by all its rows. It is not a global
+-type registry. Query paths can bind members of these fixed layouts.
++type registry. Queries bind members of these fixed layouts by full-name hash. Inline parents
++and members supply local text names in `DataFieldDesc::m_Name` at registration;
++compiled metadata keeps full-name hashes and absolute row offsets, not strings.
+ For decoded input, zero-initialize `DataStruct`/`DataList` and fill their input
+ arrays and counts. Use the accessors for returned views, whose arrays may be NULL.
+ 
+@@ -113,9 +115,8 @@
+ own table batches and allow repeated types. Queries and row-ID operations cover both.
+ 
+ Queries copy owner/tag/field filters and cache matching tables. Required
+-fields match both name/path and declared leaf kind in the same table; each query
+-field caches its offset and kind. Stored query filters use uint16 path lengths
+-(already limited to 64) and uint8 access modes; public inputs remain wide and are
++fields match both full-name hash and declared leaf kind in the same table; each query
++field caches its offset and kind. Stored query filters use uint8 access modes; public inputs remain wide and are
+ validated before narrowing. Structural mutations
+ update these caches between traversals. Hold `DataStoreLock` during iteration; structural
+ operations return `DATA_RESULT_LOCKED` without changes until the outermost unlock.
+@@ -192,8 +193,8 @@
+ row indices do not. Unlock itself does not flush work. No per-row deletion flags or
+ general command queue are needed.
+ 
+-A `DataQueryField` can name an inline member path, e.g.
+-`{ .m_Field = light_hash, .m_Type = DATA_TYPE_VECTOR3, .m_Path = &color_hash, .m_PathCount = 1 }`.
++A `DataQueryField` can name an inline member by its full-name hash, e.g.
++`{ .m_Field = dmHashString64("light.color"), .m_Type = DATA_TYPE_VECTOR3 }`.
+ Creation copies the hashes and binds the full offset once per table; the row loop
+ uses `DataRowIterGetVector3` / `DataRowIterGetVector3Mut` with the bound handle.
+ 
+@@ -219,7 +220,7 @@
+ requires an explicit producer choice; DDF conversion is not implemented yet.
+ 
+ Queries accept owner IDs, all-required tags and required fields or inline
+-member paths with exact kinds; empty filters match everything:
++full member-name hashes with exact kinds; empty filters match everything:
+ 
+ ```c
+ #include <dmsdk/data/data.h>
+@@ -252,7 +253,7 @@
+ with `DataRowIterGetNumber` during iteration.
+ 
+ For loops that know their fields, call `DataQueryFindField(query, &field)`
+-once per field after query creation. It identifies the requested full path and
++once per field after query creation. It identifies the requested full-name hash and
+ kind, independent of field order. The handle survives empty results, table changes
+ and repeated traversals; each table caches its own offset under that handle.
+ Use it for any row of that query with `DataRowIterGetNumber`, `DataRowIterGetVector3` and the Boolean,
+@@ -302,19 +303,19 @@
+ | 20 | uint16 total metadata count, including inline descendants |
+ | 22 | uint16 reserved, zero |
+ | 24 onward | uint64 tags[tag count] |
+-| After tags | Metadata[total metadata count], 24 bytes per entry |
++| After tags | Metadata[total metadata count], 32 bytes per entry |
+ | After metadata | uint64 component name hashes[row count] |
+ | After component IDs | uint8 row bytes[row count × row stride], then padding to eight-byte boundary |
+ | After row bytes | Nested containers, in row/field order |
+ 
+-Each 24-byte metadata entry stores a uint64 name hash (byte 0), uint32 kind (8),
++Each 32-byte metadata entry stores a uint64 full-name hash (byte 0), uint32 kind (8),
+ uint32 byte offset (12), uint16 first child index (16), uint16 child count (18),
+-and uint32 byte size (20). A type has at most 65,535 metadata entries including
++uint32 byte size (20), and uint64 local member-name hash (24). A type has at most 65,535 metadata entries including
+ nested members, and a table has at most 65,535 tags. Registration validates these
+ limits before narrowing. Row counts, strides, byte offsets and dynamic container
+ counts remain 32-bit. Root entries come first. A declared inline struct's nonzero child index starts its
+ contiguous member range; descendant ranges follow in construction order. Member
+-offsets are relative to their containing struct. Non-inline fields have zero child
++offsets are absolute within the row. Non-inline fields have zero child
+ index/count and their ordinary kind size. Metadata stays in the blob on load.
+ 
+ Fixed-size values and declared structs are inline in each row. String and dynamic
+--- a/engine/data/benchmarks/examples.html
++++ b/engine/data/benchmarks/examples.html
+@@ -111,8 +111,8 @@
+     };
+     DataQueryField light_fields[] = {
+         { .m_Field = names-&gt;m_Position, .m_Type = DATA_TYPE_VECTOR3 },
+-        { .m_Field = names-&gt;m_Light, .m_Type = DATA_TYPE_VECTOR3, .m_Path = &amp;names-&gt;m_Color, .m_PathCount = 1 },
+-        { .m_Field = names-&gt;m_Light, .m_Type = DATA_TYPE_NUMBER, .m_Path = &amp;names-&gt;m_Intensity, .m_PathCount = 1 }
++        { .m_Field = names-&gt;m_LightColor, .m_Type = DATA_TYPE_VECTOR3 },
++        { .m_Field = names-&gt;m_LightIntensity, .m_Type = DATA_TYPE_NUMBER }
+     };
+     DataQueryDesc      movement = { .m_Fields = movement_fields, .m_FieldCount = 2 };
+     DataQueryDesc      explosion = { .m_Fields = explosion_fields, .m_FieldCount = 2 };
+@@ -241,12 +241,12 @@
+ </code></pre></div>
+ <p class="small">The game helpers illustrate application logic. The timed benchmark applies fixed damage within radius 50; this example also shows writable position access and deferred removal.</p></section>
+ <section id="nearby-lights" class="benchmark"><div class="eyebrow">06 / 08</div><h2>Nearby light contribution</h2><p class="intent">Scan SpotLights and PointLights and sum their contribution inside radius 50: <code>(r + g + b) × intensity × (1 − distance² / 2500)</code>.</p>
+-<h3>Query setup</h3><p><code>position</code> belongs to the outer light row. Both SpotLight and PointLight contain <code>Light light</code>; color and intensity are named paths inside that member. Their bindings resolve once per matching table.</p><div class="code-block"><div class="code-bar"><span>C · public API</span><button class="copy" data-copy="lights-setup" aria-label="Copy lights setup">Copy</button></div><pre><code id="lights-setup" data-api="public">static HDataQuery CreateNearbyLightsQuery(HDataStore store, const struct Fields* names, uint32_t* out_position, uint32_t* out_color, uint32_t* out_intensity)
++<h3>Query setup</h3><p><code>position</code> belongs to the outer light row. Both SpotLight and PointLight contain <code>Light light</code>; <code>light.color</code> and <code>light.intensity</code> are full-name hashes of its inline members. Their bindings resolve once per matching table.</p><div class="code-block"><div class="code-bar"><span>C · public API</span><button class="copy" data-copy="lights-setup" aria-label="Copy lights setup">Copy</button></div><pre><code id="lights-setup" data-api="public">static HDataQuery CreateNearbyLightsQuery(HDataStore store, const struct Fields* names, uint32_t* out_position, uint32_t* out_color, uint32_t* out_intensity)
+ {
+     DataQueryField fields[] = {
+         { .m_Field = names-&gt;m_Position, .m_Type = DATA_TYPE_VECTOR3 },
+-        { .m_Field = names-&gt;m_Light, .m_Type = DATA_TYPE_VECTOR3, .m_Path = &amp;names-&gt;m_Color, .m_PathCount = 1 },
+-        { .m_Field = names-&gt;m_Light, .m_Type = DATA_TYPE_NUMBER, .m_Path = &amp;names-&gt;m_Intensity, .m_PathCount = 1 }
++        { .m_Field = names-&gt;m_LightColor, .m_Type = DATA_TYPE_VECTOR3 },
++        { .m_Field = names-&gt;m_LightIntensity, .m_Type = DATA_TYPE_NUMBER }
+     };
+     DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 3 };
+     HDataQuery    query = NULL;
+@@ -607,7 +607,7 @@
+ struct Fields
+ {
+     uint64_t m_Position, m_Velocity, m_Health;
+-    uint64_t m_Light, m_Color, m_Intensity;
++    uint64_t m_LightColor, m_LightIntensity;
+ };
+ 
+ static struct Fields FieldNames(void)
+@@ -616,9 +616,8 @@
+         .m_Position = dmHashString64("position"),
+         .m_Velocity = dmHashString64("velocity"),
+         .m_Health = dmHashString64("health"),
+-        .m_Light = dmHashString64("light"),
+-        .m_Color = dmHashString64("color"),
+-        .m_Intensity = dmHashString64("intensity")
++        .m_LightColor = dmHashString64("light.color"),
++        .m_LightIntensity = dmHashString64("light.intensity")
+     };
+     return fields;
+ }

@@ -1,19 +1,11 @@
 [0/2] Re-checking globbed directories...
-[1/5] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_size_flecs.dir/benchmark_data_size_flecs.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_size_flecs.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[2/5] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_size_defold.dir/benchmark_data_size_defold.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_size_defold.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[3/5] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_size_flecs
-[4/5] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_size_defold
+[1/11] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_size_empty.dir/benchmark_data_size_empty.cpp.o
+[2/11] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_size_defold.dir/benchmark_data_size_defold.cpp.o
+[3/11] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_size_flecs.dir/benchmark_data_size_flecs.cpp.o
+[4/11] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_size_empty
+[5/11] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_size_defold
+[6/11] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_size_entt.dir/benchmark_data_size_entt.cpp.o
+[7/11] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_size_entt
+[8/11] Building C object engine/data/build/arm64-macos/src/test/CMakeFiles/data_benchmark_flecs_threaded.dir/Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.c.o
+[9/11] Linking C static library engine/data/build/arm64-macos/src/test/libdata_benchmark_flecs_threaded.a
+[10/11] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_size_flecs

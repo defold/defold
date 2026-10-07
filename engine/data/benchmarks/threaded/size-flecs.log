@@ -2,19 +2,17 @@ Segment __PAGEZERO: 4294967296 (zero fill)
 Segment __TEXT: 409600
 	Section __text: 374112
 	Section __stubs: 684
-	Section __stub_helper: 684
 	Section __const: 16408
 	Section __cstring: 7247
-	total 399135
+	total 398451
 Segment __DATA_CONST: 16384
 	Section __const: 4656
-	Section __got: 64
-	total 4720
+	Section __got: 488
+	total 5144
 Segment __DATA: 16384
-	Section __la_symbol_ptr: 440
-	Section __data: 768
+	Section __data: 760
 	Section __common: 8 (zerofill)
 	Section __bss: 1585 (zerofill)
-	total 2801
+	total 2353
 Segment __LINKEDIT: 16384
 total 4295426048

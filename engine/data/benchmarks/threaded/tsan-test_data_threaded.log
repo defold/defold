@@ -1,22 +1,22 @@
 [36mDataThreaded[0m
 [36mDataThreaded[0m.[33mConflictsIndependentFieldsAndRelease[0m
-[36mDataThreaded[0m.[33mConflictsIndependentFieldsAndRelease[0m [32mPASS[0m (668 µs)
+[36mDataThreaded[0m.[33mConflictsIndependentFieldsAndRelease[0m [32mPASS[0m (719 µs)
 [36mDataThreaded[0m.[33mReadOnlyAndEmptyQueryReservations[0m
-[36mDataThreaded[0m.[33mReadOnlyAndEmptyQueryReservations[0m [32mPASS[0m (337 µs)
+[36mDataThreaded[0m.[33mReadOnlyAndEmptyQueryReservations[0m [32mPASS[0m (354 µs)
 [36mDataThreaded[0m.[33mActiveQueryPoolGrowthAndReuse[0m
-[36mDataThreaded[0m.[33mActiveQueryPoolGrowthAndReuse[0m [32mPASS[0m (707 µs)
+[36mDataThreaded[0m.[33mActiveQueryPoolGrowthAndReuse[0m [32mPASS[0m (753 µs)
 [36mDataThreaded[0m.[33mNestedRangesAndWholeRows[0m
-[36mDataThreaded[0m.[33mNestedRangesAndWholeRows[0m [32mPASS[0m (194 µs)
+[36mDataThreaded[0m.[33mNestedRangesAndWholeRows[0m [32mPASS[0m (184 µs)
 [36mDataThreaded[0m.[33mRangesCoverOwnerFilteredRowsAndRefreshAfterMutation[0m
-[36mDataThreaded[0m.[33mRangesCoverOwnerFilteredRowsAndRefreshAfterMutation[0m [32mPASS[0m (51 µs)
+[36mDataThreaded[0m.[33mRangesCoverOwnerFilteredRowsAndRefreshAfterMutation[0m [32mPASS[0m (57 µs)
 [36mDataThreaded[0m.[33mMutationExclusionAndConservativeOwnerReservations[0m
-[36mDataThreaded[0m.[33mMutationExclusionAndConservativeOwnerReservations[0m [32mPASS[0m (135 µs)
+[36mDataThreaded[0m.[33mMutationExclusionAndConservativeOwnerReservations[0m [32mPASS[0m (131 µs)
 [36mDataThreaded[0m.[33mSimultaneousBeginsAdmitExactlyOne[0m
-[36mDataThreaded[0m.[33mSimultaneousBeginsAdmitExactlyOne[0m [32mPASS[0m (3131 µs)
+[36mDataThreaded[0m.[33mSimultaneousBeginsAdmitExactlyOne[0m [32mPASS[0m (3013 µs)
 [36mDataThreaded[0m.[33mJobRangesWithOneTwoFourEightWorkers[0m
-[36mDataThreaded[0m.[33mJobRangesWithOneTwoFourEightWorkers[0m [32mPASS[0m (5.346 ms)
+[36mDataThreaded[0m.[33mJobRangesWithOneTwoFourEightWorkers[0m [32mPASS[0m (5.737 ms)
 [36mDataThreaded[0m.[33mConcurrentBatchReadersWithCallerSynchronization[0m
-[36mDataThreaded[0m.[33mConcurrentBatchReadersWithCallerSynchronization[0m [32mPASS[0m (1964 µs)
-[36mDataThreaded[0m took 12.776 ms
-Ran 9 tests, with 2499 assertions in 12.776 ms
+[36mDataThreaded[0m.[33mConcurrentBatchReadersWithCallerSynchronization[0m [32mPASS[0m (1907 µs)
+[36mDataThreaded[0m took 13.072 ms
+Ran 9 tests, with 2499 assertions in 13.072 ms
 9 tests [32mPASSED[0m and 0 skipped

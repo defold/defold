@@ -1,22 +1,20 @@
 Segment __PAGEZERO: 4294967296 (zero fill) 
 Segment __TEXT: 49152
-	Section __text: 24656
-	Section __stubs: 420
-	Section __stub_helper: 396
-	Section __const: 80
-	Section __cstring: 1054
-	total 26606
+	Section __text: 34972
+	Section __stubs: 456
+	Section __init_offsets: 8
+	Section __const: 160
+	Section __cstring: 1558
+	total 37154
 Segment __DATA_CONST: 16384
-	Section __mod_init_func: 16
 	Section __const: 48
 	Section __objc_imageinfo: 8
-	Section __got: 64
-	total 136
+	Section __got: 328
+	total 384
 Segment __DATA: 16384
-	Section __la_symbol_ptr: 248
-	Section __data: 32
+	Section __data: 20
+	Section __bss: 544 (zerofill)
 	Section __common: 20 (zerofill)
-	Section __bss: 352 (zerofill)
-	total 652
+	total 584
 Segment __LINKEDIT: 16384
 total 4295065600

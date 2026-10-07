@@ -1,0 +1,591 @@
+{
+  "completed_utc": "2026-09-30T15:58:52.632776+00:00",
+  "rows": 1000000,
+  "core_samples_per_run": 7,
+  "rounds": 6,
+  "threaded_frames_per_run": 32,
+  "threaded_warmup_frames": 2,
+  "workers": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "order": "AB, BA, AB, BA, AB, BA; before=A, after=B",
+  "sanitizers": "none; memory tracking disabled for timing",
+  "runs": [
+    {
+      "variant": "before",
+      "round": 1,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 1,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 1,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 1,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 2,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 2,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 2,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 2,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 3,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 3,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 3,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 3,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 4,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 4,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 4,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 4,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 5,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 5,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 5,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 5,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 6,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "after",
+      "round": 6,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/after/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 6,
+      "suite": "core",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_mixed",
+        "1000000",
+        "7",
+        "data",
+        "core"
+      ]
+    },
+    {
+      "variant": "before",
+      "round": 6,
+      "suite": "threaded",
+      "command": [
+        "engine/data/build/full-field-hashes/before/benchmark_data_threaded",
+        "1000000",
+        "32",
+        "0"
+      ]
+    }
+  ],
+  "binaries": {
+    "before/benchmark_data_threaded_memory": "c31a1f09c0bb986d701a82a96a505e9cdfa072775074afc63dfad09a42ffcacb",
+    "before/benchmark_data_threaded": "a21044493a0829f19f2cad580763955cf95eda85f5e9ec10d1171759c8297353",
+    "before/benchmark_data_memory": "258c7d39a8e06f236da5df726bd8212325680621c5678a6c2a67f266393edcf9",
+    "before/benchmark_data_mixed": "0858b9f6149193e6d09f3c4ad9fdb54d8e63d257336722949b59d0004227d65a",
+    "after/benchmark_data_threaded_memory": "7a449dc36e763366690950e5095ccb156af1602777e7e8a8359abde8de8c16e0",
+    "after/benchmark_data_threaded": "dcdee63db6d01a8592682b02b6638513068d324d89bba0882555c04c2d9f5c82",
+    "after/benchmark_data_memory": "2ffee0809b2db23ec5592774b89ba18b7a29aea142fe2bf1487b6f3cb6f0d417",
+    "after/benchmark_data_mixed": "fd37aac0e856d6d5eac80fcf0620445759f824a200d67477f132dae6eb0e0e67"
+  },
+  "results": [
+    {
+      "case": "create_population",
+      "title": "Create population",
+      "workers": null,
+      "before_ms": 3.0084999999999997,
+      "after_ms": 3.052,
+      "speed_percent": -1.4252948885976502,
+      "time_percent": 1.4459032740568478,
+      "paired_speed_min": -3.9528211667198,
+      "paired_speed_max": 2.474916387959869,
+      "paired_speed_percent": [
+        -3.9528211667198,
+        -2.200733577859293,
+        -0.3646005966191579,
+        -2.820596917021967,
+        -2.127659574468088,
+        2.474916387959869
+      ]
+    },
+    {
+      "case": "spawn_wave",
+      "title": "Spawn wave",
+      "workers": null,
+      "before_ms": 1.6385,
+      "after_ms": 1.675,
+      "speed_percent": -2.1791044776119373,
+      "time_percent": 2.2276472383277346,
+      "paired_speed_min": -9.287598944591025,
+      "paired_speed_max": 2.5316455696202445,
+      "paired_speed_percent": [
+        -9.287598944591025,
+        -6.137811233352641,
+        2.5316455696202445,
+        -3.1021897810218912,
+        -3.529411764705881,
+        0.4234724742891549
+      ]
+    },
+    {
+      "case": "despawn_wave",
+      "title": "Despawn wave",
+      "workers": null,
+      "before_ms": 1.0550000000000002,
+      "after_ms": 1.0510000000000002,
+      "speed_percent": 0.38058991436726863,
+      "time_percent": -0.37914691943128354,
+      "paired_speed_min": -12.02872531418313,
+      "paired_speed_max": 6.161616161616146,
+      "paired_speed_percent": [
+        -1.1278195488721776,
+        -0.09407337723422726,
+        6.161616161616146,
+        -12.02872531418313,
+        -0.4770992366412319,
+        5.555555555555558
+      ]
+    },
+    {
+      "case": "movement",
+      "title": "Movement",
+      "workers": null,
+      "before_ms": 0.172,
+      "after_ms": 0.174,
+      "speed_percent": -1.1494252873563204,
+      "time_percent": 1.1627906976744207,
+      "paired_speed_min": -3.9106145251396662,
+      "paired_speed_max": 1.1494252873563315,
+      "paired_speed_percent": [
+        -3.4682080924855363,
+        -1.7441860465116088,
+        -2.2988505747126298,
+        -3.9106145251396662,
+        -0.5714285714285672,
+        1.1494252873563315
+      ]
+    },
+    {
+      "case": "explosion_r50_first",
+      "title": "Explosion",
+      "workers": null,
+      "before_ms": 1.3115,
+      "after_ms": 1.3185,
+      "speed_percent": -0.5309063329541064,
+      "time_percent": 0.5337399923751374,
+      "paired_speed_min": -2.725208175624527,
+      "paired_speed_max": 1.0835913312693402,
+      "paired_speed_percent": [
+        -2.725208175624527,
+        1.0835913312693402,
+        -0.2272727272727315,
+        -1.6454749439042682,
+        -1.0638297872340385,
+        -0.5275056518462606
+      ]
+    },
+    {
+      "case": "nearby_lights",
+      "title": "Nearby light contribution",
+      "workers": null,
+      "before_ms": 0.64,
+      "after_ms": 0.6395,
+      "speed_percent": 0.07818608287726292,
+      "time_percent": -0.07812500000000666,
+      "paired_speed_min": -4.031007751937987,
+      "paired_speed_max": 2.0472440944881987,
+      "paired_speed_percent": [
+        -4.031007751937987,
+        2.0472440944881987,
+        1.4106583072100332,
+        1.5625,
+        -1.2519561815336422,
+        -0.15600624024960652
+      ]
+    },
+    {
+      "case": "position_lookup",
+      "title": "Shuffled position lookup",
+      "workers": null,
+      "before_ms": 8.243,
+      "after_ms": 8.1985,
+      "speed_percent": 0.5427822162590745,
+      "time_percent": -0.5398519956326675,
+      "paired_speed_min": -5.554234062797336,
+      "paired_speed_max": 4.654407102092595,
+      "paired_speed_percent": [
+        1.0898522644708253,
+        2.334090335604344,
+        4.654407102092595,
+        -5.554234062797336,
+        0.04872700694358301,
+        3.4389251818069733
+      ]
+    },
+    {
+      "case": "threaded_update",
+      "title": "Threaded update",
+      "workers": 1,
+      "before_ms": 3.2960000000000003,
+      "after_ms": 3.3245,
+      "speed_percent": -0.8572717701910038,
+      "time_percent": 0.8646844660194164,
+      "paired_speed_min": -5.164319248826277,
+      "paired_speed_max": 1.3929282106230012,
+      "paired_speed_percent": [
+        -5.164319248826277,
+        1.3929282106230012,
+        -0.6958839206396172,
+        -3.315001527650452,
+        -3.2116146062472595,
+        -0.6910019528315936
+      ]
+    },
+    {
+      "case": "threaded_update",
+      "title": "Threaded update",
+      "workers": 2,
+      "before_ms": 2.5534999999999997,
+      "after_ms": 2.5795,
+      "speed_percent": -1.0079472766040043,
+      "time_percent": 1.0182102995888176,
+      "paired_speed_min": -3.085126642544256,
+      "paired_speed_max": 1.5249266862169986,
+      "paired_speed_percent": [
+        -2.435253189022024,
+        0.7209664848012665,
+        -3.085126642544256,
+        0.07917656373714888,
+        0.03913894324854006,
+        1.5249266862169986
+      ]
+    },
+    {
+      "case": "threaded_update",
+      "title": "Threaded update",
+      "workers": 4,
+      "before_ms": 1.7635,
+      "after_ms": 1.775,
+      "speed_percent": -0.6478873239436522,
+      "time_percent": 0.6521122767224163,
+      "paired_speed_min": -3.991006183249013,
+      "paired_speed_max": 0.4473022085546452,
+      "paired_speed_percent": [
+        -2.9829134086301834,
+        0.39705048213274363,
+        -3.541269408880421,
+        -1.8363939899833204,
+        -3.991006183249013,
+        0.4473022085546452
+      ]
+    },
+    {
+      "case": "threaded_update",
+      "title": "Threaded update",
+      "workers": 8,
+      "before_ms": 1.69,
+      "after_ms": 1.6985000000000001,
+      "speed_percent": -0.5004415660877393,
+      "time_percent": 0.5029585798816738,
+      "paired_speed_min": -3.5196687370600444,
+      "paired_speed_max": 3.600854440036616,
+      "paired_speed_percent": [
+        -3.5196687370600444,
+        2.3454157782516027,
+        0.8415554265815528,
+        -2.1151586368977737,
+        -3.3045977011494143,
+        3.600854440036616
+      ]
+    }
+  ],
+  "validation": "All core operation counts, hit counts and checksums agree across all 84 samples per case. Threaded binaries validate each live row against sequential replay outside timing.",
+  "speed_percent_formula": "100 * (before median / after median - 1); positive is faster",
+  "paired_range": "Minimum and maximum speed changes using the six paired run medians; descriptive variability, not a confidence interval.",
+  "report_selection": "The current report uses run 6 (seven samples) selected by schedule, not by speed. This comparison aggregates all six runs (42 samples per core case; 180 measured frames per worker count).",
+  "configuration": {
+    "before": "Query root hash plus array of member hashes; 24-byte metadata with parent-relative offsets.",
+    "after": "Full-name hash query field; 32-byte metadata with full/local hashes and absolute row offsets. Native row layouts and iteration code are unchanged.",
+    "query_field_bytes": {
+      "before": 32,
+      "after": 16
+    },
+    "metadata_entry_bytes": {
+      "before": 24,
+      "after": 32
+    },
+    "format_version": 1
+  },
+  "files": {
+    "before/core-1.csv": "e583b68901a9ba2e59edb5857532c2b6056df3d2c3a93fd7fa56c3dad9741e00",
+    "before/core-1.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "before/core-2.csv": "5541ee0c0266eaf4cb3d84eddf0d2804fc66d26f2e35cc0fd0ebe10a2a069277",
+    "before/core-2.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "before/core-3.csv": "21a81c8b540104ba189b5a0c87c7dbd0a36d7fbb95a7d6b41d794a15ced7c806",
+    "before/core-3.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "before/core-4.csv": "7e4ce5b6ff463ae3b148ebfca92eae5fd66decc66c75569df2491466153f0f94",
+    "before/core-4.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "before/core-5.csv": "cc82f2022d3a4e36952fb05b21df0c3b8514f5e73fb1811e945f0487393c72f1",
+    "before/core-5.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "before/core-6.csv": "ad985fb25165da20b67b1d71550c516f0a22af620c22b5dcf5071ab30f844dd8",
+    "before/core-6.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "before/core-memory.csv": "076bab449ac66e424610d49621bdb2cb6883b8b4c26b13def46d66bda41e999f",
+    "before/core-memory.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "before/threaded-1.csv": "44d79b4dd8e3d99bf47cff7dba25cc2d072e8d41f5b1765244113d088b8e8c38",
+    "before/threaded-1.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "before/threaded-2.csv": "c87b8e27d380948627e9d0315db527662db2264ea3f469dea695bf3de76a3554",
+    "before/threaded-2.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "before/threaded-3.csv": "3e7cddb4f46743c98fecbf862edd7830e67b28a9ac205d3581c4bcc1b139f32a",
+    "before/threaded-3.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "before/threaded-4.csv": "b0dfa1481f02e4f8eb5e99d91649b1db5c077dbeaf4fab9ef707eceeabae94f8",
+    "before/threaded-4.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "before/threaded-5.csv": "cab5cdd112eed948c9f79b05536320d22f361a4fef34c83f555c31070f4b1291",
+    "before/threaded-5.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "before/threaded-6.csv": "396c128f19c1a76acc230d13aa7da9d2563517daf7d5253898fa18f7f515d6f4",
+    "before/threaded-6.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "before/threaded-memory.csv": "2232c6326beba62292ba2592e0f0917002c65988465f8e1d115927bda81965b4",
+    "before/threaded-memory.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "after/core-1.csv": "a28cf36669c0bad19ba2d959ecf0e1d1d9dd414f36ba13cfbca1eeed13e090ee",
+    "after/core-1.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "after/core-2.csv": "e4c7798adc9eec3da21309ecd88c87729407e293ec4b479f443afec27bf24de3",
+    "after/core-2.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "after/core-3.csv": "fbd4ae8f867f2b42a8cb5b6d58328ec59c181662372ca7ec712996cb66c13be8",
+    "after/core-3.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "after/core-4.csv": "93d30c3c6752982ca5fe2fa4c1e5156dfbca94635893a77709a3661607706399",
+    "after/core-4.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "after/core-5.csv": "5f7f9caec210cd116b2f60995d8a6029242a6f718f30a3d01aea80bacdbb9291",
+    "after/core-5.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "after/core-6.csv": "a99327f7652680bd776030f754425e16f12f4fb3ae1a3df929fbb7c85c51f65f",
+    "after/core-6.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "after/core-memory.csv": "0a6dade88f9bbad88a2c3f88fdbe602be533e26c7770594639f34905793876fd",
+    "after/core-memory.log": "7af435445bcac0509e0943e445f005cc51626b7d7ed2282b8906acc2332bee90",
+    "after/threaded-1.csv": "b3f1094576d6eee6cc73c2f54ea133f7d03f4955a5daedd537e1fc45ea6711dc",
+    "after/threaded-1.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "after/threaded-2.csv": "eb92e02edea5bb1c2d56c174f9595750f8fb5c822a1f846d05246d940044ea92",
+    "after/threaded-2.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "after/threaded-3.csv": "d2f015b495ae51fa34d94bbb552763cf2f88d663ebe3a265ba09eb0eea9867f0",
+    "after/threaded-3.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "after/threaded-4.csv": "0c28a0da9ced26c759c1960b64ca07e9c24ce14cc7fefb0a3c0029b593acb738",
+    "after/threaded-4.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "after/threaded-5.csv": "e1fa28f693ef6dc74cbd4fe51651dafc108a066d2d195b50e53326f815ee5291",
+    "after/threaded-5.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "after/threaded-6.csv": "7c3b613edce2a8ed403365be62ad545fb46d5fee876fb779ebfa84b49f732e00",
+    "after/threaded-6.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "after/threaded-memory.csv": "467c4df5964467e708bb56b54f6d514a873d773ce9f97e2e170c9be5e5791043",
+    "after/threaded-memory.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "change_sha256": "f38ea2f333972f863f5335ecb8031b4cb1958e842547696306b7c51e4d71dd9f"
+}

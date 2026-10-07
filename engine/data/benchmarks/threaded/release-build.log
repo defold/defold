@@ -1,35 +1,5 @@
 [0/2] Re-checking globbed directories...
-[1/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded.dir/benchmark_data_threaded_movement.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_movement.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[2/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded.dir/benchmark_data_threaded_fixture.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_fixture.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[3/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded.dir/benchmark_data_threaded_explosion.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_explosion.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[4/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded.dir/benchmark_data_threaded_regenerate.cpp.o
+[1/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_regenerate.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_regenerate.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -40,61 +10,15 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[5/68] Building CXX object engine/data/build/arm64-macos/CMakeFiles/data.dir/src/data_iter.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/data_iter.cpp:14:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[6/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded.dir/benchmark_data_threaded_lights.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_lights.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
+[2/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_resources.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_resources.cpp:13:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
 /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[7/68] Building CXX object engine/data/build/arm64-macos/CMakeFiles/data.dir/src/data_query.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/data_query.cpp:14:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[8/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_fixture.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_fixture.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[9/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded.dir/benchmark_data_threaded.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/math.h:297:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[10/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_movement.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_movement.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[11/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_explosion.cpp.o
+[3/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_explosion.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_explosion.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -105,37 +29,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[12/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_regenerate.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_regenerate.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[13/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_lights.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_lights.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[14/68] Building CXX object engine/data/build/arm64-macos/CMakeFiles/data.dir/src/data_io.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/data_io.cpp:14:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/new:92:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[15/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_movement.cpp.o
+[4/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_movement.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_movement.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -146,7 +40,26 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[16/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_memory.cpp.o
+[5/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_lights.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_lights.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[6/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_fixture.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_fixture.cpp:13:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[7/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded_memory.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_memory.cpp:15:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stddef.h:30:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
@@ -154,23 +67,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[17/68] Building CXX object engine/data/build/arm64-macos/CMakeFiles/data.dir/src/data.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/data.cpp:14:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[18/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_fixture.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_fixture.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[19/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_explosion.cpp.o
+[8/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_explosion.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_explosion.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -181,54 +78,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[20/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/math.h:297:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[21/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_regenerate.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_regenerate.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[22/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_lights.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_lights.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[23/68] Building CXX object engine/data/build/arm64-macos/CMakeFiles/data.dir/src/data_field.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/data_field.cpp:14:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stddef.h:30:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[24/68] Linking CXX static library engine/data/build/arm64-macos/libdata.a
-[25/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_fixture.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_fixture.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[26/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_movement.cpp.o
+[9/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_movement.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_movement.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -239,18 +89,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[27/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_explosion.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_explosion.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[28/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_regenerate.cpp.o
+[10/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_regenerate.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_regenerate.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -261,7 +100,15 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[29/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_lights.cpp.o
+[11/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_fixture.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_fixture.cpp:13:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[12/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_lights.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_lights.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -272,7 +119,67 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[30/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_entt_regenerate.cpp.o
+[13/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_memory.dir/benchmark_data_threaded.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.cpp:13:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/math.h:297:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[14/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_fixture.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_fixture.cpp:13:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[15/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_movement.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_movement.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[16/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_explosion.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_explosion.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[17/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_regenerate.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_regenerate.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[18/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_lights.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_lights.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[19/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_entt_regenerate.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt_regenerate.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.h:16:
 In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/registry.hpp:4:
@@ -283,7 +190,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[31/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_entt_movement.cpp.o
+[20/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_entt_movement.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt_movement.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.h:16:
 In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/registry.hpp:4:
@@ -294,7 +201,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[32/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_entt_explosion.cpp.o
+[21/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_entt_explosion.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt_explosion.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.h:16:
 In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/registry.hpp:4:
@@ -305,7 +212,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[33/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_entt_lights.cpp.o
+[22/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_entt_lights.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt_lights.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.h:16:
 In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/registry.hpp:4:
@@ -316,7 +223,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[34/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_memory.cpp.o
+[23/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_memory.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_memory.cpp:15:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stddef.h:30:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
@@ -324,7 +231,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[35/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_fixture.cpp.o
+[24/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_fixture.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_fixture.cpp:13:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
@@ -332,29 +239,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[36/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_movement.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_movement.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[37/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_entt_explosion.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt_explosion.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.h:16:
-In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/registry.hpp:4:
-In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/../config/config.h:8:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/version:293:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[38/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_entt_movement.cpp.o
+[25/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_entt_movement.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt_movement.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.h:16:
 In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/registry.hpp:4:
@@ -365,88 +250,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[39/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_flecs.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/math.h:297:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[40/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_regenerate.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_regenerate.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[41/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_explosion.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_explosion.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[42/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_lights.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_lights.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[43/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_flecs_movement.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_movement.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
-In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[44/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_flecs_explosion.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_explosion.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
-In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[45/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_flecs_regenerate.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_regenerate.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
-In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[46/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_flecs_lights.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_lights.cpp:13:
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
-In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[47/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_movement.cpp.o
+[26/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_movement.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_movement.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -457,7 +261,18 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[48/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_explosion.cpp.o
+[27/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_entt_explosion.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt_explosion.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.h:16:
+In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/registry.hpp:4:
+In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/../config/config.h:8:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/version:293:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[28/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_explosion.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_explosion.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -468,15 +283,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[49/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_fixture.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_fixture.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[50/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_regenerate.cpp.o
+[29/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_regenerate.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_regenerate.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -487,7 +294,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[51/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_lights.cpp.o
+[30/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_lights.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_lights.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
@@ -498,7 +305,15 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[52/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_flecs_movement.cpp.o
+[31/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_flecs.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.cpp:13:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/math.h:297:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[32/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_flecs_movement.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_movement.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
 In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
@@ -508,7 +323,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[53/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_flecs_explosion.cpp.o
+[33/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_flecs_explosion.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_explosion.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
 In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
@@ -518,7 +333,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[54/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_flecs_regenerate.cpp.o
+[34/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_flecs_regenerate.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_regenerate.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
 In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
@@ -528,15 +343,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[55/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_flecs.cpp.o
-In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.cpp:13:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/math.h:297:
-In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
-/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
-  204 | #  warning "The selected platform is no longer supported by libc++."
-      |    ^
-1 warning generated.
-[56/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_flecs_lights.cpp.o
+[35/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs.dir/benchmark_data_threaded_flecs_lights.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_lights.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
 In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
@@ -546,7 +353,107 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[57/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_memory.cpp.o
+[36/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_movement.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_movement.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[37/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_fixture.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_fixture.cpp:13:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdio.h:93:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[38/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_explosion.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_explosion.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[39/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_regenerate.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_regenerate.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[40/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_lights.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_lights.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data.h:16:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/dmsdk/data/data_types.h:16:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stdint.h:18:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[41/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_flecs_movement.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_movement.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
+In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[42/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_flecs_explosion.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_explosion.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
+In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[43/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_flecs_regenerate.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_regenerate.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
+In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[44/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_flecs.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.cpp:13:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/math.h:297:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[45/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_flecs_lights.cpp.o
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs_lights.cpp:13:
+In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_flecs.h:15:
+In file included from /Users/mathiaswesterdahl/notwork/external/flecs/distr/flecs.h:1077:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/string.h:57:
+In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
+/Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__configuration/availability.h:204:4: warning: "The selected platform is no longer supported by libc++." [-W#warnings]
+  204 | #  warning "The selected platform is no longer supported by libc++."
+      |    ^
+1 warning generated.
+[46/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_flecs_memory.dir/benchmark_data_threaded_memory.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_memory.cpp:15:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/stddef.h:30:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
@@ -554,11 +461,10 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[58/68] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded
-[59/68] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded_memory
-[60/68] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded_flecs
-[61/68] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded_flecs_memory
-[62/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_entt.cpp.o
+[47/56] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded_memory
+[48/56] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded_flecs
+[49/56] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded_flecs_memory
+[50/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt.dir/benchmark_data_threaded_entt.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.cpp:13:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/math.h:297:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
@@ -566,7 +472,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[63/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_entt_regenerate.cpp.o
+[51/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_entt_regenerate.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt_regenerate.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.h:16:
 In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/registry.hpp:4:
@@ -577,8 +483,7 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[64/68] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded_entt
-[65/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_entt.cpp.o
+[52/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_entt.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.cpp:13:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/math.h:297:
 In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.sdk/usr/include/c++/v1/__config:15:
@@ -586,7 +491,8 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[66/68] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_entt_lights.cpp.o
+[53/56] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded_entt
+[54/56] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_threaded_entt_memory.dir/benchmark_data_threaded_entt_lights.cpp.o
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt_lights.cpp:13:
 In file included from /Users/mathiaswesterdahl/.codex/worktrees/f934/defold/engine/data/src/test/benchmark_data_threaded_entt.h:16:
 In file included from /Users/mathiaswesterdahl/notwork/external/entt/src/entt/entity/registry.hpp:4:
@@ -597,4 +503,4 @@ In file included from /Users/mathiaswesterdahl/Downloads/Xcode27-beta.app/Conten
   204 | #  warning "The selected platform is no longer supported by libc++."
       |    ^
 1 warning generated.
-[67/68] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded_entt_memory
+[55/56] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_threaded_entt_memory
