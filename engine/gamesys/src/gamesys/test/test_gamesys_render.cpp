@@ -2013,12 +2013,12 @@ TEST_F(ModelTest, InstanceTransformAttributeLayouts)
 {
     typedef dmGraphics::VertexAttribute Attribute;
     const ModelInstanceLayoutTestCase   cases[] = {
-        { .m_Count = 1, .m_Semantics = { Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, .m_Shapes = { Attribute::VECTOR_TYPE_MAT4 } },
-        { .m_Count = 1, .m_Semantics = { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, .m_Shapes = { Attribute::VECTOR_TYPE_MAT4 } },
-        { .m_Count = 2, .m_Semantics = { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, .m_Shapes = { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
-        { .m_Count = 2, .m_Semantics = { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX, Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, .m_Shapes = { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
-        { .m_Count = 2, .m_Semantics = { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, .m_Shapes = { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT3 } },
-        { .m_Count = 2, .m_Semantics = { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, .m_Shapes = { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
+        { 1, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT4 } },
+        { 1, { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT4 } },
+        { 2, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
+        { 2, { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX, Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
+        { 2, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT3 } },
+        { 2, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
     };
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));

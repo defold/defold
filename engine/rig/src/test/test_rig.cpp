@@ -2149,7 +2149,8 @@ TEST_F(RigContextTest, StaticContextResumesPoseUpdates)
 // Adding and removing morph rigs must resume updates in a previously static-only context.
 TEST(RigMorphWeights, StaticContextResumesUpdates)
 {
-    dmRig::NewContextParams params = { .m_MaxRigInstanceCount = 2 };
+    dmRig::NewContextParams params = {};
+    params.m_MaxRigInstanceCount = 2;
     dmRig::HRigContext      context = 0;
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::NewContext(params, &context));
 
@@ -2160,14 +2161,13 @@ TEST(RigMorphWeights, StaticContextResumesUpdates)
     dmRigDDF::Skeleton          skeleton = {};
     dmArray<dmRig::RigBone>     bind_pose;
     dmHashTable64<uint32_t>     bone_indices;
-    dmRig::InstanceCreateParams create = {
-        .m_ModelId = model_id,
-        .m_BindPose = &bind_pose,
-        .m_BoneIndices = &bone_indices,
-        .m_Skeleton = &skeleton,
-        .m_MeshSet = static_mesh,
-        .m_AnimationSet = animations,
-    };
+    dmRig::InstanceCreateParams create = {};
+    create.m_ModelId = model_id;
+    create.m_BindPose = &bind_pose;
+    create.m_BoneIndices = &bone_indices;
+    create.m_Skeleton = &skeleton;
+    create.m_MeshSet = static_mesh;
+    create.m_AnimationSet = animations;
     dmRig::HRigInstance static_instance = 0;
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(context, create, &static_instance));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(context, 0.0f));
