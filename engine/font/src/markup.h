@@ -26,7 +26,9 @@
  * validated and resolved by later processing stages.
  *
  * Opening and closing tags must be strictly nested and use matching names.
- * Input ending inside a tag, entity, UTF-8 sequence, or unclosed tag hierarchy
+ * The complete escapes `&amp;`, `&apos;`, `&gt;`, `&lt;`, and `&quot;` are decoded.
+ * Other ampersands are literal text, including unknown and unfinished escapes.
+ * Input ending inside a tag, UTF-8 sequence, or unclosed tag hierarchy
  * produces `MARKUP_RESULT_INCOMPLETE` and no markup object.
  *
  * All pointers returned by this API are borrowed from the markup object and
@@ -422,8 +424,10 @@ uint32_t MarkupGetTextLength(HMarkup markup);
  * Parses rich-text markup and copies the original UTF-8 source to `output`,
  * omitting visible text codepoints that are not present in `allowed_codepoints`.
  * Tags, attributes, and the original entity spellings are preserved byte-for-byte.
- * Self-closing object tags are always preserved. The output buffer must be at
- * least `text_length` bytes because filtering never increases the source size.
+ * Literal ampersands are escaped as `&amp;` so filtering cannot introduce new
+ * entities. Self-closing object tags are always preserved. The output buffer
+ * must be at least `text_length` bytes, with additional space for escaped
+ * ampersands. A buffer of `5 * text_length` bytes is always sufficient.
  *
  * @name MarkupFilterText
  * @param text [type: const char*] UTF-8 rich-text markup.
