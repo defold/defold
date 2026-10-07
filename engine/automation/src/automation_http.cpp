@@ -1172,11 +1172,19 @@ namespace dmAutomation
         EvictObservations();
     }
 
-    static void SendObservation(RequestContext* ctx, Observation* observation, bool elements_only, uint32_t offset)
+    static bool GetObservationLimit(RequestContext* ctx, uint32_t* limit)
     {
-        uint32_t limit = 50;
-        if (RequestHasParam(ctx, "limit") && !RequestGetUIntParamAllowZero(ctx, "limit", &limit, 500))
-        { RequestSendError(ctx, 400, "bad_request", "limit must be between 0 and 500"); return; }
+        *limit = 50;
+        if (RequestHasParam(ctx, "limit") && !RequestGetUIntParamAllowZero(ctx, "limit", limit, 500))
+        {
+            RequestSendError(ctx, 400, "bad_request", "limit must be between 0 and 500");
+            return false;
+        }
+        return true;
+    }
+
+    static void SendObservation(RequestContext* ctx, Observation* observation, bool elements_only, uint32_t offset, uint32_t limit)
+    {
         StringBuffer response;
         StringBufferInit(&response);
         StringBufferAppend(&response, "{\"ok\":true,\"data\":{\"id\":"); AppendJsonString(&response, observation->m_Id);
@@ -1227,6 +1235,8 @@ namespace dmAutomation
 
     static void HandleObservationPost(RequestContext* ctx)
     {
+        uint32_t limit;
+        if (!GetObservationLimit(ctx, &limit)) return;
         bool screenshot = false;
         RequestGetBoolParam(ctx, "screenshot", &screenshot);
         if (screenshot && !IsScreenshotSupported()) { RequestSendError(ctx, 501, "screenshot_unsupported", "the current backend cannot capture images"); return; }
@@ -1235,7 +1245,7 @@ namespace dmAutomation
         { RequestSendError(ctx, 400, "bad_request", "frame must be one of the next 600 simulation frames"); return; }
         Observation* observation = NewObservation(ctx, screenshot, frame);
         if (!observation) { RequestSendError(ctx, 429, "observation_queue_full", "16 observations are already pending"); return; }
-        SendObservation(ctx, observation, false, 0);
+        SendObservation(ctx, observation, false, 0, limit);
     }
 
     static bool ParseSnapshotCursor(const char* cursor, Observation** observation, uint32_t* offset)
@@ -1254,6 +1264,8 @@ namespace dmAutomation
 
     static void HandleObservationGet(RequestContext* ctx, const char* id)
     {
+        uint32_t limit;
+        if (!GetObservationLimit(ctx, &limit)) return;
         Observation* observation = FindObservation(id);
         uint32_t offset = 0;
         if (RequestGetParam(ctx, "offset") && !RequestGetUIntParamAllowZero(ctx, "offset", &offset))
@@ -1261,11 +1273,13 @@ namespace dmAutomation
         const char* cursor = RequestGetParam(ctx, "cursor");
         if (cursor && (!ParseSnapshotCursor(cursor, &observation, &offset) || !StringsEqual(observation->m_Id, id))) observation = 0;
         if (!observation) { RequestSendError(ctx, 410, "stale_snapshot", "observation belongs to an earlier runtime or has been evicted"); return; }
-        SendObservation(ctx, observation, false, offset);
+        SendObservation(ctx, observation, false, offset, limit);
     }
 
     static void HandleElements(RequestContext* ctx)
     {
+        uint32_t limit;
+        if (!GetObservationLimit(ctx, &limit)) return;
         Observation* observation = 0;
         uint32_t offset = 0;
         if (RequestGetParam(ctx, "offset") && !RequestGetUIntParamAllowZero(ctx, "offset", &offset))
@@ -1284,7 +1298,7 @@ namespace dmAutomation
             PrepareObservation(observation, false);
             EvictObservations();
         }
-        SendObservation(ctx, observation, true, offset);
+        SendObservation(ctx, observation, true, offset, limit);
     }
 
     static void HandleElement(RequestContext* ctx)

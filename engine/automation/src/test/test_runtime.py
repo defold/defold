@@ -370,6 +370,29 @@ class RuntimeTest(EngineTest):
         status, response = self.request('/elements?cursor=' + urllib.parse.quote(cursor))
         self.assertEqual((410, 'stale_snapshot'), (status, response['error']['code']))
 
+    # Rejected element pagination must not allocate snapshots and evict a valid cursor.
+    def test_rejected_element_limit_preserves_snapshots(self):
+        first = self.request('/elements?limit=1')[1]['data']
+        self.assertIsNotNone(first['next_cursor'])
+        for _ in range(16):
+            self.assertEqual(400, self.request('/elements?limit=501')[0])
+        status, response = self.request('/elements?limit=500&cursor=' + urllib.parse.quote(first['next_cursor']))
+        self.assertEqual(200, status)
+        self.assertEqual(first['snapshot_id'], response['data']['snapshot_id'])
+
+    # Invalid limits on future observations must not reserve any of the 16 pending slots.
+    def test_rejected_observation_limit_preserves_queue(self):
+        frame = self.request('/frame')[1]['data']['engine_frame']
+        for _ in range(16):
+            self.assertEqual(400, self.request('/observations', 'POST', {'frame': frame + 600, 'limit': 501})[0])
+        status, response = self.request('/observations', 'POST', {'limit': 0})
+        self.assertEqual(202, status)
+        self.assertEqual([], response['data']['elements'])
+        path = '/observations/' + urllib.parse.quote(response['data']['id'], safe='')
+        self.until(lambda: self.request(path)[1]['data']['state'] == 'complete')
+        self.assertEqual(400, self.request(path + '?limit=501')[0])
+        self.assertEqual(200, self.request(path + '?limit=500')[0])
+
     # A future observation completed later stays retained even if it was created before older snapshots.
     def test_observation_retention_uses_completion_order(self):
         frame = self.request('/frame')[1]['data']['engine_frame']
