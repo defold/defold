@@ -656,13 +656,8 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             continue;
         }
 
-        float       first_x = glyphs[line.m_Index].m_X;
+        const float first_x = TextLayoutGetLineOriginX(config.m_Layout, line_index);
         const float first_y = glyphs[line.m_Index].m_Y;
-
-        for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
-        {
-            first_x = dmMath::Min(first_x, glyphs[i].m_X);
-        }
 
         const float line_x = GetLineStartX(config, line, paragraphs[line.m_ParagraphIndex].m_Direction);
         const float line_y = layout_y + line.m_Baseline;
@@ -769,12 +764,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
         if (cached_line_index != decoration.m_LineIndex)
         {
             cached_line_index = decoration.m_LineIndex;
-            cached_first_x = glyphs[line.m_Index].m_X;
-
-            for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
-            {
-                cached_first_x = dmMath::Min(cached_first_x, glyphs[i].m_X);
-            }
+            cached_first_x = TextLayoutGetLineOriginX(config.m_Layout, decoration.m_LineIndex);
         }
 
         const float         line_x = GetLineStartX(config, line, paragraphs[line.m_ParagraphIndex].m_Direction);
