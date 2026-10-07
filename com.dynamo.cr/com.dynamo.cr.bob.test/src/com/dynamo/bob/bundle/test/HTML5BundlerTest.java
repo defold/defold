@@ -23,6 +23,7 @@ import static org.junit.Assume.assumeTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
@@ -73,6 +74,69 @@ public class HTML5BundlerTest {
         String heapSize = BundleHelper.formatResource(propertiesMap, properties,
                 "{{DEFOLD_HEAP_SIZE}}".getBytes(StandardCharsets.UTF_8), "heap size");
         assertEquals(Long.toString(expectedSize), heapSize);
+    }
+
+    private void assertLoaderWebGPU(Platform platform, String architectures, String manifest, boolean expected) throws Exception {
+        try (Project project = createHeapSizeProject()) {
+            BobProjectProperties projectProperties = project.getProjectProperties();
+            projectProperties.loadDefaultMetaFile();
+            projectProperties.putStringValue("html5", "cssfile", "/style.css");
+            project.setOption("platform", platform.getPair());
+            project.setOption("architectures", architectures);
+            if (manifest != null) {
+                projectProperties.putStringValue("native_extension", "app_manifest", "graphics.appmanifest");
+                project.getResource("graphics.appmanifest").setContent(manifest.getBytes(StandardCharsets.UTF_8));
+            }
+            project.configurePreBuildProjectOptions();
+
+            Map<String, Map<String, Object>> propertiesMap = projectProperties.createTypedMap(
+                    new BobProjectProperties.PropertyType[] {BobProjectProperties.PropertyType.BOOL});
+            Map<String, Object> properties = new HashMap<>();
+            properties.put("exe-name", "game");
+            new HTML5Bundler().updateManifestProperties(project, platform, projectProperties, propertiesMap, properties);
+            try (InputStream input = HTML5Bundler.class.getResourceAsStream("resources/web/dmloader.js")) {
+                String loader = BundleHelper.formatResource(propertiesMap, properties, input.readAllBytes(), "dmloader.js");
+                assertEquals(expected, loader.contains("navigator.gpu"));
+                assertEquals(expected, loader.contains("probeWebGPUSupport"));
+                assertEquals(expected, loader.contains("hasWebGPUSupport"));
+            }
+        }
+    }
+
+    // Default WebGL engines must omit all WebGPU probing, including pthread builds.
+    @Test
+    public void testWebGLLoaderOmitsWebGPUProbe() throws Exception {
+        for (Platform platform : List.of(Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+            assertLoaderWebGPU(platform, platform.getPair(), null, false);
+        }
+    }
+
+    // WebGPU symbols or libraries in generic and architecture-specific manifests must retain probing.
+    @Test
+    public void testWebGPUAppManifestKeepsProbe() throws Exception {
+        for (Platform platform : List.of(Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+            for (String manifestPlatform : List.of("web", platform.getPair())) {
+                for (String adapter : List.of("symbols: [GraphicsAdapterWebGPU]", "libs: [graphics_webgpu]")) {
+                    assertLoaderWebGPU(platform, platform.getPair(),
+                            "platforms:\n  " + manifestPlatform + ":\n    context:\n      " + adapter + "\n", true);
+                }
+            }
+        }
+    }
+
+    // An explicitly excluded WebGPU adapter must not leave its probe in the generated loader.
+    @Test
+    public void testExcludedWebGPUOmitsProbe() throws Exception {
+        assertLoaderWebGPU(Platform.WasmWeb, "wasm-web",
+                "platforms:\n  web:\n    context:\n      symbols: [GraphicsAdapterWebGPU]\n" +
+                "      excludeSymbols: [GraphicsAdapterWebGPU]\n", false);
+    }
+
+    // A shared loader must retain the probe when either bundled engine architecture includes WebGPU.
+    @Test
+    public void testWebGPUInPthreadArchitectureKeepsProbe() throws Exception {
+        assertLoaderWebGPU(Platform.WasmWeb, "wasm-web,wasm_pthread-web",
+                "platforms:\n  wasm_pthread-web:\n    context:\n      libs: [graphics_webgpu_wagyu]\n", true);
     }
 
     // An unset heap size must still render the default 256 MiB as a byte count.
