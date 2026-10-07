@@ -752,6 +752,8 @@ var GameArchiveLoader = {
             file.stream = FS.open(path, "w+");
         }
 
+        file.totalLoadedPieces = 0;
+
         // how many pieces to download at a time
         var limit = file.pieces.length;
         if (typeof this.MAX_CONCURRENT_XHR !== 'undefined') {
@@ -774,7 +776,6 @@ var GameArchiveLoader = {
 
         var piece = file.pieces[index];
         file.lastRequestedPiece = index;
-        file.totalLoadedPieces = 0;
 
         FileLoader.load(
             this.archiveLocationProvider('/' + piece.name, file.verificationAttempt), "arraybuffer",
@@ -1160,6 +1161,7 @@ var Module = {
         return { stack:stack, message:message };
     },
 
+    {{#DEFOLD_HAS_WEBGPU}}
     probeWebGPUSupport: function(callback) {
         Module._webgpuAdapterAvailable = false;
         var can_probe_adapter = false;
@@ -1195,6 +1197,7 @@ var Module = {
     hasWebGPUSupport: function() {
         return Module._webgpuAdapterAvailable === true;
     },
+    {{/DEFOLD_HAS_WEBGPU}}
 
     hasWebGLSupport: function() {
         var webgl_support = false;
@@ -1239,13 +1242,8 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        // Adapter selection in the engine is synchronous, while WebGPU's only
-        // reliable availability check is requestAdapter(). Resolve it before
-        // starting Wasm so WebGPUIsSupported() can use the cached result.
-        Module.probeWebGPUSupport(function() {
-            if (Module.hasWebGLSupport() || Module.hasWebGPUSupport()) {
-                // Do not let archive or persistent-storage callbacks start the
-                // engine until the asynchronous WebGPU probe has completed.
+        function startApp() {
+            if (Module.hasWebGLSupport(){{#DEFOLD_HAS_WEBGPU}} || Module.hasWebGPUSupport(){{/DEFOLD_HAS_WEBGPU}}) {
                 Module._isEngineLoaded = true;
                 Module.canvas.focus();
 
@@ -1275,7 +1273,16 @@ var Module = {
                     CUSTOM_PARAMETERS["unsupported_webgl_callback"]();
                 }
             }
-        });
+        }
+        {{#DEFOLD_HAS_WEBGPU}}
+        // Adapter selection in the engine is synchronous. Resolve the WebGPU
+        // adapter before marking the engine loaded so other callbacks cannot
+        // start main() before WebGPUIsSupported() can use the cached result.
+        Module.probeWebGPUSupport(startApp);
+        {{/DEFOLD_HAS_WEBGPU}}
+        {{^DEFOLD_HAS_WEBGPU}}
+        startApp();
+        {{/DEFOLD_HAS_WEBGPU}}
     },
 
     onArchiveFileLoaded: function(file) {
@@ -1333,8 +1340,10 @@ var Module = {
         Module._preLoadDone = true;
         for (var i = 0; i < Module._filesToPreload.length; ++i) {
             var item = Module._filesToPreload[i];
-            FS.createPreloadedFile("", item.path, item.data, true, true);
+            // Let the filesystem own the downloaded buffer instead of copying it.
+            FS.createPreloadedFile("", item.path, item.data, true, true, undefined, undefined, false, true);
         }
+        Module._filesToPreload.length = 0;
     },
 
     // Tries to do a MEM->IDB sync
