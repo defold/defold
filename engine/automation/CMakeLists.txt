@@ -119,6 +119,16 @@ if(AUTOMATION_BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM AND
     endif()
   endfunction()
 
+  # A controlled backend verifies recording thread ownership, completion, and shutdown races.
+  defold_add_executable(test_automation_recording src/test/test_recording_async.cpp)
+  defold_target_link_libraries(test_automation_recording "${TARGET_PLATFORM}"
+    testmain automation dlib profile_null)
+  if(TARGET_PLATFORM MATCHES "linux$")
+    find_package(Threads REQUIRED)
+    target_link_libraries(test_automation_recording PRIVATE Threads::Threads dl)
+  endif()
+  automation_add_test(automation_recording_async test_automation_recording "$<TARGET_FILE:test_automation_recording>")
+
   # Borrowed device services must pass fixture checks and never be terminated by cleanup.
   automation_add_test(automation_test_harness dmengine_headless "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_harness.py")
