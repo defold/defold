@@ -214,9 +214,9 @@ set(_GS_TEST_INCLUDES
   "${CMAKE_CURRENT_BINARY_DIR}")
 
 function(gamesys_configure_common_test target)
-  cmake_parse_arguments(GS_TEST "BENCHMARK" "" "" ${ARGN})
+  cmake_parse_arguments(GS_TEST "BENCHMARK;PROFILE" "" "" ${ARGN})
   set(_test_libs ${_DEFOLD_TEST_LIBS})
-  if(GS_TEST_BENCHMARK)
+  if(GS_TEST_BENCHMARK OR GS_TEST_PROFILE)
     list(REMOVE_ITEM _test_libs profile_null)
     list(APPEND _test_libs profile)
   endif()
@@ -266,6 +266,12 @@ defold_create_exported_symbols_file("${_TEST1_EXPORTED_CPP}" "${_TEST1_SYMBOLS}"
 
 defold_add_executable(test_gamesys ${TEST_GS_SOURCES} ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
 gamesys_configure_common_test(test_gamesys)
+
+# Deterministic profiler call counts guard batching without timing assertions.
+defold_add_executable(test_gamesys_profile
+  "${GS_TEST_ROOT}/test_gamesys_profile.cpp"
+  ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
+gamesys_configure_common_test(test_gamesys_profile PROFILE)
 
 # Opt-in CPU benchmark using real model/rig code, null devices, and profiler counters.
 defold_feature_enabled(performance_tests GAMESYS_BUILD_PERFORMANCE_TESTS)
