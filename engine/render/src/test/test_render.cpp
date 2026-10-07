@@ -1947,6 +1947,63 @@ TEST_F(dmRenderTest, GetTextMetricsWhitespace)
     }
 }
 
+// Verifies raw and prepared wrapped metrics report actual line widths, including overflowing words (#13387).
+TEST_F(dmRenderTest, GetTextMetricsWrapped)
+{
+    m_GlyphBank->m_Glyphs[' '].m_Width = 0;
+    m_GlyphBank->m_Glyphs[' '].m_LeftBearing = 0;
+
+    const struct
+    {
+        const char* m_Text;
+        float       m_Width;
+        float       m_ExpectedWidth;
+        float       m_ExpectedHeight;
+        uint32_t    m_ExpectedLineCount;
+    } cases[] = {
+        { "",               100.0f,  0.0f, 0.0f, 0 },
+        { "OverflowX",        1.0f, 18.0f, 3.0f, 1 },
+        { "OverflowX",       10.0f, 18.0f, 3.0f, 1 },
+        { "OverflowX",      100.0f, 18.0f, 3.0f, 1 },
+        { "XX",             100.0f,  4.0f, 3.0f, 1 },
+        { " XX",            100.0f,  6.0f, 3.0f, 1 },
+        { "XX A",             5.0f,  4.0f, 6.0f, 2 },
+        { "A XX",             5.0f,  4.0f, 6.0f, 2 },
+        { "XX A",           100.0f,  8.0f, 3.0f, 1 },
+        { "XX A OverflowX",   5.0f, 18.0f, 9.0f, 3 },
+        { "XX\nA",          100.0f,  4.0f, 6.0f, 2 },
+        { "XX\r\nA",        100.0f,  4.0f, 6.0f, 2 },
+        { "XX\n\nA",        100.0f,  4.0f, 9.0f, 3 },
+        { "A\nXX\nA",       100.0f,  4.0f, 9.0f, 3 },
+        { "XX\nA\n",        100.0f,  4.0f, 6.0f, 2 },
+        { "XX \nA",         100.0f,  4.0f, 6.0f, 2 },
+        { "XX \nA\n",       100.0f,  4.0f, 6.0f, 2 },
+        { "XX ",            100.0f,  4.0f, 3.0f, 1 },
+    };
+
+    TextLayoutSettings settings = {};
+    settings.m_Leading = 1.0f;
+    settings.m_LineBreak = true;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        settings.m_Width = cases[i].m_Width;
+        dmRender::TextMetrics metrics[2] = {};
+        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics[0]);
+        HTextLayout layout = CreateTextLayout(m_SystemFontMap, cases[i].m_Text, settings);
+        ASSERT_NE((HTextLayout)0, layout);
+        GetTextMetrics(m_SystemFontMap, layout, &metrics[1]);
+        TextLayoutRelease(layout);
+
+        for (uint32_t m = 0; m < DM_ARRAY_SIZE(metrics); ++m)
+        {
+            printf("%s wrapped metrics for '%s', container %g: width %g, expected %g\n", m ? "Prepared" : "Raw", cases[i].m_Text, cases[i].m_Width, metrics[m].m_Width, cases[i].m_ExpectedWidth);
+            EXPECT_EQ(cases[i].m_ExpectedWidth, metrics[m].m_Width);
+            EXPECT_EQ(cases[i].m_ExpectedHeight, metrics[m].m_Height);
+            EXPECT_EQ(cases[i].m_ExpectedLineCount, metrics[m].m_LineCount);
+        }
+    }
+}
+
 TEST_F(dmRenderTest, GetPreparedTextMetrics)
 {
     const char* text = "Hello World Bonanza";

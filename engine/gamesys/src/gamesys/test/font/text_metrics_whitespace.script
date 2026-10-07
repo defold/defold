@@ -31,6 +31,19 @@ local function test_whitespace_metrics(font, text, base_text, space_count, line_
     end
 end
 
+-- Verifies wrapped widths measure text rather than the container, including overflowing words (#13387).
+local function test_wrapped_metrics(font, text, base_text, width, line_count)
+    local base = resource.get_text_metrics(font, base_text)
+    local reference = resource.get_text_metrics(font, "A")
+    local wrapped = resource.get_text_metrics(font, text, { line_break = true, width = width })
+    assert_near(base.width, wrapped.width, string.format("wrapped width of %q in %g", text, width))
+    assert_near(reference.height * line_count, wrapped.height, "wrapped height")
+    if text ~= "" then
+        assert_near(reference.max_ascent, wrapped.max_ascent, "wrapped ascent")
+        assert_near(reference.max_descent, wrapped.max_descent, "wrapped descent")
+    end
+end
+
 function init(self)
     local cases = {
         -- Input, then expected base text, added spaces and line count.
@@ -66,7 +79,28 @@ function init(self)
         { text = "XX \nA\n",
           base_text = "XX", space_count = 1, line_count = 2 },
     }
+    local wrapped_cases = {
+        { text = "",               width = 100, base_text = "",          line_count = 0 },
+        { text = "OverflowX",      width =   1, base_text = "OverflowX", line_count = 1 },
+        { text = "OverflowX",      width =  20, base_text = "OverflowX", line_count = 1 },
+        { text = "OverflowX",      width = 100, base_text = "OverflowX", line_count = 1 },
+        { text = "XX",             width = 100, base_text = "XX",        line_count = 1 },
+        { text = " XX",            width = 100, base_text = " XX",       line_count = 1 },
+        { text = "XX A",           width =  20, base_text = "XX",        line_count = 2 },
+        { text = "A XX",           width =  20, base_text = "XX",        line_count = 2 },
+        { text = "XX A",           width = 100, base_text = "XX A",      line_count = 1 },
+        { text = "XX A OverflowX", width =  20, base_text = "OverflowX", line_count = 3 },
+        { text = "XX\nA",          width = 100, base_text = "XX",        line_count = 2 },
+        { text = "XX\r\nA",        width = 100, base_text = "XX",        line_count = 2 },
+        { text = "XX\n\nA",        width = 100, base_text = "XX",        line_count = 3 },
+        { text = "A\nXX\nA",       width = 100, base_text = "XX",        line_count = 3 },
+        { text = "XX\nA\n",        width = 100, base_text = "XX",        line_count = 2 },
+        { text = "XX \nA",         width = 100, base_text = "XX",        line_count = 2 },
+        { text = "XX \nA\n",       width = 100, base_text = "XX",        line_count = 2 },
+        { text = "XX ",            width = 100, base_text = "XX",        line_count = 1 },
+    }
     text_metrics_whitespace_passed = true
+    text_metrics_wrapped_passed = true
     for _, fixture in ipairs({
         { "glyph bank", self.glyph_bank_font },
         { "runtime SDF", self.runtime_font },
@@ -75,6 +109,11 @@ function init(self)
             local ok, err = pcall(test_whitespace_metrics, fixture[2], case.text, case.base_text, case.space_count, case.line_count)
             print(string.format("resource.get_text_metrics %s / %q: %s", fixture[1], case.text, ok and "PASS" or err))
             text_metrics_whitespace_passed = ok and text_metrics_whitespace_passed
+        end
+        for _, case in ipairs(wrapped_cases) do
+            local ok, err = pcall(test_wrapped_metrics, fixture[2], case.text, case.base_text, case.width, case.line_count)
+            print(string.format("resource.get_text_metrics wrapped %s / %q in %g: %s", fixture[1], case.text, case.width, ok and "PASS" or err))
+            text_metrics_wrapped_passed = ok and text_metrics_wrapped_passed
         end
     end
 end

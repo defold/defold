@@ -2258,7 +2258,343 @@ TEST_F(FontTest, LayoutCRLFMetrics)
     }
 }
 
+// Verifies wrapped metrics report the widest text line, including overflow, instead of the container width (#13387).
+TEST_F(FontTest, LayoutWrappedMetrics)
+{
+    const struct
+    {
+        const char* m_Text;
+        float       m_ContainerWidth;
+        const char* m_ExpectedLines[3];
+        uint32_t    m_ExpectedLineCount;
+    } cases[] = {
+        // Input, container width, expected text on each line, and line count.
+        { "",               100.0f, { 0 },                        0 },
+        { "OverflowX",        1.0f, { "OverflowX" },              1 },
+        { "OverflowX",       20.0f, { "OverflowX" },              1 },
+        { "OverflowX",      100.0f, { "OverflowX" },              1 },
+        { "XX",             100.0f, { "XX" },                     1 },
+        { " XX",            100.0f, { " XX" },                    1 },
+        { "XX A",            20.0f, { "XX", "A" },                2 },
+        { "A XX",            20.0f, { "A", "XX" },                2 },
+        { "XX A",           100.0f, { "XX A" },                   1 },
+        { "XX A OverflowX",  20.0f, { "XX", "A", "OverflowX" },   3 },
+        { "XX\nA",          100.0f, { "XX", "A" },                2 },
+        { "XX\r\nA",        100.0f, { "XX", "A" },                2 },
+        { "XX\n\nA",        100.0f, { "XX", "", "A" },            3 },
+        { "A\nXX\nA",       100.0f, { "A", "XX", "A" },           3 },
+        { "XX\nA\n",        100.0f, { "XX", "A" },                2 },
+        { "XX \nA",         100.0f, { "XX", "A" },                2 },
+        { "XX \nA\n",       100.0f, { "XX", "A" },                2 },
+        { "XX ",            100.0f, { "XX" },                     1 },
+    };
+    const float tracking[] = { 0.0f, 0.25f, -0.05f };
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+    dmArray<uint32_t> codepoints;
+
+    for (uint32_t t = 0; t < DM_ARRAY_SIZE(tracking); ++t)
+    {
+        settings.m_Tracking = tracking[t];
+        settings.m_LineBreak = false;
+        TextToCodePoints("A", codepoints);
+        HTextLayout reference = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &reference));
+        float reference_width, line_height;
+        TextLayoutGetBounds(reference, &reference_width, &line_height);
+        TextLayoutRelease(reference);
+
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+        {
+            settings.m_LineBreak = false;
+            float expected_line_widths[3] = {};
+            float expected_width = 0.0f;
+            for (uint32_t l = 0; l < cases[i].m_ExpectedLineCount; ++l)
+            {
+                TextToCodePoints(cases[i].m_ExpectedLines[l], codepoints);
+                ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &reference));
+                float reference_height;
+                TextLayoutGetBounds(reference, &expected_line_widths[l], &reference_height);
+                expected_width = fmaxf(expected_width, expected_line_widths[l]);
+                TextLayoutRelease(reference);
+            }
+
+            settings.m_LineBreak = true;
+            settings.m_Width = cases[i].m_ContainerWidth;
+            TextToCodePoints(cases[i].m_Text, codepoints);
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
+            float width, height;
+            TextLayoutGetBounds(layout, &width, &height);
+            printf("Wrapped case %u, container %g, tracking %g: width %.6f, expected %.6f\n", i, cases[i].m_ContainerWidth, tracking[t], width, expected_width);
+            EXPECT_NEAR(expected_width, width, 0.0001f);
+            EXPECT_NEAR(line_height * cases[i].m_ExpectedLineCount, height, 0.0001f);
+            ASSERT_EQ(cases[i].m_ExpectedLineCount, layout->m_Lines.Size());
+            for (uint32_t l = 0; l < layout->m_Lines.Size(); ++l)
+            {
+                EXPECT_NEAR(expected_line_widths[l], layout->m_Lines[l].m_Width, 0.0001f);
+            }
+            TextLayoutRelease(layout);
+        }
+    }
+}
+
 #if defined(FONT_USE_SKRIBIDI)
+// Verifies trimming wrapped trailing spaces preserves RTL and mixed-direction vertices, including across lines (#13387).
+TEST_F(FontTest, LayoutWrappedWhitespaceAlignment)
+{
+    const struct
+    {
+        const char* m_Text;
+        const char* m_ExpectedLines[3];
+        uint32_t    m_ExpectedLineCount;
+    } cases[] = {
+        { "سلام ",                       { "سلام" },                    1 },
+        { "سلام   ",                     { "سلام" },                    1 },
+        { "سلام A ",                     { "سلام A" },                  1 },
+        { "A سلام ",                     { "A سلام" },                  1 },
+        { "سلام<color=#ff0000> </color>", { "سلام" },                    1 },
+        { "سلام \nسلام   \n",             { "سلام", "سلام" },            2 },
+        { "سلام \n\nسلام سلام   \n",       { "سلام", "", "سلام سلام" },   3 },
+    };
+    const float tracking[] = { 0.0f, 0.25f, -0.05f };
+
+    HFont font;
+    LoadFont("src/test/data/NotoSansArabic-Regular.ttf", &font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
+
+    // Reuse one cached glyph so only layout positions affect the vertex comparison.
+    FontGlyphGenParams glyph_params;
+    glyph_params.m_Scale = FontGetScaleFromSize(font, 14.0f);
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, FontGetGlyphIndex(font, 0x633), &glyph_params, &glyph));
+    TestLayoutCachedGlyph cached = { &glyph };
+    FontLayoutVertexConfig config = {};
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_Width = 100.0f;
+    config.m_RecipAtlasWidth = config.m_RecipAtlasHeight = 1.0f / 256.0f;
+    config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
+    config.m_MetricsFromTtf = true;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1.0f;
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_LineBreak = true;
+    settings.m_Width = config.m_Width;
+    for (uint32_t t = 0; t < DM_ARRAY_SIZE(tracking); ++t)
+    {
+        settings.m_Tracking = tracking[t];
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+        {
+            HTextLayout references[3] = {};
+            float expected_width = 0.0f;
+            for (uint32_t l = 0; l < cases[i].m_ExpectedLineCount; ++l)
+            {
+                HMarkup markup = 0;
+                const char* text = cases[i].m_ExpectedLines[l];
+                ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, strlen(text), &markup, 0));
+                ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(collection, markup, &settings, &references[l]));
+                MarkupDestroy(markup);
+                ASSERT_EQ(text[0] ? 1u : 0u, TextLayoutGetLineCount(references[l]));
+                expected_width = fmaxf(expected_width, references[l]->m_Width);
+            }
+
+            HMarkup markup = 0;
+            ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(cases[i].m_Text, strlen(cases[i].m_Text), &markup, 0));
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(collection, markup, &settings, &layout));
+            MarkupDestroy(markup);
+            ASSERT_EQ(cases[i].m_ExpectedLineCount, TextLayoutGetLineCount(layout));
+            EXPECT_NEAR(expected_width, layout->m_Width, 0.0001f);
+            EXPECT_NEAR(references[0]->m_Height * cases[i].m_ExpectedLineCount, layout->m_Height, 0.0001f);
+            for (uint32_t l = 0; l < cases[i].m_ExpectedLineCount; ++l)
+            {
+                EXPECT_NEAR(references[l]->m_Width, layout->m_Lines[l].m_Width, 0.0001f);
+            }
+
+            // Cover start, center, and end alignment in each paragraph direction.
+            for (uint32_t align = 0; align < 3; ++align)
+            {
+                config.m_Align = align;
+                config.m_Layout = layout;
+                FontLayoutVertexMetrics metrics;
+                ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+                FontGlyphVertex vertices[128];
+                const uint32_t count = FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices));
+                ASSERT_EQ(metrics.m_VertexCount, count);
+                ASSERT_GT(count, 0u);
+                printf("Wrapped alignment case %u, align %u, tracking %g\n", i, align, tracking[t]);
+
+                // Render each reference line separately so a wrong origin on later lines cannot affect both sides.
+                uint32_t vertex_index = 0;
+                for (uint32_t l = 0; l < cases[i].m_ExpectedLineCount; ++l)
+                {
+                    config.m_Layout = references[l];
+                    ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+                    FontGlyphVertex line_vertices[64];
+                    const uint32_t line_count = FontCreateLayoutVertices(config, metrics, line_vertices, DM_ARRAY_SIZE(line_vertices));
+                    ASSERT_EQ(metrics.m_VertexCount, line_count);
+                    ASSERT_LE(vertex_index + line_count, count);
+                    if (line_count == 0)
+                        continue;
+
+                    // Move the isolated reference from its own baseline to this line's baseline.
+                    const float baseline_offset = references[l]->m_Height - layout->m_Height +
+                                                  layout->m_Lines[l].m_Baseline - references[l]->m_Lines[0].m_Baseline;
+                    for (uint32_t v = 0; v < line_count; ++v)
+                    {
+                        EXPECT_NEAR(line_vertices[v].m_Position[0], vertices[vertex_index + v].m_Position[0], 0.0001f);
+                        EXPECT_NEAR(line_vertices[v].m_Position[1] + baseline_offset, vertices[vertex_index + v].m_Position[1], 0.0001f);
+                    }
+                    vertex_index += line_count;
+                }
+                EXPECT_EQ(count, vertex_index);
+            }
+            TextLayoutRelease(layout);
+            for (uint32_t l = 0; l < cases[i].m_ExpectedLineCount; ++l)
+                TextLayoutRelease(references[l]);
+        }
+    }
+    FontFreeGlyph(font, &glyph);
+    FontCollectionDestroy(collection);
+    FontDestroy(font);
+}
+
+// Verifies wrapped RTL trailing spaces get no decoration geometry, preserving neighboring glyph colors (#13387).
+TEST_F(FontTest, LayoutWrappedWhitespaceDecorations)
+{
+    const char* cases[] = {
+        "<ul>سلام<color=#ff0000> </color></ul>",
+        "<ul>سلام<color=#ff0000>   </color></ul>",
+        "<ul pattern=dashed>سلام<color=#ff0000> </color></ul>",
+        "<strike>سلام<color=#ff0000> </color></strike>",
+    };
+
+    HFont font;
+    LoadFont("src/test/data/NotoSansArabic-Regular.ttf", &font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_LineBreak = true;
+    settings.m_Width = 100.0f;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        HMarkup markup = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(cases[i], strlen(cases[i]), &markup, 0));
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(collection, markup, &settings, &layout));
+        MarkupDestroy(markup);
+        ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
+        const TextDecoration& decoration = TextLayoutGetDecorations(layout)[0];
+        ASSERT_TRUE(FontDecorationRequiresGlyphSegments(layout, decoration));
+        float content_length = 0.0f;
+        uint32_t space_count = 0;
+        for (uint32_t s = 0; s < decoration.m_GlyphCount; ++s)
+        {
+            FontDecorationSegment segment;
+            FontGetDecorationSegment(layout, decoration, s, decoration.m_GlyphCount, &segment);
+            const TextGlyph& glyph = TextLayoutGetGlyphs(layout)[segment.m_GlyphIndex];
+            if (glyph.m_Codepoint == ' ')
+            {
+                ++space_count;
+                EXPECT_EQ(0.0f, segment.m_Length);
+            }
+            else
+            {
+                content_length += segment.m_Length;
+            }
+        }
+        EXPECT_GT(space_count, 0u);
+        EXPECT_NEAR(decoration.m_Length, content_length, 0.0001f);
+        TextLayoutRelease(layout);
+    }
+    FontCollectionDestroy(collection);
+    FontDestroy(font);
+}
+
+// Verifies adjacent links on wrapped RTL trailing spaces retain correctly positioned, reachable hit boxes (#13387).
+TEST_F(FontTest, LayoutWrappedWhitespaceLinkHitTest)
+{
+    const char* one_space = "سلام<link src=one> </link><link src=two> </link>";
+    const char* two_spaces = "سلام<link src=one>  </link><link src=two> </link>";
+    const struct
+    {
+        const char* m_Text;
+        float       m_Tracking;
+        float       m_ExpectedContentWidth;
+        float       m_ExpectedBounds[2][2];
+    } cases[] = {
+        // At 14 px in NotoSansArabic, a space advances 3.64 px and a link is at least 4.9 px wide.
+        // Expected bounds are relative to the visible word's left edge, before applying alignment.
+        { one_space,   0.0f,  26.138f, { { -3.64f,   1.26f }, {  -7.28f,  -2.38f } } },
+        { two_spaces,  0.0f,  26.138f, { { -7.28f,   1.26f }, { -10.92f,  -6.02f } } },
+        { one_space,   0.25f, 22.526f, { { -7.14f,   0.0f  }, { -14.28f,  -7.14f } } },
+        { two_spaces,  0.25f, 22.526f, { { -14.28f,  0.0f  }, { -21.42f, -14.28f } } },
+        { one_space,  -0.05f, 26.026f, { { -2.94f,   1.96f }, {  -5.88f,  -0.98f } } },
+        { two_spaces, -0.05f, 26.026f, { { -5.88f,   1.96f }, {  -8.82f,  -3.92f } } },
+    };
+    const float alignment[] = { 1.0f, 0.5f, 0.0f }; // RTL start, center, and end.
+
+    HFont font;
+    LoadFont("src/test/data/NotoSansArabic-Regular.ttf", &font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 14.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_LineBreak = true;
+    settings.m_Width = 100.0f;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        settings.m_Tracking = cases[i].m_Tracking;
+        HMarkup markup = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(cases[i].m_Text, strlen(cases[i].m_Text), &markup, 0));
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(collection, markup, &settings, &layout));
+        MarkupDestroy(markup);
+        ASSERT_EQ(2u, TextLayoutGetObjectCount(layout));
+        EXPECT_NEAR(cases[i].m_ExpectedContentWidth, layout->m_Width, 0.0001f);
+
+        TextLayoutHitTestParams params = {};
+        params.m_Tag = dmHashString64("link");
+        params.m_Width = settings.m_Width;
+        params.m_Height = 60.0f;
+        params.m_FontSize = settings.m_Size;
+        params.m_Y = params.m_Height - layout->m_Height * 0.5f;
+        for (uint32_t align = 0; align < DM_ARRAY_SIZE(alignment); ++align)
+        {
+            params.m_Align = align;
+            const float expected_line_x = (params.m_Width - cases[i].m_ExpectedContentWidth) * alignment[align];
+            // Populate the hit boxes, then check their positions and query independently expected centers.
+            params.m_X = 0.0f;
+            TextLayoutHitTestObject(layout, params);
+            ASSERT_EQ(2u, layout->m_ObjectBounds.Size());
+            for (uint32_t o = 0; o < layout->m_ObjectBounds.Size(); ++o)
+            {
+                const TextLayoutObjectBounds& bounds = layout->m_ObjectBounds[o];
+                const float expected_min_x = expected_line_x + cases[i].m_ExpectedBounds[o][0];
+                const float expected_max_x = expected_line_x + cases[i].m_ExpectedBounds[o][1];
+                EXPECT_NEAR(expected_min_x, bounds.m_MinX, 0.0001f);
+                EXPECT_NEAR(expected_max_x, bounds.m_MaxX, 0.0001f);
+                params.m_X = (expected_min_x + expected_max_x) * 0.5f;
+                EXPECT_EQ(o, TextLayoutHitTestObject(layout, params));
+            }
+        }
+        TextLayoutRelease(layout);
+    }
+    FontCollectionDestroy(collection);
+    FontDestroy(font);
+}
+
 // Verifies negative tracking advances cannot become positive widths in full layout (#13375).
 TEST_F(FontTest, LayoutNegativeTrackingMetrics)
 {
@@ -2280,16 +2616,21 @@ TEST_F(FontTest, LayoutNegativeTrackingMetrics)
     settings.m_Leading = 1.0f;
     // -14 pixels of tracking makes every advance in this fixture negative.
     settings.m_Tracking = -1.0f;
+    settings.m_Width = 1.0f;
     dmArray<uint32_t> codepoints;
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    for (uint32_t wrap = 0; wrap < 2; ++wrap)
     {
-        TextToCodePoints(cases[i].m_Text, codepoints);
-        HTextLayout layout = 0;
-        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
-        float width, height;
-        TextLayoutGetBounds(layout, &width, &height);
-        EXPECT_EQ(cases[i].m_ExpectedWidth, width);
-        TextLayoutRelease(layout);
+        settings.m_LineBreak = wrap != 0;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+        {
+            TextToCodePoints(cases[i].m_Text, codepoints);
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
+            float width, height;
+            TextLayoutGetBounds(layout, &width, &height);
+            EXPECT_EQ(cases[i].m_ExpectedWidth, width);
+            TextLayoutRelease(layout);
+        }
     }
 }
 #endif
