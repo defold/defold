@@ -1451,13 +1451,14 @@ static float Clamp01(float value)
     return value;
 }
 
-static void MultiplyGradient(float color[4], const TextGradientEffect& gradient, float x, float y)
+static void ApplyGradientColor(float color[4], const TextGradientEffect& gradient, float x, float y)
 {
     for (uint32_t i = 0; i < 4; ++i)
     {
         const float bottom = gradient.m_BottomLeft[i] + (gradient.m_BottomRight[i] - gradient.m_BottomLeft[i]) * x;
         const float top = gradient.m_TopLeft[i] + (gradient.m_TopRight[i] - gradient.m_TopLeft[i]) * x;
-        color[i] *= bottom + (top - bottom) * y;
+        const float value = bottom + (top - bottom) * y;
+        color[i] = i == 3 ? fminf(color[i], value) : value;
     }
 }
 
@@ -1496,7 +1497,7 @@ static void InitializeGlyphRenderData(const TextRenderStyle* style, const float 
 
         if (style && (style->m_Flags & TEXT_RENDER_STYLE_FACE_COLOR))
         {
-            value *= style->m_FaceColor[channel];
+            value = channel == 3 ? fminf(value, style->m_FaceColor[channel]) : style->m_FaceColor[channel];
         }
 
         colors->m_BottomLeft[channel] = value;
@@ -1519,15 +1520,20 @@ static void InitializeGlyphRenderData(const TextRenderStyle* style, const float 
 }
 
 // Applies one color sample uniformly to all four glyph corners.
-static void MultiplyFaceColors(TextGlyphFaceColors* colors, const float sample[4])
+static void ApplyFaceColor(TextGlyphFaceColors* colors, const float sample[4])
 {
-    for (uint32_t channel = 0; channel < 4; ++channel)
+    for (uint32_t channel = 0; channel < 3; ++channel)
     {
-        colors->m_BottomLeft[channel] *= sample[channel];
-        colors->m_BottomRight[channel] *= sample[channel];
-        colors->m_TopLeft[channel] *= sample[channel];
-        colors->m_TopRight[channel] *= sample[channel];
+        colors->m_BottomLeft[channel] = sample[channel];
+        colors->m_BottomRight[channel] = sample[channel];
+        colors->m_TopLeft[channel] = sample[channel];
+        colors->m_TopRight[channel] = sample[channel];
     }
+
+    colors->m_BottomLeft[3] = fminf(colors->m_BottomLeft[3], sample[3]);
+    colors->m_BottomRight[3] = fminf(colors->m_BottomRight[3], sample[3]);
+    colors->m_TopLeft[3] = fminf(colors->m_TopLeft[3], sample[3]);
+    colors->m_TopRight[3] = fminf(colors->m_TopRight[3], sample[3]);
 }
 
 // Applies a gradient using its fit mode to choose span, glyph, or corner samples.
@@ -1557,8 +1563,8 @@ static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph
 
         const float sample_y = MirroredWrap(0.5f + animation_t);
         float       sample[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-        MultiplyGradient(sample, gradient, sample_x, sample_y);
-        MultiplyFaceColors(colors, sample);
+        ApplyGradientColor(sample, gradient, sample_x, sample_y);
+        ApplyFaceColor(colors, sample);
 
         return;
     }
@@ -1568,8 +1574,8 @@ static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph
         const float glyph_center = ((float)((int64_t)glyph.m_Cluster - effect.m_TextOffset) + 0.5f) / effect.m_TextLength;
         const float sample_x = MirroredWrap(glyph_center + animation_t);
         float       sample[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-        MultiplyGradient(sample, gradient, sample_x, 0.5f);
-        MultiplyFaceColors(colors, sample);
+        ApplyGradientColor(sample, gradient, sample_x, 0.5f);
+        ApplyFaceColor(colors, sample);
 
         return;
     }
@@ -1581,10 +1587,10 @@ static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph
     const float right_t = MirroredWrap(right_u + animation_t);
     const float bottom_t = MirroredWrap(animation_t);
     const float top_t = MirroredWrap(1.0f + animation_t);
-    MultiplyGradient(colors->m_BottomLeft, gradient, left_t, bottom_t);
-    MultiplyGradient(colors->m_BottomRight, gradient, right_t, bottom_t);
-    MultiplyGradient(colors->m_TopLeft, gradient, left_t, top_t);
-    MultiplyGradient(colors->m_TopRight, gradient, right_t, top_t);
+    ApplyGradientColor(colors->m_BottomLeft, gradient, left_t, bottom_t);
+    ApplyGradientColor(colors->m_BottomRight, gradient, right_t, bottom_t);
+    ApplyGradientColor(colors->m_TopLeft, gradient, left_t, top_t);
+    ApplyGradientColor(colors->m_TopRight, gradient, right_t, top_t);
 }
 
 // Interpolates deterministic shake samples so motion remains continuous.
@@ -1626,6 +1632,7 @@ void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, co
     }
 
     const TextResolvedSpan& span = internal->m_ResolvedSpans[glyph.m_MarkupSpanIndex];
+    const TextEffect*       gradient_effect = 0;
 
     for (uint32_t i = 0; i < span.m_EffectCount; ++i)
     {
@@ -1636,7 +1643,7 @@ void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, co
         {
             if (effect.m_TextLength != 0)
             {
-                ApplyGradientEffect(internal, glyph, effect, &data->m_FaceColors);
+                gradient_effect = &effect;
             }
 
             continue;
@@ -1656,6 +1663,12 @@ void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, co
         {
             ApplyWaveEffect(internal, glyph, effect, data);
         }
+    }
+
+    // Effects are ordered by precedence. Overridden gradients must not cap the winning gradient's alpha.
+    if (gradient_effect)
+    {
+        ApplyGradientEffect(internal, glyph, *gradient_effect, &data->m_FaceColors);
     }
 }
 
