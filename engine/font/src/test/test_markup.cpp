@@ -130,6 +130,211 @@ TEST(Markup, EntitiesAndUtf8)
     MarkupDestroy(markup);
 }
 
+// Verifies that a literal ampersand in visible text does not cause an entity error (issue #13374).
+TEST(Markup, PlainTextWithLiteralAmpersand)
+{
+    const char* cases[] = { "A & B", "R&D", "R&D; next", "&", "A&", "&&", "&!", "&;", "&unknown;", "&#65;", "A & development" };
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        const uint32_t length = (uint32_t)strlen(cases[i]);
+        HMarkup        markup = 0;
+        MarkupError    error = {};
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(cases[i], length, &markup, &error));
+        ASSERT_NE((HMarkup)0, markup);
+        ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
+        ASSERT_EQ(length, MarkupGetTextLength(markup));
+
+        const uint32_t* actual = MarkupGetText(markup);
+        for (uint32_t j = 0; j < length; ++j)
+        {
+            ASSERT_EQ((uint32_t)cases[i][j], actual[j]);
+        }
+
+        ASSERT_EQ(1u, MarkupGetStyleNodeCount(markup));
+        ASSERT_EQ(1u, MarkupGetSpanCount(markup));
+        ASSERT_EQ(0u, MarkupGetSpans(markup)[0].m_StyleNodeIndex);
+        MarkupDestroy(markup);
+    }
+}
+
+// Verifies that literal ampersands before and after a color tag preserve rich text, including a trailing escape prefix (issue #13374).
+TEST(Markup, LiteralAmpersandPreservesFollowingTag)
+{
+    const char  text[] = "A & <color=#FF0000>B</color>&a";
+    HMarkup     markup = 0;
+    MarkupError error = {};
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, &error));
+    ASSERT_NE((HMarkup)0, markup);
+    ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
+
+    const uint32_t expected[] = { 'A', ' ', '&', ' ', 'B', '&', 'a' };
+    AssertText(markup, expected, DM_ARRAY_SIZE(expected));
+    ASSERT_EQ(2u, MarkupGetStyleNodeCount(markup));
+    const MarkupStyleNode& node = MarkupGetStyleNodes(markup)[1];
+    ASSERT_EQ((uint8_t)MARKUP_TAG_COLOR, node.m_Type);
+    ASSERT_EQ(0u, node.m_Parent);
+    ASSERT_EQ(4u, node.m_TextOffset);
+    ASSERT_EQ(1u, node.m_TextLength);
+    ASSERT_EQ(1u, node.m_AttributeCount);
+    const MarkupAttribute& attribute = MarkupGetAttributes(markup)[node.m_AttributeIndex];
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_SHORTHAND, attribute.m_Type);
+    AssertString(markup, attribute.m_Value, "#FF0000");
+
+    ASSERT_EQ(3u, MarkupGetSpanCount(markup));
+    const MarkupSpan* spans = MarkupGetSpans(markup);
+    ASSERT_EQ(0u, spans[0].m_StyleNodeIndex);
+    ASSERT_EQ(0u, spans[0].m_TextOffset);
+    ASSERT_EQ(4u, spans[0].m_TextLength);
+    ASSERT_EQ(1u, spans[1].m_StyleNodeIndex);
+    ASSERT_EQ(4u, spans[1].m_TextOffset);
+    ASSERT_EQ(1u, spans[1].m_TextLength);
+    ASSERT_EQ(0u, spans[2].m_StyleNodeIndex);
+    ASSERT_EQ(5u, spans[2].m_TextOffset);
+    ASSERT_EQ(2u, spans[2].m_TextLength);
+    MarkupDestroy(markup);
+}
+
+// Verifies that literal ampersands inside and after a tag coexist with entity decoding and UTF-8 (issue #13374).
+TEST(Markup, LiteralAmpersandsAndEntities)
+{
+    const char  text[] = "<color=#FF0000>R&D&amp;</color>&lt;&gt;&apos;&quot;&\xF0\x9F\x98\x80&";
+    HMarkup     markup = 0;
+    MarkupError error = {};
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, &error));
+    ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
+
+    const uint32_t expected[] = { 'R', '&', 'D', '&', '<', '>', '\'', '"', '&', 0x1f600, '&' };
+    AssertText(markup, expected, DM_ARRAY_SIZE(expected));
+    ASSERT_EQ(2u, MarkupGetSpanCount(markup));
+    const MarkupSpan* spans = MarkupGetSpans(markup);
+    ASSERT_EQ(1u, spans[0].m_StyleNodeIndex);
+    ASSERT_EQ(0u, spans[0].m_TextOffset);
+    ASSERT_EQ(4u, spans[0].m_TextLength);
+    ASSERT_EQ(0u, spans[1].m_StyleNodeIndex);
+    ASSERT_EQ(4u, spans[1].m_TextOffset);
+    ASSERT_EQ(7u, spans[1].m_TextLength);
+    MarkupDestroy(markup);
+}
+
+// Verifies that unfinished escapes remain literal text, using the explicit input length (issue #13374).
+TEST(Markup, EntityPrefixesAreLiteral)
+{
+    const char* entities[] = { "&amp;", "&apos;", "&gt;", "&lt;", "&quot;" };
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(entities); ++i)
+    {
+        const uint32_t entity_length = (uint32_t)strlen(entities[i]);
+        for (uint32_t length = 2; length < entity_length; ++length)
+        {
+            HMarkup     markup = 0;
+            MarkupError error = {};
+            ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(entities[i], length, &markup, &error));
+            ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
+            ASSERT_EQ(length, MarkupGetTextLength(markup));
+            const uint32_t* actual = MarkupGetText(markup);
+            for (uint32_t j = 0; j < length; ++j)
+            {
+                ASSERT_EQ((uint32_t)entities[i][j], actual[j]);
+            }
+            MarkupDestroy(markup);
+        }
+    }
+}
+
+// Verifies that filtering escapes literal ampersands and preserves existing entities and tags (issue #13374).
+TEST(Markup, FilterTextWithLiteralAmpersands)
+{
+    const char source[] = "A&<color=#FF0000>B&amp;C</color>D&";
+    const uint32_t allowed[] = { '&' };
+    const char expected[] = "&amp;<color=#FF0000>&amp;</color>&amp;";
+    char output[5 * (sizeof(source) - 1)];
+    uint32_t output_length = 0;
+    MarkupError error = {};
+
+    ASSERT_EQ(MARKUP_RESULT_OK,
+              MarkupFilterText(source, sizeof(source) - 1,
+                               allowed, DM_ARRAY_SIZE(allowed),
+                               output, sizeof(output),
+                               &output_length, &error));
+    ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
+    ASSERT_EQ(sizeof(expected) - 1, output_length);
+    ASSERT_EQ(0, memcmp(expected, output, output_length));
+}
+
+// Verifies that removing an unsupported codepoint cannot turn literal text into a decoded entity.
+TEST(Markup, FilterTextCannotIntroduceEntities)
+{
+    const char source[] = "<color=#FF0000>&am\xE4\xB8\xADp;</color>";
+    const uint32_t allowed[] = { '&', 'a', 'm', 'p', ';' };
+    const char expected_source[] = "<color=#FF0000>&amp;amp;</color>";
+    const uint32_t expected_text[] = { '&', 'a', 'm', 'p', ';' };
+    char output[5 * (sizeof(source) - 1)];
+    uint32_t output_length = 0;
+    MarkupError error = {};
+
+    ASSERT_EQ(MARKUP_RESULT_OK,
+              MarkupFilterText(source, sizeof(source) - 1,
+                               allowed, DM_ARRAY_SIZE(allowed),
+                               output, sizeof(output), &output_length, &error));
+    ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
+    ASSERT_EQ(sizeof(expected_source) - 1, output_length);
+    ASSERT_EQ(0, memcmp(expected_source, output, output_length));
+
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(output, output_length, &markup, &error));
+    AssertText(markup, expected_text, DM_ARRAY_SIZE(expected_text));
+    ASSERT_EQ(1u, MarkupGetSpanCount(markup));
+    ASSERT_EQ(1u, MarkupGetSpans(markup)[0].m_StyleNodeIndex);
+    ASSERT_EQ(5u, MarkupGetSpans(markup)[0].m_TextLength);
+    MarkupDestroy(markup);
+}
+
+// Verifies that escaped filtering checks capacity for both visible text and preserved closing tags.
+TEST(Markup, FilterTextChecksEscapedCapacity)
+{
+    struct FilterCase
+    {
+        const char* m_Source;
+        const char* m_Expected;
+    };
+    const FilterCase cases[] = {
+        { "&&", "&amp;&amp;" },
+        { "<color=#FF0000>&</color>", "<color=#FF0000>&amp;</color>" },
+    };
+    const uint32_t allowed[] = { '&' };
+    char output[64];
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        const uint32_t source_length = (uint32_t)strlen(cases[i].m_Source);
+        const uint32_t expected_length = (uint32_t)strlen(cases[i].m_Expected);
+        for (uint32_t capacity = source_length; capacity <= expected_length; ++capacity)
+        {
+            memset(output, '?', sizeof(output));
+            uint32_t output_length = 123;
+            MarkupError error = {};
+            MarkupResult result = MarkupFilterText(cases[i].m_Source, source_length,
+                                                   allowed, DM_ARRAY_SIZE(allowed),
+                                                   output, capacity, &output_length, &error);
+            ASSERT_EQ('?', output[capacity]);
+            if (capacity < expected_length)
+            {
+                ASSERT_EQ(MARKUP_RESULT_LIMIT_EXCEEDED, result);
+                ASSERT_EQ(MARKUP_ERROR_LIMIT_EXCEEDED, error.m_Type);
+                ASSERT_EQ(0u, output_length);
+            }
+            else
+            {
+                ASSERT_EQ(MARKUP_RESULT_OK, result);
+                ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
+                ASSERT_EQ(expected_length, output_length);
+                ASSERT_EQ(0, memcmp(cases[i].m_Expected, output, output_length));
+            }
+        }
+    }
+}
+
 TEST(Markup, FilterTextPreservesSyntax)
 {
     const char source[] = "<link id=\"<shadow blur=2>\">A&amp;B\xE4\xB8\xAD<sprite/></link>C";
@@ -166,8 +371,6 @@ TEST(Markup, BrokenMarkup)
         { "<color red>text</color>", MARKUP_RESULT_SYNTAX_ERROR, MARKUP_ERROR_INVALID_ATTRIBUTE },
         { "<color=>text</color>", MARKUP_RESULT_SYNTAX_ERROR, MARKUP_ERROR_INVALID_ATTRIBUTE },
         { "<color>text", MARKUP_RESULT_INCOMPLETE, MARKUP_ERROR_UNCLOSED_TAG },
-        { "&unknown;", MARKUP_RESULT_SYNTAX_ERROR, MARKUP_ERROR_INVALID_ENTITY },
-        { "&amp", MARKUP_RESULT_INCOMPLETE, MARKUP_ERROR_INCOMPLETE_ENTITY },
         { "<1bad>text</1bad>", MARKUP_RESULT_SYNTAX_ERROR, MARKUP_ERROR_INVALID_TAG },
     };
 
