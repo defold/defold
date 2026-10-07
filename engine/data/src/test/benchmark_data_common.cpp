@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -69,29 +71,6 @@ void RecordMemory(const Backend* store, const Fixture* input, uint32_t sample, c
            (unsigned long long)memory.m_Fixture.m_Blocks,
            (unsigned long long)memory.m_Resource.m_Bytes,
            (unsigned long long)memory.m_Resource.m_Blocks);
-    if (!store->m_Kind && (!strcmp(operation, "create_bulk") || !strcmp(operation, "packed_populate_and_ids") || !strcmp(operation, "packed_create_queries") || !strcmp(operation, "packed_10pct_update_first")))
-    {
-        DataMemoryStats profile;
-        GetDataMemoryStats(store->m_Data, &profile);
-        Check(profile.m_TotalBytes == after.m_Bytes, "memory footprint matches tracked heap");
-        printf("# footprint,sample=%u,operation=%s,store=%llu,tables=%llu,row_metadata=%llu,slots=%llu,base_rows=%llu,mutable_rows=%llu,instances=%llu,queries=%llu,base_blocks=%llu,base_used=%llu,base_capacity=%llu,payload_blocks=%llu,payload_capacity=%llu,total=%llu\n",
-               sample,
-               operation,
-               (unsigned long long)profile.m_StoreBytes,
-               (unsigned long long)profile.m_TableBytes,
-               (unsigned long long)profile.m_RowMetadataBytes,
-               (unsigned long long)profile.m_SlotBytes,
-               (unsigned long long)profile.m_BaseRowBytes,
-               (unsigned long long)profile.m_ValueBytes,
-               (unsigned long long)profile.m_InstanceBytes,
-               (unsigned long long)profile.m_QueryBytes,
-               (unsigned long long)profile.m_BaseBlocks,
-               (unsigned long long)profile.m_BaseUsed,
-               (unsigned long long)profile.m_BaseCapacity,
-               (unsigned long long)profile.m_PayloadBlocks,
-               (unsigned long long)profile.m_PayloadCapacity,
-               (unsigned long long)profile.m_TotalBytes);
-    }
 #else
     (void)store;
     (void)input;
@@ -147,7 +126,8 @@ void ResetValues(Backend* store, const Fixture* input)
     {
         const TypeInput* t = &input->m_Types[ti];
         if (!store->m_Kind)
-            Check(DataResetTable(store->m_Data, t->m_Type) == DATA_RESULT_OK, "reset table");
+            for (uint32_t r = 0; r < t->m_Count; ++r)
+                Check(DataResetRow(store->m_Data, store->m_Ids[t->m_Offset + r]) == DATA_RESULT_OK, "reset row");
         else
         {
             for (uint32_t r = 0; r < t->m_Count; ++r)
@@ -175,7 +155,6 @@ void ValidateHealth(Backend* store, const Fixture* input, int radius, uint32_t w
             continue;
         for (uint32_t r = 0; r < t->m_Count; ++r)
         {
-            const DataValueData* values = &t->m_Values[(size_t)r * t->m_FieldCount];
             double               actual;
             if (!store->m_Kind)
             {
@@ -183,7 +162,7 @@ void ValidateHealth(Backend* store, const Fixture* input, int radius, uint32_t w
             }
             else
                 actual = *(double*)FlecsField(store, t, ti, r, HEALTH);
-            Check(actual == Damaged(values[hp].m_Number, Hit(values[pos].m_Vector3, radius) ? writes : 0), "per-instance damage");
+            Check(actual == Damaged(*(const double*)FixtureField(t, r, hp), Hit(((const Vector3*)FixtureField(t, r, pos))->m_Values, radius) ? writes : 0), "per-instance damage");
         }
     }
 }

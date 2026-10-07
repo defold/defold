@@ -17,9 +17,9 @@ use crate::{
 };
 use bevy_ecs::prelude::*;
 
-type LightsQuery = QueryState<(&'static Position, &'static Light)>;
+type LightsQuery = QueryState<(&'static Position, &'static Light), With<LightTag>>;
 pub(super) fn query(world: &mut World) -> LightsQuery {
-    world.query()
+    world.query_filtered()
 }
 fn contribution(position: Vector3, light: &Light) -> f64 {
     let distance =

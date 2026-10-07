@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -18,8 +20,8 @@ Query CreateMovementQuery(Backend* store)
     if (!store->m_Kind)
     {
         DataQueryField fields[] = {
-            { .m_Field = g_Fields[POSITION], .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Access = DATA_ACCESS_READ_WRITE },
-            { .m_Field = g_Fields[VELOCITY], .m_Type = DATA_VALUE_TYPE_VECTOR3 }
+            { .m_Field = g_Fields[POSITION], .m_Type = DATA_TYPE_VECTOR3, .m_Access = DATA_ACCESS_READ_WRITE },
+            { .m_Field = g_Fields[VELOCITY], .m_Type = DATA_TYPE_VECTOR3 }
         };
         DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 2 };
         Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "movement query");

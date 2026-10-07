@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -42,7 +44,7 @@ static int32_t NearbyLights_Flecs(HJobContext, HJob, void*, void* data)
 void CreateFlecsLights(ecs_world_t* world, const FlecsThreadedIds* ids, FlecsThreadedUpdate* update)
 {
     ecs_query_desc_t desc = {
-        .terms = { { .id = ids->m_Position, .inout = EcsIn }, { .id = ids->m_Light, .inout = EcsIn } },
+        .terms = { { .id = ids->m_Position, .inout = EcsIn }, { .id = ids->m_Light, .inout = EcsIn }, { .id = ids->m_LightTag, .inout = EcsIn } },
         .cache_kind = EcsQueryCacheAuto,
     };
     update->m_World = world;

@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -20,7 +22,7 @@
 #include <dlib/hash.h>
 #include <dlib/time.h>
 #include <flecs.h>
-#include "../data.h"
+#include <dmsdk/data/data.h>
 #include "benchmark_memory.h"
 
 static const uint32_t TYPE_COUNT = 6;
@@ -107,13 +109,9 @@ struct TypeInput
     uint32_t       m_Offset;
     uint32_t       m_Count;
     uint32_t       m_Extra;
-    DataValueType  m_ValueTypes[MAX_FIELDS];
-    DataValueData* m_Values;
-    DataValueData* m_LightValues;
-    DataRowDesc*   m_Rows;
     uint8_t*       m_Native;
     uint8_t*       m_Columns[MAX_FIELDS];
-    uint64_t*      m_Owners;
+    uint64_t*      m_Groups;
     uint64_t*      m_ComponentIds;
 };
 
@@ -140,7 +138,7 @@ struct Backend
     ecs_entity_t m_Fields[FIELD_COUNT];
     ecs_entity_t m_Tags[TYPE_COUNT][3];
     uint32_t     m_Offsets[TYPE_COUNT][FIELD_COUNT];
-    ecs_entity_t m_Owner, m_Component;
+    ecs_entity_t m_Group, m_Component;
     uint64_t*    m_Ids;
 };
 
@@ -161,8 +159,15 @@ struct Stats
     int      m_Error;
 };
 
+void                 InitFixtureMetadata();
+void                 InitFixture(Fixture* input, uint32_t count);
+void                 DeleteFixture(Fixture* input);
+const void*          FixtureField(const TypeInput* type, uint32_t row, uint32_t field);
+uint8_t*             ReadFixtureBlob(const char* name, uint32_t* out_size);
+
 extern uint64_t      g_Fields[FIELD_COUNT];
 extern uint64_t      g_LightTag;
+extern uint64_t      g_EnemyTag;
 extern const char*   BACKENDS[];
 
 void                 Check(bool ok, const char* message);
@@ -216,6 +221,8 @@ void    MeasureShuffledPosition(Backend* store, const Fixture* input, uint32_t s
 void    MeasurePackedAccess(Backend* store, const Fixture* input, uint32_t sample, uint32_t percent, uint32_t write);
 FieldId ScalarField(uint32_t type);
 int     CreateBulk_Defold(Backend* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count);
+void    ValidateCreatedRows_Defold(Backend* store, const Fixture* input);
+void    MeasureCreatePopulationSoA_Defold(const Fixture* input, uint32_t sample);
 int     CreateBulk_Flecs(Backend* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count);
 int     CreateBulk(Backend* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count);
 int     CreateIndividual_Defold(Backend* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count);
@@ -249,5 +256,7 @@ Query CreateLightColorQuery(Backend* store, const Fixture* input, uint64_t tag);
 Query CreateHealthPositionQuery(Backend* store, const Fixture* input, uint64_t tag);
 Query CreateExplosionQuery(Backend* store, const Fixture* input);
 void  DestroyQuery(Query* query);
+
+extern uint64_t g_LightColor, g_LightIntensity;
 
 #endif

@@ -79,20 +79,22 @@ def main():
                 subprocess.run(command,stdout=output,stderr=error,check=True)
             rows = read_csv((args.output/f'{name}.csv').read_text())
             actual = {(r['operation'],int(r['sample'])):r for r in rows}
-            expected = {(case,s) for case in cases for s in range(1,args.samples+1)}
+            operations = cases | ({'create_population_soa'} if backend == 'data' else set())
+            expected = {(case,s) for case in operations for s in range(1,args.samples+1)}
             if len(rows)!=len(expected) or set(actual)!=expected:
-                raise ValueError(f'Expected exactly seven cases per sample: {name}')
+                raise ValueError(f'Expected seven cases per sample, with AoS/SoA creation for Defold: {name}')
             samples[name] = actual
             binaries[name] = digest(binary)
     for name,actual in samples.items():
         reference = samples['data-timing']
         for key,row in actual.items():
+            reference_key = ('create_population', key[1]) if key[0] == 'create_population_soa' else key
             for field in ('rows','operations','hits'):
-                if row[field]!=reference[key][field]: raise ValueError(f'{name} {key}: {field} differs')
-            if not math.isclose(float(row['checksum']),float(reference[key]['checksum']),rel_tol=1e-7,abs_tol=1e-7):
+                if row[field]!=reference[reference_key][field]: raise ValueError(f'{name} {key}: {field} differs')
+            if not math.isclose(float(row['checksum']),float(reference[reference_key]['checksum']),rel_tol=1e-7,abs_tol=1e-7):
                 raise ValueError(f'{name} {key}: checksum differs')
     source = ROOT/'engine/data/src'
-    sources = [*source.glob('*.cpp'),*source.glob('*.h'),*(source/'dmsdk/data').glob('*.h'),* (source/'test').glob('benchmark_data_*.cpp'),source/'test/benchmark_data_common.h',source/'test/benchmark_memory.cpp',source/'test/benchmark_memory.h',source/'test/CMakeLists.txt',Path(__file__)]
+    sources = [*source.glob('*.cpp'),*source.glob('*.h'),*(source/'dmsdk/data').glob('*.h'),* (source/'test').glob('benchmark_data_*.cpp'),source/'test/benchmark_data_common.h',source/'test/benchmark_memory.cpp',source/'test/benchmark_memory.h',source/'test/CMakeLists.txt',source/'test/data_fixture_writer.cpp',Path(__file__)]
     sources += list((source/'test/bevy/src').rglob('*.rs')) + [source/'test/bevy/Cargo.toml',source/'test/bevy/Cargo.lock',source/'test/benchmark_data_entt.h']
     flecs = Path(next(line.split('=',1)[1] for line in cache.splitlines() if line.startswith('DEFOLD_DATA_FLECS_DIR:')))
     entt = Path(next(line.split('=',1)[1] for line in cache.splitlines() if line.startswith('DEFOLD_DATA_ENTT_DIR:')))
@@ -103,8 +105,11 @@ def main():
         'flecs':subprocess.check_output(['git','-C',str(flecs),'describe','--tags','--always'],text=True).strip(),'bevy':'0.19.1',
         'entt':{'path':str(entt),'revision':subprocess.check_output(['git','-C',str(entt),'describe','--tags','--always','--dirty'],text=True).strip(),
             'headers':{str(p.relative_to(entt)):digest(p) for p in sorted((entt/'src/entt').rglob('*')) if p.suffix in ('.h','.hpp')}},
-        'cases':list(c['id'] for c in CORE_CASES[:-1]),'configuration':'One dense mutable Defold table per type, native scalar overrides over shared construction defaults, typed batch ID reads; Flecs/Bevy separate components; EnTT separate component pools and ordinary views without owning groups; inline Light; one pass; no sanitizers; separate allocation builds.',
+        'cases':list(c['id'] for c in CORE_CASES[:-1]),
+        'case_variants':{'create_population':{'data':{'create_population':'AoS', 'create_population_soa':'SoA'}}},
+        'configuration':'One dense mutable Defold table per type; Create population compares public DataCreateRows with prepared native rows (AoS) and DataCreateRowsSoA with prepared native field arrays (SoA), using a fresh store for each and alternating their order. Subsequent cases use the AoS population. Defold uses typed batch ID reads; Flecs/Bevy separate components; EnTT separate component pools and ordinary views without owning groups; inline Light; one pass; no sanitizers; separate allocation builds.',
         'validation':'Every backend, sample and measurement mode agrees on operation count, hit count and checksum (1e-7 relative tolerance for reductions). Per-row movement, health, creation and stale-ID checks plus tracked teardown run outside timing.',
+        'fixtures':{p.name:digest(p) for p in sorted(cpp['timing'].parent.joinpath('fixtures').glob('*.datac'))},
         'commands':commands,'binaries':binaries,'sources':{str(p.relative_to(ROOT)):digest(p) for p in sources},
         'files':{p.name:digest(p) for p in args.output.iterdir() if p.suffix in ('.csv','.log')}}
     (args.output/'run.json').write_text(json.dumps(manifest,indent=2)+'\n')

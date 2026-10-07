@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -13,7 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../data.h"
+#include <dmsdk/data/data.h>
 #include "benchmark_memory.h"
 
 static void Check(bool condition, const char* message)
@@ -21,58 +23,20 @@ static void Check(bool condition, const char* message)
     if (!condition)
     {
         fprintf(stderr, "Blob load benchmark: %s\n", message);
-        abort();
+        exit(1);
     }
 }
 
 // Numeric health/position tables isolate loading allocation growth, not gameplay throughput.
-static FILE* CreateFile(uint32_t tables, uint32_t rows, uint32_t* out_size)
+static FILE* OpenFixture(uint32_t tables, uint32_t rows, uint32_t* out_size)
 {
-    SetBenchmarkMemoryDomain(BENCHMARK_MEMORY_FIXTURE);
-    HDataStore    source = DataCreateStore();
-    DataFieldDesc fields[] = {
-        { .m_Field = 10, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 0 },
-        { .m_Field = 20, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 8 }
-    };
-    const DataValueType types[] = { DATA_VALUE_TYPE_NUMBER, DATA_VALUE_TYPE_VECTOR3 };
-    DataValueData       values[] = { { .m_Number = 0 }, { .m_Vector3 = { 0, 2, 3 } } };
-    uint32_t            capacity = (rows + tables - 1) / tables;
-    DataRowDesc*        input = new DataRowDesc[capacity];
-    DataId*             ids = new DataId[capacity];
-    for (uint32_t t = 0; t < tables; ++t)
-    {
-        DataTableDesc desc = {
-            .m_Type = t + 1,
-            .m_Fields = fields,
-            .m_FieldCount = 2,
-            .m_RowStride = 24
-        }; // Tail padding for the double's eight-byte alignment.
-        Check(DataRegisterTable(source, &desc) == DATA_RESULT_OK, "register source table");
-        uint32_t count = rows / tables + (t < rows % tables);
-        values[0].m_Number = 100 + t;
-        values[1].m_Vector3[0] = (float)t;
-        for (uint32_t r = 0; r < count; ++r)
-        {
-            input[r].m_Owner = r + 1;
-            input[r].m_Types = types;
-            input[r].m_Values = values;
-            input[r].m_ValueCount = 2;
-            input[r].m_ComponentId = r + 1;
-        }
-        Check(DataAddRows(source, t + 1, input, count, ids) == DATA_RESULT_OK, "source rows");
-    }
-    Check(DataWriteBlob(source, 0, 0, out_size) == DATA_RESULT_OK, "file size");
-    uint8_t* buffer = new uint8_t[*out_size];
-    Check(DataWriteBlob(source, buffer, *out_size, out_size) == DATA_RESULT_OK, "serialize file");
-    FILE* file = tmpfile();
-    Check(file != 0, "create temporary data file");
-    Check(fwrite(buffer, 1, *out_size, file) == *out_size && fflush(file) == 0, "write data file");
-    delete[] buffer;
-    delete[] input;
-    delete[] ids;
-    DataDestroyStore(source);
-    SetBenchmarkMemoryDomain(BENCHMARK_MEMORY_NONE);
-    CheckBenchmarkMemoryReleased();
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/load-%u-%u.datac", DATA_BENCHMARK_FIXTURE_DIR, tables, rows);
+    FILE* file = fopen(path, "rb");
+    Check(file != 0, "open prebuilt file");
+    Check(fseek(file, 0, SEEK_END) == 0, "size fixture");
+    *out_size = (uint32_t)ftell(file);
+    rewind(file);
     return file;
 }
 
@@ -98,7 +62,7 @@ static DataId Validate(HDataStore store, uint32_t expected_tables, uint32_t expe
             Check(DataFieldGetNumber(store, id, 10, &health) == DATA_RESULT_OK && health == 99 + type, "loaded health");
             Check(DataFieldGetVector3(store, id, 20, &position) == DATA_RESULT_OK, "loaded position");
             Check(position.m_Values[0] == type - 1 && position.m_Values[1] == 2 && position.m_Values[2] == 3, "position components");
-            Check(DataRowIterGetOwnerId(&row) == 4242, "runtime owner");
+            Check(DataRowIterGetGroupId(&row) == 4242, "runtime owner");
             Check(DataGetComponentId(store, id) == r + 1, "component identity");
             if (!first)
                 first = id;
@@ -127,7 +91,7 @@ int main(int argc, char** argv)
     for (uint32_t c = 0; c < sizeof(table_counts) / sizeof(table_counts[0]); ++c)
     {
         uint32_t size;
-        FILE*    file = CreateFile(table_counts[c], row_counts[c], &size);
+        FILE*    file = OpenFixture(table_counts[c], row_counts[c], &size);
         for (uint32_t sample = 0; sample <= 7; ++sample)
         {
             BeginBenchmarkMemoryBackend();
@@ -155,7 +119,6 @@ int main(int argc, char** argv)
                 if (stale)
                     Check(DataFieldGetNumber(store, stale, 10, &health) == DATA_RESULT_NOT_FOUND, "stale IDs after reloading");
                 stale = Validate(store, table_counts[c], row_counts[c]);
-                Check(GetInstanceTable(instance, 0)->m_Blob == buffer, "caller buffer is borrowed");
                 DataDestroyBlob(blob);
                 DataRemoveBlob(instance);
                 Check(DataFieldGetNumber(store, stale, 10, &health) == DATA_RESULT_NOT_FOUND, "unloaded ID");

@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -45,6 +47,10 @@ static void ValidateQueryRows(Backend* store, const Fixture* input, Query* query
 // threaded update. Each sample owns a fresh store and three live case queries.
 void RunCore(const Fixture* input, uint32_t kind, uint32_t sample)
 {
+    // Alternate which creation layout runs first. Each uses an empty store;
+    // subsequent cases continue with the AoS population.
+    if (!kind && !(sample & 1))
+        MeasureCreatePopulationSoA_Defold(input, sample);
     // Keep backend allocation ownership active until DestroyBackend. Operation
     // boundaries snapshot counters; they do not change the allocation domain.
     Backend  store = CreateBackend(input, kind, 0, "setup");
@@ -53,6 +59,8 @@ void RunCore(const Fixture* input, uint32_t kind, uint32_t sample)
     for (uint32_t t = 0; t < TYPE_COUNT; ++t)
         stats.m_Error |= CreateBulk(&store, input, t, 0, input->m_Types[t].m_Count);
     Record(&store, input, sample, "create_population", start, EndOperation(), input->m_Count, stats);
+    if (!kind)
+        ValidateCreatedRows_Defold(&store, input);
 
     Query movement = CreateMovementQuery(&store);
     Query explosion = CreateExplosionQuery(&store, input);
@@ -81,8 +89,8 @@ void RunCore(const Fixture* input, uint32_t kind, uint32_t sample)
                 Check(DataFieldGetVector3(store.m_Data, id, g_Fields[POSITION], &actual) == DATA_RESULT_OK, "spawn position");
             else
                 memcpy(&actual, ecs_get_id(store.m_World, id, store.m_Fields[POSITION]), sizeof(actual));
-            const DataValueData* expected = &type->m_Values[(size_t)r * type->m_FieldCount + FindField(type, POSITION)];
-            Check(!memcmp(&actual, expected->m_Vector3, sizeof(actual)), "created position matches input");
+            const void* expected = FixtureField(type, r, FindField(type, POSITION));
+            Check(!memcmp(&actual, expected, sizeof(actual)), "created position matches input");
         }
     }
     ValidateQueryRows(&store, input, &movement, (1u << 2) | (1u << 3), 0);
@@ -105,4 +113,6 @@ void RunCore(const Fixture* input, uint32_t kind, uint32_t sample)
     DestroyQuery(&explosion);
     DestroyQuery(&lights);
     DestroyBackend(&store, input, 0, "destroy");
+    if (!kind && (sample & 1))
+        MeasureCreatePopulationSoA_Defold(input, sample);
 }

@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -30,8 +32,8 @@ static uint32_t FlecsColumns(Backend* store, const TypeInput* t, uint32_t ti, ui
             data[count++] = t->m_Columns[f] + (size_t)start * t->m_Fields[f].m_NativeSize;
         }
     }
-    ids[count] = store->m_Owner;
-    data[count++] = t->m_Owners + start;
+    ids[count] = store->m_Group;
+    data[count++] = t->m_Groups + start;
     ids[count] = store->m_Component;
     data[count++] = t->m_ComponentIds + start;
     for (uint32_t i = 0; i < t->m_TagCount; ++i)
@@ -45,31 +47,66 @@ static uint32_t FlecsColumns(Backend* store, const TypeInput* t, uint32_t ti, ui
 int CreateBulk_Defold(Backend* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count)
 {
     const TypeInput* t = &input->m_Types[ti];
-    DataRowOverride  fields[MAX_FIELDS];
-    uint32_t         field_count = 0;
-    uint64_t         color = g_Fields[COLOR];
-    for (uint32_t f = 0; f < t->m_FieldCount; ++f)
+    // The caller prepares complete native rows, as Flecs receives prepared components.
+    return DataCreateRows(store->m_Data, t->m_Type, t->m_Groups[start], count, t->m_Native + (size_t)start * t->m_NativeStride, store->m_Ids + t->m_Offset + start);
+}
+
+void ValidateCreatedRows_Defold(Backend* store, const Fixture* input)
+{
+    for (uint32_t ti = 0; ti < TYPE_COUNT; ++ti)
     {
-        const Field& field = t->m_Fields[f];
-        if (field.m_Field != POSITION && field.m_Field != HEALTH && field.m_Field != LIGHT)
-            continue;
-        DataRowOverride value = {
-            .m_Field = { .m_Field = g_Fields[field.m_Field], .m_Type = field.m_Kind },
-            .m_Values = t->m_Columns[f] + (size_t)start * field.m_NativeSize,
-            .m_Stride = field.m_NativeSize
-        };
-        if (field.m_Field == LIGHT)
+        const TypeInput* type = &input->m_Types[ti];
+        for (uint32_t r = 0; r < type->m_Count; ++r)
         {
-            value.m_Field.m_Type = DATA_VALUE_TYPE_VECTOR3;
-            value.m_Field.m_Path = &color;
-            value.m_Field.m_PathCount = 1;
-            value.m_Values = (const uint8_t*)value.m_Values + offsetof(Light, color);
+            DataId id = store->m_Ids[type->m_Offset + r];
+            for (uint32_t f = 0; f < type->m_FieldCount; ++f)
+            {
+                const Field& field = type->m_Fields[f];
+                const void*  expected = FixtureField(type, r, f);
+                if (field.m_Kind == DATA_TYPE_NUMBER)
+                {
+                    double value;
+                    Check(DataFieldGetNumber(store->m_Data, id, g_Fields[field.m_Field], &value) == DATA_RESULT_OK && value == *(const double*)expected, "created number matches input");
+                }
+                else if (field.m_Kind == DATA_TYPE_VECTOR3)
+                {
+                    DataVector3 value;
+                    Check(DataFieldGetVector3(store->m_Data, id, g_Fields[field.m_Field], &value) == DATA_RESULT_OK && !memcmp(&value, expected, sizeof(value)), "created vector matches input");
+                }
+                else
+                {
+                    Check(field.m_Field == LIGHT, "created inline struct is Light");
+                    const Light* light = (const Light*)expected;
+                    DataVector3  color;
+                    double       intensity;
+                    Check(DataFieldGetVector3(store->m_Data, id, g_LightColor, &color) == DATA_RESULT_OK && !memcmp(&color, &light->color, sizeof(color)), "created light color matches input");
+                    Check(DataFieldGetNumber(store->m_Data, id, g_LightIntensity, &intensity) == DATA_RESULT_OK && intensity == light->intensity, "created light intensity matches input");
+                }
+            }
         }
-        fields[field_count++] = value;
     }
-    // Template construction, field binding and every per-instance patch remain
-    // inside the timed creation/spawn operation. Native columns also feed Flecs.
-    return DataAddRowsFromTemplate(store->m_Data, t->m_Type, t->m_Rows + start, fields, field_count, t->m_Rows + start, count, store->m_Ids + t->m_Offset + start);
+}
+
+void MeasureCreatePopulationSoA_Defold(const Fixture* input, uint32_t sample)
+{
+    DataFieldArray fields[TYPE_COUNT][MAX_FIELDS] = {};
+    for (uint32_t ti = 0; ti < TYPE_COUNT; ++ti)
+    {
+        const TypeInput* type = &input->m_Types[ti];
+        for (uint32_t f = 0; f < type->m_FieldCount; ++f)
+            fields[ti][f] = { .m_Field = g_Fields[type->m_Fields[f].m_Field], .m_Values = type->m_Columns[f] };
+    }
+    Backend  store = CreateBackend(input, 0, 0, "setup");
+    Stats    stats = {};
+    uint64_t start = BeginOperation();
+    for (uint32_t ti = 0; ti < TYPE_COUNT; ++ti)
+    {
+        const TypeInput* type = &input->m_Types[ti];
+        stats.m_Error |= DataCreateRowsSoA(store.m_Data, type->m_Type, type->m_Groups[0], type->m_Count, type->m_FieldCount, fields[ti], store.m_Ids + type->m_Offset);
+    }
+    Record(&store, input, sample, "create_population_soa", start, EndOperation(), input->m_Count, stats);
+    ValidateCreatedRows_Defold(&store, input);
+    DestroyBackend(&store, input, 0, "destroy");
 }
 
 int CreateIndividual_Defold(Backend* store, const Fixture* input, uint32_t ti, uint32_t start, uint32_t count)
@@ -79,8 +116,7 @@ int CreateIndividual_Defold(Backend* store, const Fixture* input, uint32_t ti, u
     int              error = 0;
     for (uint32_t r = 0; r < count; ++r)
     {
-        const DataRowDesc* row = &t->m_Rows[start + r];
-        error |= DataAddRow(store->m_Data, t->m_Type, row->m_Owner, row->m_Types, row->m_Values, row->m_ValueCount, &output[r], row->m_ComponentId);
+        error |= DataCreateRows(store->m_Data, t->m_Type, t->m_Groups[start + r], 1, t->m_Native + (size_t)(start + r) * t->m_NativeStride, &output[r]);
     }
     return error;
 }
@@ -107,7 +143,7 @@ int CreateBulk(Backend* store, const Fixture* input, uint32_t ti, uint32_t start
 }
 
 // Every pass starts with empty registered tables, matching Create population.
-// Filter sampled stacks to CreateBulk/DataAddRows: setup and teardown also repeat.
+// Filter sampled stacks to CreateBulk/DataCreateRows: setup and teardown also repeat.
 void ProfileCreatePopulation(const Fixture* input, uint32_t kind, uint32_t samples, uint32_t passes)
 {
     fprintf(stderr, "Profile ready: %s, Create population, %u passes per sample\n", BACKENDS[kind], passes);
@@ -233,7 +269,7 @@ void CreateBulk_EnTT(CoreEnttStore* store, const Fixture* input, uint32_t ti, ui
                 Check(false, "EnTT input field");
         }
     }
-    InsertEnttColumn<CoreEnttOwner>(&registry, first, count, type->m_Owners + start);
+    InsertEnttColumn<CoreEnttOwner>(&registry, first, count, type->m_Groups + start);
     InsertEnttColumn<CoreEnttIdentity>(&registry, first, count, type->m_ComponentIds + start);
     registry.storage<CoreEnttTag>((entt::id_type)type->m_Type).insert(first, first + count);
     for (uint32_t tag = 0; tag < type->m_TagCount; ++tag)

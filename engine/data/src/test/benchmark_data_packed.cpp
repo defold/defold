@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -20,7 +22,7 @@ static Stats PackedPopulate_Defold(Backend* store, const Fixture* input, HDataBl
     {
         const TypeInput* t = &input->m_Types[ti];
         for (uint32_t r = 0; r < t->m_Count; r += input->m_GroupSize)
-            stats.m_Error |= DataAddBlob(store->m_Data, input->m_Blobs[ti], t->m_Owners[r], &instances[group++]);
+            stats.m_Error |= DataAddBlob(store->m_Data, input->m_Blobs[ti], t->m_Groups[r], &instances[group++]);
     }
     // Include returning/mapping every runtime row ID, as for Flecs population.
     DataQueryDesc desc = {};
@@ -36,7 +38,7 @@ static Stats PackedPopulate_Defold(Backend* store, const Fixture* input, HDataBl
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
             if (!row)
-                first = DataRowIterGetOwnerId(&rows) - 1;
+                first = DataRowIterGetGroupId(&rows) - 1;
             store->m_Ids[first + row++] = DataRowIterGetId(&rows);
         }
     }
@@ -101,17 +103,7 @@ void RunPacked(const Fixture* input, uint32_t kind, uint32_t sample)
         MeasureHealthPosition(&store, input, &health, sample, name, false, health_changes * 2);
         if (!kind)
         {
-            DataMemoryStats memory;
-            GetDataMemoryStats(store.m_Data, &memory);
-            Check(memory.m_Rows == input->m_Count && memory.m_Tables == TYPE_COUNT && memory.m_Instances == groups && !memory.m_PayloadBlocks, "packed numeric updates allocate no payloads");
-            if (sample)
-                printf("# arena,sample=%u,density=%u,tables=%llu,rows=%llu,mutable_bytes=%llu,blocks=%llu,used=%llu,capacity=%llu\n", sample, percent, (unsigned long long)memory.m_Tables, (unsigned long long)memory.m_Rows, (unsigned long long)memory.m_ValueBytes, (unsigned long long)memory.m_PayloadBlocks, (unsigned long long)memory.m_PayloadUsed, (unsigned long long)memory.m_PayloadCapacity);
-            start = BeginOperation();
             PackedReset_Defold(instances, groups);
-            snprintf(name, sizeof(name), "packed_%upct_reset", percent);
-            Record(&store, input, sample, name, start, EndOperation(), input->m_Count, stats);
-            GetDataMemoryStats(store.m_Data, &memory);
-            Check(!memory.m_PayloadBlocks && !memory.m_PayloadCapacity, "reset releases replacement payloads");
         }
         else
             ResetValues(&store, input);

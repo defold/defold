@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -60,7 +62,10 @@ static void AddGroup(EnttFixture* fixture, const ThreadedReferenceRow* defaults,
         if (t == 2 || t == 3)
             registry.insert<EnttVelocity>(begin, end, velocities);
         if (t < 2)
+        {
             registry.insert<EnttLight>(begin, end, lights);
+            registry.insert<EnttLightTag>(begin, end);
+        }
         if (t == 0)
             registry.insert<EnttSpotParameters>(begin, end, EnttSpotParameters { { 10, 10, 10 } });
         if (t == 1 || t == 4)

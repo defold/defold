@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -20,8 +22,8 @@ Query CreateExplosionQuery(Backend* store, const Fixture* input)
     if (!store->m_Kind)
     {
         DataQueryField fields[] = {
-            { .m_Field = g_Fields[HEALTH], .m_Type = DATA_VALUE_TYPE_NUMBER },
-            { .m_Field = g_Fields[POSITION], .m_Type = DATA_VALUE_TYPE_VECTOR3 }
+            { .m_Field = g_Fields[HEALTH], .m_Type = DATA_TYPE_NUMBER },
+            { .m_Field = g_Fields[POSITION], .m_Type = DATA_TYPE_VECTOR3 }
         };
         DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 2 };
         Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create explosion query");
@@ -140,10 +142,9 @@ static Stats ExpectedExplosion(const Fixture* input, const Query* query)
         uint32_t count = t->m_Count;
         for (uint32_t r = 0; r < count; ++r)
         {
-            const DataValueData* values = &t->m_Values[(size_t)r * t->m_FieldCount];
-            bool                 hit = Hit(values[position].m_Vector3, 50);
+            bool hit = Hit(((const Vector3*)FixtureField(t, r, position))->m_Values, 50);
             stats.m_Hits += hit;
-            stats.m_Sum += Damaged(values[f].m_Number, hit ? 1 : 0) + SumVector(values[position].m_Vector3);
+            stats.m_Sum += Damaged(*(const double*)FixtureField(t, r, f), hit ? 1 : 0) + SumVector(((const Vector3*)FixtureField(t, r, position))->m_Values);
             ++stats.m_Rows;
         }
     }

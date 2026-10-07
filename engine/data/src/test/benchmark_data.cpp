@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -13,7 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../data.h"
+#include <dmsdk/data/data.h>
 #include <dlib/time.h>
 #include <flecs.h>
 
@@ -23,17 +25,15 @@ static const uint64_t  Y = 20;
 static const uint64_t  TAG = 100;
 static const uint32_t  MAX_SAMPLES = 31;
 static const uint32_t  READ_PASSES = 10;
-static const uint32_t  OP_COUNT = 8;
-static const char*     OPERATIONS[] = { "add_row", "bulk_load_decoded", "get_field", "set_field", "query_read", "remove_row", "write_binary", "load_binary" };
+static const uint32_t  OP_COUNT = 6;
+static const char*     OPERATIONS[] = { "add_row", "create_rows", "get_field", "set_field", "query_read", "remove_row" };
 static volatile double g_Checksum;
 
 struct Input
 {
     uint32_t       m_Count;
-    DataValueType  m_Types[2];
-    DataValueData* m_Values;
-    DataRowDesc*   m_Rows;
-    DataOwnerId*   m_Owners;
+    double*        m_Values;
+    DataGroupId*   m_Groups;
     double*        m_X;
     double*        m_Y;
     uint32_t*      m_Order;
@@ -53,18 +53,12 @@ static double Elapsed(uint64_t start, uint64_t operations)
     return (dmTime::GetMonotonicTime() - start) * 1000.0 / operations;
 }
 
-static DataValue Number(double number)
-{
-    DataValue value = { .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Value = { .m_Number = number } };
-    return value;
-}
-
 static HDataStore CreateData()
 {
     HDataStore    store = DataCreateStore();
     DataFieldDesc fields[] = {
-        { .m_Field = X, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 0 },
-        { .m_Field = Y, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 8 }
+        { .m_Field = X, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 0 },
+        { .m_Field = Y, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 8 }
     };
     DataTableDesc desc = {
         .m_Type = TABLE,
@@ -85,13 +79,15 @@ static void RunData(const Input* input, double* timings)
     HDataStore store = CreateData();
     uint64_t   start = dmTime::GetMonotonicTime();
     for (uint32_t row = 0; row < count; ++row)
-        Check(DataAddRow(store, TABLE, input->m_Owners[row], input->m_Types, &input->m_Values[row * 2], 2, &ids[row], row + 1) == DATA_RESULT_OK);
+    {
+        Check(DataCreateRows(store, TABLE, 1, 1, input->m_Values + row * 2, &ids[row]) == DATA_RESULT_OK);
+    }
     timings[0] = Elapsed(start, count);
     DataDestroyStore(store);
 
     store = CreateData();
     start = dmTime::GetMonotonicTime();
-    Check(DataAddRows(store, TABLE, input->m_Rows, count, ids) == DATA_RESULT_OK);
+    Check(DataCreateRows(store, TABLE, 1, count, input->m_Values, ids) == DATA_RESULT_OK);
     timings[1] = Elapsed(start, count);
     double sum = 0;
     start = dmTime::GetMonotonicTime();
@@ -116,10 +112,11 @@ static void RunData(const Input* input, double* timings)
     }
     timings[3] = Elapsed(start, count);
 
-    DataQueryField field = { .m_Field = X, .m_Type = DATA_VALUE_TYPE_NUMBER };
+    DataQueryField field = { .m_Field = X, .m_Type = DATA_TYPE_NUMBER };
     DataQueryDesc  desc = { .m_AllTags = &TAG, .m_AllTagCount = 1, .m_Fields = &field, .m_FieldCount = 1 };
     HDataQuery     query;
     Check(DataCreateQuery(store, &desc, &query) == DATA_RESULT_OK);
+    uint32_t handle = DataQueryFindField(query, &field);
     sum = 0;
     uint64_t visited = 0;
     start = dmTime::GetMonotonicTime();
@@ -133,11 +130,7 @@ static void RunData(const Input* input, double* timings)
             DataRowIterator rows = DataIterRows(&it);
             while (DataRowIterNext(&rows) == DATA_RESULT_OK)
             {
-                DataFieldIterator field = DataRowIterFields(&rows);
-                double            value;
-                Check(DataFieldIterNext(&field) == DATA_RESULT_OK);
-                Check(DataFieldIterGetNumber(&field, &value) == DATA_RESULT_OK);
-                sum += value;
+                sum += *DataRowIterGetNumber(&rows, handle);
                 ++visited;
             }
         }
@@ -149,44 +142,6 @@ static void RunData(const Input* input, double* timings)
     Check(sum == READ_PASSES * ((double)count * (count + 1) / 2));
     g_Checksum = sum;
     DataDestroyQuery(query);
-
-    uint32_t size;
-    Check(DataWriteBlob(store, 0, 0, &size) == DATA_RESULT_OK);
-    uint8_t* bytes = new uint8_t[size];
-    start = dmTime::GetMonotonicTime();
-    Check(DataWriteBlob(store, bytes, size, &size) == DATA_RESULT_OK);
-    timings[6] = Elapsed(start, count);
-    HDataStore loaded = DataCreateStore();
-    start = dmTime::GetMonotonicTime();
-    HDataBlob         blob;
-    HDataBlobInstance instance;
-    Check(DataLoadBlob(bytes, size, &blob) == DATA_RESULT_OK);
-    Check(DataAddBlob(loaded, blob, 1, &instance) == DATA_RESULT_OK);
-    DataDestroyBlob(blob);
-    timings[7] = Elapsed(start, count);
-    Check(DataCreateQuery(loaded, &desc, &query) == DATA_RESULT_OK);
-    DataStoreLock(loaded);
-    DataIterator it = DataQueryIter(query);
-    Check(DataIterNext(&it) == DATA_RESULT_OK);
-    DataRowIterator rows = DataIterRows(&it);
-    sum = 0;
-    visited = 0;
-    while (DataRowIterNext(&rows) == DATA_RESULT_OK)
-    {
-        DataFieldIterator field = DataRowIterFields(&rows);
-        double            value;
-        Check(DataFieldIterNext(&field) == DATA_RESULT_OK);
-        Check(DataFieldIterGetNumber(&field, &value) == DATA_RESULT_OK);
-        sum += value;
-        Check(DataRowIterGetOwnerId(&rows) == 1);
-        ++visited;
-    }
-    Check(visited == count);
-    Check(sum == (double)count * (count + 1) / 2);
-    DataStoreUnlock(loaded);
-    DataDestroyQuery(query);
-    DataDestroyStore(loaded);
-    delete[] bytes;
 
     start = dmTime::GetMonotonicTime();
     for (uint32_t row = 0; row < count; ++row)
@@ -201,7 +156,7 @@ struct FlecsStore
     ecs_world_t* m_World;
     ecs_entity_t m_X;
     ecs_entity_t m_Y;
-    ecs_entity_t m_Owner;
+    ecs_entity_t m_Group;
     ecs_entity_t m_Tag;
 };
 
@@ -213,7 +168,7 @@ static FlecsStore CreateFlecs()
     store.m_Y = ecs_component_init(store.m_World, &desc);
     desc.type.size = sizeof(uint64_t);
     desc.type.alignment = sizeof(uint64_t);
-    store.m_Owner = ecs_component_init(store.m_World, &desc);
+    store.m_Group = ecs_component_init(store.m_World, &desc);
     store.m_Tag = ecs_new(store.m_World);
     return store;
 }
@@ -229,7 +184,7 @@ static void RunFlecs(const Input* input, double* timings)
         ecs_value_t values[] = {
             { .type = store.m_X, .ptr = &input->m_X[row] },
             { .type = store.m_Y, .ptr = &input->m_Y[row] },
-            { .type = store.m_Owner, .ptr = &input->m_Owners[row] },
+            { .type = store.m_Group, .ptr = &input->m_Groups[row] },
             { .type = store.m_Tag, .ptr = 0 },
             {}
         };
@@ -240,10 +195,10 @@ static void RunFlecs(const Input* input, double* timings)
     ecs_fini(store.m_World);
 
     store = CreateFlecs();
-    void*           values[] = { input->m_X, input->m_Y, input->m_Owners, 0 };
+    void*           values[] = { input->m_X, input->m_Y, input->m_Groups, 0 };
     ecs_bulk_desc_t bulk = {
         .count = (int32_t)count,
-        .ids = { store.m_X, store.m_Y, store.m_Owner, store.m_Tag },
+        .ids = { store.m_X, store.m_Y, store.m_Group, store.m_Tag },
         .data = values
     };
     start = dmTime::GetMonotonicTime();
@@ -337,23 +292,16 @@ int main(int argc, char** argv)
     input.m_Count = argc > 1 ? ParseCount(argv[1], 10000000) : 100000;
     uint32_t samples = argc > 2 ? ParseCount(argv[2], MAX_SAMPLES) : 7;
     uint32_t count = input.m_Count;
-    input.m_Types[0] = input.m_Types[1] = DATA_VALUE_TYPE_NUMBER;
-    input.m_Values = new DataValueData[count * 2];
-    input.m_Rows = new DataRowDesc[count];
-    input.m_Owners = new DataOwnerId[count];
+    input.m_Values = new double[count * 2];
+    input.m_Groups = new DataGroupId[count];
     input.m_X = new double[count];
     input.m_Y = new double[count];
     input.m_Order = new uint32_t[count];
     for (uint32_t row = 0; row < count; ++row)
     {
-        input.m_Values[row * 2] = Number(row).m_Value;
-        input.m_Values[row * 2 + 1] = Number(row * 2).m_Value;
-        input.m_Rows[row].m_Owner = row + 1;
-        input.m_Rows[row].m_Types = input.m_Types;
-        input.m_Rows[row].m_Values = &input.m_Values[row * 2];
-        input.m_Rows[row].m_ValueCount = 2;
-        input.m_Rows[row].m_ComponentId = row + 1;
-        input.m_Owners[row] = row + 1;
+        input.m_Values[row * 2] = row;
+        input.m_Values[row * 2 + 1] = row * 2;
+        input.m_Groups[row] = 1;
         input.m_X[row] = row;
         input.m_Y[row] = row * 2;
         input.m_Order[row] = row;
@@ -369,7 +317,6 @@ int main(int argc, char** argv)
     }
     printf("# Flecs %s; rows=%u; samples=%u; one warmup; read_passes=%u; shuffled get/set/remove\n", FLECS_VERSION, count, samples, READ_PASSES);
     printf("# numeric fields x/y + uint64 owner + tag; query: Data checked row API / Flecs direct column\n");
-    printf("# binary operations are Data-only; they do not represent a Flecs serialization comparison\n");
     double results[2][OP_COUNT][MAX_SAMPLES] = {};
     for (uint32_t sample = 0; sample <= samples; ++sample)
     {
@@ -392,7 +339,7 @@ int main(int argc, char** argv)
     printf("library,operation,rows,median_ns_per_row,min_ns_per_row\n");
     for (uint32_t op = 0; op < OP_COUNT; ++op)
     {
-        for (uint32_t library = 0; library < (op < 6 ? 2u : 1u); ++library)
+        for (uint32_t library = 0; library < 2u; ++library)
         {
             double* values = results[library][op];
             qsort(values, samples, sizeof(double), Compare);
@@ -403,8 +350,7 @@ int main(int argc, char** argv)
     delete[] input.m_Order;
     delete[] input.m_Y;
     delete[] input.m_X;
-    delete[] input.m_Owners;
-    delete[] input.m_Rows;
+    delete[] input.m_Groups;
     delete[] input.m_Values;
     return 0;
 }

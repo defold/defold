@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -142,7 +144,7 @@ namespace Defold.Data.Benchmarks
         public NativeArray<InputRow> Rows;
         public NativeArray<int> Order;
 
-        public Fixture(int count, ulong[] typeHashes)
+        public Fixture(int count)
         {
             Count = count;
             for (int t = 0; t < 6; ++t)
@@ -169,8 +171,8 @@ namespace Defold.Data.Benchmarks
                     double health = 100 + (Values.Random(ref random) >> 16) % 101;
                     Rows[index] =
                     new InputRow { Position = position,       Color = color, Velocity = new float3(1, 0, -1),
-                                   Health = health,           Intensity = 1, Owner = (ulong)index + 1,
-                                   Component = typeHashes[t], Type = t };
+                                   Health = health,           Intensity = 1, Owner = 1,
+                                   Component = 0,             Type = t };
                     if (r < Counts[t])
                         Order[order++] = index;
                 }

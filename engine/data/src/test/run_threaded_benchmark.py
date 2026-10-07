@@ -1,4 +1,6 @@
-# Copyright 2026 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
 #
@@ -16,6 +18,7 @@ import argparse
 import csv
 from datetime import datetime, timezone
 import hashlib
+from html import escape
 import io
 import json
 import math
@@ -110,6 +113,9 @@ def validate_rows(rows, frames, population):
 
 
 def report(output, timing, memory, population, warmup, sizes):
+    manifest = json.loads((output / 'manifest.json').read_text())
+    validation_note = manifest.get('validation_note', 'TSAN passed for all four backends at 1, 2, 4 and 8 workers, including separate allocation builds.')
+    measurement_note = manifest.get('measurement_note', '')
     summaries = []
     domains = ('store', 'job', 'caller', 'resource')
     for workers in (1, 2, 4, 8):
@@ -146,18 +152,20 @@ def report(output, timing, memory, population, warmup, sizes):
     size_rows = []
     for row in sizes['rows']:
         archive = f"{row['archive_stripped_bytes'] / 1024:,.1f} KiB" if row['archive_stripped_bytes'] is not None else 'Header-only'
-        size_rows.append(f"<tr><td>{row['backend']}</td><td>{archive}</td><td>{row['extra_file_bytes'] / 1024:,.1f} KiB</td><td>{row['extra_section_bytes'] / 1024:,.1f} KiB</td></tr>")
+        size_rows.append(f"<tr><td>{row['backend']}</td><td>{row['cloc']['code']:,}</td><td>{archive}</td><td>{row['extra_file_bytes'] / 1024:,.1f} KiB</td><td>{row['extra_section_bytes'] / 1024:,.1f} KiB</td></tr>")
     content = f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Threaded ECS comparison · Defold, Flecs, Bevy and EnTT</title>
 <style>body{{font:16px system-ui;margin:32px auto;padding:0 18px;max-width:1150px;background:#f6f8fb;color:#15263c}}h1{{font-size:29px}}h2{{font-size:18px}}h3{{font-size:12px;margin:14px 0 3px;color:#54677e}}p,li{{line-height:1.5}}.charts{{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:14px}}section{{background:white;border:1px solid #dce3ed;padding:16px;border-radius:8px}}.row{{display:flex;gap:6px;align-items:center;margin:2px 0;font-size:12px}}.row span{{width:43px}}.track{{flex:1;background:#edf1f7;height:12px}}i{{display:block;height:100%}}.Defold{{background:#367ad0}}.Flecs{{background:#df8b29}}.Bevy{{background:#248b71}}.EnTT{{background:#9854bd}}b{{width:88px;text-align:right;font-variant-numeric:tabular-nums}}.table{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;font-size:13px}}th,td{{padding:8px;border-bottom:1px solid #dce3ed;text-align:right;white-space:nowrap}}th:first-child,td:first-child{{text-align:left}}code{{font-size:.9em}}</style>
 <h1>Threaded ECS comparison</h1>
 <p><strong>Defold · Flecs · Bevy · EnTT</strong> — {population:,} initial instances across SpotLight, PointLight, Player, Enemy, Pickup and Breakable. Four ready updates run every frame while the application prepares incoming content. {1 + max(int(r["frame"]) for r in timing)} frames per worker count; labels give the number of row workers.</p>
-<p>TSAN passed for all four backends at 1, 2, 4 and 8 workers, including separate allocation builds. These charts use release builds without sanitizers. The first {warmup} frames are warmup; subsequent frames belong to one continuous stream.</p>
+<p>{escape(measurement_note)}</p>
+<p>{escape(validation_note)} These charts use release builds without sanitizers. The first {warmup} frames are warmup; subsequent frames belong to one continuous stream.</p>
 <h2>Performance</h2><div class="charts">{''.join(charts[:4])}</div>
 <h2>Memory</h2><div class="charts">{''.join(charts[4:])}</div>
 <p>Allocation requests and heap changes cover the whole frame, including scheduling, resource preparation and content changes. Heap values are changes after the operation, not the store's total size. Allocation instrumentation runs separately from timing.</p>
 <h2>Current results</h2><p>Columns show independent medians, except p95. Phase medians need not sum to the frame median.</p><div class="table"><table><thead><tr><th>Backend</th><th>Workers</th><th>Frame ms</th><th>p95 ms</th><th>Updates ms</th><th>Streaming ms</th><th>Allocations</th><th>Update/prep</th><th>Streaming</th><th>Heap Δ KiB</th></tr></thead><tbody>{table}</tbody></table></div>
-<h2>Library size</h2><div class="table"><table><thead><tr><th>Library</th><th>Stripped static archive</th><th>Linked file Δ</th><th>Code/data sections Δ</th></tr></thead><tbody>{''.join(size_rows)}</tbody></table></div>
+<h2>Library size</h2><div class="table"><table><thead><tr><th>Library</th><th>cloc · code lines</th><th>Stripped static archive</th><th>Linked file Δ</th><th>Code/data sections Δ</th></tr></thead><tbody>{''.join(size_rows)}</tbody></table></div>
+<p>cloc counts library sources and headers, excluding comments, blank lines, tests, examples, dependencies and duplicate amalgamations. All library modules are counted; feature sets differ.</p>
 <p>Optimized, unsanitized arm64 macOS builds, no LTO. Archives have debug/local symbols stripped. EnTT is header-only: its generated code is measured in the linked example, not as a zero-byte library. Each example creates entities with position and health, queries and updates them, reads values and destroys them. Linked deltas subtract the same empty program ({sizes['baseline']['file_bytes'] / 1024:g} KiB on disk); dead stripping is enabled. Section deltas omit page padding and link metadata, and include zero-filled data.</p>
 <p>The Defold archive contains only <code>data</code>; its linked example includes the required dlib code. Flecs uses its default addons with the C API and optional counters/asserts disabled. EnTT uses C++20, 64-bit entities, atomic type IDs and disabled assertions. These are workload-specific linked footprints, not equivalent feature sets or a complete engine. System shared libraries are excluded. <a href="library-sizes.json">Exact bytes, source hashes and build commands</a>.</p>
 <h2>Workload</h2><ul><li><strong>Movement:</strong> update Player/Enemy positions from velocity.</li><li><strong>Explosion:</strong> radius 50 at the origin; subtract 25 health, clamped to zero.</li><li><strong>Regenerate:</strong> add 0.25 health, capped at 100. It competes with Explosion; no prescribed ordering.</li><li><strong>Nearby lights:</strong> sum distance-weighted color × intensity within radius 50. Position is separate from the nested Light value.</li></ul>
@@ -288,7 +296,7 @@ def main():
     source_files = list((ROOT / 'engine/data/src').glob('*.cpp')) + list((ROOT / 'engine/data/src').glob('*.h'))
     source_files += list((ROOT / 'engine/data/src/test').glob('*threaded*'))
     source_files += list((ROOT / 'engine/data/src/test').glob('benchmark_data_size_*.cpp'))
-    source_files += [ROOT / 'engine/data/src/test/measure_library_sizes.py']
+    source_files += [ROOT / 'engine/data/src/test' / name for name in ('measure_library_sizes.py', 'data_fixture_writer.cpp', 'benchmark_data_resources.cpp', 'benchmark_data_fixture.cpp', 'benchmark_data_common.h', 'test_data.cpp', 'test_data_c.c')]
     source_files += list((ROOT / 'engine/data/src/dmsdk/data').glob('*.h'))
     source_files += [ROOT / 'engine/dlib/src/dlib/jobsystem.cpp']
     source_files += list((ROOT / 'engine/data/src/test/bevy/src').rglob('*.rs'))
@@ -306,6 +314,7 @@ def main():
                 'entt': {'source': str(entt_dir), 'revision': subprocess.check_output(['git', '-C', str(entt_dir), 'describe', '--tags', '--always'], text=True).strip(), 'headers': entt_headers},
                 'library_sizes_sha256': hashlib.sha256((args.output / 'library-sizes.json').read_bytes()).hexdigest(),
                 'flecs': {'source': str(flecs_source), 'revision': subprocess.check_output(['git', '-C', str(flecs_source.parent), 'describe', '--tags', '--always'], text=True).strip(), 'sha256': hashlib.sha256(flecs_source.read_bytes()).hexdigest(), 'header_sha256': hashlib.sha256(flecs_source.with_suffix('.h').read_bytes()).hexdigest()}, 'rows': args.rows, 'frames': args.frames, 'warmup': args.warmup, 'workers': [1, 2, 4, 8],
+                'fixtures': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(executable(args.release_build, 'benchmark_data_threaded').parent.joinpath('fixtures').glob('*.datac'))},
                 'workload': 'mixed-content streaming with seeded enemy waves',
                 'wave_seed': '0x91e10da5 xor frame', 'group_rows': 100,
                 'tsan': 'passed; halt_on_error=1:exitcode=66; no suppressions', 'binaries': binaries,

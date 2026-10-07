@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -103,7 +105,7 @@ void MeasurePackedAccess(Backend* store, const Fixture* input, uint32_t sample, 
         RowKey           key = input->m_Order[i];
         const TypeInput* t = &input->m_Types[key.m_Type];
         uint32_t         f = FindField(t, ScalarField(key.m_Type));
-        expected += t->m_Values[(size_t)key.m_Row * t->m_FieldCount + f].m_Number + (i < changed ? (write ? write : 2) : 0);
+        expected += *(const double*)FixtureField(t, key.m_Row, f) + (i < changed ? (write ? write : 2) : 0);
     }
     uint64_t start = BeginOperation();
     if (write)

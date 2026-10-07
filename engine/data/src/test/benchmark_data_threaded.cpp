@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -15,8 +17,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dlib/time.h>
-#include "../data.h"
+#include <dmsdk/data/data.h>
 #include "benchmark_data_threaded.h"
+#include <dlib/hash.h>
 #include "benchmark_data_threaded_memory.h"
 
 struct ContentGroup
@@ -39,116 +42,14 @@ struct ThreadedFixture
     uint32_t              m_LiveCount[2], m_Issued, m_Capacity;
 };
 
-static DataValue Number(double value)
+static void LoadPrototype(ThreadedFixture* fixture, bool enemies)
 {
-    DataValue out = { .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Value = { .m_Number = value } };
-    return out;
-}
-
-static DataValue Vector(const DataVector3& value)
-{
-    DataValue out = { .m_Type = DATA_VALUE_TYPE_VECTOR3 };
-    memcpy(out.m_Value.m_Vector3, value.m_Values, sizeof(value));
-    return out;
-}
-
-// Each serialized bundle contains 100 rows: either six tables in the fixture's
-// 10/15/1/24/25/25 proportions, or one Enemy table for the additional waves.
-static void BuildPrototype(ThreadedFixture* fixture, bool enemies)
-{
-    HDataStore    source = DataCreateStore();
-    DataFieldDesc light_fields[] = {
-        { .m_Field = THREAD_COLOR, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 0 },
-        { .m_Field = THREAD_INTENSITY, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 16 }
-    };
-    DataStructDesc light = { .m_Fields = light_fields, .m_FieldCount = 2, .m_Size = 24 };
-    DataFieldDesc  fields[THREAD_TYPE_COUNT][6] = {
-        { { .m_Field = THREAD_POSITION, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 0 },
-           { .m_Field = THREAD_LIGHT, .m_Type = DATA_VALUE_TYPE_STRUCT, .m_Offset = 16, .m_Struct = &light },
-           { .m_Field = 7, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 40 },
-           { .m_Field = 8, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 48 },
-           { .m_Field = 9, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 56 } },
-        { { .m_Field = THREAD_LIGHT, .m_Type = DATA_VALUE_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &light },
-           { .m_Field = THREAD_POSITION, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 24 },
-           { .m_Field = 7, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 40 } },
-        { { .m_Field = THREAD_POSITION, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 0 },
-           { .m_Field = THREAD_HEALTH, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 16 },
-           { .m_Field = THREAD_VELOCITY, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 24 } },
-        { { .m_Field = THREAD_HEALTH, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 0 },
-           { .m_Field = THREAD_VELOCITY, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 8 },
-           { .m_Field = THREAD_POSITION, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 20 } },
-        { { .m_Field = THREAD_POSITION, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 0 },
-           { .m_Field = 10, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 16 } },
-        { { .m_Field = THREAD_HEALTH, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 0 },
-           { .m_Field = THREAD_POSITION, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 8 } }
-    };
-    const uint32_t field_counts[] = { 5, 3, 3, 3, 2, 2 };
-    const uint32_t strides[] = { 64, 48, 40, 32, 24, 24 };
-    uint64_t       names[] = { THREAD_COLOR, THREAD_INTENSITY };
-    uint32_t       component = 0;
     ThreadedDefaults(fixture->m_Defaults[enemies], enemies);
-    for (uint32_t t = 0; t < THREAD_TYPE_COUNT; ++t)
-    {
-        uint32_t count = ThreadedTypeRows(t, enemies);
-        if (!count)
-            continue;
-        uint64_t      tag = 100 + t;
-        DataTableDesc table = {
-            .m_Type = 1000 + t,
-            .m_Tags = &tag,
-            .m_TagCount = 1,
-            .m_Fields = fields[t],
-            .m_FieldCount = field_counts[t],
-            .m_RowStride = strides[t]
-        };
-        ThreadedCheck(DataRegisterTable(source, &table) == DATA_RESULT_OK, "prototype table");
-        DataRowDesc         rows[THREAD_BUNDLE_ROWS] = {};
-        DataValueType       types[6];
-        const DataValueType child_types[] = { DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_NUMBER };
-        for (uint32_t f = 0; f < field_counts[t]; ++f)
-            types[f] = fields[t][f].m_Type;
-        DataValueData values[THREAD_BUNDLE_ROWS][6] = {}, children[THREAD_BUNDLE_ROWS][2] = {};
-        DataId        ids[THREAD_BUNDLE_ROWS];
-        for (uint32_t r = 0; r < count; ++r, ++component)
-        {
-            ThreadedReferenceRow* row = &fixture->m_Defaults[enemies][component];
-            children[r][0] = Vector(row->m_Color).m_Value;
-            children[r][1] = Number(row->m_Intensity).m_Value;
-            for (uint32_t f = 0; f < field_counts[t]; ++f)
-            {
-                uint64_t  name = fields[t][f].m_Field;
-                DataValue value = Number(10);
-                if (name == THREAD_POSITION)
-                    value = Vector(row->m_Position);
-                else if (name == THREAD_VELOCITY)
-                    value = Vector(row->m_Velocity);
-                else if (name == THREAD_HEALTH)
-                    value = Number(row->m_Health);
-                else if (name == THREAD_LIGHT)
-                {
-                    value.m_Type = DATA_VALUE_TYPE_STRUCT;
-                    value.m_Value.m_Struct.m_Names = names;
-                    value.m_Value.m_Struct.m_Types = child_types;
-                    value.m_Value.m_Struct.m_Values = children[r];
-                    value.m_Value.m_Struct.m_Count = 2;
-                }
-                values[r][f] = value.m_Value;
-            }
-            rows[r].m_Types = types;
-            rows[r].m_Values = values[r];
-            rows[r].m_ValueCount = field_counts[t];
-            rows[r].m_ComponentId = component + 1;
-        }
-        ThreadedCheck(DataAddRows(source, table.m_Type, rows, count, ids) == DATA_RESULT_OK, "prototype rows");
-    }
-    ThreadedCheck(DataWriteBlob(source, 0, 0, &fixture->m_ByteCount[enemies]) == DATA_RESULT_OK, "prototype size");
     {
         ThreadMemoryScope resource(THREAD_MEMORY_RESOURCE);
-        fixture->m_Bytes[enemies] = new uint8_t[fixture->m_ByteCount[enemies]];
+        fixture->m_Bytes[enemies] = ReadFixtureBlob(enemies ? "threaded-enemies.datac" : "threaded-mixed.datac", &fixture->m_ByteCount[enemies]);
     }
-    ThreadedCheck(DataWriteBlob(source, fixture->m_Bytes[enemies], fixture->m_ByteCount[enemies], &fixture->m_ByteCount[enemies]) == DATA_RESULT_OK, "serialize prototype");
-    ThreadedCheck(DataLoadBlob(fixture->m_Bytes[enemies], fixture->m_ByteCount[enemies], &fixture->m_Prototype[enemies]) == DATA_RESULT_OK, "load prototype");
-    ThreadedCheck(DataDestroyStore(source) == DATA_RESULT_OK, "destroy prototype builder");
+    ThreadedCheck(DataLoadBlob(fixture->m_Bytes[enemies], fixture->m_ByteCount[enemies], &fixture->m_Prototype[enemies]) == DATA_RESULT_OK, "load fixture prototype");
 }
 
 static uint32_t AddGroup(ThreadedFixture* fixture, HDataBlob blob, bool enemies)
@@ -171,7 +72,7 @@ static void ValidateRows(ThreadedFixture* fixture)
         while (DataRowIterNext(&rows) == DATA_RESULT_OK)
         {
             DataId   id = DataRowIterGetId(&rows);
-            uint64_t owner = DataRowIterGetOwnerId(&rows);
+            uint64_t owner = DataRowIterGetGroupId(&rows);
             uint64_t component = DataGetComponentId(fixture->m_Store, id);
             ThreadedCheck(owner && owner <= fixture->m_Issued && component && component <= THREAD_BUNDLE_ROWS, "row identity");
             ThreadedReferenceRow* expected = &fixture->m_Reference[(owner - 1) * THREAD_BUNDLE_ROWS + component - 1];
@@ -263,8 +164,8 @@ static void Run(uint32_t population, uint32_t frames, uint32_t workers)
 {
     ThreadMemoryScope memory(THREAD_MEMORY_STORE);
     ThreadedFixture   fixture = {};
-    BuildPrototype(&fixture, false);
-    BuildPrototype(&fixture, true);
+    LoadPrototype(&fixture, false);
+    LoadPrototype(&fixture, true);
     fixture.m_Store = DataCreateStore();
     uint32_t initial_groups = population / THREAD_BUNDLE_ROWS;
     fixture.m_Capacity = ThreadedGroupCapacity(initial_groups, frames);
@@ -279,7 +180,7 @@ static void Run(uint32_t population, uint32_t frames, uint32_t workers)
         uint32_t group = AddGroup(&fixture, fixture.m_Prototype[0], false);
         memcpy(fixture.m_Reference + (size_t)group * THREAD_BUNDLE_ROWS, fixture.m_Defaults[0], sizeof(fixture.m_Defaults[0]));
     }
-    DataQueryField position = { .m_Field = THREAD_POSITION, .m_Type = DATA_VALUE_TYPE_VECTOR3 };
+    DataQueryField position = { .m_Field = THREAD_POSITION, .m_Type = DATA_TYPE_VECTOR3 };
     DataQueryDesc  desc = { .m_Fields = &position, .m_FieldCount = 1 };
     ThreadedCheck(DataCreateQuery(fixture.m_Store, &desc, &fixture.m_Validation) == DATA_RESULT_OK, "validation query");
     fixture.m_PositionField = DataQueryFindField(fixture.m_Validation, &position);
@@ -479,6 +380,11 @@ int main(int argc, char** argv)
     printf(",store_requests,store_delta_bytes,job_requests,job_delta_bytes,caller_requests,caller_delta_bytes,resource_requests,resource_delta_bytes,peak_additional_bytes,update_store_requests,stream_store_requests");
 #endif
     printf(",movement_wait_us,explosion_wait_us,regenerate_wait_us,lights_wait_us,content_spawned,content_despawned,enemies_spawned,enemies_despawned,live_enemies\n");
+    {
+        // Initialize the process-wide hash mutex outside per-store allocation accounting.
+        ThreadMemoryScope runtime(THREAD_MEMORY_NONE);
+        dmHashEnableReverseHash(false);
+    }
     ThreadMemorySelfTest();
     if (workers)
         Run(population, frames, workers);

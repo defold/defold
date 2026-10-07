@@ -16,7 +16,7 @@ use bevy_utils::Parallel;
 
 // Query types beside the traversal declare the scheduler's read/write access.
 pub fn nearby_lights_bevy(
-    query: Query<(&Position, &Light), Without<Velocity>>,
+    query: Query<(&Position, &Light), (With<LightTag>, Without<Velocity>)>,
     trace: Res<Trace>,
     mut locals: Local<Parallel<Stats>>,
 ) {

@@ -14,14 +14,6 @@ use bevy_ecs::{component::Mutable, prelude::*};
 
 pub const SEED: u32 = 0x12345678;
 pub const PERCENT: [usize; 6] = [10, 15, 1, 24, 25, 25];
-pub const TYPE_IDS: [u64; 6] = [
-    5814404822828456249,
-    14500896599220142080,
-    11577225589693920664,
-    10406201373173866896,
-    9480789839722286861,
-    7266391380641106441,
-];
 
 pub type Vector3 = [f32; 3];
 
@@ -536,11 +528,13 @@ impl Fixture {
                             intensity: 1.0,
                         },
                         health,
-                        owner: (offsets[kind]
-                            + if group == 0 { row } else { row / group * group }
-                            + 1) as u64,
+                        owner: if group == 0 {
+                            1
+                        } else {
+                            (offsets[kind] + row / group * group + 1) as u64
+                        },
                         component: if group == 0 {
-                            TYPE_IDS[kind]
+                            0
                         } else {
                             ((kind + 1) * 100 + row % group) as u64
                         },

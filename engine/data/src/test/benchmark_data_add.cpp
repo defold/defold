@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -59,7 +61,7 @@ Stats SpawnWave_EnTT(CoreEnttStore* store, const Fixture* input)
 #endif
 
 // Repeat the core wave with a fresh population and three live queries each time.
-// Only insertion is timed; filter sampled stacks to AddInstances/DataAddRows.
+// Only insertion is timed; filter sampled stacks to AddInstances/DataCreateRows.
 void ProfileSpawnWave(const Fixture* input, uint32_t kind, uint32_t samples, uint32_t passes)
 {
     fprintf(stderr, "Profile ready: %s, Spawn wave, %u passes per sample\n", BACKENDS[kind], passes);

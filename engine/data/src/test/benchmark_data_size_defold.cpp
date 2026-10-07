@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -15,7 +17,7 @@
 
 #include <stdint.h>
 
-#include "../data.h"
+#include <dmsdk/data/data.h>
 
 static void Check(DataResult result)
 {
@@ -28,8 +30,8 @@ int main(int argc, char** argv)
     uint32_t      count = argc > 1 ? (uint32_t)strtoul(argv[1], 0, 10) : 100;
     HDataStore    store = DataCreateStore();
     DataFieldDesc fields[] = {
-        { .m_Field = 1, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Offset = 0 },
-        { .m_Field = 2, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Offset = 16 }
+        { .m_Field = 1, .m_Type = DATA_TYPE_VECTOR3, .m_Offset = 0 },
+        { .m_Field = 2, .m_Type = DATA_TYPE_NUMBER, .m_Offset = 16 }
     };
     DataTableDesc table = {
         .m_Type = 1,
@@ -38,16 +40,20 @@ int main(int argc, char** argv)
         .m_RowStride = 24
     };
     Check(DataRegisterTable(store, &table));
-    const DataValueType types[] = { DATA_VALUE_TYPE_VECTOR3, DATA_VALUE_TYPE_NUMBER };
+    struct InitialRow
+    {
+        DataVector3 m_Position;
+        double      m_Health;
+    };
+    const InitialRow    values = { .m_Position = {}, .m_Health = 100 };
     DataId*             ids = new DataId[count];
     for (uint32_t row = 0; row < count; ++row)
     {
-        DataValueData values[] = { { .m_Vector3 = { 0, 0, 0 } }, { .m_Number = 100 } };
-        Check(DataAddRow(store, 1, row, types, values, 2, &ids[row]));
+        Check(DataCreateRows(store, 1, row, 1, &values, &ids[row]));
     }
     DataQueryField query_fields[] = {
-        { .m_Field = 1, .m_Type = DATA_VALUE_TYPE_VECTOR3 },
-        { .m_Field = 2, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Access = DATA_ACCESS_READ_WRITE }
+        { .m_Field = 1, .m_Type = DATA_TYPE_VECTOR3 },
+        { .m_Field = 2, .m_Type = DATA_TYPE_NUMBER, .m_Access = DATA_ACCESS_READ_WRITE }
     };
     DataQueryDesc desc = { .m_Fields = query_fields, .m_FieldCount = 2 };
     HDataQuery    query;

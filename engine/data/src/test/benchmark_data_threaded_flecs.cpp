@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -92,6 +94,8 @@ static void AddGroup(FlecsFixture* fixture, const ThreadedReferenceRow* defaults
         {
             desc.ids[f] = ids->m_Light;
             data[f++] = lights;
+            desc.ids[f] = ids->m_LightTag;
+            data[f++] = 0;
         }
         if (ids->m_Extra[t])
         {
@@ -213,6 +217,7 @@ static void Run(uint32_t population, uint32_t frames, uint32_t workers)
     ids->m_Velocity = Component(fixture.m_World, sizeof(DataVector3), alignof(DataVector3));
     ids->m_Health = Component(fixture.m_World, sizeof(double), alignof(double));
     ids->m_Light = Component(fixture.m_World, sizeof(FlecsThreadedLight), alignof(FlecsThreadedLight));
+    ids->m_LightTag = ecs_new(fixture.m_World);
     for (uint32_t t = 0; t < THREAD_TYPE_COUNT; ++t)
         ids->m_Tags[t] = ecs_new(fixture.m_World);
     ids->m_Extra[0] = Component(fixture.m_World, 24, 8);

@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -11,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "benchmark_data_threaded.h"
+#include <dlib/hash.h>
 
 static double Contribution(const DataVector3* position, const DataVector3* color, double intensity)
 {
@@ -58,13 +61,14 @@ void NearbyLights_Reference(ThreadedReferenceRow* row, ThreadedStats* stats)
 
 void CreateThreadedLights(HDataStore store, ThreadedUpdate* update)
 {
-    uint64_t       color = THREAD_COLOR, intensity = THREAD_INTENSITY;
+    // Avoid retaining debug reverse-hash strings in the measured allocation domain.
     DataQueryField fields[] = {
-        { .m_Field = THREAD_POSITION, .m_Type = DATA_VALUE_TYPE_VECTOR3 },
-        { .m_Field = THREAD_LIGHT, .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Path = &color, .m_PathCount = 1 },
-        { .m_Field = THREAD_LIGHT, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Path = &intensity, .m_PathCount = 1 }
+        { .m_Field = THREAD_POSITION, .m_Type = DATA_TYPE_VECTOR3 },
+        { .m_Field = dmHashBufferNoReverse64("light.color", sizeof("light.color") - 1), .m_Type = DATA_TYPE_VECTOR3 },
+        { .m_Field = dmHashBufferNoReverse64("light.intensity", sizeof("light.intensity") - 1), .m_Type = DATA_TYPE_NUMBER }
     };
-    DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 3 };
+    uint64_t      light_tag = dmHashBufferNoReverse64("light", sizeof("light") - 1);
+    DataQueryDesc desc = { .m_AllTags = &light_tag, .m_AllTagCount = 1, .m_Fields = fields, .m_FieldCount = 3 };
     ThreadedCheck(DataCreateQuery(store, &desc, &update->m_Query) == DATA_RESULT_OK, "nearby lights query");
     update->m_PositionField = DataQueryFindField(update->m_Query, &fields[0]);
     update->m_ColorField = DataQueryFindField(update->m_Query, &fields[1]);

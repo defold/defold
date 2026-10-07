@@ -43,10 +43,10 @@ fn add_group(
         let rows = &defaults[first..first + count];
         match kind {
             0 => entities.extend(
-                world.spawn_batch(rows.iter().map(|r| (r.position, r.light, Spot([10.0; 3])))),
+                world.spawn_batch(rows.iter().map(|r| (r.position, r.light, Spot([10.0; 3]), LightTag))),
             ),
             1 => entities
-                .extend(world.spawn_batch(rows.iter().map(|r| (r.position, r.light, Point(10.0))))),
+                .extend(world.spawn_batch(rows.iter().map(|r| (r.position, r.light, Point(10.0), LightTag)))),
             2 => entities.extend(
                 world.spawn_batch(
                     rows.iter()

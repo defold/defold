@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -53,8 +55,8 @@ void Explosion_Reference(ThreadedReferenceRow* row, ThreadedStats* stats)
 void CreateThreadedExplosion(HDataStore store, ThreadedUpdate* update)
 {
     DataQueryField fields[] = {
-        { .m_Field = THREAD_POSITION, .m_Type = DATA_VALUE_TYPE_VECTOR3 },
-        { .m_Field = THREAD_HEALTH, .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Access = DATA_ACCESS_READ_WRITE }
+        { .m_Field = THREAD_POSITION, .m_Type = DATA_TYPE_VECTOR3 },
+        { .m_Field = THREAD_HEALTH, .m_Type = DATA_TYPE_NUMBER, .m_Access = DATA_ACCESS_READ_WRITE }
     };
     DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 2 };
     ThreadedCheck(DataCreateQuery(store, &desc, &update->m_Query) == DATA_RESULT_OK, "explosion query");

@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -15,6 +17,8 @@
 
 #include <dmsdk/data/data.h>
 #include <dlib/jobsystem.h>
+
+uint8_t*              ReadFixtureBlob(const char* name, uint32_t* out_size);
 
 static const uint64_t THREAD_POSITION = 1, THREAD_HEALTH = 2, THREAD_VELOCITY = 3;
 static const uint64_t THREAD_LIGHT = 4, THREAD_COLOR = 5, THREAD_INTENSITY = 6;

@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -19,11 +21,11 @@ Query CreateNearbyLightsQuery(Backend* store)
     if (!store->m_Kind)
     {
         DataQueryField fields[] = {
-            { .m_Field = g_Fields[POSITION], .m_Type = DATA_VALUE_TYPE_VECTOR3 },
-            { .m_Field = g_Fields[LIGHT], .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Path = &g_Fields[COLOR], .m_PathCount = 1 },
-            { .m_Field = g_Fields[LIGHT], .m_Type = DATA_VALUE_TYPE_NUMBER, .m_Path = &g_Fields[INTENSITY], .m_PathCount = 1 }
+            { .m_Field = g_Fields[POSITION], .m_Type = DATA_TYPE_VECTOR3 },
+            { .m_Field = g_LightColor, .m_Type = DATA_TYPE_VECTOR3 },
+            { .m_Field = g_LightIntensity, .m_Type = DATA_TYPE_NUMBER }
         };
-        DataQueryDesc desc = { .m_Fields = fields, .m_FieldCount = 3 };
+        DataQueryDesc desc = { .m_AllTags = &g_LightTag, .m_AllTagCount = 1, .m_Fields = fields, .m_FieldCount = 3 };
         Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "nearby lights query");
         out.m_PositionField = DataQueryFindField(out.m_Data, &fields[0]);
         out.m_ColorField = DataQueryFindField(out.m_Data, &fields[1]);
@@ -32,7 +34,7 @@ Query CreateNearbyLightsQuery(Backend* store)
     else
     {
         ecs_query_desc_t desc = {
-            .terms = { { .id = store->m_Fields[POSITION], .inout = EcsIn }, { .id = store->m_Fields[LIGHT], .inout = EcsIn } },
+            .terms = { { .id = store->m_Fields[POSITION], .inout = EcsIn }, { .id = store->m_Fields[LIGHT], .inout = EcsIn }, { .id = Tag(store->m_World, g_LightTag), .inout = EcsIn } },
             .cache_kind = EcsQueryCacheAuto
         };
         out.m_Flecs[0] = ecs_query_init(store->m_World, &desc);
@@ -125,7 +127,9 @@ void MeasureNearbyLights(Backend* store, const Fixture* input, Query* query, uin
 
 CoreEnttLights CreateNearbyLightsQuery_EnTT(CoreEnttStore* store)
 {
-    return store->m_Registry.view<const CoreEnttPosition, const CoreEnttLight>();
+    // Bind the existing named tag pool used when creating SpotLights and PointLights.
+    CoreEnttRegistry& registry = store->m_Registry;
+    return CoreEnttLights(registry.storage<CoreEnttPosition>(), registry.storage<CoreEnttLight>(), registry.storage<CoreEnttTag>((entt::id_type)g_LightTag));
 }
 
 Stats NearbyLights_EnTT(CoreEnttLights* query)

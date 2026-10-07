@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -45,7 +47,7 @@ struct CoreEnttTag
 // as with the other backends' queries. The registry owns every component value.
 using CoreEnttMovement = decltype(std::declval<CoreEnttRegistry&>().view<CoreEnttPosition, const CoreEnttVelocity>());
 using CoreEnttExplosion = decltype(std::declval<CoreEnttRegistry&>().view<const CoreEnttPosition, CoreEnttHealth>());
-using CoreEnttLights = decltype(std::declval<CoreEnttRegistry&>().view<const CoreEnttPosition, const CoreEnttLight>());
+using CoreEnttLights = decltype(std::declval<CoreEnttRegistry&>().view<const CoreEnttPosition, const CoreEnttLight, const CoreEnttTag>());
 
 struct CoreEnttStore
 {

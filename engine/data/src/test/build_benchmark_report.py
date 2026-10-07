@@ -23,8 +23,8 @@ from pathlib import Path
 CORE_CASES = [
     {
         "id": "create_population", "title": "Create population", "unit": "instances created",
-        "description": "Populate an empty store with SpotLight, PointLight, Player, Enemy, Pickup and Breakable instances from prepared values. Bulk-create each type once.",
-        "tests": "Allocation, ID creation and value initialization. Input generation and type registration are excluded.",
+        "description": "Populate an empty store with SpotLight, PointLight, Player, Enemy, Pickup and Breakable instances. Bulk-create each type once. Defold compares complete native rows (AoS) with separate field arrays (SoA), using identical values and a fresh store for each.",
+        "tests": "Allocation, ID creation and value initialization. Preparing both input layouts, type registration and checking every created field are excluded.",
     },
     {
         "id": "spawn_wave", "title": "Spawn wave", "unit": "instances added",
@@ -48,8 +48,8 @@ CORE_CASES = [
     },
     {
         "id": "nearby_lights", "title": "Nearby light contribution", "unit": "light rows scanned",
-        "description": "Scan SpotLights and PointLights. For lights within radius 50 of the origin, read inline Light.color and Light.intensity and accumulate (r + g + b) × intensity × (1 − distance² / 2500). No values change.",
-        "tests": "Nested struct access, distance filtering and a scalar reduction in one query pass. Query creation is excluded.",
+        "description": "Require the light tag plus position and nested light fields, matching SpotLights and PointLights. For lights within radius 50 of the origin, read inline Light.color and Light.intensity and accumulate (r + g + b) × intensity × (1 − distance² / 2500). No values change.",
+        "tests": "Tag-filtered query traversal, nested struct access, distance filtering and a scalar reduction in one pass. Query creation is excluded.",
     },
     {
         "id": "position_lookup", "title": "Shuffled position lookup", "unit": "IDs looked up",
@@ -172,19 +172,22 @@ def load_core(source, files):
         timed = read_csv(files[f"core/{backend}-timing.csv"]["text"])
         measured = read_csv(files[f"core/{backend}-memory.csv"]["text"])
         for case in CORE_CASES[:-1]:
-            samples = [r for r in timed if r["operation"] == case["id"]]
-            memory = [r for r in measured if r["operation"] == case["id"]]
-            if len(samples) != run["samples"] or len(memory) != run["samples"]:
-                raise ValueError(f"Missing samples: {backend} {case['id']}")
-            median = lambda key: statistics.median(int(r[key]) for r in memory)
-            summary.append(dict(operation=case["id"], backend=label, workers=None,
-                time=statistics.median(float(r["total_ms"]) for r in samples),
-                minimum=min(float(r["total_ms"]) for r in samples),
-                maximum=max(float(r["total_ms"]) for r in samples),
-                operations=int(samples[0]["operations"]),
-                requests=statistics.median(int(r["allocations"])+int(r["reallocations"]) for r in memory),
-                delta=statistics.median(int(r["live_bytes"])-int(r["before_bytes"]) for r in memory),
-                peak=statistics.median(int(r["peak_bytes"])-int(r["before_bytes"]) for r in memory)))
+            variants = [(case["id"], None)]
+            if backend == "data" and case["id"] == "create_population":
+                variants = [("create_population", "AoS"), ("create_population_soa", "SoA")]
+            for operation, variant in variants:
+                samples = [r for r in timed if r["operation"] == operation]
+                memory = [r for r in measured if r["operation"] == operation]
+                if len(samples) != run["samples"] or len(memory) != run["samples"]:
+                    raise ValueError(f"Missing samples: {backend} {operation}")
+                summary.append(dict(operation=case["id"], backend=label, variant=variant, workers=None,
+                    time=statistics.median(float(r["total_ms"]) for r in samples),
+                    minimum=min(float(r["total_ms"]) for r in samples),
+                    maximum=max(float(r["total_ms"]) for r in samples),
+                    operations=int(samples[0]["operations"]),
+                    requests=statistics.median(int(r["allocations"])+int(r["reallocations"]) for r in memory),
+                    delta=statistics.median(int(r["live_bytes"])-int(r["before_bytes"]) for r in memory),
+                    peak=statistics.median(int(r["peak_bytes"])-int(r["before_bytes"]) for r in memory)))
     return {"run":run,"summary":summary}
 
 def validate_unity_core(rows, reference, population, samples):

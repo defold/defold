@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -19,7 +21,7 @@ Query CreateLightColorQuery(Backend* store, const Fixture* input, uint64_t tag)
     out.m_Tag = tag;
     if (!store->m_Kind)
     {
-        DataQueryField color = { .m_Field = g_Fields[LIGHT], .m_Type = DATA_VALUE_TYPE_VECTOR3, .m_Path = &g_Fields[COLOR], .m_PathCount = 1 };
+        DataQueryField color = { .m_Field = g_LightColor, .m_Type = DATA_TYPE_VECTOR3 };
         DataQueryDesc  desc = { .m_AllTags = tag ? &tag : 0, .m_AllTagCount = tag ? 1u : 0u, .m_Fields = &color, .m_FieldCount = 1 };
         Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create light color query");
         out.m_ColorField = DataQueryFindField(out.m_Data, &color);
@@ -118,7 +120,7 @@ static Stats ExpectedLightColor(const Fixture* input, const Query* query, bool e
         uint32_t count = t->m_Count + (extra ? t->m_Extra : 0);
         for (uint32_t r = 0; r < count; ++r)
         {
-            stats.m_Sum += SumVector(t->m_LightValues[r * 2].m_Vector3);
+            stats.m_Sum += SumVector(((const Light*)FixtureField(t, r, f))->color.m_Values);
             ++stats.m_Rows;
         }
     }

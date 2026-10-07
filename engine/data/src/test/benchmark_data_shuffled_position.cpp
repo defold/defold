@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -57,7 +59,7 @@ void MeasureShuffledPosition(Backend* store, const Fixture* input, uint32_t samp
     {
         RowKey           key = input->m_Order[i];
         const TypeInput* t = &input->m_Types[key.m_Type];
-        expected += SumVector(t->m_Values[(size_t)key.m_Row * t->m_FieldCount + FindField(t, POSITION)].m_Vector3) + 1;
+        expected += SumVector(((const Vector3*)FixtureField(t, key.m_Row, FindField(t, POSITION)))->m_Values) + 1;
     }
     uint64_t start = BeginOperation();
     stats = store->m_Kind ? ShuffledPosition_Flecs(store, input) : ShuffledPosition_Defold(store, input);
@@ -75,7 +77,7 @@ void MeasureShuffledPosition(Backend* store, const Fixture* input, uint32_t samp
                 Check(DataFieldGetVector3(store->m_Data, store->m_Ids[t->m_Offset + r], g_Fields[POSITION], &actual) == DATA_RESULT_OK, "validate shuffled position read");
             else
                 memcpy(actual.m_Values, FlecsField(store, t, ti, r, POSITION), sizeof(actual.m_Values));
-            const float* base = t->m_Values[(size_t)r * t->m_FieldCount + position].m_Vector3;
+            const float* base = ((const Vector3*)FixtureField(t, r, position))->m_Values;
             Check(actual.m_Values[0] == base[0] + 1 && actual.m_Values[1] == base[1] && actual.m_Values[2] == base[2], "per-instance position update");
         }
     }
@@ -130,7 +132,7 @@ static Stats ExpectedPositionLookup(const Fixture* input)
     {
         RowKey           key = input->m_Order[i];
         const TypeInput* type = &input->m_Types[key.m_Type];
-        expected.m_Sum += SumVector(type->m_Values[(size_t)key.m_Row * type->m_FieldCount + FindField(type, POSITION)].m_Vector3);
+        expected.m_Sum += SumVector(((const Vector3*)FixtureField(type, key.m_Row, FindField(type, POSITION)))->m_Values);
         ++expected.m_Rows;
     }
     return expected;

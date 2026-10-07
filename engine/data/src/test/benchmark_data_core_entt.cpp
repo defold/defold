@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -24,7 +26,7 @@ static void ValidateValues(CoreEnttStore* store, const Fixture* input, bool extr
         {
             CoreEnttEntity id = store->m_Ids[type->m_Offset + r];
             Check(store->m_Registry.valid(id), "EnTT live identity");
-            Check(store->m_Registry.get<CoreEnttOwner>(id).m_Value == type->m_Owners[r], "EnTT owner");
+            Check(store->m_Registry.get<CoreEnttOwner>(id).m_Value == type->m_Groups[r], "EnTT owner");
             Check(store->m_Registry.get<CoreEnttIdentity>(id).m_Value == type->m_ComponentIds[r], "EnTT component identity");
             const Vector3& position = store->m_Registry.get<CoreEnttPosition>(id).m_Value;
             for (uint32_t axis = 0; axis < 3; ++axis)

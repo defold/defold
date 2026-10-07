@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -24,7 +26,7 @@ namespace Defold.Data.Benchmarks
     {
         public static void Run(string output, int count, int samples)
         {
-            using var fixture = new Fixture(count, TypeHashes());
+            using var fixture = new Fixture(count);
             using var writer = new StreamWriter(output);
             writer.WriteLine(
             "# backend=Unity; Burst + IL2CPP; one warmup; seven standalone cases; memory not measured");
@@ -235,48 +237,6 @@ namespace Defold.Data.Benchmarks
             Values.Check(movement.CalculateEntityCount() == moving && explosion.CalculateEntityCount() == damageable &&
                          lights.CalculateEntityCount() == lit,
                          "live queries after spawn/despawn");
-        }
-
-        // Defold's endian-neutral MurmurHash2A, evaluated only during fixture setup.
-        static ulong Mix(ulong hash, ulong value)
-        {
-            unchecked
-            {
-                value *= 0xc6a4a7935bd1e995UL;
-                value ^= value >> 47;
-                value *= 0xc6a4a7935bd1e995UL;
-                return hash * 0xc6a4a7935bd1e995UL ^ value;
-            }
-        }
-        static ulong Hash(string name)
-        {
-            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(name);
-            ulong hash = 0, tail = 0;
-            int i = 0;
-            for (; i + 8 <= bytes.Length; i += 8)
-            {
-                ulong value = 0;
-                for (int j = 0; j < 8; ++j)
-                    value |= (ulong)bytes[i + j] << (j * 8);
-                hash = Mix(hash, value);
-            }
-            for (int j = 0; i + j < bytes.Length; ++j)
-                tail |= (ulong)bytes[i + j] << (j * 8);
-            hash = Mix(Mix(hash, tail), (ulong)bytes.Length);
-            unchecked
-            {
-                hash ^= hash >> 47;
-                hash *= 0xc6a4a7935bd1e995UL;
-                return hash ^ (hash >> 47);
-            }
-        }
-        static ulong[] TypeHashes()
-        {
-            string[] names = { "SpotLight", "PointLight", "Player", "Enemy", "Pickup", "Breakable" };
-            var hashes = new ulong[names.Length];
-            for (int i = 0; i < names.Length; ++i)
-                hashes[i] = Hash(names[i]);
-            return hashes;
         }
     }
 }

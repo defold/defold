@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -22,7 +24,7 @@ struct FlecsThreadedLight
 };
 struct FlecsThreadedIds
 {
-    ecs_entity_t m_Position, m_Health, m_Velocity, m_Light, m_Extra[6], m_Tags[6];
+    ecs_entity_t m_Position, m_Health, m_Velocity, m_Light, m_LightTag, m_Extra[6], m_Tags[6];
 };
 // Common is first so the shared job completion/reduction code can borrow it.
 struct FlecsThreadedUpdate

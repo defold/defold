@@ -25,6 +25,8 @@ pub struct Light {
     pub intensity: f64,
 }
 #[derive(Component)]
+pub struct LightTag;
+#[derive(Component)]
 pub struct Spot(pub [f64; 3]);
 #[derive(Component)]
 pub struct Point(pub f64);

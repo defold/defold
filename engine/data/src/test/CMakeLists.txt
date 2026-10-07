@@ -17,6 +17,7 @@ endif()
 
 # Caller-owned jobs exercise the data library without requiring Flecs.
 set(DATA_THREADED_SOURCES
+  "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_resources.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_threaded_fixture.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_threaded.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_threaded_movement.cpp"
@@ -118,6 +119,8 @@ if(DEFOLD_DATA_FLECS_DIR)
   defold_target_link_libraries(benchmark_data "${TARGET_PLATFORM}" dlib profile_null)
 
   set(DATA_MIXED_BENCHMARK_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_fixture.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_resources.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_mixed.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_common.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_core.cpp"
@@ -187,3 +190,40 @@ if(DEFOLD_DATA_FLECS_DIR AND DEFOLD_DATA_ENTT_DIR)
   target_link_libraries(benchmark_data_size_flecs PRIVATE data_benchmark_flecs_threaded)
   target_link_libraries(benchmark_data_size_entt PRIVATE data_benchmark_entt)
 endif()
+
+# Serialize resources outside every benchmark binary and timed phase.
+set(DATA_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/fixtures")
+set(DATA_FIXTURE_SOURCES data_fixture_writer.cpp benchmark_data_threaded_fixture.cpp)
+if(DEFOLD_DATA_FLECS_DIR)
+  list(APPEND DATA_FIXTURE_SOURCES benchmark_data_fixture.cpp)
+endif()
+defold_add_executable(data_fixture_writer ${DATA_FIXTURE_SOURCES})
+set_target_properties(data_fixture_writer PROPERTIES EXCLUDE_FROM_ALL TRUE)
+target_link_libraries(data_fixture_writer PRIVATE data)
+defold_target_link_libraries(data_fixture_writer "${TARGET_PLATFORM}" dlib profile_null)
+if(DEFOLD_DATA_FLECS_DIR)
+  target_compile_definitions(data_fixture_writer PRIVATE DATA_FIXTURE_MIXED)
+  target_link_libraries(data_fixture_writer PRIVATE data_benchmark_flecs)
+endif()
+add_custom_command(OUTPUT "${DATA_FIXTURE_DIR}/ready"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${DATA_FIXTURE_DIR}"
+  COMMAND $<TARGET_FILE:data_fixture_writer> "${DATA_FIXTURE_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E touch "${DATA_FIXTURE_DIR}/ready"
+  DEPENDS data_fixture_writer VERBATIM)
+add_custom_target(data_benchmark_fixtures DEPENDS "${DATA_FIXTURE_DIR}/ready")
+foreach(target benchmark_data_mixed benchmark_data_memory benchmark_data_core_entt benchmark_data_core_entt_memory benchmark_data_threaded benchmark_data_threaded_memory benchmark_data_blob_load)
+  if(TARGET ${target})
+    add_dependencies(${target} data_benchmark_fixtures)
+    target_compile_definitions(${target} PRIVATE DATA_BENCHMARK_FIXTURE_DIR="${DATA_FIXTURE_DIR}")
+  endif()
+endforeach()
+
+# Benchmarks exercise the same data API available to clients. Reject accidental
+# private includes, including those introduced through shared fixture headers.
+get_property(DATA_TEST_TARGETS DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(target IN LISTS DATA_TEST_TARGETS)
+  if(target MATCHES "^benchmark_")
+    target_compile_definitions(${target} PRIVATE DATA_PUBLIC_API_ONLY)
+  endif()
+endforeach()
+set_source_files_properties(test_data_c.c PROPERTIES COMPILE_DEFINITIONS DATA_PUBLIC_API_ONLY)

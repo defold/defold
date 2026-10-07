@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -20,8 +22,8 @@ Query CreateHealthPositionQuery(Backend* store, const Fixture* input, uint64_t t
     if (!store->m_Kind)
     {
         DataQueryField fields[] = {
-            { .m_Field = g_Fields[HEALTH], .m_Type = DATA_VALUE_TYPE_NUMBER },
-            { .m_Field = g_Fields[POSITION], .m_Type = DATA_VALUE_TYPE_VECTOR3 }
+            { .m_Field = g_Fields[HEALTH], .m_Type = DATA_TYPE_NUMBER },
+            { .m_Field = g_Fields[POSITION], .m_Type = DATA_TYPE_VECTOR3 }
         };
         DataQueryDesc desc = { .m_AllTags = tag ? &tag : 0, .m_AllTagCount = tag ? 1u : 0u, .m_Fields = fields, .m_FieldCount = 2 };
         Check(DataCreateQuery(store->m_Data, &desc, &out.m_Data) == DATA_RESULT_OK, "create health position query");
@@ -134,8 +136,7 @@ static Stats ExpectedHealthPosition(const Fixture* input, const Query* query, bo
         uint32_t count = t->m_Count + (extra ? t->m_Extra : 0);
         for (uint32_t r = 0; r < count; ++r)
         {
-            const DataValueData* values = &t->m_Values[(size_t)r * t->m_FieldCount];
-            stats.m_Sum += values[f].m_Number + SumVector(values[position].m_Vector3);
+            stats.m_Sum += *(const double*)FixtureField(t, r, f) + SumVector(((const Vector3*)FixtureField(t, r, position))->m_Values);
             ++stats.m_Rows;
         }
     }
