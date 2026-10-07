@@ -44,6 +44,21 @@ TextLine* TextLayoutGetLines(HTextLayout layout)
     return layout->m_Lines.Begin();
 }
 
+float TextLayoutGetLineOriginX(HTextLayout layout, uint32_t line_index)
+{
+    if (!layout->m_LineOrigins.Empty())
+        return layout->m_LineOrigins[line_index];
+
+    const TextLine& line = layout->m_Lines[line_index];
+    if (line.m_Length == 0)
+        return 0.0f;
+
+    float origin_x = layout->m_Glyphs[line.m_Index].m_X;
+    for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
+        origin_x = fminf(origin_x, layout->m_Glyphs[i].m_X);
+    return origin_x;
+}
+
 uint32_t TextLayoutGetParagraphCount(HTextLayout layout)
 {
     return layout->m_Paragraphs.Size();
@@ -322,14 +337,13 @@ uint8_t TextLayoutGetObjectPosition(HTextLayout layout, const TextLayoutObject* 
 
         uint32_t first_cluster = layout->m_Glyphs[line.m_Index].m_Cluster;
         uint32_t last_cluster = first_cluster;
-        float first_x = layout->m_Glyphs[line.m_Index].m_X;
+        const float first_x = TextLayoutGetLineOriginX(layout, line_index);
 
         for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
         {
             const TextGlyph& glyph = layout->m_Glyphs[i];
             first_cluster = first_cluster < glyph.m_Cluster ? first_cluster : glyph.m_Cluster;
             last_cluster = last_cluster > glyph.m_Cluster ? last_cluster : glyph.m_Cluster;
-            first_x = fminf(first_x, glyph.m_X);
         }
 
         if (object->m_TextOffset > last_cluster && line_index + 1 < paragraph.m_LineIndex + paragraph.m_LineCount)
@@ -1201,12 +1215,8 @@ static void TextLayoutUpdateObjectBounds(HTextLayout layout, const TextLayoutHit
             continue;
         }
 
-        float       first_x = glyphs[line.m_Index].m_X;
+        const float first_x = TextLayoutGetLineOriginX(layout, line_index);
         const float first_y = glyphs[line.m_Index].m_Y;
-        for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
-        {
-            first_x = fminf(first_x, glyphs[i].m_X);
-        }
 
         const uint32_t align = TextLayoutResolveAlign(params.m_Align, paragraphs[line.m_ParagraphIndex].m_Direction);
         const float    line_x = TextLayoutOffsetX(align, params.m_Width) - TextLayoutOffsetX(align, line.m_Width) - params.m_MonospacePadding * 0.5f;
