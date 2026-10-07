@@ -300,7 +300,7 @@
         metrics-collector (:metrics opts)
         full-invalidation (:full-invalidation opts false)]
     (assoc (it/new-transaction-context basis node-id-generator override-id-generator tx-data-context-map metrics-collector full-invalidation
-                                       (:shell-node-id->materialize-info-atom system)
+                                       (:node-materializations system)
                                        (:materializations system))
       :initial-invalidate-counters (:invalidate-counters system)
       :initial-materialization-invalidate-counters (:materialization-invalidate-counters system))))
@@ -415,13 +415,18 @@
 (defn construct-shell
   "Constructs a node whose non-unjammable outputs materialize it on demand.
   materialize-fn receives the node-id and evaluation-context and returns the
-  transaction steps that populate it. Default setters run on materialization."
+  transaction steps that populate it. It must materialize its prerequisites via
+  materialize-prerequisites! before returning steps. These steps can initialize
+  this node, create substructure and add connections, but cannot alter existing
+  external state. Materialization replaces the shell with a regular node and
+  runs its default setters before applying the returned steps."
   [node-type properties materialize-fn]
   (in/construct-shell node-type properties materialize-fn))
 
 (defn materialize-shell
-  "Transaction step that marks a shell as materialized and runs its default
-  setters. Used before applying load steps that have already been generated."
+  "Non-undoable transaction step that replaces a shell with a regular node and
+  runs its default setters. Preserves its id, properties and connections. Used
+  before applying load steps that have already been generated."
   [node-id]
   (it/materialize-shell node-id))
 
@@ -429,6 +434,12 @@
   "Materializes a shell before inspecting its structure in evaluation-context."
   [node-id evaluation-context]
   (it/materialize-node! node-id evaluation-context))
+
+(defn materialize-prerequisites!
+  "Registers and materializes a shell's direct prerequisites. Call from its
+  materialize-fn before producing its own transaction steps."
+  [node-id prerequisite-node-ids evaluation-context]
+  (it/materialize-prerequisites! node-id prerequisite-node-ids evaluation-context))
 
 (defn non-undoable
   "Marks a sequence of transaction steps so its effects are applied, but its

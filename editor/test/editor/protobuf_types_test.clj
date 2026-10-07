@@ -262,6 +262,7 @@
                                      "/test.atlas"
                                      "/builtins/materials/sprite.material"]})
 
+;; Dependency extraction tolerates broken embedded data even if loading prerequisites would fail.
 (deftest broken-embedded-data-gives-no-dependencies
   (log/without-logging ; skip warnings about <<<<<<<< in game.project, BORK in go/collection
     (with-clean-system
@@ -276,12 +277,12 @@
                   resource-path (resource/resource->proj-path resource)
                   resource-type (resource/resource-type resource)
                   dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
-                  _ (g/node-value node-id :save-value)
-                  source-value (g/node-value node-id :source-value)]
+                  read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+                  source-value (:source-value (project/read-node-load-info read-opts node-id resource))]
               (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
               (is (= (sort (non-broken-dependencies resource-path))
                      (sort (dependencies-fn
-                             (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+                             read-opts
                              resource
                              source-value)))
                   resource-path))))))))

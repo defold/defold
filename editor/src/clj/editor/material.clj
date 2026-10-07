@@ -597,12 +597,15 @@
             new-name-index (util/name-index new-names identity)
             renames (util/detect-renames old-name-index new-name-index)
             deletions (util/detect-deletions old-name-index new-name-index)]
-        (into []
-              (comp
-                (map gt/target-id)
-                (distinct)
-                (mapcat #(handle-sampler-names-changed evaluation-context % old-name-index new-name-index renames deletions)))
-              (g/outputs (g/ec-basis evaluation-context) self label))))))
+        ;; Initializing samplers cannot rename or delete existing bindings.
+        ;; Avoid querying dependent resources while this material is loading.
+        (when (or (coll/not-empty renames) (coll/not-empty deletions))
+          (into []
+                (comp
+                  (map gt/target-id)
+                  (distinct)
+                  (mapcat #(handle-sampler-names-changed evaluation-context % old-name-index new-name-index renames deletions)))
+                (g/outputs (g/ec-basis evaluation-context) self label)))))))
 
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)

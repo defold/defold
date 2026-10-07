@@ -449,44 +449,55 @@
   (node-type [_] _node-type)
 
   (get-property [this basis property]
-    (let [^ShellNode this (shell-node-resolve basis this _node-id)]
-      (when (and (.-_materialize-fn this)
-                 (not (shell-node-safe-output? _node-type property)))
-        (throw
-          (ex-info
-            "Cannot read a property of an unmaterialized shell node without an evaluation-context."
-            {:node-id _node-id
-             :property property})))
-      (let [value (get this property ::not-found)]
-        (if (identical? value ::not-found)
-          (get (defaults _node-type) property)
-          value))))
+    (let [node (shell-node-resolve basis this _node-id)]
+      (if-not (instance? ShellNode node)
+        (gt/get-property node basis property)
+        (do
+          (when (and (.-_materialize-fn ^ShellNode node)
+                     (not (shell-node-safe-output? (gt/node-type node) property)))
+            (throw
+              (ex-info
+                "Cannot read a property of an unmaterialized shell node without an evaluation-context."
+                {:node-id _node-id
+                 :property property})))
+          (get node property (get (defaults (gt/node-type node)) property))))))
 
   (set-property [this basis property value]
-    (let [^ShellNode this (shell-node-resolve basis this _node-id)]
-      (assert (has-property? _node-type property)
-              (str "No such property " property " on " (:name @_node-type)))
-      (assoc this property value)))
+    (let [node (shell-node-resolve basis this _node-id)]
+      (if-not (instance? ShellNode node)
+        (gt/set-property node basis property value)
+        (throw
+          (ex-info "Cannot change a property of an unmaterialized shell node."
+                   {:node-id _node-id
+                    :property property})))))
 
   (assigned-properties [this basis]
-    (let [^ShellNode this (shell-node-resolve basis this _node-id)]
-      (.__extmap this)))
+    (let [node (shell-node-resolve basis this _node-id)]
+      (if (instance? ShellNode node)
+        (.__extmap ^ShellNode node)
+        (gt/assigned-properties node basis))))
 
   (overridden-properties [_] {})
   (property-overridden? [_ _property] false)
 
   gt/Evaluation
   (produce-value [this label evaluation-context]
-    (let [^ShellNode this (shell-node-resolve (evaluation-context-basis evaluation-context) this _node-id)]
-      (if (and (.-_materialize-fn this)
-               (not (shell-node-safe-output? _node-type label)))
-        (let [materialize-node! (:materialize-node! evaluation-context)
-              _ (materialize-node! _node-id evaluation-context)
-              materialized-node (ig/node-by-id-at (evaluation-context-basis evaluation-context) _node-id)]
-          (gt/produce-value materialized-node label evaluation-context))
-        (let [beh (behavior _node-type label)]
-          (assert beh (str "No such output, input, or property " label " on " (:name @_node-type)))
-          ((:fn beh) this label evaluation-context)))))
+    (let [node (shell-node-resolve (evaluation-context-basis evaluation-context) this _node-id)]
+      (cond
+        (not (instance? ShellNode node))
+        (gt/produce-value node label evaluation-context)
+
+        (and (.-_materialize-fn ^ShellNode node)
+             (not (shell-node-safe-output? (gt/node-type node) label)))
+        (let [materialize-node! (:materialize-node! evaluation-context)]
+          (materialize-node! _node-id evaluation-context)
+          (gt/produce-value (ig/node-by-id-at (evaluation-context-basis evaluation-context) _node-id)
+                            label evaluation-context))
+
+        :else
+        (let [beh (behavior (gt/node-type node) label)]
+          (assert beh (str "No such output, input, or property " label " on " (:name @(gt/node-type node))))
+          ((:fn beh) node label evaluation-context)))))
 
   gt/OverrideNode
   (clear-property [_ _basis property]
@@ -527,7 +538,7 @@
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context :materialize-node! :node-id-generator :override-id-generator :shell-node-id->materialize-info-atom :materializations :initial-materialization-invalidate-counters} (coll/keys options)) (str (coll/keys options)))
+  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context :materialize-node! :node-id-generator :override-id-generator :node-materializations :materializations :initial-materialization-invalidate-counters} (coll/keys options)) (str (coll/keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
@@ -798,7 +809,10 @@
   {:pre [(or (nil? materialize-fn) (ifn? materialize-fn))]}
   (validate-property-labels node-type-ref properties)
   (validate-property-values node-type-ref (:_node-id properties) properties)
-  (coll/merge (->ShellNode nil node-type-ref materialize-fn) properties))
+  (coll/merge (if materialize-fn
+                (->ShellNode nil node-type-ref materialize-fn)
+                (->NodeImpl nil node-type-ref))
+              properties))
 
 ;;; ----------------------------------------
 ;;; Node type implementation

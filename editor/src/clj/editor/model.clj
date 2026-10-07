@@ -38,7 +38,8 @@
             [editor.validation :as validation]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.eduction :as e])
   (:import [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
            [editor.gl.shader ShaderLifecycle]))
 
@@ -660,17 +661,26 @@
 
 (defn- migrated? [model-node-id model-desc evaluation-context]
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
-  (let [model-node-materials (g/node-value model-node-id :materials evaluation-context)]
-    (if (g/error? model-node-materials)
-      false
-      (let [material-name->model-node-material (coll/pair-map-by :name model-node-materials)]
-        (some (fn [model-desc-material]
-                (let [material-name (:name model-desc-material)
-                      model-node-material (material-name->model-node-material material-name)
-                      model-desc-sampler-names (into #{} (map :sampler) (:textures model-desc-material))
-                      model-node-sampler-names (into #{} (map :sampler) (:textures model-node-material))]
-                  (not= model-desc-sampler-names model-node-sampler-names)))
-              (:materials model-desc))))))
+  ;; Only sampler names affect this migration. Pulling :materials also evaluates
+  ;; GPU texture generators and vertex data, which are not load prerequisites.
+  (let [basis (g/ec-basis evaluation-context)
+        material-name->sampler-names
+        (coll/into-> (g/inputs basis model-node-id :material-binding-infos) {}
+          (keep (fn [{material-binding-node-id :source-id}]
+                  (let [samplers (g/node-value material-binding-node-id :samplers evaluation-context)]
+                    (when-not (g/error? samplers)
+                      (let [name (g/node-value material-binding-node-id :name evaluation-context)
+                            texture-binding-infos
+                            (coll/into-> (g/inputs basis material-binding-node-id :texture-binding-infos) []
+                              (map (fn [{texture-binding-node-id :source-id}]
+                                     {:sampler (g/node-value texture-binding-node-id :sampler evaluation-context)})))
+                            renamed-bindings (detect-and-apply-renames texture-binding-infos samplers)]
+                        (pair name (into #{} (map :sampler) renamed-bindings))))))))]
+    (coll/any? (fn [model-desc-material]
+                (when-let [sampler-names (material-name->sampler-names (:name model-desc-material))]
+                  (not= (into #{} (map :sampler) (:textures model-desc-material))
+                        sampler-names)))
+              (:materials model-desc))))
 
 (defn- detect-and-flag-migrated! [evaluation-context model-node-id model-desc]
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
@@ -718,6 +728,17 @@
                                                    :texture tex-name)))
                                              textures))]))))
 
+(defn model-prerequisites [read-opts owner-resource model-desc]
+  ;; Mesh selection evaluates the imported scene. Migration checks resolve
+  ;; material sampler names. Both use settings supplied by game.project.
+  (let [resolve-proj-path (:resolve-proj-path-fn read-opts)]
+    (into []
+          (comp (remove coll/empty?)
+                (map #(resolve-proj-path owner-resource %))
+                (distinct))
+          (e/concat ["/game.project" (:mesh model-desc)]
+                    (e/map :material (:materials model-desc))))))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "model"
@@ -725,6 +746,7 @@
     :node-type ModelNode
     :ddf-type ModelProto$ModelDesc
     :load-fn load-model
+    :prerequisites-fn model-prerequisites
     :sanitize-fn sanitize-model
     :icon model-icon
     :icon-class :design

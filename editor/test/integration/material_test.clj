@@ -16,10 +16,12 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.form :as form]
+            [editor.material :as material]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -148,3 +150,25 @@
         (test-util/with-prop [node-id :fragment-program v]
           (is (g/error? (g/node-value node-id :shader)))
           (is (g/error? (g/node-value node-id :build-targets))))))))
+
+(g/defnode SamplerNotificationTarget
+  (input samplers g/Any))
+
+;; Initial sampler assignment must not query consumers; edits still notify renames and deletions.
+(deftest initial-samplers-do-not-notify-dependent-resources-test
+  (with-clean-system
+    (let [source (g/make-node! material/MaterialNode)
+          target (g/make-node! SamplerNotificationTarget)
+          notifications (atom [])]
+      (g/transact (g/connect source :samplers target :samplers))
+      (with-redefs [material/handle-sampler-names-changed
+                    (fn [_evaluation-context target _old-index _new-index renames deletions]
+                      (swap! notifications conj [target renames deletions])
+                      nil)]
+        (g/transact (g/set-property source :samplers [{:name "first"}]))
+        (is (= [] @notifications))
+        (g/transact (g/set-property source :samplers [{:name "renamed"}]))
+        (is (= 1 (count @notifications)))
+        (is (= target (ffirst @notifications)))
+        (g/transact (g/set-property source :samplers []))
+        (is (= 2 (count @notifications)))))))

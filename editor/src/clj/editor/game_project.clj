@@ -425,6 +425,13 @@
     :node-type GameProjectNode
     :connect-fn connect-game-project
     :load-fn load-game-project
+    :prerequisites-fn (fn [read-opts _owner-resource _source-value]
+                       ;; Settings evaluation incorporates project and extension
+                       ;; metadata from the globally connected .properties files.
+                       (coll/into-> (:proj-path->resource read-opts) []
+                         (keep (fn [[proj-path resource]]
+                                 (when (= "properties" (resource/type-ext resource))
+                                   proj-path)))))
     :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon
     :icon-class :property

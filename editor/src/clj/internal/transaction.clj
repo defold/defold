@@ -49,6 +49,10 @@
 
 (def ^:dynamic *tx-debug* nil)
 
+;; Tracks the owner while producing and realizing its load steps. Prerequisite
+;; loading is the only phase allowed to start another materialization.
+(def ^:dynamic *materialization* nil)
+
 (def ^:private ^AtomicInteger next-txid (AtomicInteger. 1))
 (defn- new-txid [] (.getAndIncrement next-txid))
 
@@ -143,7 +147,7 @@
 (defn- make-evaluation-context [ctx]
   (in/custom-evaluation-context
     {:basis (:basis ctx)
-     :shell-node-id->materialize-info-atom (:shell-node-id->materialize-info-atom ctx)
+     :node-materializations (:node-materializations ctx)
      :materializations (:materializations ctx)
      :initial-invalidate-counters (:initial-invalidate-counters ctx)
      :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters ctx)
@@ -585,6 +589,10 @@
 
 (defn- realize-transfer-overrides
   [ctx undoable-changes from-id->to-id]
+  (when (:basis *materialization*)
+    (throw (ex-info "Materialization cannot transfer existing overrides."
+                    {:node-id (:node-id *materialization*)
+                     :from-id->to-id from-id->to-id})))
   ;; This method updates the existing override layer to use the to-id as the
   ;; root of the override layer. It also updates the "first level" (i.e. direct)
   ;; override nodes that have from-id as their original to instead have to-id as
@@ -769,6 +777,13 @@
   [ctx undoable-changes node property-label old-value new-value]
   (let [basis (:basis ctx)
         node-id (gt/node-id node)
+        _ (when (and (:basis *materialization*)
+                     (not= (:node-id *materialization*) node-id)
+                     (ig/node-by-id-at (:basis *materialization*) node-id))
+            (throw (ex-info "Materialization cannot modify an existing external node."
+                            {:node-id (:node-id *materialization*)
+                             :modified-node-id node-id
+                             :property property-label})))
         node-type (gt/node-type node)
         assigned-properties (gt/assigned-properties node basis)
         property-assigned (contains? assigned-properties property-label)
@@ -803,6 +818,8 @@
     (if-not node
       (pair ctx undoable-changes)
       (let [evaluation-context (make-evaluation-context ctx)
+            _ (materialize-node! node-id evaluation-context)
+            node (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id)
             old-value (in/node-property-value node property-label evaluation-context)
             ctx (apply-evaluation-context ctx evaluation-context)
             node (ig/node-by-id-at (:basis ctx) node-id)]
@@ -815,6 +832,8 @@
     (if-not node
       (pair ctx undoable-changes)
       (let [evaluation-context (make-evaluation-context ctx)
+            _ (materialize-node! node-id evaluation-context)
+            node (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id)
             old-value (in/node-property-value node property-label evaluation-context)
             new-value (if (:inject-evaluation-context opts)
                         (apply update-fn evaluation-context old-value args)
@@ -825,6 +844,12 @@
 
 (defn- realize-clear-property
   [ctx undoable-changes node-id property-label]
+  (when (and (:basis *materialization*)
+             (ig/node-by-id-at (:basis *materialization*) node-id))
+    (throw (ex-info "Materialization cannot clear a property of an existing node."
+                    {:node-id (:node-id *materialization*)
+                     :modified-node-id node-id
+                     :property property-label})))
   (let [basis (:basis ctx)
         node (ig/node-by-id-at basis node-id)]
     (if-not node
@@ -954,7 +979,10 @@
       ctx
       (let [target-id (gt/target-id arc)
             target-label (gt/target-label arc)]
-        (cond-> (assoc ctx :basis new-basis)
+        (cond-> (-> ctx
+                    (assoc :basis new-basis)
+                    (mark-input-activated target-id target-label)
+                    (mark-successor-arcs-changed [arc]))
           (contains? (in/cascade-deletes target-node-type) target-label)
           (mark-override-nodes-affected target-id false))))))
 
@@ -1074,11 +1102,30 @@
   (revert [_this ctx]
     (ctx-revert-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id)))
 
+(defonce/type MaterializationAddNodesTXC [nodes]
+  TransactionChange
+  (perform [_ ctx]
+    ;; Override slots, like arc slots, belong to the destination basis.
+    (if-let [{:keys [added-nodes introduced-node-id->pkid->override-node-id]}
+             (ig/basis-plan-add-nodes (:basis ctx) nodes)]
+      (ctx-perform-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id)
+      ctx))
+  (revert [_ _ctx]
+    (throw (UnsupportedOperationException. "Materializations are not undoable."))))
+
 (defn- realize-add-nodes [ctx undoable-changes added-nodes]
+  (when (and (:basis *materialization*)
+             (coll/any? #(ig/node-by-id-at (:basis *materialization*) (gt/node-id %)) added-nodes))
+    (throw (ex-info "Materialization cannot replace existing nodes."
+                    {:node-id (:node-id *materialization*)
+                     :added-node-ids (mapv gt/node-id added-nodes)})))
   (if-let [{:keys [added-nodes
                    introduced-node-id->pkid->override-node-id]}
            (ig/basis-plan-add-nodes (:basis ctx) added-nodes)]
-    (-> (perform-and-conj-change ctx undoable-changes (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id))
+    (-> (perform-and-conj-change ctx undoable-changes
+          (if (:basis *materialization*)
+            (->MaterializationAddNodesTXC added-nodes)
+            (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id)))
         (coll/reduce=> added-nodes
           (fn [[ctx undoable-changes] added-node]
             (if (in/unmaterialized-shell-node? added-node)
@@ -1140,13 +1187,32 @@
   (revert [_this ctx]
     (ctx-revert-delete-nodes ctx deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id)))
 
+(defonce/type MaterializationDeleteNodesTXC [node-ids]
+  TransactionChange
+  (perform [_ ctx]
+    (if-let [{:keys [deleted-nodes removed-arc->source+target-pkids
+                     removed-overrides-by-id removed-node-id->pkid->override-node-id]}
+             (ig/basis-plan-delete-nodes (:basis ctx) node-ids)]
+      (ctx-perform-delete-nodes ctx deleted-nodes removed-arc->source+target-pkids
+                                removed-overrides-by-id removed-node-id->pkid->override-node-id)
+      ctx))
+  (revert [_ _ctx]
+    (throw (UnsupportedOperationException. "Materializations are not undoable."))))
+
 (defn- realize-delete-nodes [ctx undoable-changes deleted-node-ids]
   (if-let [{:keys [deleted-nodes
                    removed-arc->source+target-pkids
                    removed-node-id->pkid->override-node-id
                    removed-overrides-by-id]}
            (ig/basis-plan-delete-nodes (:basis ctx) deleted-node-ids)]
-    (let [change (->DeleteNodesTXC deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id)]
+    (let [change (if-not (:basis *materialization*)
+                   (->DeleteNodesTXC deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id)
+                   (let [node-ids (mapv gt/node-id deleted-nodes)]
+                     (when (coll/any? #(ig/node-by-id-at (:basis *materialization*) %) node-ids)
+                       (throw (ex-info "Materialization cannot delete existing nodes."
+                                       {:node-id (:node-id *materialization*)
+                                        :deleted-node-ids node-ids})))
+                     (->MaterializationDeleteNodesTXC node-ids)))]
       (perform-and-conj-change ctx undoable-changes change))
     (pair ctx undoable-changes)))
 
@@ -1281,6 +1347,10 @@
 
 (defn- realize-update-graph-value
   [ctx undoable-changes graph-value-key update-fn args]
+  (when (:basis *materialization*)
+    (throw (ex-info "Materialization cannot change graph values."
+                    {:node-id (:node-id *materialization*)
+                     :graph-value-key graph-value-key})))
   (if-let [{:keys [graph-value-key
                    old-value
                    new-value]}
@@ -1400,12 +1470,36 @@
 
                 (ig/pre-traverse basis source-override-node-ids-in-target-override traverse-fn)))))))))
 
+(defonce/type MaterializationDisconnectArcTXC [arc]
+  TransactionChange
+  (perform [_ ctx]
+    (if-let [{:keys [arc->source+target-pkids]} (ig/basis-plan-disconnect-arc (:basis ctx) arc)]
+      (ctx-perform-disconnect-arcs ctx arc->source+target-pkids)
+      ctx))
+  (revert [_ _ctx]
+    (throw (UnsupportedOperationException. "Materializations are not undoable."))))
+
+(defonce/type AppendArcTXC [arc]
+  TransactionChange
+  (perform [_ ctx]
+    (let [target-node-type (gt/node-type (ig/node-by-id-at (:basis ctx) (gt/target-id arc)))]
+      (ctx-perform-append-arc ctx arc target-node-type)))
+  (revert [_ _ctx]
+    (throw (UnsupportedOperationException. "Materializations are not undoable."))))
+
 (defn- realize-disconnect
   [ctx undoable-changes arc]
   (if-let [{:keys [arc->source+target-pkids]}
            (ig/basis-plan-disconnect-arc (:basis ctx) arc)]
     (let [undoable (some? undoable-changes)
-          change (->DisconnectArcsTXC arc->source+target-pkids undoable)
+          change (if-not (:basis *materialization*)
+                   (->DisconnectArcsTXC arc->source+target-pkids undoable)
+                   (do
+                     (when (ig/basis-plan-disconnect-arc (:basis *materialization*) arc)
+                       (throw (ex-info "Materialization cannot remove an existing connection."
+                                       {:node-id (:node-id *materialization*)
+                                        :arc arc})))
+                     (->MaterializationDisconnectArcTXC arc)))
           [_source-arc-pkids target-arc-pkids] (arc->source+target-pkids arc)
           ctx+undoable-changes (perform-and-conj-change ctx undoable-changes change)
 
@@ -1431,69 +1525,78 @@
               fast-path (and (nil? undoable-changes)
                              (:full-invalidation ctx))]
           (assert-type-compatible source-id source source-label target-id target target-label)
-          (case (in/input-cardinality target-node-type target-label)
-            :one
-            (if fast-path
-              ;; Regular input, bookkeeping disabled.
-              (if-let [old-arc (first (ig/explicit-arcs-by-target basis target-id target-label))]
-                (if-let [{:keys [new-source-arc-pkids
-                                 old-source-arc-pkids]}
-                         (ig/basis-plan-replace-arc basis old-arc arc)]
-                  (let [new-basis (ig/basis-perform-replace-arc
-                                    basis
-                                    old-arc old-source-arc-pkids
-                                    arc new-source-arc-pkids)]
-                    (if (identical? basis new-basis)
-                      (pair ctx undoable-changes)
-                      (let [deleted-override-node-ids
-                            (override-node-ids-removed-by-disconnect ctx old-arc)
+          (if (:basis *materialization*)
+            (let [old-arc (when (= :one (in/input-cardinality target-node-type target-label))
+                            (first (ig/explicit-arcs-by-target basis target-id target-label)))]
+              (if (= old-arc arc)
+                (pair ctx undoable-changes)
+                (let [[ctx undoable-changes] (if-not old-arc
+                                              (pair ctx undoable-changes)
+                                              (realize-disconnect ctx undoable-changes old-arc))]
+                  (perform-and-conj-change ctx undoable-changes (->AppendArcTXC arc)))))
+            (case (in/input-cardinality target-node-type target-label)
+              :one
+              (if fast-path
+                ;; Regular input, bookkeeping disabled.
+                (if-let [old-arc (first (ig/explicit-arcs-by-target basis target-id target-label))]
+                  (if-let [{:keys [new-source-arc-pkids
+                                   old-source-arc-pkids]}
+                           (ig/basis-plan-replace-arc basis old-arc arc)]
+                    (let [new-basis (ig/basis-perform-replace-arc
+                                      basis
+                                      old-arc old-source-arc-pkids
+                                      arc new-source-arc-pkids)]
+                      (if (identical? basis new-basis)
+                        (pair ctx undoable-changes)
+                        (let [deleted-override-node-ids
+                              (override-node-ids-removed-by-disconnect ctx old-arc)
 
-                            ctx (cond-> (assoc ctx :basis new-basis)
-                                  (contains? (in/cascade-deletes target-node-type) target-label)
-                                  (mark-override-nodes-affected target-id false))
-                            ctx (if-let [{:keys [deleted-nodes
-                                                 removed-arc->source+target-pkids
-                                                 removed-node-id->pkid->override-node-id
-                                                 removed-overrides-by-id]}
-                                         (ig/basis-plan-delete-nodes (:basis ctx) deleted-override-node-ids)]
-                                  (ctx-perform-delete-nodes ctx deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id)
-                                  ctx)]
-                        (pair ctx undoable-changes))))
-                  (pair ctx undoable-changes))
+                              ctx (cond-> (assoc ctx :basis new-basis)
+                                    (contains? (in/cascade-deletes target-node-type) target-label)
+                                    (mark-override-nodes-affected target-id false))
+                              ctx (if-let [{:keys [deleted-nodes
+                                                   removed-arc->source+target-pkids
+                                                   removed-node-id->pkid->override-node-id
+                                                   removed-overrides-by-id]}
+                                           (ig/basis-plan-delete-nodes (:basis ctx) deleted-override-node-ids)]
+                                    (ctx-perform-delete-nodes ctx deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id)
+                                    ctx)]
+                          (pair ctx undoable-changes))))
+                    (pair ctx undoable-changes))
+                  (pair (ctx-perform-append-arc ctx arc target-node-type)
+                        undoable-changes))
+
+                ;; Regular input, bookkeeping enabled.
+                (let [old-arc (first (ig/explicit-arcs-by-target basis target-id target-label))]
+                  (if-let [{:keys [new-source-arc-pkids
+                                   old-source-arc-pkids]}
+                           (ig/basis-plan-replace-arc basis old-arc arc)]
+                    (let [deleted-override-node-ids
+                          (when old-arc
+                            (override-node-ids-removed-by-disconnect ctx old-arc))
+
+                          undoable (some? undoable-changes)
+                          change (->ReplaceArcTXC old-arc old-source-arc-pkids arc new-source-arc-pkids undoable)
+                          ctx+undoable-changes (perform-and-conj-change ctx undoable-changes change)]
+                      (if (coll/empty? deleted-override-node-ids)
+                        ctx+undoable-changes
+                        (let [[ctx undoable-changes] ctx+undoable-changes]
+                          (realize-delete-nodes ctx undoable-changes deleted-override-node-ids))))
+                    (pair ctx undoable-changes))))
+
+              :many
+              (if fast-path
+                ;; Array input, bookkeeping disabled.
                 (pair (ctx-perform-append-arc ctx arc target-node-type)
-                      undoable-changes))
+                      undoable-changes)
 
-              ;; Regular input, bookkeeping enabled.
-              (let [old-arc (first (ig/explicit-arcs-by-target basis target-id target-label))]
-                (if-let [{:keys [new-source-arc-pkids
-                                 old-source-arc-pkids]}
-                         (ig/basis-plan-replace-arc basis old-arc arc)]
-                  (let [deleted-override-node-ids
-                        (when old-arc
-                          (override-node-ids-removed-by-disconnect ctx old-arc))
-
-                        undoable (some? undoable-changes)
-                        change (->ReplaceArcTXC old-arc old-source-arc-pkids arc new-source-arc-pkids undoable)
-                        ctx+undoable-changes (perform-and-conj-change ctx undoable-changes change)]
-                    (if (coll/empty? deleted-override-node-ids)
-                      ctx+undoable-changes
-                      (let [[ctx undoable-changes] ctx+undoable-changes]
-                        (realize-delete-nodes ctx undoable-changes deleted-override-node-ids))))
-                  (pair ctx undoable-changes))))
-
-            :many
-            (if fast-path
-              ;; Array input, bookkeeping disabled.
-              (pair (ctx-perform-append-arc ctx arc target-node-type)
-                    undoable-changes)
-
-              ;; Array input, bookkeeping enabled.
-              (if-let [{:keys [arc->source+target-pkids]}
-                       (ig/basis-plan-connect-arc basis arc)]
-                (let [undoable (some? undoable-changes)
-                      change (->ConnectArcsTXC arc->source+target-pkids undoable)]
-                  (perform-and-conj-change ctx undoable-changes change))
-                (pair ctx undoable-changes)))))
+                ;; Array input, bookkeeping enabled.
+                (if-let [{:keys [arc->source+target-pkids]}
+                         (ig/basis-plan-connect-arc basis arc)]
+                  (let [undoable (some? undoable-changes)
+                        change (->ConnectArcsTXC arc->source+target-pkids undoable)]
+                    (perform-and-conj-change ctx undoable-changes change))
+                  (pair ctx undoable-changes))))))
         (pair ctx undoable-changes))
       (pair ctx undoable-changes))))
 
@@ -1683,11 +1786,11 @@
              :tx-data-context-map (deref tx-data-context))))
 
 (defn new-transaction-context
-  [basis node-id-generator override-id-generator tx-data-context-map metrics-collector full-invalidation shell-node-id->materialize-info-atom materializations]
+  [basis node-id-generator override-id-generator tx-data-context-map metrics-collector full-invalidation node-materializations materializations]
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :initial-basis basis
-   :shell-node-id->materialize-info-atom shell-node-id->materialize-info-atom
+   :node-materializations node-materializations
    :materializations materializations
    :nodes-affected #{}
    :nodes-added []
@@ -1763,37 +1866,44 @@
         (assoc :undoable-changes undoable-changes)
         (finalize-applied-changes))))
 
-(defonce/type MaterializeShellTXC [node-id materialize-fn]
+(defonce/type MaterializeShellTXC [node-id]
   TransactionChange
   (perform [_ ctx]
-    (update ctx :basis ig/transform-node node-id assoc :_materialize-fn nil))
-  (revert [_ ctx]
-    (update ctx :basis ig/transform-node node-id assoc :_materialize-fn materialize-fn)))
+    (update ctx :basis ig/transform-node node-id
+            (fn [node]
+              (coll/merge (in/->NodeImpl node-id (gt/node-type node))
+                          (gt/assigned-properties node (:basis ctx))))))
+  (revert [_ _ctx]
+    (throw (UnsupportedOperationException. "Materializations are not undoable."))))
 
 (defonce/type MaterializeShellTXS [node-id]
   TransactionStep
   (step_type [_] :tx-step/materialize-shell)
   (metrics_key [_] node-id)
   (realize [_ ctx undoable-changes]
-    (let [node (ig/node-by-id-at (:basis ctx) node-id)
-          materialize-fn (:_materialize-fn node)]
-      (if-not materialize-fn
+    (let [node (ig/node-by-id-at (:basis ctx) node-id)]
+      (if-not (in/unmaterialized-shell-node? node)
         (pair ctx undoable-changes)
-        (let [[ctx undoable-changes] (perform-and-conj-change ctx undoable-changes (->MaterializeShellTXC node-id materialize-fn))]
-          (realize-defaults ctx undoable-changes (ig/node-by-id-at (:basis ctx) node-id)))))))
+        (let [[ctx] (perform-and-conj-change ctx nil (->MaterializeShellTXC node-id))
+              [ctx] (realize-defaults ctx nil (ig/node-by-id-at (:basis ctx) node-id))]
+          (pair ctx undoable-changes))))))
 
 (defn materialize-shell [node-id]
   [(->MaterializeShellTXS node-id)])
 
-(defn- perform-materialization [ctx {:keys [node-id changes dependencies] :as materialize-info}]
+(defn- perform-materialization [ctx {:keys [node-id shell-node changes dependencies] :as materialize-info}]
   (if (and (identical? materialize-info (get (:materializations ctx) node-id))
            (not (in/unmaterialized-shell-node? (ig/node-by-id-at (:basis ctx) node-id))))
     ctx
-    (let [ctx (coll/reduce-kv-> dependencies ctx
-                (fn [ctx _node-id dependency]
-                  (perform-materialization ctx dependency)))]
-      (assoc-in (reduce perform-change ctx changes)
-                [:materializations node-id] materialize-info))))
+    (do
+      (when-not (identical? shell-node (ig/node-by-id-at (:basis ctx) node-id))
+        (throw (ex-info "The shell was replaced before its materialization could be applied."
+                        {:node-id node-id})))
+      (let [ctx (coll/reduce-kv-> dependencies ctx
+                  (fn [ctx _node-id dependency]
+                    (perform-materialization ctx dependency)))]
+        (assoc-in (reduce perform-change ctx changes)
+                  [:materializations node-id] materialize-info)))))
 
 (defonce/type MaterializationTXC [materialize-info]
   TransactionChange
@@ -1808,7 +1918,7 @@
                                  (:node-id-generator evaluation-context)
                                  (:override-id-generator evaluation-context)
                                  {} nil false
-                                 (:shell-node-id->materialize-info-atom evaluation-context)
+                                 (:node-materializations evaluation-context)
                                  materializations)
         (assoc :tx-data-context (:tx-data-context evaluation-context)
                :initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
@@ -1829,32 +1939,124 @@
   result)
 
 (defn transact-in-evaluation-context! [evaluation-context tx-data]
-  (let [shared (:shell-node-id->materialize-info-atom evaluation-context)
-        state (:state-atom evaluation-context)]
-    (locking shared
-      (locking state
-        (apply-evaluation-transaction-result!
-          evaluation-context
-          (transact* (evaluation-transaction-context evaluation-context) nil tx-data))))))
+  (let [state (:state-atom evaluation-context)]
+    (locking state
+      (apply-evaluation-transaction-result!
+        evaluation-context
+        (transact* (evaluation-transaction-context evaluation-context) nil tx-data)))))
 
-(defn- reusable-materialization? [materialize-info node-id evaluation-context]
-  (and materialize-info
-       (identical? (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id)
-                   (get (:shell-nodes materialize-info) node-id))
-       (let [initial-counters (:initial-invalidate-counters evaluation-context)]
-         (or (nil? initial-counters)
-             (identical? initial-counters (:initial-invalidate-counters materialize-info))
-             (let [expected-counters
-                   (reduce-kv (fn [counters dependency-id dependency]
-                                (if (identical? dependency (get (:initial-materializations evaluation-context) dependency-id))
-                                  (merge-with max counters (get (:initial-materialization-invalidate-counters evaluation-context) dependency-id))
-                                  counters))
-                              (:initial-invalidate-counters materialize-info)
-                              (:completed-materializations materialize-info))]
-               (coll/every? (fn [endpoint]
-                              (= (get expected-counters endpoint 0)
-                                 (get initial-counters endpoint 0)))
-                            (:invalidated-endpoints materialize-info)))))))
+(defn- prerequisite-path [node-materializations start-id target-id]
+  (loop [pending [[start-id]]
+         visited #{}]
+    (when-let [path (peek pending)]
+      (let [node-id (peek path)
+            pending (pop pending)]
+        (cond
+          (= node-id target-id)
+          path
+
+          (contains? visited node-id)
+          (recur pending visited)
+
+          :else
+          (let [{:keys [promise prerequisite-shell-node-ids]} (node-materializations node-id)]
+            (recur (cond-> pending
+                     (and promise (not (realized? promise)))
+                     (into (map #(conj path %)) prerequisite-shell-node-ids))
+                   (conj visited node-id))))))))
+
+(defn materialize-prerequisites!
+  "Registers all direct prerequisites before loading any of them. Only call
+  from a shell's materialize-fn, before returning its transaction steps."
+  [node-id prerequisite-node-ids evaluation-context]
+  {:pre [(= node-id (:node-id *materialization*))
+         (nil? (:basis *materialization*))]}
+  (let [shared (:node-materializations evaluation-context)
+        prerequisite-node-ids (set prerequisite-node-ids)
+        entry (get @shared node-id)]
+    (try
+      ;; Never hold this lock while reading resources, loading, or waiting.
+      ;; Check and registration must be atomic to detect cross-thread cycles.
+      (locking shared
+        (when-not (and (identical? (:shell-node entry)
+                                  (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id))
+                       (identical? (:promise entry) (get-in @shared [node-id :promise])))
+          (throw (ex-info "The shell was replaced while reading its prerequisites."
+                          {:node-id node-id})))
+        (if-let [path (coll/some #(prerequisite-path @shared % node-id) prerequisite-node-ids)]
+          (throw (ex-info "Circular resource prerequisites."
+                          {:ex-type :prerequisite-cycle
+                           :cycle-node-ids (into [node-id] path)}))
+          (swap! shared assoc-in [node-id :prerequisite-shell-node-ids] prerequisite-node-ids)))
+      (vreset! (:prerequisite-node-ids *materialization*) prerequisite-node-ids)
+      (doseq [prerequisite-id prerequisite-node-ids]
+        (binding [*materialization* (assoc *materialization* :loading-prerequisites true)]
+          (materialize-node! prerequisite-id evaluation-context))
+        (let [basis (in/evaluation-context-basis evaluation-context)
+              node (ig/node-by-id-at basis prerequisite-id)]
+          (when-let [errors (coll/not-empty (gt/get-property node basis :_output-jammers))]
+            (throw (ex-info "A resource prerequisite could not be loaded."
+                            {:ex-type :prerequisite-failed
+                             :node-id node-id
+                             :prerequisite-node-id prerequisite-id
+                             :errors errors})))))
+      (catch Throwable error
+        ;; A defective result must be replayable without following the cycle
+        ;; or requiring the failed prerequisite. Completed prerequisites remain.
+        (vreset! (:prerequisite-node-ids *materialization*) #{})
+        (locking shared
+          (when (identical? (:promise entry) (get-in @shared [node-id :promise]))
+            (swap! shared assoc-in [node-id :prerequisite-shell-node-ids] #{})))
+        (throw error)))))
+
+(defn- claim-materialization! [shared node]
+  (locking shared
+    (let [node-id (gt/node-id node)
+          entry (get @shared node-id)]
+      (if (identical? node (:shell-node entry))
+        (pair entry false)
+        (let [entry {:shell-node node
+                     :promise (promise)
+                     :prerequisite-shell-node-ids #{}}]
+          (swap! shared assoc node-id entry)
+          (pair entry true))))))
+
+(defn- realize-materialization! [node evaluation-context]
+  (let [node-id (gt/node-id node)]
+    (binding [*materialization* {:node-id node-id
+                                :prerequisite-node-ids (volatile! #{})}]
+      ;; The callback completes declared prerequisites before returning steps.
+      ;; Snapshot only afterwards: failure must not retract their results.
+      (let [tx-data ((:_materialize-fn node) node-id evaluation-context)
+            ;; Keep our declaration even if another shell replaces the registry
+            ;; entry before this load finishes.
+            prerequisite-shell-node-ids @(:prerequisite-node-ids *materialization*)
+            context-atoms (into [(:state-atom evaluation-context)]
+                                (keep evaluation-context)
+                                [:local :local-temp :hits :tx-data-context])
+            previous-values (mapv deref context-atoms)
+            previous-state (first previous-values)]
+        (try
+          (let [result (binding [*materialization* (assoc *materialization* :basis (:basis previous-state))]
+                         (transact-in-evaluation-context! evaluation-context
+                           [(materialize-shell node-id) tx-data]))
+                materialize-info {:node-id node-id
+                                  :shell-node node
+                                  :changes (:realized-changes result)
+                                  :prerequisite-shell-node-ids prerequisite-shell-node-ids
+                                  :dependencies (select-keys (:materializations previous-state) prerequisite-shell-node-ids)}]
+            (swap! (:state-atom evaluation-context)
+                   (fn [state]
+                     (-> state
+                         (assoc :changes (conj (:changes previous-state) (->MaterializationTXC materialize-info)))
+                         (assoc-in [:materializations node-id] materialize-info))))
+            materialize-info)
+          (catch Throwable error
+            (reduce-kv (fn [_ index context-atom]
+                         (reset! context-atom (previous-values index)))
+                       nil
+                       context-atoms)
+            (throw error)))))))
 
 (defn materialize-node! [node-id evaluation-context]
   ;; Dependency tracing skips output functions and caches placeholder values.
@@ -1868,62 +2070,36 @@
                                     :local-temp (atom {})
                                     :hits (atom #{})))
         state (:state-atom evaluation-context)
-        shared (:shell-node-id->materialize-info-atom evaluation-context)]
-    ;; Serialize loads across contexts, including nested loads. Always acquire
-    ;; the shared lock before the context lock.
-    (locking shared
-      (locking state
-        (let [basis (in/evaluation-context-basis evaluation-context)
-              node (ig/node-by-id-at basis node-id)]
-          (when-let [materialize-fn (:_materialize-fn node)]
-            (let [context-atoms (into [shared state]
-                                      (keep evaluation-context)
-                                      [:local :local-temp :hits :tx-data-context])
-                  previous-values (mapv deref context-atoms)
-                  cached-info (get @shared node-id)
-                  initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
+        shared (:node-materializations evaluation-context)]
+    (locking state
+      (let [node (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id)]
+        (when (in/unmaterialized-shell-node? node)
+          (when (and (:node-id *materialization*) (not (:loading-prerequisites *materialization*)))
+            (throw (ex-info "Undeclared nested materialization. Register the resource as a prerequisite."
+                            {:ex-type :undeclared-materialization
+                             :node-id (:node-id *materialization*)
+                             :prerequisite-node-id node-id})))
+          (let [[entry owner] (claim-materialization! shared node)
+                result-promise (:promise entry)]
+            (if owner
               (try
-                (if (reusable-materialization? cached-info node-id evaluation-context)
-                  (let [change (->MaterializationTXC cached-info)]
+                (let [materialize-info (realize-materialization! node evaluation-context)]
+                  (deliver result-promise {:materialize-info materialize-info}))
+                (catch Throwable error
+                  ;; Settle the original promise even if a newer shell has
+                  ;; replaced its registry entry. Future calls may retry.
+                  (deliver result-promise {:error error})
+                  (locking shared
+                    (when (identical? result-promise (get-in @shared [node-id :promise]))
+                      (swap! shared dissoc node-id)))
+                  (throw error)))
+              (let [{:keys [error materialize-info]} @result-promise]
+                (if error
+                  (throw error)
+                  (let [change (->MaterializationTXC materialize-info)]
                     (apply-evaluation-transaction-result!
                       evaluation-context
                       (-> (evaluation-transaction-context evaluation-context)
                           (perform-change change)
                           (assoc :completed-action-count 1 :realized-changes [change])
-                          finalize-applied-changes)))
-                  (let [previous-state @state
-                        tx-data [(materialize-shell node-id)
-                                 (materialize-fn node-id evaluation-context)]
-                        result (transact-in-evaluation-context! evaluation-context tx-data)
-                        current-state @state
-                        changes (subvec (:changes current-state) (count (:changes previous-state)))
-                        materialize-info
-                        {:node-id node-id
-                         :shell-nodes (into {}
-                                            (keep (fn [change]
-                                                    (when (instance? MaterializeShellTXC change)
-                                                      (let [id (.-node-id ^MaterializeShellTXC change)]
-                                                        (pair id (ig/node-by-id-at basis id))))))
-                                            (:realized-changes result))
-                         :changes changes
-                         :dependencies (:materializations previous-state)
-                         :completed-materializations (:materializations current-state)
-                         :invalidated-endpoints (:invalidated-endpoints current-state)
-                         :initial-invalidate-counters initial-invalidate-counters}]
-                    (swap! state
-                           (fn [state]
-                             (-> state
-                                 (assoc :changes (conj (:changes previous-state) (->MaterializationTXC materialize-info)))
-                                 (assoc-in [:materializations node-id] materialize-info))))
-                    (swap! shared into
-                           (map (fn [id] (pair id materialize-info)))
-                           (coll/keys (:shell-nodes materialize-info)))
-                    result))
-                (catch Throwable error
-                  ;; Publish only successful loads. Also roll back nested loads
-                  ;; that may refer to nodes belonging to the failed load.
-                  (reduce-kv (fn [_ index context-atom]
-                               (reset! context-atom (previous-values index)))
-                             nil
-                             context-atoms)
-                  (throw error))))))))))
+                          finalize-applied-changes))))))))))))

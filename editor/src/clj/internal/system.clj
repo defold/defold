@@ -205,7 +205,7 @@
               {}
               nil
               false
-              (:shell-node-id->materialize-info-atom system)
+              (:node-materializations system)
               (:materializations system))
         pre-tx-basis (:basis ctx)
         ctx (reduce (fn [ctx transaction-change]
@@ -287,7 +287,7 @@
    :cache (make-cache configuration)
    :invalidate-counters {}
    :user-data {}
-   :shell-node-id->materialize-info-atom (atom {})
+   :node-materializations (atom {})
    :materializations {}
    :materialization-invalidate-counters {}})
 
@@ -316,7 +316,7 @@
                                      (:invalidate-counters system)
                                      (:materializations system))
       (assoc :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
-             :shell-node-id->materialize-info-atom (:shell-node-id->materialize-info-atom system)
+             :node-materializations (:node-materializations system)
              :node-id-generator (node-id-generator system)
              :override-id-generator (override-id-generator system)
              :materialize-node! it/materialize-node!)))
@@ -335,7 +335,7 @@
   [system {options-basis :basis options-cache :cache :as options}]
   (let [options (assoc options
                   :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
-                  :shell-node-id->materialize-info-atom (:shell-node-id->materialize-info-atom system)
+                  :node-materializations (:node-materializations system)
                   :materializations (:materializations system)
                   :node-id-generator (node-id-generator system)
                   :override-id-generator (override-id-generator system)
@@ -447,10 +447,8 @@
                     (coll/not-any?
                       (fn [[node-id info]]
                         (when-not (identical? info (get (:materializations system) node-id))
-                          (coll/any? (fn [[shell-id original-node]]
-                                       (and (ig/node-by-id-at initial-basis shell-id)
-                                            (not (identical? original-node (ig/node-by-id-at current-basis shell-id)))))
-                                     (:shell-nodes info))))
+                          (and (ig/node-by-id-at initial-basis node-id)
+                               (not (identical? (:shell-node info) (ig/node-by-id-at current-basis node-id))))))
                       materializations)))))))
 
 (defn update-system-from-evaluation-context [system evaluation-context]
@@ -495,6 +493,6 @@
    :cache (:cache system)
    :user-data (:user-data system)
    :invalidate-counters (:invalidate-counters system)
-   :shell-node-id->materialize-info-atom (atom {})
+   :node-materializations (atom {})
    :materializations (:materializations system)
    :materialization-invalidate-counters (:materialization-invalidate-counters system)})

@@ -174,8 +174,13 @@
         (try
           (component-dependencies-fn read-opts owner-resource data)
           (catch Exception error
-            (log/warn :msg (format "Couldn't determine dependencies for embedded component '%s'." id) :exception error)
-            nil))))))
+            (if (= :prerequisites-fn dependencies-key)
+              (throw (ex-info (format "Couldn't determine prerequisites for embedded component '%s'." id)
+                              {:embedded-component-id id}
+                              error))
+              (do
+                (log/warn :msg (format "Couldn't determine dependencies for embedded component '%s'." id) :exception error)
+                nil))))))))
 
 (defonce ^:private default-game-object-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$PrototypeDesc))
 
@@ -206,7 +211,12 @@
              (keep :component)
              (remove coll/empty?)
              (map #(resolve-proj-path owner-resource %))
-             (filter #(resource/overridable-resource-type? (proj-path->resource-type %))))
+             (filter (fn [proj-path]
+                       (let [resource-type (proj-path->resource-type proj-path)]
+                         (or (resource/overridable-resource-type? resource-type)
+                             ;; Migration hooks can read the referenced component,
+                             ;; such as the legacy scale stored in label resources.
+                             (get-in resource-type [:tag-opts :component :alter-referenced-component-fn]))))))
            (coll/into-> (:embedded-components prototype-desc) :eduction
              (mapcat #(embedded-component-desc->dependencies :prerequisites-fn type-ext->resource-type read-opts owner-resource %)))])))
 
