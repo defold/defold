@@ -62,12 +62,12 @@ class ModelBenchmark : public ModelTest
     void Run(const char* name, bool component_offset, bool normal_matrix, bool generic_layout, bool animated)
     {
         ASSERT_TRUE(dmGameObject::Init(m_Collection));
-        dmArray<dmGameObject::HInstance>  instances;
+        dmArray<dmGameObject::HInstance> instances;
         dmArray<dmGameObject::HComponent> components;
         instances.SetCapacity(g_Options.m_Instances);
         components.SetCapacity(g_Options.m_Instances);
         dmGameObject::HComponentWorld model_world = 0;
-        const Quat                    rotation = Quat::rotationY(0.3f);
+        const Quat rotation = Quat::rotationY(0.3f);
         for (uint32_t i = 0; i < g_Options.m_Instances; ++i)
         {
             const char* prototype = component_offset ? "/model/static_vertex_attributes_offset.goc" : "/model/static_vertex_attributes.goc";
@@ -76,7 +76,7 @@ class ModelBenchmark : public ModelTest
             dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, prototype, dmHashBuffer64(&i, sizeof(i)), 0, Point3((float)(i % 100), (float)(i / 100), 0), rotation, Vector3(2, 3, 4));
             ASSERT_NE((dmGameObject::HInstance)0, instance);
             instances.Push(instance);
-            uint32_t                 component_type;
+            uint32_t component_type;
             dmGameObject::HComponent component;
             ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, dmHashString64("model"), &component_type, &component, &model_world));
             components.Push(component);
@@ -94,7 +94,7 @@ class ModelBenchmark : public ModelTest
         ASSERT_NE((dmGraphics::HProgram)0, program);
         dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
         dmRender::SetMaterialVertexSpace(material, dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
-        Matrix4   identity = Matrix4::identity();
+        Matrix4 identity = Matrix4::identity();
         Attribute attributes[2] = {};
         for (uint32_t i = 0; i < (normal_matrix ? 2u : 1u); ++i)
         {
@@ -111,7 +111,7 @@ class ModelBenchmark : public ModelTest
         render_context->m_Material = material;
         const uint32_t stride = dmGraphics::GetVertexDeclarationStride(dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE));
 
-        FrameTimes     cold = {};
+        FrameTimes cold = {};
         Frame(instances, 0, &cold);
         Report(name, "cold", 0, 1, cold, components, model_world, stride);
         for (uint32_t i = 0; i < g_Options.m_Warmup; ++i)
@@ -151,15 +151,15 @@ class ModelBenchmark : public ModelTest
         dmGraphics::ResetDrawCount();
         HProfile profile = ProfileFrameBegin();
         uint64_t begin = dmTime::GetMonotonicTime();
-        bool     updated = dmGameObject::Update(m_Collection, &m_UpdateContext);
-        bool     post_updated = dmGameObject::PostUpdate(m_Collection);
+        bool updated = dmGameObject::Update(m_Collection, &m_UpdateContext);
+        bool post_updated = dmGameObject::PostUpdate(m_Collection);
         uint64_t update = dmTime::GetMonotonicTime();
         dmRender::RenderListBegin(m_RenderContext);
         dmGameObject::Render(m_Collection);
         dmRender::RenderListEnd(m_RenderContext);
-        uint64_t         submit = dmTime::GetMonotonicTime();
+        uint64_t submit = dmTime::GetMonotonicTime();
         dmRender::Result result = dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
-        uint64_t         draw = dmTime::GetMonotonicTime();
+        uint64_t draw = dmTime::GetMonotonicTime();
         ProfileFrameEnd(profile);
         ASSERT_TRUE(updated);
         ASSERT_TRUE(post_updated);
@@ -229,7 +229,7 @@ static bool ParseOption(const char* text, uint32_t* value)
     if (text[0] < '0' || text[0] > '9')
         return false;
     errno = 0;
-    char*         end;
+    char* end;
     unsigned long parsed = strtoul(text, &end, 10);
     if (errno || *end || parsed > 1000000)
         return false;
@@ -241,9 +241,9 @@ extern "C" void dmExportedSymbols();
 
 int main(int argc, char** argv)
 {
-    uint32_t*   values[] = { &g_Options.m_Instances, &g_Options.m_Frames, &g_Options.m_Samples, &g_Options.m_Warmup };
+    uint32_t* values[] = { &g_Options.m_Instances, &g_Options.m_Frames, &g_Options.m_Samples, &g_Options.m_Warmup };
     const char* names[] = { "--instances=", "--frames=", "--samples=", "--warmup=" };
-    int         remaining = 1;
+    int remaining = 1;
     for (int i = 1; i < argc; ++i)
     {
         bool matched = false;

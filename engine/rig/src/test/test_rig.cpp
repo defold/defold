@@ -2087,12 +2087,12 @@ static void CountPoseUpdate(void* user_data, void*)
 // context. Destroying and recreating them must preserve the context's update accounting.
 TEST_F(RigContextTest, StaticContextResumesPoseUpdates)
 {
-    const uint64_t              model_id = dmHashString64("test");
-    dmRigDDF::MeshSet*          static_mesh = NewMorphMeshSet(model_id, 0);
-    dmRigDDF::AnimationSet*     empty_animations = NewEmptyAnimationSet();
-    dmRigDDF::Skeleton          empty_skeleton = {};
-    dmArray<dmRig::RigBone>     empty_bind_pose;
-    dmHashTable64<uint32_t>     empty_bone_indices;
+    const uint64_t model_id = dmHashString64("test");
+    dmRigDDF::MeshSet* static_mesh = NewMorphMeshSet(model_id, 0);
+    dmRigDDF::AnimationSet* empty_animations = NewEmptyAnimationSet();
+    dmRigDDF::Skeleton empty_skeleton = {};
+    dmArray<dmRig::RigBone> empty_bind_pose;
+    dmHashTable64<uint32_t> empty_bone_indices;
     dmRig::InstanceCreateParams create = {};
     create.m_ModelId = model_id;
     create.m_MeshSet = static_mesh;
@@ -2104,8 +2104,8 @@ TEST_F(RigContextTest, StaticContextResumesPoseUpdates)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(m_Context, create, &static_instance));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
-    dmRigDDF::Skeleton*     skeleton = new dmRigDDF::Skeleton();
-    dmRigDDF::MeshSet*      mesh_set = new dmRigDDF::MeshSet();
+    dmRigDDF::Skeleton* skeleton = new dmRigDDF::Skeleton();
+    dmRigDDF::MeshSet* mesh_set = new dmRigDDF::MeshSet();
     dmRigDDF::AnimationSet* animations = new dmRigDDF::AnimationSet();
     dmArray<dmRig::RigBone> bind_pose;
     dmHashTable64<uint32_t> bone_indices;
@@ -2154,13 +2154,13 @@ TEST(RigMorphWeights, StaticContextResumesUpdates)
     dmRig::HRigContext context = 0;
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::NewContext(params, &context));
 
-    const uint64_t             model_id = dmHashString64("static_context");
-    dmRigDDF::MeshSet*          static_mesh = NewMorphMeshSet(model_id, 0);
-    dmRigDDF::MeshSet*          morph_mesh = NewMorphMeshSet(model_id, 1);
-    dmRigDDF::AnimationSet*     animations = NewEmptyAnimationSet();
-    dmRigDDF::Skeleton         skeleton = {};
-    dmArray<dmRig::RigBone>     bind_pose;
-    dmHashTable64<uint32_t>     bone_indices;
+    const uint64_t model_id = dmHashString64("static_context");
+    dmRigDDF::MeshSet* static_mesh = NewMorphMeshSet(model_id, 0);
+    dmRigDDF::MeshSet* morph_mesh = NewMorphMeshSet(model_id, 1);
+    dmRigDDF::AnimationSet* animations = NewEmptyAnimationSet();
+    dmRigDDF::Skeleton skeleton = {};
+    dmArray<dmRig::RigBone> bind_pose;
+    dmHashTable64<uint32_t> bone_indices;
     dmRig::InstanceCreateParams create = {};
     create.m_ModelId = model_id;
     create.m_BindPose = &bind_pose;
@@ -2180,7 +2180,7 @@ TEST(RigMorphWeights, StaticContextResumesUpdates)
         const float weight = 0.75f;
         dmRig::SetMorphWeights(morph_instance, model_id, &weight, 1);
         ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(context, 0.0f));
-        uint32_t     count = 0;
+        uint32_t count = 0;
         const float* weights = dmRig::GetMorphWeights(morph_instance, model_id, &count);
         ASSERT_EQ(1u, count);
         ASSERT_NEAR(0.0f, weights[0], RIG_EPSILON_FLOAT);
