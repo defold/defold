@@ -214,11 +214,17 @@ set(_GS_TEST_INCLUDES
   "${CMAKE_CURRENT_BINARY_DIR}")
 
 function(gamesys_configure_common_test target)
+  cmake_parse_arguments(GS_TEST "BENCHMARK" "" "" ${ARGN})
+  set(_test_libs ${_DEFOLD_TEST_LIBS})
+  if(GS_TEST_BENCHMARK)
+    list(REMOVE_ITEM _test_libs profile_null)
+    list(APPEND _test_libs profile)
+  endif()
   add_dependencies(${target} gamesys_test_embeds)
   target_include_directories(${target} PRIVATE ${_GS_TEST_INCLUDES})
   target_compile_definitions(${target} PRIVATE ${_GS_TEST_DEFINES})
   target_link_libraries(${target} PRIVATE ${_GAMESYS_TEST_GAMESYS_LIBS})
-  defold_target_link_libraries(${target} ${TARGET_PLATFORM} ${_DEFOLD_TEST_LIBS})
+  defold_target_link_libraries(${target} ${TARGET_PLATFORM} ${_test_libs})
   defold_target_link_libraries(${target} ${TARGET_PLATFORM} ${_GS_TEST_GRAPHICS_LIBS})
   defold_target_link_bullet3d(${target} ${TARGET_PLATFORM})
   defold_target_link_lua(${target} ${TARGET_PLATFORM})
@@ -229,12 +235,14 @@ function(gamesys_configure_common_test target)
   # The headless suites use null device backends and module-local content.
   # Keep them together because resource reload tests modify staged files.
   # HTTP tests register separately and retain the shared server group.
-  defold_register_test_target(${target} ON "${GS_TEST_RUN_DIR}"
-    RUN_GROUP gamesys
-    RUNTIME_DEPENDS gamesys_test_content
-    STAGE_FILES
-      "build/src/gamesys/test" "build/src/gamesys/test"
-      ${_GS_HOST_TEST_STAGE_FILES})
+  if(NOT GS_TEST_BENCHMARK)
+    defold_register_test_target(${target} ON "${GS_TEST_RUN_DIR}"
+      RUN_GROUP gamesys
+      RUNTIME_DEPENDS gamesys_test_content
+      STAGE_FILES
+        "build/src/gamesys/test" "build/src/gamesys/test"
+        ${_GS_HOST_TEST_STAGE_FILES})
+  endif()
 
   defold_target_link_libraries_web(${target} ${TARGET_PLATFORM} SCOPE PRIVATE
     library_sys.js library_script.js library_render.js)
@@ -258,6 +266,19 @@ defold_create_exported_symbols_file("${_TEST1_EXPORTED_CPP}" "${_TEST1_SYMBOLS}"
 
 defold_add_executable(test_gamesys ${TEST_GS_SOURCES} ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
 gamesys_configure_common_test(test_gamesys)
+
+# Opt-in CPU benchmark using real model/rig code, null devices, and profiler counters.
+defold_feature_enabled(performance_tests GAMESYS_BUILD_PERFORMANCE_TESTS)
+if(GAMESYS_BUILD_PERFORMANCE_TESTS)
+  defold_add_executable(benchmark_models
+    "${GS_TEST_ROOT}/benchmark_models.cpp"
+    ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
+  gamesys_configure_common_test(benchmark_models BENCHMARK)
+  # Build with the tests when enabled, but run separately to avoid concurrent suites.
+  defold_register_test_target(benchmark_models OFF "${GS_TEST_RUN_DIR}"
+    RUNTIME_DEPENDS gamesys_test_data_model)
+  add_dependencies(benchmark_models gamesys_test_data_model)
+endif()
 
 # ---------------------------------------------------------------------------
 # test_app_shader_program
