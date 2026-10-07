@@ -2370,13 +2370,15 @@ class ModelVertexDataSharingTest : public ModelTest
 
         dmRender::RenderContext*      render_context = (dmRender::RenderContext*)m_RenderContext;
         const bool                    dynamic = semantic == Attribute::SEMANTIC_TYPE_NONE;
-        const char*                   vertex_name = dynamic ? "custom_color" : "vertex_matrix";
+        const bool                    world_position = semantic == Attribute::SEMANTIC_TYPE_POSITION;
+        const char*                   vertex_name = dynamic ? "custom_color" : world_position ? "custom_position" : "vertex_matrix";
+        const Attribute::VectorType   vertex_type = dynamic ? Attribute::VECTOR_TYPE_VEC4 : world_position ? Attribute::VECTOR_TYPE_VEC3 : Attribute::VECTOR_TYPE_MAT4;
         const char*                   source = "void main() {}";
         dmGraphics::ShaderDescBuilder shader;
         shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
         shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
         shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
-        shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vertex_name, 1, dynamic ? dmGraphics::ShaderDesc::SHADER_TYPE_VEC4 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+        shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vertex_name, 1, dynamic ? dmGraphics::ShaderDesc::SHADER_TYPE_VEC4 : world_position ? dmGraphics::ShaderDesc::SHADER_TYPE_VEC3 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
         shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "instance_world", 5, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
         dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
         dmRender::HMaterial  material = dmRender::NewMaterial(m_RenderContext, program);
@@ -2387,9 +2389,11 @@ class ModelVertexDataSharingTest : public ModelTest
         {
             attributes[a].m_NameHash = dmHashString64(a == 0 ? "instance_world" : vertex_name);
             attributes[a].m_SemanticType = a == 0 ? Attribute::SEMANTIC_TYPE_WORLD_MATRIX : semantic;
-            attributes[a].m_VectorType = a == 1 && dynamic ? Attribute::VECTOR_TYPE_VEC4 : Attribute::VECTOR_TYPE_MAT4;
+            attributes[a].m_VectorType = a == 0 ? Attribute::VECTOR_TYPE_MAT4 : vertex_type;
             attributes[a].m_DataType = Attribute::TYPE_FLOAT;
             attributes[a].m_StepFunction = a == 0 ? dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+            if (world_position && a == 1)
+                attributes[a].m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
             attributes[a].m_Values.m_BinaryValues.m_Data = (uint8_t*)&identity;
             attributes[a].m_Values.m_BinaryValues.m_Count = dmGraphics::VectorTypeToElementCount(attributes[a].m_VectorType) * sizeof(float);
         }
@@ -2419,11 +2423,16 @@ class ModelVertexDataSharingTest : public ModelTest
             dmRender::BufferedRenderBuffer* instance_buffer;
             dmGameSystem::GetModelWorldInstanceRenderBuffer(world, &instance_buffer);
             ASSERT_EQ(2 * sizeof(Matrix4), dmGraphics::GetVertexBufferSize(instance_buffer->m_Buffers[0]));
-            dmGraphics::HVertexBuffer buffers[2];
+            dmGraphics::HVertexBuffer buffers[2] = {};
+            uint32_t initialized_cache_count = 0;
             for (uint32_t i = 0; i < DM_ARRAY_SIZE(instances); ++i)
             {
                 uint32_t initialized_count;
-                ASSERT_EQ(1u, dmGameSystem::GetModelComponentAttributeRenderDataCount(components[i], &initialized_count));
+                uint32_t cache_count = dmGameSystem::GetModelComponentAttributeRenderDataCount(components[i], &initialized_count);
+                initialized_cache_count += initialized_count;
+                if (world_position && initialized_count == 0)
+                    continue;
+                ASSERT_EQ(1u, cache_count);
                 ASSERT_EQ(1u, initialized_count);
                 dmGraphics::HVertexDeclaration vertex_declaration, instance_declaration;
                 dmGameSystem::GetModelComponentAttributeRenderData(components[i], 0, &buffers[i], &vertex_declaration, &instance_declaration);
@@ -2432,13 +2441,13 @@ class ModelVertexDataSharingTest : public ModelTest
                 uint32_t offset = dmGraphics::GetVertexStreamOffset(vertex_declaration, dmHashString64(vertex_name));
                 ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, offset);
                 ASSERT_EQ(24 * stride, dmGraphics::GetVertexBufferSize(buffers[i]));
-                Matrix4 expected = dmGameObject::GetWorldMatrix(instances[i]);
+                Matrix4 expected = world_position ? identity : dmGameObject::GetWorldMatrix(instances[i]);
                 if (semantic == Attribute::SEMANTIC_TYPE_NORMAL_MATRIX)
                     expected = dmRender::GetNormalMatrix(m_RenderContext, expected);
                 const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, buffers[i], dmGraphics::BUFFER_ACCESS_READ_ONLY);
                 for (uint32_t vertex = 0; vertex < 24; ++vertex)
                 {
-                    for (uint32_t element = 0; element < (dynamic ? 4u : 16u); ++element)
+                    for (uint32_t element = 0; element < dmGraphics::VectorTypeToElementCount(vertex_type); ++element)
                     {
                         float value = dynamic ? color.getElem(element) : ((const float*)&expected)[element];
                         ASSERT_NEAR(value, ReadUnalignedFloat(data + vertex * stride + offset + element * sizeof(float)), EPSILON);
@@ -2446,7 +2455,10 @@ class ModelVertexDataSharingTest : public ModelTest
                 }
                 dmGraphics::UnmapVertexBuffer(m_GraphicsContext, buffers[i]);
             }
-            ASSERT_NE(buffers[0], buffers[1]);
+            if (world_position)
+                ASSERT_EQ(1u, initialized_cache_count);
+            else
+                ASSERT_NE(buffers[0], buffers[1]);
         }
         render_context->m_Material = 0;
         ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -2471,6 +2483,12 @@ TEST_F(ModelVertexDataSharingTest, NormalMatrices)
 TEST_F(ModelVertexDataSharingTest, DynamicOverrides)
 {
     Run(dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE);
+}
+
+// Local-space materials supply no world-position stream; sharing must preserve fallback values.
+TEST_F(ModelVertexDataSharingTest, WorldPositionFallback)
+{
+    Run(dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION);
 }
 
 TEST_F(ModelTest, MorphTargetInstancedWeightsBatch)

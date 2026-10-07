@@ -421,12 +421,9 @@ namespace dmGameSystem
 
     static bool IsIdentityTransform(const dmTransform::Transform& transform)
     {
-        const Vector3 translation = transform.GetTranslation();
-        const Vector3 scale = transform.GetScale();
-        const Quat    rotation = transform.GetRotation();
-        return translation.getX() == 0 && translation.getY() == 0 && translation.getZ() == 0 &&
-        scale.getX() == 1 && scale.getY() == 1 && scale.getZ() == 1 &&
-        rotation.getX() == 0 && rotation.getY() == 0 && rotation.getZ() == 0 && fabsf(rotation.getW()) == 1;
+        static const dmTransform::Transform identity(Vector3(0.0f), Quat::identity(), 1.0f);
+        // Other identity representations safely use the full transform path.
+        return memcmp(&transform, &identity, sizeof(transform)) == 0;
     }
 
     static inline dmGraphics::CoordinateSpace GetRenderMaterialCoordinateSpace(dmRender::HMaterial material)
@@ -838,7 +835,7 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
     }
 
-    static const dmGraphics::VertexAttributeInfo* FindMeshAttribute(const dmGraphics::VertexAttributeInfos* attribute_infos, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttribute::SemanticType semantic_type)
+    static const dmGraphics::VertexAttributeInfo* FindAttribute(const dmGraphics::VertexAttributeInfos* attribute_infos, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttribute::SemanticType semantic_type)
     {
         for (uint32_t i = 0; i < attribute_infos->m_NumInfos; ++i)
         {
@@ -862,7 +859,7 @@ namespace dmGameSystem
     static uint8_t* WriteMeshAttributes(ModelWorld* world, dmRender::HRenderContext render_context, MeshRenderItem* render_item, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_count)
     {
         dmVMath::Matrix4 normal_matrix;
-        if (FindMeshAttribute(attribute_infos, step_function, dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX))
+        if (FindAttribute(attribute_infos, step_function, dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX))
         {
             normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
         }
@@ -884,7 +881,7 @@ namespace dmGameSystem
 
         uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
 
-        const dmGraphics::VertexAttributeInfo* morph_attribute = FindMeshAttribute(attribute_infos, step_function, dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS);
+        const dmGraphics::VertexAttributeInfo* morph_attribute = FindAttribute(attribute_infos, step_function, dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS);
         if (morph_attribute)
         {
             morph_target_weights_vector_type = morph_attribute->m_VectorType;
@@ -1595,8 +1592,7 @@ namespace dmGameSystem
                 continue;
             if (info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX ||
                 info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX ||
-                info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS ||
-                (info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION && info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD))
+                info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS)
                 return false;
         }
         return true;
