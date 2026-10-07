@@ -1,4 +1,7 @@
 #version 140
 
+#define PBR_SKINNED
+#define PBR_INSTANCED
 #include "/builtins/materials/gltf_vertex_inputs.glsl"
+#include "/builtins/materials/skinning.glsl"
 #include "/builtins/materials/gltf_vertex.glsl"

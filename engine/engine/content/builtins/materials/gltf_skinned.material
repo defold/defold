@@ -1,6 +1,6 @@
-name: "gltf"
+name: "gltf_skinned"
 tags: "model"
-vertex_program: "/builtins/materials/gltf.vp"
+vertex_program: "/builtins/materials/gltf_skinned.vp"
 fragment_program: "/builtins/materials/gltf.fp"
 vertex_space: VERTEX_SPACE_LOCAL
 vertex_constants {

@@ -2856,7 +2856,7 @@ namespace dmGraphics
         CD3DX12_RASTERIZER_DESC rasterizerState = CD3DX12_RASTERIZER_DESC(
             D3D12_FILL_MODE_SOLID,
             GetCullMode(pipelineState),
-            true,                                       // FrontCounterClockwise
+            pipelineState.m_FaceWinding == FACE_WINDING_CCW, // FrontCounterClockwise
             D3D12_DEFAULT_DEPTH_BIAS,
             D3D12_DEFAULT_DEPTH_BIAS_CLAMP,
             D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS,
@@ -2940,7 +2940,7 @@ namespace dmGraphics
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
         dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PipelineState, sizeof(context->m_PipelineState));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &pipelineState, sizeof(pipelineState));
         dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_Base.m_Id, sizeof(current_rt->m_Base.m_Id));
         dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_DsvFormat, sizeof(current_rt->m_DsvFormat));
         dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_RootSignature, sizeof(context->m_CurrentProgram->m_RootSignature));
@@ -3195,7 +3195,20 @@ namespace dmGraphics
             context->m_ViewportChanged = 0;
         }
 
-        DX12Pipeline* pipeline = GetOrCreatePipeline(context, current_rt, context->m_PipelineState, num_vx_buffers);
+        PipelineState pipeline_state_draw = context->m_PipelineState;
+        // The offscreen viewport reverses winding. Correct the front-face
+        // definition so culling and SV_IsFrontFace agree with the backbuffer.
+        // When merging misc-dx12-improvements, keep this winding flip instead
+        // of its offscreen BACK/FRONT cull-side swap; do not apply both. That
+        // branch already supplies the winding setter and rasterizer support.
+        // Its Windows readback tests should also verify SV_IsFrontFace for
+        // both windings and cull modes across backbuffer/offscreen switches.
+        if (current_rt->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            pipeline_state_draw.m_FaceWinding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CCW ? FACE_WINDING_CW : FACE_WINDING_CCW;
+        }
+
+        DX12Pipeline* pipeline = GetOrCreatePipeline(context, current_rt, pipeline_state_draw, num_vx_buffers);
         context->m_CommandList->SetGraphicsRootSignature(context->m_CurrentProgram->m_RootSignature);
         context->m_CommandList->SetPipelineState(*pipeline);
         context->m_CommandList->IASetPrimitiveTopology(GetPrimitiveTopology(prim_type));
@@ -4412,7 +4425,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static void DX12SetFaceWinding(HContext context, FaceWinding face_winding)
     {
-        // TODO: Add this to the DX12 pipeline handle aswell, for now it's a NOP
+        g_DX12Context->m_PipelineState.m_FaceWinding = face_winding;
     }
 
     static void DX12SetCullFace(HContext context, FaceType face_type)

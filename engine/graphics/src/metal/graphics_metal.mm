@@ -3611,27 +3611,13 @@ namespace dmGraphics
         }
 
         MTL::CullMode cull_mode = MTL::CullModeNone;
-        PipelineState pipeline_state_cull = pipeline_state_draw;
-
-        if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+        if (pipeline_state_draw.m_CullFaceEnabled)
         {
-            if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_BACK)
-            {
-                pipeline_state_cull.m_CullFaceType = FACE_TYPE_FRONT;
-            }
-            else if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_FRONT)
-            {
-                pipeline_state_cull.m_CullFaceType = FACE_TYPE_BACK;
-            }
-        }
-
-        if (pipeline_state_cull.m_CullFaceEnabled)
-        {
-            if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_BACK)
+            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
             {
                 cull_mode = MTL::CullModeBack;
             }
-            else if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_FRONT)
+            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
             {
                 cull_mode = MTL::CullModeFront;
             }
@@ -3639,6 +3625,12 @@ namespace dmGraphics
 
         if (context->m_CullFaceChanged)
         {
+            // Match the offscreen viewport's winding for culling, two-sided
+            // stencil and the fragment shader's front_facing input.
+            if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                pipeline_state_draw.m_FaceWinding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CCW ? FACE_WINDING_CW : FACE_WINDING_CCW;
+            }
             const MTL::Winding winding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CW ?
                 MTL::WindingClockwise : MTL::WindingCounterClockwise;
             encoder->setCullMode(cull_mode);

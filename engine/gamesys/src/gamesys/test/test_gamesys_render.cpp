@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include "../resources/res_meshset.h"
+#include "../resources/res_rig_scene.h"
 
 #if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
 #include <sanitizer/allocator_interface.h>
@@ -2552,6 +2554,60 @@ TEST_F(ModelTest, MeshAttributeRenderDataPurgeAcrossFrameTickWrap)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies missing textures use neutral factors while authored zero/nondefault factors are preserved.
+TEST_F(ModelTest, PbrTextureFactorDefaults)
+{
+    dmGameSystem::ModelResource* model = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/pbr_properties_textured.modelc", (void**)&model));
+    ASSERT_EQ(1u, model->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials.m_Count);
+    ASSERT_EQ(1u, model->m_Materials.Size());
+
+    dmRigDDF::Material& source = model->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[0];
+    dmRigDDF::TextureView original_normal = source.m_Normaltexture;
+    dmRigDDF::TextureView original_occlusion = source.m_Occlusiontexture;
+    const dmGameSystem::MaterialInfo& material_info = model->m_Materials[0];
+    struct TextureFactorCase
+    {
+        int32_t m_NormalIndex;
+        int32_t m_OcclusionIndex;
+        float   m_NormalScale;
+        float   m_OcclusionStrength;
+        float   m_ExpectedNormalScale;
+        float   m_ExpectedOcclusionStrength;
+    };
+    const TextureFactorCase cases[] = {
+        { -1, -1, 0.0f, 0.0f, 1.0f, 1.0f },
+        {  0,  0, 0.0f, 0.0f, 0.0f, 0.0f },
+        {  0,  0, 0.5f, 0.3f, 0.5f, 0.3f },
+        { -1,  0, 0.0f, 0.0f, 1.0f, 0.0f },
+        {  0, -1, 0.0f, 0.0f, 0.0f, 1.0f },
+    };
+    for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        source.m_Normaltexture.m_Texture.m_Index = cases[i].m_NormalIndex;
+        source.m_Normaltexture.m_Scale = cases[i].m_NormalScale;
+        source.m_Occlusiontexture.m_Texture.m_Index = cases[i].m_OcclusionIndex;
+        source.m_Occlusiontexture.m_Scale = cases[i].m_OcclusionStrength;
+
+        dmGameSystem::HComponentRenderConstants constants = 0;
+        bool filled = dmGameSystem::FillPBRConstants(model, &material_info, &constants, material_info.m_Material->m_Material, 0);
+        source.m_Normaltexture = original_normal;
+        source.m_Occlusiontexture = original_occlusion;
+        ASSERT_TRUE(filled);
+
+        dmRender::HConstant constant = 0;
+        ASSERT_TRUE(dmGameSystem::GetRenderConstant(constants, dmHashString64("pbrNormalScaleAndOcclusionStrength"), &constant));
+        uint32_t count = 0;
+        dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &count);
+        ASSERT_EQ(1u, count);
+        dmVMath::Vector4 expected(cases[i].m_ExpectedNormalScale, cases[i].m_ExpectedOcclusionStrength, 0.0f, 0.0f);
+        ASSERT_VEC4(expected, values[0]);
+        dmGameSystem::DestroyRenderConstants(constants);
+    }
+    dmResource::Release(m_Factory, model);
+}
+
+// Verifies imported/default PBR constants, including factors used by glTF shading.
 TEST_F(ModelTest, PbrProperties)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/pbr_properties.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -2646,6 +2702,16 @@ TEST_F(ModelTest, PbrProperties)
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH, &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.245f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrEmissiveFactorAndStrength"), &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.03422500088214875f, 0.0f, 0.0f, 0.245f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrNormalScaleAndOcclusionStrength"), &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, &constant));

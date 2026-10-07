@@ -268,7 +268,18 @@
 (defn- render-mesh-opaque-selection [^GL3 gl render-args renderables]
   ;; TODO(instancing): We should use instanced rendering and put the picking-id as a per-instance attribute.
   (let [{:keys [picking-id user-data]} (first renderables)
-        {:keys [index-buffer textures]} user-data
+        {:keys [index-buffer material-data textures]} user-data
+        base-color-texture (get textures "PbrMetallicRoughness_baseColorTexture")
+        gltf-material (when base-color-texture (into {} material-data))
+
+        alpha-parameters
+        (if-let [^Vector4d alpha-info (get gltf-material "pbrAlphaCutoffAndDoubleSidedAndIsUnlit")]
+          (Vector4d. (.w alpha-info)
+                     (.x alpha-info)
+                     (.w ^Vector4d (get gltf-material "pbrMetallicRoughness.baseColorFactor"))
+                     (.x ^Vector4d (get gltf-material "pbrMetallicRoughness.metallicRoughnessTextures")))
+          (Vector4d. -1.0 0.0 0.0 0.0))
+
         index-type (gl.types/element-buffer-gl-type index-buffer)
         index-count (graphics.types/element-count index-buffer)
         picking-id-float-array (scene-picking/picking-id->float-array picking-id)
@@ -278,9 +289,17 @@
             (update :id-color graphics.types/with-value picking-id-float-array))]
 
     (gl/with-gl-bindings gl render-args [shaders/selection-instance-local-space selection-attribute-bindings index-buffer]
+      ;; Legacy materials can use arbitrary sampler names and rely on unit zero.
+      ;; Reset it for each draw so a previous glTF material cannot leak its unit.
+      (shader/set-samplers-by-name shaders/selection-instance-local-space gl "texture_sampler" [0])
       (doseq [[name t] textures]
         (gl/bind gl t render-args)
         (shader/set-samplers-by-name shaders/selection-instance-local-space gl name (:texture-units t)))
+      ;; The picking shader has one sampler; explicitly select the glTF base-color
+      ;; texture instead of relying on texture unit zero or material sampler order.
+      (when gltf-material
+        (shader/set-samplers-by-name shaders/selection-instance-local-space gl "texture_sampler" (:texture-units base-color-texture)))
+      (shader/set-uniform shaders/selection-instance-local-space gl "alpha_parameters" alpha-parameters)
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
@@ -415,7 +434,18 @@
         (Vector4d. (:alpha-cutoff mesh-material-data)
                    (if (:double-sided mesh-material-data) 1.0 0.0)
                    (if (:unlit mesh-material-data) 1.0 0.0)
-                   0.0)]
+                   (case (:alpha-mode mesh-material-data)
+                     :alpha-mode-mask 1.0
+                     :alpha-mode-blend 2.0
+                     0.0))]
+       ["pbrEmissiveFactorAndStrength"
+        (doto (Vector4d.)
+          (math/clj->vecmath (conj (:emissive-factor mesh-material-data)
+                                   (:emissive-strength pbr-emissive-strength))))]
+       ["pbrNormalScaleAndOcclusionStrength"
+        (Vector4d. (get-in mesh-material-data [:normal-texture :scale])
+                   (get-in mesh-material-data [:occlusion-texture :scale])
+                   0.0 0.0)]
        ["pbrCommonTextures"
         (Vector4d. (pbr-texture-index->value
                      (get-in mesh-material-data [:normal-texture :texture :index]))
@@ -775,9 +805,19 @@
                       semantic-type->attribute-buffers (:attribute-buffers mesh-renderable-buffers)
                       combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos default-coordinate-space)
                       coordinate-space-info (graphics/coordinate-space-info combined-attribute-infos)
-                      attribute-bindings (model-util/make-attribute-bindings scene-node-id combined-attribute-infos semantic-type->attribute-buffers vertex-attribute-bytes)]
+                      attribute-bindings (model-util/make-attribute-bindings scene-node-id combined-attribute-infos semantic-type->attribute-buffers vertex-attribute-bytes)
+
+                      ;; Match color overrides without changing the picking shader's local-space geometry.
+                      selection-attribute-infos
+                      (graphics/combined-attribute-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space)
+                                                         (filterv #(= :color (:name-key %)) material-attribute-infos)
+                                                         :coordinate-space-local)
+
+                      selection-attribute-bindings
+                      (model-util/make-attribute-bindings scene-node-id selection-attribute-infos semantic-type->attribute-buffers (select-keys vertex-attribute-bytes [:color]))]
                   (assoc user-data
                     :attribute-bindings attribute-bindings
+                    :selection-attribute-bindings selection-attribute-bindings
                     :coordinate-space-info coordinate-space-info
                     :material-attribute-infos material-attribute-infos
                     :material-data material-data
