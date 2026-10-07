@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
-#include "../../../../graphics/src/test/test_graphics_util.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -84,15 +83,12 @@ class ModelBenchmark : public ModelTest
         }
 
         typedef dmGraphics::VertexAttribute Attribute;
-        const char*                         source = "void main() {}";
-        dmGraphics::ShaderDescBuilder       shader;
-        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
-        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
-        shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
-        shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "custom_color", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-        shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "instance_world", 2, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+        TestShaderDesc shader("void main() {}");
+        shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+        shader.AddInput("custom_color", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        shader.AddInput("instance_world", 2, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
         if (normal_matrix)
-            shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "instance_normal", 6, generic_layout ? dmGraphics::ShaderDesc::SHADER_TYPE_MAT3 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+            shader.AddInput("instance_normal", 6, generic_layout ? dmGraphics::ShaderDesc::SHADER_TYPE_MAT3 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
 
         dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
         ASSERT_NE((dmGraphics::HProgram)0, program);
@@ -243,7 +239,7 @@ static bool ParseOption(const char* text, uint32_t* value)
 
 extern "C" void dmExportedSymbols();
 
-int             main(int argc, char** argv)
+int main(int argc, char** argv)
 {
     uint32_t*   values[] = { &g_Options.m_Instances, &g_Options.m_Frames, &g_Options.m_Samples, &g_Options.m_Warmup };
     const char* names[] = { "--instances=", "--frames=", "--samples=", "--warmup=" };

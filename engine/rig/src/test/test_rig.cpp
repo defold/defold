@@ -2151,14 +2151,14 @@ TEST(RigMorphWeights, StaticContextResumesUpdates)
 {
     dmRig::NewContextParams params = {};
     params.m_MaxRigInstanceCount = 2;
-    dmRig::HRigContext      context = 0;
+    dmRig::HRigContext context = 0;
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::NewContext(params, &context));
 
-    const uint64_t              model_id = dmHashString64("static_context");
+    const uint64_t             model_id = dmHashString64("static_context");
     dmRigDDF::MeshSet*          static_mesh = NewMorphMeshSet(model_id, 0);
     dmRigDDF::MeshSet*          morph_mesh = NewMorphMeshSet(model_id, 1);
     dmRigDDF::AnimationSet*     animations = NewEmptyAnimationSet();
-    dmRigDDF::Skeleton          skeleton = {};
+    dmRigDDF::Skeleton         skeleton = {};
     dmArray<dmRig::RigBone>     bind_pose;
     dmHashTable64<uint32_t>     bone_indices;
     dmRig::InstanceCreateParams create = {};

@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
-#include "../../../../graphics/src/test/test_graphics_util.h"
 
 #if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
 #include <sanitizer/allocator_interface.h>
@@ -2037,17 +2036,14 @@ TEST_F(ModelTest, InstanceTransformAttributeLayouts)
     for (uint32_t c = 0; c < DM_ARRAY_SIZE(cases); ++c)
     {
         const char*                   names[] = { "instance_a", "instance_b" };
-        const char*                   source = "void main() {}";
-        dmGraphics::ShaderDescBuilder shader;
-        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
-        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
-        shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+        TestShaderDesc shader("void main() {}");
+        shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
 
         Attribute attributes[2] = {};
         Matrix4   default_value = Matrix4::identity();
         for (uint32_t a = 0; a < cases[c].m_Count; ++a)
         {
-            shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, names[a], 1 + a * 4, cases[c].m_Shapes[a] == Attribute::VECTOR_TYPE_MAT3 ? dmGraphics::ShaderDesc::SHADER_TYPE_MAT3 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+            shader.AddInput(names[a], 1 + a * 4, cases[c].m_Shapes[a] == Attribute::VECTOR_TYPE_MAT3 ? dmGraphics::ShaderDesc::SHADER_TYPE_MAT3 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
             attributes[a].m_NameHash = dmHashString64(names[a]);
             attributes[a].m_SemanticType = cases[c].m_Semantics[a];
             attributes[a].m_VectorType = cases[c].m_Shapes[a];
@@ -2138,13 +2134,10 @@ TEST_F(ModelTest, SharedInstanceVertexData)
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instances[i], dmHashString64("model"), &component_type, &components[i], &world));
     }
 
-    const char*                   source = "void main() {}";
-    dmGraphics::ShaderDescBuilder shader;
-    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
-    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
-    shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
-    shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "custom_color", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-    shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "instance_world", 2, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    TestShaderDesc shader("void main() {}");
+    shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+    shader.AddInput("custom_color", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shader.AddInput("instance_world", 2, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
     dmRender::HMaterial  material = dmRender::NewMaterial(m_RenderContext, program);
     dmRender::SetMaterialVertexSpace(material, dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
@@ -2228,19 +2221,16 @@ TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
     for (uint32_t material_index = 0; material_index < DM_ARRAY_SIZE(materials); ++material_index)
     {
         const bool                    custom = material_index == 0;
-        const char*                   source = "void main() {}";
-        dmGraphics::ShaderDescBuilder shader;
-        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
-        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
-        shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+        TestShaderDesc shader("void main() {}");
+        shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
         if (custom)
-            shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "custom_color", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+            shader.AddInput("custom_color", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
         const char* names[] = { custom ? "instance_world" : "mtx_world", "instance_normal" };
         Attribute   attributes[2] = {};
         uint32_t    count = custom ? 2 : 1;
         for (uint32_t a = 0; a < count; ++a)
         {
-            shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, names[a], 2 + a * 4, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+            shader.AddInput(names[a], 2 + a * 4, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
             attributes[a].m_NameHash = dmHashString64(names[a]);
             attributes[a].m_SemanticType = a == 0 ? Attribute::SEMANTIC_TYPE_WORLD_MATRIX : Attribute::SEMANTIC_TYPE_NORMAL_MATRIX;
             attributes[a].m_VectorType = Attribute::VECTOR_TYPE_MAT4;
@@ -2373,13 +2363,10 @@ class ModelVertexDataSharingTest : public ModelTest
         const bool                    world_position = semantic == Attribute::SEMANTIC_TYPE_POSITION;
         const char*                   vertex_name = dynamic ? "custom_color" : world_position ? "custom_position" : "vertex_matrix";
         const Attribute::VectorType   vertex_type = dynamic ? Attribute::VECTOR_TYPE_VEC4 : world_position ? Attribute::VECTOR_TYPE_VEC3 : Attribute::VECTOR_TYPE_MAT4;
-        const char*                   source = "void main() {}";
-        dmGraphics::ShaderDescBuilder shader;
-        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
-        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, source, strlen(source));
-        shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
-        shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vertex_name, 1, dynamic ? dmGraphics::ShaderDesc::SHADER_TYPE_VEC4 : world_position ? dmGraphics::ShaderDesc::SHADER_TYPE_VEC3 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
-        shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "instance_world", 5, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+        TestShaderDesc shader("void main() {}");
+        shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+        shader.AddInput(vertex_name, 1, dynamic ? dmGraphics::ShaderDesc::SHADER_TYPE_VEC4 : world_position ? dmGraphics::ShaderDesc::SHADER_TYPE_VEC3 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+        shader.AddInput("instance_world", 5, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
         dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
         dmRender::HMaterial  material = dmRender::NewMaterial(m_RenderContext, program);
         dmRender::SetMaterialVertexSpace(material, dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
