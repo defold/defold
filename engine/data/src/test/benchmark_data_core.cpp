@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "benchmark_data_common.h"
+#include "benchmark_data_boids.h"
 
 static void ValidateQueryRows(Backend* store, const Fixture* input, Query* query, uint32_t types, uint32_t removed)
 {
@@ -44,7 +44,7 @@ static void ValidateQueryRows(Backend* store, const Fixture* input, Query* query
 }
 
 // Seven standalone operations; the eighth is the separately TSAN-validated
-// threaded update. Each sample owns a fresh store and three live case queries.
+// threaded update. Each sample owns a fresh store and four live case queries.
 void RunCore(const Fixture* input, uint32_t kind, uint32_t sample)
 {
     // Alternate which creation layout runs first. Each uses an empty store;
@@ -62,10 +62,12 @@ void RunCore(const Fixture* input, uint32_t kind, uint32_t sample)
     if (!kind)
         ValidateCreatedRows_Defold(&store, input);
 
-    Query movement = CreateMovementQuery(&store);
+    Query boids[] = { CreateBoidsQuery(&store, 0), CreateBoidsQuery(&store, 1) };
+    if (!sample)
+        ValidateBoidsCells();
     Query explosion = CreateExplosionQuery(&store, input);
     Query lights = CreateNearbyLightsQuery(&store);
-    MeasureMovement(&store, input, &movement, sample);
+    MeasureBoids(&store, input, boids, sample);
     ResetValues(&store, input);
     MeasureExplosion(&store, input, &explosion, sample);
     ValidateHealth(&store, input, 50, 1);
@@ -93,7 +95,8 @@ void RunCore(const Fixture* input, uint32_t kind, uint32_t sample)
             Check(!memcmp(&actual, expected, sizeof(actual)), "created position matches input");
         }
     }
-    ValidateQueryRows(&store, input, &movement, (1u << 2) | (1u << 3), 0);
+    ValidateQueryRows(&store, input, &boids[0], 1u << 2, 0);
+    ValidateQueryRows(&store, input, &boids[1], 1u << 3, 0);
     ValidateQueryRows(&store, input, &explosion, (1u << 2) | (1u << 3) | (1u << 5), 0);
     ValidateQueryRows(&store, input, &lights, (1u << 0) | (1u << 1), 0);
     start = BeginOperation();
@@ -106,10 +109,12 @@ void RunCore(const Fixture* input, uint32_t kind, uint32_t sample)
         DataVector3 value;
         Check(kind ? !ecs_is_alive(store.m_World, id) : DataFieldGetVector3(store.m_Data, id, g_Fields[POSITION], &value) == DATA_RESULT_NOT_FOUND, "despawned ID is stale");
     }
-    ValidateQueryRows(&store, input, &movement, (1u << 2) | (1u << 3), input->m_Count / 100);
+    ValidateQueryRows(&store, input, &boids[0], 1u << 2, input->m_Count / 100);
+    ValidateQueryRows(&store, input, &boids[1], 1u << 3, input->m_Count / 100);
     ValidateQueryRows(&store, input, &explosion, (1u << 2) | (1u << 3) | (1u << 5), input->m_Count / 100);
     ValidateQueryRows(&store, input, &lights, (1u << 0) | (1u << 1), input->m_Count / 100);
-    DestroyQuery(&movement);
+    DestroyQuery(&boids[0]);
+    DestroyQuery(&boids[1]);
     DestroyQuery(&explosion);
     DestroyQuery(&lights);
     DestroyBackend(&store, input, 0, "destroy");

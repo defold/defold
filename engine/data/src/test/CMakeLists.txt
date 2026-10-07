@@ -124,7 +124,7 @@ if(DEFOLD_DATA_FLECS_DIR)
     "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_mixed.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_common.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_core.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_movement.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_boids.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_nearby_lights.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_create.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/benchmark_data_add.cpp"

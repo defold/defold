@@ -40,35 +40,22 @@ namespace Defold.Data.Benchmarks
                 CreatePopulation.Run(store, fixture);
                 Record(writer, fixture, sample, "create_population", start, Stopwatch.GetTimestamp(), count, default);
                 ValidateDefaults(store, fixture, false);
-                using var movement = Movement.Create(store);
+                using var players = Boids.Create(store, false);
+                using var enemies = Boids.Create(store, true);
                 using var explosion = Explosion.Create(store);
                 using var lights = NearbyLights.Create(store);
 
-                Stats expected = default;
-                for (int t = 2; t <= 3; ++t)
-                    for (int r = 0; r < fixture.Counts[t]; ++r)
-                    {
-                        var row = fixture.Rows[fixture.Offsets[t] + r];
-                        expected.Sum += Values.Sum(row.Position + row.Velocity * 0.015625f);
-                        ++expected.Rows;
-                    }
                 start = Stopwatch.GetTimestamp();
-                Stats actual = Movement.Run(store, movement);
+                Stats actual = Boids.Run(store, players);
+                actual.Add(Boids.Run(store, enemies));
                 long end = Stopwatch.GetTimestamp();
-                Values.CheckStats(actual, expected, "movement");
-                for (int t = 2; t <= 3; ++t)
-                    for (int r = 0; r < fixture.Counts[t]; ++r)
-                    {
-                        int index = fixture.Offsets[t] + r;
-                        var row = fixture.Rows[index];
-                        Values.Check(math.all(store.Manager.GetComponentData<Position>(store.Ids[index]).Value ==
-                                              row.Position + row.Velocity * 0.015625f),
-                                     "persisted movement");
-                    }
-                Record(writer, fixture, sample, "movement", start, end, actual.Rows, actual);
+                Values.Check(actual.Rows == fixture.Counts[2] + fixture.Counts[3], "boid count");
+                Boids.Validate(store, fixture, 2, players);
+                Boids.Validate(store, fixture, 3, enemies);
+                Record(writer, fixture, sample, "boids", start, end, actual.Rows, actual);
                 store.Restore(fixture);
 
-                expected = default;
+                Stats expected = default;
                 for (int t = 0; t < 6; ++t)
                     if (Values.HasHealth(t))
                         for (int r = 0; r < fixture.Counts[t]; ++r)
@@ -133,7 +120,7 @@ namespace Defold.Data.Benchmarks
                 end = Stopwatch.GetTimestamp();
                 Record(writer, fixture, sample, "spawn_wave", start, end, fixture.Total - fixture.Count, default);
                 ValidateDefaults(store, fixture, true);
-                ValidateQueries(fixture, movement.Query, explosion.Query, lights.Query, 0);
+                ValidateQueries(fixture, players.Query, enemies.Query, explosion.Query, lights.Query, 0);
                 var manager = store.Manager;
                 var ids = store.Ids;
                 var order = fixture.Order;
@@ -143,7 +130,7 @@ namespace Defold.Data.Benchmarks
                 Record(writer, fixture, sample, "despawn_wave", start, end, count / 100, default);
                 for (int i = 0; i < count / 100; ++i)
                     Values.Check(!manager.Exists(ids[order[i]]), "stale entity after despawn");
-                ValidateQueries(fixture, movement.Query, explosion.Query, lights.Query, count / 100);
+                ValidateQueries(fixture, players.Query, enemies.Query, explosion.Query, lights.Query, count / 100);
                 writer.Flush();
                 UnityEngine.Debug.Log($"Unity core sample {sample}/{samples} passed");
             }
@@ -211,7 +198,7 @@ namespace Defold.Data.Benchmarks
         }
 
         static void
-        ValidateQueries(Fixture fixture, EntityQuery movement, EntityQuery explosion, EntityQuery lights, int removed)
+        ValidateQueries(Fixture fixture, EntityQuery players, EntityQuery enemies, EntityQuery explosion, EntityQuery lights, int removed)
         {
             int moving = 0, damageable = 0, lit = 0;
             for (int t = 0; t < 6; ++t)
@@ -234,7 +221,7 @@ namespace Defold.Data.Benchmarks
                 if (t < 2)
                     --lit;
             }
-            Values.Check(movement.CalculateEntityCount() == moving && explosion.CalculateEntityCount() == damageable &&
+            Values.Check(players.CalculateEntityCount() + enemies.CalculateEntityCount() == moving && explosion.CalculateEntityCount() == damageable &&
                          lights.CalculateEntityCount() == lit,
                          "live queries after spawn/despawn");
         }

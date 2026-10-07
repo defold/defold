@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "benchmark_data_common.h"
+#include "benchmark_data_boids.h"
 
 Stats AddInstances_Defold(Backend* store, const Fixture* input)
 {
@@ -72,13 +72,14 @@ void ProfileSpawnWave(const Fixture* input, uint32_t kind, uint32_t samples, uin
             Backend store = CreateBackend(input, kind, 0, "setup");
             for (uint32_t t = 0; t < TYPE_COUNT; ++t)
                 Check(CreateBulk(&store, input, t, 0, input->m_Types[t].m_Count) == 0, "profile population");
-            Query    movement = CreateMovementQuery(&store);
+            Query    boids[] = { CreateBoidsQuery(&store, 0), CreateBoidsQuery(&store, 1) };
             Query    explosion = CreateExplosionQuery(&store, input);
             Query    lights = CreateNearbyLightsQuery(&store);
             uint64_t start = BeginOperation();
             Stats    stats = kind ? AddInstances_Flecs(&store, input) : AddInstances_Defold(&store, input);
             Record(&store, input, sample, "spawn_wave", start, EndOperation(), input->m_Total - input->m_Count, stats);
-            DestroyQuery(&movement);
+            DestroyQuery(&boids[0]);
+            DestroyQuery(&boids[1]);
             DestroyQuery(&explosion);
             DestroyQuery(&lights);
             DestroyBackend(&store, input, 0, "destroy");

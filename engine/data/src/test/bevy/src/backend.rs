@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -208,6 +210,9 @@ impl Backend {
                 Kind::Columns => {
                     for (&id, v) in ids.iter().zip(values) {
                         self.world.get_mut::<Position>(id).unwrap().0 = v.position;
+                        if kind == 2 || kind == 3 {
+                            self.world.get_mut::<Velocity>(id).unwrap().0 = [1.0, 0.0, -1.0];
+                        }
                         match kind {
                             0 | 1 => self.world.get_mut::<Range>(id).unwrap().0 = 10.0,
                             4 => self.world.get_mut::<Amount>(id).unwrap().0 = 10.0,

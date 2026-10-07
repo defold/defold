@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "benchmark_data_common.h"
+#include "benchmark_data_boids.h"
 #ifdef DATA_BENCHMARK_ENTT
 #include "benchmark_data_entt.h"
 #endif
@@ -224,7 +224,7 @@ int main(int argc, char** argv)
 #endif
     if (argc > 7 || argc == 6)
     {
-        fprintf(stderr, "Usage: benchmark_data_mixed [rows=1000000, multiple of 1000] [samples=7] [all|data|flecs_rows|flecs_columns] [packed_rows=0|1|4|16] [spot_color|explosion|create_population|spawn_wave|movement|position_lookup passes]\n");
+        fprintf(stderr, "Usage: benchmark_data_mixed [rows=1000000, multiple of 1000] [samples=7] [all|data|flecs_rows|flecs_columns] [packed_rows=0|1|4|16] [spot_color|explosion|create_population|spawn_wave|boids|position_lookup passes]\n");
         return 1;
     }
     uint32_t count = argc > 1 ? ParseCount(argv[1], 10000000) : 1000000;
@@ -251,8 +251,8 @@ int main(int argc, char** argv)
     uint32_t profile_passes = argc == 7 ? ParseCount(argv[6], 1000000) : 0;
     if (profile_passes)
     {
-        Check((!strcmp(argv[5], "spot_color") || !strcmp(argv[5], "explosion") || !strcmp(argv[5], "create_population") || !strcmp(argv[5], "spawn_wave") || !strcmp(argv[5], "movement") || !strcmp(argv[5], "position_lookup")) && !input.m_GroupSize && selected < 3, "profiling requires a supported case, one backend and decoded tables");
-        Check((strcmp(argv[5], "movement") && strcmp(argv[5], "position_lookup")) || selected == 0 || selected == 2, "movement/lookup profiling uses data or flecs_columns");
+        Check((!strcmp(argv[5], "spot_color") || !strcmp(argv[5], "explosion") || !strcmp(argv[5], "create_population") || !strcmp(argv[5], "spawn_wave") || !strcmp(argv[5], "boids") || !strcmp(argv[5], "position_lookup")) && !input.m_GroupSize && selected < 3, "profiling requires a supported case, one backend and decoded tables");
+        Check((strcmp(argv[5], "boids") && strcmp(argv[5], "position_lookup")) || selected == 0 || selected == 2, "boids/lookup profiling uses data or flecs_columns");
     }
     // Global hash metadata outlives each fixture and is outside tracked inputs.
     InitFixtureMetadata();
@@ -282,8 +282,8 @@ int main(int argc, char** argv)
             ProfileCreatePopulation(&input, selected, samples, profile_passes);
         else if (!strcmp(argv[5], "spawn_wave"))
             ProfileSpawnWave(&input, selected, samples, profile_passes);
-        else if (!strcmp(argv[5], "movement"))
-            ProfileMovement(&input, selected, samples, profile_passes);
+        else if (!strcmp(argv[5], "boids"))
+            ProfileBoids(&input, selected, samples, profile_passes);
         else if (!strcmp(argv[5], "position_lookup"))
             ProfilePositionLookup(&input, selected, samples, profile_passes);
         else if (!strcmp(argv[5], "explosion"))

@@ -1,4 +1,6 @@
-# Copyright 2026 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
 #
@@ -94,7 +96,7 @@ def main():
             if not math.isclose(float(row['checksum']),float(reference[reference_key]['checksum']),rel_tol=1e-7,abs_tol=1e-7):
                 raise ValueError(f'{name} {key}: checksum differs')
     source = ROOT/'engine/data/src'
-    sources = [*source.glob('*.cpp'),*source.glob('*.h'),*(source/'dmsdk/data').glob('*.h'),* (source/'test').glob('benchmark_data_*.cpp'),source/'test/benchmark_data_common.h',source/'test/benchmark_memory.cpp',source/'test/benchmark_memory.h',source/'test/CMakeLists.txt',source/'test/data_fixture_writer.cpp',Path(__file__)]
+    sources = [*source.glob('*.cpp'),*source.glob('*.h'),*(source/'dmsdk/data').glob('*.h'),* (source/'test').glob('benchmark_data_*.cpp'),source/'test/benchmark_data_common.h',source/'test/benchmark_data_boids.h',source/'test/benchmark_memory.cpp',source/'test/benchmark_memory.h',source/'test/CMakeLists.txt',source/'test/data_fixture_writer.cpp',Path(__file__)]
     sources += list((source/'test/bevy/src').rglob('*.rs')) + [source/'test/bevy/Cargo.toml',source/'test/bevy/Cargo.lock',source/'test/benchmark_data_entt.h']
     flecs = Path(next(line.split('=',1)[1] for line in cache.splitlines() if line.startswith('DEFOLD_DATA_FLECS_DIR:')))
     entt = Path(next(line.split('=',1)[1] for line in cache.splitlines() if line.startswith('DEFOLD_DATA_ENTT_DIR:')))
@@ -107,8 +109,8 @@ def main():
             'headers':{str(p.relative_to(entt)):digest(p) for p in sorted((entt/'src/entt').rglob('*')) if p.suffix in ('.h','.hpp')}},
         'cases':list(c['id'] for c in CORE_CASES[:-1]),
         'case_variants':{'create_population':{'data':{'create_population':'AoS', 'create_population_soa':'SoA'}}},
-        'configuration':'One dense mutable Defold table per type; Create population compares public DataCreateRows with prepared native rows (AoS) and DataCreateRowsSoA with prepared native field arrays (SoA), using a fresh store for each and alternating their order. Subsequent cases use the AoS population. Defold uses typed batch ID reads; Flecs/Bevy separate components; EnTT separate component pools and ordinary views without owning groups; inline Light; one pass; no sanitizers; separate allocation builds.',
-        'validation':'Every backend, sample and measurement mode agrees on operation count, hit count and checksum (1e-7 relative tolerance for reductions). Per-row movement, health, creation and stale-ID checks plus tracked teardown run outside timing.',
+        'configuration':'One dense mutable Defold table per type; Create population compares public DataCreateRows with prepared native rows (AoS) and DataCreateRowsSoA with prepared native field arrays (SoA), using a fresh store for each and alternating their order. Subsequent cases use the AoS population. Defold uses typed batch ID reads; Flecs/Bevy separate components; EnTT separate component pools and ordinary views without owning groups; inline Light; Boids uses two tagged flocks with reusable scratch and includes snapshot, cell build and steering; one step; no sanitizers; separate allocation builds.',
+        'validation':'Every backend, sample and measurement mode agrees on operation count, hit count and checksum (1e-7 relative tolerance for reductions). Per-row boid position/velocity, health, creation and stale-ID checks plus tracked teardown run outside timing.',
         'fixtures':{p.name:digest(p) for p in sorted(cpp['timing'].parent.joinpath('fixtures').glob('*.datac'))},
         'commands':commands,'binaries':binaries,'sources':{str(p.relative_to(ROOT)):digest(p) for p in sources},
         'files':{p.name:digest(p) for p in args.output.iterdir() if p.suffix in ('.csv','.log')}}

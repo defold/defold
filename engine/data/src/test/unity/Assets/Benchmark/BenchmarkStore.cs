@@ -111,6 +111,8 @@ namespace Defold.Data.Benchmarks
                     var row = fixture.Rows[index];
                     var entity = Ids[index];
                     Manager.SetComponentData(entity, new Position { Value = row.Position });
+                    if (t == 2 || t == 3)
+                        Manager.SetComponentData(entity, new Velocity { Value = row.Velocity });
                     if (Values.HasHealth(t))
                         Manager.SetComponentData(entity, new Health { Value = row.Health });
                 }

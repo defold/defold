@@ -1,4 +1,6 @@
-// Copyright 2026 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -10,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-mod movement;
+mod boids;
 mod nearby_lights;
 mod position_lookup;
 
@@ -28,11 +30,11 @@ impl Run<'_> {
         let mut store = setup.create("setup");
         self.populate(&mut store, true, "create_population");
         memory::domain(memory::BACKEND);
-        let mut movement = movement::query(&mut store.world);
+        let mut boids = boids::query(&mut store.world);
         let mut explosion = Query::new(&mut store, Selection::Health);
         let mut lights = nearby_lights::query(&mut store.world);
         memory::domain(memory::NONE);
-        movement::measure(self, &mut store, &mut movement);
+        boids::measure(self, &mut store, &mut boids);
         store.reset(input);
         self.query(
             &mut store,
@@ -94,7 +96,8 @@ impl Run<'_> {
                     .count()) as u64
         };
         assert_eq!(
-            movement.iter_mut(&mut store.world).count() as u64,
+            (boids.players.iter(&store.world).count()
+                + boids.enemies.iter(&store.world).count()) as u64,
             expected(&[2, 3], 0)
         );
         assert_eq!(
@@ -131,7 +134,8 @@ impl Run<'_> {
         }
         memory::domain(memory::BACKEND);
         assert_eq!(
-            movement.iter_mut(&mut store.world).count() as u64,
+            (boids.players.iter(&store.world).count()
+                + boids.enemies.iter(&store.world).count()) as u64,
             expected(&[2, 3], removed)
         );
         assert_eq!(
@@ -143,7 +147,7 @@ impl Run<'_> {
             expected(&[0, 1], removed)
         );
         memory::domain(memory::NONE);
-        drop((movement, explosion, lights));
+        drop((boids, explosion, lights));
         setup.destroy(store, "destroy");
     }
 }

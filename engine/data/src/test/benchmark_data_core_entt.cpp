@@ -15,7 +15,7 @@
 #include "benchmark_data_entt.h"
 
 // Validation and restoration are outside operation timing and allocation snapshots.
-static void ValidateValues(CoreEnttStore* store, const Fixture* input, bool extra, bool moved, bool damaged)
+static void ValidateValues(CoreEnttStore* store, const Fixture* input, bool extra, bool damaged)
 {
     for (uint32_t t = 0; t < TYPE_COUNT; ++t)
     {
@@ -32,8 +32,6 @@ static void ValidateValues(CoreEnttStore* store, const Fixture* input, bool extr
             for (uint32_t axis = 0; axis < 3; ++axis)
             {
                 float expected = positions[r].m_Values[axis];
-                if (moved && (t == 2 || t == 3))
-                    expected += ((const Vector3*)type->m_Columns[FindField(type, VELOCITY)])[r].m_Values[axis] * 0.015625f;
                 Check(position.m_Values[axis] == expected, "EnTT persisted position");
             }
             if (health_field != UINT32_MAX)
@@ -67,6 +65,8 @@ static void ResetValues(CoreEnttStore* store, const Fixture* input)
         {
             CoreEnttEntity id = store->m_Ids[type->m_Offset + r];
             store->m_Registry.get<CoreEnttPosition>(id).m_Value = positions[r];
+            if (t == 2 || t == 3)
+                store->m_Registry.get<CoreEnttVelocity>(id).m_Value = ((const Vector3*)type->m_Columns[FindField(type, VELOCITY)])[r];
             if (health != UINT32_MAX)
                 store->m_Registry.get<CoreEnttHealth>(id).m_Value = ((const double*)type->m_Columns[health])[r];
         }
@@ -103,20 +103,38 @@ void RunCoreEnTT(const Fixture* input, uint32_t sample)
         uint64_t start = BeginOperation();
         Stats    stats = CreatePopulation_EnTT(&store, input);
         Record(&report, input, sample, "create_population", start, EndOperation(), input->m_Count, stats);
-        ValidateValues(&store, input, false, false, false);
+        ValidateValues(&store, input, false, false);
 
-        CoreEnttMovement  movement = CreateMovementQuery_EnTT(&store);
+        CoreEnttBoids     boids[] = { CreateBoidsQuery_EnTT(&store, 0), CreateBoidsQuery_EnTT(&store, 1) };
         CoreEnttExplosion explosion = CreateExplosionQuery_EnTT(&store);
         CoreEnttLights    lights = CreateNearbyLightsQuery_EnTT(&store);
+        BoidsScratch      scratch[] = { CreateBoidsScratch(input->m_Types[2].m_Count), CreateBoidsScratch(input->m_Types[3].m_Count) };
         start = BeginOperation();
-        stats = Movement_EnTT(&movement);
-        Record(&report, input, sample, "movement", start, EndOperation(), stats.m_Rows, stats);
-        ValidateValues(&store, input, false, true, false);
+        stats = Boids_EnTT(&boids[0], &scratch[0]);
+        Stats other = Boids_EnTT(&boids[1], &scratch[1]);
+        stats.m_Rows += other.m_Rows;
+        stats.m_Hits += other.m_Hits;
+        stats.m_Sum += other.m_Sum;
+        Record(&report, input, sample, "boids", start, EndOperation(), stats.m_Rows, stats);
+        Check(stats.m_Rows == input->m_Types[2].m_Count + input->m_Types[3].m_Count, "EnTT boid count");
+        for (uint32_t flock = 0; flock < 2; ++flock)
+        {
+            const TypeInput* type = &input->m_Types[flock + 2];
+            BoidsScratch     reference = CreateBoidsReference(type);
+            for (uint32_t r = 0; r < type->m_Count; ++r)
+            {
+                CoreEnttEntity id = store.m_Ids[type->m_Offset + r];
+                Boid           actual = { .m_Position = store.m_Registry.get<CoreEnttPosition>(id).m_Value, .m_Velocity = store.m_Registry.get<CoreEnttVelocity>(id).m_Value };
+                ValidateBoid(actual, SteerBoid(reference.m_Snapshot[r], reference.m_Cells[reference.m_RowCells[r]]));
+            }
+            DestroyBoidsScratch(&reference);
+            DestroyBoidsScratch(&scratch[flock]);
+        }
         ResetValues(&store, input);
         start = BeginOperation();
         stats = Explosion_EnTT(&explosion);
         Record(&report, input, sample, "explosion_r50_first", start, EndOperation(), stats.m_Rows, stats);
-        ValidateValues(&store, input, false, false, true);
+        ValidateValues(&store, input, false, true);
         ResetValues(&store, input);
         start = BeginOperation();
         stats = NearbyLights_EnTT(&lights);
@@ -128,8 +146,9 @@ void RunCoreEnTT(const Fixture* input, uint32_t sample)
         start = BeginOperation();
         stats = SpawnWave_EnTT(&store, input);
         Record(&report, input, sample, "spawn_wave", start, EndOperation(), input->m_Total - input->m_Count, stats);
-        ValidateValues(&store, input, true, false, false);
-        ValidateQueryRows(input, movement, (1u << 2) | (1u << 3), 0);
+        ValidateValues(&store, input, true, false);
+        ValidateQueryRows(input, boids[0], 1u << 2, 0);
+        ValidateQueryRows(input, boids[1], 1u << 3, 0);
         ValidateQueryRows(input, explosion, (1u << 2) | (1u << 3) | (1u << 5), 0);
         ValidateQueryRows(input, lights, (1u << 0) | (1u << 1), 0);
         start = BeginOperation();
@@ -140,7 +159,8 @@ void RunCoreEnTT(const Fixture* input, uint32_t sample)
             RowKey key = input->m_Order[i];
             Check(!store.m_Registry.valid(ids[input->m_Types[key.m_Type].m_Offset + key.m_Row]), "EnTT despawned ID is stale");
         }
-        ValidateQueryRows(input, movement, (1u << 2) | (1u << 3), input->m_Count / 100);
+        ValidateQueryRows(input, boids[0], 1u << 2, input->m_Count / 100);
+        ValidateQueryRows(input, boids[1], 1u << 3, input->m_Count / 100);
         ValidateQueryRows(input, explosion, (1u << 2) | (1u << 3) | (1u << 5), input->m_Count / 100);
         ValidateQueryRows(input, lights, (1u << 0) | (1u << 1), input->m_Count / 100);
     }

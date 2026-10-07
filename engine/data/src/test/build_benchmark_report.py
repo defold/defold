@@ -1,4 +1,6 @@
-# Copyright 2026 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
 #
@@ -28,18 +30,18 @@ CORE_CASES = [
     },
     {
         "id": "spawn_wave", "title": "Spawn wave", "unit": "instances added",
-        "description": "Add 10% of the initial population in batches of 100, preserving the six-type mix. Movement, Explosion and nearby-light queries already exist and remain alive.",
+        "description": "Add 10% of the initial population in batches of 100, preserving the six-type mix. Two Boids flock queries, Explosion and nearby-light queries already exist and remain alive.",
         "tests": "Insertion into a populated store, including capacity growth and maintaining live queries. Input generation is excluded.",
     },
     {
         "id": "despawn_wave", "title": "Despawn wave", "unit": "instances removed",
-        "description": "After the spawn wave, remove 1% of the initial population individually by ID. A seeded shuffle selects original instances across all six types; the three queries remain alive.",
+        "description": "After the spawn wave, remove 1% of the initial population individually by ID. A seeded shuffle selects original instances across all six types; the four queries remain alive.",
         "tests": "Scattered deletion, storage compaction or reuse, and maintaining live queries. Choosing IDs and checking stale handles are excluded.",
     },
     {
-        "id": "movement", "title": "Movement", "unit": "Player/Enemy rows updated",
-        "description": "Visit all Players and Enemies once. Read velocity and update all three position coordinates using position += velocity × 1/64 second.",
-        "tests": "Query traversal and sequential component reads/writes. Query creation and restoring starting positions are excluded.",
+        "id": "boids", "title": "Boids", "unit": "agents simulated",
+        "description": "Simulate the Players and Enemies as two isolated flocks (250,000 agents at the default population). Snapshot position and velocity, build school-local 8-unit spatial cells, then apply alignment, separation, attraction to the nearest of two targets and avoidance of a radius-30 obstacle at the origin. Write velocity and position at speed 25 with a 1/64-second timestep.",
+        "tests": "One serial simulation step: snapshot reads, cell hashing/aggregation, steering and writeback through public APIs. Cells retain full coordinates to resolve hash collisions; steering reads the completed snapshot. Query creation, reusable scratch allocation, restoration and validation are excluded. No rendering or game objects.",
     },
     {
         "id": "explosion_r50_first", "title": "Explosion", "unit": "candidate rows scanned",

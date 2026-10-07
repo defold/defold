@@ -16,7 +16,7 @@
 #define DM_BENCHMARK_DATA_ENTT_H
 
 #include <entt/entity/registry.hpp>
-#include "benchmark_data_common.h"
+#include "benchmark_data_boids.h"
 
 // Generation-bearing 64-bit IDs match the other backends' handle width.
 enum class CoreEnttEntity : uint64_t
@@ -45,7 +45,7 @@ struct CoreEnttTag
 
 // Views own only pool bindings. Keep them alive across insertion and removal,
 // as with the other backends' queries. The registry owns every component value.
-using CoreEnttMovement = decltype(std::declval<CoreEnttRegistry&>().view<CoreEnttPosition, const CoreEnttVelocity>());
+using CoreEnttBoids = decltype(std::declval<CoreEnttRegistry&>().view<CoreEnttPosition, CoreEnttVelocity, const CoreEnttTag>());
 using CoreEnttExplosion = decltype(std::declval<CoreEnttRegistry&>().view<const CoreEnttPosition, CoreEnttHealth>());
 using CoreEnttLights = decltype(std::declval<CoreEnttRegistry&>().view<const CoreEnttPosition, const CoreEnttLight, const CoreEnttTag>());
 
@@ -60,10 +60,10 @@ void              CreateBulk_EnTT(CoreEnttStore*, const Fixture*, uint32_t type,
 Stats             CreatePopulation_EnTT(CoreEnttStore*, const Fixture*);
 Stats             SpawnWave_EnTT(CoreEnttStore*, const Fixture*);
 Stats             DespawnWave_EnTT(CoreEnttStore*, const Fixture*);
-CoreEnttMovement  CreateMovementQuery_EnTT(CoreEnttStore*);
+CoreEnttBoids     CreateBoidsQuery_EnTT(CoreEnttStore*, uint32_t flock);
 CoreEnttExplosion CreateExplosionQuery_EnTT(CoreEnttStore*);
 CoreEnttLights    CreateNearbyLightsQuery_EnTT(CoreEnttStore*);
-Stats             Movement_EnTT(CoreEnttMovement*);
+Stats             Boids_EnTT(CoreEnttBoids*, BoidsScratch*);
 Stats             Explosion_EnTT(CoreEnttExplosion*);
 Stats             NearbyLights_EnTT(CoreEnttLights*);
 Stats             PositionLookup_EnTT(CoreEnttStore*, const Fixture*);
