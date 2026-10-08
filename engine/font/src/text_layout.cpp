@@ -107,9 +107,9 @@ static int CompareDecorationGeometry(const void* left, const void* right)
     return left_geometry.m_GlyphIndex < right_geometry.m_GlyphIndex ? -1 : left_geometry.m_GlyphIndex > right_geometry.m_GlyphIndex;
 }
 
-// A decoration can use one quad when its color is constant or varies only
-// across the complete span. Split it at glyph boundaries when glyphs refer to
-// different styles/spans, or when a glyph-fitted gradient must be preserved.
+// A decoration can use one quad for constant or linear span colors. Split at
+// glyph boundaries for different styles/spans, glyph-fitted gradients, or
+// text-fitted gradients whose varying alpha becomes nonlinear when capped.
 static bool DecorationRequiresGlyphSegments(HTextLayout layout, const TextDecoration& decoration)
 {
     if (decoration.m_GlyphCount <= 1)
@@ -136,18 +136,23 @@ static bool DecorationRequiresGlyphSegments(HTextLayout layout, const TextDecora
     }
 
     const TextResolvedSpan& span = layout->m_ResolvedSpans[first.m_MarkupSpanIndex];
+    const TextEffect* gradient_effect = 0;
 
     for (uint32_t i = 0; i < span.m_EffectCount; ++i)
     {
         const TextEffect& effect = layout->m_Effects[layout->m_SpanEffects[span.m_EffectIndex + i]];
 
-        if (effect.m_Type == TEXT_EFFECT_GRADIENT && effect.m_Gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH)
-        {
-            return true;
-        }
+        if (effect.m_Type == TEXT_EFFECT_GRADIENT && effect.m_TextLength != 0)
+            gradient_effect = &effect;
     }
 
-    return false;
+    if (!gradient_effect)
+        return false;
+
+    const TextGradientEffect& gradient = gradient_effect->m_Gradient;
+    return gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH ||
+           (gradient.m_Fit == TEXT_EFFECT_FIT_TEXT &&
+            (gradient.m_BottomLeft[3] != gradient.m_BottomRight[3] || gradient.m_TopLeft[3] != gradient.m_TopRight[3]));
 }
 
 static uint32_t GetDecorationIndex(HTextLayout layout, const TextDecoration& decoration)

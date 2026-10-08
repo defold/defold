@@ -5637,6 +5637,131 @@ TEST_F(FontTest, DecorationGeometryPreservesPerGlyphGradient)
     TextLayoutRelease(layout);
 }
 
+// Verifies underline and strikethrough vertices retain glyph opacity when base or authored alpha caps a varying text-wide gradient.
+TEST_F(FontTest, LayoutDecorationPreservesCappedGradientAlpha)
+{
+    const char* sources[] = {
+        "<ul><strike><gradient left=#FFFFFF00 right=#FFFFFFFF>MMMM</gradient></strike></ul>",
+        "<ul><strike><gradient left=#FFFFFFFF right=#FFFFFF00>MMMM</gradient></strike></ul>",
+        "<ul pattern=dashed><strike pattern=dashed><gradient bl=#FFFFFF00 br=#FFFFFFFF tl=#FFFFFFFF tr=#FFFFFF00>MMMM</gradient></strike></ul>",
+        "<ul><strike><color=#FFFFFF80><gradient left=#FFFFFF00 right=#FFFFFFFF>MMMM</gradient></color></strike></ul>",
+        "<ul><strike><gradient hz=1 left=#FFFFFF00 right=#FFFFFFFF>MMMM</gradient></strike></ul>",
+    };
+    const float base_alphas[] = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+    const float samples[] = { 0.0f, 0.5f, 1.0f };
+    FontGlyph glyph = {};
+    glyph.m_Width = glyph.m_Ascent = 1.0f;
+    glyph.m_Bitmap.m_Width = glyph.m_Bitmap.m_Height = 1;
+    TestLayoutCachedGlyph cached = { &glyph };
+    FontLayoutVertexConfig config = {};
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_Width = 1000.0f;
+    config.m_RecipAtlasWidth = config.m_RecipAtlasHeight = 1.0f;
+    config.m_CacheCellMaxAscent = 1;
+    config.m_MetricsFromTtf = true;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_RenderDecorations = true;
+    config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = 1.0f;
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sources); ++i)
+    {
+        HMarkup markup = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(sources[i], strlen(sources[i]), &markup, 0));
+        TextLayoutSettings settings = {};
+        settings.m_Width = config.m_Width;
+        settings.m_Size = 32.0f;
+        settings.m_Leading = 1.0f;
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+        MarkupDestroy(markup);
+        ASSERT_EQ(4u, TextLayoutGetGlyphCount(layout));
+        ASSERT_EQ(2u, TextLayoutGetDecorationCount(layout));
+        TextLayoutUpdate(layout, 0.125f);
+        config.m_Layout = layout;
+
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(base_alphas); ++j)
+        {
+            config.m_FaceColor[3] = base_alphas[j];
+            FontLayoutVertexMetrics metrics;
+            ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+            ASSERT_EQ(4u, metrics.m_GlyphQuadCount);
+            FontGlyphVertex vertices[96];
+            ASSERT_EQ(metrics.m_VertexCount, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+            uint32_t decoration_vertex = metrics.m_GlyphQuadCount * 6;
+            for (uint32_t k = 0; k < 2; ++k)
+            {
+                const TextDecoration& decoration = TextLayoutGetDecorations(layout)[k];
+                const uint32_t quad_count = FontGetDecorationQuadCount(layout, decoration);
+                const FontGlyphVertex* quads = vertices + decoration_vertex;
+                const float x0 = quads[0].m_Position[0];
+                const float x1 = quads[(quad_count - 1) * 6 + 1].m_Position[0];
+                for (uint32_t g = 0; g < 4; ++g)
+                {
+                    TextGlyphRenderData data;
+                    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[g], config.m_FaceColor, &data);
+                    for (uint32_t s = 0; s < DM_ARRAY_SIZE(samples); ++s)
+                    {
+                        const float sample_x = x0 + (x1 - x0) * (g + samples[s]) / 4.0f;
+                        bool found = false;
+                        for (uint32_t q = 0; q < quad_count; ++q)
+                        {
+                            const FontGlyphVertex* quad = quads + q * 6;
+                            const float left = quad[0].m_Position[0];
+                            const float right = quad[1].m_Position[0];
+                            if (sample_x < left - 0.0001f || sample_x > right + 0.0001f || right <= left)
+                                continue;
+                            const float t = fmaxf(0.0f, fminf(1.0f, (sample_x - left) / (right - left)));
+                            const float bottom = (quad[0].m_FaceColor[3] + t * (quad[1].m_FaceColor[3] - quad[0].m_FaceColor[3])) / 255.0f;
+                            const float top = (quad[2].m_FaceColor[3] + t * (quad[5].m_FaceColor[3] - quad[2].m_FaceColor[3])) / 255.0f;
+                            const float expected_bottom = data.m_FaceColors.m_BottomLeft[3] + samples[s] * (data.m_FaceColors.m_BottomRight[3] - data.m_FaceColors.m_BottomLeft[3]);
+                            const float expected_top = data.m_FaceColors.m_TopLeft[3] + samples[s] * (data.m_FaceColors.m_TopRight[3] - data.m_FaceColors.m_TopLeft[3]);
+                            EXPECT_NEAR(expected_bottom, bottom, 1.0f / 255.0f + 0.0001f);
+                            EXPECT_NEAR(expected_top, top, 1.0f / 255.0f + 0.0001f);
+                            found = true;
+                            break;
+                        }
+                        ASSERT_TRUE(found);
+                    }
+                }
+                decoration_vertex += quad_count * 6;
+            }
+        }
+        TextLayoutRelease(layout);
+    }
+}
+
+// Verifies gradients that remain linear across decoration spans keep one quad, including when they override a varying-alpha gradient.
+TEST_F(FontTest, LayoutDecorationKeepsLinearGradientsCompact)
+{
+    const char* gradients[] = {
+        "<gradient left=#FF0000 right=#0000FF>MMMM</gradient>",
+        "<gradient left=#FF000080 right=#0000FF80>MMMM</gradient>",
+        "<gradient bottom=#FFFFFF00 top=#FFFFFFFF>MMMM</gradient>",
+        "<gradient fit=span left=#FFFFFF00 right=#FFFFFFFF>MMMM</gradient>",
+        "<gradient left=#FFFFFF00 right=#FFFFFFFF><gradient left=#FF0000 right=#0000FF>MMMM</gradient></gradient>",
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(gradients); ++i)
+    {
+        char source[512];
+        snprintf(source, sizeof(source), "<ul><strike>%s</strike></ul>", gradients[i]);
+        HMarkup markup = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &markup, 0));
+        TextLayoutSettings settings = {};
+        settings.m_Size = 32.0f;
+        settings.m_Leading = 1.0f;
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+        MarkupDestroy(markup);
+        ASSERT_EQ(2u, TextLayoutGetDecorationCount(layout));
+        for (uint32_t j = 0; j < 2; ++j)
+            ASSERT_EQ(1u, FontGetDecorationQuadCount(layout, TextLayoutGetDecorations(layout)[j]));
+        ASSERT_EQ(0u, layout->m_DecorationGeometry.Size());
+        TextLayoutRelease(layout);
+    }
+}
+
 TEST_F(FontTest, LayoutRecoversInvalidDecorations)
 {
     const char* invalid[] = {
