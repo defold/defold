@@ -80,7 +80,7 @@ jobs:
   # differ has to be written out in full.
   #
   #   &if_bob_enabled &should_release &build_sha &step_validate_build_commit
-  #   &step_checkout &step_dcache_key &step_cache_dcache &step_cache_lein &step_python &step_java &step_cmake &step_build_external
+  #   &step_checkout &step_dcache_key &step_cache_dcache &step_cache_lein &step_python &step_java &step_cmake &step_linux_clang &step_build_external
   #   &step_download_bob &step_download_dynamo_home &step_chmod_dynamo_home
   #   &step_remove_bob_maven &step_stop_gradle &step_notify
   #
@@ -358,6 +358,18 @@ jobs:
       - name: "Install dependencies"
         if: runner.os != 'macOS'
         run: "ci/ci.sh install --platform=${{ matrix.platform }}"
+      - &step_linux_clang
+        name: "Set up Linux Clang"
+        if: runner.os == 'Linux'
+        # Use the same compiler path for engine, Bob, and editor cache keys.
+        run: |
+          eval "$(python build_tools/set_sdk_vars.py VERSION_LINUX_CLANG)"
+          LLVM_MAJOR="${VERSION_LINUX_CLANG%%.*}"
+          if [ ! -x "/usr/lib/llvm-${LLVM_MAJOR}/bin/clang++" ]; then
+            curl -fsSL https://apt.llvm.org/llvm.sh -o "$RUNNER_TEMP/llvm.sh"
+            sudo bash "$RUNNER_TEMP/llvm.sh" "$LLVM_MAJOR"
+          fi
+          echo "/usr/lib/llvm-${LLVM_MAJOR}/bin" >> "$GITHUB_PATH"
       - &step_build_external
         name: "Build external dependencies"
         uses: ./.github/actions/build-external
@@ -548,18 +560,7 @@ jobs:
       - *step_python
       - *step_java
       - *step_cmake
-      - &step_linux_clang
-        name: "Set up Linux Clang"
-        if: runner.os == 'Linux'
-        # External dependencies require the SDK's Clang version, including cache hits.
-        run: |
-          eval "$(python build_tools/set_sdk_vars.py VERSION_LINUX_CLANG)"
-          LLVM_MAJOR="${VERSION_LINUX_CLANG%%.*}"
-          if [ ! -x "/usr/lib/llvm-${LLVM_MAJOR}/bin/clang++" ]; then
-            curl -fsSL https://apt.llvm.org/llvm.sh -o "$RUNNER_TEMP/llvm.sh"
-            sudo bash "$RUNNER_TEMP/llvm.sh" "$LLVM_MAJOR"
-          fi
-          echo "/usr/lib/llvm-${LLVM_MAJOR}/bin" >> "$GITHUB_PATH"
+      - *step_linux_clang
       - *step_build_external
       - name: "Download engine builds"
         # Without S3 credentials build_bob falls back to the artifacts in $DYNAMO_HOME,
