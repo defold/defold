@@ -80,7 +80,7 @@ jobs:
   # differ has to be written out in full.
   #
   #   &if_bob_enabled &should_release &build_sha &step_validate_build_commit
-  #   &step_checkout &step_cache_dcache &step_cache_lein &step_python &step_java &step_cmake
+  #   &step_checkout &step_dcache_key &step_cache_dcache &step_cache_lein &step_python &step_java &step_cmake
   #   &step_download_bob &step_download_dynamo_home &step_chmod_dynamo_home
   #   &step_remove_bob_maven &step_stop_gradle &step_notify
   #
@@ -232,11 +232,22 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: *build_sha
-      - &step_cache_dcache
-        name: "Cache Defold dependency downloads"
+      - &step_python
+        name: "Install Python"
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.13
+      - &step_dcache_key
+        name: "Read dependency cache key"
+        id: dcache-key
         # No cache for a contrib build, and none for a repository dispatch: that always
         # reports github.ref as the default branch, so it would cache into another's scope.
-        if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
+        if: &if_dcache_enabled "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
+        shell: bash
+        run: &dcache_key_command python ci/cache_key.py >> "$GITHUB_OUTPUT"
+      - &step_cache_dcache
+        name: "Cache Defold dependency downloads"
+        if: *if_dcache_enabled
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           # Cache only reusable dependencies. Download helpers replace URL slashes
@@ -250,8 +261,7 @@ jobs:
             ~/.dcache/repo1_maven_org-maven2-com-ibm-icu-icu4j-*.jar-*
             ~/.dcache/github_com-defold-template-empty-archive-*.zip-*
             !~/.dcache/*_tmp
-          # Start fresh with the explicit dependency list.
-          key: &dcache_key "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-dependencies-v2-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}"
+          key: &dcache_key "${{ runner.os }}-${{ matrix.platform || 'default' }}-${{ steps.dcache-key.outputs.key }}"
       - name: "Cache lein installation and Maven dependencies for docs"
         if: matrix.docs && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -265,11 +275,6 @@ jobs:
             ${{ runner.os }}-lein-maven-docs-
             ${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-docs-
             ${{ runner.os }}-lein-docs-
-      - &step_python
-        name: "Install Python"
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: 3.13
       - name: "XCode"
         if: runner.os == 'macOS'
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
@@ -588,8 +593,9 @@ jobs:
     steps:
       - *step_validate_build_commit
       - *step_checkout
-      - *step_cache_dcache
       - *step_python
+      - *step_dcache_key
+      - *step_cache_dcache
       - *step_java
       - *step_cmake
       - *step_linux_clang
@@ -709,6 +715,8 @@ jobs:
     steps:
       - *step_validate_build_commit
       - *step_checkout
+      - *step_python
+      - *step_dcache_key
       - *step_cache_dcache
       - &step_cache_lein
         name: "Cache lein installation and Maven dependencies"
@@ -724,7 +732,6 @@ jobs:
             ${{ runner.os }}-lein-maven-editor-
             ${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-
             ${{ runner.os }}-lein-editor-
-      - *step_python
       - *step_java
       - *step_cmake
       - name: "Set up Google Cloud SDK"
@@ -809,9 +816,10 @@ jobs:
     steps:
       - *step_validate_build_commit
       - *step_checkout
+      - *step_python
+      - *step_dcache_key
       - *step_cache_dcache
       - *step_cache_lein
-      - *step_python
       - *step_java
       - *step_cmake
       - *step_download_bob
@@ -864,7 +872,7 @@ jobs:
           # Waiting for the release lock must not switch a dispatch to a newer branch tip.
           ref: *build_sha
           # Release publishes existing S3 artifacts; only tooling and metadata are needed.
-          # Keep sass.clj because it contributes to the shared download-cache key.
+          # Include the version declarations used by the download-cache key.
           sparse-checkout: |
             /VERSION
             /ci/
@@ -875,20 +883,26 @@ jobs:
             /releasenotes/
             /share/
             /editor/tasks/leiningen/sass.clj
+            /editor/project.clj
+            /editor/resources/welcome/welcome.edn
           # Cone mode would also include the large archives directly under packages/.
           sparse-checkout-cone-mode: false
-      - name: "Cache Defold dependency downloads"
-        # *should_release, plus the cache rule above.
-        if: steps.release.outputs.should_release == 'true' && github.event_name != 'repository_dispatch'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: *dcache_paths
-          key: *dcache_key
       - name: "Install Python"
         if: *should_release
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: 3.13
+      - name: "Read dependency cache key"
+        id: dcache-key
+        if: &if_release_dcache_enabled steps.release.outputs.should_release == 'true' && github.event_name != 'repository_dispatch'
+        shell: bash
+        run: *dcache_key_command
+      - name: "Cache Defold dependency downloads"
+        if: *if_release_dcache_enabled
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: *dcache_paths
+          key: *dcache_key
       - name: "Setup git user"
         if: *should_release
         run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"'
