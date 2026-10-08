@@ -35,10 +35,10 @@
                 strip-resource-binding-namespace-regex-str
                 attribute-reflection-infos]}
         (shader/read-combined-shader-info ["shaders/font_vector.vp" "font_vector.fp"] {}
-                                         (fn [path]
-                                           (if (= "font_vector.fp" path)
-                                             fragment-source
-                                             (slurp (io/resource path)))))
+                                          (fn [path]
+                                            (if (= "font_vector.fp" path)
+                                              fragment-source
+                                              (slurp (io/resource path)))))
 
         request-data
         (shader/make-shader-request-data

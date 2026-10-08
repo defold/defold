@@ -292,11 +292,11 @@
           label-node (project/get-resource-node project "/label/test.label")
           builtin-material (project/get-resource-node project "/builtins/fonts/font-vector.material")
           material-desc (assoc (g/valid-node-value builtin-material :save-value)
-                         :vertex-program "/fonts/custom-vector.vp"
-                         :fragment-program "/fonts/custom-vector.fp")]
+                          :vertex-program "/fonts/custom-vector.vp"
+                          :fragment-program "/fonts/custom-vector.fp")]
       (doseq [ext ["vp" "fp"]]
         (test-util/write-file-resource! workspace (str "/fonts/custom-vector." ext)
-                                       (string/split-lines (slurp (workspace/find-resource workspace (str "/builtins/fonts/font-vector." ext))))))
+          (string/split-lines (slurp (workspace/find-resource workspace (str "/builtins/fonts/font-vector." ext))))))
       (test-util/write-file-resource! workspace "/fonts/custom-vector.material" material-desc)
       (workspace/resource-sync! workspace)
       (let [custom-material (workspace/find-resource workspace "/fonts/custom-vector.material")

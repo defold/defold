@@ -1045,7 +1045,7 @@
        "/vector-omitted.font" (assoc base :vector-font-mode :vector-font-mode-vector)
        "/vector-explicit.font" (assoc base :vector-font-mode :vector-font-mode-vector :runtime false :size 0)}
       (doseq [[omitted explicit] [["/omitted.font" "/explicit.font"]
-                                 ["/vector-omitted.font" "/vector-explicit.font"]]]
+                                  ["/vector-omitted.font" "/vector-explicit.font"]]]
         (let [omitted-node (test-util/resource-node project omitted)
               explicit-node (test-util/resource-node project explicit)]
           (doseq [output [:vector-font-mode :runtime :size :save-value]]

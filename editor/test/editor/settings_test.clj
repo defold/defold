@@ -25,7 +25,7 @@
 (deftest runtime-font-generation-setting-is-deprecated
   (with-open [reader (io/reader (io/resource "com/dynamo/bob/meta.properties"))]
     (let [meta-setting (settings-core/get-meta-setting (:settings (settings-core/load-meta-properties reader))
-                                                     ["font" "runtime_generation"])]
+                                                       ["font" "runtime_generation"])]
       (is (nil? (settings/get-setting-error nil meta-setting :value)))
       (doseq [value [false true]]
         (let [error (settings/get-setting-error value meta-setting :value)]
