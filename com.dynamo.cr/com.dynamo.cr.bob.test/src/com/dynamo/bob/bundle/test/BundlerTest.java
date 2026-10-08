@@ -505,10 +505,9 @@ public class BundlerTest {
                 + "  </application>"
                 + "</manifest>";
         createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", ANDROID_MANIFEST);
-        try (InputStream database = getClass().getResourceAsStream("/builtins/manifests/android/vkqualitydata.vkq")) {
-            assertNotNull(database);
-            FileUtils.copyInputStreamToFile(database, new File(outputContentRoot, "builtins/manifests/android/vkqualitydata.vkq"));
-        }
+        InputStream database = getClass().getResourceAsStream("/builtins/manifests/android/vkqualitydata.vkq");
+        assertNotNull(database);
+        FileUtils.copyInputStreamToFile(database, new File(outputContentRoot, "builtins/manifests/android/vkqualitydata.vkq"));
         createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_CUSTOM_CSS_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
         return count;
     }
