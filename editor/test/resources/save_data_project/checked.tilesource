@@ -53,8 +53,6 @@ convex_hulls {
 collision_groups: "collision_group"
 animations {
   id: "animation"
-  start_tile: 4
-  end_tile: 6
   playback: PLAYBACK_LOOP_PINGPONG
   fps: 12
   flip_horizontal: 1
@@ -64,6 +62,9 @@ animations {
     frame: 1
     value: 1.1
   }
+  frames: 4
+  frames: 5
+  frames: 6
 }
 extrude_borders: 4
 inner_padding: 2

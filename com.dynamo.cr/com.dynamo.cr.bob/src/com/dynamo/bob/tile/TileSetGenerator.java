@@ -39,12 +39,14 @@ public class TileSetGenerator {
     public static class IndexedAnimDesc extends AnimDesc {
         int start;
         int end;
+        List<Integer> frames;
 
         public IndexedAnimDesc(Animation animation) {
             super(animation.getId(), animation.getPlayback(), animation.getFps(), animation.getFlipHorizontal() != 0,
                     animation.getFlipVertical() != 0);
             this.start = animation.getStartTile() - 1;
             this.end = animation.getEndTile();
+            this.frames = animation.getFramesList();
         }
 
         public int getStart() {
@@ -79,6 +81,9 @@ public class TileSetGenerator {
         @Override
         public Integer nextFrameIndex() {
             IndexedAnimDesc anim = anims.get(nextAnimIndex - 1);
+            if (!anim.frames.isEmpty()) {
+                return nextFrameIndex < anim.frames.size() ? anim.frames.get(nextFrameIndex++) - 1 : null;
+            }
             int start = anim.getStart();
             int end = anim.getEnd();
             if (end <= start) {
@@ -180,14 +185,32 @@ public class TileSetGenerator {
         return result;
     }
 
-    private static AnimIterator createAnimIterator(TileSet tileSet, int tileCount) {
+    private static AnimIterator createAnimIterator(TileSet tileSet, int tileCount) throws CompileExceptionError {
         List<Animation> animations = tileSet.getAnimationsList();
         List<IndexedAnimDesc> anims = new ArrayList<IndexedAnimDesc>(animations.size());
         for (Animation animation : animations) {
+            if (animation.getFramesCount() > 0) {
+                for (int frame : animation.getFramesList()) {
+                    validateAnimationTile(animation, frame, tileCount);
+                }
+            } else {
+                if (!animation.hasStartTile() || !animation.hasEndTile()) {
+                    throw new CompileExceptionError(null, -1, String.format("Animation '%s' must contain at least one frame.", animation.getId()));
+                }
+                validateAnimationTile(animation, animation.getStartTile(), tileCount);
+                validateAnimationTile(animation, animation.getEndTile(), tileCount);
+            }
             anims.add(new IndexedAnimDesc(animation));
         }
         IndexedAnimIterator iterator = new IndexedAnimIterator(anims, tileCount);
         return iterator;
+    }
+
+    private static void validateAnimationTile(Animation animation, int tile, int tileCount) throws CompileExceptionError {
+        if (tile < 1 || tile > tileCount) {
+            throw new CompileExceptionError(null, -1, String.format("Animation '%s' frame %s is outside the tile range (1-%d).",
+                    animation.getId(), Integer.toUnsignedString(tile), tileCount));
+        }
     }
 
     private static void buildCollisionConvexHulls(TileSet tileSet, BufferedImage image, TextureSet.Builder textureSet) {

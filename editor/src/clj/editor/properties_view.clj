@@ -15,6 +15,7 @@
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
             [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -39,13 +40,14 @@
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
             [util.eduction :as e]
+            [util.fn :as fn]
             [util.id-vec :as iv])
   (:import [editor.properties Curve CurveSpread]
            [javafx.beans.value ChangeListener]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.scene Node]
-           [javafx.scene.control Slider]
+           [javafx.scene.control Slider TextFormatter$Change]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.paint Color]))
 
@@ -247,13 +249,32 @@
 (defn- resolve-value [input-desc property]
   (assoc input-desc :value (properties/unify-values (properties/values property))))
 
+(defn- filter-inserted-text
+  [input-pattern ^TextFormatter$Change change]
+  ;; Keep this callback named so fn/partial preserves filter equality across renders.
+  ;; Render model values verbatim, including invalid text from editor scripts.
+  ;; Restrict inserted user text, while allowing deletion and selection.
+  (when (or fx.lifecycle/*in-progress?*
+            (re-matches input-pattern (.getText change)))
+    change))
+
 (defmethod make-control-view g/Str [property _context localization-state]
-  (-> {:fx/type fxui/value-field
-       :on-value-changed #(set-values! property (repeat %))
-       :editable (not (properties/read-only? property))}
-      (resolve-value property)
-      (resolve-validation property localization-state)
-      (resolve-script-property-style-class property)))
+  (let [input-pattern (get-in property [:edit-type :input-pattern])]
+    (-> {:fx/type fxui/value-field
+         :to-value (get-in property [:edit-type :to-value] identity)
+         :to-string (get-in property [:edit-type :to-string] str)
+         :on-value-changed #(set-values! property (mapv (constantly %) (:node-ids property)))
+         :editable (not (properties/read-only? property))}
+        (cond-> input-pattern
+          (assoc :text-formatter
+                 {:fx/type fx/ext-recreate-on-key-changed
+                  :key input-pattern
+                  :desc {:fx/type fx.text-formatter/lifecycle
+                         ;; TextFormatter filters are immutable.
+                         :filter (fn/partial filter-inserted-text input-pattern)}}))
+        (resolve-value property)
+        (resolve-validation property localization-state)
+        (resolve-script-property-style-class property))))
 
 (defn- resolve-scrubber
   "Adds a scrubber to a text field

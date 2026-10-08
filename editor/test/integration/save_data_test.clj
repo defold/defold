@@ -192,6 +192,11 @@
    {:default
     {"type" :allowed-default}}
 
+   'dmGameSystemDDF.Animation
+   {:default
+    {"start_tile" :deprecated
+     "end_tile" :deprecated}} ; Migration tested in integration.tile-source-test/animation-frame-migration.
+
    'dmGameSystemDDF.LabelDesc
    {:default
     {"scale" :deprecated ; Migration tested in integration.label-test/label-migration-test.

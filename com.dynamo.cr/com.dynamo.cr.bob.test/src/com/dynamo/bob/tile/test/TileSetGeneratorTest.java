@@ -18,6 +18,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 import java.awt.Color;
 import java.awt.Graphics;
@@ -181,6 +182,72 @@ public class TileSetGeneratorTest {
         assertEquals(0, iterator.nextFrameIndex().intValue());
         assertEquals(1, iterator.nextFrameIndex().intValue());
         assertNull(iterator.nextFrameIndex());
+    }
+
+    // Explicit frames must preserve order and repetitions, override legacy bounds, and rewind correctly.
+    @Test
+    public void testExplicitFrameIterator() {
+        IndexedAnimDesc animation = new IndexedAnimDesc(newAnim("test", 100, 200)
+                .addAllFrames(Arrays.asList(4, 1, 3, 1)).build());
+        IndexedAnimIterator iterator = new IndexedAnimIterator(Arrays.asList(animation), 4);
+        for (int pass = 0; pass < 2; ++pass) {
+            assertEquals("test", iterator.nextAnim().getId());
+            for (int expected : new int[] {3, 0, 2, 0}) {
+                assertEquals(expected, iterator.nextFrameIndex().intValue());
+            }
+            assertNull(iterator.nextFrameIndex());
+            assertNull(iterator.nextAnim());
+            iterator.rewind();
+        }
+    }
+
+    // Compilation must use the explicit sequence for every playback mode without losing animation settings.
+    @Test
+    public void testExplicitAnimationFrames() throws CompileExceptionError {
+        for (Tile.Playback playback : Tile.Playback.values()) {
+            TileSet.Builder tileSet = newTileSet(16, 16);
+            tileSet.addAnimations(Tile.Animation.newBuilder().setId("frames")
+                    .addAllFrames(Arrays.asList(1, 3, 4, 2, 3))
+                    .setPlayback(playback).setFps(12).setFlipHorizontal(1).setFlipVertical(1));
+            TextureSet textureSet = TileSetGenerator.generate(tileSet.build(), newImage(64, 16), null)
+                    .builder.setTexture("").build();
+            TextureSetAnimation animation = textureSet.getAnimations(0);
+            assertEquals(Arrays.asList(0, 2, 3, 1, 2),
+                    textureSet.getFrameIndicesList().subList(animation.getStart(), animation.getEnd()));
+            assertEquals(playback, animation.getPlayback());
+            assertEquals(12, animation.getFps());
+            assertEquals(1, animation.getFlipHorizontal());
+            assertEquals(1, animation.getFlipVertical());
+        }
+    }
+
+    // Empty and out-of-range sequences should fail with a useful error, instead of failing inside texture generation.
+    @Test
+    public void testInvalidAnimationFrames() {
+        for (List<Integer> frames : Arrays.asList(Arrays.<Integer>asList(), Arrays.asList(0), Arrays.asList(5), Arrays.asList(-1))) {
+            TileSet.Builder tileSet = newTileSet(16, 16);
+            tileSet.addAnimations(Tile.Animation.newBuilder().setId("invalid").addAllFrames(frames));
+            try {
+                TileSetGenerator.generate(tileSet.build(), newImage(64, 16), null);
+                fail("Expected invalid animation frames to fail: " + frames);
+            } catch (CompileExceptionError e) {
+                org.junit.Assert.assertTrue(e.getMessage().contains("Animation 'invalid'"));
+            }
+        }
+    }
+
+    // Legacy inclusive and wrapped ranges must compile to the same frames as their migrated equivalents.
+    @Test
+    public void testLegacyAnimationFrames() throws CompileExceptionError {
+        TileSet.Builder tileSet = newTileSet(16, 16);
+        tileSet.addAnimations(newAnim("inclusive", 1, 3));
+        tileSet.addAnimations(newAnim("wrapped", 3, 1));
+        TextureSet textureSet = TileSetGenerator.generate(tileSet.build(), newImage(64, 16), null)
+                .builder.setTexture("").build();
+        TextureSetAnimation inclusive = textureSet.getAnimations(0);
+        TextureSetAnimation wrapped = textureSet.getAnimations(1);
+        assertEquals(Arrays.asList(1, 2, 3), textureSet.getFrameIndicesList().subList(inclusive.getStart(), inclusive.getEnd()));
+        assertEquals(Arrays.asList(3, 0, 1), textureSet.getFrameIndicesList().subList(wrapped.getStart(), wrapped.getEnd()));
     }
 
     private static BufferedImage newImage(int w, int h) {

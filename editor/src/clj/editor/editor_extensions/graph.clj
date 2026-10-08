@@ -804,14 +804,10 @@
         "id" default-new-animation-name-lua-value)
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
-(def ^:private default-start-tile-lua-value (rt/->lua 1))
-(def ^:private default-end-tile-lua-value (rt/->lua 1))
 (defmethod init-attachment :editor.tile-source/TileAnimationNode [evaluation-context rt project _ _ child-node-id attachment]
   (-> attachment
       (util/provide-defaults
-        "id" default-new-animation-name-lua-value
-        "start_tile" default-start-tile-lua-value
-        "end_tile" default-end-tile-lua-value)
+        "id" default-new-animation-name-lua-value)
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
 (defmethod init-attachment :editor.tile-source/CollisionGroupNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
