@@ -437,6 +437,16 @@ static bool MakeCaptureParent(const char* filename)
     return true;
 }
 
+static const char* GetCaptureTextureName(AdapterFamily family, bool cubemap)
+{
+    if (family == ADAPTER_FAMILY_OPENGL)
+    {
+        // shaderc combines the separate texture and sampler for GLSL 330.
+        return cubemap ? "SPIRV_Cross_Combinedcubemapcube_sampler" : "SPIRV_Cross_Combinedtest_texturetest_sampler";
+    }
+    return cubemap ? "cubemap" : "test_texture";
+}
+
 static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool cubemap, bool texture)
 {
     ShaderDesc desc = {};
@@ -478,8 +488,8 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
     ShaderDesc::MSLResourceMapping metal_bindings[2] = {};
     if (cubemap || texture)
     {
-        const char* texture_name = cubemap ? "cubemap" : "test_texture";
-        const char* sampler_name = cubemap ? "cube_sampler" : "test_sampler";
+        const char*                texture_name = GetCaptureTextureName(family, cubemap);
+        const char*                sampler_name = cubemap ? "cube_sampler" : "test_sampler";
         ShaderDesc::ShaderDataType texture_type = cubemap ? ShaderDesc::SHADER_TYPE_TEXTURE_CUBE : ShaderDesc::SHADER_TYPE_TEXTURE2D;
         if (family == ADAPTER_FAMILY_OPENGL)
         {
@@ -589,7 +599,7 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
         {
             Uniform uniform;
             GetUniform(resources->m_Program, i, &uniform);
-            if (uniform.m_NameHash == dmHashString64(cubemap ? "cubemap" : "test_texture"))
+            if (uniform.m_NameHash == dmHashString64(GetCaptureTextureName(family, cubemap)))
             {
                 resources->m_TextureLocation = uniform.m_Location;
             }

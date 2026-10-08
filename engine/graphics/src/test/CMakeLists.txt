@@ -163,6 +163,25 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
         DM_TEST_TEXTURE_FORMATS_DIR="${_graphics_texture_dir}")
 
       _defold_find_python(_graphics_python)
+      # Compile fixture variants with the freshly built host tool. Cross builds
+      # consume the checked-in variants and never execute a target-platform tool.
+      if(NOT CMAKE_CROSSCOMPILING AND TARGET shaderc_standalone)
+        find_program(_graphics_glslang NAMES glslang glslangValidator
+          HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+        find_program(_graphics_tint NAMES tint
+          HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+        set(_graphics_shader_tests "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_shaders.py"
+          --glslang "${_graphics_glslang}" --shaderc "$<TARGET_FILE:shaderc_standalone>"
+          --tint "${_graphics_tint}" --java "${DEFOLD_JAVA_EXECUTABLE}")
+        add_custom_target(run_test_graphics_shaders
+          COMMAND ${_graphics_shader_tests}
+          DEPENDS shaderc_standalone
+          VERBATIM)
+        defold_add_to_run_tests(run_test_graphics_shaders RUN_GROUP graphics
+          COMMAND ${_graphics_shader_tests} DEPENDS shaderc_standalone)
+        defold_register_sequential_test_command(graphics_shaders
+          COMMAND ${_graphics_shader_tests} DEPENDS shaderc_standalone)
+      endif()
       defold_test_run_settings(_graphics_runner _graphics_run_options graphics)
       if(TARGET_PLATFORM STREQUAL "arm64_sim-ios")
         set(_graphics_matrix metal vulkan)

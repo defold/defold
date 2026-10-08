@@ -130,6 +130,47 @@ An explicitly requested missing backend fails:
 python3 engine/graphics/src/test/run_graphics_images.py --executable <test_app_graphics> --capture-dir captures --backend vulkan --available vulkan --output report
 ```
 
+## Shader regeneration
+
+Edit `graphics_capture.vert` or `graphics_capture*.frag`, then regenerate the
+checked-in GLSL, MSL and WGSL variants. `shaderc_standalone` cross-compiles the
+SPIR-V produced by `glslang` to GLSL 330 and MSL 2.2 using the engine's compiler
+options, including Metal's vertex Y flip and argument buffers. Tint produces
+WGSL, then the generator invokes Bob's shared `WgslShader.java` helper using
+the host Java runtime to add the offscreen entry point. Vulkan continues
+to compile SPIR-V from these sources during the CMake build.
+
+Build the **host** `shaderc_standalone` target first (include `shaderc` in
+`DEFOLD_SELECTED_ENGINE_LIBS` if using a focused build). For example, from the
+repository root in a Defold build shell on Apple Silicon:
+
+```sh
+cmake --build engine/build/arm64-macos --target shaderc_standalone
+python3 engine/graphics/src/test/generate_graphics_shaders.py \
+  --glslang "$DYNAMO_HOME/ext/bin/arm64-macos/glslang" \
+  --shaderc engine/shaderc/build/arm64-macos/src/standalone/shaderc_standalone \
+  --tint "$DYNAMO_HOME/ext/bin/arm64-macos/tint"
+```
+
+Use the corresponding host paths on other platforms or with an isolated
+`DEFOLD_BUILD_HOME`. `--java` selects the host Java runtime when it is not on
+`PATH`. `--output-dir` allows generating into a temporary directory for comparison;
+`--check` instead fails on stale or missing variants without updating them.
+Compiler failures and empty shader output leave the checked-in variants intact.
+Commit regenerated variants with their source edits; ordinary
+builds, including cross builds for the iOS simulator, use the checked-in variants
+without requiring a runnable target-platform shader compiler. Re-run the capture
+matrix after regeneration. The OpenGL vertex variant remaps the test's [0, 1]
+depth to OpenGL's [-1, 1] clip range, and GLSL texture bindings use shaderc's
+combined texture/sampler names.
+
+Native builds that include both `graphics` and `shaderc` register
+`run_test_graphics_shaders` with `run_tests`. This regenerates all twelve variants
+using the freshly built host compiler and compares them with the checked-in files,
+and tests failure handling and the shared WGSL transformation. The
+`run_test_shaderc_standalone` target checks the compiler's exit status on real
+compilation and file errors. Cross builds continue to use the verified fixtures.
+
 ## iOS simulator
 
 Configure CMake with `TARGET_PLATFORM=arm64_sim-ios` on an Apple Silicon Mac
