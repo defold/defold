@@ -10,6 +10,16 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Use a stable Emscripten SDK path
+      if: inputs.platform == 'wasm-web' || inputs.platform == 'wasm_pthread-web'
+      shell: bash
+      # setup-emsdk uses a random directory on cache misses; paths are part of our key.
+      run: |
+        mv "$EMSDK" "$RUNNER_TEMP/defold-emsdk"
+        source "$RUNNER_TEMP/defold-emsdk/emsdk_env.sh"
+        echo "EMSDK=$EMSDK" >> "$GITHUB_ENV"
+        echo "EMSDK_NODE=$EMSDK_NODE" >> "$GITHUB_ENV"
+        printf '%s\n' "$EMSDK" "$EMSDK/upstream/emscripten" >> "$GITHUB_PATH"
     - name: Prepare dependencies and cache keys
       id: prepare
       shell: bash
