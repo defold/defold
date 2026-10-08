@@ -233,17 +233,23 @@ jobs:
         with:
           ref: *build_sha
       - &step_cache_dcache
-        name: "Cache Defold downloads"
+        name: "Cache Defold dependency downloads"
         # No cache for a contrib build, and none for a repository dispatch: that always
         # reports github.ref as the default branch, so it would cache into another's scope.
         if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: "~/.dcache"
-          key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}"
-          restore-keys: |-
-            ${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-
-            ${{ runner.os }}-dcache-
+          # Cache individual files so exclusions also apply to the saved archive.
+          # Both download helpers replace URL slashes with hyphens in filenames.
+          # Keep build outputs and unfinished downloads only for the current job.
+          path: &dcache_paths |-
+            ~/.dcache/*
+            !~/.dcache/*-archive-*-engine-*
+            !~/.dcache/*-archive-*-bob-*
+            !~/.dcache/*-archive-*-editor2-*
+            !~/.dcache/*_tmp
+          # Start fresh rather than restoring old caches containing build outputs.
+          key: &dcache_key "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-dependencies-v1-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}"
       - name: "Cache lein installation and Maven dependencies for docs"
         if: matrix.docs && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -869,16 +875,13 @@ jobs:
             /editor/tasks/leiningen/sass.clj
           # Cone mode would also include the large archives directly under packages/.
           sparse-checkout-cone-mode: false
-      - name: "Cache Defold downloads"
+      - name: "Cache Defold dependency downloads"
         # *should_release, plus the cache rule above.
         if: steps.release.outputs.should_release == 'true' && github.event_name != 'repository_dispatch'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: "~/.dcache"
-          key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}"
-          restore-keys: |-
-            ${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-
-            ${{ runner.os }}-dcache-
+          path: *dcache_paths
+          key: *dcache_key
       - name: "Install Python"
         if: *should_release
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
