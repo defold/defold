@@ -307,16 +307,18 @@
   ;; The gizmo must remain visible over scene geometry.
   (.glDisable gl GL2/GL_DEPTH_TEST)
   (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
-  (doseq [{:keys [texture matrix alpha brightness]} (handle-billboards (:rotation camera) backdrop-alpha hot-handle)
-          :let [vertex-binding (vtx/use-with [::billboard-quad] @billboard-quad billboard-shader)
-                handle-args (assoc render-args :world-view-proj (doto (Matrix4d. ^Matrix4d (:world-view-proj render-args)) (.mul ^Matrix4d matrix)))
-                alpha (double alpha)
-                ;; Textures use premultiplied alpha, so the tint's RGB must include alpha too.
-                color (* alpha (double brightness))]]
-    (gl/with-gl-bindings gl handle-args [billboard-shader vertex-binding texture]
-      (shader/set-samplers-by-index billboard-shader gl 0 (:texture-units texture))
-      (shader/set-uniform billboard-shader gl "tint" (Vector4d. color color color alpha))
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 6)))
+  (let [vertex-binding (vtx/use-with [::billboard-quad] @billboard-quad billboard-shader)
+        world-view-proj ^Matrix4d (:world-view-proj render-args)]
+    (gl/with-gl-bindings gl render-args [billboard-shader vertex-binding]
+      (doseq [{:keys [texture ^Matrix4d matrix alpha brightness]} (handle-billboards (:rotation camera) backdrop-alpha hot-handle)
+              :let [alpha (double alpha)
+                    ;; Textures use premultiplied alpha, so the tint's RGB must include alpha too.
+                    color (* alpha (double brightness))]]
+        (gl/with-gl-bindings gl render-args [texture]
+          (shader/set-samplers-by-index billboard-shader gl 0 (:texture-units texture))
+          (shader/set-uniform billboard-shader gl "mtx_world_view_proj" (doto (Matrix4d. world-view-proj) (.mul matrix)))
+          (shader/set-uniform billboard-shader gl "tint" (Vector4d. color color color alpha))
+          (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 6)))))
   ;; Restore the blend function expected by the other scene renderers.
   (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
 
