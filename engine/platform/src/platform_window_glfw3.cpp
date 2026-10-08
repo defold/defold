@@ -279,6 +279,10 @@ namespace dmPlatform
 
         wnd->m_SwapIntervalSupported = 1;
 
+#if defined(DM_PLATFORM_MACOS)
+        SetOpenGLWindowColorSpaceNative(wnd);
+#endif
+
         glfwMakeContextCurrent(wnd->m_Window);
 
         // Create aux context

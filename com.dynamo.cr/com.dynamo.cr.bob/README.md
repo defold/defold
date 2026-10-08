@@ -8,9 +8,11 @@ For IntelliJ IDEA setup and debugging, see the [IDEA guide](../README_IDEA.md).
 Bob and Bob Light package tools directly from `$DYNAMO_HOME/ext` and use the
 engine helper JARs in `$DYNAMO_HOME/share/java` as compilation dependencies.
 Run `./scripts/build.py install_ext` before building Bob or Bob Light. It installs
-the tools packaged for all supported hosts, including LuaJIT. `build_bob` uses
-those installed tools without extracting their packages again; for a fresh
-installation, run `./scripts/build.py install_ext build_bob` from the repository root.
+the packaged tools for all supported hosts and builds LuaJIT for the host and
+selected native target. Full Bob also needs the other desktop LuaJIT executables;
+install them with `sync_archive` for an archived revision, or build them on their
+respective platforms. `build_bob` uses the installed tools without extracting
+their packages again.
 
 Full Bob uses engines and builtins from `$DYNAMO_HOME/archive/<revision>/engine`
 when available, otherwise from the local engine build. Compiler libraries and
@@ -39,7 +41,10 @@ Tool packaging is defined by two additional manifests:
   are included only in full Bob.
 
 Compiler libraries resolve from local engine builds or archive paths listed in
-`archive-artifacts.json`.
+`archive-artifacts.json`. `sync_archive` installs archived LuaJIT executables into
+their usual `$DYNAMO_HOME/ext/bin/<platform>` paths, preserving an installed
+compiler for the current host and selected target. Full Bob requires them for
+all desktop hosts; Bob Light requires the current host's executable.
 The LuaJIT modules installed in `$DYNAMO_HOME/ext` are assembled into
 `tmp/luajit-share.zip` and packaged inside each JAR as `lib/luajit-share.zip`.
 Both JAR tasks track the manifests as inputs, so changing a list updates the

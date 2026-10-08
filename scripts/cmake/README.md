@@ -97,7 +97,7 @@ for building and repacking an APK for Android 14 or newer.
 Run `./scripts/build.py --platform=<platform> install_ext` before the first
 engine build, with the platform SDK already set up. It installs the remaining
 prepackaged dependencies, then calls `build_ext` to build Bullet, Basis Universal,
-LZ4, both Box2D versions, HarfBuzz, libunibreak, Opus, SheenBidi, Skribidi, and desktop Protobuf
+LZ4, LuaJIT, both Box2D versions, HarfBuzz, libunibreak, Opus, SheenBidi, Skribidi, and desktop Protobuf
 with the same platform toolchain and installs them into
 `tmp/dynamo_home/ext`. Run `build_ext` when those sources or the toolchain change,
 or `install_ext` to also reinstall the packages.

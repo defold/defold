@@ -748,8 +748,9 @@
       (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :app.preferences :global
-  (run [workspace prefs app-view localization]
+  (run [workspace prefs app-view project localization]
     (prefs-dialog/open! prefs localization)
+    (project/update-language-servers! project prefs {})
     (workspace/update-build-settings! workspace prefs)
     (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
