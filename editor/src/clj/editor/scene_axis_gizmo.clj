@@ -287,8 +287,7 @@
 (defn- handle-billboards
   "Balls and lines as {:depth :texture :matrix :alpha :brightness} maps, back
   to front, after the backdrop while it's faded in. The hovered axis is
-  brighter and its ball bigger. The camera rotation maps screen axes into the
-  gizmo's model space."
+  brighter. The camera rotation maps screen axes into the gizmo's model space."
   [^Quat4d camera-rotation ^double backdrop-alpha hot-handle]
   (let [screen-axis (fn [x y z] (math/rotate camera-rotation (Vector3d. x y z)))
         ^Vector3d right (screen-axis 1.0 0.0 0.0)
@@ -296,14 +295,12 @@
         ^Vector3d toward (screen-axis 0.0 0.0 1.0)
         balls (into []
                     (map (fn [axis]
-                           (let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))
-                                 hovered (= hot-handle axis)
-                                 radius (cond-> ^double ball-radius hovered (* 1.15))]
+                           (let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))]
                              {:depth (.dot toward center)
                               :texture (@ball-textures axis)
-                              :matrix (billboard-matrix center right up toward radius radius)
+                              :matrix (billboard-matrix center right up toward ball-radius ball-radius)
                               :alpha 1.0
-                              :brightness (if hovered 1.25 1.0)})))
+                              :brightness (if (= hot-handle axis) 1.25 1.0)})))
                     axis-order)
         lines (into []
                     (keep (fn [axis]
