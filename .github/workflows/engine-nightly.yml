@@ -226,13 +226,14 @@ jobs:
       - name: 'Install CMake'
         uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.3.2
       - name: 'Set up Android SDK'
-        uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7
+        uses: ./.github/actions/setup-android
         with:
           # NDK 27 fixes ASAN allocator collisions with x86_64 ASLR.
           # https://reviews.llvm.org/D148280
           android-ndk: '27.0.12077973'
           android-api-level: '${{ env.ANDROID_API_LEVEL }}'
           android-build-tools: '36.1.0'
+          emulator: 'true'
       - name: 'Install dependencies'
         run: |-
           # Chrome is unused here; exclude its repository from dependency updates.
@@ -243,13 +244,6 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: 'Cache Android AVD'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |-
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: '${{ runner.os }}-avd-${{ env.ANDROID_API_LEVEL }}-google_apis-x86_64'
       - name: 'ASAN on Android emulator'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:

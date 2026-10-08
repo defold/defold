@@ -313,13 +313,13 @@ jobs:
           package-manager-cache: false
       - name: "Set up Android SDK"
         if: matrix.android
-        uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7 # untagged pinned SHA
+        uses: ./.github/actions/setup-android
         with:
           android-ndk: "25.2.9519653"
           android-api-level: "${{ env.ANDROID_API_LEVEL }}"
           android-build-tools: "36.1.0"
-          # This action keeps the SDK and NDK tree in the Actions cache. A contrib build
-          # must not write there - see the cache steps above.
+          emulator: ${{ matrix.emulator == true }}
+          # A contrib build must not write caches - see the cache steps above.
           cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
       - name: "Cache dotnet SDK"
         if: "matrix.dotnet && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
@@ -351,14 +351,6 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: "Cache Android AVD"
-        if: "matrix.emulator && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |-
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: "${{ runner.os }}-avd-${{ env.ANDROID_API_LEVEL }}-google_apis-x86_64"
       - name: "Install pinned Lua language server for docs validation"
         if: matrix.docs
         run: 'python engine/docs/build_docs.py install-lua-language-server --project-clj editor/project.clj --platform ${{ matrix.platform }} --output-dir "$RUNNER_TEMP/defold-lua-language-server" --github-env "$GITHUB_ENV"'
