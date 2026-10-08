@@ -51,8 +51,10 @@ namespace dmGraphics
         VertexAttribute::DataType   m_DataType;
         const uint8_t*              m_ValuePtr;
         uint32_t                    m_ElementCount;
-        uint8_t                     m_IsMatrix : 1;
-        uint8_t                     m_Normalize : 1;
+        // Separate bytes avoid bitfield read/modify/write dependencies in the
+        // per-attribute loop, including the float-only path.
+        uint8_t                     m_IsMatrix;
+        uint8_t                     m_Normalize;
     };
 
     void GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size)
