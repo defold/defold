@@ -55,8 +55,7 @@ public class AndroidBundlerVkQualityTest {
     // Projects without an override must bundle the default database from builtins unchanged.
     @Test
     public void testDefaultDatabase() throws Exception {
-        try (Project project = createProject("");
-             InputStream database = Project.class.getResourceAsStream("/builtins/manifests/android/vkqualitydata.vkq")) {
+        try (Project project = createProject(""); InputStream database = Project.class.getResourceAsStream("/builtins/manifests/android/vkqualitydata.vkq")) {
             assertNotNull(database);
             byte[] expected = database.readAllBytes();
             assertTrue(expected.length > 0);
