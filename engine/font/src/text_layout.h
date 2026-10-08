@@ -240,6 +240,7 @@ struct TextLayout
     // Bounds of the entire layout
     float                    m_Width;
     float                    m_Height;
+    float                    m_MonospacePadding; // Legacy rendering inset, captured from the layout settings.
     double                   m_ElapsedTime;
     FTextLayoutReleaseObject m_ReleaseObject;
     void*                    m_ObjectContext;
@@ -289,6 +290,12 @@ const TextDecorationGeometry* TextLayoutGetDecorationGeometry(HTextLayout layout
 
 // Releases resources acquired for the layout's sprite objects.
 void TextLayoutReleaseObjects(HTextLayout layout);
+
+// Resolves an object's lower-left corner in unscaled local coordinates relative to the text box pivot.
+// The object is borrowed from layout. Pivot fractions are measured from the box's lower-left corner:
+// NW is (0, 1), center is (0.5, 0.5). Width is the text box width used by rendering.
+// Includes the layout's legacy monospaced padding inset.
+uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObject* object, float width, float pivot_x, float pivot_y, float* x, float* y);
 
 // Captures base glyph styles and applies named layout-object styles.
 void TextLayoutInitializeObjectStyles(HTextLayout layout);
