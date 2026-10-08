@@ -20,6 +20,7 @@
 #include <dlib/message.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <font/text_layout.h>
 
 #include <script/script.h>
 #include <gameobject/script.h>
@@ -1771,8 +1772,8 @@ namespace dmGui
      * @member id [type:hash] the object's `id` attribute, or its generated layout object id
      * @member text_offset [type:integer] zero-based UTF-32 offset in the visible text
      * @member text_length [type:integer] visible UTF-32 text length covered by the object
-     * @member x [type:number] lower-left x-coordinate relative to the text node's upper-left layout origin
-     * @member y [type:number] lower-left y-coordinate relative to the text node's upper-left layout origin
+     * @member x [type:number] unscaled lower-left x-coordinate relative to the text node's pivot
+     * @member y [type:number] unscaled lower-left y-coordinate relative to the text node's pivot
      * @member width [type:number] resolved object width
      * @member height [type:number] resolved object height
      * @member attributes [type:table<string, string>] markup attributes keyed by name
@@ -1781,7 +1782,7 @@ namespace dmGui
     /*# gets the markup objects for a text node
      * Returns the sprites and links found in the text node's current layout.
      * Each object's `x` and `y` identify its lower-left corner relative to the
-     * text node's upper-left layout origin.
+     * text node's pivot, before applying the node's scale and rotation.
      *
      * @name gui.get_layout_objects
      * @param node [type:node] text node to inspect
@@ -1802,15 +1803,8 @@ namespace dmGui
         const TextLayoutObject* objects = layout ? TextLayoutGetObjects(layout) : 0;
         const TextLayoutObjectAttribute* attributes = layout ? TextLayoutGetObjectAttributes(layout) : 0;
         const char* source = layout ? TextLayoutGetObjectSource(layout) : "";
-        float layout_width = 0.0f;
-        float layout_height = 0.0f;
-
-        if (layout)
-        {
-            TextLayoutGetBounds(layout, &layout_width, &layout_height);
-        }
-
-        (void)layout_height;
+        const float width = GetNodeProperty(scene, node, PROPERTY_SIZE).getX();
+        const dmVMath::Vector4 pivot_delta = CalcPivotDelta(GetNodePivot(scene, node), dmVMath::Vector4(1.0f, 1.0f, 0.0f, 1.0f));
         lua_createtable(L, object_count, 0);
 
         for (uint32_t i = 0; i < object_count; ++i)
@@ -1831,7 +1825,7 @@ namespace dmGui
             lua_setfield(L, -2, "height");
             float x = 0.0f;
             float y = 0.0f;
-            TextLayoutGetObjectPosition(layout, &object, 0.0f, 0.0f, layout_width, &x, &y);
+            TextLayoutGetObjectPositionLocal(layout, &object, width, -pivot_delta.getX(), -pivot_delta.getY(), &x, &y);
             lua_pushnumber(L, x);
             lua_setfield(L, -2, "x");
             lua_pushnumber(L, y);

@@ -304,7 +304,7 @@ const TextLayoutObject* TextLayoutGetObjects(HTextLayout layout)
     return layout->m_Objects.Begin();
 }
 
-uint8_t TextLayoutGetObjectPosition(HTextLayout layout, const TextLayoutObject* object, float paragraph_x, float paragraph_top, float paragraph_width, float* x, float* y)
+static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* object, float paragraph_x, float paragraph_top, float paragraph_width, bool pivot_relative, float pivot_x, float pivot_y, float* x, float* y)
 {
     if (!layout || !object || !x || !y)
     {
@@ -325,12 +325,20 @@ uint8_t TextLayoutGetObjectPosition(HTextLayout layout, const TextLayoutObject* 
         }
 
         const bool right_to_left = paragraph.m_Direction == TEXT_DIRECTION_RTL;
-        const float line_x = paragraph_x + (right_to_left ? paragraph_width - line.m_Width : 0.0f);
+        float line_x = paragraph_x + (right_to_left ? paragraph_width - line.m_Width : 0.0f);
+        float layout_y = paragraph_top - layout->m_Height;
+        if (pivot_relative)
+        {
+            // Match rendering's direction-aware line alignment, then move the box origin to its pivot.
+            const float alignment = right_to_left ? 1.0f - pivot_x : pivot_x;
+            line_x = alignment * (paragraph_width - line.m_Width) - pivot_x * paragraph_width - layout->m_MonospacePadding * 0.5f;
+            layout_y = -pivot_y * layout->m_Height;
+        }
 
         if (line.m_Length == 0)
         {
             *x = line_x;
-            *y = paragraph_top - layout->m_Height + line.m_Baseline - object->m_Height * 0.2f;
+            *y = layout_y + line.m_Baseline - object->m_Height * 0.2f;
 
             return 1;
         }
@@ -378,12 +386,22 @@ uint8_t TextLayoutGetObjectPosition(HTextLayout layout, const TextLayoutObject* 
         }
 
         *x = object_x;
-        *y = paragraph_top - layout->m_Height + line.m_Baseline - object->m_Height * 0.2f;
+        *y = layout_y + line.m_Baseline - object->m_Height * 0.2f;
 
         return 1;
     }
 
     return 0;
+}
+
+uint8_t TextLayoutGetObjectPosition(HTextLayout layout, const TextLayoutObject* object, float paragraph_x, float paragraph_top, float paragraph_width, float* x, float* y)
+{
+    return GetObjectPosition(layout, object, paragraph_x, paragraph_top, paragraph_width, false, 0.0f, 0.0f, x, y);
+}
+
+uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObject* object, float width, float pivot_x, float pivot_y, float* x, float* y)
+{
+    return GetObjectPosition(layout, object, 0.0f, 0.0f, width, true, pivot_x, pivot_y, x, y);
 }
 
 const TextLayoutObjectAttribute* TextLayoutGetObjectAttributes(HTextLayout layout)

@@ -386,8 +386,8 @@ static const char* GetLayoutObjectTagName(dmhash_t tag)
  * @member id [type:hash] the object's `id` attribute, or its generated layout object id
  * @member text_offset [type:integer] zero-based UTF-32 offset in the visible text
  * @member text_length [type:integer] visible UTF-32 text length covered by the object
- * @member x [type:number] lower-left x-coordinate relative to the label's upper-left layout origin
- * @member y [type:number] lower-left y-coordinate relative to the label's upper-left layout origin
+ * @member x [type:number] unscaled lower-left x-coordinate relative to the label's pivot
+ * @member y [type:number] unscaled lower-left y-coordinate relative to the label's pivot
  * @member width [type:number] resolved object width
  * @member height [type:number] resolved object height
  * @member attributes [type:table<string, string>] markup attributes keyed by name
@@ -399,7 +399,7 @@ static const char* GetLayoutObjectTagName(dmhash_t tag)
  * Each entry contains `type`, `id`, the zero-based UTF-32 `text_offset`,
  * `text_length`, resolved `x`, `y`, `width`
  * and `height`, and an `attributes` table. The position is the lower-left
- * object corner relative to the label's upper-left layout origin.
+ * object corner relative to the label's pivot, before applying scale and rotation.
  * Inline resource rendering is not part of this MVP; sprites use their explicit
  * dimensions or a one-em square fallback.
  *
@@ -432,15 +432,6 @@ static int GetLayoutObjects(lua_State* L)
     const TextLayoutObject*          objects = layout ? TextLayoutGetObjects(layout) : 0;
     const TextLayoutObjectAttribute* attributes = layout ? TextLayoutGetObjectAttributes(layout) : 0;
     const char*                      source = layout ? TextLayoutGetObjectSource(layout) : "";
-    float                            layout_width = 0.0f;
-    float                            layout_height = 0.0f;
-
-    if (layout)
-    {
-        TextLayoutGetBounds(layout, &layout_width, &layout_height);
-    }
-
-    (void)layout_height;
     lua_createtable(L, object_count, 0);
 
     for (uint32_t i = 0; i < object_count; ++i)
@@ -461,7 +452,7 @@ static int GetLayoutObjects(lua_State* L)
         lua_setfield(L, -2, "height");
         float x = 0.0f;
         float y = 0.0f;
-        TextLayoutGetObjectPosition(layout, &object, 0.0f, 0.0f, layout_width, &x, &y);
+        dmGameSystem::CompLabelGetLayoutObjectPosition(component, layout, &object, &x, &y);
         lua_pushnumber(L, x);
         lua_setfield(L, -2, "x");
         lua_pushnumber(L, y);
