@@ -239,17 +239,19 @@ jobs:
         if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          # Cache individual files so exclusions also apply to the saved archive.
-          # Both download helpers replace URL slashes with hyphens in filenames.
-          # Keep build outputs and unfinished downloads only for the current job.
+          # Cache only reusable dependencies. Download helpers replace URL slashes
+          # with hyphens in filenames; engine and other build downloads are omitted.
           path: &dcache_paths |-
-            ~/.dcache/*
-            !~/.dcache/*-archive-*-engine-*
-            !~/.dcache/*-archive-*-bob-*
-            !~/.dcache/*-archive-*-editor2-*
+            ~/.dcache/*-WindowsKits-*.tar.gz-*
+            ~/.dcache/*-Microsoft-Visual-Studio-*.tar.gz-*
+            ~/.dcache/defold-adoptium-temurin*-binaries-releases-download-*-OpenJDK*U-jdk_*
+            ~/.dcache/github_com-sass-dart-sass-releases-download-*
+            ~/.dcache/github_com-LuaLS-lua-language-server-releases-download-*
+            ~/.dcache/repo1_maven_org-maven2-com-ibm-icu-icu4j-*.jar-*
+            ~/.dcache/github_com-defold-template-empty-archive-*.zip-*
             !~/.dcache/*_tmp
-          # Start fresh rather than restoring old caches containing build outputs.
-          key: &dcache_key "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-dependencies-v1-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}"
+          # Start fresh with the explicit dependency list.
+          key: &dcache_key "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-dependencies-v2-${{ hashFiles('build_tools/sdk.py', 'editor/tasks/leiningen/sass.clj') }}"
       - name: "Cache lein installation and Maven dependencies for docs"
         if: matrix.docs && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
