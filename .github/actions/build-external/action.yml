@@ -1,8 +1,8 @@
 name: build-external
-description: Prepare engine dependencies and cache completed external installations.
+description: Prepare external dependencies and cache completed installations.
 inputs:
   platform:
-    description: Engine target platform (host dependencies are prepared too)
+    description: Target platform (host dependencies are prepared too)
     required: true
   cache:
     description: Enable cache restore and save for trusted builds
@@ -16,7 +16,7 @@ runs:
       env:
         EXT_PLATFORM: ${{ inputs.platform }}
         DEFOLD_EXT_CACHE_DIR: ${{ inputs.cache == 'true' && format('{0}/defold-ext-cache', runner.temp) || '' }}
-      run: ci/ci.sh prepare-engine --platform="$EXT_PLATFORM"
+      run: ci/ci.sh prepare-ext --platform="$EXT_PLATFORM"
     - name: Restore host dependencies
       id: host
       if: inputs.cache == 'true' && steps.prepare.outputs.host-key != ''
@@ -42,7 +42,7 @@ runs:
         DEFOLD_EXT_HOST_CACHE_HIT: ${{ steps.host.outputs.cache-hit }}
         DEFOLD_EXT_TARGET_CACHE_HIT: ${{ steps.target.outputs.cache-hit }}
       run: ci/ci.sh build-ext --platform="$EXT_PLATFORM"
-    # Save before building the engine, so an unrelated engine/test failure does
+    # Save before building dependent projects, so an unrelated build/test failure does
     # not discard a successful dependency build. Never save a partial build.
     - name: Save host dependencies
       if: inputs.cache == 'true' && steps.prepare.outputs.host-key != '' && steps.host.outputs.cache-hit != 'true'

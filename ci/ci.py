@@ -242,7 +242,7 @@ def create_gcloud_options(gcloud_service_key):
         opts.append('--gcloud-certfile=%s' % gcloud_certfile)
     return opts
 
-def engine_sdk_commands(platform):
+def sdk_commands(platform):
     # for some platforms, we use the locally installed platform sdk
     if platform in ('x86_64-macos',
                     'arm64-macos',
@@ -259,8 +259,8 @@ def engine_sdk_commands(platform):
     return ['install_sdk']
 
 
-def prepare_engine(platform):
-    commands = ['distclean'] + engine_sdk_commands(platform) + ['install_ext_packages']
+def prepare_ext(platform):
+    commands = ['distclean'] + sdk_commands(platform) + ['install_ext_packages']
     call('"%s" scripts/build.py %s --platform=%s' % (sys.executable, ' '.join(commands), platform))
     call('"%s" ci/ext_cache.py prepare --platform=%s' % (sys.executable, platform))
 
@@ -268,7 +268,7 @@ def prepare_engine(platform):
 def build_engine(channel, platform, args):
     cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
     if not args.skip_install_ext:
-        cmd_args.extend(['distclean'] + engine_sdk_commands(platform) + ['install_ext'])
+        cmd_args.extend(['distclean'] + sdk_commands(platform) + ['install_ext'])
 
     cmd_opts = []
     build_opts = []
@@ -328,7 +328,12 @@ def build_editor2(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor build: %s" % platform)
 
-    cmd_args = ('"%s" scripts/build.py %sinstall_ext build_editor2' % (sys.executable, '' if args.skip_distclean else 'distclean ')).split()
+    cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
+    if not args.skip_install_ext:
+        if not args.skip_distclean:
+            cmd_args.append('distclean')
+        cmd_args.append('install_ext')
+    cmd_args.append('build_editor2')
     cmd_opts = []
     cmd_opts.append('--channel=%s' % channel)
     cmd_opts.append('--platform=%s' % platform)
@@ -355,7 +360,12 @@ def test_editor(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor tests: %s" % platform)
 
-    cmd_args = ('"%s" scripts/build.py %sinstall_ext test_editor2' % (sys.executable, '' if args.skip_distclean else 'distclean ')).split()
+    cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
+    if not args.skip_install_ext:
+        if not args.skip_distclean:
+            cmd_args.append('distclean')
+        cmd_args.append('install_ext')
+    cmd_args.append('test_editor2')
     cmd_opts = []
     cmd_opts.append('--channel=%s' % channel)
     cmd_opts.append('--platform=%s' % platform)
@@ -407,7 +417,7 @@ def build_bob(channel, branch, args):
     # uploads the resulting jar. With --skip-archive neither runs and build_bob falls back
     # to the artifacts already in $DYNAMO_HOME, which is how a build without S3 credentials
     # (an external contribution, or a local build) gets a bob.jar.
-    build_cmds = ['install_ext']
+    build_cmds = [] if args.skip_install_ext else ['install_ext']
     if not args.skip_archive:
         build_cmds.append('sync_archive')
     build_cmds.append('build_bob')
@@ -423,8 +433,9 @@ def build_bob(channel, branch, args):
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
-def test_bob(channel):
-    call('"%s" scripts/build.py install_ext --channel=%s' % (sys.executable, channel))
+def test_bob(channel, args):
+    if not args.skip_install_ext:
+        call('"%s" scripts/build.py install_ext --channel=%s' % (sys.executable, channel))
     call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
 
 
@@ -504,8 +515,10 @@ def build_sdk(channel, platforms=None):
     call(cmd)
 
 
-def smoke_test():
-    call('"%s" scripts/build.py distclean install_ext smoke_test' % sys.executable)
+def smoke_test(args):
+    commands = [] if args.skip_install_ext else ['distclean', 'install_ext']
+    commands.append('smoke_test')
+    call('"%s" scripts/build.py %s' % (sys.executable, ' '.join(commands)))
 
 
 
@@ -551,7 +564,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (prepare-engine, build-ext, clean-engine, engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (prepare-ext, build-ext, clean-engine, engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms to include in the combined SDK")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
@@ -570,7 +583,7 @@ def main(argv):
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
     parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
-    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Build the engine with prepared dependencies and no cleanup, or skip install_ext before archive-editor")
+    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Use prepared external dependencies without reinstalling them or cleaning DYNAMO_HOME")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument("--gcloud-service-key", dest="gcloud_service_key", help="String containing Google Cloud service account key")
@@ -630,10 +643,10 @@ def main(argv):
 
     # execute commands
     for command in args.commands:
-        if command == "prepare-engine":
+        if command == "prepare-ext":
             if not platform:
                 raise Exception("No --platform specified.")
-            prepare_engine(platform)
+            prepare_ext(platform)
         elif command == "build-ext":
             if not platform:
                 raise Exception("No --platform specified.")
@@ -659,11 +672,11 @@ def main(argv):
         elif command == "bob":
             build_bob(channel, branch, args)
         elif command == "test-bob":
-            test_bob(channel)
+            test_bob(channel, args)
         elif command == "sdk":
             build_sdk(channel, args.platforms or platform)
         elif command == "smoke":
-            smoke_test()
+            smoke_test(args)
         elif command == "install":
             install(args)
         elif command == "install_ext":
