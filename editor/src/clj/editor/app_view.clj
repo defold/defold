@@ -104,7 +104,8 @@
             [util.fn :as fn]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
-            [util.thread-util :as thread-util])
+            [util.thread-util :as thread-util]
+            #_[editor.app-view :as app-view])
   (:import [com.defold.editor Editor]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
@@ -590,7 +591,8 @@
             btn (some-> (g/node-value app-view :active-tab evaluation-context)
                         (get-settings-button "#show-perspective-camera-settings"))]
         (when (and camera btn)
-          (camera/show-settings! camera btn prefs (g/node-value app-view :keymap evaluation-context) localization)))))
+          (camera/show-settings! camera btn prefs (g/node-value app-view :keymap evaluation-context) localization
+                                 (fn [plane] (grid/set-active-plane-3d! app-view prefs plane)))))))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view "#show-perspective-camera-settings" evaluation-context)))
 
