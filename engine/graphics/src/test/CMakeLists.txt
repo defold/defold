@@ -168,7 +168,8 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
       if(NOT CMAKE_CROSSCOMPILING AND TARGET shaderc_standalone)
         find_program(_graphics_glslang NAMES glslang glslangValidator
           HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
-        find_program(_graphics_tint NAMES tint
+        # Some Tint packages lack execute permission; the generator stages an executable copy.
+        find_file(_graphics_tint NAMES "tint${CMAKE_EXECUTABLE_SUFFIX}"
           HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
         set(_graphics_shader_tests "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_shaders.py"
           --glslang "${_graphics_glslang}" --shaderc "$<TARGET_FILE:shaderc_standalone>"

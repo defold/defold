@@ -7,6 +7,7 @@ See graphics_reference/README.md for build and invocation examples.
 """
 import argparse
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 
@@ -43,6 +44,10 @@ def write_shaders(outputs, output_dir, check):
 def generate(glslang, shaderc, tint, output_dir, java='java', check=False):
     with tempfile.TemporaryDirectory() as temporary:
         work = Path(temporary)
+        # Tint packages may lack execute permission. Keep the installed SDK untouched.
+        tint_executable = work / Path(tint).name
+        shutil.copyfile(shutil.which(tint) or tint, tint_executable)
+        tint_executable.chmod(0o755)
         outputs = {}
         for source_suffix, output_suffix in SHADERS:
             source = SOURCE_DIR / ('graphics_capture.' + source_suffix)
@@ -60,7 +65,7 @@ def generate(glslang, shaderc, tint, output_dir, java='java', check=False):
                                 '--stage', stage, '--out', str(output)], check=True)
                 outputs[output.name] = GENERATED + read_shader(output)
             output = work / ('graphics_capture.' + output_suffix + '.wgsl')
-            subprocess.run([tint, '--format', 'wgsl', '-o', str(output), str(spirv)], check=True)
+            subprocess.run([str(tint_executable), '--format', 'wgsl', '-o', str(output), str(spirv)], check=True)
             if stage == 'vert':
                 add_wgsl_flipped_entry_point(output, java)
             outputs[output.name] = GENERATED + read_shader(output)
