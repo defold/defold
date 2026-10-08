@@ -240,7 +240,10 @@ ordinary paths."
 (def ^:private non-editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn false))
 
 (defn- default-search-value-fn [node-id _resource evaluation-context]
-  (g/node-value node-id :save-value evaluation-context))
+  (let [save-value (g/node-value node-id :save-value evaluation-context)]
+    (if-not (g/error-value? save-value)
+      save-value
+      (g/node-value node-id :source-value evaluation-context))))
 
 (defn register-resource-type
   "Register new resource type to be handled by the editor
@@ -292,10 +295,14 @@ ordinary paths."
     :source-value-fn    a fn from a save-value to whatever you want to cache as
                         the source-value for the resource type. When not
                         specified, the save-value will be the source-value.
+                        Requires an explicit :search-value-fn.
     :search-value-fn    a fn from node-id, resource and an evaluation-context to
                         a search-value that can be accepted by the :search-fn in
                         order to find a matching substring inside the resource.
-                        If not provided, the nodes :save-value will be used.
+                        If not provided, the node's :save-value will be used,
+                        falling back to the retained :source-value whenever
+                        :save-value produces an error. Required when a
+                        :source-value-fn is supplied.
     :search-fn          a multi-arity fn used to search the resource for a
                         matching substring. The first arity should accept a
                         search string and return a value that can be used by the
@@ -351,7 +358,8 @@ ordinary paths."
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
   [workspace & {:keys [textual? language editable ext build-ext node-type connect-fn load-fn prerequisites-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
-  {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
+  {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))
+         (or (nil? source-value-fn) (ifn? search-value-fn))]}
   (let [view-types (mapv canonical-view-type-id view-types)
         editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)

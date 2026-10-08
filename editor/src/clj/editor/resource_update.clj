@@ -296,7 +296,7 @@
     ;; Failed loads have no substructure or arcs to transfer. Follow their
     ;; recorded paths instead, including dependents of other blocked resources.
     (coll/into-> (g/pre-traverse basis changed-proj-paths
-                  (fn [_basis proj-path] (prerequisite->dependents proj-path))) []
+                                 (fn [_basis proj-path] (prerequisite->dependents proj-path))) []
       (remove changed-proj-paths)
       (map old-nodes-by-path)
       (map #(resource-node/resource basis %)))))
@@ -343,8 +343,8 @@
                                             (resource-changed-plan changes plan-info)
                                             (resource-moved-plan changes plan-info)
                                             (replace-resources-plan plan-info
-                                              (blocked-dependent-resources basis old-nodes-by-path changes)
-                                              true))]
+                                                                    (blocked-dependent-resources basis old-nodes-by-path changes)
+                                                                    true))]
       (doseq [[_ v] plan]
         ;; We should never produce lazy lists.
         (assert (or (vector? v)

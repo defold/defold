@@ -1123,9 +1123,9 @@
                    introduced-node-id->pkid->override-node-id]}
            (ig/basis-plan-add-nodes (:basis ctx) added-nodes)]
     (-> (perform-and-conj-change ctx undoable-changes
-          (if (:basis *materialization*)
-            (->MaterializationAddNodesTXC added-nodes)
-            (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id)))
+                                 (if (:basis *materialization*)
+                                   (->MaterializationAddNodesTXC added-nodes)
+                                   (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id)))
         (coll/reduce=> added-nodes
           (fn [[ctx undoable-changes] added-node]
             (if (in/unmaterialized-shell-node? added-node)
@@ -1531,8 +1531,8 @@
               (if (= old-arc arc)
                 (pair ctx undoable-changes)
                 (let [[ctx undoable-changes] (if-not old-arc
-                                              (pair ctx undoable-changes)
-                                              (realize-disconnect ctx undoable-changes old-arc))]
+                                               (pair ctx undoable-changes)
+                                               (realize-disconnect ctx undoable-changes old-arc))]
                   (perform-and-conj-change ctx undoable-changes (->AppendArcTXC arc)))))
             (case (in/input-cardinality target-node-type target-label)
               :one
@@ -1939,11 +1939,9 @@
   result)
 
 (defn transact-in-evaluation-context! [evaluation-context tx-data]
-  (let [state (:state-atom evaluation-context)]
-    (locking state
-      (apply-evaluation-transaction-result!
-        evaluation-context
-        (transact* (evaluation-transaction-context evaluation-context) nil tx-data)))))
+  (apply-evaluation-transaction-result!
+    evaluation-context
+    (transact* (evaluation-transaction-context evaluation-context) nil tx-data)))
 
 (defn- prerequisite-path [node-materializations start-id target-id]
   (loop [pending [[start-id]]
@@ -1975,19 +1973,22 @@
         prerequisite-node-ids (set prerequisite-node-ids)
         entry (get @shared node-id)]
     (try
-      ;; Never hold this lock while reading resources, loading, or waiting.
-      ;; Check and registration must be atomic to detect cross-thread cycles.
-      (locking shared
-        (when-not (and (identical? (:shell-node entry)
-                                  (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id))
-                       (identical? (:promise entry) (get-in @shared [node-id :promise])))
-          (throw (ex-info "The shell was replaced while reading its prerequisites."
-                          {:node-id node-id})))
-        (if-let [path (coll/some #(prerequisite-path @shared % node-id) prerequisite-node-ids)]
-          (throw (ex-info "Circular resource prerequisites."
-                          {:ex-type :prerequisite-cycle
-                           :cycle-node-ids (into [node-id] path)}))
-          (swap! shared assoc-in [node-id :prerequisite-shell-node-ids] prerequisite-node-ids)))
+      (when-not (identical? (:shell-node entry)
+                            (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id))
+        (throw (ex-info "The shell was replaced while reading its prerequisites."
+                        {:node-id node-id})))
+      ;; Check and registration must be one atomic update to detect cross-thread
+      ;; cycles. Reading resources, loading, and waiting happen outside retries.
+      (swap! shared
+             (fn [node-materializations]
+               (when-not (identical? (:promise entry) (get-in node-materializations [node-id :promise]))
+                 (throw (ex-info "The shell was replaced while reading its prerequisites."
+                                 {:node-id node-id})))
+               (if-let [path (coll/some #(prerequisite-path node-materializations % node-id) prerequisite-node-ids)]
+                 (throw (ex-info "Circular resource prerequisites."
+                                 {:ex-type :prerequisite-cycle
+                                  :cycle-node-ids (into [node-id] path)}))
+                 (assoc-in node-materializations [node-id :prerequisite-shell-node-ids] prerequisite-node-ids))))
       (vreset! (:prerequisite-node-ids *materialization*) prerequisite-node-ids)
       (doseq [prerequisite-id prerequisite-node-ids]
         (binding [*materialization* (assoc *materialization* :loading-prerequisites true)]
@@ -2004,27 +2005,31 @@
         ;; A defective result must be replayable without following the cycle
         ;; or requiring the failed prerequisite. Completed prerequisites remain.
         (vreset! (:prerequisite-node-ids *materialization*) #{})
-        (locking shared
-          (when (identical? (:promise entry) (get-in @shared [node-id :promise]))
-            (swap! shared assoc-in [node-id :prerequisite-shell-node-ids] #{})))
+        (swap! shared
+               (fn [node-materializations]
+                 (if-not (identical? (:promise entry) (get-in node-materializations [node-id :promise]))
+                   node-materializations
+                   (assoc-in node-materializations [node-id :prerequisite-shell-node-ids] #{}))))
         (throw error)))))
 
 (defn- claim-materialization! [shared node]
-  (locking shared
-    (let [node-id (gt/node-id node)
-          entry (get @shared node-id)]
-      (if (identical? node (:shell-node entry))
-        (pair entry false)
-        (let [entry {:shell-node node
-                     :promise (promise)
-                     :prerequisite-shell-node-ids #{}}]
-          (swap! shared assoc node-id entry)
-          (pair entry true))))))
+  (let [node-id (gt/node-id node)
+        candidate {:shell-node node
+                   :promise (promise)
+                   :prerequisite-shell-node-ids #{}}
+        node-materializations
+        (swap! shared
+               (fn [node-materializations]
+                 (if (identical? node (:shell-node (get node-materializations node-id)))
+                   node-materializations
+                   (assoc node-materializations node-id candidate))))
+        entry (get node-materializations node-id)]
+    (pair entry (identical? candidate entry))))
 
 (defn- realize-materialization! [node evaluation-context]
   (let [node-id (gt/node-id node)]
     (binding [*materialization* {:node-id node-id
-                                :prerequisite-node-ids (volatile! #{})}]
+                                 :prerequisite-node-ids (volatile! #{})}]
       ;; The callback completes declared prerequisites before returning steps.
       ;; Snapshot only afterwards: failure must not retract their results.
       (let [tx-data ((:_materialize-fn node) node-id evaluation-context)
@@ -2039,7 +2044,7 @@
         (try
           (let [result (binding [*materialization* (assoc *materialization* :basis (:basis previous-state))]
                          (transact-in-evaluation-context! evaluation-context
-                           [(materialize-shell node-id) tx-data]))
+                                                          [(materialize-shell node-id) tx-data]))
                 materialize-info {:node-id node-id
                                   :shell-node node
                                   :changes (:realized-changes result)
@@ -2069,37 +2074,37 @@
                                     :local (atom {})
                                     :local-temp (atom {})
                                     :hits (atom #{})))
-        state (:state-atom evaluation-context)
-        shared (:node-materializations evaluation-context)]
-    (locking state
-      (let [node (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id)]
-        (when (in/unmaterialized-shell-node? node)
-          (when (and (:node-id *materialization*) (not (:loading-prerequisites *materialization*)))
-            (throw (ex-info "Undeclared nested materialization. Register the resource as a prerequisite."
-                            {:ex-type :undeclared-materialization
-                             :node-id (:node-id *materialization*)
-                             :prerequisite-node-id node-id})))
-          (let [[entry owner] (claim-materialization! shared node)
-                result-promise (:promise entry)]
-            (if owner
-              (try
-                (let [materialize-info (realize-materialization! node evaluation-context)]
-                  (deliver result-promise {:materialize-info materialize-info}))
-                (catch Throwable error
-                  ;; Settle the original promise even if a newer shell has
-                  ;; replaced its registry entry. Future calls may retry.
-                  (deliver result-promise {:error error})
-                  (locking shared
-                    (when (identical? result-promise (get-in @shared [node-id :promise]))
-                      (swap! shared dissoc node-id)))
-                  (throw error)))
-              (let [{:keys [error materialize-info]} @result-promise]
-                (if error
-                  (throw error)
-                  (let [change (->MaterializationTXC materialize-info)]
-                    (apply-evaluation-transaction-result!
-                      evaluation-context
-                      (-> (evaluation-transaction-context evaluation-context)
-                          (perform-change change)
-                          (assoc :completed-action-count 1 :realized-changes [change])
-                          finalize-applied-changes))))))))))))
+        shared (:node-materializations evaluation-context)
+        node (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id)]
+    (when (in/unmaterialized-shell-node? node)
+      (when (and (:node-id *materialization*) (not (:loading-prerequisites *materialization*)))
+        (throw (ex-info "Undeclared nested materialization. Register the resource as a prerequisite."
+                        {:ex-type :undeclared-materialization
+                         :node-id (:node-id *materialization*)
+                         :prerequisite-node-id node-id})))
+      (let [[entry owner] (claim-materialization! shared node)
+            result-promise (:promise entry)]
+        (if owner
+          (try
+            (let [materialize-info (realize-materialization! node evaluation-context)]
+              (deliver result-promise {:materialize-info materialize-info}))
+            (catch Throwable error
+              ;; Settle the original promise even if a newer shell has
+              ;; replaced its registry entry. Future calls may retry.
+              (deliver result-promise {:error error})
+              (swap! shared
+                     (fn [node-materializations]
+                       (if-not (identical? result-promise (get-in node-materializations [node-id :promise]))
+                         node-materializations
+                         (dissoc node-materializations node-id))))
+              (throw error)))
+          (let [{:keys [error materialize-info]} @result-promise]
+            (if error
+              (throw error)
+              (let [change (->MaterializationTXC materialize-info)]
+                (apply-evaluation-transaction-result!
+                  evaluation-context
+                  (-> (evaluation-transaction-context evaluation-context)
+                      (perform-change change)
+                      (assoc :completed-action-count 1 :realized-changes [change])
+                      finalize-applied-changes))))))))))

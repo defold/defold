@@ -348,6 +348,8 @@
              :read-fn (fn [_read-opts _resource readable] (slurp readable))
              :write-fn identity
              :source-value-fn hash
+             :search-value-fn (fn [node-id _resource evaluation-context]
+                                (g/node-value node-id :save-value evaluation-context))
              :load-fn (fn [{:keys [project]} {:keys [node-id source-value]}]
                         [(g/set-property node-id :value source-value)
                          (g/callback-ec
@@ -360,9 +362,9 @@
         (workspace/resource-sync! workspace)
         (let [project (test-util/setup-project! workspace)
               node-id+resource-pairs (mapv (fn [proj-path]
-                                            [(project/get-resource-node project proj-path)
-                                             (workspace/find-resource workspace proj-path)])
-                                          ["/a1.type_a" "/a2.type_a"])
+                                             [(project/get-resource-node project proj-path)
+                                              (workspace/find-resource workspace proj-path)])
+                                           ["/a1.type_a" "/a2.type_a"])
               node-load-infos (project/read-nodes node-id+resource-pairs :force-read true)]
           (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {:undoable false})
           (doseq [[node-id _resource] node-id+resource-pairs]

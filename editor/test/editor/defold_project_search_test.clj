@@ -13,13 +13,18 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.defold-project-search-test
-  (:require [clojure.set :as set]
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.defold-project :as project]
             [editor.defold-project-search :as project-search]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [util.coll :as coll]
             [util.fn :as fn]
             [util.thread-util :as thread-util])
   (:import [java.util.concurrent LinkedBlockingQueue TimeUnit]))
@@ -141,20 +146,88 @@
     (when (is (= [] (fn/call-logger-calls report-error!)))
       search-data-future)))
 
+;; Search must reuse a blocked resource's source without rereading its file or making it saveable.
+(deftest search-blocked-resource-test
+  (test-util/with-loaded-project search-project-path
+    (test-util/with-ui-run-later-rebound
+      (let [node-id (project/get-resource-node project "/game_objects/search_test.go")
+            save-error (g/node-value node-id :save-value)
+            source-value (g/node-value node-id :source-value)
+            blocked-resource (g/node-value node-id :resource)
+            read-count (atom 0)
+            original-reader io/reader
+            search-data (with-redefs [io/reader (fn [input & opts]
+                                                  (when (= blocked-resource input)
+                                                    (swap! read-count inc))
+                                                  (apply original-reader input opts))]
+                          @(try-make-search-data-future project))
+            entry (coll/first-where #(= "/game_objects/search_test.go" (resource/proj-path (:resource %))) search-data)
+            search-fn (:search-fn (resource/resource-type (:resource entry)))]
+        (is (g/error-value? save-error))
+        (is (= 0 @read-count))
+        (is (= source-value (:search-value entry)))
+        (is (= ["peanutbutterjellytime"]
+               (mapv match->value (search-fn (:search-value entry) (search-fn "peanutbutterjellytime")))))
+        (is (= save-error (g/node-value node-id :save-value)))
+        (is (g/error-value? (g/node-value node-id :save-data)))))))
+
+;; Transformed source values require explicit search handling so the default cannot expose hashes.
+(deftest transformed-source-requires-search-function-test
+  (test-util/with-loaded-project "test/resources/empty_project"
+    (doseq [invalid-search-value-fn [nil false 42]]
+      (is (thrown? AssertionError
+                   (workspace/register-resource-type workspace
+                     :ext "transformed"
+                     :node-type resource-node/ResourceNode
+                     :source-value-fn hash
+                     :search-value-fn invalid-search-value-fn))))
+    (let [search-value-fn (fn [node-id _resource evaluation-context]
+                            (g/node-value node-id :save-value evaluation-context))]
+      (g/transact
+        (workspace/register-resource-type workspace
+          :ext "transformed"
+          :node-type resource-node/ResourceNode
+          :source-value-fn hash
+          :search-value-fn search-value-fn))
+      (is (identical? search-value-fn
+                      (:search-value-fn (get (workspace/get-resource-type-map workspace) "transformed")))))))
+
+;; Propagated save errors must fall back to saved content without changing the resource's unsaved edits.
+(deftest search-falls-back-after-dependency-error-test
+  (test-util/with-temp-project-content
+    {"/parent.collection" {:name "saved-name"
+                           :collection-instances [{:id "child" :collection "/child.collection"}]}
+     "/child.collection" {:name "child"}}
+    (let [parent (project/get-resource-node project "/parent.collection")
+          resource (g/node-value parent :resource)
+          search-value-fn (:search-value-fn (resource/resource-type resource))
+          search-value! (fn []
+                          (g/with-auto-evaluation-context evaluation-context
+                            (search-value-fn parent resource evaluation-context)))]
+      (is (= "saved-name" (:name (search-value!))))
+      (g/set-property! parent :name "unsaved-name")
+      (is (= "unsaved-name" (:name (search-value!))))
+      (g/mark-defective! (:source-id (first (g/inputs (g/now) parent :ref-coll-ddf)))
+                         (g/error-fatal "Failed dependency."))
+      (is (g/error-value? (g/node-value parent :save-value)))
+      (is (coll/empty? (g/raw-property-value (g/now) parent :_output-jammers)))
+      (is (= (g/node-value parent :source-value) (search-value!)))
+      (is (= "saved-name" (:name (search-value!))))
+      (is (= "unsaved-name" (g/node-value parent :name))))))
+
 (deftest file-searcher-test
   (test-util/with-loaded-project search-project-path
     (test-util/with-ui-run-later-rebound
-      (testing "All editable files are searched."
+      (testing "All readable textual files are searched, including blocked resources."
         (when-some [search-data-future (try-make-search-data-future project)]
           ;; Note: This is more of a sanity-check than anything else.
           ;; As we make the search system more flexible, these assumptions might
           ;; not hold.
           (is (= (into (sorted-set)
-                       (comp (keep (fn [[node-id]]
-                                     (when-some [save-data (g/node-value node-id :save-data)]
-                                       (:resource save-data))))
+                       (comp (map second)
                              (filter resource/loaded?)
                              (remove resource/internal?)
+                             (filter #(= :file (resource/source-type %)))
                              (filter resource/textual?)
                              (map resource/proj-path))
                        (g/node-value project :node-id+resources))

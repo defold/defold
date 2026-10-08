@@ -18,7 +18,6 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.fs :as fs]
-            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
@@ -87,8 +86,9 @@
           (is (= "Side-scroller" (title settings)))
           (ensure-game-project-connections! project game-project))))))
 
+;; Failed prerequisites must block every dependent without creating missing-resource placeholders.
 (deftest load-incomplete-project
-  (testing "Missing ResourceNodes are shared among all references to it."
+  (testing "Missing prerequisites prevent loading all resources that require them."
     (with-clean-system
       (create-test-project "test/resources/missing_project")
       ;; Create multiple references to the non-existent resources.
@@ -96,14 +96,14 @@
                     "missing_component.go"          ; references "/non-existent.script"
                     "missing_go.collection"]]       ; references "/non-existent.go"
         (copy-file path (str "duplicate_" path)))
-      (let [project (second (log/without-logging (load-test-project)))
-            _ (doseq [path ["missing_collection.collection" "missing_component.go" "missing_go.collection"]
-                      prefix ["" "duplicate_"]]
-                (g/node-value (project/get-resource-node project (str "/" prefix path)) :node-outline))
-            num-nodes-by-proj-path (frequencies (map resource/proj-path (test-util/project-node-resources project)))]
-        (is (= 1 (num-nodes-by-proj-path "/non-existent.collection")))
-        (is (= 1 (num-nodes-by-proj-path "/non-existent.script")))
-        (is (= 1 (num-nodes-by-proj-path "/non-existent.go")))))))
+      (let [project (second (log/without-logging (load-test-project)))]
+        (doseq [path ["missing_collection.collection" "missing_component.go" "missing_go.collection"]
+                prefix ["" "duplicate_"]]
+          (is (g/error-value? (g/node-value (project/get-resource-node project (str "/" prefix path)) :node-outline))))
+        (let [nodes-by-proj-path (g/node-value project :nodes-by-resource-path)]
+          (is (nil? (nodes-by-proj-path "/non-existent.collection")))
+          (is (nil? (nodes-by-proj-path "/non-existent.script")))
+          (is (nil? (nodes-by-proj-path "/non-existent.go"))))))))
 
 (deftest load-broken-project
   (with-clean-system

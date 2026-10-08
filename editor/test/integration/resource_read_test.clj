@@ -196,18 +196,40 @@
             dependent (test-util/resource-node project "/dependent.prereq")
             independent (test-util/resource-node project "/independent.prereq")]
         (is (g/error-value? (g/node-value dependent :result)))
-        (is (g/error-value? (g/node-value broken :source-value)))
-        (is (g/error-value? (g/node-value dependent :source-value)))
+        (is (= {:fail true} (g/node-value broken :source-value)))
+        (is (= {:prerequisites ["/broken.prereq"]} (g/node-value dependent :source-value)))
         (is (= [] @load-calls))
         (let [basis (g/now)
               read-opts (workspace/make-read-opts basis workspace)
               resource (resource-node/resource basis broken)
               node-load-info (project/read-node-load-info read-opts broken resource)]
           (is (g/error-value? (:read-error node-load-info)))
-          (is (not (contains? node-load-info :source-value)))
+          (is (= {:fail true} (:source-value node-load-info)))
+          (is (= (resource/resource->sha256-hex resource) (:disk-sha256 node-load-info)))
           (is (not (contains? node-load-info :prerequisite-proj-paths))))
         (is (= 42 (g/node-value independent :result)))
         (is (= ["/independent.prereq"] @load-calls))))))
+
+;; Successful reads retain their hashes so timestamp-only changes keep blocked nodes.
+(deftest blocked-resource-unchanged-content-retains-node-test
+  (call-with-prerequisite-project
+    {"/broken.prereq" {:fail true}
+     "/dependent.prereq" {:prerequisites ["/broken.prereq"]}}
+    (fn [_read-opts _resource source-value]
+      (if (:fail source-value)
+        (throw (ex-info "Failed to discover prerequisites." {}))
+        (:prerequisites source-value)))
+    (fn [project workspace load-calls]
+      (is (g/error-value? (g/node-value (test-util/resource-node project "/dependent.prereq") :result)))
+      (doseq [proj-path ["/dependent.prereq" "/broken.prereq"]]
+        (let [node-id (test-util/resource-node project proj-path)
+              resource (resource-node/resource node-id)]
+          (is (= (resource/resource->sha256-hex resource) (g/node-value node-id :disk-sha256)))
+          (test-support/touch-until-new-mtime (io/as-file resource))
+          (workspace/resource-sync! workspace)
+          (is (= node-id (test-util/resource-node project proj-path)))
+          (is (g/error-value? (g/node-value node-id :result)))))
+      (is (= [] @load-calls)))))
 
 ;; Resource cycles become read errors with paths, including when different threads own the promises.
 (deftest cyclic-resource-prerequisites-test
@@ -232,12 +254,14 @@
             (try
               (doseq [[index node-id] (map-indexed vector node-ids)]
                 (is (g/error-value? (if concurrent
-                                     (deref (results index) 10000 ::timeout)
-                                     (g/node-value node-id :result (contexts index))))))
+                                      (deref (results index) 10000 ::timeout)
+                                      (g/node-value node-id :result (contexts index))))))
               (doseq [context contexts]
                 (g/update-system-from-evaluation-context! context))
               (is (= [] @load-calls))
-              (let [exceptions (mapv #(get-in (g/node-value % :source-value) [:user-data :exception]) node-ids)
+              (doseq [[node-id prerequisite] (mapv vector node-ids ["/b.prereq" "/a.prereq"])]
+                (is (= {:prerequisites [prerequisite]} (g/node-value node-id :source-value))))
+              (let [exceptions (mapv #(get-in (g/node-value % :result) [:user-data :exception]) node-ids)
                     cycle-exception (coll/first-where #(= :prerequisite-cycle (:ex-type (ex-data %))) exceptions)]
                 (is (some? cycle-exception))
                 (is (re-find #"/a.prereq" (ex-message cycle-exception)))
@@ -256,11 +280,11 @@
       (let [node-id (test-util/resource-node project "/embedded.go")
             save-value (g/node-value node-id :save-value)
             source-value (g/node-value node-id :source-value)]
-        (is (g/error-value? source-value))
+        (is (= "broken" (get-in source-value [:embedded-components 0 :id])))
         (is (g/error-value? save-value))
         (is (= [] @load-calls))
         (is (= "broken"
-               (:embedded-component-id (ex-data (get-in source-value [:user-data :exception])))))))))
+               (:embedded-component-id (ex-data (get-in save-value [:user-data :exception])))))))))
 
 ;; Bulk reloads must reject cycles and failed prerequisites before invoking any affected loader.
 (deftest bulk-read-prerequisite-errors-test
@@ -288,7 +312,8 @@
             (is (nil? (:read-error info)))
             (do
               (is (g/error-value? (:read-error info)))
-              (is (not (contains? info :source-value))))))
+              (is (= (edn/read-string (slurp (:resource info))) (:source-value info)))
+              (is (= (resource/resource->sha256-hex (:resource info)) (:disk-sha256 info))))))
         (project/load-nodes! project nil infos progress/null-render-progress! nil {})
         (is (= ["/independent.prereq"] @load-calls))
         (is (= 42 (g/node-value (nodes-by-resource-path "/independent.prereq") :result)))
@@ -316,7 +341,7 @@
                         ["/a.prereq" "/b.prereq" "/c.prereq" "/d.prereq"])
             infos (project/read-nodes pairs :old-node-ids-by-proj-path node-ids)
             order (into {} (map-indexed (fn [index info]
-                                         (coll/pair (resource/proj-path (:resource info)) index))) infos)]
+                                          (coll/pair (resource/proj-path (:resource info)) index))) infos)]
         (is (coll/every? #(nil? (:read-error %)) infos))
         (is (= 4 (count infos)))
         (is (< (order "/d.prereq") (order "/b.prereq") (order "/a.prereq")))
@@ -343,7 +368,9 @@
             (is (g/error-value? error))
             (is (coll/any? #(and (= :file-not-found (get-in % [:user-data :type]))
                                  (= "/missing.prereq" (some-> (get-in % [:user-data :resource]) resource/proj-path)))
-                          (into [] (coll/tree-xf :causes :causes) [error]))))
+                           (into [] (coll/tree-xf :causes :causes) [error]))))
+          (is (= {:prerequisites ["/middle.prereq"] :value 5} (g/node-value root :source-value)))
+          (is (= {:prerequisites ["/missing.prereq"] :value 2} (g/node-value middle :source-value)))
           (is (= [] @load-calls))
           (is (nil? (get (g/node-value project :nodes-by-resource-path) "/missing.prereq")))
 
@@ -364,6 +391,67 @@
             (is (= {"/missing.prereq" 1 "/middle.prereq" 1 "/root.prereq" 1}
                    (frequencies @load-calls)))))))))
 
+;; Blocked files retain searchable source even when non-editable, but hashes must not become search data.
+(deftest blocked-search-source-values-test
+  (doseq [source-value-fn [nil hash]]
+    (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+      (with-open [_ (test-util/make-directory-deleter project-path)]
+        (test-util/set-non-editable-directories! project-path ["/non-editable"])
+        (with-clean-system
+          (let [workspace (test-util/setup-workspace! project-path)]
+            (g/transact
+              (workspace/register-resource-type workspace
+                :ext "searchvalue"
+                :node-type resource-node/ResourceNode
+                :stateless? false
+                :textual? true
+                :read-fn (fn [_read-opts _resource input] (slurp input))
+                :write-fn identity
+                :source-value-fn source-value-fn
+                :search-value-fn (when source-value-fn
+                                   (fn [node-id _resource evaluation-context]
+                                     (g/node-value node-id :save-value evaluation-context)))
+                :prerequisites-fn (fn [_read-opts _resource _source-value] ["/missing.prereq"])))
+            (doseq [directory ["editable" "non-editable"]]
+              (test-util/write-file-resource! workspace (str "/" directory "/blocked.searchvalue") "needle"))
+            (workspace/resource-sync! workspace)
+            (let [project (test-util/setup-project! workspace)]
+              (doseq [directory ["editable" "non-editable"]]
+                (let [node-id (test-util/resource-node project (str "/" directory "/blocked.searchvalue"))
+                      resource (resource-node/resource node-id)
+                      save-error (g/node-value node-id :save-value)
+                      source-value (g/node-value node-id :source-value)
+                      search-value (g/with-auto-evaluation-context evaluation-context
+                                     ((:search-value-fn (resource/resource-type resource)) node-id resource evaluation-context))]
+                  (is (= (= "editable" directory) (resource/editable? resource)))
+                  (is (g/error-value? save-error))
+                  (is (= ((or source-value-fn identity) "needle") source-value))
+                  (is (= (if source-value-fn save-error source-value) search-value)))))))))))
+
+;; Prerequisite checks must honor supplied resources in both load paths, even without files on disk.
+(deftest supplied-prerequisite-resources-test
+  (doseq [bulk [false true]]
+    (call-with-prerequisite-project
+      {}
+      (fn [_read-opts _resource source-value] (:prerequisites source-value))
+      (fn [_project workspace load-calls]
+        (let [project-directory (workspace/project-directory workspace)
+              resources (mapv (fn [[filename contents]]
+                                (test-util/make-fake-file-resource workspace (.getPath project-directory)
+                                                                   (io/file project-directory filename)
+                                                                   (.getBytes (pr-str contents) "UTF-8")))
+                              [["dependent.prereq" {:prerequisites ["/prerequisite.prereq"] :value 5}]
+                               ["prerequisite.prereq" {:value 42}]])
+              project (test-util/setup-project! workspace resources)
+              node-ids (g/node-value project :nodes-by-resource-path)
+              dependent (node-ids "/dependent.prereq")]
+          (when bulk
+            (let [infos (project/read-nodes (mapv #(coll/pair (node-ids (resource/proj-path %)) %) resources)
+                          :old-node-ids-by-proj-path node-ids)]
+              (project/load-nodes! project nil infos progress/null-render-progress! nil {})))
+          (is (= 5 (g/node-value dependent :result)))
+          (is (= ["/prerequisite.prereq" "/dependent.prereq"] @load-calls)))))))
+
 ;; Failed prerequisite metadata must survive discovery errors and cycles so either can be repaired.
 (deftest failed-prerequisite-recovery-test
   (doseq [failure [:discovery :cycle]
@@ -372,8 +460,8 @@
       {"/root.prereq" {:prerequisites ["/a.prereq"]}
        "/a.prereq" {:prerequisites ["/b.prereq"]}
        "/b.prereq" (case failure
-                      :discovery {:fail true}
-                      :cycle {:prerequisites ["/a.prereq"]})}
+                     :discovery {:fail true}
+                     :cycle {:prerequisites ["/a.prereq"]})}
       (fn [_read-opts _resource source-value]
         (if-not (:fail source-value)
           (:prerequisites source-value)

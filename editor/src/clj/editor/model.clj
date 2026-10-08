@@ -677,10 +677,10 @@
                             renamed-bindings (detect-and-apply-renames texture-binding-infos samplers)]
                         (pair name (into #{} (map :sampler) renamed-bindings))))))))]
     (coll/any? (fn [model-desc-material]
-                (when-let [sampler-names (material-name->sampler-names (:name model-desc-material))]
-                  (not= (into #{} (map :sampler) (:textures model-desc-material))
-                        sampler-names)))
-              (:materials model-desc))))
+                 (when-let [sampler-names (material-name->sampler-names (:name model-desc-material))]
+                   (not= (into #{} (map :sampler) (:textures model-desc-material))
+                         sampler-names)))
+               (:materials model-desc))))
 
 (defn- detect-and-flag-migrated! [evaluation-context model-node-id model-desc]
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.

@@ -190,9 +190,10 @@
     The resource-type of the supplied resource.
 
   :read-error (optional)
-    If the resource does not exist, or an error occurs when reading, this will
-    be an ErrorValue with details about what went wrong. None of the fields
-    below will be present if we have a :read-error.
+    If the resource does not exist, or reading or prerequisite discovery fails,
+    this will be an ErrorValue with details about what went wrong. A successful
+    read retains its :source-value and :disk-sha256 even if prerequisites prevent
+    loading, but the dependency fields below will be omitted.
 
   :source-value (optional)
     When the resource-type specifies a :read-fn, this will be its return value
@@ -282,15 +283,15 @@
                 (resource-io/invalid-content-error node-id nil :fatal resource exception)))))
 
         read-error (or read-error (when (g/error-value? prerequisite-result) prerequisite-result))
-        node-load-info {:node-id node-id
-                        :owner-resource resource
-                        :resource resource
-                        :resource-type resource-type}]
+        node-load-info (cond-> {:node-id node-id
+                                :owner-resource resource
+                                :resource resource
+                                :resource-type resource-type}
+                         (and read-result (not (g/error-value? read-result)))
+                         (assoc :source-value source-value :disk-sha256 disk-sha256))]
     (if read-error
       (assoc node-load-info :read-error read-error)
       (cond-> node-load-info
-        source-value (assoc :source-value source-value)
-        disk-sha256 (assoc :disk-sha256 disk-sha256)
         dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths)
         prerequisite-result (assoc :prerequisite-proj-paths prerequisite-result)))))
 
@@ -466,20 +467,22 @@
 
 (defn node-load-info->disk-state-tx-data
   "Initializes a resource node's disk state non-undoably before loading it."
-  [{:keys [disk-sha256 node-id read-error resource source-value]}]
+  [{:keys [disk-sha256 node-id read-error resource source-value] :as node-load-info}]
   (when (resource/stateful? resource)
     (g/non-undoable
       (e/concat
         (g/materialize-shell node-id)
         (when (resource/file-resource? resource)
           (g/set-property node-id :disk-sha256 disk-sha256))
-        (when (and (resource/editable? resource)
-                   (or read-error (some? source-value)))
+        ;; Blocked non-editable resources also need their source for search.
+        (when (and (or (resource/editable? resource) read-error)
+                   (or read-error (contains? node-load-info :source-value)))
           (g/set-property node-id :source-value
-            (or read-error
-                ;; The read-fn returns a save-value, which may need converting
-                ;; to the resource type's representation of disk state.
-                (resource-node/save-value->source-value source-value (resource/resource-type resource)))))))))
+            (if-not (contains? node-load-info :source-value)
+              read-error
+              ;; The read-fn returns a save-value, which may need converting
+              ;; to the resource type's representation of disk state.
+              (resource-node/save-value->source-value source-value (resource/resource-type resource)))))))))
 
 (defn log-cache-info! [cache message]
   ;; Disabled during tests to minimize log spam.
@@ -621,19 +624,21 @@
 (defn- node-load-info-read-error [{:keys [node-id resource prerequisite-proj-paths] :as node-load-info} exception causes]
   (let [causes (into [] (distinct) causes)]
     (-> node-load-info
-        (dissoc :source-value :disk-sha256 :dependency-proj-paths :prerequisite-proj-paths)
+        ;; Preserve the source and hash from the successful read.
+        (dissoc :dependency-proj-paths :prerequisite-proj-paths)
         (assoc :read-error
-               (cond-> (resource-io/invalid-content-error node-id nil :fatal resource exception)
-                 (coll/not-empty causes) (assoc :causes causes)
-                 ;; Reload metadata must survive failed loading, even for cycles.
-                 ;; It is independent of executable materialization dependencies.
-                 (coll/not-empty prerequisite-proj-paths)
-                 (assoc-in [:user-data :prerequisite-proj-paths] (vec prerequisite-proj-paths)))))))
+          (cond-> (resource-io/invalid-content-error node-id nil :fatal resource exception)
+            (coll/not-empty causes) (assoc :causes causes)
+            ;; Reload metadata must survive failed loading, even for cycles.
+            ;; It is independent of executable materialization dependencies.
+            (coll/not-empty prerequisite-proj-paths)
+            (assoc-in [:user-data :prerequisite-proj-paths] (vec prerequisite-proj-paths)))))))
 
-(defn- check-missing-load-prerequisites [{:keys [node-id resource prerequisite-proj-paths] :as node-load-info} basis]
+(defn- check-missing-load-prerequisites [{:keys [node-id resource prerequisite-proj-paths] :as node-load-info} basis proj-path->resource]
   (let [missing-resource
         (coll/some (fn [proj-path]
-                     (let [prerequisite (workspace/resolve-resource basis resource proj-path)]
+                     (let [prerequisite (or (proj-path->resource proj-path)
+                                            (workspace/resolve-resource basis resource proj-path))]
                        (when-not (resource/exists? prerequisite)
                          prerequisite)))
                    prerequisite-proj-paths)]
@@ -648,7 +653,14 @@
   ;; Bulk reloads do not claim materialization promises. Validate their read
   ;; results before any loader runs, propagating errors to dependent resources.
   ;; Preserve the dependency order where possible, giving prerequisites priority.
-  (let [node-load-infos (mapv #(check-missing-load-prerequisites % basis) node-load-infos)
+  (let [proj-path->info (coll/pair-map-by (comp resource/proj-path :resource) node-load-infos)
+        proj-path->resource (fn [proj-path]
+                              ;; New nodes might not be in the basis yet. Their
+                              ;; supplied resources take precedence over old nodes.
+                              (or (:resource (proj-path->info proj-path))
+                                  (some->> (old-node-ids-by-proj-path proj-path)
+                                           (resource-node/as-resource basis))))
+        node-load-infos (mapv #(check-missing-load-prerequisites % basis proj-path->resource) node-load-infos)
         proj-path->info (coll/pair-map-by (comp resource/proj-path :resource) node-load-infos)
         failed-loaded-prerequisites
         (coll/into-> node-load-infos {}
@@ -1133,19 +1145,22 @@
         resource (resource-node/resource basis node-id)
         workspace (resource/workspace resource)
         project (get-project basis)
+        nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)
         read-opts (g/tx-cached-value! evaluation-context [:read-opts]
                     (workspace/make-read-opts basis workspace :include-editor-dependencies true))
         load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                     (make-load-opts-in-evaluation-context project evaluation-context))
         node-load-info (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
-                         (check-missing-load-prerequisites (read-node-load-info read-opts node-id resource) basis))
+                         (check-missing-load-prerequisites (read-node-load-info read-opts node-id resource) basis
+                                                           (fn [proj-path]
+                                                             (some->> (nodes-by-resource-path proj-path)
+                                                                      (resource-node/resource basis)))))
 
         node-load-info
         (if (:read-error node-load-info)
           node-load-info
           (try
-            (let [nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)
-                  prerequisite-node-ids (into #{} (keep nodes-by-resource-path) (:prerequisite-proj-paths node-load-info))]
+            (let [prerequisite-node-ids (into #{} (keep nodes-by-resource-path) (:prerequisite-proj-paths node-load-info))]
               (g/materialize-prerequisites! node-id prerequisite-node-ids evaluation-context)
               node-load-info)
             (catch clojure.lang.ExceptionInfo exception

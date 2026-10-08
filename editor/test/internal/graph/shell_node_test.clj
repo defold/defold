@@ -431,10 +431,14 @@
             (is (= 37 (g/node-value child :result)))
             (is (= {parent 1 prerequisite 1} (frequencies @calls)))))))))
 
+;; Competing claims must share one loader result, and contexts can be handed back for commit.
 (deftest simultaneous-contexts-materialize-once-test
   (with-clean-system
     (let [shell (first (g/take-node-ids 1))
+          context-count 8
           calls (atom 0)
+          ready (CountDownLatch. context-count)
+          start (promise)
           entered (promise)
           release (promise)]
       (g/transact
@@ -449,26 +453,66 @@
               (let [child (first (g/take-node-ids 1))]
                 [(g/add-node (g/construct ShellTestNode :_node-id child :value 11))
                  (g/set-property self :child child)])))))
-      (let [first-context (g/make-evaluation-context)
-            second-context (g/make-evaluation-context)
-            first-result (future (g/node-value shell :child first-context))]
+      (let [contexts (mapv (fn [_] (g/make-evaluation-context)) (range context-count))
+            results (mapv (fn [context]
+                            (future
+                              (.countDown ready)
+                              (when (= ::timeout (deref start 10000 ::timeout))
+                                (throw (ex-info "Timed out starting competing materializations." {})))
+                              (g/node-value shell :child context)))
+                          contexts)]
         (try
+          (is (.await ready 10 TimeUnit/SECONDS))
+          (deliver start true)
           (is (= true (deref entered 10000 ::timeout)))
-          (let [started (promise)
-                second-result (future
-                                (deliver started true)
-                                (g/node-value shell :child second-context))]
-            (is (= true (deref started 10000 ::timeout)))
-            (deliver release true)
-            (let [child (deref first-result 10000 ::timeout)]
-              (is (g/node-id? child))
-              (is (= child (deref second-result 10000 ::timeout)))
-              (g/update-system-from-evaluation-context! second-context)
-              (g/update-system-from-evaluation-context! first-context)
-              (is (= 11 (g/node-value child :result)))
-              (is (= 1 @calls))))
+          (deliver release true)
+          (let [children (mapv #(deref % 10000 ::timeout) results)
+                child (first children)]
+            (is (g/node-id? child))
+            (is (coll/every? #(= child %) children))
+            (doseq [context contexts]
+              (g/update-system-from-evaluation-context! context))
+            (is (= 11 (g/node-value child :result)))
+            (is (= 1 @calls)))
           (finally
-            (deliver release true)))))))
+            (deliver start true)
+            (deliver release true)
+            (doseq [result results]
+              (future-cancel result))))))))
+
+;; Independent loaders must run concurrently without losing another shell's registry entry.
+(deftest independent-contexts-materialize-concurrently-test
+  (with-clean-system
+    (let [shells (vec (g/take-node-ids 4))
+          entered (CountDownLatch. (count shells))
+          calls (atom [])]
+      (g/transact
+        (mapv (fn [shell]
+                (g/add-node
+                  (g/construct-shell ShellTestNode {:_node-id shell}
+                    (fn [self _evaluation-context]
+                      (swap! calls conj self)
+                      (.countDown entered)
+                      (when-not (.await entered 10 TimeUnit/SECONDS)
+                        (throw (ex-info "Timed out starting independent materializations." {})))
+                      (g/set-property self :value 7)))))
+              shells))
+      (let [contexts (mapv (fn [_] (g/make-evaluation-context)) shells)
+            results (mapv (fn [shell context]
+                            (future (g/node-value shell :result context)))
+                          shells contexts)]
+        (try
+          (is (= [7 7 7 7] (mapv #(deref % 10000 ::timeout) results)))
+          (is (= (into {} (map #(vector % 1)) shells) (frequencies @calls)))
+          (let [node-materializations @(:node-materializations (first contexts))]
+            (is (= (set shells) (set (coll/keys node-materializations))))
+            (is (coll/every? #(realized? (:promise %)) (coll/vals node-materializations))))
+          (doseq [context contexts]
+            (g/update-system-from-evaluation-context! context))
+          (is (= [7 7 7 7] (mapv #(g/node-value % :result) shells)))
+          (finally
+            (doseq [result results]
+              (future-cancel result))))))))
 
 (deftest shared-materialization-does-not-overwrite-later-edit-test
   (with-clean-system
@@ -699,7 +743,7 @@
         (if-not (contains? #{:prerequisite-cycle :prerequisite-failed} (:ex-type (ex-data error)))
           (throw error)
           (g/mark-defective self ShellTestNode
-            (g/->error self nil :fatal nil (ex-message error) (ex-data error))))))))
+                            (g/->error self nil :fatal nil (ex-message error) (ex-data error))))))))
 
 ;; Both recursion and cross-thread waits must turn cycles into replayable errors.
 (deftest prerequisite-cycles-settle-promises-test
@@ -723,8 +767,8 @@
           (try
             (doseq [[index node-id] (map-indexed vector node-ids)]
               (is (g/error-value? (if concurrent
-                                   (deref (results index) 10000 ::timeout)
-                                   (g/node-value node-id :result (contexts index))))))
+                                    (deref (results index) 10000 ::timeout)
+                                    (g/node-value node-id :result (contexts index))))))
             (doseq [[_node-id entry] @(:node-materializations (first contexts))]
               (is (realized? (:promise entry)))
               (is (= #{} (:prerequisite-shell-node-ids entry))))

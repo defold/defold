@@ -20,9 +20,11 @@
             [editor.game-object :as game-object]
             [editor.localization :as localization]
             [editor.outline :as outline]
+            [editor.resource :as resource]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [with-clean-system]]
+            [util.coll :as coll]))
 
 (defn- outline
   ([node]
@@ -387,28 +389,22 @@
       (is (cut? root sub-path))
       (is (drag? root sub-path)))))
 
+;; A blocked resource reports the missing prerequisite instead of exposing an incomplete outline.
 (deftest outline-shows-missing-parts
   (with-clean-system
-    (let [[workspace project] (log/without-logging (test-util/setup! "test/resources/missing_project"))]  ; no logging as purposely partially broken project
-      (testing "Missing go file visible in collection outline"
-        (let [root (test-util/resource-node project "/missing_go.collection")]
-          (is (= 1 (child-count root)))
-          (is (.startsWith (:label (outline root [0])) "non-existent"))))
-      (testing "Missing sub collection visible in collection outline"
-        (let [root (test-util/resource-node project "/missing_collection.collection")]
-          (is (= 1 (child-count root)))
-          (is (.startsWith  (:label (outline root [0])) "non-existent"))))
-      (testing "Missing script visible in go outline"
-        (let [root (test-util/resource-node project "/missing_component.go")]
-          (is (= 1 (child-count root)))
-          (is (.startsWith (:label (outline root [0])) "non-existent"))))
-      (testing "Missing script visible in collection-go-outline"
-        (let [root (test-util/resource-node project "/missing_go_component.collection")
-              labels (map :label (outline-seq root))]
-          (is (= [(localization/message "outline.collection")
-                  "missing_component"
-                  "non-existent"]
-                 labels)))))))
+    (let [[_workspace project] (log/without-logging (test-util/setup! "test/resources/missing_project"))]
+      (doseq [[proj-path missing-proj-path] [["/missing_go.collection" "/non-existent.go"]
+                                             ["/missing_collection.collection" "/non-existent.collection"]
+                                             ["/missing_component.go" "/non-existent.script"]
+                                             ["/missing_go_component.collection" "/non-existent.script"]]]
+        (testing proj-path
+          (let [root (test-util/resource-node project proj-path)
+                error (outline root)]
+            (is (g/error-value? error))
+            (is (nil? (:children error)))
+            (is (coll/any? #(and (= :file-not-found (get-in % [:user-data :type]))
+                                 (= missing-proj-path (some-> (get-in % [:user-data :resource]) resource/proj-path)))
+                           (into [] (coll/tree-xf :causes :causes) [error])))))))))
 
 (deftest outline-shows-nil-parts
   (with-clean-system

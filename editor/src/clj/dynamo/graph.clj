@@ -86,7 +86,12 @@
 (defn ^{:dynamic strict-evaluation-context-scopes} make-evaluation-context
   "Returns a new evaluation-context from the current state of *the-system*. Will
   assert if called inside an auto evaluation-context scope when strict
-  evaluation-context scope checks are enabled."
+  evaluation-context scope checks are enabled.
+
+  An evaluation-context must only be used by one thread at a time. It may be
+  handed off to another thread, but the previous owner must stop using it until
+  ownership is returned. This also applies to derived contexts sharing its
+  mutable state."
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
 
@@ -1211,21 +1216,23 @@
   Returns a new evaluation context with only the cache entries that passed the
   cache-entry-pred predicate. The predicate function will be called with
   node-id, output-label, evaluation-context and should return true if the
-  cache entry for the output-label should remain in the cache."
+  cache entry for the output-label should remain in the cache.
+  The returned context shares mutable state with the original, so the two
+  contexts must not be used concurrently by different threads."
   [evaluation-context cache-entry-pred]
   (in/pruned-evaluation-context evaluation-context cache-entry-pred))
 
 (defn update-system-from-evaluation-context!
   "Commits materializations and cache entries that remain valid in the system.
   Replays realized changes without rerunning load functions or property setters.
+  Call only after evaluation has finished, with exclusive ownership of the context.
   Closes the context and all contexts sharing its state. They must be discarded
   after this call, even if their changes were incompatible with the system."
   [evaluation-context]
   (let [state (:state-atom evaluation-context)]
-    (locking state
-      (assert (not (:closed @state)) "Evaluation context is closed.")
-      (swap! *the-system* is/update-system-from-evaluation-context evaluation-context)
-      (swap! state assoc :closed true)))
+    (assert (not (:closed @state)) "Evaluation context is closed.")
+    (swap! *the-system* is/update-system-from-evaluation-context evaluation-context)
+    (swap! state assoc :closed true))
   nil)
 
 (defmacro with-auto-evaluation-context [ec & body]
