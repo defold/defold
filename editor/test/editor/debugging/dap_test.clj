@@ -28,6 +28,39 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+;; Watches expose real debugger state changes, ignore transport-only traffic, and stop notifying after removal.
+(deftest session-watches-test
+  (dap-util/with-adapter
+    "/project"
+    {}
+    (fn [request _ out _]
+      (case (:command request)
+        "evaluate" (do
+                     (if (= "stop" (get-in request [:arguments :expression]))
+                       (dap-util/event! out "stopped" {:threadId 7})
+                       (dap-util/event! out "output" {:output "transport-only"}))
+                     (dap-util/respond! out request {}))
+        "continue" (do
+                     (dap-util/event! out "continued" {:threadId 7})
+                     (dap-util/respond! out request {}))))
+    (let [initial @session
+          changes (atom [])
+          callback (fn [key reference old-state new-state]
+                     (swap! changes conj [key reference old-state new-state]))]
+      (is (identical? session (add-watch session ::watch callback)))
+      (dap/evaluate! session nil "output")
+      (is (= [:output {:output "transport-only"}] (dap-util/take-event! events)))
+      (is (= [] @changes))
+      (dap/evaluate! session nil "stop")
+      (is (= :stopped (first (dap-util/take-event! events))))
+      (is (= [[::watch session initial @session]] @changes))
+      (is (= :suspended (dap/status session)))
+      (is (identical? session (remove-watch session ::watch)))
+      (dap/control! session "continue")
+      (is (= [:continued] (dap-util/take-event! events)))
+      (is (= :running (dap/status session)))
+      (is (= 1 (count @changes))))))
+
 ;; UTF-8 requests and consecutive fragmented events retain their byte framing.
 (deftest framing-test
   (dap-util/with-adapter

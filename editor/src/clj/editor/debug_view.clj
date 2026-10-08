@@ -102,7 +102,7 @@
             (ui/select! call-stack-view top-frame)))
         (do
           (.clear items)
-          (debugger-variables/clear! variables-view))))))
+          (debugger-variables/clear! variables-view debug-session))))))
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props fx.list-view/props))

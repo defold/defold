@@ -21,7 +21,7 @@
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.task :as task])
-  (:import [clojure.lang IDeref]
+  (:import [clojure.lang IRef]
            [java.io BufferedInputStream IOException InputStream OutputStream]
            [java.net InetSocketAddress Socket SocketException]
            [java.nio.charset StandardCharsets]
@@ -60,9 +60,20 @@
     (catch ExecutionException _))
   nil)
 
-(defonce/record Session [data ended]
-  IDeref
-  (deref [_] (:debugger @data)))
+(defonce/record Session [^IRef data ended]
+  IRef
+  (deref [_] (:debugger @data))
+  (addWatch [this key callback]
+    (.addWatch data key
+               (fn [key _ old-data new-data]
+                 (let [old-state (:debugger old-data)
+                       new-state (:debugger new-data)]
+                   (when-not (identical? old-state new-state)
+                     (callback key this old-state new-state)))))
+    this)
+  (removeWatch [this key]
+    (.removeWatch data key)
+    this))
 
 (defn status
   "Return the session's current status.
@@ -376,9 +387,11 @@
   is captured when the notification is queued, so it may differ from the
   session's state when the callback runs. Callbacks may be omitted.
 
-  Dereferencing the session returns its debugger state. Its initial status
-  is :connecting. Port discovery and connection attempts are retried until
-  successful, cancelled or timed out."
+  The session supports dereferencing and add-watch/remove-watch, exposing only
+  its debugger state. Watches run synchronously on the updating thread when
+  that state changes; transport-only updates do not notify them.
+  Its initial status is :connecting. Port discovery and connection attempts
+  are retried until successful, cancelled or timed out."
   [address resolve-port local-root & {:keys [breakpoints target] :as options}]
   (let [transport {:protocol-queue (LinkedBlockingQueue.)
                    :coordinator-queue (LinkedBlockingQueue.)

@@ -18,40 +18,30 @@
             [cljfx.fx.tree-item :as fx.tree-item]
             [cljfx.fx.tree-view :as fx.tree-view]
             [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as fx.mutator]
             [editor.console :as console]
             [editor.debugging.dap :as dap]
             [editor.future :as future]
             [editor.ui :as ui]
             [util.coll :as coll])
   (:import [com.defold.control ExtendedTreeViewSkin]
-           [javafx.geometry Orientation]
-           [javafx.scene.control ScrollBar TreeCell TreeItem TreeView]
+           [javafx.event Event]
+           [javafx.scene.control TreeCell TreeItem TreeView]
            [javafx.scene.input KeyEvent MouseEvent ScrollEvent]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private ^:dynamic *updating-view* false)
-
-(defn- current-load? [model {:keys [session snapshot] :as context}]
-  (and (identical? context (:context @model))
+(defn- current-load? [state {:keys [session snapshot] :as context}]
+  (and (identical? context (:context state))
        (= snapshot (dap/suspension @session))))
 
-(defn- horizontal-scroll-bar
-  ^ScrollBar [^TreeView view]
-  (coll/first-where #(= Orientation/HORIZONTAL (.getOrientation ^ScrollBar %))
-                    (.lookupAll view ".scroll-bar")))
-
-(defn- capture-scroll-position [^TreeView view]
+(defn- capture-scroll-row [^TreeView view]
   (when (.getRoot view)
     (let [skin ^ExtendedTreeViewSkin (.getSkin view)
           flow (.getVirtualFlowInstance skin)]
       (when-let [^TreeCell cell (.getFirstVisibleCell flow)]
-        (when-let [path (some-> cell .getTreeItem .getValue :path)]
-          {:path path
-           :index (.getIndex cell)
-           :offset (.getLayoutY cell)
-           :horizontal (some-> (horizontal-scroll-bar view) .getValue)})))))
+        (.getIndex cell)))))
 
 (defn- find-item
   ^TreeItem [^TreeItem root path]
@@ -62,69 +52,73 @@
           root
           path))
 
-(defn- restore-scroll-position! [^TreeView view {:keys [path index offset horizontal]}]
-  (.applyCss view)
-  (.layout view)
-  (let [skin ^ExtendedTreeViewSkin (.getSkin view)
-        flow (.getVirtualFlowInstance skin)
-        item (find-item (.getRoot view) path)
-        row (if-not item -1 (long (.getRow view item)))]
-    (.scrollToTop flow (int (if (neg? row) index row)))
-    (.layout flow)
-    (.scrollPixels flow (- (double offset)))
-    (when horizontal
-      (when-let [bar (horizontal-scroll-bar view)]
-        (.setValue bar horizontal)))))
-
 (defn- decorate-variables [parent-path variables]
   ;; Locals and upvalues can share names, so include their occurrence in the key.
   (first
     (reduce (fn [[items occurrences] {:keys [name value] :as variable}]
               (let [occurrence (long (get occurrences name 0))]
                 (coll/pair (conj items (assoc variable
-                                       :path (conj parent-path [name occurrence])
-                                       :display-name name
-                                       :display-value value))
+                                         :path (conj parent-path [name occurrence])
+                                         :display-name name
+                                         :display-value value))
                            (assoc occurrences name (inc occurrence)))))
             (coll/pair [] {})
             variables)))
 
-(declare load-children!)
-
-(defn- load-expanded! [model context]
-  (doseq [[_ variables] (:children @model)
-          {:keys [path variablesReference]} variables
-          :when (and (pos? (long variablesReference))
-                     (contains? (:expanded-paths @model) path))]
-    (load-children! model context path variablesReference)))
-
-(defn- load-children! [model {:keys [session snapshot frame-id] :as context} path reference]
-  (let [{:keys [children pending]} @model]
-    (when (and (current-load? model context)
-               (not (contains? children path))
-               (not (contains? pending path)))
-      (swap! model update :pending conj path)
+(defn- load-children! [swap-state {:keys [session snapshot frame-id] :as context} path reference]
+  ;; Claim the path in a retryable update, then start IO only for that request.
+  (let [request (Object.)
+        state (swap-state
+                (fn [{:keys [children pending failed-paths expanded-paths] :as state}]
+                  (if (and (current-load? state context)
+                           (or (coll/empty? path) (contains? expanded-paths path))
+                           (not (contains? children path))
+                           (not (contains? pending path))
+                           (not (contains? failed-paths path)))
+                    (assoc-in state [:pending path] request)
+                    state)))]
+    (when (identical? request (get-in state [:pending path]))
       (future/io
         (try
           (let [variables (if (coll/empty? path)
                             (dap/frame-variables session snapshot frame-id)
-                            (dap/variables session snapshot reference))]
-            (ui/run-now
-              (when (current-load? model context)
-                (swap! model #(-> %
-                                  (assoc-in [:children path] (decorate-variables path variables))
-                                  (update :pending disj path)))
-                ;; Restoring expansion follows only saved paths, even for cycles.
-                (load-expanded! model context))))
+                            (dap/variables session snapshot reference))
+                {:keys [expanded-paths] :as state}
+                (swap-state
+                  (fn [state]
+                    (if-not (current-load? state context)
+                      state
+                      (-> state
+                          (assoc-in [:children path] (decorate-variables path variables))
+                          (update :failed-paths disj path)))))]
+            (when (current-load? state context)
+              ;; Restoring expansion follows only saved paths, even for cycles.
+              (doseq [{:keys [path variablesReference]} (get-in state [:children path])
+                      :when (and (pos? (long variablesReference))
+                                 (contains? expanded-paths path))]
+                (load-children! swap-state context path variablesReference)))
+            ;; Keep the parent pending until restored descendants have claimed their loads.
+            (swap-state
+              (fn [state]
+                (if-not (current-load? state context)
+                  state
+                  (update state :pending dissoc path)))))
           (catch Exception exception
-            (ui/run-now
-              (when (current-load? model context)
-                (swap! model #(-> %
-                                  (assoc-in [:children path] [])
-                                  (update :pending disj path)))
+            (let [state (swap-state
+                          (fn [state]
+                            (if-not (current-load? state context)
+                              state
+                              ;; Keep failures expandable without automatically retrying them.
+                              (-> state
+                                  (update :failed-paths conj path)
+                                  (update :pending dissoc path)))))]
+              (when (current-load? state context)
                 (console/append-console-entry! :eval-error (ex-message exception))))))))))
 
-(defn- variable-item [model {:keys [children expanded-paths context] :as state} {:keys [path variablesReference] :as variable}]
+(defn- variable-at [state path]
+  (coll/first-where #(= path (:path %)) (get (:children state) (pop path))))
+
+(defn- variable-item [swap-state {:keys [children expanded-paths] :as state} {:keys [path variablesReference] :as variable}]
   (let [table (pos? (long variablesReference))]
     {:fx/type fx.tree-item/lifecycle
      :fx/key path
@@ -133,10 +127,17 @@
 
      :on-expanded-changed
      (fn [expanded]
-       (when (current-load? model context)
-         (swap! model update :expanded-paths (if expanded conj disj) path)
-         (when expanded
-           (load-children! model context path variablesReference))))
+       (let [{:keys [context] :as state}
+             (swap-state
+               (fn [{:keys [context] :as state}]
+                 (let [reference (:variablesReference (variable-at state path))]
+                   (if-not (and context reference (pos? (long reference)) (current-load? state context))
+                     state
+                     (cond-> (update state :expanded-paths (if expanded conj disj) path)
+                       expanded (update :failed-paths disj path))))))
+             reference (:variablesReference (variable-at state path))]
+         (when (and expanded context reference (pos? (long reference)))
+           (load-children! swap-state context path reference))))
 
      :children
      (if-not table
@@ -144,109 +145,115 @@
        (let [variables (get children path)]
          (if-not variables
            [{:fx/type fx.tree-item/lifecycle :fx/key ::loading}]
-           (mapv #(variable-item model state %) variables))))}))
+           (mapv #(variable-item swap-state state %) variables))))}))
 
-(defn- sync-viewport! [^TreeView view model]
-  (let [{:keys [context pending selection scroll-to-restore]} @model]
-    (when (and context (coll/empty? pending))
-      (when-let [item (when selection (find-item (.getRoot view) selection))]
-        (.select (.getSelectionModel view) item))
-      (when scroll-to-restore
-        ;; Run after cljfx has installed every expanded branch, and recheck input.
-        (ui/run-later
-          (when (and (current-load? model context) (coll/empty? (:pending @model)))
-            (when-let [position (:scroll-to-restore @model)]
-              (swap! model dissoc :scroll-to-restore)
-              (restore-scroll-position! view position))))))))
+(def ^:private prop-restored-selection
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn [^TreeView view selection]
+        (let [selection-model (.getSelectionModel view)]
+          (when-let [item (when selection (find-item (.getRoot view) selection))]
+            (when-not (identical? item (.getSelectedItem selection-model))
+              (.select selection-model item))))))
+    fx.lifecycle/scalar))
 
-(defn- install-view! [^TreeView view model]
-  (.setSkin view (ExtendedTreeViewSkin. view))
-  (ui/customize-tree-view! view {:double-click-expand true})
-  (ui/user-data! view ::state model)
-  (let [cancel-scroll-restore
-        (ui/event-handler _
-          (swap! model dissoc :scroll-to-restore))]
-    (.addEventFilter view ScrollEvent/SCROLL cancel-scroll-restore)
-    (.addEventFilter view MouseEvent/MOUSE_PRESSED cancel-scroll-restore)
-    (.addEventFilter view KeyEvent/KEY_PRESSED cancel-scroll-restore)
-    (ui/user-data! view ::cancel-scroll-restore cancel-scroll-restore)))
+(def ^:private prop-restored-scroll-row
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn [^TreeView view [swap-state scroll-row]]
+        (when scroll-row
+          (.scrollTo view (int (min (long scroll-row) (max 0 (dec (.getExpandedItemCount view))))))
+          (swap-state dissoc :scroll-row))))
+    fx.lifecycle/scalar))
 
-(defn- uninstall-view! [^TreeView view]
-  (let [^javafx.event.EventHandler handler (ui/user-data view ::cancel-scroll-restore)]
-    (.removeEventFilter view ScrollEvent/SCROLL handler)
-    (.removeEventFilter view MouseEvent/MOUSE_PRESSED handler)
-    (.removeEventFilter view KeyEvent/KEY_PRESSED handler)))
+(def ^:private prop-extended-tree-view-skin
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn [^TreeView view enabled]
+        (.setSkin view (when enabled (ExtendedTreeViewSkin. view)))))
+    fx.lifecycle/scalar))
 
-(def ^:private ext-viewport
-  (reify fx.lifecycle/Lifecycle
-    (create [_ {:keys [desc model]} opts]
-      (binding [*updating-view* true]
-        (let [component (fx.lifecycle/create fx.lifecycle/dynamic desc opts)]
-          (install-view! (fx/instance component) model)
-          component)))
-
-    (advance [_ component {:keys [desc model]} opts]
-      (binding [*updating-view* true]
-        (let [component (fx.lifecycle/advance fx.lifecycle/dynamic component desc opts)]
-          (sync-viewport! (fx/instance component) model)
-          component)))
-
-    (delete [_ component opts]
-      (let [view (fx/instance component)]
-        (swap! (ui/user-data view ::state) assoc :context nil)
-        (uninstall-view! view))
-      (fx.lifecycle/delete fx.lifecycle/dynamic component opts))))
+(def ^:private initial-state
+  {:session nil
+   :expanded-paths #{}
+   :children {}
+   :failed-paths #{}
+   :pending {}
+   :scroll-row 0})
 
 (ui/defc variables-view
-  {:compose [{:fx/type fx/ext-watcher :ref (:model props) :key :state}]}
-  [{:keys [model state]}]
-  {:fx/type ext-viewport
-   :model model
-   :desc {:fx/type fx.ext.tree-view/with-selection-props
-          :props {:on-selected-item-changed
-                  (fn [^TreeItem item]
-                    ;; Rebuilding the tree can temporarily clear selection.
-                    (when-not *updating-view*
-                      (swap! model assoc :selection (some-> item .getValue :path))))}
-          :desc {:fx/type fx.tree-view/lifecycle
-                 :id "debugger-variables"
-                 :show-root false
-                 :root
-                 (if-not (:context state)
-                   {:fx/type ui/ext-value :value nil}
-                   {:fx/type fx.tree-item/lifecycle
-                    :expanded true
-                    :children (mapv #(variable-item model state %) (get-in state [:children []]))})}}})
+  {:compose [{:fx/type fx/ext-state
+              :initial-state initial-state}
+             {:fx/type fx/ext-watcher
+              :ref (get-in props [:state :context :session])
+              :key :session-state}
+             {:fx/type fx.ext.tree-view/with-selection-props
+              :props
+              (let [{:keys [context children pending selection scroll-row]} (:state props)
+                    ready (and context
+                               (= (:snapshot context) (dap/suspension (:session-state props)))
+                               (contains? children [])
+                               (coll/empty? pending))]
+                {prop-restored-selection (when ready selection)
+                 prop-restored-scroll-row [(:swap-state props) (when ready scroll-row)]
+                 :on-selected-item-changed
+                 (fn [^TreeItem item]
+                   ((:swap-state props) assoc :selection (some-> item .getValue :path)))})}]}
+  [{:keys [state swap-state]}]
+  {:fx/type fx.tree-view/lifecycle
+   :id "debugger-variables"
+   :show-root false
+   :user-data {::swap-state swap-state}
+   prop-extended-tree-view-skin true
+
+   :event-filter
+   (fn [^Event event]
+     (let [event-type (.getEventType event)]
+       (when (contains? #{ScrollEvent/SCROLL MouseEvent/MOUSE_PRESSED KeyEvent/KEY_PRESSED} event-type)
+         (swap-state dissoc :scroll-row))
+       (cond
+         (= KeyEvent/KEY_PRESSED event-type) (ui/custom-tree-view-key-pressed! event)
+         (= MouseEvent/MOUSE_PRESSED event-type) (ui/custom-tree-view-mouse-pressed! event))))
+
+   :root
+   {:fx/type fx/ext-recreate-on-key-changed
+    :key (:session state)
+    :desc (if-not (:context state)
+            {:fx/type ui/ext-value :value nil}
+            {:fx/type fx.tree-item/lifecycle
+             :expanded true
+             :children (mapv #(variable-item swap-state state %) (get-in state [:children []]))})}})
 
 (defn make-view!
   ^TreeView []
-  (let [model (atom {:expanded-paths #{}
-                     :children {}
-                     :pending #{}})
-        component (fx/create-component {:fx/type variables-view :model model})
+  (let [component (fx/create-component {:fx/type variables-view})
         view (fx/instance component)]
     (ui/user-data! view ::component component)
     view))
 
 (defn clear!
-  "Clear stale values while retaining expansion paths, selection, and viewport."
-  [^TreeView view]
-  (let [model (ui/user-data view ::state)
-        position (or (:scroll-to-restore @model) (capture-scroll-position view) (:scroll-position @model))]
-    (swap! model assoc
-           :context nil
-           :children {}
-           :pending #{}
-           :scroll-position position)))
+  "Clear stale values while retaining tree state within the supplied session."
+  [^TreeView view session]
+  (let [swap-state (ui/user-data view ::swap-state)
+        row (capture-scroll-row view)]
+    (swap-state
+      (fn [state]
+        (if-not (= session (:session state))
+          (assoc initial-state :session session)
+          (assoc state
+            :context nil
+            :children {}
+            :failed-paths #{}
+            :pending {}
+            :scroll-row (or (:scroll-row state) row)))))))
 
 (defn show-frame!
-  "Refresh a frame, restoring opened paths with new DAP references and values."
+  "Refresh a frame, restoring opened paths with new DAP references and values.
+
+  Retain tree state within a session; start a new session collapsed at the top."
   [^TreeView view session snapshot frame-id]
-  (clear! view)
-  (when (and frame-id snapshot)
-    (let [model (ui/user-data view ::state)
-          context {:session session
-                   :snapshot snapshot
-                   :frame-id frame-id}]
-      (swap! model assoc :context context :scroll-to-restore (:scroll-position @model))
-      (load-children! model context [] nil))))
+  (clear! view session)
+  (when (and snapshot frame-id)
+    (let [swap-state (ui/user-data view ::swap-state)
+          state (swap-state assoc :context {:session session :snapshot snapshot :frame-id frame-id})]
+      (load-children! swap-state (:context state) [] nil))))

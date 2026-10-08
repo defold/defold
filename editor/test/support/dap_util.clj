@@ -42,11 +42,11 @@
                        (future/complete! finished result))
                      (catch Throwable exception
                        (future/fail! finished exception)))))
-        ;; Tree events fire inside cljfx advancement. The first queued callback
-        ;; runs after advancement has queued viewport restoration; the second
-        ;; checks the tree after that restoration.
-        schedule-check! (fn [] (ui/run-later (ui/run-later (check!))))
+        ;; Tree events fire inside cljfx advancement; check after it completes.
+        schedule-check! (fn [] (ui/run-later (check!)))
         tree-changed (ui/event-handler _ (schedule-check!))
+        selection-property (.selectedItemProperty (.getSelectionModel view))
+        selection-changed (ui/change-listener _ _old _new (schedule-check!))
         root-changed (ui/change-listener _ old-root new-root
                                          (when old-root
                                            (.removeEventHandler ^TreeItem old-root (TreeItem/treeNotificationEvent) tree-changed))
@@ -55,6 +55,7 @@
                                          (schedule-check!))]
     (ui/run-now
       (.addListener (.rootProperty view) root-changed)
+      (.addListener selection-property selection-changed)
       (when-let [root (.getRoot view)]
         (.addEventHandler root (TreeItem/treeNotificationEvent) tree-changed))
       (schedule-check!))
@@ -65,6 +66,7 @@
       (finally
         (ui/run-now
           (.removeListener (.rootProperty view) root-changed)
+          (.removeListener selection-property selection-changed)
           (when-let [root (.getRoot view)]
             (.removeEventHandler root (TreeItem/treeNotificationEvent) tree-changed)))))))
 

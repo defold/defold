@@ -125,7 +125,7 @@
                   (finally (dap/close! next-session)))))
             (finally
               (dap/close! first-session)
-              (ui/run-now (debugger-variables/clear! variables)))))))))
+              (ui/run-now (debugger-variables/clear! variables nil)))))))))
 
 ;; A connecting debugger re-reads launched-target metadata when the listener
 ;; port arrives later, rather than retaining the initial portless target.
@@ -188,27 +188,31 @@
                 (dap-util/with-server
                   (fn [request _ out _] (dap-util/respond! out request {}))
                   (let [target {:address "127.0.0.1" :debugger-port port}
-                        replacements
+                        first-start
                         ;; Both actions run in one FX invocation, so the earlier
                         ;; replacement cannot run its queued connection callback yet.
                         (ui/run-now
                           (let [first-start (debug-view/start-debugger! view project target false)]
-                            [first-start
-                             (case action
-                               :start (debug-view/start-debugger! view project target true)
-                               :detach (debug-view/detach! view))]))]
+                            (case action
+                              :start (debug-view/start-debugger! view project target true)
+                              :detach (debug-view/detach! view))
+                            first-start))]
                     (try
-                      (run! dap-util/await! replacements)
+                      (dap-util/await! first-start)
                       (is (= :closed (dap/status old-session)))
                       (case action
                         :start
-                        (let [session (debug-view/current-session view)]
-                          (await-state! changes #(= :running (dap/status session)))
+                        (do
+                          (await-state! changes #(let [session (debug-view/current-session view)]
+                                                   (and session
+                                                        (not (identical? old-session session))
+                                                        (= :running (dap/status session)))))
                           (is (true? (get-in (coll/first-where #(= "attach" (:command %)) @requests)
                                              [:arguments :stopOnEntry])))
                           (is (= 1 (count (filterv #(= "initialize" (:command %)) @requests)))))
                         :detach
                         (do
+                          (await-state! changes #(nil? (debug-view/current-session view)))
                           (is (nil? (debug-view/current-session view)))
                           (is (= [] @requests))))
                       (finally
