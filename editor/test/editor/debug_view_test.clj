@@ -169,7 +169,7 @@
           (ui/run-now (.close stage)))))))
 
 ;; A newer start or detach supersedes a pending replacement before it connects,
-;; guarding against an old close callback starting an unwanted debugger session.
+;; and both operations complete without failure or an unwanted debugger session.
 (deftest superseded-debugger-start-test
   (doseq [action [:start :detach]]
     (testing (str "Superseded by " action)
@@ -188,17 +188,17 @@
                 (dap-util/with-server
                   (fn [request _ out _] (dap-util/respond! out request {}))
                   (let [target {:address "127.0.0.1" :debugger-port port}
-                        first-start
+                        operations
                         ;; Both actions run in one FX invocation, so the earlier
                         ;; replacement cannot run its queued connection callback yet.
                         (ui/run-now
                           (let [first-start (debug-view/start-debugger! view project target false)]
-                            (case action
-                              :start (debug-view/start-debugger! view project target true)
-                              :detach (debug-view/detach! view))
-                            first-start))]
+                            [first-start
+                             (case action
+                               :start (debug-view/start-debugger! view project target true)
+                               :detach (debug-view/detach! view))]))]
                     (try
-                      (dap-util/await! first-start)
+                      (run! dap-util/await! operations)
                       (is (= :closed (dap/status old-session)))
                       (case action
                         :start
