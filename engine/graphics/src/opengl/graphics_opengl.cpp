@@ -1682,10 +1682,12 @@ static void LogFrameBufferError(GLenum status)
         // Adapter API version
         {
             GLint gl_major = 0, gl_minor = 0;
-            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major); CLEAR_GL_ERROR;
-            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor); CLEAR_GL_ERROR;
-            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) gl_major;
-            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) gl_minor;
+            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major);
+            CLEAR_GL_ERROR;
+            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor);
+            CLEAR_GL_ERROR;
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t)gl_major;
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t)gl_minor;
         }
 
         // RGTC is core in desktop OpenGL 3.0+, even if the extension is not listed.

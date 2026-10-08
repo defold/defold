@@ -381,6 +381,7 @@ class GraphicsImagesTest(unittest.TestCase):
         with mock.patch.object(report.subprocess, 'run', side_effect=subprocess.TimeoutExpired([], 60, output=b'partial')):
             self.assertIn('partial', report.capture(Path('capture'), self.images, 'metal', 'clear')['log'])
 
+    # Only a format-support skip from the requested backend may hide a texture case.
     def test_texture_support_skip_requires_identity_and_explicit_exit(self):
         log = 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\nGRAPHICS_CAPTURE_SKIP=Texture format etc2_r is not supported by metal\n'
         output = self.images / 'metal/texture_etc2_r.png'
@@ -401,6 +402,7 @@ class GraphicsImagesTest(unittest.TestCase):
                 with mock.patch.object(report.subprocess, 'run', return_value=subprocess.CompletedProcess([], code, text)):
                     self.assertEqual('fail', report.capture(Path('capture'), self.images, 'metal', case)['status'])
 
+    # A successful simctl exit must not mask an app crash or duplicate completion markers.
     def test_simulator_requires_an_explicit_completion_result(self):
         from graphics_capture_simulator import completed_capture
         for code, log, expected in (
@@ -415,6 +417,7 @@ class GraphicsImagesTest(unittest.TestCase):
                 result = completed_capture(subprocess.CompletedProcess(['simctl'], code, log))
                 self.assertEqual(expected, result.returncode)
 
+    # Reject a native capture when the requested target is the iOS simulator.
     def test_capture_requires_the_requested_target_platform(self):
         log = 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\nGRAPHICS_CAPTURE_PLATFORM=arm64-macos\n'
         with mock.patch.object(report.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, log)):
@@ -422,6 +425,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertEqual('fail', result['status'])
         self.assertIn('target platform identity', result['reason'])
 
+    # Simulator reports identify the tested platform, rather than the host running the report.
     def test_report_header_uses_tested_platform_not_host(self):
         self.add_backend('metal')
         for record in self.records:
@@ -432,12 +436,14 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertIn('<h1>Graphics likeness tests · arm64_sim-ios</h1>', page)
         self.assertIn('iOS Simulator 26.5', page)
 
+    # Preserve simulator identity even when no backend was available to run.
     def test_skipped_simulator_does_not_use_host_platform(self):
         records = report.run_matrix(Path('capture'), self.images, ['metal', 'vulkan'], [],
                                     target_platform='arm64_sim-ios')
         self.assertTrue(all(record['target_platform'] == 'arm64_sim-ios' for record in records))
         self.assertTrue(all(record['platform'] == 'iOS Simulator (not run)' for record in records))
 
+    # Guard the shared format sizes, original palette, and sensitivity to flipped images.
     def test_texture_payload_sizes_and_reference_orientation(self):
         import re
         root = Path(report.__file__).with_name('texture_formats')

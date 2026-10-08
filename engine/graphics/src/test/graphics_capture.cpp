@@ -132,7 +132,7 @@ static const uint32_t CAPTURE_BUFFERS = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEP
 
 // Each case renders to an offscreen target. run_graphics_images.py compares its
 // PNG with a reviewed reference; the comments below describe the expected image.
-static const char*    CAPTURE_CASES[] = {
+static const char* CAPTURE_CASES[] = {
     "clear",
     "triangle",
     "stencil",
@@ -157,8 +157,7 @@ struct CaptureTextureFormat
 
 static const CaptureTextureFormat CAPTURE_TEXTURE_FORMATS[] = {
 #define TEXTURE_FORMAT_CASE(suffix, format, width, height, bytes) \
-    {"texture_" #suffix, #suffix, TEXTURE_FORMAT_##format, \
-        ((CAPTURE_SIZE + width - 1) / width) * ((CAPTURE_SIZE + height - 1) / height) * bytes},
+    { "texture_" #suffix, #suffix, TEXTURE_FORMAT_##format, ((CAPTURE_SIZE + width - 1) / width) * ((CAPTURE_SIZE + height - 1) / height) * bytes },
 #include "texture_formats/formats.inc"
 #undef TEXTURE_FORMAT_CASE
 };
@@ -166,8 +165,12 @@ static const CaptureTextureFormat CAPTURE_TEXTURE_FORMATS[] = {
 static const CaptureTextureFormat* FindCaptureTextureFormat(const char* name)
 {
     for (uint32_t i = 0; name && i < DM_ARRAY_SIZE(CAPTURE_TEXTURE_FORMATS); ++i)
+    {
         if (strcmp(name, CAPTURE_TEXTURE_FORMATS[i].m_Case) == 0)
+        {
             return &CAPTURE_TEXTURE_FORMATS[i];
+        }
+    }
     return 0;
 }
 
@@ -186,8 +189,8 @@ static HTexture CreateCaptureTexture(HContext context, const CaptureTextureForma
         dmLogError("Cannot open texture fixture: %s", path);
         return 0;
     }
-    uint8_t* data = (uint8_t*) malloc(format.m_DataSize);
-    bool loaded = fread(data, 1, format.m_DataSize, file) == format.m_DataSize && fgetc(file) == EOF;
+    uint8_t* data = (uint8_t*)malloc(format.m_DataSize);
+    bool     loaded = fread(data, 1, format.m_DataSize, file) == format.m_DataSize && fgetc(file) == EOF;
     fclose(file);
     HTexture texture = 0;
     if (loaded)
@@ -220,11 +223,15 @@ static HTexture CreateCaptureTexture(HContext context, const CaptureTextureForma
                 }
             }
             else
+            {
                 SetTexture(context, texture, params);
+            }
         }
     }
     else
+    {
         dmLogError("Texture fixture has an unexpected size: %s (expected %u bytes)", path, format.m_DataSize);
+    }
     free(data);
     return texture;
 }
@@ -561,13 +568,19 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     {
         // The color stream carries top-down UVs through the shared vertex shader.
         const CaptureVertex quad[] = {
-            {{-1, -1, 0}, {0, 1, 0}}, {{1, -1, 0}, {1, 1, 0}}, {{-1, 1, 0}, {0, 0, 0}},
-            {{1, -1, 0}, {1, 1, 0}}, {{1, 1, 0}, {1, 0, 0}}, {{-1, 1, 0}, {0, 0, 0}},
+            { { -1, -1, 0 }, { 0, 1, 0 } },
+            { { 1, -1, 0 }, { 1, 1, 0 } },
+            { { -1, 1, 0 }, { 0, 0, 0 } },
+            { { 1, -1, 0 }, { 1, 1, 0 } },
+            { { 1, 1, 0 }, { 1, 0, 0 } },
+            { { -1, 1, 0 }, { 0, 0, 0 } },
         };
-        resources->m_Vertices = NewVertexBuffer(context, sizeof(quad), (void*) quad, BUFFER_USAGE_STATIC_DRAW);
+        resources->m_Vertices = NewVertexBuffer(context, sizeof(quad), (void*)quad, BUFFER_USAGE_STATIC_DRAW);
     }
     else
+    {
         resources->m_Vertices = cubemap ? CreateCubemapVertices(context) : NewVertexBuffer(context, sizeof(vertices), vertices, BUFFER_USAGE_STATIC_DRAW);
+    }
     if (cubemap || texture)
     {
         resources->m_Texture = cubemap ? CreateCaptureCubemap(context) : CreateCaptureTexture(context, *texture);
@@ -1097,7 +1110,9 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
             DeleteTexture(context, async_resources.m_Texture);
         }
         else
+        {
             valid = false;
+        }
     }
     // The triangle uses the untextured program shared by these continuation probes.
     if (strcmp(name, "triangle") == 0 && !CheckReadbackContinuation(context, resources, filename))
@@ -1126,7 +1141,7 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
 
 static int CloseCaptureWindow(void* user_data)
 {
-    *(bool*) user_data = true;
+    *(bool*)user_data = true;
     return 0; // Keep the context alive until its resources have been deleted.
 }
 
@@ -1331,16 +1346,14 @@ static int CaptureMain(int argc, char** argv)
         return 1;
     }
 
-    CaptureResources resources = {};
+    CaptureResources            resources = {};
     const CaptureTextureFormat* texture = FindCaptureTextureFormat(name);
-    bool skipped = texture && !IsTextureFormatSupported(capture.m_Context, texture->m_Format);
-    uint16_t version_major = 0, version_minor = 0;
+    bool                        skipped = texture && !IsTextureFormatSupported(capture.m_Context, texture->m_Format);
+    uint16_t                    version_major = 0, version_minor = 0;
     GetAdapterVersion(capture.m_Context, version_major, version_minor);
-    bool required_rgtc = texture && backend->m_Family == ADAPTER_FAMILY_OPENGL && version_major >= 3 &&
-        (texture->m_Format == TEXTURE_FORMAT_R_BC4 || texture->m_Format == TEXTURE_FORMAT_RG_BC5);
+    bool required_rgtc = texture && backend->m_Family == ADAPTER_FAMILY_OPENGL && version_major >= 3 && (texture->m_Format == TEXTURE_FORMAT_R_BC4 || texture->m_Format == TEXTURE_FORMAT_RG_BC5);
     // The arm64 iOS simulator exposes Apple2, which supports the 2D ASTC formats tested here.
-    bool required_astc = texture && backend->m_Family == ADAPTER_FAMILY_METAL &&
-        strcmp(DM_TEST_GRAPHICS_PLATFORM, "arm64_sim-ios") == 0 && IsTextureFormatASTC(texture->m_Format);
+    bool required_astc = texture && backend->m_Family == ADAPTER_FAMILY_METAL && strcmp(DM_TEST_GRAPHICS_PLATFORM, "arm64_sim-ios") == 0 && IsTextureFormatASTC(texture->m_Format);
     if (skipped && required_rgtc)
     {
         dmLogError("Desktop OpenGL 3.0+ must support BC4 and BC5 textures");
@@ -1355,7 +1368,9 @@ static int CaptureMain(int argc, char** argv)
     }
     bool success = !skipped && CreateCaptureResources(capture.m_Context, backend->m_Family, strcmp(name, "cubemap") == 0, texture, &resources);
     if (success)
+    {
         success = CaptureImage(capture.m_Context, capture.m_JobContext, resources, name, filename);
+    }
     if (success && show)
     {
         CaptureResources display = resources;
@@ -1366,7 +1381,9 @@ static int CaptureMain(int argc, char** argv)
         {
             dmPlatform::PollEvents(capture.m_Window);
             if (capture.m_WindowClosed)
+            {
                 break;
+            }
             BeginFrame(capture.m_Context);
             RenderCapture(capture.m_Context, display, name);
             Flip(capture.m_Context);
@@ -1374,7 +1391,11 @@ static int CaptureMain(int argc, char** argv)
     }
     DeleteCaptureResources(capture.m_Context, &resources);
     FinalizeCapture(&capture);
-    return skipped && !required_rgtc && !required_astc ? 77 : success ? 0 : 1;
+    if (skipped && !required_rgtc && !required_astc)
+    {
+        return 77;
+    }
+    return success ? 0 : 1;
 }
 
 #if defined(DM_PLATFORM_IOS)
@@ -1421,8 +1442,7 @@ int RunGraphicsCapture(int argc, char** argv)
         if (strcmp(argv[i], "--case") == 0)
         {
             // UIKit and the GLFW scene must be ready before creating GPU surfaces.
-            AppBootstrap(argc, argv, 0, 0, 0, CreateIOSCapture, DestroyIOSCapture,
-                         UpdateIOSCapture, GetIOSCaptureResult);
+            AppBootstrap(argc, argv, 0, 0, 0, CreateIOSCapture, DestroyIOSCapture, UpdateIOSCapture, GetIOSCaptureResult);
             return 1;
         }
     }
