@@ -888,6 +888,7 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
     style->m_ShadowColor[0] = style->m_ShadowColor[1] = style->m_ShadowColor[2] = style->m_ShadowColor[3] = 1.0f;
 
     bool                   valid = true;
+    const uint32_t         effect_start = effects->Size();
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
     const uint32_t         node_count = MarkupGetStyleNodeCount(markup);
 
@@ -954,6 +955,17 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
             }
             if (nodes[i].m_Type == MARKUP_TAG_SIZE)
                 style->m_Flags |= TEXT_RENDER_STYLE_FONT_SIZE;
+            if (nodes[i].m_Type == MARKUP_TAG_COLOR)
+            {
+                // A later color replaces earlier gradients while retaining positional effects.
+                uint32_t effect_end = effect_start;
+                for (uint32_t j = effect_start; j < effects->Size(); ++j)
+                {
+                    if ((*effects)[j].m_Type != TEXT_EFFECT_GRADIENT)
+                        (*effects)[effect_end++] = (*effects)[j];
+                }
+                effects->SetSize(effect_end);
+            }
         }
         else if (nodes[i].m_Type == MARKUP_TAG_SPRITE)
         {
@@ -997,6 +1009,7 @@ struct ResolvedMarkupNodeState
     TextRenderStyle m_Style;
     uint16_t        m_EffectNode;
     uint16_t        m_EffectCount;
+    uint16_t        m_ColorNode;
     uint8_t         m_DecorationFlags;
     uint8_t         m_InlineDecorationFlags;
     uint8_t         m_UnderlinePattern;
@@ -1074,6 +1087,7 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
         root.m_Style.m_FontSizeUnit = base_style->m_FontSizeUnit;
     }
     root.m_EffectNode = MARKUP_INVALID_INDEX;
+    root.m_ColorNode = MARKUP_INVALID_INDEX;
     root.m_UnderlinePattern = TEXT_DECORATION_PATTERN_SOLID;
     root.m_StrikePattern = TEXT_DECORATION_PATTERN_SOLID;
     const TextNamedStyleDecoration* base_decoration = settings->m_UseBaseStyle ? FontCollectionGetNamedStyleDecoration(collection, settings->m_BaseStyle) : 0;
@@ -1138,6 +1152,8 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
             else
             {
                 state.m_Style = style;
+                if (nodes[i].m_Type == MARKUP_TAG_COLOR)
+                    state.m_ColorNode = (uint16_t)i;
             }
         }
         else if (IsDecorationNode(nodes[i]))
@@ -1205,11 +1221,22 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
         const uint16_t node_index = spans[i].m_StyleNodeIndex;
         const ResolvedMarkupNodeState& state = node_index == MARKUP_INVALID_INDEX ? root : node_states[node_index];
         uint16_t effect_index = MARKUP_INVALID_INDEX;
+        uint16_t effect_count = state.m_EffectCount;
 
-        if (state.m_EffectCount > 0)
+        // Parent-first node indices preserve nesting order. Colors suppress only enclosing gradients.
+        if (state.m_ColorNode != MARKUP_INVALID_INDEX)
+        {
+            for (uint16_t effect_node = state.m_EffectNode; effect_node != MARKUP_INVALID_INDEX; effect_node = node_effect_parents[effect_node])
+            {
+                if (effect_node < state.m_ColorNode && nodes[effect_node].m_Type == MARKUP_TAG_GRADIENT)
+                    --effect_count;
+            }
+        }
+
+        if (effect_count > 0)
         {
             const uint32_t span_effect_size = resolved->m_SpanEffects.Size();
-            const uint32_t new_span_effect_size = span_effect_size + state.m_EffectCount;
+            const uint32_t new_span_effect_size = span_effect_size + effect_count;
 
             if (!SetSpanEffectSize(&resolved->m_SpanEffects, new_span_effect_size))
             {
@@ -1218,11 +1245,15 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
 
             effect_index = (uint16_t)span_effect_size;
             uint16_t effect_node = state.m_EffectNode;
+            uint16_t remaining = effect_count;
 
             for (uint32_t j = state.m_EffectCount; j > 0; --j)
             {
-                resolved->m_SpanEffects[effect_index + j - 1] = node_effects[effect_node];
-                effect_node = node_effect_parents[effect_node];
+                const uint16_t current = effect_node;
+                effect_node = node_effect_parents[current];
+                if (state.m_ColorNode != MARKUP_INVALID_INDEX && current < state.m_ColorNode && nodes[current].m_Type == MARKUP_TAG_GRADIENT)
+                    continue;
+                resolved->m_SpanEffects[effect_index + --remaining] = node_effects[current];
             }
         }
 
@@ -1241,7 +1272,7 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
             return false;
         }
 
-        TextResolvedSpan resolved_span = { spans[i].m_TextOffset, spans[i].m_TextLength, style_index, effect_index, state.m_EffectCount,
+        TextResolvedSpan resolved_span = { spans[i].m_TextOffset, spans[i].m_TextLength, style_index, effect_index, effect_count,
                                            state.m_DecorationFlags, state.m_InlineDecorationFlags, state.m_UnderlinePattern, state.m_StrikePattern, state.m_HasObjectStyle };
         EnsurePushCapacity(resolved->m_Spans);
         resolved->m_Spans.Push(resolved_span);
