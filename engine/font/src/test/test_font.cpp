@@ -4122,6 +4122,128 @@ TEST_F(FontTest, LayoutGradientOverridesBaseRgb)
     }
 }
 
+// Verifies nested colors replace enclosing gradients in every fit mode and restore colors, gradients, alpha, and positional effects when closed.
+TEST_F(FontTest, LayoutNestedColorsOverrideEnclosingGradients)
+{
+    const char* fits[] = { "", " fit=span", " fit=glyph" };
+    // Columns: base alpha, expected white-gradient alpha, expected red/green alpha.
+    const float cases[][3] = {
+        { 0.0f,   0.0f,           0.0f },
+        { 0.125f, 0.125f,         0.125f },
+        { 0.75f,  64.0f / 255.0f, 128.0f / 255.0f },
+        { 1.0f,   64.0f / 255.0f, 128.0f / 255.0f },
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(fits); ++i)
+    {
+        char source[512];
+        snprintf(source, sizeof(source),
+                 "<wave fit=span amplitude=2 hz=1><gradient%s left=#FFFFFF40 right=#FFFFFF40>A"
+                 "<color=#FF000080>B<gradient%s left=#00FF00 right=#00FF00>C"
+                 "<color=#0000FF>D</color>E</gradient>F</color>G</gradient>H</wave>", fits[i], fits[i]);
+        HMarkup markup = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &markup, 0));
+        TextLayoutSettings settings = {};
+        settings.m_Size = 32.0f;
+        settings.m_Leading = 1.0f;
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+        MarkupDestroy(markup);
+        ASSERT_EQ(8u, TextLayoutGetGlyphCount(layout));
+        TextLayoutUpdate(layout, 0.25f);
+
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(cases); ++j)
+        {
+            const float base[4] = { 0.2f, 0.4f, 0.6f, cases[j][0] };
+            const float white[4] = { 1.0f, 1.0f, 1.0f, cases[j][1] };
+            const float red[4] = { 1.0f, 0.0f, 0.0f, cases[j][2] };
+            const float green[4] = { 0.0f, 1.0f, 0.0f, cases[j][2] };
+            const float blue[4] = { 0.0f, 0.0f, 1.0f, cases[j][0] };
+            AssertGlyphFaceColor(layout, 0, base, white);
+            AssertGlyphFaceColor(layout, 1, base, red);
+            AssertGlyphFaceColor(layout, 2, base, green);
+            AssertGlyphFaceColor(layout, 3, base, blue);
+            AssertGlyphFaceColor(layout, 4, base, green);
+            AssertGlyphFaceColor(layout, 5, base, red);
+            AssertGlyphFaceColor(layout, 6, base, white);
+            AssertGlyphFaceColor(layout, 7, base, base);
+            for (uint32_t k = 0; k < 8; ++k)
+            {
+                TextGlyphRenderData data;
+                TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[k], base, &data);
+                ASSERT_NEAR(2.0f, data.m_OffsetY, 0.0001f);
+            }
+        }
+        TextLayoutRelease(layout);
+    }
+}
+
+// Verifies later colors override gradients within named styles, later gradients remain active, and style refreshes preserve RGB, alpha, and wave effects.
+TEST_F(FontTest, LayoutNamedStylePreservesColorGradientOrder)
+{
+    const char* definitions[] = {
+        "<gradient fit=span left=#FFFFFF40 right=#FFFFFF40><wave fit=span amplitude=2 hz=1><color=#FF000080>",
+        "<color=#FF000080><wave fit=span amplitude=2 hz=1><gradient fit=span left=#00FF00 right=#00FF00>",
+        "<gradient fit=span left=#FFFFFF40 right=#FFFFFF40><color=#FF000080><wave fit=span amplitude=2 hz=1><gradient fit=span left=#00FF00 right=#00FF00><color=#0000FF>",
+        "<color=#FF000080><gradient fit=span left=#FFFFFF40 right=#FFFFFF40><wave fit=span amplitude=2 hz=1><color=#0000FF><gradient fit=span left=#00FF00 right=#00FF00>",
+    };
+    const float rgb[][3] = {
+        { 1.0f, 0.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 0.0f, 1.0f },
+        { 0.0f, 1.0f, 0.0f },
+    };
+    // Columns: base alpha, expected RGBA color alpha in the first two definitions.
+    const float cases[][2] = {
+        { 0.0f,   0.0f },
+        { 0.125f, 0.125f },
+        { 0.75f,  128.0f / 255.0f },
+        { 1.0f,   128.0f / 255.0f },
+    };
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, dmHashString64("default"), definitions[0], strlen(definitions[0]), 0));
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, dmHashString64("link"), definitions[0], strlen(definitions[0]), 0));
+    const char source[] = "A<link id=target>B</link>C";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_UseBaseStyle = 1;
+    settings.m_BaseStyle = dmHashString64("default");
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+    ASSERT_EQ(3u, TextLayoutGetGlyphCount(layout));
+    TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+    TextLayoutUpdate(layout, 0.25f);
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(definitions); ++i)
+    {
+        const uint32_t hover = (i + 1) % DM_ARRAY_SIZE(definitions);
+        ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, dmHashString64("default"), definitions[i], strlen(definitions[i]), 0));
+        ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, dmHashString64("link"), definitions[i], strlen(definitions[i]), 0));
+        ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, dmHashString64("link:hover"), definitions[hover], strlen(definitions[hover]), 0));
+        TextLayoutUpdate(layout, 0.0f);
+        ASSERT_EQ(glyphs, TextLayoutGetGlyphs(layout));
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(cases); ++j)
+        {
+            const float base[4] = { 0.2f, 0.4f, 0.6f, cases[j][0] };
+            const float expected[4] = { rgb[i][0], rgb[i][1], rgb[i][2], i < 2 ? cases[j][1] : cases[j][0] };
+            const float hovered[4] = { rgb[hover][0], rgb[hover][1], rgb[hover][2], hover < 2 ? cases[j][1] : cases[j][0] };
+            AssertGlyphFaceColor(layout, 0, base, expected);
+            AssertGlyphFaceColor(layout, 1, base, expected);
+            AssertGlyphFaceColor(layout, 2, base, expected);
+            ASSERT_EQ(1u, TextLayoutSetObjectStyle(layout, dmHashString64("target"), dmHashString64("link:hover")));
+            AssertGlyphFaceColor(layout, 1, base, hovered);
+            ASSERT_EQ(1u, TextLayoutSetObjectStyle(layout, dmHashString64("target"), 0));
+            AssertGlyphFaceColor(layout, 1, base, expected);
+            TextGlyphRenderData data;
+            TextLayoutGetGlyphRenderData(layout, glyphs[1], base, &data);
+            ASSERT_NEAR(4.0f, data.m_OffsetY, 0.0001f);
+        }
+    }
+    TextLayoutRelease(layout);
+}
+
 // Verifies gradient samples use the lower of base and authored alpha across fit and gradient modes, guarding against multiplied opacity.
 TEST_F(FontTest, LayoutGradientUsesMinimumAlpha)
 {

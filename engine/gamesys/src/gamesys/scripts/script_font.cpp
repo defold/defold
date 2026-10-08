@@ -58,8 +58,9 @@ dmResource::HFactory g_ResourceFactory = 0;
  * text color, while alpha uses the lower of the style and base text alpha.
  * Gradients override RGB and use the lower alpha in the same way. Inline colors
  * and gradients take precedence over object styles, which take precedence over
- * the named base style. The default `link` style also uses a solid underline,
- * which remains when hover or active colors are applied:
+ * the named base style. Nested color or gradient tags override enclosing RGB
+ * in inline markup and named style definitions. The default `link` style also
+ * uses a solid underline, which remains when hover or active colors are applied:
  *
  * - `link`: `(0.10, 0.45, 0.90, 1.0)`, solid underline
  * - `link:hover`: `(0.30, 0.65, 1.00, 1.0)`
