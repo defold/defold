@@ -51,13 +51,8 @@
 
 (defn- gizmo-model-matrix
   ^Matrix4d [^Camera camera ^Region viewport]
-  ;; The overlay ortho projection maps pixel-space Y downward, so GL +Y ends up
-  ;; pointing to the bottom of the screen. To render the gizmo upright we build
-  ;; the model matrix as T * reflectY * R * S so that it rotates in a standard
-  ;; right-handed space (using the inverse camera rotation) and is then flipped
-  ;; to match screen-space Y just before translation. Composing the Y flip this
-  ;; way avoids the gimbal-lock issues of trying to mirror individual Euler
-  ;; components of the camera rotation.
+  ;; Screen Y points down. Apply the Y flip after the inverse camera rotation
+  ;; so it changes screen orientation without changing the camera's axes.
   (let [x (- (.right viewport) gizmo-margin gizmo-scale)
         y (- (.bottom viewport) gizmo-margin gizmo-scale)
         rotation (doto (Quat4d. ^Quat4d (:rotation camera)) (.conjugate))
@@ -71,27 +66,20 @@
       (.mul rs))))
 
 (defn- gizmo-projection-matrix
-  "Screen-space ortho projection for the gizmo.
-
-  In picking passes, render-args contains a :picking-matrix that was used to
-  zoom the scene's projection into the tool picking rect. Since the gizmo
-  completely replaces the projection with its own, we re-apply the
-  picking-matrix on top; otherwise the whole viewport is squeezed into the
-  picking buffer, the gizmo lands in it wherever the click was, and it
-  intercepts every click in the scene view."
+  "Screen-space orthographic projection, restricted to the picking rectangle
+  during selection."
   ^Matrix4d [render-args ^Region viewport]
   (let [base ^Matrix4d (c/region-orthographic-projection-matrix viewport (- gizmo-depth) gizmo-depth)]
     (if-let [^Matrix4d picking-matrix (:picking-matrix render-args)]
+      ;; Replacing the scene projection discards its picking transform.
+      ;; Restore it so the gizmo is picked only beneath the pointer.
       (doto (Matrix4d. picking-matrix) (.mul base))
       base)))
 
-;; Blender-style axis handles: a line from the center to a ball on each positive
-;; axis, and a darker ball without a line on each negative axis.
-
 (def ^:private stub-colors
-  {0 [0.91 0.27 0.235] ; X, red.
-   1 [0.357 0.761 0.212] ; Y, green.
-   2 [0.235 0.482 0.91]}) ; Z, blue.
+  {0 [0.91 0.27 0.235] ; X
+   1 [0.357 0.761 0.212] ; Y
+   2 [0.235 0.482 0.91]}) ; Z
 
 (def ^:private line-half-width 0.04)
 (def ^:private ball-distance 1.1)
@@ -109,17 +97,14 @@
 
 (defn- axis-color [axis]
   (let [[r g b :as rgb] (stub-colors (axis-index axis))
-        ;; Blend toward the gray of the same brightness.
+        ;; Preserve the weighted brightness when desaturating.
         gray (+ (* 0.299 (double r)) (* 0.587 (double g)) (* 0.114 (double b)))
         desaturated (mapv #(+ gray (* 0.75 (- (double %) gray))) rgb)]
     (cond->> desaturated
       (not (positive-axis? axis)) (mapv #(* 0.55 (double %))))))
 
-;; Picking geometry: a sphere per ball, a box per line, and a sphere around
-;; everything for the backdrop.
-
 (defn- line-quads
-  "Box from the center out to the ball along `axis`."
+  "Picking box from the center to the ball on a positive axis."
   [axis]
   (let [i (axis-index axis)
         [u v] (into [] (remove #{i}) [0 1 2])
@@ -174,8 +159,7 @@
                       axis-order)
            :backdrop (make-pick-vertex-buffer (sphere-quads [0.0 0.0 0.0] backdrop-radius)))))
 
-;; The scene view has no multisampling, so the visible handles are drawn as
-;; screen-facing quads with anti-aliased textures.
+;; Antialiased textures keep handle edges smooth without multisampling.
 
 (def ^:private ball-outline-width 6.0)
 
@@ -184,8 +168,6 @@
   (^Color [[r g b] alpha] (Color. (float r) (float g) (float b) (float alpha))))
 
 (defn- make-ball-image
-  "Circle in the axis color with the axis letter on positive axes. Negative
-  axes get a see-through fill inside an opaque outline."
   ^BufferedImage [axis]
   (let [size 64
         image (BufferedImage. size size BufferedImage/TYPE_INT_ARGB)
@@ -214,7 +196,6 @@
     image))
 
 (defn- make-line-image
-  "Strip in the axis color whose alpha fades out at both side edges."
   ^BufferedImage [axis]
   (let [width 16
         height 4
@@ -239,9 +220,6 @@
           (map (fn [axis] [axis (texture/image-texture [::line axis] (make-line-image axis))]))
           [:+x :+y :+z])))
 
-;; Godot-style backdrop: a sphere around the handles that can be grabbed to
-;; orbit, shown as a faint disc while the gizmo is hovered or dragged.
-
 (defn- make-backdrop-image
   ^BufferedImage []
   (let [size 128
@@ -260,7 +238,7 @@
 (def ^:private billboard-shader shaders/basic-texture-tint-local-space)
 
 (def ^:private billboard-quad
-  "Quad spanning -1 to 1 in the local XY plane, placed by each handle's matrix."
+  "Shared quad spanning -1 to 1 in the local XY plane."
   (delay
     (let [vertex-buffer (vtx/make-vertex-buffer (shaders/vertex-description billboard-shader) :static 6)
           byte-buffer (vtx/buf vertex-buffer)
@@ -285,10 +263,9 @@
       (.setColumn 3 (.x center) (.y center) (.z center) 1.0))))
 
 (defn- handle-billboards
-  "Balls and lines as {:depth :texture :matrix :alpha :brightness} maps, back
-  to front, after the backdrop while it's faded in. The hovered axis is
-  brighter. The camera rotation maps screen axes into the gizmo's model space."
+  "Returns textured quads in back-to-front draw order, with the backdrop first."
   [^Quat4d camera-rotation ^double backdrop-alpha hot-handle]
+  ;; Cancel the model's inverse camera rotation to keep each quad facing the screen.
   (let [screen-axis (fn [x y z] (math/rotate camera-rotation (Vector3d. x y z)))
         ^Vector3d right (screen-axis 1.0 0.0 0.0)
         ^Vector3d up (screen-axis 0.0 1.0 0.0)
@@ -306,8 +283,8 @@
                     (keep (fn [axis]
                             (let [normal ^Vector3d (axis->normal axis)
                                   side (doto (Vector3d.) (.cross toward normal))
-                                  ;; The negative balls are see-through, so stop the
-                                  ;; line at the ball's outline as seen on screen.
+                                  ;; Trim in screen space so lines cannot show through
+                                  ;; translucent balls when opposite axes overlap.
                                   screen-length (* (.length side) ^double ball-distance)
                                   length (* ^double ball-distance (- 1.0 (/ ^double ball-radius (max screen-length 1e-6))))]
                               (when (pos? length)
@@ -326,25 +303,24 @@
                                    :brightness 1.0}))))
 
 (defn- draw-handles!
-  "Draws the handles back to front, blending their premultiplied textures.
-  Without a depth test they always draw over the scene."
   [^GL2 gl render-args ^Camera camera backdrop-alpha hot-handle]
+  ;; The gizmo must remain visible over scene geometry.
   (.glDisable gl GL2/GL_DEPTH_TEST)
   (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
   (doseq [{:keys [texture matrix alpha brightness]} (handle-billboards (:rotation camera) backdrop-alpha hot-handle)
           :let [vertex-binding (vtx/use-with [::billboard-quad] @billboard-quad billboard-shader)
                 handle-args (assoc render-args :world-view-proj (doto (Matrix4d. ^Matrix4d (:world-view-proj render-args)) (.mul ^Matrix4d matrix)))
                 alpha (double alpha)
+                ;; Textures use premultiplied alpha, so the tint's RGB must include alpha too.
                 color (* alpha (double brightness))]]
     (gl/with-gl-bindings gl handle-args [billboard-shader vertex-binding texture]
       (shader/set-samplers-by-index billboard-shader gl 0 (:texture-units texture))
       (shader/set-uniform billboard-shader gl "tint" (Vector4d. color color color alpha))
       (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 6)))
+  ;; Restore the blend function expected by the other scene renderers.
   (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
 
 (defn- pick-handles!
-  "Draws the picking geometry. The backdrop skips the depth buffer so the
-  handles draw over it."
   [^GL2 gl render-args renderable-by-selection-data]
   (let [vertex-buffers @pick-vertex-buffers
         pick! (fn [selection-data]
@@ -355,6 +331,7 @@
                     (shader/set-uniform pick-shader gl "color" id-color)
                     (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vertex-buffer)))))]
     (.glEnable gl GL2/GL_DEPTH_TEST)
+    ;; The enclosing backdrop must not occlude the axis handles during picking.
     (.glDepthMask gl false)
     (when (renderable-by-selection-data :backdrop)
       (pick! :backdrop))
@@ -368,7 +345,6 @@
 (defn- render-axis-gizmo [^GL2 gl render-args renderables _rcount]
   (let [camera ^Camera (:camera render-args)
         viewport (:viewport render-args)
-        ;; The gizmo's own model and projection replace the scene's transforms.
         gizmo-args (merge render-args
                           (math/derive-render-transforms (gizmo-model-matrix camera viewport)
                                                          geom/Identity4d
@@ -380,10 +356,9 @@
         (draw-handles! gl gizmo-args camera (double (or backdrop-alpha 0.0)) hot-handle)))))
 
 (g/defnk produce-renderables [_node-id backdrop-alpha camera hot-handle]
-  ;; Hidden in 2D, like Unity. The rulers only show in 2D, so the gizmo can
-  ;; sit closer to the corner without overlapping them.
   (if (c/mode-2d? camera)
     {}
+    ;; Keep the backdrop pickable while invisible so hovering can reveal it.
     (let [renderables (coll/into-> (conj axis-order :backdrop) []
                         (map (fn [selection-data]
                                {:batch-key gizmo-batch-key
@@ -400,6 +375,7 @@
 
 (defn- frame-to-axis! [camera-node-id current-camera axis]
   (let [axis-forward (doto (Vector3d. ^Vector3d (axis->normal axis)) (.negate))
+        ;; Clicking an already aligned axis switches to its opposite view.
         target-axis (if (>= (.dot ^Vector3d (c/camera-forward-vector current-camera) axis-forward)
                             0.999)
                       ({:+x :-x :-x :+x :+y :-y :-y :+y :+z :-z :-z :+z} axis)
@@ -427,6 +403,7 @@
                                     animating (g/node-value camera-node-id :animating evaluation-context)]
                            (when-not animating
                              (c/cancel-dolly! camera-node-id)
+                             ;; Hand subsequent drag events to the camera controller.
                              (c/start-tumble! camera-node-id x y)
                              (g/user-data! self ::press nil)
                              (g/user-data! self ::dragging true)
@@ -454,11 +431,11 @@
       action)))
 
 (defn- handle-update-tick
-  "Fades the backdrop in while the gizmo is hovered or dragged, and out after."
   [self input-state dt]
   (g/let-ec [alpha (double (g/node-value self :backdrop-alpha evaluation-context))
              hot-handle (g/node-value self :hot-handle evaluation-context)
              camera-node-id (g/node-value self :camera-node-id evaluation-context)]
+    ;; The camera handles drag release, so detect its completion from camera state.
     (when (and (g/user-data self ::dragging)
                (not= :tumble (:movement (g/user-data camera-node-id ::c/camera-state))))
       (g/user-data! self ::dragging false))

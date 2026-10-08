@@ -86,6 +86,7 @@
               (.setColumn 2 backward))))))
 
 (defn frame-camera-to-axis
+  "Aligns the camera to an axis, preserving its focus point and distance."
   ^Camera [^Camera camera axis]
   (let [[^Vector3d forward up] (case axis
                                  :+x [(Vector3d. -1.0 0.0 0.0) vector3-up]
@@ -104,6 +105,7 @@
 
 (defn frame-camera-to-axis! [camera-node start-camera axis animate]
   (let [end-camera (frame-camera-to-axis start-camera axis)]
+    ;; A +Z orthographic view enters 2D mode. Save the camera for returning to 3D.
     (when (mode-2d? end-camera)
       (g/transact
         {:undoable false}
@@ -852,9 +854,7 @@
              filter-fn)))
 
 (defn- interpolate-orbit
-  "Like `interpolate`, but turns around the focus point instead of moving in a
-  straight line, so snapping to the opposite side doesn't fly through the
-  focus point."
+  "Interpolates around the focus point to avoid crossing it during axis alignment."
   ^Camera [^Camera from ^Camera to ^double t]
   (let [filter-fn (or (:filter-fn from) identity)
         ^Camera to (filter-fn to)
@@ -863,6 +863,7 @@
                    (.interpolate (Quat4d. ^Quat4d (:rotation from)) (Quat4d. ^Quat4d (:rotation to)) t))
         fp (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
         focus (Point3d. (.x fp) (.y fp) (.z fp))
+        ;; Dolly can pass the focus, so preserve the offset direction as well as its length.
         local-offset (fn [^Camera camera]
                        (math/rotate (doto (Quat4d. ^Quat4d (:rotation camera)) (.conjugate))
                                     (doto (Vector3d. (types/position camera)) (.sub (camera-focus-point camera)))))
@@ -876,6 +877,7 @@
         ^Vector3d to-direction (unit to-offset)
         cross (doto (Vector3d.) (.cross from-direction to-direction))
         angle (Math/atan2 (.length cross) (.dot from-direction to-direction))
+        ;; Parallel directions have no cross-product axis, so use a fixed fallback.
         turn-axis (if (> (.length cross) 1e-9)
                     cross
                     (Vector3d. 0.0 1.0 0.0))
@@ -906,7 +908,7 @@
        (g/transact
          {:undoable false}
          (g/set-property camera-node :animating true))
-       ;; NOTE: If the user was dollying during an animation, cancel the dolly
+       ;; Cancel eased zoom so it cannot compete with the animation.
        (cancel-dolly! camera-node)
        (ui/anim! duration
                  (fn [^double t]

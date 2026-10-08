@@ -2247,6 +2247,7 @@
         (concat
           (g/connect axis-gizmo  :_node-id                      view-id         :axis-gizmo-id)
           (g/connect axis-gizmo  :update-tick-handler           view-id         :update-tick-handlers)
+          ;; Consume gizmo clicks before the tool and selection controllers see them.
           (g/connect axis-gizmo  :input-handler                 view-id         :input-handlers)
           (g/connect camera      :_node-id                      axis-gizmo      :camera-node-id)
           (g/connect camera      :camera                        axis-gizmo      :camera)))

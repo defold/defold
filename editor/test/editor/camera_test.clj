@@ -146,8 +146,7 @@
   (let [dot (+ (* (.x a) (.x b)) (* (.y a) (.y b)) (* (.z a) (.z b)) (* (.w a) (.w b)))]
     (< (Math/abs (- 1.0 (Math/abs dot))) 1e-9)))
 
-;; Verifies that framing to each axis looks down that axis from the same
-;; distance, without moving the focus point.
+;; Axis alignment preserves the focus point and distance for all six directions.
 (deftest frame-camera-to-axis-faces-axis-at-same-distance
   (let [camera (framed-test-camera)
         focus (c/camera-focus-point camera)
@@ -165,8 +164,7 @@
           (is (< (Math/abs (- distance (.distance focus ^Point3d (:position framed)))) 1e-9))
           (is (.epsilonEquals focus (c/camera-focus-point framed) 1e-9)))))))
 
-;; Verifies that the orbit interpolation starts at the start camera and ends at
-;; the end camera.
+;; Orbit interpolation preserves position and rotation at both endpoints.
 (deftest interpolate-orbit-matches-endpoints
   (let [from (c/frame-camera-to-axis (framed-test-camera) :+x)
         to (c/frame-camera-to-axis (framed-test-camera) :+y)
@@ -177,9 +175,7 @@
     (is (.epsilonEquals ^Point3d (:position to) ^Point3d (:position end) 1e-9))
     (is (same-rotation? (:rotation to) (:rotation end)))))
 
-;; Verifies that turning to the opposite axis keeps the camera at the same
-;; distance halfway through. Guards against moving in a straight line through
-;; the focus point.
+;; Opposite-axis interpolation keeps its radius instead of crossing the focus point.
 (deftest interpolate-orbit-to-opposite-axis-keeps-distance
   (let [from (c/frame-camera-to-axis (framed-test-camera) :+x)
         to (c/frame-camera-to-axis (framed-test-camera) :-x)
@@ -189,9 +185,7 @@
     (is (< (Math/abs (- distance (.distance focus ^Point3d (:position to)))) 1e-9))
     (is (< (Math/abs (- distance (.distance focus ^Point3d (:position halfway)))) 1e-9))))
 
-;; Verifies that the orbit interpolation starts where the camera is when it has
-;; been dollied past its focus point. Guards against the camera jumping to the
-;; mirror position behind the focus point on the first animation frame.
+;; Dollying past the focus must not cause an initial jump to its opposite side.
 (deftest interpolate-orbit-keeps-start-past-focus-point
   (let [from (c/dolly (c/frame-camera-to-axis (framed-test-camera) :+z) 2.0)
         to (c/frame-camera-to-axis from :+x)
