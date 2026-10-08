@@ -904,6 +904,12 @@ namespace dmGameSystem
         return GetOrCreateTextLayout(component);
     }
 
+    uint8_t CompLabelGetLayoutObjectPosition(const LabelComponent* component, HTextLayout layout, const TextLayoutObject* object, float* x, float* y)
+    {
+        const Vector3 pivot_delta = CalcPivotDelta(component->m_Pivot, Vector3(1.0f, 1.0f, 0.0f));
+        return TextLayoutGetObjectPositionLocal(layout, object, component->m_Size.getX(), -pivot_delta.getX(), -pivot_delta.getY(), x, y);
+    }
+
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         LabelWorld* world = (LabelWorld*)params.m_World;

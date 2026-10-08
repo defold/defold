@@ -508,7 +508,7 @@ class Configuration(object):
 
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
-        self.skip_tests = skip_tests
+        self.skip_tests = skip_tests or '--skip-tests' in build_options
         self.test_device = test_device
         self.ios_identity = ios_identity
         self.ios_mobileprovision = ios_mobileprovision

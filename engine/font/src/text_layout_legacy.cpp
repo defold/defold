@@ -371,6 +371,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     layout->m_NumValidGlyphs = 0;
     layout->m_UseRichText = resolved != 0 || settings->m_UseBaseStyle;
     layout->m_BaseStyleName = settings->m_UseBaseStyle ? settings->m_BaseStyle : 0;
+    layout->m_MonospacePadding = settings->m_Monospace ? settings->m_Padding : 0.0f;
     layout->m_ElapsedTime = 0.0;
     layout->m_ReleaseObject = 0;
     layout->m_ObjectContext = 0;
