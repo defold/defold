@@ -2193,7 +2193,8 @@
                                (true? (:grid opts)) grid/Grid
                                (:grid opts) (:grid opts)
                                :else grid/Grid)
-        tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
+        tool-controller-type (get opts :tool-controller scene-tools/ToolController)
+        has-axis-gizmo       (get opts :axis-gizmo true)]
     (g/make-nodes [background      background/Background
                    selection       [selection/SelectionController
                                     :drop-fn (:drop-fn opts)
@@ -2242,7 +2243,7 @@
       (g/connect app-view-id     :localization                  view-id         :localization)
       (g/connect app-view-id     :keymap                        camera          :keymap)
 
-      (when-not (:manual-refresh? opts)
+      (when has-axis-gizmo
         (concat
           (g/connect axis-gizmo  :_node-id                      view-id         :axis-gizmo-id)
           (g/connect axis-gizmo  :update-tick-handler           view-id         :update-tick-handlers)
@@ -2261,9 +2262,9 @@
       (g/connect camera          :camera                        tool-controller :camera)
       (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
 
-      (if (:manual-refresh? opts)
-        (g/delete-node axis-gizmo)
-        (g/connect axis-gizmo    :renderables                   view-id         :tool-renderables))
+      (if has-axis-gizmo
+        (g/connect axis-gizmo    :renderables                   view-id         :tool-renderables)
+        (g/delete-node axis-gizmo))
 
       (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 
@@ -2296,7 +2297,8 @@
 (defn make-preview [resource-node opts width height]
   (let [view-id (make-preview-view width height)
         opts (-> opts
-                 (assoc :manual-refresh? true)
+                 (assoc :manual-refresh? true
+                        :axis-gizmo false)
                  (dissoc :grid))]
     (g/transact
       {:undoable false}
