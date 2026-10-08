@@ -640,11 +640,16 @@
 (defn detach!
   [debug-view]
   (ui/run-now
-    (g/transact
-      {:undoable false}
-      (g/set-property debug-view :pending-debugger-start nil))
-    (when-let [debug-session (current-session debug-view)]
-      (future/io (dap/disconnect! debug-session)))))
+    (let [pending-start (g/node-value debug-view :pending-debugger-start)]
+      (g/transact
+        {:undoable false}
+        (g/set-property debug-view :pending-debugger-start nil))
+      (when-let [debug-session (current-session debug-view)]
+        (future/io
+          ;; A pending replacement already closes this session; just wait for it.
+          (if pending-start
+            (dap/close! debug-session)
+            (dap/disconnect! debug-session)))))))
 
 (defn- control-debugger! [debug-view command]
   (let [session (current-session debug-view)]
