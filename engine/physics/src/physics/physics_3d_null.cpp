@@ -279,19 +279,19 @@ namespace dmPhysics
         return 0;
     }
 
-    void GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius)
+    void GetCollisionShapeRadius3D(HWorld3D world, HCollisionShape3D shape, float* radius)
     {
     }
 
-    void GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz)
+    void GetCollisionShapeHalfBoxExtents3D(HWorld3D world, HCollisionShape3D shape, float* xyz)
     {
     }
 
-    void GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height)
+    void GetCollisionShapeCapsuleRadiusHeight3D(HWorld3D world, HCollisionShape3D shape, float* radius, float* half_height)
     {
     }
 
-    void SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius)
+    void SetCollisionShapeRadius3D(HWorld3D world, HCollisionShape3D shape, float radius)
     {
     }
 
