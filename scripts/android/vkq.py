@@ -174,10 +174,11 @@ def encode_vkq(project):
         for row in rows:
             data.extend(record.pack(*row))
 
+    # VkQuality uses the first match, so brand fallbacks must follow named devices.
     append_table("device_list", [
         (string_id(brand), string_id(device), min_api, driver)
         for brand, device, min_api, driver in sorted(
-            devices, key=lambda row: sort_key(row[0] + "," + row[1])
+            devices, key=lambda row: (sort_key(row[0]), row[1] == "", row[1].casefold())
         )
     ])
     # Zero shortcuts are valid and match the editor's unoptimized table.
