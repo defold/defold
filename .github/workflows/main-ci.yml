@@ -358,6 +358,11 @@ jobs:
       - name: "Install dependencies"
         if: runner.os != 'macOS'
         run: "ci/ci.sh install --platform=${{ matrix.platform }}"
+      - name: "Build external dependencies"
+        uses: ./.github/actions/build-external
+        with:
+          platform: ${{ matrix.platform }}
+          cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
       - name: "Enable KVM"
         if: matrix.emulator
         run: |-
@@ -386,7 +391,7 @@ jobs:
             if [ -z "$ANDROID_SERIAL" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi
             export ANDROID_SERIAL
             echo "Running ${{ matrix.platform }} tests on $ANDROID_SERIAL"
-            ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --skip-builtins --skip-docs
+            ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --skip-builtins --skip-docs
       # matrix.engine_args carries the per-platform flags; codesign and the gcloud key
       # come from env, which a matrix cannot reference, so they are appended here.
       - name: "Build engine"
@@ -394,7 +399,7 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
+        run: 'ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
       # Run browser lifecycle tests separately while the regular engine tests are skipped.
       - name: "Install browser test dependencies"
         if: matrix.platform == 'wasm-web'

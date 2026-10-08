@@ -1,0 +1,60 @@
+name: build-external
+description: Prepare engine dependencies and cache completed external installations.
+inputs:
+  platform:
+    description: Engine target platform (host dependencies are prepared too)
+    required: true
+  cache:
+    description: Enable cache restore and save for trusted builds
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Prepare dependencies and cache keys
+      id: prepare
+      shell: bash
+      env:
+        EXT_PLATFORM: ${{ inputs.platform }}
+        DEFOLD_EXT_CACHE_DIR: ${{ inputs.cache == 'true' && format('{0}/defold-ext-cache', runner.temp) || '' }}
+      run: ci/ci.sh prepare-engine --platform="$EXT_PLATFORM"
+    - name: Restore host dependencies
+      id: host
+      if: inputs.cache == 'true' && steps.prepare.outputs.host-key != ''
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.prepare.outputs.host-path }}
+        key: ${{ steps.prepare.outputs.host-key }}
+    - name: Restore target dependencies
+      id: target
+      if: inputs.cache == 'true' && steps.prepare.outputs.target-key != ''
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.prepare.outputs.target-path }}
+        key: ${{ steps.prepare.outputs.target-key }}
+    - name: Build or restore external libraries
+      shell: bash
+      env:
+        EXT_PLATFORM: ${{ inputs.platform }}
+        DEFOLD_EXT_HOST_CACHE: ${{ steps.prepare.outputs.host-path }}
+        DEFOLD_EXT_TARGET_CACHE: ${{ steps.prepare.outputs.target-path }}
+        DEFOLD_EXT_HOST_CACHE_HIT: ${{ steps.host.outputs.cache-hit }}
+        DEFOLD_EXT_TARGET_CACHE_HIT: ${{ steps.target.outputs.cache-hit }}
+      run: ci/ci.sh build-ext --platform="$EXT_PLATFORM"
+    # Save before building the engine, so an unrelated engine/test failure does
+    # not discard a successful dependency build. Never save a partial build.
+    - name: Save host dependencies
+      if: inputs.cache == 'true' && steps.prepare.outputs.host-key != '' && steps.host.outputs.cache-hit != 'true'
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.prepare.outputs.host-path }}
+        key: ${{ steps.prepare.outputs.host-key }}
+    - name: Save target dependencies
+      if: inputs.cache == 'true' && steps.prepare.outputs.target-key != '' && steps.target.outputs.cache-hit != 'true'
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.prepare.outputs.target-path }}
+        key: ${{ steps.prepare.outputs.target-key }}

@@ -242,9 +242,7 @@ def create_gcloud_options(gcloud_service_key):
         opts.append('--gcloud-certfile=%s' % gcloud_certfile)
     return opts
 
-def build_engine(channel, platform, args):
-
-    install_sdk = 'install_sdk'
+def engine_sdk_commands(platform):
     # for some platforms, we use the locally installed platform sdk
     if platform in ('x86_64-macos',
                     'arm64-macos',
@@ -257,9 +255,20 @@ def build_engine(channel, platform, args):
                     'armv7-android',
                     'arm64-android',
                     'x86_64-android'):
-        install_sdk = ''
+        return []
+    return ['install_sdk']
 
-    cmd_args = ('"%s" scripts/build.py distclean %s install_ext' % (sys.executable, install_sdk)).split()
+
+def prepare_engine(platform):
+    commands = ['distclean'] + engine_sdk_commands(platform) + ['install_ext_packages']
+    call('"%s" scripts/build.py %s --platform=%s' % (sys.executable, ' '.join(commands), platform))
+    call('"%s" ci/ext_cache.py prepare --platform=%s' % (sys.executable, platform))
+
+
+def build_engine(channel, platform, args):
+    cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
+    if not args.skip_install_ext:
+        cmd_args.extend(['distclean'] + engine_sdk_commands(platform) + ['install_ext'])
 
     cmd_opts = []
     build_opts = []
@@ -542,7 +551,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (prepare-engine, build-ext, clean-engine, engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms to include in the combined SDK")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
@@ -561,7 +570,7 @@ def main(argv):
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
     parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
-    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
+    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Build the engine with prepared dependencies and no cleanup, or skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument("--gcloud-service-key", dest="gcloud_service_key", help="String containing Google Cloud service account key")
@@ -621,7 +630,17 @@ def main(argv):
 
     # execute commands
     for command in args.commands:
-        if command == "engine":
+        if command == "prepare-engine":
+            if not platform:
+                raise Exception("No --platform specified.")
+            prepare_engine(platform)
+        elif command == "build-ext":
+            if not platform:
+                raise Exception("No --platform specified.")
+            call('"%s" ci/ext_cache.py build --platform=%s' % (sys.executable, platform))
+        elif command == "clean-engine":
+            call('"%s" scripts/build.py clean' % sys.executable)
+        elif command == "engine":
             if not platform:
                 raise Exception("No --platform specified.")
             build_engine(channel, platform, args)

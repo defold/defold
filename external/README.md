@@ -23,6 +23,39 @@ host's Protobuf tools. Protobuf and Abseil use the same CMake toolchain and buil
 graph as the other source dependencies and install directly into `ext`.
 `external/build` itself is generated build output.
 
+Engine CI uses the `build-external` composite action to cache installed source
+dependencies with GitHub Actions. `ci/ci.sh prepare-engine` runs `distclean`,
+installs packages/SDKs, and configures each platform once to emit host/target cache
+keys and paths. The action restores exact matches and passes the prepared paths
+and restore results to `ci/ci.sh build-ext`. Cache misses build from the prepared
+clean tree; hits install the cached files and refresh engine
+SDK headers from the checkout. Completed installations are saved before engine
+compilation and tests. Cache policy and GitHub outputs stay in `ci/`; the build
+script provides configuration, compilation and installation operations.
+The engine step uses `--skip-install-ext` to retain prepared dependencies and
+build outputs. Nightly jobs request `clean-engine engine` between sanitizer
+passes to clean engine outputs explicitly.
+
+Keys cover source contents and patches for the dependencies in
+`external/CMakeLists.txt`, shared CMake scripts, selected compiler and SDK versions,
+runner image, effective build commands and implicit compiler environment
+settings. Paths remain part of the identity because debug
+information and installed package metadata can embed them. Documentation,
+standalone packages, unrelated build-script edits and SDK inspection state do
+not invalidate the cache. SDKs and toolchains are treated as versioned
+installations: replacing one without changing
+its version requires bumping `SCHEMA` in `ci/ext_cache.py`.
+
+Only files listed by CMake's install manifest are staged for `actions/cache`;
+engine SDK headers are excluded. GitHub Actions handles archive transport and
+only successful restores are used. A failed build or staging operation never
+publishes a partial installation. To replace a damaged remote entry, delete its
+exact key from the repository's Actions caches.
+
+This cache is restricted to CI. Local and private-platform builds retain their
+normal incremental behavior. Contrib and repository-dispatch builds keep the
+main workflow's existing cache restrictions.
+
 To force a fresh build, run
 `./scripts/build.py clean_ext install_ext --platform=<platform>`.
 

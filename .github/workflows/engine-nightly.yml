@@ -47,17 +47,18 @@ jobs:
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build external dependencies', uses: ./.github/actions/build-external, with: { platform: 'x86_64-macos' } },
       {
         name: 'ASAN',
-        run: 'ci/ci.sh --platform=x86_64-macos --with-asan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-macos --with-asan --skip-install-ext --skip-builtins --skip-docs engine'
       },
       {
         name: 'UBSAN',
-        run: 'ci/ci.sh --platform=x86_64-macos --with-ubsan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-macos --with-ubsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
         name: 'TSAN',
-        run: 'ci/ci.sh --platform=x86_64-macos --with-tsan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-macos --with-tsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
          name: 'Notify if build status changed',
@@ -82,10 +83,11 @@ jobs:
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build external dependencies', uses: ./.github/actions/build-external, with: { platform: 'x86_64-linux' } },
       {
         name: 'ASAN',
         id: asan,
-        run: 'ci/ci.sh --platform=x86_64-linux --with-asan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-linux --with-asan --skip-install-ext --skip-builtins --skip-docs engine'
       },
       {
         name: 'Upload ASAN build reports',
@@ -96,7 +98,7 @@ jobs:
       {
         name: 'UBSAN',
         id: ubsan,
-        run: 'ci/ci.sh --platform=x86_64-linux --with-ubsan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-linux --with-ubsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
         name: 'Upload UBSAN build reports',
@@ -107,7 +109,7 @@ jobs:
       {
         name: 'TSAN',
         id: tsan,
-        run: 'ci/ci.sh --platform=x86_64-linux --with-tsan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-linux --with-tsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
         name: 'Upload TSAN build reports',
@@ -118,7 +120,7 @@ jobs:
       {
         name: 'VALGRIND',
         id: valgrind,
-        run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
         name: 'Upload VALGRIND build reports',
@@ -149,10 +151,11 @@ jobs:
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build external dependencies', uses: ./.github/actions/build-external, with: { platform: 'arm64-linux' } },
       {
         name: 'ASAN',
         id: asan,
-        run: 'ci/ci.sh --platform=arm64-linux --with-asan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=arm64-linux --with-asan --skip-install-ext --skip-builtins --skip-docs engine'
       },
       {
         name: 'Upload ASAN build reports',
@@ -163,7 +166,7 @@ jobs:
       {
         name: 'UBSAN',
         id: ubsan,
-        run: 'ci/ci.sh --platform=arm64-linux --with-ubsan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=arm64-linux --with-ubsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
         name: 'Upload UBSAN build reports',
@@ -174,7 +177,7 @@ jobs:
       {
         name: 'TSAN',
         id: tsan,
-        run: 'ci/ci.sh --platform=arm64-linux --with-tsan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=arm64-linux --with-tsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
         name: 'Upload TSAN build reports',
@@ -185,7 +188,7 @@ jobs:
       {
         name: 'VALGRIND',
         id: valgrind,
-        run: 'ci/ci.sh --platform=arm64-linux --with-valgrind --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=arm64-linux --with-valgrind --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
         name: 'Upload VALGRIND build reports',
@@ -239,6 +242,10 @@ jobs:
           # Chrome is unused here; exclude its repository from dependency updates.
           sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
           ci/ci.sh install --platform=x86_64-android
+      - name: 'Build external dependencies'
+        uses: ./.github/actions/build-external
+        with:
+          platform: x86_64-android
       - name: 'Enable KVM'
         run: |-
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -259,7 +266,7 @@ jobs:
             if [ -z "$ANDROID_SERIAL" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi
             export ANDROID_SERIAL
             python build_tools/build_android.py can-run-tests --platform x86_64-android --device "$ANDROID_SERIAL"
-            ci/ci.sh --platform=x86_64-android --with-asan --skip-builtins --skip-docs engine
+            ci/ci.sh --platform=x86_64-android --with-asan --skip-install-ext --skip-builtins --skip-docs engine
       - name: 'Notify if build status changed'
         uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v3.0.5
         if: failure()
@@ -292,10 +299,11 @@ jobs:
         run: 'emcc -v && export | grep EM'
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      { name: 'Build external dependencies', if: matrix.platform == 'wasm-web' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))), uses: ./.github/actions/build-external, with: { platform: '${{ matrix.platform }}' } },
       {
         name: 'ASAN',
         if: matrix.platform == 'wasm-web' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
-        run: 'ci/ci.sh --platform=wasm-web --with-asan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=wasm-web --with-asan --skip-install-ext --skip-builtins --skip-docs engine'
       },
       {
        name: 'Notify if build status changed',
@@ -320,9 +328,10 @@ jobs:
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build external dependencies', uses: ./.github/actions/build-external, with: { platform: 'x86_64-win32' } },
       {
         name: 'ASAN',
-        run: 'ci/ci.sh --platform=x86_64-win32 --with-asan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-win32 --with-asan --skip-install-ext --skip-builtins --skip-docs engine'
       },
       {
          name: 'Notify if build status changed',
