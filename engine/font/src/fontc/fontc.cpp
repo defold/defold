@@ -49,7 +49,7 @@ static_assert(sizeof(FontcGlyphBankGlyph) == 32, "Unexpected FontcGlyphBankGlyph
 static_assert(sizeof(FontcLayout) == 28, "Unexpected FontcLayout ABI layout");
 static_assert(sizeof(FontcGlyph) == 48, "Unexpected FontcGlyph ABI layout");
 static_assert(offsetof(FontcGlyph, m_Pixels) == 32, "Unexpected FontcGlyph ABI layout");
-static_assert(sizeof(FontcGlyphMetrics) == 32, "Unexpected FontcGlyphMetrics ABI layout");
+static_assert(sizeof(FontcGlyphMetrics) == 40, "Unexpected FontcGlyphMetrics ABI layout");
 static_assert(sizeof(FontcProperties) == 104, "Unexpected FontcProperties ABI layout");
 static_assert(sizeof(FontcTexture) == 40, "Unexpected FontcTexture ABI layout");
 static_assert(offsetof(FontcTexture, m_AtlasVersion) == 8, "Unexpected FontcTexture ABI layout");
@@ -1113,6 +1113,16 @@ static FontRendererResult GetGlyphMetrics(HFontRenderer renderer, uint32_t codep
     output->m_LeftBearing = glyph.m_LeftBearing;
     output->m_Ascent = glyph.m_Ascent;
     output->m_Descent = glyph.m_Descent;
+
+    // Match the legacy layout's metrics query and scaling order. The bitmap
+    // bounds above remain available for atlas allocation and image placement.
+    FontGlyphOptions options;
+    FontGlyph layout_glyph;
+    if (FontGetGlyphByIndex(renderer->m_Font, glyph_index, &options, &layout_glyph) != FONT_RESULT_OK)
+        return FONT_RENDERER_RESULT_GLYPH_ERROR;
+    const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
+    output->m_LayoutWidth = layout_glyph.m_Width * scale;
+    output->m_LayoutLeftBearing = layout_glyph.m_LeftBearing * scale;
     return FONT_RENDERER_RESULT_OK;
 }
 

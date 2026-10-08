@@ -84,19 +84,47 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'ASAN',
+        id: asan,
         run: 'ci/ci.sh --platform=x86_64-linux --with-asan --skip-builtins --skip-docs engine'
       },
       {
+        name: 'Upload ASAN build reports',
+        if: "always() && (steps.asan.outcome == 'success' || steps.asan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'x86_64-linux', build-variant: 'asan' }
+      },
+      {
         name: 'UBSAN',
+        id: ubsan,
         run: 'ci/ci.sh --platform=x86_64-linux --with-ubsan --skip-builtins --skip-docs engine'
       },
       {
+        name: 'Upload UBSAN build reports',
+        if: "always() && (steps.ubsan.outcome == 'success' || steps.ubsan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'x86_64-linux', build-variant: 'ubsan' }
+      },
+      {
         name: 'TSAN',
+        id: tsan,
         run: 'ci/ci.sh --platform=x86_64-linux --with-tsan --skip-builtins --skip-docs engine'
       },
       {
+        name: 'Upload TSAN build reports',
+        if: "always() && (steps.tsan.outcome == 'success' || steps.tsan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'x86_64-linux', build-variant: 'tsan' }
+      },
+      {
         name: 'VALGRIND',
+        id: valgrind,
         run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'Upload VALGRIND build reports',
+        if: "always() && (steps.valgrind.outcome == 'success' || steps.valgrind.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'x86_64-linux', build-variant: 'valgrind' }
       },
       {
          name: 'Notify if build status changed',
@@ -123,19 +151,47 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'ASAN',
+        id: asan,
         run: 'ci/ci.sh --platform=arm64-linux --with-asan --skip-builtins --skip-docs engine'
       },
       {
+        name: 'Upload ASAN build reports',
+        if: "always() && (steps.asan.outcome == 'success' || steps.asan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'arm64-linux', build-variant: 'asan' }
+      },
+      {
         name: 'UBSAN',
+        id: ubsan,
         run: 'ci/ci.sh --platform=arm64-linux --with-ubsan --skip-builtins --skip-docs engine'
       },
       {
+        name: 'Upload UBSAN build reports',
+        if: "always() && (steps.ubsan.outcome == 'success' || steps.ubsan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'arm64-linux', build-variant: 'ubsan' }
+      },
+      {
         name: 'TSAN',
+        id: tsan,
         run: 'ci/ci.sh --platform=arm64-linux --with-tsan --skip-builtins --skip-docs engine'
       },
       {
+        name: 'Upload TSAN build reports',
+        if: "always() && (steps.tsan.outcome == 'success' || steps.tsan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'arm64-linux', build-variant: 'tsan' }
+      },
+      {
         name: 'VALGRIND',
+        id: valgrind,
         run: 'ci/ci.sh --platform=arm64-linux --with-valgrind --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'Upload VALGRIND build reports',
+        if: "always() && (steps.valgrind.outcome == 'success' || steps.valgrind.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'arm64-linux', build-variant: 'valgrind' }
       },
       {
          name: 'Notify if build status changed',
@@ -281,3 +337,28 @@ jobs:
          with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
                  payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
+
+  build-reports:
+    name: Build Reports
+    needs: [bld-eng-linux-x64, bld-eng-linux-arm64]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Summarize build reports
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const buildReportSummary = require('./ci/build_report_summary.cjs');
+            const {owner, repo} = context.repo;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner, repo, run_id: context.runId, per_page: 100
+            });
+            const summary = buildReportSummary(artifacts, {
+              serverUrl: context.serverUrl, owner, repo, runId: context.runId
+            });
+            await core.summary.addRaw(summary).write();

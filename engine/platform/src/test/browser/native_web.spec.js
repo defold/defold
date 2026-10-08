@@ -86,6 +86,17 @@ async function openWindow(page) {
     expect(await page.evaluate(() => Module._TestRender())).toBe(1);
 }
 
+async function browserStateChange(page, eventName, action) {
+    await page.evaluate(eventName => {
+        Module.browserStateChanged = new Promise(resolve => {
+            // Register before the action; backend capture listeners run before this listener.
+            document.addEventListener(eventName, () => resolve(), { once: true });
+        });
+    }, eventName);
+    await action();
+    await page.evaluate(() => Module.browserStateChanged);
+}
+
 // Verify real DOM input and rendering reach C++, and teardown prevents stale or duplicate callbacks after recreation.
 test("rendering, resize and input survive window recreation", async ({ page }) => {
     const canvas = page.locator("#canvas");
@@ -135,13 +146,13 @@ test("rendering, resize and input survive window recreation", async ({ page }) =
     expect((await state(page)).closes).toBe(2);
 });
 
-// Verify termination/reinitialization resynchronizes actual fullscreen and pointer lock, including changes while stopped.
+// Verify fullscreen and pointer lock survive recreation, waiting for change events to guard against stale backend state.
 test("fullscreen and pointer lock recover across teardown", async ({ page }) => {
     await openWindow(page);
-    await page.locator("#fullscreen").click();
-    await page.waitForFunction(() => document.fullscreenElement === Module.fullScreenContainer);
-    await page.locator("#lock").click();
-    await page.waitForFunction(() => document.pointerLockElement === Module.canvas);
+    await browserStateChange(page, "fullscreenchange", () => page.locator("#fullscreen").click());
+    expect(await page.evaluate(() => document.fullscreenElement === Module.fullScreenContainer)).toBe(true);
+    await browserStateChange(page, "pointerlockchange", () => page.locator("#lock").click());
+    expect(await page.evaluate(() => document.pointerLockElement === Module.canvas)).toBe(true);
     expect(await state(page)).toMatchObject({ fullscreen: true, locked: 1 });
 
     await page.evaluate(() => Module._TestClose());
@@ -151,19 +162,19 @@ test("fullscreen and pointer lock recover across teardown", async ({ page }) => 
         width: Math.floor(innerWidth * devicePixelRatio), height: Math.floor(innerHeight * devicePixelRatio)
     }));
     expect(await state(page)).toMatchObject(fullscreenSize);
-    await page.evaluate(() => Module._TestSetCursorVisible(1));
-    await expect.poll(async () => (await state(page)).locked).toBe(0);
-    await page.evaluate(() => document.exitFullscreen());
-    await expect.poll(async () => (await state(page)).fullscreen).toBe(false);
+    await browserStateChange(page, "pointerlockchange", () => page.evaluate(() => Module._TestSetCursorVisible(1)));
+    expect((await state(page)).locked).toBe(0);
+    await browserStateChange(page, "fullscreenchange", () => page.evaluate(() => document.exitFullscreen()));
+    expect((await state(page)).fullscreen).toBe(false);
 
-    await page.locator("#fullscreen").click();
-    await page.waitForFunction(() => document.fullscreenElement === Module.fullScreenContainer);
-    await page.locator("#lock").click();
-    await page.waitForFunction(() => document.pointerLockElement === Module.canvas);
+    await browserStateChange(page, "fullscreenchange", () => page.locator("#fullscreen").click());
+    expect(await page.evaluate(() => document.fullscreenElement === Module.fullScreenContainer)).toBe(true);
+    await browserStateChange(page, "pointerlockchange", () => page.locator("#lock").click());
+    expect(await page.evaluate(() => document.pointerLockElement === Module.canvas)).toBe(true);
     await page.evaluate(() => Module._TestClose());
-    await page.evaluate(() => document.exitPointerLock());
-    await page.evaluate(() => document.exitFullscreen());
-    await page.waitForFunction(() => !document.fullscreenElement && !document.pointerLockElement);
+    await browserStateChange(page, "pointerlockchange", () => page.evaluate(() => document.exitPointerLock()));
+    await browserStateChange(page, "fullscreenchange", () => page.evaluate(() => document.exitFullscreen()));
+    expect(await page.evaluate(() => !document.fullscreenElement && !document.pointerLockElement)).toBe(true);
     await page.evaluate(() => {
         Module.canvas.width = 640;
         Module.canvas.height = 480;

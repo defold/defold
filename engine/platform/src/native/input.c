@@ -88,6 +88,16 @@ int dmNativeGetMouseButton( int button )
     return (int) dmNativeInput.MouseButton[ button ];
 }
 
+int dmNativeIsMouseLeftButtonFromTouch( void )
+{
+    return dmNativeInput.MouseLeftButtonFromTouch;
+}
+
+int dmNativeIsMousePositionFromTouch( void )
+{
+    return dmNativeInput.MousePositionFromTouch;
+}
+
 
 //========================================================================
 // Return mouse cursor position

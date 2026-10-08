@@ -16,6 +16,7 @@
 #include <float.h>
 
 #include <dlib/hash.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
 #include <dlib/math.h>
@@ -554,6 +555,49 @@ namespace dmGui
         {
             return false;
         }
+    }
+
+    bool GetNodeTypeName(lua_State* L, int index, char* buffer, uint32_t buffer_size)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        if (NODE_PROXY_TYPE_HASH == 0 || lua_objlen(L, index) != sizeof(NodeProxy))
+            return false;
+        NodeProxy* np = (NodeProxy*)dmScript::ToUserType(L, index, NODE_PROXY_TYPE_HASH);
+        if (!np)
+            return false;
+        dmScript::GetInstanceRaw(L);
+        HScene scene = (Scene*)dmScript::ToUserType(L, -1, GUI_SCRIPT_INSTANCE_TYPE_HASH);
+        lua_pop(L, 1);
+        if (!scene || np->m_Scene != scene || !IsValidNode(scene, np->m_Node))
+            return false;
+
+        InternalNode* n = GetNode(scene, np->m_Node);
+        if (n->m_Deleted)
+            return false;
+        const char* name = "unknown";
+        if (n->m_Node.m_IsBone)
+            name = "bone";
+        else
+        {
+            switch (n->m_Node.m_NodeType)
+            {
+                case NODE_TYPE_BOX:        name = "box"; break;
+                case NODE_TYPE_TEXT:       name = "text"; break;
+                case NODE_TYPE_PIE:        name = "pie"; break;
+                case NODE_TYPE_TEMPLATE:   name = "template"; break;
+                case NODE_TYPE_PARTICLEFX: name = "particlefx"; break;
+                case NODE_TYPE_CUSTOM:
+                    name = (const char*)dmHashReverse32(n->m_Node.m_CustomType, 0);
+                    if (!name)
+                    {
+                        dmSnPrintf(buffer, buffer_size, "gui.custom_%u", n->m_Node.m_CustomType);
+                        return true;
+                    }
+                    break;
+            }
+        }
+        dmSnPrintf(buffer, buffer_size, "gui.%s", name);
+        return true;
     }
 
     static InternalNode* LuaCheckNodeInternal(lua_State* L, int index, HNode* hnode)
@@ -5516,7 +5560,7 @@ namespace dmGui
      *
      * @name on_input
      * @param self [type:script_instance] script instance used for storing state
-     * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for mouse movement
+     * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for pointer movement and accelerometer samples; check `action.source` to distinguish them
      * @param action [type:on_input.action] input data for the action
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples

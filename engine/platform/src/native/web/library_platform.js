@@ -36,6 +36,8 @@ var LibraryDefoldPlatform = {
     params: null,
     wheelPos: 0,
     buttons: 0,
+    mouseLeftButtonFromTouch: false,
+    mousePositionFromTouch: false,
     keys: 0,
     initWindowWidth: 640,
     initWindowHeight: 480,
@@ -269,6 +271,7 @@ var LibraryDefoldPlatform = {
       var lastX = Browser.mouseX;
       var lastY = Browser.mouseY;
       Browser.calculateMouseEvent(event);
+      DefoldPlatform.mousePositionFromTouch = false;
       var newX = Browser.mouseX;
       var newY = Browser.mouseY;
 
@@ -286,6 +289,7 @@ var LibraryDefoldPlatform = {
       }
 
       Browser.calculateMouseEvent(event);
+      DefoldPlatform.mousePositionFromTouch = false;
 
       if (event.target != Module["canvas"]) {
         return;
@@ -323,11 +327,13 @@ var LibraryDefoldPlatform = {
           if (touch.identifier == DefoldPlatform.mouseTouchId) {
               DefoldPlatform.mouseTouchId = null;
               DefoldPlatform.buttons &= ~(1 << 0);
+              DefoldPlatform.mouseLeftButtonFromTouch = false;
             }
         }
 
         if (event.touches.length == 0){
             DefoldPlatform.buttons &= ~(1 << 0);
+            DefoldPlatform.mouseLeftButtonFromTouch = false;
         }
 
         // Audio is blocked by default in browsers until a user performs an interaction,
@@ -380,6 +386,7 @@ var LibraryDefoldPlatform = {
           if (touch.identifier == DefoldPlatform.mouseTouchId) {
             Browser.mouseX = canvasX;
             Browser.mouseY = canvasY;
+            DefoldPlatform.mousePositionFromTouch = true;
           }
           DefoldPlatform.fillTouch(touch.identifier, canvasX, canvasY, DefoldPlatform.NATIVE_PHASE_MOVED);
         }
@@ -405,8 +412,10 @@ var LibraryDefoldPlatform = {
           if (i == 0 && DefoldPlatform.mouseTouchId == null) {
             DefoldPlatform.mouseTouchId = touch.identifier;
             DefoldPlatform.buttons |= (1 << 0);
+            DefoldPlatform.mouseLeftButtonFromTouch = true;
             Browser.mouseX = canvasX;
             Browser.mouseY = canvasY;
+            DefoldPlatform.mousePositionFromTouch = true;
           }
           DefoldPlatform.fillTouch(touch.identifier, canvasX, canvasY, DefoldPlatform.NATIVE_PHASE_BEGAN);
         }
@@ -425,6 +434,9 @@ var LibraryDefoldPlatform = {
       if (event.target != Module["canvas"]) { return; }
 
       DefoldPlatform.buttons |= (1 << event['button']);
+      if (event['button'] == 0) {
+        DefoldPlatform.mouseLeftButtonFromTouch = false;
+      }
       DefoldPlatform.onMouseButtonChanged(event, 1);// NATIVE_PRESS
 
       // Resume audio on user interaction (see explanation in touchWasFinished).
@@ -437,6 +449,9 @@ var LibraryDefoldPlatform = {
       if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
       DefoldPlatform.buttons &= ~(1 << event['button']);
+      if (event['button'] == 0) {
+        DefoldPlatform.mouseLeftButtonFromTouch = false;
+      }
       DefoldPlatform.onMouseButtonChanged(event, 0);// NATIVE_RELEASE
 
       // Resume audio on user interaction (see explanation in touchWasFinished).
@@ -984,6 +999,14 @@ var LibraryDefoldPlatform = {
 
   dmNativeGetMouseButton: function(button) {
     return (DefoldPlatform.buttons & (1 << DefoldPlatform.DOMtoNativeButton(button))) > 0;
+  },
+
+  dmNativeIsMouseLeftButtonFromTouch: function() {
+    return DefoldPlatform.mouseLeftButtonFromTouch;
+  },
+
+  dmNativeIsMousePositionFromTouch: function() {
+    return DefoldPlatform.mousePositionFromTouch;
   },
 
   dmNativeGetMousePos: function(xpos, ypos) {

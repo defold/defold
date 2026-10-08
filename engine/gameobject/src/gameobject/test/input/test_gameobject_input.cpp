@@ -258,6 +258,81 @@ TEST_F(InputTest, TestComponentInput4)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 }
 
+// Verifies every source hash reaches script callbacks, including the zero-initialized keyboard default.
+TEST_F(InputTest, ScriptInputSources)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input_source.goc");
+    ASSERT_NE(0, go);
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const char* names[] = {"keyboard", "text", "mouse", "touch", "gamepad", "accelerometer"};
+    const dmHID::InputSource sources[] = {
+        dmHID::INPUT_SOURCE_KEYBOARD, dmHID::INPUT_SOURCE_TEXT, dmHID::INPUT_SOURCE_MOUSE,
+        dmHID::INPUT_SOURCE_TOUCH, dmHID::INPUT_SOURCE_GAMEPAD, dmHID::INPUT_SOURCE_ACCELEROMETER,
+    };
+    dmGameObject::InputAction action;
+    ASSERT_EQ(dmHID::INPUT_SOURCE_KEYBOARD, action.m_Source);
+    action.m_ActionId = dmHashString64("test_action");
+    for (uint32_t i = 0; i < sizeof(sources) / sizeof(sources[0]); ++i)
+    {
+        lua_pushnil(L);
+        lua_setglobal(L, "input_source_received");
+        action.m_Source = sources[i];
+        ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &action, 1));
+        ASSERT_FALSE(action.m_Consumed);
+        lua_getglobal(L, "input_source_received");
+        ASSERT_TRUE(dmScript::IsHash(L, -1));
+        ASSERT_EQ(dmHashString64(names[i]), dmScript::CheckHash(L, -1));
+        lua_pop(L, 1);
+    }
+}
+
+// Verifies separate nil-id Lua payloads and that consuming mouse or touch movement still lets acceleration reach the next listener.
+TEST_F(InputTest, ScriptUnnamedInputSources)
+{
+    dmGameObject::HInstance listener = dmGameObject::New(m_Collection, "/component_input_source.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input_source.goc");
+    ASSERT_NE(0, listener);
+    ASSERT_NE(0, go);
+    dmGameObject::AcquireInputFocus(m_Collection, listener);
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+
+    dmGameObject::InputAction actions[2];
+    actions[0].m_PositionSet = 1;
+    actions[0].m_X = 1.0f;
+    actions[0].m_Y = 2.0f;
+    actions[0].m_DX = 3.0f;
+    actions[0].m_DY = 4.0f;
+    actions[0].m_ScreenX = 5.0f;
+    actions[0].m_ScreenY = 6.0f;
+    actions[0].m_ScreenDX = 7.0f;
+    actions[0].m_ScreenDY = 8.0f;
+    actions[1].m_Source = dmHID::INPUT_SOURCE_ACCELEROMETER;
+    actions[1].m_AccelerationSet = 1;
+    actions[1].m_AccX = 0.25f;
+    actions[1].m_AccY = -0.5f;
+    actions[1].m_AccZ = 1.0f;
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const dmGameObject::InputAction pointer_action = actions[0];
+    const dmHID::InputSource pointer_sources[] = {dmHID::INPUT_SOURCE_MOUSE, dmHID::INPUT_SOURCE_TOUCH};
+    for (uint32_t i = 0; i < sizeof(pointer_sources) / sizeof(pointer_sources[0]); ++i)
+    {
+        // DispatchInput clears consumed actions, so restore the pointer payload for each source.
+        actions[0] = pointer_action;
+        actions[0].m_Source = pointer_sources[i];
+        ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, actions, 2));
+        ASSERT_TRUE(actions[0].m_Consumed);
+        ASSERT_FALSE(actions[1].m_Consumed);
+        lua_getglobal(L, "input_pointer_received");
+        ASSERT_EQ(i + 1, lua_tointeger(L, -1));
+        lua_pop(L, 1);
+        lua_getglobal(L, "input_accelerometer_received");
+        ASSERT_EQ(2 * (i + 1), lua_tointeger(L, -1));
+        lua_pop(L, 1);
+    }
+}
+
 TEST_F(InputTest, TextComponentTextInput)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_text_input.goc");

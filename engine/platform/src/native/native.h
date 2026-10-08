@@ -239,6 +239,8 @@ int  dmNativeGetWindowRefreshRate( void );
 void dmNativePollEvents( void );
 int  dmNativeGetKey( int key );
 int  dmNativeGetMouseButton( int button );
+int  dmNativeIsMouseLeftButtonFromTouch( void );
+int  dmNativeIsMousePositionFromTouch( void );
 void dmNativeGetMousePos( int *xpos, int *ypos );
 int  dmNativeGetMouseWheel( void );
 int  dmNativeSetCharCallback( Nativecharfun cbfun );

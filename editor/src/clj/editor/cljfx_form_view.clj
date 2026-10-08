@@ -52,7 +52,7 @@
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.localization :as localization]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.math :as math]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
@@ -1714,7 +1714,7 @@
                 {:fx/type fxui/tooltip
                  :content-display :graphic-only
                  :style {:-fx-padding 0}
-                 :graphic {:fx/type markdown/view
+                 :graphic {:fx/type markdown-view/view
                            :content help-text
                            :max-width 350.0
                            :project project}})))
@@ -1788,7 +1788,7 @@
                                        {:fx/type fxui/tooltip
                                         :content-display :graphic-only
                                         :style {:-fx-padding 0}
-                                        :graphic {:fx/type markdown/view
+                                        :graphic {:fx/type markdown-view/view
                                                   :content help
                                                   :max-width 350.0
                                                   :project project}})]}

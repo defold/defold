@@ -640,6 +640,63 @@ TEST(Shaderc, TestHLSLSimple)
     free(data);
 }
 
+// Verifies storage-buffer bytecode and SRV/UAV root parameters preserve register spaces
+// and bindings, guarding against omitted buffers and malformed root signatures.
+TEST(Shaderc, HLSLStorageBufferRootSignature)
+{
+#if defined(_WIN32)
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/storage_buffers.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_GT(result->m_Data.Size(), 4u);
+    ASSERT_EQ(0, memcmp(result->m_Data.Begin(), "DXBC", 4));
+    ASSERT_GT(result->m_HLSLRootSignature.Size(), 0u);
+
+    ID3D12RootSignatureDeserializer* deserializer = 0;
+    ASSERT_EQ(S_OK, D3D12CreateRootSignatureDeserializer(result->m_HLSLRootSignature.Begin(),
+        result->m_HLSLRootSignature.Size(), IID_PPV_ARGS(&deserializer)));
+    const D3D12_ROOT_SIGNATURE_DESC* desc = deserializer->GetRootSignatureDesc();
+    ASSERT_EQ(2u, desc->NumParameters);
+    bool has_srv = false;
+    bool has_uav = false;
+    for (uint32_t i = 0; i < desc->NumParameters; ++i)
+    {
+        const D3D12_ROOT_PARAMETER& parameter = desc->pParameters[i];
+        ASSERT_EQ(D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE, parameter.ParameterType);
+        ASSERT_EQ(D3D12_SHADER_VISIBILITY_ALL, parameter.ShaderVisibility);
+        ASSERT_EQ(1u, parameter.DescriptorTable.NumDescriptorRanges);
+        const D3D12_DESCRIPTOR_RANGE& range = parameter.DescriptorTable.pDescriptorRanges[0];
+        ASSERT_EQ(1u, range.NumDescriptors);
+        ASSERT_EQ(1u, range.RegisterSpace);
+        if (range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SRV)
+        {
+            ASSERT_EQ(2u, range.BaseShaderRegister);
+            has_srv = true;
+        }
+        else if (range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_UAV)
+        {
+            ASSERT_EQ(3u, range.BaseShaderRegister);
+            has_uav = true;
+        }
+    }
+    ASSERT_TRUE(has_srv);
+    ASSERT_TRUE(has_uav);
+
+    deserializer->Release();
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+#endif
+}
+
 static bool BufferContains(const uint8_t* data, uint32_t data_size, const char* text)
 {
     const uint32_t text_size = (uint32_t) strlen(text);

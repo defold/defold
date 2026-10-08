@@ -552,13 +552,11 @@
     :model))
 
 (def generic-vulkan
-  (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
+  (disj vulkan :x86_64-win32 :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
 (def generic-vulkan-toggles
   (concat
-    (exclude-libs-toggles [:x86_64-win32] ["platform"])
-    (libs-toggles [:x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
-    (libs-toggles windows ["graphics_vulkan" "vulkan"])
+    (libs-toggles linux ["platform_vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
     (generic-contains-toggles generic-vulkan :symbols ["GraphicsAdapterVulkan"])))
@@ -572,6 +570,48 @@
               [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
     :both generic-vulkan-toggles
     :open-gl))
+
+(def windows-graphics-choice-options
+  [[:open-gl "OpenGL"]
+   [:vulkan "Vulkan"]
+   [:dx12 "DX12"]
+   [:open-gl-vulkan "OpenGL & Vulkan"]
+   [:open-gl-dx12 "OpenGL & DX12"]
+   [:vulkan-dx12 "Vulkan & DX12"]
+   [:open-gl-vulkan-dx12 "OpenGL & Vulkan & DX12"]])
+
+(def graphics-setting-windows
+  (let [vulkan (into [] cat
+                     [(exclude-libs-toggles windows ["platform"])
+                      (libs-toggles windows ["platform_vulkan" "graphics_vulkan" "vulkan"])
+                      (generic-contains-toggles windows :symbols ["GraphicsAdapterVulkan"])])
+
+        dx12 (into [] cat
+                   [(libs-toggles windows ["graphics_dx12"])
+                    ;; Extender runs on a case-sensitive host. Preserve the SDK filename case
+                    ;; while accepting names written by earlier editors.
+                    (into []
+                          (mapcat (fn [platform]
+                                    (mapv (fn [[library legacy-library]]
+                                            (contains-toggle platform :libs (str library ".lib")
+                                                             [(str library ".lib") library
+                                                              (str legacy-library ".lib") legacy-library]))
+                                          [["d3d12" "D3D12"] ["dxgi" "DXGI"] ["d3dcompiler" "d3dcompiler"]])))
+                          windows)
+                    (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"])])
+
+        exclude-open-gl (into [] cat
+                              [(exclude-libs-toggles windows ["graphics"])
+                               (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterOpenGL"])])]
+    ;; Match supersets before subsets. OpenGL is supplied by engine defaults.
+    (make-choice-setting
+      :vulkan-dx12 (into [] cat [vulkan dx12 exclude-open-gl])
+      :open-gl-vulkan-dx12 (into vulkan dx12)
+      :vulkan (into vulkan exclude-open-gl)
+      :dx12 (into dx12 exclude-open-gl)
+      :open-gl-vulkan vulkan
+      :open-gl-dx12 dx12
+      :open-gl)))
 
 (def open-gl-android-toggles
   (concat
@@ -1032,6 +1072,13 @@
                                                         [:both "OpenGL & Vulkan"]]}))
             (value (setting-property-getter graphics-setting))
             (set (setting-property-setter graphics-setting)))
+  (property graphics-windows g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :graphics-windows))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-windows))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options windows-graphics-choice-options}))
+            (value (setting-property-getter graphics-setting-windows))
+            (set (setting-property-setter graphics-setting-windows)))
   (property graphics-osx g/Any
             (dynamic label (properties/label-dynamic :appmanifest :graphics-osx))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-osx))

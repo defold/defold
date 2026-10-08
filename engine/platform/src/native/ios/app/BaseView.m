@@ -276,10 +276,14 @@ NSString *const FAKE_STRING = @"Abcd";
     return freeTouch;
 }
 
-- (void) updateGlfwMousePos: (int32_t) x y: (int32_t) y
+- (void) updateGlfwMousePos: (int32_t) x y: (int32_t) y touch: (UITouch*) touch
 {
     dmNativeInput.MousePosX = x;
     dmNativeInput.MousePosY = y;
+    dmNativeInput.MousePositionFromTouch = 1;
+    if (@available(iOS 13.4, *)) {
+        dmNativeInput.MousePositionFromTouch = touch.type != UITouchTypeIndirectPointer;
+    }
 }
 
 - (void) touchStart: (NativeTouch*) dmNativet withTouch: (UITouch*) t
@@ -378,7 +382,7 @@ NSString *const FAKE_STRING = @"Abcd";
             [self touchStart: dmNativet withTouch: t];
 
             if (dmNativet == dmNativeInput.MouseEmulationTouch) {
-                [self updateGlfwMousePos: dmNativet->X y: dmNativet->Y];
+                [self updateGlfwMousePos: dmNativet->X y: dmNativet->Y touch: t];
                 dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS );
             }
         }
@@ -409,7 +413,7 @@ NSString *const FAKE_STRING = @"Abcd";
             [self touchUpdate: dmNativet withTouch: t];
 
             if (dmNativet == dmNativeInput.MouseEmulationTouch || !dmNativeInput.MouseEmulationTouch) {
-                [self updateGlfwMousePos: dmNativet->X y: dmNativet->Y];
+                [self updateGlfwMousePos: dmNativet->X y: dmNativet->Y touch: t];
                 if ((phase == NATIVE_PHASE_ENDED || phase == NATIVE_PHASE_CANCELLED)) {
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 } else {

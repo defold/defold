@@ -201,6 +201,8 @@ struct TextLayout
     // TODO: Make these C arrays?
     dmArray<TextGlyph>                 m_Glyphs;
     dmArray<TextLine>                  m_Lines;
+    // Full layout alignment origins exclude wrapped trailing whitespace without changing shaped glyph positions.
+    dmArray<float>                     m_LineOrigins;
     dmArray<TextParagraph>             m_Paragraphs;
     dmArray<TextRenderStyle>           m_Styles;
     // Properties authored above the base style, indexed alongside m_Styles.
@@ -260,6 +262,9 @@ TextResult TextLayoutSkribidiCreate(HFontCollection     collection,
 TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout);
 
 TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout);
+
+// Returns the shaped x coordinate to subtract when aligning a line's glyphs, decorations, and objects.
+float TextLayoutGetLineOriginX(HTextLayout layout, uint32_t line_index);
 
 // Resolves generic markup nodes into renderer-facing styles, effects, and objects.
 bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, ResolvedMarkup* resolved);

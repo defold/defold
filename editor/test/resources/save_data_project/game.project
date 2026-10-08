@@ -78,7 +78,7 @@ repeat_interval = 0.1
 gamepads = /checked.gamepadsc
 gamepad_database = /referenced/gamecontrollerdb.txt
 gamepad_deadzone = 0.35
-use_accelerometer = 0
+use_accelerometer = 1
 
 [html5]
 heap_size = 128

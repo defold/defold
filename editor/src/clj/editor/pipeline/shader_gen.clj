@@ -34,6 +34,7 @@
     :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
     :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
     :language-glsl-sm330 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330
+    :language-hlsl-51 Graphics$ShaderDesc$Language/LANGUAGE_HLSL_51
     :language-msl-22 Graphics$ShaderDesc$Language/LANGUAGE_MSL_22
     :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
 

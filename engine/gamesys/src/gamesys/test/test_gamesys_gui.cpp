@@ -634,6 +634,8 @@ TEST_F(GuiResourceTest, ScriptSetFonts)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies loaded glyph banks retain independent bitmaps and native layout
+// metrics, guarding against padding shifting compiled text in #13339.
 TEST_F(FontTest, GlyphBankTest)
 {
     const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
@@ -669,6 +671,26 @@ TEST_F(FontTest, GlyphBankTest)
     ASSERT_NE((FontGlyph*)0, glyph_2);
 
     ASSERT_NE(glyph_1->m_Bitmap.m_Data, glyph_2->m_Bitmap.m_Data);
+
+    dmGameSystem::TTFResource* ttf_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/valid.ttf", (void**)&ttf_resource));
+    HFont ttf = dmGameSystem::GetFont(ttf_resource);
+    FontGlyphOptions options;
+    FontGlyph native_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(ttf, FontGetGlyphIndex(ttf, 'A'), &options, &native_glyph));
+    dmRender::HFontMap font_maps[] = { font_map_1, font_map_2 };
+    HFont fonts[] = { hfont_1, hfont_2 };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        FontGlyph layout_glyph;
+        ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(fonts[i], FontGetGlyphIndex(fonts[i], 'A'), &options, &layout_glyph));
+        float scale = FontGetScaleFromSize(ttf, dmRender::GetFontMapSize(font_maps[i]));
+        ASSERT_NEAR(native_glyph.m_Width * scale, layout_glyph.m_Width, 0.001f);
+        ASSERT_NEAR(native_glyph.m_LeftBearing * scale, layout_glyph.m_LeftBearing, 0.001f);
+        ASSERT_FALSE(dmRender::GetFontMapMonospaced(font_maps[i]));
+        ASSERT_EQ(0u, dmRender::GetFontMapPadding(font_maps[i]));
+    }
+    dmResource::Release(m_Factory, ttf_resource);
 
     dmResource::Release(m_Factory, font_1);
     dmResource::Release(m_Factory, font_2);
@@ -728,6 +750,42 @@ TEST_F(FontTest, GlyphBankRecreateKeepsFontHandle)
 
     dmResource::Release(m_Factory, font_1);
     dmResource::Release(m_Factory, font_2);
+}
+
+class FontScriptTest : public ScriptBaseTest
+{
+public:
+    FontScriptTest() { SetContentFolder("font"); }
+};
+
+// Verifies Lua whitespace metrics for glyph banks and runtime fonts on either layout backend (#13375).
+TEST_F(FontScriptTest, ScriptGetTextMetricsWhitespace)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/font/text_metrics_whitespace.goc", dmHashString64("/text_metrics_whitespace"));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    lua_getglobal(m_Scriptlibcontext.m_LuaState, "text_metrics_whitespace_passed");
+    EXPECT_TRUE(lua_toboolean(m_Scriptlibcontext.m_LuaState, -1));
+    lua_pop(m_Scriptlibcontext.m_LuaState, 1);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies Lua wrapped metrics measure overflowing words and fitting text on either layout backend (#13387).
+TEST_F(FontScriptTest, ScriptGetTextMetricsWrapped)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/font/text_metrics_whitespace.goc", dmHashString64("/text_metrics_wrapped"));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    lua_getglobal(m_Scriptlibcontext.m_LuaState, "text_metrics_wrapped_passed");
+    EXPECT_TRUE(lua_toboolean(m_Scriptlibcontext.m_LuaState, -1));
+    lua_pop(m_Scriptlibcontext.m_LuaState, 1);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 TEST_F(FontTest, DynamicGlyph)

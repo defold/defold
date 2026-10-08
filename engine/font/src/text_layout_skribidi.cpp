@@ -805,9 +805,11 @@ static bool LayoutText(LayoutContext* ctx,
     {
         layout->m_Lines.OffsetCapacity(lines_count - remaining_lines);
     }
+    layout->m_LineOrigins.SetCapacity(lines_count);
 
     uint32_t num_whitespaces = 0;
     uint32_t paragraph_index = 0;
+    const skb_text_property_t* text_properties = skb_layout_get_text_properties(skblayout);
     dmHashTable64<CachedGlyphBounds> glyph_bounds_cache;
     glyph_bounds_cache.SetCapacity(64);
     layout->m_DecorationSources.SetCapacity(decoration_count);
@@ -826,8 +828,22 @@ static bool LayoutText(LayoutContext* ctx,
         const skb_layout_line_t* line            = &layout_lines[li];
         const bool               has_decorations = line->decorations_range.start != line->decorations_range.end;
 
-        uint32_t prev_glyph_index = layout->m_Glyphs.Size();
-        float    content_advance  = 0.0f;
+        uint32_t prev_glyph_index    = layout->m_Glyphs.Size();
+        float    content_advance     = 0.0f;
+        float    content_start_x     = FLT_MAX;
+        uint32_t content_first_glyph = UINT32_MAX;
+        uint32_t content_last_glyph  = 0;
+        uint32_t content_end         = (uint32_t)line->text_range.end;
+        if (settings->m_LineBreak)
+        {
+            // Wrapped metrics trim logical trailing whitespace at the visual edges, including across runs before a separator.
+            // Tabs still allocate width in wrapped layouts.
+            while (content_end > (uint32_t)line->text_range.start && codepoints[content_end - 1] != '\t' &&
+                   (text_properties[content_end - 1].flags & (SKB_TEXT_PROP_WHITESPACE | SKB_TEXT_PROP_CONTROL)))
+            {
+                --content_end;
+            }
+        }
 
         for (int32_t ri = line->layout_run_range.start; ri < line->layout_run_range.end; ri++)
         {
@@ -867,7 +883,14 @@ static bool LayoutText(LayoutContext* ctx,
                     continue;
                 }
 
-                content_advance += fabsf(skbglyph->advance_x);
+                if (!settings->m_LineBreak || codepoint_index < content_end)
+                {
+                    content_advance += skbglyph->advance_x;
+                    content_start_x = fminf(content_start_x, gx);
+                    if (content_first_glyph == UINT32_MAX)
+                        content_first_glyph = layout->m_Glyphs.Size();
+                    content_last_glyph = layout->m_Glyphs.Size();
+                }
 
                 TextGlyph glyph = {0};
                 glyph.m_X               = gx;
@@ -911,13 +934,33 @@ static bool LayoutText(LayoutContext* ctx,
         // End of line
         uint32_t glyph_index = layout->m_Glyphs.Size();
 
-        TextLine l;
-        l.m_Width   = line->bounds.width - (tracking > 0 ? tracking : 0);
-        if (li == lines_count - 2 &&
-            IsParagraphSeparator(codepoints[num_codepoints - 1]))
+        if (settings->m_LineBreak && content_end < (uint32_t)line->text_range.end && content_first_glyph != UINT32_MAX)
         {
-            l.m_Width = content_advance - (tracking > 0 ? tracking : 0);
+            // Bidi reordering can move logical trailing spaces between retained glyphs.
+            // Use visual glyph order: negative tracking can make outer spaces overlap content.
+            for (uint32_t i = content_first_glyph + 1; i < content_last_glyph; ++i)
+            {
+                const TextGlyph& glyph = layout->m_Glyphs[i];
+                if (glyph.m_Cluster >= content_end)
+                {
+                    content_advance += glyph.m_Advance;
+                }
+            }
         }
+
+        if (content_start_x == FLT_MAX)
+        {
+            // A whitespace-only line has no retained content; preserve its shaped origin.
+            content_start_x = glyph_index > prev_glyph_index ? layout->m_Glyphs[prev_glyph_index].m_X : 0.0f;
+            for (uint32_t i = prev_glyph_index + 1; i < glyph_index; ++i)
+            {
+                content_start_x = fminf(content_start_x, layout->m_Glyphs[i].m_X);
+            }
+        }
+
+        TextLine l;
+        // Unwrapped widths include real whitespace, but no separator advances.
+        l.m_Width = fmaxf(0.0f, content_advance - (tracking > 0 ? tracking : 0));
         l.m_Index          = prev_glyph_index;
         l.m_Length         = glyph_index - prev_glyph_index;
 
@@ -937,6 +980,7 @@ static bool LayoutText(LayoutContext* ctx,
 
         ++paragraph.m_LineCount;
         layout->m_Lines.Push(l);
+        layout->m_LineOrigins.Push(content_start_x);
 
         if (has_decorations)
         {
@@ -953,18 +997,16 @@ static bool LayoutText(LayoutContext* ctx,
         TextParagraph& paragraph = layout->m_Paragraphs[layout->m_Lines.Back().m_ParagraphIndex];
         --paragraph.m_LineCount;
         layout->m_Lines.Pop();
-        lines_count--;
+        layout->m_LineOrigins.Pop();
     }
 
     layout->m_NumValidGlyphs = layout->m_Glyphs.Size() - num_whitespaces;
 
-    skb_rect2_t layout_bounds = skb_layout_get_bounds(skblayout);
-    layout->m_Width = layout_bounds.width - (tracking > 0 ? tracking : 0);
-    if (lines_count != skb_layout_get_lines_count(skblayout))
+    // Skribidi's wrapped layout bounds report the container width, including when text overflows it.
+    layout->m_Width = 0.0f;
+    for (uint32_t i = 0; i < layout->m_Lines.Size(); ++i)
     {
-        layout->m_Width = 0.0f;
-        for (uint32_t i = 0; i < layout->m_Lines.Size(); ++i)
-            layout->m_Width = fmaxf(layout->m_Width, layout->m_Lines[i].m_Width);
+        layout->m_Width = fmaxf(layout->m_Width, layout->m_Lines[i].m_Width);
     }
     TextLayoutFinalizeLineBaselines(layout, settings);
 
@@ -976,6 +1018,7 @@ void TextLayoutSkribidiFree(TextLayout* layout)
     TextLayoutReleaseObjects(layout);
     layout->m_Glyphs.SetCapacity(0);
     layout->m_Lines.SetCapacity(0);
+    layout->m_LineOrigins.SetCapacity(0);
     layout->m_Paragraphs.SetCapacity(0);
     layout->m_Styles.SetCapacity(0);
     layout->m_Effects.SetCapacity(0);
@@ -1002,6 +1045,7 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
     layout->m_Glyphs.SetCapacity(num_codepoints);
     layout->m_Glyphs.SetSize(0);
     layout->m_Lines.SetSize(0);
+    layout->m_LineOrigins.SetSize(0);
     layout->m_Paragraphs.SetSize(0);
     layout->m_FontCollection = collection;
     layout->m_NamedStyleRevision = 0xffffffff;

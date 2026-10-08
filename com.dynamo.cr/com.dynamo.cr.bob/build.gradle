@@ -263,7 +263,7 @@ def artifactFiles = { boolean light ->
 
 def validateArtifacts = { boolean light ->
     def missing = bobArtifacts.entries.findAll { path, artifact ->
-        def required = light ? path.startsWith('libexec/') && path.contains('/luajit-64') : artifact.required
+        def required = light ? path.startsWith("libexec/${hostPlatform}/") && path.contains('/luajit-64') : artifact.required
         required && !artifact.source.isFile()
     }
     if (!missing.isEmpty()) {

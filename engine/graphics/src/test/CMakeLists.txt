@@ -72,6 +72,10 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
     target_include_directories(test_app_graphics PRIVATE
       "${GRAPHICS_SRC_DIR}"
       "${GRAPHICS_PROTO_ROOT}")
+    if(TARGET_PLATFORM_OS STREQUAL "xbone")
+      target_include_directories(test_app_graphics PRIVATE
+        "${DEFOLD_XBONE_PRIVATE_REPO_ROOT}/engine/graphics/src/test")
+    endif()
     defold_target_link_libraries(test_app_graphics "${TARGET_PLATFORM}"
       testmain
       ddf
@@ -113,5 +117,108 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
     endif()
     defold_target_link_libraries_web(test_app_graphics "${TARGET_PLATFORM}" library_sys.js)
     defold_register_test_target(test_app_graphics OFF)
+    if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
+      # Follow fontviewer: generate aligned embedded assets in the build directory.
+      set(_graphics_capture_generated "${CMAKE_CURRENT_BINARY_DIR}/graphics_capture_generated")
+      set(_graphics_capture_shaders vp fp cube.fp vp.msl fp.msl cube.fp.msl vp.wgsl fp.wgsl cube.fp.wgsl)
+      if("GraphicsAdapterVulkan" IN_LIST _graphics_app_symbols)
+        find_program(_graphics_glslang NAMES glslang glslangValidator
+          HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+        foreach(_shader IN ITEMS vert frag cube.frag)
+          if(_shader STREQUAL "vert")
+            set(_stage vert)
+          else()
+            set(_stage frag)
+          endif()
+          set(_spirv "${_graphics_capture_generated}/graphics_capture.${_shader}.spv")
+          add_custom_command(OUTPUT "${_spirv}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${_graphics_capture_generated}"
+            COMMAND "${_graphics_glslang}" -V -S "${_stage}" "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.${_shader}" -o "${_spirv}"
+            DEPENDS "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.${_shader}" "${_graphics_glslang}"
+            VERBATIM)
+          list(APPEND _graphics_capture_shaders "${_shader}.spv")
+        endforeach()
+      endif()
+      foreach(_shader IN LISTS _graphics_capture_shaders)
+        if(_shader MATCHES "\\.spv$")
+          set(_source "${_graphics_capture_generated}/graphics_capture.${_shader}")
+        else()
+          set(_source "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.${_shader}")
+        endif()
+        string(REPLACE "." "_" _symbol "${_shader}")
+        defold_embed_to_header(INPUT "${_source}"
+          OUTPUT_HEADER "${_graphics_capture_generated}/graphics_capture.${_shader}.h"
+          OUTPUT_CPP "${_graphics_capture_generated}/graphics_capture.${_shader}.cpp"
+          SYMBOL "capture_${_symbol}" OUT_HEADER_VAR _header OUT_CPP_VAR _cpp)
+        target_sources(test_app_graphics PRIVATE "${_header}" "${_cpp}")
+      endforeach()
+      target_include_directories(test_app_graphics PRIVATE "${_graphics_capture_generated}")
+      target_sources(test_app_graphics PRIVATE "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.cpp")
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_GRAPHICS_CAPTURE)
+
+      _defold_find_python(_graphics_python)
+      defold_test_run_settings(_graphics_runner _graphics_run_options graphics)
+      if(TARGET_PLATFORM MATCHES "macos$")
+        set(_graphics_matrix metal opengl vulkan webgpu)
+      elseif(TARGET_PLATFORM MATCHES "linux$")
+        set(_graphics_matrix vulkan)
+      else()
+        set(_graphics_matrix opengl vulkan)
+      endif()
+      set(_graphics_available)
+      foreach(_backend IN LISTS _graphics_matrix)
+        if(_backend STREQUAL "metal")
+          set(_symbol GraphicsAdapterMetal)
+        elseif(_backend STREQUAL "opengl")
+          set(_symbol GraphicsAdapterOpenGL)
+        elseif(_backend STREQUAL "vulkan")
+          set(_symbol GraphicsAdapterVulkan)
+        elseif(_backend STREQUAL "webgpu")
+          set(_symbol GraphicsAdapterWebGPU)
+        endif()
+        if(_symbol IN_LIST _graphics_app_symbols)
+          list(APPEND _graphics_available "${_backend}")
+        endif()
+      endforeach()
+      set(_graphics_python_command "${CMAKE_COMMAND}" -E env
+        "GRAPHICS_CAPTURE_EXECUTABLE=$<TARGET_FILE:test_app_graphics>"
+        "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_images.py")
+      set(_graphics_image_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_images.py"
+        --executable "$<TARGET_FILE:test_app_graphics>"
+        --capture-dir "${GRAPHICS_ROOT}/build/graphics-test-images"
+        --output "${GRAPHICS_ROOT}/build/graphics-render-report"
+        --matrix ${_graphics_matrix} --available ${_graphics_available})
+      add_custom_target(run_test_graphics_images_python
+        COMMAND ${_graphics_runner} ${_graphics_python_command}
+        DEPENDS test_app_graphics
+        ${_graphics_run_options} COMMENT "Testing graphics image capture and reporting")
+      add_custom_target(generate_graphics_test_images
+        COMMAND ${_graphics_runner} ${_graphics_image_command}
+        DEPENDS test_app_graphics run_test_graphics_images_python
+        ${_graphics_run_options} COMMENT "Rendering the graphics likeness matrix")
+
+      # Automatic hosted CI coverage is native Linux/Vulkan. The manual target
+      # above always remains available, regardless of this policy.
+      set(_graphics_ci_command ${_graphics_image_command})
+      if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$")
+        list(APPEND _graphics_ci_command --skip-all "Hosted CI graphics captures explicitly disabled for ${TARGET_PLATFORM}")
+        message(STATUS "Graphics captures skipped on hosted ${TARGET_PLATFORM} CI; manual target remains available")
+      endif()
+      add_custom_target(run_graphics_test_images
+        COMMAND ${_graphics_runner} ${_graphics_ci_command}
+        DEPENDS test_app_graphics
+        ${_graphics_run_options} COMMENT "Running graphics likeness tests with CI policy")
+      if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_test_graphics_images_python RUN_GROUP graphics
+          COMMAND ${_graphics_python_command} DEPENDS test_app_graphics)
+        # This runner command carries the CI policy, while the manual target does not.
+        defold_add_to_run_tests(run_graphics_test_images RUN_GROUP graphics
+          COMMAND ${_graphics_ci_command} DEPENDS test_app_graphics)
+      endif()
+      defold_register_sequential_test_command(graphics_images_python
+        COMMAND ${_graphics_python_command} DEPENDS test_app_graphics)
+      defold_register_sequential_test_command(graphics_images
+        COMMAND ${_graphics_ci_command} DEPENDS test_app_graphics)
+    endif()
   endif()
 endif()

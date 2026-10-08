@@ -2427,6 +2427,32 @@ TEST_F(dmGraphicsTest, TestTextureSupport)
     ASSERT_FALSE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA_BC7));
 }
 
+// Verifies RGBA-to-BGRA readback conversion at a byte offset preserves green,
+// alpha and surrounding bytes, and does nothing when the pixel count is zero.
+TEST(Graphics, SwizzleRGBAToBGRA)
+{
+    uint8_t pixels[] = {
+        0xa5,
+        0x11, 0x22, 0x33, 0x44,
+        0x00, 0x55, 0xff, 0x00,
+        0xee, 0x66, 0x77, 0xff,
+        0x5a,
+    };
+    const uint8_t expected[] = {
+        0xa5,
+        0x33, 0x22, 0x11, 0x44,
+        0xff, 0x55, 0x00, 0x00,
+        0x77, 0x66, 0xee, 0xff,
+        0x5a,
+    };
+
+    dmGraphics::SwizzleRGBAToBGRA(pixels + 1, 3);
+    ASSERT_EQ(0, memcmp(expected, pixels, sizeof(expected)));
+
+    dmGraphics::SwizzleRGBAToBGRA(pixels + 1, 0);
+    ASSERT_EQ(0, memcmp(expected, pixels, sizeof(expected)));
+}
+
 TEST_F(dmGraphicsTest, TestTextureFormatBPP)
 {
     for(uint32_t i = 0; i < dmGraphics::TEXTURE_FORMAT_COUNT; ++i)
