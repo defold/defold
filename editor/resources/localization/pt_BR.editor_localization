@@ -567,6 +567,7 @@ dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
 dialog.bundle.option.identity.none = Nenhum
 dialog.bundle.label.architectures = Arquiteturas
+dialog.bundle.label.ios-simulator = Simulador
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
@@ -716,6 +717,8 @@ prefs.label.code.font.name = Fonte do Código (Requer Reinicialização)
 prefs.label.code.zoom-on-scroll = Zoom ao Rolar
 prefs.label.code.hover = Popup ao passar o mouse
 prefs.help.code.hover = Mostrar popup com documentação do código ao passar o mouse
+prefs.label.code.enable-lua-language-server = Ativar servidor de linguagem Lua integrado
+prefs.help.code.enable-lua-language-server = Ativa assistência de código Lua para scripts de jogo e scripts de editor neste projeto. Desative para reduzir o uso de memória em projetos grandes.
 prefs.label.code.auto-closing-parens = Auto-inserir fecha parentese
 prefs.label.code.format-on-save = Formatar ao salvar
 prefs.help.code.format-on-save = Executar o formatador do servidor de linguagem em arquivos abertos ao salvar
@@ -844,6 +847,7 @@ menu.edit = Editar
 menu.debug = Depuração
 menu.view = Visualizar
 menu.help = Ajuda
+menu.dock.new-window = Nova Janela
 
 # Commands
 
@@ -927,7 +931,12 @@ command.edit.add-embedded-component.variant.collection = Adicionar Objeto de Jog
 command.edit.add-embedded-component.variant.collision-object = Adicionar Forma
 command.edit.add-embedded-component.variant.collision-object.option.box = Caixa
 command.edit.add-embedded-component.variant.collision-object.option.capsule = Cápsula
+command.edit.add-embedded-component.variant.collision-object.option.circle = Círculo
+command.edit.add-embedded-component.variant.collision-object.option.hull = Casco
+command.edit.add-embedded-component.variant.collision-object.option.mesh = Malha
+command.edit.add-embedded-component.variant.collision-object.option.rectangle = Retângulo
 command.edit.add-embedded-component.variant.collision-object.option.sphere = Esfera
+command.edit.add-embedded-component.variant.font = Adicionar Estilo
 command.edit.add-embedded-component.variant.game-object = Adicionar Componente
 command.edit.add-embedded-component.variant.gui.option.textures = Texturas…
 command.edit.add-embedded-component.variant.gui.option.materials = Materiais…
@@ -1111,6 +1120,7 @@ operation.atlas.move-pivot-point = Mover Ponto Pivô
 operation.collision-object.add-shape = Adicionar Forma
 operation.collection.add-collection = Adicionar Coleção
 operation.collection.add-game-object = Adicionar Objeto de Jogo
+operation.font.add-style = Adicionar Estilo de Fonte
 operation.game-object.add-component = Adicionar Componente
 operation.gui.add-gui-node = Adicionar Nó GUI
 operation.gui.add-layer = Adicionar Camada
@@ -1132,6 +1142,8 @@ operation.tile-map.add-layer = Adicionar Camada
 
 # Font Styles
 
+font.style.default = (padrão)
+scene.font.style = Estilo\: {style}
 
 # Scene View Popups
 
@@ -1170,9 +1182,11 @@ property.tooltip = {help, select, none {} other {{help}\n\n}}Disponível como `{
 # Properties: universal
 
 property.blend-mode = Modo de Mesclagem
+property.blend-mode.tooltip = Controla como os pixels deste item combinam com os gráficos atrás dele. **Alfa** dá transparência normal, **Adicionar** ilumina, **Multiplicar** escurece e **Tela** produz um efeito mais luminoso; modos disponíveis dependem do tipo de item.
 property.id = Id
 property.id.tooltip = O identificador usado para abordar esta instância de coleção, objeto do jogo ou componente no tempo de execução. Ele deve ser único entre seus irmãos; juntamente com a hierarquia, ele forma a URL do item.
 property.image = Imagem
+property.image.tooltip = O arquivo de imagem de origem usado para construir este recurso. Em um atlas é uma imagem a ser empacotada; em uma tile source ela contém a grade de blocos.
 property.material = Material
 property.material.tooltip = O material usado para renderizar este item. Ele define os shaders e suas entradas, então escolha um compatível com a geometria e texturas do item.
 property.name = Nome
@@ -1197,6 +1211,7 @@ property.appmanifest.physics-2d.tooltip = Selecione a implementação Box2D para
 property.appmanifest.physics-3d = Física 3D
 property.appmanifest.physics-3d.tooltip = Incluir o motor de física Bullet 3D. Desative isso quando o projeto não usa física 3D para reduzir o tamanho do motor.
 property.appmanifest.rig+model = Rig + Modelo
+property.appmanifest.rig+model.tooltip = Escolha se deseja incluir a animação de renderização e extração de modelo, funcionalidade somente de rig ou nenhuma das funcionalidades. Excluir a funcionalidade não utilizada reduz o tamanho do motor.
 property.appmanifest.exclude-record = Excluir Registro
 property.appmanifest.exclude-record.tooltip = Remova o suporte de gravação de vídeo na área de trabalho usado pela mensagem do sistema `start_record`. Ative esta opção quando o projeto não grava vídeos para reduzir o tamanho do motor.
 property.appmanifest.profiler = Perfilador
@@ -1227,6 +1242,10 @@ property.appmanifest.exclude-basis-transcoder = Excluir o Transcodificador de Ba
 property.appmanifest.exclude-basis-transcoder.tooltip = Remova o transcodificador de textura Basis Universal. Ative somente se nenhum perfil de textura usar a compressão Basis Universal.
 property.appmanifest.use-android-support-lib = Usar Biblioteca de Suporte Android
 property.appmanifest.use-android-support-lib.tooltip = Usar a biblioteca de suporte do Android obsoleta em vez de AndroidX. Ative somente para dependências legadas que não migraram para AndroidX.
+property.appmanifest.graphics = Gráficos (Linux)
+property.appmanifest.graphics.tooltip = Selecione o backend gráfico incluído nas compilações Linux. Incluir OpenGL e Vulkan permite uma reserva de segurança quando o backend preferido está indisponível, mas aumenta o tamanho do motor.
+property.appmanifest.graphics-windows = Gráficos (Windows)
+property.appmanifest.graphics-windows.tooltip = Selecione o sbackends gráficos incluído nas compilações Windows. WebGL é o padrão; incluir multiplos backends permite uma reserva mas aumenta o tamanho do motor.
 property.appmanifest.graphics-osx = Gráficos (macOS)
 property.appmanifest.graphics-osx.tooltip = Selecione o backend gráfico incluído nas compilações macOS. Vulkan é o padrão; incluir OpenGL e Vulkan permite uma reserva de segurança quando o backend preferido está indisponível, mas aumenta o tamanho do motor.
 property.appmanifest.graphics-ios = Gráficos (iOS)
@@ -1253,6 +1272,7 @@ property.atlas.animation.playback = Reprodução
 property.atlas.animation.playback.tooltip = Escolha se a animação permanece no seu primeiro quadro, reproduz uma única vez, ou faz loop, e se os quadros são executados para frente, para trás ou ping-pong. **Ping Pong Único** para após retornar ao segundo quadro, para evitar repetir o primeiro quadro quando as animações são encadeadas.
 property.atlas.image.id.tooltip = O identificador somente leitura derivado do nome da base da imagem de origem após a aplicação do **Renomear Padrões**. É usado para selecionar a imagem e coincidir com os quadros correspondentes entre atlas diferentes.
 property.atlas.image.pivot = Pivô
+property.atlas.image.pivot.tooltip = O ponto alinhado com a posição do componente quando esta imagem é exibida. `(0, 0)` é o canto superior esquerdo, `(1, 1)` é inferior direito e `(0,5, 0,5)` é o centro; valores fora deste intervalo são permitidos.
 property.atlas.image.sprite-trim-mode = Modo Aparar Sprite
 property.atlas.image.sprite-trim-mode.tooltip = Aproxima a área não transparente da imagem com o número de vértices selecionado ao invés de renderizar seu retângulo completo. Isso pode reduzir overdraw de transparências, mas não pode ser usado com sprites com fatia-9.
 property.atlas.margin = Margem
@@ -1273,6 +1293,7 @@ property.atlas.rename-patterns.tooltip = Padrões `search\=replace` separados po
 property.camera.aspect-ratio = Taxa de Proporção
 property.camera.aspect-ratio.tooltip = **Apenas Perspectiva.** Proporção da largura do frustum à sua altura. Use `1.0` para quadrado, cerca de`1.33` para 4\:3, ou cerca de `1.78` para 16\:9; ignorado quando **Proporção Automática** está habilitada.
 property.camera.fov = FOV
+property.camera.fov.tooltip = **Apenas Perspectiva.** Campo de visão vertical em radianos. Valores maiores mostram mais da cena; por exemplo, 60° é aproximadamente `1.047` radianos.
 property.camera.near-z = Z Próximo
 property.camera.far-z = Z Distante
 property.camera.auto-aspect-ratio = Taxa de Proporção Automática
@@ -1321,6 +1342,9 @@ property.collision-object.shape.diameter.tooltip = O diâmetro completo de uma e
 property.collision-object.shape.dimensions = Dimensões
 property.collision-object.shape.dimensions.tooltip = A **Largura**, **Altura** e **Profundidade** da forma completa da caixa. **Profundidade** afeta apenas a física 3D, mas todas as dimensões devem ser maiores que zero.
 property.collision-object.shape.height = Altura
+property.collision-object.shape.mesh-scene = Cena
+property.collision-object.shape.mesh = Malha
+property.collision-object.shape.mesh.tooltip = Uma malha bruta nomeada da cena selecionada.
 
 # Properties: compute
 
@@ -1380,6 +1404,8 @@ property.font.cache-height.tooltip = Altura em pixels da textura do cache de gli
 property.font.characters = Caracteres
 property.font.characters.tooltip = Caracteres incluídos ao construir uma fonte offline; limitar este conjunto reduz o tamanho da fonte. Para fontes em tempo de execução, esses caracteres são gerados antes para pré-aquecer o cache de glifos. Limpar o campo restaura ASCII imprimível.
 property.font.all-chars = Todos Caracteres
+property.font.style = Estilo
+property.font.markup = Marcação
 
 # Properties: gui
 
@@ -1495,7 +1521,9 @@ property.mesh.vertices = Vértices
 property.model.animations = Animações
 property.model.create-go-bones = Criar Ossos GO
 property.model.default-animation = Animação Padrão
+property.model.scene = Cena
 property.model.mesh = Malha
+property.model.mesh-name = Malha
 property.model.skeleton = Esqueleto
 
 # Properties: particlefx
@@ -1538,8 +1566,11 @@ property.particlefx.max-distance = Distância Máxima
 property.particlefx.particle-key-alpha = Alfa
 property.particlefx.particle-key-angular-velocity = Velocidade Angular
 property.particlefx.particle-key-blue = Azul
+property.particlefx.particle-key-blue.tooltip = Multiplica a tonalidade azul inicial de cada partícula sobre seu tempo de vida normalizado.
 property.particlefx.particle-key-green = Verde
+property.particlefx.particle-key-green.tooltip = Multiplica a tonalidade verde inicial de cada partícula sobre seu tempo de vida normalizado.
 property.particlefx.particle-key-red = Vermelho
+property.particlefx.particle-key-red.tooltip = Multiplica a tonalidade vermelha inicial de cada partícula sobre seu tempo de vida normalizado.
 property.particlefx.particle-key-rotation = Rotação
 property.particlefx.particle-key-scale = Escala
 property.particlefx.particle-key-stretch-factor-x = Esticar X
@@ -1600,6 +1631,7 @@ outline.camera = Câmera
 outline.collection = Coleção
 outline.collection-proxy = Proxy de Coleção
 outline.collision-object = Objeto de Colisão
+outline.font.styles = Estilos
 outline.game-object = Objeto de Jogo
 outline.gui.box = Caixa
 outline.gui.fonts = Fontes
@@ -1952,8 +1984,11 @@ form.label.project.display.fullscreen = Tela Cheia
 form.label.project.display.display_profiles = Perfis de Exibição
 form.label.project.display.dynamic_orientation = Orientação Dinâmica
 form.label.project.display.update_frequency = Frequência da Atualização
+form.help.project.display.update_frequency = Frequência desejada do loop do jogo e da renderização, em hertz. `0` usa uma taxa de quadros variável. Nas plataformas em que o Defold controla o loop do aplicativo, um valor positivo usa cadenciamento por temporizador e desativa temporariamente o VSync da apresentação; o **Intervalo de Troca** solicitado é restaurado quando este valor volta a `0`.
 form.label.project.display.swap_interval = Intervalo de Troca
+form.help.project.display.swap_interval = Solicita a apresentação em relação à taxa de atualização da tela. `0` desativa a sincronização vertical e `1` apresenta a cada atualização. Valores maiores podem pular intervalos no OpenGL, enquanto Vulkan e Metal tratam qualquer valor diferente de zero como sincronização vertical ativada. Nas plataformas em que o Defold controla o loop do aplicativo, uma **Frequência da Atualização** positiva substitui temporariamente este valor por `0`. O comportamento real depende do backend e do driver.
 form.label.project.display.vsync = Vsync
+form.help.project.display.vsync = **Configuração de compatibilidade obsoleta.** Quando desativada, força o **Intervalo de Troca** solicitado para `0`; quando ativada, o **Intervalo de Troca** determina o comportamento, a menos que uma **Frequência da Atualização** positiva habilite o cadenciamento por temporizador. Use o **Intervalo de Troca** em novos projetos.
 form.label.project.display.variable_dt = DT Variável
 form.label.project.display.display_device_info = Exibir Informações do Dispositivo
 
