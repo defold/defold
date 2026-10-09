@@ -69,7 +69,7 @@ namespace dmGraphics
         *data_size = info.m_ValuePtr ? (info.m_ElementCount * dmGraphics::DataTypeToByteWidth(info.m_DataType)) : 0;
     }
 
-    static uint8_t* WriteVertexAttributeFromDouble(uint8_t* value_write_ptr, double value, dmGraphics::VertexAttribute::DataType data_type)
+    uint8_t* WriteVertexAttributeFromDouble(uint8_t* value_write_ptr, double value, dmGraphics::VertexAttribute::DataType data_type)
     {
         switch (data_type)
         {
@@ -120,17 +120,12 @@ namespace dmGraphics
         return 0;
     }
 
-    uint8_t* WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type)
-    {
-        return WriteVertexAttributeFromDouble(value_write_ptr, value, data_type);
-    }
-
     // Engine streams and generated defaults are floats. Material values already use
     // the destination storage type and bypass this conversion when copied.
     static uint8_t* WriteUnpackedAttributeFromFloat(uint8_t* write_ptr, float value, const UnpackAttributeData& dst_data)
     {
         if (!dst_data.m_Normalize || dst_data.m_DataType == VertexAttribute::TYPE_FLOAT)
-            return WriteVertexAttributeFromFloat(write_ptr, value, dst_data.m_DataType);
+            return WriteVertexAttributeFromDouble(write_ptr, value, dst_data.m_DataType);
 
         double scale;
         switch (dst_data.m_DataType)

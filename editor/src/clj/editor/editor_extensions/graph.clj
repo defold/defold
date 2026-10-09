@@ -281,16 +281,11 @@
         outline-property))))
 
 (defn- outline-property [node-id property evaluation-context]
-  (let [outline-properties (:properties (g/node-value node-id :_properties evaluation-context))]
-    ;; Generated keys, such as :attribute_0_color, can contain underscores.
-    ;; Match their exported name if the normal kebab-case lookup fails, keeping
-    ;; the original key for setters and resets.
-    (when-let [[prop-kw outline-property]
-               (or (find outline-properties (property->prop-kw property))
-                   (coll/first-where (fn [[prop-kw _]]
-                                       (= property (prop-kw->property prop-kw)))
-                                     outline-properties))]
-      (available-outline-property prop-kw outline-property))))
+  (let [prop-kw (property->prop-kw property)
+        outline-property (-> node-id
+                             (g/node-value :_properties evaluation-context)
+                             (get-in [:properties prop-kw]))]
+    (available-outline-property prop-kw outline-property)))
 
 (defn- make-property-fn-builder [{:keys [parents]} node-type-kw->f result-fn]
   (fn/memoize

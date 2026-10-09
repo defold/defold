@@ -454,7 +454,7 @@ namespace dmGraphics
     Type             GetGraphicsType(VertexAttribute::DataType data_type);
 
     float            VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);
-    uint8_t*         WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
+    uint8_t*         WriteVertexAttributeFromDouble(uint8_t* value_write_ptr, double value, dmGraphics::VertexAttribute::DataType data_type);
     uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeParams& params);
 
     // Uniforms

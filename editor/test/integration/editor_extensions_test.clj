@@ -1604,8 +1604,8 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
               (is (= "captured\n" body))
               (is (= [] @displayed-output)))))))))
 
-;; Generated material attribute keys must be readable and writable through their
-;; exported names, even when the keys mix underscores and hyphens.
+;; Generated material attribute properties must be readable and writable through
+;; their Lua names, including attributes whose names contain underscores or hyphens.
 (deftest vertex-attribute-property-test
   (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
     (reload-editor-scripts! project)
@@ -1641,6 +1641,11 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
           (is (= override-value
                  (get-in (g/node-value emitter-node-id :vertex-attribute-overrides)
                          [(graphics.types/attribute-name-key attribute-name) :values])))
+          (is (= {:name attribute-name
+                  :double-values {:v override-value}}
+                 (select-keys (get-in (g/node-value particlefx-node-id :save-value)
+                                      [:emitters 0 :attributes 0])
+                              [:name :double-values])))
           (g/set-property! emitter-node-id :vertex-attribute-overrides {}))))))
 
 (deftest property-availability-test
