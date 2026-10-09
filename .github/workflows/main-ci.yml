@@ -429,7 +429,7 @@ jobs:
           xvfb-run --auto-servernum cmake --build engine/build/wasm-web --target run_test_native_web_browser
       - name: "Upload browser test results"
         if: "!cancelled() && matrix.platform == 'wasm-web'"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: native-window-browser-wasm-web
           path: |
@@ -445,7 +445,7 @@ jobs:
         # A contrib build has no S3 credentials, so bob and the editor pick the engine
         # up from here instead of from the archive. See pr-ok-to-test.yml.
         if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: "dynamo-home-${{ matrix.platform }}"
           path: |-
@@ -457,7 +457,7 @@ jobs:
           retention-days: 1
       - name: "Upload docs and builtins for the editor jobs"
         if: matrix.docs && (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: "engine-share"
           path: "tmp/dynamo_home/share"
@@ -583,7 +583,7 @@ jobs:
         run: "ci/ci.sh --skip-tests --skip-install-ext ${{ env.OPTION_SKIP_ARCHIVE }} bob"
       - name: "Upload bob jar"
         if: *if_bob_enabled
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: "bob-jar"
           path: "${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar"
@@ -618,7 +618,7 @@ jobs:
       - *step_stop_gradle
       - name: "Upload test results"
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: "test-result"
           path: "${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob.test/build/reports/tests/"
@@ -672,7 +672,7 @@ jobs:
         id: version
         run: 'echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"'
       - name: "Upload release notes artifact"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: "release-notes"
           path: |-
@@ -803,7 +803,7 @@ jobs:
         run: "ci/ci.sh archive-editor --skip-install-ext --platform=${{ matrix.platform }}"
       - name: "Upload editor"
         if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: "editor-${{ matrix.platform }}"
           path: "editor/target/editor/Defold-${{ matrix.platform }}.*"
