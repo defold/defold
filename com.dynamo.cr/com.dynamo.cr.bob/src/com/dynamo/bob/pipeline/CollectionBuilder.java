@@ -30,6 +30,7 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.pipeline.graph.ResourceCounter;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
@@ -448,6 +449,15 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             messageBuilder.setInstances(i, b);
         }
         messageBuilder.addAllPropertyResources(propertyResources);
+
+        // Count the unique compiled resources reachable from this collection. Use the
+        // in-memory collection message since the collection output is not written until
+        // after transform() returns.
+        messageBuilder.setResourceCount(0);
+        String collectionPath = BuilderUtil.getRelativePath(project, task.output(0));
+        int resourceCount = ResourceCounter.countResources(project,
+                project.getResource(collectionPath), messageBuilder.build());
+        messageBuilder.setResourceCount(resourceCount);
 
         compStorage.add("goc", goCount);
         ComponentsCounter.sumInputs(compStorage, task.getInputs(), compCounterInputsCount);
