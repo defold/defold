@@ -250,14 +250,8 @@
 
 (defn- frames->string
   [frames]
-  (cond
-    (string? frames)
+  (if (string? frames)
     frames
-
-    (map? frames)
-    (str (:start-tile frames) "-" (:end-tile frames))
-
-    :else
     (coll/join-to-string ", " frames)))
 
 (defn- animation->frames
@@ -265,28 +259,25 @@
   (or (coll/not-empty frames)
       (when (or (contains? animation :start-tile)
                 (contains? animation :end-tile))
-        (let [start-tile (long (or start-tile 0))
-              end-tile (long (or end-tile 0))]
-          ;; Preserve invalid file data for validation and correction. Bound
-          ;; expansion at the file boundary, independently of the sheet size.
-          (if-not (and (<= 1 start-tile end-tile)
-                       (< (- end-tile start-tile) max-animation-frame-count))
-            (select-keys animation [:start-tile :end-tile])
-            (vec (range start-tile (inc end-tile))))))
+        (let [start (long (or start-tile 0))
+              end (long (or end-tile 0))]
+          ;; Bound expansion independently of the sheet size. Preserve available
+          ;; invalid bounds with a zero marker so Editor and Bob still reject them.
+          (if (and (<= 1 start end)
+                   (< (- end start) max-animation-frame-count))
+            (vec (range start (inc end)))
+            (into [] (remove nil?) [start-tile 0 end-tile]))))
       []))
 
 (g/defnk produce-animation-ddf [id frames playback fps flip-horizontal flip-vertical cues]
-  (merge (protobuf/make-map-without-defaults Tile$Animation
-           :id id
-           :playback playback
-           :fps fps
-           :flip-horizontal (protobuf/boolean->int flip-horizontal)
-           :flip-vertical (protobuf/boolean->int flip-vertical)
-           :cues cues)
-         (if (map? frames)
-           frames
-           (when (coll/not-empty frames)
-             {:frames frames}))))
+  (protobuf/make-map-without-defaults Tile$Animation
+    :id id
+    :frames frames
+    :playback playback
+    :fps fps
+    :flip-horizontal (protobuf/boolean->int flip-horizontal)
+    :flip-vertical (protobuf/boolean->int flip-vertical)
+    :cues cues))
 
 (defn- prop-tile-range? [max v name]
   (when (or (< v 1) (< max v))
@@ -297,14 +288,9 @@
 
 (defn- validate-animation-frames
   [^long tile-count node-id frames]
-  (if (map? frames)
-    (g/->error node-id :frames :fatal frames
-               (localization/message "error.tile-source.invalid-legacy-animation-range"
-                                     {"start" (:start-tile frames)
-                                      "end" (:end-tile frames)}))
-    (or (validation/prop-error :fatal node-id :frames validation/prop-empty? frames frames-message)
-        (when-let [tile (coll/first-where (fn [^long tile] (or (< tile 1) (< tile-count tile))) frames)]
-          (validation/prop-error :fatal node-id :frames (partial prop-tile-range? tile-count) tile frames-message)))))
+  (or (validation/prop-error :fatal node-id :frames validation/prop-empty? frames frames-message)
+      (when-let [tile (coll/first-where (fn [^long tile] (or (< tile 1) (< tile-count tile))) frames)]
+        (validation/prop-error :fatal node-id :frames (partial prop-tile-range? tile-count) tile frames-message))))
 
 (defn- validate-animation-fps [node-id fps]
   (validation/prop-error :fatal node-id :fps validation/prop-negative? fps fps-message))
@@ -317,13 +303,12 @@
 (defn- animation-ddf-errors [tile-count node-id animation-ddf]
   {:pre [(g/node-id? node-id)
          (map? animation-ddf)]} ; Tile$Animation in map format.
-  (let [frames (animation->frames animation-ddf)]
-    (coll/not-empty
-      (into []
-            (remove nil?)
-            [(validate-animation-id node-id (:id animation-ddf))
-             (validate-animation-frames tile-count node-id frames)
-             (validate-animation-fps node-id (:fps animation-ddf (:fps protobuf-animation-defaults)))]))))
+  (coll/not-empty
+    (into []
+          (remove nil?)
+          [(validate-animation-id node-id (:id animation-ddf))
+           (validate-animation-frames tile-count node-id (:frames animation-ddf))
+           (validate-animation-fps node-id (:fps animation-ddf (:fps protobuf-animation-defaults)))])))
 
 (defn render-animation
   [^GL3 gl render-args renderables _renderable-count]
@@ -372,7 +357,7 @@
             (dynamic tooltip (properties/tooltip-dynamic :tile-source.animation :id))
             (dynamic error (g/fnk [_node-id id]
                              (validate-animation-id _node-id id))))
-  (property frames g/Any (default [1]) ; Tile numbers or an invalid legacy range.
+  (property frames g/Any (default [1]) ; One-based tile numbers.
             (set set-animation-frames)
             (dynamic label (properties/label-dynamic :tile-source :frames))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :frames))
@@ -1103,7 +1088,7 @@
       flip-horizontal (protobuf/int->boolean :flip-horizontal)
       flip-vertical (protobuf/int->boolean :flip-vertical)
       cues :cues)
-    (g/set-property animation-node :frames (animation->frames animation))
+    (g/set-property animation-node :frames (:frames animation []))
     (attach-animation-node self animation-node)
     (when select-fn
       (select-fn [animation-node]))))
@@ -1147,12 +1132,9 @@
     (update tile-set :animations
             (partial mapv
                      (fn [animation]
-                       (let [frames (animation->frames animation)]
-                         (if (map? frames)
-                           animation
-                           (-> animation
-                               (dissoc :start-tile :end-tile)
-                               (assoc :frames frames)))))))))
+                       (-> animation
+                           (dissoc :start-tile :end-tile)
+                           (protobuf/assign-repeated :frames (animation->frames animation))))))))
 
 (defn- load-tile-source [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id tile-set :source-value}]
   {:pre [(map? tile-set)]} ; Tile$TileSet in map format.

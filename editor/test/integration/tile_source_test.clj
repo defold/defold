@@ -355,7 +355,7 @@
                       :fps 12}]
                     (:animations (g/node-value reloaded :save-value))))))))))
 
-;; Valid legacy ranges migrate without an image; invalid ranges retain their bounds and explicit frames take precedence.
+;; Legacy ranges migrate without an image; invalid ranges retain their bounds with a zero marker and explicit frames take precedence.
 (deftest animation-frame-migration
   (test-util/with-scratch-project test-util/project-path
     (let [node-id (test-util/resource-node project "/tilesource/valid.tilesource")
@@ -379,8 +379,17 @@
                                  :start-tile tile-count
                                  :end-tile 2}]}
                   [{:id "legacy"
-                    :start-tile tile-count
-                    :end-tile 2}]]
+                    :frames [tile-count 0 2]}]]
+                 ["/tilesource/missing-end.tilesource"
+                  {:animations [{:id "legacy"
+                                 :start-tile 4}]}
+                  [{:id "legacy"
+                    :frames [4 0]}]]
+                 ["/tilesource/missing-start.tilesource"
+                  {:animations [{:id "legacy"
+                                 :end-tile 2}]}
+                  [{:id "legacy"
+                    :frames [0 2]}]]
                  ["/tilesource/explicit.tilesource"
                   {:animations [(assoc legacy
                                   :start-tile 4
@@ -405,16 +414,14 @@
                                  :start-tile 4
                                  :end-tile 2}]}
                   [{:id "legacy"
-                    :start-tile 4
-                    :end-tile 2}]]
+                    :frames [4 0 2]}]]
                  ["/tilesource/oversized-range.tilesource"
                   {:image "/missing.png"
                    :animations [{:id "legacy"
                                  :start-tile 1
                                  :end-tile Integer/MAX_VALUE}]}
                   [{:id "legacy"
-                    :start-tile 1
-                    :end-tile Integer/MAX_VALUE}]]]]
+                    :frames [1 0 Integer/MAX_VALUE]}]]]]
       (doseq [[proj-path overrides _expected] cases]
         (test-util/write-file-resource! workspace proj-path (merge tile-source overrides)))
       (workspace/resource-sync! workspace)
@@ -425,7 +432,7 @@
             (is (= expected (:animations (g/node-value loaded :save-value))))
             (is (false? (:dirty (g/node-value loaded :save-data))))))))))
 
-;; Reversed legacy ranges must fail at Frames, stay saveable across sheet resizes, and recover through an explicit sequence.
+;; Migrated invalid ranges must stay invalid and saveable across sheet resizes and reloads, then recover through explicit frames.
 (deftest animation-frame-invalid-legacy-range
   (test-support/with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! "test/resources/image_project")
@@ -434,6 +441,9 @@
           legacy-animation {:id "reversed"
                             :start-tile 4
                             :end-tile 2}
+
+          migrated-animation {:id "reversed"
+                              :frames [4 0 2]}
 
           write-sheet!
           (fn [^long tile-count]
@@ -454,10 +464,11 @@
             node-id (test-util/resource-node project "/main/main.tilesource")
             animation-id (:node-id (first (g/node-value node-id :animation-data)))]
         (test-util/clear-cached-save-data! project)
-        (is (= [legacy-animation] (:animations (g/node-value node-id :save-value))))
+        (is (= [4 0 2] (g/node-value animation-id :frames)))
+        (is (= [migrated-animation] (:animations (g/node-value node-id :save-value))))
         (is (false? (:dirty (g/node-value node-id :save-data))))
         (is (g/error? (test-util/prop-error animation-id :frames)))
-        (is (re-find #"Invalid legacy animation range \(4-2\)"
+        (is (re-find #"outside the tile range"
                      (@test-util/localization (:message (test-util/prop-error animation-id :frames)))))
 
         (let [build-error (test-util/build-error! node-id)
@@ -471,7 +482,7 @@
           (write-sheet! tile-count)
           (workspace/resource-sync! workspace)
           (is (= tile-count (g/node-value node-id :tile-count)))
-          (is (= [legacy-animation] (:animations (g/node-value node-id :save-value))))
+          (is (= [migrated-animation] (:animations (g/node-value node-id :save-value))))
           (is (false? (:dirty (g/node-value node-id :save-data))))
           (is (g/error? (test-util/prop-error animation-id :frames))))
 
@@ -479,12 +490,14 @@
         (test-util/save-project! project)
         (is (false? (:dirty (g/node-value node-id :save-data))))
         (with-open [reader (io/reader (g/node-value node-id :resource))]
-          (is (= [(assoc legacy-animation :id "renamed")]
+          (is (= [(assoc migrated-animation :id "renamed")]
                  (:animations (protobuf/read-map-without-defaults Tile$TileSet reader)))))
 
         (let [reloaded-project (test-util/setup-project! workspace)
               reloaded (test-util/resource-node reloaded-project "/main/main.tilesource")
               reloaded-animation (:node-id (first (g/node-value reloaded :animation-data)))]
+          (is (= [4 0 2] (g/node-value reloaded-animation :frames)))
+          (is (false? (:dirty (g/node-value reloaded :save-data))))
           (is (g/error? (test-util/prop-error reloaded-animation :frames)))
           (test-util/prop! reloaded-animation :frames "4-2")
           (is (= [4 3 2] (g/node-value reloaded-animation :frames)))
@@ -556,6 +569,32 @@
           (is (= [1 1 1] (:frames (coll/first-where #(= "repeated" (:id %))
                                                     (:animations (g/node-value reloaded :save-value))))))
           (is (not (:dirty (g/node-value reloaded :save-data)))))))))
+
+;; Clearing Frames must remain empty and invalid after saving and reopening without making the resource dirty again.
+(deftest animation-frame-empty-save-reload
+  (test-util/with-scratch-project "test/resources/image_project"
+    (let [node-id (test-util/resource-node project "/main/main.tilesource")
+          anim (:node-id (first (g/node-value node-id :animation-data)))
+          saved-project-path (str (workspace/project-directory workspace))]
+      (properties/set-values!
+        (get-in (properties/coalesce [(g/node-value anim :_properties)]) [:properties :frames])
+        [""])
+      (is (= [] (g/node-value anim :frames)))
+      (is (:dirty (g/node-value node-id :save-data)))
+      (test-util/save-project! project)
+      (is (false? (:dirty (g/node-value node-id :save-data))))
+      (with-open [reader (io/reader (g/node-value node-id :resource))]
+        (is (= [{:id "diamond"}]
+               (:animations (protobuf/read-map-without-defaults Tile$TileSet reader)))))
+      (test-util/with-loaded-project saved-project-path
+        (test-util/clear-cached-save-data! project)
+        (let [reloaded (test-util/resource-node project "/main/main.tilesource")
+              reloaded-animation (:node-id (first (g/node-value reloaded :animation-data)))]
+          (is (= [] (g/node-value reloaded-animation :frames)))
+          (is (g/error? (test-util/prop-error reloaded-animation :frames)))
+          (is (= (g/node-value reloaded :source-value)
+                 (g/node-value reloaded :save-value)))
+          (is (false? (:dirty (g/node-value reloaded :save-data)))))))))
 
 ;; Frames must remain available when selecting several animations and apply the same sequence to each.
 (deftest animation-frame-multi-edit
