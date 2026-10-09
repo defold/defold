@@ -14,6 +14,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include <dlib/dlib.h>
 #include <dlib/array.h>
@@ -2094,10 +2095,109 @@ namespace dmGameSystem
         }
     }
 
+    // Provisional renderer-only opt-in. A user-created GUI material named
+    // "slice9_tiled" can use the normal gui/gui_paged_atlas shader while the
+    // renderer repeats slice cells in geometry. No new BoxVertex attributes,
+    // atlas sampler wrap setting, public node property or GUI binary ABI.
+    // A reviewed Slice9 mode API can replace this temporary selector later.
+    static bool IsTiledSlice9Material(dmGui::HScene scene, dmGui::HNode node)
+    {
+        return dmGui::GetNodeMaterial(scene, node) != 0 &&
+               dmGui::GetNodeMaterialId(scene, node) == dmHashString64("slice9_tiled");
+    }
+
+    struct GuiSlice9TileInfo
+    {
+        uint32_t m_XCount;
+        uint32_t m_YCount;
+        float m_SourceCenterX;
+        float m_SourceCenterY;
+        float m_RenderCenterX;
+        float m_RenderCenterY;
+    };
+
+    // Use EXACTLY the same capped tile count for allocation and rendering.
+    // Repeating the entire texture is unsafe for atlas-packed animations.
+    // Bound per-node geometry growth and retain the legacy stretch path for
+    // too-small nodes, zero-sized centers and pathological tile counts.
+    static bool GetGuiSlice9TileInfo(dmGui::HScene scene, dmGui::HNode node,
+                                    float atlas_width, float atlas_height,
+                                    GuiSlice9TileInfo* info)
+    {
+        if (!IsTiledSlice9Material(scene, node))
+            return false;
+        const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+        if (!tc || atlas_width <= 0.0f || atlas_height <= 0.0f)
+            return false;
+
+        Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
+        if (sum(slice9) == 0)
+            return false;
+        bool rotated = tc[0] != tc[2] && tc[3] != tc[5];
+        // UVs are in atlas space. Rotation swaps source-frame axes.
+        float frame_width = (rotated ? fabsf(tc[5] - tc[1]) * atlas_height :
+                                      fabsf(tc[4] - tc[0]) * atlas_width);
+        float frame_height = (rotated ? fabsf(tc[2] - tc[0]) * atlas_width :
+                                       fabsf(tc[3] - tc[1]) * atlas_height);
+        float source_center_x = frame_width - slice9.getX() - slice9.getZ();
+        float source_center_y = frame_height - slice9.getW() - slice9.getY();
+        Point3 size = dmGui::GetNodeSize(scene, node);
+        float render_center_x = size.getX() - slice9.getX() - slice9.getZ();
+        float render_center_y = size.getY() - slice9.getW() - slice9.getY();
+        if (!(source_center_x > 0.001f && source_center_y > 0.001f &&
+              render_center_x > 0.001f && render_center_y > 0.001f))
+            return false;
+
+        float x_tiles = ceilf(render_center_x / source_center_x);
+        float y_tiles = ceilf(render_center_y / source_center_y);
+        // Cap at 2048 logical quads (12,288 vertices). Using division avoids
+        // integer overflow for extremely large user-authored GUI node sizes.
+        if (!(x_tiles >= 1.0f && y_tiles >= 1.0f &&
+              x_tiles <= 2046.0f && y_tiles <= 2046.0f &&
+              (x_tiles + 2.0f) * (y_tiles + 2.0f) <= 2048.0f))
+            return false;
+
+        info->m_XCount = (uint32_t)x_tiles;
+        info->m_YCount = (uint32_t)y_tiles;
+        info->m_SourceCenterX = source_center_x;
+        info->m_SourceCenterY = source_center_y;
+        info->m_RenderCenterX = render_center_x;
+        info->m_RenderCenterY = render_center_y;
+        return true;
+    }
+
+    // One source tile begins at fraction 0 and ends at 1. On a flipped axis,
+    // the *clipped* last tile must appear first, with reverse source phase.
+    // This preserves asymmetric margins and rotated atlas UV ordering.
+    static void GetGuiSlice9TileSegment(uint32_t index, uint32_t count,
+                                       float destination_length, float source_length,
+                                       bool flipped, float* pos0, float* pos1,
+                                       float* uv0, float* uv1)
+    {
+        if (!flipped)
+        {
+            *pos0 = index * source_length;
+            *pos1 = dmMath::Min(destination_length, (index + 1) * source_length);
+            *uv0 = 0.0f;
+            *uv1 = (*pos1 - *pos0) / source_length;
+        }
+        else
+        {
+            float first = destination_length - (count - 1) * source_length;
+            *pos0 = index == 0 ? 0.0f : first + (index - 1) * source_length;
+            *pos1 = index == 0 ? first : dmMath::Min(destination_length, first + index * source_length);
+            *uv0 = index == 0 ? first / source_length : 1.0f;
+            *uv1 = 0.0f;
+        }
+    }
+
     static uint32_t CalcVertexCount(dmGui::HScene scene, GuiWorld* gui_world, dmGraphics::HTexture texture, const dmGui::RenderEntry* entries, uint32_t node_count)
     {
         DM_PROFILE("CalcVertexCount");
 
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_world->m_CompGuiContext->m_RenderContext);
+        const float atlas_width = texture ? (float) dmGraphics::GetOriginalTextureWidth(graphics_context, texture) : 0.0f;
+        const float atlas_height = texture ? (float) dmGraphics::GetOriginalTextureHeight(graphics_context, texture) : 0.0f;
         uint32_t num_vertices = 0;
         for (uint32_t i = 0; i < node_count; ++i)
         {
@@ -2128,7 +2228,11 @@ namespace dmGameSystem
             }
             else // slice 9
             {
-                num_vertices += 9 * 6; // 9 cells in the slice9, each with 6 vertices
+                GuiSlice9TileInfo tile_info;
+                if (GetGuiSlice9TileInfo(scene, node, atlas_width, atlas_height, &tile_info))
+                    num_vertices += (tile_info.m_XCount + 2) * (tile_info.m_YCount + 2) * 6;
+                else
+                    num_vertices += 9 * 6; // Legacy stretch
             }
         }
         return num_vertices;
@@ -2415,6 +2519,99 @@ namespace dmGameSystem
             v10.SetPageIndex(page_index);
             v01.SetPageIndex(page_index);
             v11.SetPageIndex(page_index);
+
+            GuiSlice9TileInfo tile_info;
+            if (GetGuiSlice9TileInfo(scene, node, org_width, org_height, &tile_info))
+            {
+                // Material opt-in: subdivide only the repeating center axes.
+                // All four original BoxVertex streams (including atlas page)
+                // remain unchanged, so gui.fp, gui_paged_atlas.fp and custom
+                // GUI materials still receive ordinary packed frame UVs.
+                for (int y = 0; y < 3; ++y)
+                {
+                    const int y0 = y - pivot_y;
+                    const int y1 = y + 1 - pivot_y;
+                    uint32_t y_count = y == 1 ? tile_info.m_YCount : 1;
+                    for (int x = 0; x < 3; ++x)
+                    {
+                        const int x0 = x - pivot_x;
+                        const int x1 = x + 1 - pivot_x;
+                        uint32_t x_count = x == 1 ? tile_info.m_XCount : 1;
+                        // Rotated frames exchange the two UV axes. The
+                        // base/end pairs for repeating cells follow source
+                        // *low-to-high*, even when geometry is flipped.
+                        const float* x_uv = uv_rotated ? vs : us;
+                        const float* y_uv = uv_rotated ? us : vs;
+                        float x_src0 = x == 1 ? (flip_u ? x_uv[2] : x_uv[1]) : x_uv[x0];
+                        float x_src1 = x == 1 ? (flip_u ? x_uv[1] : x_uv[2]) : x_uv[x1];
+                        float y_src0 = y == 1 ? (flip_v ? y_uv[2] : y_uv[1]) : y_uv[y0];
+                        float y_src1 = y == 1 ? (flip_v ? y_uv[1] : y_uv[2]) : y_uv[y1];
+
+                        for (uint32_t yi = 0; yi < y_count; ++yi)
+                        {
+                            float py0, py1, ty0, ty1;
+                            if (y == 1)
+                                GetGuiSlice9TileSegment(yi, y_count, tile_info.m_RenderCenterY,
+                                                       tile_info.m_SourceCenterY, flip_v,
+                                                       &py0, &py1, &ty0, &ty1);
+                            else
+                            {
+                                py0 = 0.0f; py1 = tile_info.m_RenderCenterY;
+                                ty0 = 0.0f; ty1 = 1.0f;
+                            }
+                            float pos_y0 = y == 1 ? ys[y0] + (ys[y1] - ys[y0]) * py0 / tile_info.m_RenderCenterY : ys[y0];
+                            float pos_y1 = y == 1 ? ys[y0] + (ys[y1] - ys[y0]) * py1 / tile_info.m_RenderCenterY : ys[y1];
+                            float src_y0 = y_src0 + (y_src1 - y_src0) * ty0;
+                            float src_y1 = y_src0 + (y_src1 - y_src0) * ty1;
+
+                            for (uint32_t xi = 0; xi < x_count; ++xi)
+                            {
+                                float px0, px1, tx0, tx1;
+                                if (x == 1)
+                                    GetGuiSlice9TileSegment(xi, x_count, tile_info.m_RenderCenterX,
+                                                           tile_info.m_SourceCenterX, flip_u,
+                                                           &px0, &px1, &tx0, &tx1);
+                                else
+                                {
+                                    px0 = 0.0f; px1 = tile_info.m_RenderCenterX;
+                                    tx0 = 0.0f; tx1 = 1.0f;
+                                }
+                                float pos_x0 = x == 1 ? xs[x0] + (xs[x1] - xs[x0]) * px0 / tile_info.m_RenderCenterX : xs[x0];
+                                float pos_x1 = x == 1 ? xs[x0] + (xs[x1] - xs[x0]) * px1 / tile_info.m_RenderCenterX : xs[x1];
+                                float src_x0 = x_src0 + (x_src1 - x_src0) * tx0;
+                                float src_x1 = x_src0 + (x_src1 - x_src0) * tx1;
+
+                                v00.SetPosition(*transform * Point3(pos_x0, pos_y0, 0));
+                                v10.SetPosition(*transform * Point3(pos_x1, pos_y0, 0));
+                                v01.SetPosition(*transform * Point3(pos_x0, pos_y1, 0));
+                                v11.SetPosition(*transform * Point3(pos_x1, pos_y1, 0));
+                                if (uv_rotated)
+                                {
+                                    v00.SetUV(src_y0, src_x0);
+                                    v10.SetUV(src_y0, src_x1);
+                                    v01.SetUV(src_y1, src_x0);
+                                    v11.SetUV(src_y1, src_x1);
+                                }
+                                else
+                                {
+                                    v00.SetUV(src_x0, src_y0);
+                                    v10.SetUV(src_x1, src_y0);
+                                    v01.SetUV(src_x0, src_y1);
+                                    v11.SetUV(src_x1, src_y1);
+                                }
+                                gui_world->m_ClientVertexBuffer.Push(v00);
+                                gui_world->m_ClientVertexBuffer.Push(v10);
+                                gui_world->m_ClientVertexBuffer.Push(v11);
+                                gui_world->m_ClientVertexBuffer.Push(v00);
+                                gui_world->m_ClientVertexBuffer.Push(v11);
+                                gui_world->m_ClientVertexBuffer.Push(v01);
+                            }
+                        }
+                    }
+                }
+                rendered_vert_count += (tile_info.m_XCount + 2) * (tile_info.m_YCount + 2) * 6;
+                continue;
+            }
 
             for (int y=0;y<3;y++)
             {
