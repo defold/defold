@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.scene-async
-  (:require [util.profiler :as profiler])
+  (:require [util.coll :as coll]
+            [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL3]
            [java.nio ByteBuffer ByteOrder]
            [javafx.scene.image PixelBuffer PixelFormat WritableImage]
@@ -36,6 +37,21 @@
     {:byte-buffer buf
      :pixel-buffer pixel-buffer
      :image (WritableImage. pixel-buffer)}))
+
+(defonce ^:private spare-images-atom (atom []))
+
+(defn- take-image! [width height]
+  (let [matches-size (fn [{:keys [^WritableImage image]}]
+                       (and (= (int width) (int (.getWidth image)))
+                            (= (int height) (int (.getHeight image)))))
+
+        [spare-images] (swap-vals! spare-images-atom
+                                   (fn [spare-images]
+                                     (if-let [index (coll/first-index-where matches-size spare-images)]
+                                       (coll/remove-index spare-images index)
+                                       spare-images)))]
+    (or (coll/first-where matches-size spare-images)
+        (make-direct-buffer-backed-writable-image width height))))
 
 (definterface IPixelWriteCallback
   (set_buffer_BANG_ [x]))
@@ -69,16 +85,17 @@
    :state :done
    :pbo 0
    :pbo-size nil
-   :images [(make-direct-buffer-backed-writable-image width height)
-            (make-direct-buffer-backed-writable-image width height)]
+   :images [(take-image! width height)
+            (take-image! width height)]
    :buffer-update-callback (->PixelWriteCallback nil)
    :current-image 0})
 
 (defn request-resize [async-copy-state width height]
   (assoc async-copy-state :width width :height height))
 
-(defn dispose! [{:keys [pbo]} ^GL3 gl]
+(defn dispose! [{:keys [pbo images]} ^GL3 gl]
   (.glDeleteBuffers gl 1 (int-array [pbo]) 0)
+  (reset! spare-images-atom images)
   nil)
 
 (defmulti begin-read! (fn [async-copy-state ^GL3 gl] (:state async-copy-state)))
@@ -148,7 +165,7 @@
       (cond-> async-copy-state
         (or (not= (.getWidth writable-image) width)
             (not= (.getHeight writable-image) height))
-        (assoc-in [:images current-image] (make-direct-buffer-backed-writable-image width height))))))
+        (assoc-in [:images current-image] (take-image! width height))))))
 
 (defn- copy-pbo-to-image! [async-copy-state ^GL3 gl]
   (profiler/profile "pbo->image" -1
