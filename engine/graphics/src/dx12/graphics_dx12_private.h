@@ -54,29 +54,36 @@ namespace dmGraphics
         PIPELINE_TYPE_COMPUTE,
     };
 
+    enum DX12RootParameterType
+    {
+        ROOT_TEXTURE_SRV,
+        ROOT_SAMPLER,
+        ROOT_TEXTURE_UAV,
+        ROOT_CBV
+    };
+
     struct DX12Context;
 
     struct DX12Texture
     {
-        Texture             m_Base;
-        ID3D12Resource*         m_Resource;
-        D3D12_RESOURCE_DESC     m_ResourceDesc;
+        Texture                        m_Base;
+        ID3D12Resource*                m_Resource;
+        D3D12_RESOURCE_DESC            m_ResourceDesc;
         dmArray<D3D12_RESOURCE_STATES> m_ResourceStates;
-
-        uint16_t                m_LayerCount;
-        uint16_t                m_TextureSamplerIndex;
+        uint16_t                       m_LayerCount;
+        uint16_t                       m_TextureSamplerIndex;
     };
 
     struct DX12TextureSampler
     {
         D3D12_SAMPLER_DESC m_Desc;
-        TextureFilter   m_MinFilter;
-        TextureFilter   m_MagFilter;
-        TextureWrap     m_AddressModeU;
-        TextureWrap     m_AddressModeV;
-        TextureWrap     m_AddressModeW;
-        float           m_MaxAnisotropy;
-        uint8_t         m_MaxLod;
+        TextureFilter      m_MinFilter;
+        TextureFilter      m_MagFilter;
+        TextureWrap        m_AddressModeU;
+        TextureWrap        m_AddressModeV;
+        TextureWrap        m_AddressModeW;
+        float              m_MaxAnisotropy;
+        uint8_t            m_MaxLod;
     };
 
     struct DX12DeviceBuffer
@@ -132,14 +139,6 @@ namespace dmGraphics
         uint16_t m_H;
     };
 
-    enum DX12RootParameterType
-    {
-        ROOT_TEXTURE_SRV,
-        ROOT_SAMPLER,
-        ROOT_TEXTURE_UAV,
-        ROOT_CBV
-    };
-
     struct DX12ResourceBinding
     {
         dmhash_t m_NameHash;
@@ -178,7 +177,7 @@ namespace dmGraphics
         DXGI_FORMAT           m_Format;
         DXGI_FORMAT           m_DsvFormat; // DXGI_FORMAT_UNKNOWN if no depth/stencil attachment
         DXGI_SAMPLE_DESC      m_SampleDesc;
-        ID3D12Resource*        m_MultisampleColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        ID3D12Resource*       m_MultisampleColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         D3D12_RECT            m_Scissor;
     };
 
@@ -187,17 +186,18 @@ namespace dmGraphics
     {
         ID3D12DescriptorHeap* m_ResourceHeap;
         ID3D12DescriptorHeap* m_SamplerHeap;
-        uint32_t             m_ResourceCapacity;
-        uint32_t             m_SamplerCapacity;
-        uint32_t             m_ResourceCursor;
-        uint32_t             m_SamplerCursor;
+        uint32_t              m_ResourceCapacity;
+        uint32_t              m_SamplerCapacity;
+        uint32_t              m_ResourceCursor;
+        uint32_t              m_SamplerCursor;
     };
 
     struct DX12ScratchBuffer
     {
         static const uint32_t DESCRIPTORS_PER_POOL = 256;
+
         dmArray<DX12DescriptorPool> m_DescriptorPools;
-        uint32_t m_CurrentPool;
+        uint32_t                    m_CurrentPool;
 
         void  Initialize(DX12Context* context, uint32_t frame_index);
         void  Destroy();
@@ -231,18 +231,17 @@ namespace dmGraphics
 
     struct DX12FrameResource
     {
-        HTexture                m_TextureColor;
-        HTexture                m_TextureDepthStencil;
-        DX12RenderTarget        m_RenderTarget;
-        ID3D12Resource*         m_MsaaRenderTarget;
-        ID3D12CommandAllocator* m_CommandAllocator;
-        ID3D12Fence*            m_Fence;
-        DX12ScratchBuffer       m_ScratchBuffer;
-        DX12UploadRing          m_UploadRing;
-        uint64_t                m_FenceValue;
-
+        HTexture                 m_TextureColor;
+        HTexture                 m_TextureDepthStencil;
+        DX12RenderTarget         m_RenderTarget;
+        ID3D12Resource*          m_MsaaRenderTarget;
+        ID3D12CommandAllocator*  m_CommandAllocator;
+        ID3D12Fence*             m_Fence;
+        DX12ScratchBuffer        m_ScratchBuffer;
+        DX12UploadRing           m_UploadRing;
+        uint64_t                 m_FenceValue;
         dmArray<ID3D12Resource*> m_ResourcesToDestroy;
-        dmArray<IUnknown*> m_ObjectsToDestroy;
+        dmArray<IUnknown*>       m_ObjectsToDestroy;
     };
 
     struct DX12OneTimeCommandList

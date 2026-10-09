@@ -53,14 +53,16 @@ namespace dmGraphics
 
     // Per-frame persistently-mapped upload ring size. Bump this if the ring starts falling
     // back to one-shot upload heaps (visible in RenderDoc as `Buffer Upload Resource Heap`).
-    static const uint32_t DX12_UPLOAD_RING_INITIAL_SIZE = 8 * 1024 * 1024;
+    static const uint32_t DX12_UPLOAD_RING_INITIAL_SIZE  = 8 * 1024 * 1024;
+    static const dmhash_t HASH_SPIRV_Cross_NumWorkgroups = dmHashString64("SPIRV_Cross_NumWorkgroups");
 
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable();
     bool                                DX12IsSupported();
     static HContext                     DX12GetContext();
     static bool                         DX12Initialize(HContext);
+
     static GraphicsAdapter g_dx12_adapter(ADAPTER_FAMILY_DIRECTX);
-    DX12Context*    g_DX12Context = 0x0;
+    DX12Context* g_DX12Context = 0x0;
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, DX12GetContext, ADAPTER_FAMILY_PRIORITY_DIRECTX);
 
@@ -70,14 +72,17 @@ namespace dmGraphics
     static void ResetRenderTargetScissor(DX12Context* context, DX12RenderTarget* rt);
     static void BeginRenderPass(DX12Context* context, HRenderTarget render_target);
 
-    static const dmhash_t HASH_SPIRV_Cross_NumWorkgroups = dmHashString64("SPIRV_Cross_NumWorkgroups");
-
     // Resolve SRV/UAV/sampler tables independently of reflection ordering.
     static void BuildRootParameterTypes(DX12ShaderProgram* program, const uint8_t* data, uint32_t size)
     {
         program->m_RootParameterTypes.SetSize(0);
         ID3D12VersionedRootSignatureDeserializer* deserializer = 0;
-        if (FAILED(D3D12CreateVersionedRootSignatureDeserializer(data, size, DM_IID_PPV_ARGS(&deserializer)))) return;
+
+        if (FAILED(D3D12CreateVersionedRootSignatureDeserializer(data, size, DM_IID_PPV_ARGS(&deserializer)))) 
+        {
+            return;
+        }
+
         const D3D12_VERSIONED_ROOT_SIGNATURE_DESC* desc = 0;
         if (SUCCEEDED(deserializer->GetRootSignatureDescAtVersion(D3D_ROOT_SIGNATURE_VERSION_1_0, &desc)))
         {
@@ -150,9 +155,11 @@ namespace dmGraphics
     {
         switch (format)
         {
-            case DXGI_FORMAT_D32_FLOAT:          return DXGI_FORMAT_R32_TYPELESS;
-            case DXGI_FORMAT_D24_UNORM_S8_UINT: return DXGI_FORMAT_R24G8_TYPELESS;
-            default:                            return format;
+            case DXGI_FORMAT_D32_FLOAT:
+                return DXGI_FORMAT_R32_TYPELESS;
+            case DXGI_FORMAT_D24_UNORM_S8_UINT:
+                return DXGI_FORMAT_R24G8_TYPELESS;
+            default: return format;
         }
     }
 
@@ -201,20 +208,41 @@ namespace dmGraphics
     {
         context->m_BaseContext.m_TextureFormatSupport = 0;
         const TextureFormat formats[] = {
-            TEXTURE_FORMAT_LUMINANCE, TEXTURE_FORMAT_LUMINANCE_ALPHA, TEXTURE_FORMAT_RGB, TEXTURE_FORMAT_RGBA,
-            TEXTURE_FORMAT_RGB_16BPP, TEXTURE_FORMAT_RGBA_16BPP, TEXTURE_FORMAT_RGB16F, TEXTURE_FORMAT_RGB32F,
-            TEXTURE_FORMAT_RGBA16F, TEXTURE_FORMAT_RGBA32F, TEXTURE_FORMAT_R16F, TEXTURE_FORMAT_RG16F,
-            TEXTURE_FORMAT_R32F, TEXTURE_FORMAT_RG32F, TEXTURE_FORMAT_RGBA32UI, TEXTURE_FORMAT_R32UI, TEXTURE_FORMAT_BGRA8U,
-            TEXTURE_FORMAT_RGB_BC1, TEXTURE_FORMAT_RGBA_BC3, TEXTURE_FORMAT_R_BC4, TEXTURE_FORMAT_RG_BC5, TEXTURE_FORMAT_RGBA_BC7
+            TEXTURE_FORMAT_LUMINANCE,
+            TEXTURE_FORMAT_LUMINANCE_ALPHA,
+            TEXTURE_FORMAT_RGB,
+            TEXTURE_FORMAT_RGBA,
+            TEXTURE_FORMAT_RGB_16BPP,
+            TEXTURE_FORMAT_RGBA_16BPP,
+            TEXTURE_FORMAT_RGB16F,
+            TEXTURE_FORMAT_RGB32F,
+            TEXTURE_FORMAT_RGBA16F,
+            TEXTURE_FORMAT_RGBA32F,
+            TEXTURE_FORMAT_R16F,
+            TEXTURE_FORMAT_RG16F,
+            TEXTURE_FORMAT_R32F,
+            TEXTURE_FORMAT_RG32F,
+            TEXTURE_FORMAT_RGBA32UI,
+            TEXTURE_FORMAT_R32UI,
+            TEXTURE_FORMAT_BGRA8U,
+            TEXTURE_FORMAT_RGB_BC1,
+            TEXTURE_FORMAT_RGBA_BC3,
+            TEXTURE_FORMAT_R_BC4,
+            TEXTURE_FORMAT_RG_BC5,
+            TEXTURE_FORMAT_RGBA_BC7
         };
+
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(formats); ++i)
         {
             D3D12_FEATURE_DATA_FORMAT_SUPPORT query = {};
             query.Format = GetDXGIFormatFromTextureFormat(formats[i]);
             const UINT required = D3D12_FORMAT_SUPPORT1_TEXTURE2D | D3D12_FORMAT_SUPPORT1_SHADER_SAMPLE;
+
             if (SUCCEEDED(context->m_Device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &query, sizeof(query))) &&
                 (query.Support1 & required) == required)
+            {
                 context->m_BaseContext.m_TextureFormatSupport |= 1ULL << formats[i];
+            }
         }
     }
 
@@ -316,7 +344,11 @@ namespace dmGraphics
 
     static bool MultiSamplingCountSupported(ID3D12Device* device, DXGI_FORMAT format, uint32_t requested_count)
     {
-        if (format == DXGI_FORMAT_UNKNOWN) return true; // No attachment of this kind.
+        if (format == DXGI_FORMAT_UNKNOWN)
+        {
+            return true; // No attachment of this kind.
+        }
+
         D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS query = {};
         query.Format           = format;
         query.SampleCount      = requested_count;
@@ -429,6 +461,7 @@ namespace dmGraphics
                 context->m_FrameResources[i].m_TextureColor = NewTexture(_context, texture_create_params);
             if (!context->m_FrameResources[i].m_TextureDepthStencil)
                 context->m_FrameResources[i].m_TextureDepthStencil = NewTexture(_context, texture_create_params);
+
             DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, context->m_FrameResources[i].m_TextureColor);
             DX12Texture* texture_depth = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, context->m_FrameResources[i].m_TextureDepthStencil);
 
@@ -548,11 +581,15 @@ namespace dmGraphics
 
     void WaitForDX12Idle(DX12Context* context)
     {
-        if (!context->m_CommandQueue) return;
+        if (!context->m_CommandQueue)
+            return;
+
         ID3D12Fence* fence = 0;
         HRESULT hr = context->m_Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, DM_IID_PPV_ARGS(&fence));
         CHECK_HR_ERROR(hr);
-        if (FAILED(hr)) return;
+        if (FAILED(hr))
+            return;
+
         HANDLE event = CreateEvent(NULL, FALSE, FALSE, NULL);
         hr = context->m_CommandQueue->Signal(fence, 1);
         CHECK_HR_ERROR(hr);
@@ -583,7 +620,8 @@ namespace dmGraphics
             hr = context->m_CommandList->Reset(frame.m_CommandAllocator, NULL);
             CHECK_HR_ERROR(hr);
             context->m_ViewportChanged = 1;
-            if (bound) BeginRenderPass(context, context->m_CurrentRenderTarget);
+            if (bound)
+                BeginRenderPass(context, context->m_CurrentRenderTarget);
         }
     }
 
@@ -591,7 +629,9 @@ namespace dmGraphics
     {
 #if !defined(DM_PLATFORM_XBOX)
         if (!context->m_SwapChain || !width || !height ||
-            (width == context->m_BackBufferWidth && height == context->m_BackBufferHeight)) return;
+            (width == context->m_BackBufferWidth && height == context->m_BackBufferHeight))
+            return;
+
         FlushDX12Commands(context);
         if (context->m_FrameBegun)
         {
@@ -603,17 +643,35 @@ namespace dmGraphics
             HRESULT hr = previous.m_Fence->Signal(previous.m_FenceValue);
             CHECK_HR_ERROR(hr);
         }
+
         for (uint32_t i = 0; i < MAX_FRAMEBUFFERS; ++i)
         {
             DX12FrameResource& frame = context->m_FrameResources[i];
             DX12Texture* color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, frame.m_TextureColor);
             DX12Texture* depth = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, frame.m_TextureDepthStencil);
-            if (color && color->m_Resource) { color->m_Resource->Release(); color->m_Resource = 0; }
-            if (depth && depth->m_Resource) { depth->m_Resource->Release(); depth->m_Resource = 0; }
-            if (frame.m_RenderTarget.m_Resource) { frame.m_RenderTarget.m_Resource->Release(); frame.m_RenderTarget.m_Resource = 0; }
-            if (frame.m_MsaaRenderTarget) { frame.m_MsaaRenderTarget->Release(); frame.m_MsaaRenderTarget = 0; }
+            if (color && color->m_Resource)
+            {
+                color->m_Resource->Release();
+                color->m_Resource = 0;
+            }
+            if (depth && depth->m_Resource)
+            {
+                depth->m_Resource->Release();
+                depth->m_Resource = 0;
+            }
+            if (frame.m_RenderTarget.m_Resource)
+            {
+                frame.m_RenderTarget.m_Resource->Release();
+                frame.m_RenderTarget.m_Resource = 0;
+            }
+            if (frame.m_MsaaRenderTarget)
+            {
+                frame.m_MsaaRenderTarget->Release();
+                frame.m_MsaaRenderTarget = 0;
+            }
             FlushResourcesToDestroy(frame);
         }
+
         HRESULT hr = context->m_SwapChain->ResizeBuffers(MAX_FRAMEBUFFERS, width, height, DX12GetBackBufferFormat(),
             context->m_AllowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0);
         if (FAILED(hr))
@@ -633,6 +691,7 @@ namespace dmGraphics
         main->m_TextureDepthStencil = context->m_FrameResources[context->m_CurrentFrameIndex].m_TextureDepthStencil;
         main->m_IsBound = 0;
         ResetRenderTargetScissor(context, (DX12RenderTarget*) main);
+
         if (context->m_FrameBegun)
         {
             DX12FrameResource& frame = context->m_FrameResources[context->m_CurrentFrameIndex];
@@ -640,7 +699,8 @@ namespace dmGraphics
             frame.m_CommandAllocator->Reset();
             context->m_CommandList->Reset(frame.m_CommandAllocator, NULL);
             RenderTarget* current = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
-            if (current) current->m_IsBound = 0;
+            if (current)
+                current->m_IsBound = 0;
             BeginRenderPass(context, context->m_CurrentRenderTarget);
         }
         context->m_ViewportChanged = 1;
@@ -731,18 +791,17 @@ namespace dmGraphics
             D3D12_FEATURE_DATA_D3D12_OPTIONS options = {};
             context->m_Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options));
 
-            limits.m_MaxTextureSize2D      = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;     // 16384 on FL 11_0+
-            limits.m_MaxTextureSize3D      = D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION;   // 2048
-            limits.m_MaxTextureSizeCube    = D3D12_REQ_TEXTURECUBE_DIMENSION;          // 16384
-            limits.m_MaxTextureArrayLayers = D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION; // 2048
-            limits.m_MaxFramebufferWidth   = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
-            limits.m_MaxFramebufferHeight  = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
-            limits.m_MaxColorAttachments   = MAX_BUFFER_COLOR_ATTACHMENTS;
-
-            limits.m_MaxSamplersPerStage = dmMath::Min(16u, (uint32_t) DM_MAX_TEXTURE_UNITS);
-            limits.m_MaxTexturesPerStage = DM_MAX_TEXTURE_UNITS;
-            limits.m_MaxVertexAttributes = D3D12_VS_INPUT_REGISTER_COUNT;
-            limits.m_MaxVertexBuffers = MAX_VERTEX_BUFFERS;
+            limits.m_MaxTextureSize2D               = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;     // 16384 on FL 11_0+
+            limits.m_MaxTextureSize3D               = D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION;   // 2048
+            limits.m_MaxTextureSizeCube             = D3D12_REQ_TEXTURECUBE_DIMENSION;          // 16384
+            limits.m_MaxTextureArrayLayers          = D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION; // 2048
+            limits.m_MaxFramebufferWidth            = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+            limits.m_MaxFramebufferHeight           = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+            limits.m_MaxColorAttachments            = MAX_BUFFER_COLOR_ATTACHMENTS;
+            limits.m_MaxSamplersPerStage            = dmMath::Min(16u, (uint32_t) DM_MAX_TEXTURE_UNITS);
+            limits.m_MaxTexturesPerStage            = DM_MAX_TEXTURE_UNITS;
+            limits.m_MaxVertexAttributes            = D3D12_VS_INPUT_REGISTER_COUNT;
+            limits.m_MaxVertexBuffers               = MAX_VERTEX_BUFFERS;
             limits.m_MaxComputeWorkgroupSizeX       = D3D12_CS_THREAD_GROUP_MAX_X;
             limits.m_MaxComputeWorkgroupSizeY       = D3D12_CS_THREAD_GROUP_MAX_Y;
             limits.m_MaxComputeWorkgroupSizeZ       = D3D12_CS_THREAD_GROUP_MAX_Z;
@@ -1173,8 +1232,10 @@ namespace dmGraphics
         CD3DX12_CPU_DESCRIPTOR_HANDLE cpu(pool.m_ResourceHeap->GetCPUDescriptorHandleForHeapStart(), pool.m_ResourceCursor, stride);
         CD3DX12_GPU_DESCRIPTOR_HANDLE gpu(pool.m_ResourceHeap->GetGPUDescriptorHandleForHeapStart(), pool.m_ResourceCursor++, stride);
         context->m_Device->CreateUnorderedAccessView(texture->m_Resource, NULL, &view, cpu);
-        if (pipeline_type == PIPELINE_TYPE_GRAPHICS) context->m_CommandList->SetGraphicsRootDescriptorTable(index, gpu);
-        else context->m_CommandList->SetComputeRootDescriptorTable(index, gpu);
+        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+            context->m_CommandList->SetGraphicsRootDescriptorTable(index, gpu);
+        else
+            context->m_CommandList->SetComputeRootDescriptorTable(index, gpu);
         // Only mip zero is exposed by this UAV; array layers have a mip-count stride.
         const UINT layers = view.ViewDimension == D3D12_UAV_DIMENSION_TEXTURE3D ? 1 : texture->m_ResourceDesc.DepthOrArraySize;
         for (UINT i = 0; i < layers; ++i)
@@ -1273,10 +1334,12 @@ namespace dmGraphics
         typedef UINT (WINAPI *GetDpiForWindowFn)(HWND);
         GetDpiForWindowFn get_dpi = (GetDpiForWindowFn) GetProcAddress(GetModuleHandleA("user32.dll"), "GetDpiForWindow");
         HWND window = GetNativeWindowsHWND();
-        if (get_dpi && window) return get_dpi(window);
+        if (get_dpi && window)
+            return get_dpi(window);
         HDC dc = GetDC(window);
         uint32_t dpi = dc ? GetDeviceCaps(dc, LOGPIXELSX) : 96;
-        if (dc) ReleaseDC(window, dc);
+        if (dc)
+            ReleaseDC(window, dc);
         return dpi;
 #else
         return 0;
@@ -1322,7 +1385,8 @@ namespace dmGraphics
         const UINT stride = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            if (!current_rt->m_TextureColor[i]) continue;
+            if (!current_rt->m_TextureColor[i])
+                continue;
             if (flags & color_flags[i])
                 context->m_CommandList->ClearRenderTargetView(color_handle, clearColor, 0, NULL);
             color_handle.Offset(1, stride);
@@ -1414,9 +1478,11 @@ namespace dmGraphics
             uint32_t color_index = 0;
             for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
             {
-                if (!current_rt->m_TextureColor[i]) continue;
+                if (!current_rt->m_TextureColor[i])
+                    continue;
                 ID3D12Resource* msaa = rt->m_MultisampleColor[color_index++];
-                if (!msaa) continue;
+                if (!msaa)
+                    continue;
                 DX12Texture* color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureColor[i]);
                 TransitionTexture(context->m_CommandList, color, D3D12_RESOURCE_STATE_RESOLVE_DEST);
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(msaa, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
@@ -1681,8 +1747,16 @@ namespace dmGraphics
                 fr.m_RenderTarget.m_Resource->Release();
                 fr.m_RenderTarget.m_Resource = 0;
             }
-            if (tex_color) { context->m_BaseContext.m_AssetHandleContainer.Release(GetOpaqueHandle(fr.m_TextureColor)); delete tex_color; }
-            if (tex_depth) { context->m_BaseContext.m_AssetHandleContainer.Release(GetOpaqueHandle(fr.m_TextureDepthStencil)); delete tex_depth; }
+            if (tex_color)
+            {
+                context->m_BaseContext.m_AssetHandleContainer.Release(GetOpaqueHandle(fr.m_TextureColor));
+                delete tex_color;
+            }
+            if (tex_depth)
+            {
+                context->m_BaseContext.m_AssetHandleContainer.Release(GetOpaqueHandle(fr.m_TextureDepthStencil));
+                delete tex_depth;
+            }
             if (fr.m_MsaaRenderTarget)
             {
                 fr.m_MsaaRenderTarget->Release();
@@ -1806,7 +1880,7 @@ namespace dmGraphics
         context->m_FrameBegun = 0;
     }
 
-    static inline bool IsRenderTargetbound(DX12Context* context, HRenderTarget rt)
+    static inline bool IsRenderTargetBound(DX12Context* context, HRenderTarget rt)
     {
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
         return current_rt ? current_rt->m_IsBound : 0;
@@ -1847,7 +1921,7 @@ namespace dmGraphics
         for (uint32_t i = 0; i < layer_count; ++i)
         {
             const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = layouts[layer_base + i];
-            const uint64_t dstRowPitch = layout.Footprint.RowPitch;   // 256-byte aligned (padded), full width
+            const uint64_t dst_row_pitch = layout.Footprint.RowPitch;   // 256-byte aligned (padded), full width
             const uint32_t depth = dmMath::Min((uint32_t) layout.Footprint.Depth, dmMath::Max(1u, (uint32_t) params.m_Depth));
             const uint32_t dst_rows = GetTextureFormatCompressedBlockSize(format, &block_size) ?
                 (layout.Footprint.Height + block_size.m_Height - 1) / block_size.m_Height : layout.Footprint.Height;
@@ -1859,7 +1933,7 @@ namespace dmGraphics
                 for (uint32_t row = 0; row < src_rows; ++row)
                 {
                     const uint8_t* src_row = pixels + src_offset + (uint64_t) (z * src_rows + row) * src_row_pitch;
-                    uint8_t* dst_row = dst + (uint64_t) (z * dst_rows + row) * dstRowPitch;
+                    uint8_t* dst_row = dst + (uint64_t) (z * dst_rows + row) * dst_row_pitch;
 
                     memcpy(dst_row, src_row, src_row_pitch);
                 }
@@ -1909,7 +1983,7 @@ namespace dmGraphics
         cmd_list->m_Fence = 0;
     }
 
-    static inline void SyncronizeOneTimeCommandList(ID3D12Device* device, ID3D12CommandQueue* queue, DX12OneTimeCommandList* cmd_list)
+    static inline void SynchronizeOneTimeCommandList(ID3D12Device* device, ID3D12CommandQueue* queue, DX12OneTimeCommandList* cmd_list)
     {
         assert(cmd_list->m_Fence != 0);
 
@@ -1933,12 +2007,12 @@ namespace dmGraphics
             dmLogError("DX12 texture update has an invalid mip");
             return;
         }
-        const bool volume = texture->m_ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D;
-        const uint32_t layer_base = volume ? 0 : params.m_SubUpdate ? params.m_Slice : 0;
-        const uint32_t total_layers = volume ? 1 : texture->m_ResourceDesc.DepthOrArraySize;
-        const uint32_t layer_count = volume ? 1 : params.m_SubUpdate ? dmMath::Max(1u, (uint32_t) params.m_LayerCount) : total_layers;
-        const uint32_t depth = volume ? dmMath::Max(1u, (uint32_t) params.m_Depth) : 1;
-        const uint32_t mip_depth = volume ? dmMath::Max(1u, (uint32_t) texture->m_ResourceDesc.DepthOrArraySize >> target_mip) : 1;
+        const bool is_volume = texture->m_ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+        const uint32_t layer_base = is_volume ? 0 : params.m_SubUpdate ? params.m_Slice : 0;
+        const uint32_t total_layers = is_volume ? 1 : texture->m_ResourceDesc.DepthOrArraySize;
+        const uint32_t layer_count = is_volume ? 1 : params.m_SubUpdate ? dmMath::Max(1u, (uint32_t) params.m_LayerCount) : total_layers;
+        const uint32_t depth = is_volume ? dmMath::Max(1u, (uint32_t) params.m_Depth) : 1;
+        const uint32_t mip_depth = is_volume ? dmMath::Max(1u, (uint32_t) texture->m_ResourceDesc.DepthOrArraySize >> target_mip) : 1;
         if (params.m_Z >= mip_depth || depth > mip_depth - params.m_Z)
         {
             dmLogError("DX12 texture update is outside the mip depth");
@@ -2021,14 +2095,14 @@ namespace dmGraphics
         // Copy per array slice
         for (uint32_t i = 0; i < layer_count; ++i)
         {
-            const uint32_t array            = layer_base + i;
-            const uint32_t subresourceIndex = D3D12CalcSubresource(target_mip, array, 0, texture->m_ResourceDesc.MipLevels, total_layers);
-            TransitionTexture(cmd_list, texture, D3D12_RESOURCE_STATE_COPY_DEST, subresourceIndex, 1);
+            const uint32_t array_layer            = layer_base + i;
+            const uint32_t subresource_index = D3D12CalcSubresource(target_mip, array_layer, 0, texture->m_ResourceDesc.MipLevels, total_layers);
+            TransitionTexture(cmd_list, texture, D3D12_RESOURCE_STATE_COPY_DEST, subresource_index, 1);
 
             D3D12_TEXTURE_COPY_LOCATION copy_dst = {};
             copy_dst.pResource                   = texture->m_Resource;
             copy_dst.Type                        = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-            copy_dst.SubresourceIndex            = subresourceIndex;
+            copy_dst.SubresourceIndex            = subresource_index;
 
             D3D12_TEXTURE_COPY_LOCATION copy_src = {};
             copy_src.pResource                   = upload_heap;
@@ -2045,17 +2119,17 @@ namespace dmGraphics
             box.back      = depth;
 
             cmd_list->CopyTextureRegion(&copy_dst, params.m_X, params.m_Y, params.m_Z, &copy_src, &box);
-            TransitionTexture(cmd_list, texture, D3D12_RESOURCE_STATE_GENERIC_READ, subresourceIndex, 1);
+            TransitionTexture(cmd_list, texture, D3D12_RESOURCE_STATE_GENERIC_READ, subresource_index, 1);
         }
 
         // Submit command list if needed
         if (context->m_FrameBegun)
         {
             upload_heap->Unmap(0, 0);
-            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
-            if (fr.m_ResourcesToDestroy.Full())
-                fr.m_ResourcesToDestroy.OffsetCapacity(8);
-            fr.m_ResourcesToDestroy.Push(upload_heap);
+            DX12FrameResource& frame_resources = context->m_FrameResources[context->m_CurrentFrameIndex];
+            if (frame_resources.m_ResourcesToDestroy.Full())
+                frame_resources.m_ResourcesToDestroy.OffsetCapacity(8);
+            frame_resources.m_ResourcesToDestroy.Push(upload_heap);
         }
         else
         {
@@ -2063,7 +2137,7 @@ namespace dmGraphics
             ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
             context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
 
-            SyncronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
+            SynchronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
             DestroyOneTimeCommandList(&one_time_cmd_list);
             upload_heap->Unmap(0, 0);
             upload_heap->Release();
@@ -2093,7 +2167,9 @@ namespace dmGraphics
         device_buffer->m_Capacity      = size;
     }
 
-    static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, uint32_t buffer_size, const void* data, D3D12_RESOURCE_STATES state_before_copy, D3D12_RESOURCE_STATES state_after_copy)
+    static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer,
+        uint32_t offset, uint32_t data_size, uint32_t buffer_size, const void* data,
+        D3D12_RESOURCE_STATES state_before_copy, D3D12_RESOURCE_STATES state_after_copy)
     {
         if (data_size == 0)
         {
@@ -2199,7 +2275,7 @@ namespace dmGraphics
             ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
             context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
 
-            SyncronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
+            SynchronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
             DestroyOneTimeCommandList(&one_time_cmd_list);
             upload_heap->Release();
         }
@@ -2646,12 +2722,12 @@ namespace dmGraphics
 
     static inline D3D_PRIMITIVE_TOPOLOGY GetPrimitiveTopology(PrimitiveType prim_type)
     {
-        switch(prim_type)
+        switch (prim_type)
         {
             case PRIMITIVE_LINES:          return D3D_PRIMITIVE_TOPOLOGY_LINELIST;
             case PRIMITIVE_TRIANGLES:      return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
             case PRIMITIVE_TRIANGLE_STRIP: return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
-            default:break;
+            default: break;
         }
         return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
     }
@@ -2671,7 +2747,7 @@ namespace dmGraphics
         */
         if (type == TYPE_FLOAT)
         {
-            switch(size)
+            switch (size)
             {
                 case 1: return DXGI_FORMAT_R32_FLOAT;
                 case 2: return DXGI_FORMAT_R32G32_FLOAT;
@@ -2679,12 +2755,12 @@ namespace dmGraphics
                 case 4: return DXGI_FORMAT_R32G32B32A32_FLOAT;
                 case 9: return DXGI_FORMAT_R32G32B32_FLOAT;
                 case 16: return DXGI_FORMAT_R32G32B32A32_FLOAT;
-                default:break;
+                default: break;
             }
         }
         else if (type == TYPE_INT)
         {
-            switch(size)
+            switch (size)
             {
                 case 1: return DXGI_FORMAT_R32_SINT;
                 case 2: return DXGI_FORMAT_R32G32_SINT;
@@ -2692,12 +2768,12 @@ namespace dmGraphics
                 case 4: return DXGI_FORMAT_R32G32B32A32_SINT;
                 case 9: return DXGI_FORMAT_R32G32B32_SINT;
                 case 16: return DXGI_FORMAT_R32G32B32A32_SINT;
-                default:break;
+                default: break;
             }
         }
         else if (type == TYPE_UNSIGNED_INT)
         {
-            switch(size)
+            switch (size)
             {
                 case 1: return DXGI_FORMAT_R32_UINT;
                 case 2: return DXGI_FORMAT_R32G32_UINT;
@@ -2705,51 +2781,51 @@ namespace dmGraphics
                 case 4: return DXGI_FORMAT_R32G32B32A32_UINT;
                 case 9: return DXGI_FORMAT_R32G32B32_UINT;
                 case 16: return DXGI_FORMAT_R32G32B32A32_UINT;
-                default:break;
+                default: break;
             }
         }
         else if (type == TYPE_BYTE)
         {
-            switch(size)
+            switch (size)
             {
                 case 1: return normalized ? DXGI_FORMAT_R8_SNORM : DXGI_FORMAT_R8_SINT;
                 case 2: return normalized ? DXGI_FORMAT_R8G8_SNORM : DXGI_FORMAT_R8G8_SINT;
                 case 4: return normalized ? DXGI_FORMAT_R8G8B8A8_SNORM : DXGI_FORMAT_R8G8B8A8_SINT;
                 case 16: return normalized ? DXGI_FORMAT_R8G8B8A8_SNORM : DXGI_FORMAT_R8G8B8A8_SINT;
-                default:break;
+                default: break;
             }
         }
         else if (type == TYPE_UNSIGNED_BYTE)
         {
-            switch(size)
+            switch (size)
             {
                 case 1: return normalized ? DXGI_FORMAT_R8_UNORM : DXGI_FORMAT_R8_UINT;
                 case 2: return normalized ? DXGI_FORMAT_R8G8_UNORM : DXGI_FORMAT_R8G8_UINT;
                 case 4: return normalized ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R8G8B8A8_UINT;
                 case 16: return normalized ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R8G8B8A8_UINT;
-                default:break;
+                default: break;
             }
         }
         else if (type == TYPE_SHORT)
         {
-            switch(size)
+            switch (size)
             {
                 case 1: return normalized ? DXGI_FORMAT_R16_SNORM : DXGI_FORMAT_R16_SINT;
                 case 2: return normalized ? DXGI_FORMAT_R16G16_SNORM : DXGI_FORMAT_R16G16_SINT;
                 case 4: return normalized ? DXGI_FORMAT_R16G16B16A16_SNORM : DXGI_FORMAT_R16G16B16A16_SINT;
                 case 16: return normalized ? DXGI_FORMAT_R16G16B16A16_SNORM : DXGI_FORMAT_R16G16B16A16_SINT;
-                default:break;
+                default: break;
             }
         }
         else if (type == TYPE_UNSIGNED_SHORT)
         {
-            switch(size)
+            switch (size)
             {
                 case 1: return normalized ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R16_UINT;
                 case 2: return normalized ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R16G16_UINT;
                 case 4: return normalized ? DXGI_FORMAT_R16G16B16A16_UNORM : DXGI_FORMAT_R16G16B16A16_UINT;
                 case 16: return normalized ? DXGI_FORMAT_R16G16B16A16_UNORM : DXGI_FORMAT_R16G16B16A16_UINT;
-                default:break;
+                default: break;
             }
         }
         else if (type == TYPE_FLOAT_MAT4 || type == TYPE_FLOAT_MAT3 || type == TYPE_FLOAT_MAT2)
@@ -2823,7 +2899,7 @@ namespace dmGraphics
 
     static inline D3D12_BLEND GetBlendFactor(BlendFactor factor)
     {
-        switch(factor)
+        switch (factor)
         {
             case BLEND_FACTOR_ZERO:                 return D3D12_BLEND_ZERO;
             case BLEND_FACTOR_ONE:                  return D3D12_BLEND_ONE;
@@ -2850,7 +2926,7 @@ namespace dmGraphics
 
     static inline D3D12_BLEND GetBlendAlphaFactor(BlendFactor factor)
     {
-        switch(factor)
+        switch (factor)
         {
             case BLEND_FACTOR_ZERO:                 return D3D12_BLEND_ZERO;
             case BLEND_FACTOR_ONE:                  return D3D12_BLEND_ONE;
@@ -2870,7 +2946,7 @@ namespace dmGraphics
 
     static inline D3D12_BLEND_OP GetBlendOp(BlendEquation equation)
     {
-        switch(equation)
+        switch (equation)
         {
             case BLEND_EQUATION_ADD:              return D3D12_BLEND_OP_ADD;
             case BLEND_EQUATION_SUBTRACT:         return D3D12_BLEND_OP_SUBTRACT;
@@ -2891,15 +2967,15 @@ namespace dmGraphics
     {
         assert(context->m_CurrentProgram && context->m_CurrentProgram->m_ComputeModule);
 
-        D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
-        psoDesc.pRootSignature = context->m_CurrentProgram->m_RootSignature;
+        D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline_desc = {};
+        pipeline_desc.pRootSignature = context->m_CurrentProgram->m_RootSignature;
 
-        psoDesc.CS.pShaderBytecode = context->m_CurrentProgram->m_ComputeModule->m_Data;
-        psoDesc.CS.BytecodeLength  = context->m_CurrentProgram->m_ComputeModule->m_DataSize;
+        pipeline_desc.CS.pShaderBytecode = context->m_CurrentProgram->m_ComputeModule->m_Data;
+        pipeline_desc.CS.BytecodeLength  = context->m_CurrentProgram->m_ComputeModule->m_DataSize;
 
-        psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+        pipeline_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 
-        HRESULT hr = context->m_Device->CreateComputePipelineState(&psoDesc, DM_IID_PPV_ARGS(pipeline));
+        HRESULT hr = context->m_Device->CreateComputePipelineState(&pipeline_desc, DM_IID_PPV_ARGS(pipeline));
         CHECK_HR_ERROR(hr);
     }
 
@@ -2931,7 +3007,7 @@ namespace dmGraphics
         return cached_pipeline;
     }
 
-    static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, const PipelineState& pipelineState, DX12Pipeline* pipeline)
+    static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, const PipelineState& pipeline_state, DX12Pipeline* pipeline)
     {
         D3D12_SHADER_BYTECODE vs_byte_code = {};
         vs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_VertexModule->m_DataSize;
@@ -3023,14 +3099,14 @@ namespace dmGraphics
             }
         }
 
-        D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
-        inputLayoutDesc.NumElements             = input_layout.Size();
-        inputLayoutDesc.pInputElementDescs      = input_layout.Begin();
+        D3D12_INPUT_LAYOUT_DESC input_layout_desc = {};
+        input_layout_desc.NumElements             = input_layout.Size();
+        input_layout_desc.pInputElementDescs      = input_layout.Begin();
 
-        CD3DX12_RASTERIZER_DESC rasterizerState = CD3DX12_RASTERIZER_DESC(
+        CD3DX12_RASTERIZER_DESC rasterizer_state = CD3DX12_RASTERIZER_DESC(
             D3D12_FILL_MODE_SOLID,
-            GetCullMode(pipelineState),
-            pipelineState.m_FaceWinding == FACE_WINDING_CCW, // FrontCounterClockwise
+            GetCullMode(pipeline_state),
+            pipeline_state.m_FaceWinding == FACE_WINDING_CCW, // FrontCounterClockwise
             D3D12_DEFAULT_DEPTH_BIAS,
             D3D12_DEFAULT_DEPTH_BIAS_CLAMP,
             D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS,
@@ -3040,57 +3116,57 @@ namespace dmGraphics
             0,                                          // forcedSampleCount
             D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF); // conservativeRaster
 
-        rasterizerState.MultisampleEnable = rt->m_SampleDesc.Count > 1;
-        if (pipelineState.m_PolygonOffsetFillEnabled)
+        rasterizer_state.MultisampleEnable = rt->m_SampleDesc.Count > 1;
+        if (pipeline_state.m_PolygonOffsetFillEnabled)
         {
-            rasterizerState.DepthBias = (INT) context->m_PolygonOffsetUnits;
-            rasterizerState.SlopeScaledDepthBias = context->m_PolygonOffsetFactor;
+            rasterizer_state.DepthBias = (INT) context->m_PolygonOffsetUnits;
+            rasterizer_state.SlopeScaledDepthBias = context->m_PolygonOffsetFactor;
         }
-        D3D12_DEPTH_STENCIL_DESC depthStencilDesc = GetDepthStencilState(pipelineState);
+        D3D12_DEPTH_STENCIL_DESC depth_stencil_desc = GetDepthStencilState(pipeline_state);
         if (rt->m_DsvFormat != DXGI_FORMAT_D24_UNORM_S8_UINT && rt->m_DsvFormat != DXGI_FORMAT_D32_FLOAT_S8X24_UINT)
-            depthStencilDesc.StencilEnable = false;
+            depth_stencil_desc.StencilEnable = false;
 
-        D3D12_BLEND_DESC blendDesc = {};
-        blendDesc.AlphaToCoverageEnable  = false;
-        blendDesc.IndependentBlendEnable = false;
+        D3D12_BLEND_DESC blend_desc = {};
+        blend_desc.AlphaToCoverageEnable  = false;
+        blend_desc.IndependentBlendEnable = false;
         for (uint32_t i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
         {
-            blendDesc.RenderTarget[i].BlendEnable           = false;
-            blendDesc.RenderTarget[i].LogicOpEnable         = false;
-            blendDesc.RenderTarget[i].SrcBlend              = GetBlendFactor((BlendFactor) pipelineState.m_BlendSrcFactor);
-            blendDesc.RenderTarget[i].DestBlend             = GetBlendFactor((BlendFactor) pipelineState.m_BlendDstFactor);
-            blendDesc.RenderTarget[i].BlendOp               = GetBlendOp((BlendEquation) pipelineState.m_BlendEquationColor);
-            blendDesc.RenderTarget[i].SrcBlendAlpha         = GetBlendAlphaFactor((BlendFactor) pipelineState.m_BlendSrcFactorAlpha);
-            blendDesc.RenderTarget[i].DestBlendAlpha        = GetBlendAlphaFactor((BlendFactor) pipelineState.m_BlendDstFactorAlpha);
-            blendDesc.RenderTarget[i].BlendOpAlpha          = GetBlendOp((BlendEquation) pipelineState.m_BlendEquationAlpha);
-            blendDesc.RenderTarget[i].LogicOp               = D3D12_LOGIC_OP_NOOP;
-            blendDesc.RenderTarget[i].RenderTargetWriteMask = pipelineState.m_WriteColorMask;
+            blend_desc.RenderTarget[i].BlendEnable           = false;
+            blend_desc.RenderTarget[i].LogicOpEnable         = false;
+            blend_desc.RenderTarget[i].SrcBlend              = GetBlendFactor((BlendFactor) pipeline_state.m_BlendSrcFactor);
+            blend_desc.RenderTarget[i].DestBlend             = GetBlendFactor((BlendFactor) pipeline_state.m_BlendDstFactor);
+            blend_desc.RenderTarget[i].BlendOp               = GetBlendOp((BlendEquation) pipeline_state.m_BlendEquationColor);
+            blend_desc.RenderTarget[i].SrcBlendAlpha         = GetBlendAlphaFactor((BlendFactor) pipeline_state.m_BlendSrcFactorAlpha);
+            blend_desc.RenderTarget[i].DestBlendAlpha        = GetBlendAlphaFactor((BlendFactor) pipeline_state.m_BlendDstFactorAlpha);
+            blend_desc.RenderTarget[i].BlendOpAlpha          = GetBlendOp((BlendEquation) pipeline_state.m_BlendEquationAlpha);
+            blend_desc.RenderTarget[i].LogicOp               = D3D12_LOGIC_OP_NOOP;
+            blend_desc.RenderTarget[i].RenderTargetWriteMask = pipeline_state.m_WriteColorMask;
         }
 
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {}; // a structure to define a pso
-        psoDesc.InputLayout           = inputLayoutDesc; // the structure describing our input layout
-        psoDesc.pRootSignature        = context->m_CurrentProgram->m_RootSignature;
-        psoDesc.VS                    = vs_byte_code;
-        psoDesc.PS                    = fs_byte_code;
-        psoDesc.PrimitiveTopologyType = pipelineState.m_PrimtiveType == PRIMITIVE_LINES ?
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
+        pipeline_desc.InputLayout           = input_layout_desc;
+        pipeline_desc.pRootSignature        = context->m_CurrentProgram->m_RootSignature;
+        pipeline_desc.VS                    = vs_byte_code;
+        pipeline_desc.PS                    = fs_byte_code;
+        pipeline_desc.PrimitiveTopologyType = pipeline_state.m_PrimtiveType == PRIMITIVE_LINES ?
             D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-        psoDesc.SampleDesc            = rt->m_SampleDesc; // must be the same sample description as the swapchain and depth/stencil buffer
-        psoDesc.SampleMask            = UINT_MAX; // TODO: sample mask has to do with multi-sampling. 0xffffffff means point sampling is done
-        psoDesc.RasterizerState       = rasterizerState; // TODO? rasterizerState;
-        psoDesc.DepthStencilState     = depthStencilDesc;
-        psoDesc.DSVFormat             = rt->m_DsvFormat;
-        if (psoDesc.DSVFormat == DXGI_FORMAT_UNKNOWN)
+        pipeline_desc.SampleDesc            = rt->m_SampleDesc; // must be the same sample description as the swapchain and depth/stencil buffer
+        pipeline_desc.SampleMask            = UINT_MAX; // TODO: sample mask has to do with multi-sampling. 0xffffffff means point sampling is done
+        pipeline_desc.RasterizerState       = rasterizer_state;
+        pipeline_desc.DepthStencilState     = depth_stencil_desc;
+        pipeline_desc.DSVFormat             = rt->m_DsvFormat;
+        if (pipeline_desc.DSVFormat == DXGI_FORMAT_UNKNOWN)
         {
-            psoDesc.DepthStencilState.DepthEnable    = false;
-            psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-            psoDesc.DepthStencilState.DepthFunc      = D3D12_COMPARISON_FUNC_ALWAYS;
-            psoDesc.DepthStencilState.StencilEnable  = false;
+            pipeline_desc.DepthStencilState.DepthEnable    = false;
+            pipeline_desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+            pipeline_desc.DepthStencilState.DepthFunc      = D3D12_COMPARISON_FUNC_ALWAYS;
+            pipeline_desc.DepthStencilState.StencilEnable  = false;
         }
 
         if (rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            psoDesc.NumRenderTargets = 1;
-            psoDesc.RTVFormats[0]    = rt->m_Format;
+            pipeline_desc.NumRenderTargets = 1;
+            pipeline_desc.RTVFormats[0]    = rt->m_Format;
         }
         else
         {
@@ -3099,89 +3175,89 @@ namespace dmGraphics
                 if (rt->m_Base.m_TextureColor[i])
                 {
                     DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[i]);
-                    psoDesc.RTVFormats[psoDesc.NumRenderTargets++] = texture_color->m_ResourceDesc.Format;
+                    pipeline_desc.RTVFormats[pipeline_desc.NumRenderTargets++] = texture_color->m_ResourceDesc.Format;
                 }
             }
         }
 
-        const uint32_t bound_render_target_count = psoDesc.NumRenderTargets;
+        const uint32_t bound_render_target_count = pipeline_desc.NumRenderTargets;
         DXGI_FORMAT shader_output_formats[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
         const uint32_t shader_output_count = GetPixelShaderOutputFormats(context->m_CurrentProgram, shader_output_formats, DM_ARRAY_SIZE(shader_output_formats));
-        if (bound_render_target_count > 0 && shader_output_count > psoDesc.NumRenderTargets)
+        if (bound_render_target_count > 0 && shader_output_count > pipeline_desc.NumRenderTargets)
         {
             const uint32_t output_count = dmMath::Min(shader_output_count, (uint32_t) D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT);
-            for (uint32_t i = psoDesc.NumRenderTargets; i < output_count; ++i)
+            for (uint32_t i = pipeline_desc.NumRenderTargets; i < output_count; ++i)
             {
-                psoDesc.RTVFormats[i] = shader_output_formats[i] != DXGI_FORMAT_UNKNOWN ? shader_output_formats[i] : psoDesc.RTVFormats[0];
+                pipeline_desc.RTVFormats[i] = shader_output_formats[i] != DXGI_FORMAT_UNKNOWN ? shader_output_formats[i] : pipeline_desc.RTVFormats[0];
             }
-            psoDesc.NumRenderTargets = output_count;
+            pipeline_desc.NumRenderTargets = output_count;
         }
 
-        blendDesc.IndependentBlendEnable = psoDesc.NumRenderTargets > 1;
-        for (uint32_t i = 0; i < psoDesc.NumRenderTargets; ++i)
+        blend_desc.IndependentBlendEnable = pipeline_desc.NumRenderTargets > 1;
+        for (uint32_t i = 0; i < pipeline_desc.NumRenderTargets; ++i)
         {
             const bool bound_render_target = i < bound_render_target_count;
-            blendDesc.RenderTarget[i].BlendEnable           = bound_render_target && pipelineState.m_BlendEnabled && FormatSupportsBlend(context->m_Device, psoDesc.RTVFormats[i]);
-            blendDesc.RenderTarget[i].RenderTargetWriteMask = bound_render_target ? GetRenderTargetWriteMask(psoDesc.RTVFormats[i], pipelineState.m_WriteColorMask) : 0;
+            blend_desc.RenderTarget[i].BlendEnable           = bound_render_target && pipeline_state.m_BlendEnabled && FormatSupportsBlend(context->m_Device, pipeline_desc.RTVFormats[i]);
+            blend_desc.RenderTarget[i].RenderTargetWriteMask = bound_render_target ? GetRenderTargetWriteMask(pipeline_desc.RTVFormats[i], pipeline_state.m_WriteColorMask) : 0;
         }
-        psoDesc.BlendState = blendDesc;
+        pipeline_desc.BlendState = blend_desc;
 
         if (rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
         {
-            psoDesc.RasterizerState.MultisampleEnable = true;
-            psoDesc.SampleDesc.Count                  = context->m_MSAASampleCount;
-            psoDesc.SampleDesc.Quality                = 0;
+            pipeline_desc.RasterizerState.MultisampleEnable = true;
+            pipeline_desc.SampleDesc.Count                  = context->m_MSAASampleCount;
+            pipeline_desc.SampleDesc.Quality                = 0;
         }
-        HRESULT hr = context->m_Device->CreateGraphicsPipelineState(&psoDesc, DM_IID_PPV_ARGS(pipeline));
+        HRESULT hr = context->m_Device->CreateGraphicsPipelineState(&pipeline_desc, DM_IID_PPV_ARGS(pipeline));
         if (FAILED(hr))
         {
             dmLogError("DX12 CreateGraphicsPipelineState failed: hr=0x%08x dsv_format=0x%x num_rtvs=%u bound_rtvs=%u shader_outputs=%u sample_count=%u sample_quality=%u",
                         (uint32_t)hr,
-                        (uint32_t)psoDesc.DSVFormat,
-                        psoDesc.NumRenderTargets,
+                        (uint32_t)pipeline_desc.DSVFormat,
+                        pipeline_desc.NumRenderTargets,
                         bound_render_target_count,
                         shader_output_count,
-                        psoDesc.SampleDesc.Count,
-                        psoDesc.SampleDesc.Quality);
+                        pipeline_desc.SampleDesc.Count,
+                        pipeline_desc.SampleDesc.Quality);
             dmLogError("  DepthStencil: depth_enable=%u depth_write_mask=%u depth_func=%u stencil_enable=%u",
-                        (uint32_t)psoDesc.DepthStencilState.DepthEnable,
-                        (uint32_t)psoDesc.DepthStencilState.DepthWriteMask,
-                        (uint32_t)psoDesc.DepthStencilState.DepthFunc,
-                        (uint32_t)psoDesc.DepthStencilState.StencilEnable);
+                        (uint32_t)pipeline_desc.DepthStencilState.DepthEnable,
+                        (uint32_t)pipeline_desc.DepthStencilState.DepthWriteMask,
+                        (uint32_t)pipeline_desc.DepthStencilState.DepthFunc,
+                        (uint32_t)pipeline_desc.DepthStencilState.StencilEnable);
             dmLogError("  Blend: enabled=%u src=%u dst=%u src_alpha=%u dst_alpha=%u op=%u op_alpha=%u",
-                        (uint32_t)pipelineState.m_BlendEnabled,
-                        (uint32_t)blendDesc.RenderTarget[0].SrcBlend,
-                        (uint32_t)blendDesc.RenderTarget[0].DestBlend,
-                        (uint32_t)blendDesc.RenderTarget[0].SrcBlendAlpha,
-                        (uint32_t)blendDesc.RenderTarget[0].DestBlendAlpha,
-                        (uint32_t)blendDesc.RenderTarget[0].BlendOp,
-                        (uint32_t)blendDesc.RenderTarget[0].BlendOpAlpha);
+                        (uint32_t)pipeline_state.m_BlendEnabled,
+                        (uint32_t)blend_desc.RenderTarget[0].SrcBlend,
+                        (uint32_t)blend_desc.RenderTarget[0].DestBlend,
+                        (uint32_t)blend_desc.RenderTarget[0].SrcBlendAlpha,
+                        (uint32_t)blend_desc.RenderTarget[0].DestBlendAlpha,
+                        (uint32_t)blend_desc.RenderTarget[0].BlendOp,
+                        (uint32_t)blend_desc.RenderTarget[0].BlendOpAlpha);
             dmLogError("  ShaderBytecode: vs_len=%u ps_len=%u input_elements=%u topology=%u sample_mask=0x%x",
-                        (uint32_t)psoDesc.VS.BytecodeLength,
-                        (uint32_t)psoDesc.PS.BytecodeLength,
-                        (uint32_t)psoDesc.InputLayout.NumElements,
-                        (uint32_t)psoDesc.PrimitiveTopologyType,
-                        (uint32_t)psoDesc.SampleMask);
-            for (uint32_t i = 0; i < psoDesc.NumRenderTargets; ++i)
+                        (uint32_t)pipeline_desc.VS.BytecodeLength,
+                        (uint32_t)pipeline_desc.PS.BytecodeLength,
+                        (uint32_t)pipeline_desc.InputLayout.NumElements,
+                        (uint32_t)pipeline_desc.PrimitiveTopologyType,
+                        (uint32_t)pipeline_desc.SampleMask);
+            for (uint32_t i = 0; i < pipeline_desc.NumRenderTargets; ++i)
             {
                 dmLogError("  RTV[%u]: format=0x%x blend=%u write_mask=0x%x blendable=%u",
                             i,
-                            (uint32_t)psoDesc.RTVFormats[i],
-                            (uint32_t)blendDesc.RenderTarget[i].BlendEnable,
-                            (uint32_t)blendDesc.RenderTarget[i].RenderTargetWriteMask,
-                            (uint32_t)FormatSupportsBlend(context->m_Device, psoDesc.RTVFormats[i]));
+                            (uint32_t)pipeline_desc.RTVFormats[i],
+                            (uint32_t)blend_desc.RenderTarget[i].BlendEnable,
+                            (uint32_t)blend_desc.RenderTarget[i].RenderTargetWriteMask,
+                            (uint32_t)FormatSupportsBlend(context->m_Device, pipeline_desc.RTVFormats[i]));
             }
         }
         CHECK_HR_ERROR(hr);
     }
 
-    static DX12Pipeline* GetOrCreatePipeline(DX12Context* context, DX12RenderTarget* current_rt, const PipelineState& pipelineState, uint32_t num_vx_decls)
+    static DX12Pipeline* GetOrCreatePipeline(DX12Context* context, DX12RenderTarget* current_rt, const PipelineState& pipeline_state, uint32_t num_vx_decls)
     {
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
         dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &pipelineState, sizeof(pipelineState));
-        if (pipelineState.m_PolygonOffsetFillEnabled)
+        dmHashUpdateBuffer64(&pipeline_hash_state, &pipeline_state, sizeof(pipeline_state));
+        if (pipeline_state.m_PolygonOffsetFillEnabled)
         {
             dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PolygonOffsetFactor, sizeof(float));
             dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PolygonOffsetUnits, sizeof(float));
@@ -3228,7 +3304,7 @@ namespace dmGraphics
 
             context->m_PipelineCache.Put(pipeline_hash, {});
             cached_pipeline = context->m_PipelineCache.Get(pipeline_hash);
-            CreatePipeline(context, current_rt, pipelineState, cached_pipeline);
+            CreatePipeline(context, current_rt, pipeline_state, cached_pipeline);
 
             dmLogDebug("Created new DX12 Pipeline with hash %llu", (unsigned long long) pipeline_hash);
         }
@@ -3312,27 +3388,32 @@ namespace dmGraphics
 
         for (int i = 0; i < program->m_RootSignatureResources.Size(); ++i)
         {
-            DX12ResourceBinding& dx12_res = program->m_RootSignatureResources[i];
-            const uint32_t root_index = dx12_res.m_RootParameterIndex;
-            ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[dx12_res.m_Set][dx12_res.m_Binding];
+            DX12ResourceBinding& root_binding = program->m_RootSignatureResources[i];
+            const uint32_t root_index = root_binding.m_RootParameterIndex;
+            ProgramResourceBinding& program_binding = program->m_BaseProgram.m_ResourceBindings[root_binding.m_Set][root_binding.m_Binding];
 
-            switch(pgm_res.m_Res->m_BindingFamily)
+            switch (program_binding.m_Res->m_BindingFamily)
             {
                 case BINDING_FAMILY_TEXTURE:
                 {
-                    DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
-                    if (!texture || !texture->m_Resource) { dmLogError("DX12 missing texture binding"); return false; }
+                    DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentTextures[program_binding.m_TextureUnit]);
+                    if (!texture || !texture->m_Resource)
+                    {
+                        dmLogError("DX12 missing texture binding");
+                        return false;
+                    }
                     const uint8_t root_type = root_index < program->m_RootParameterTypes.Size() ? program->m_RootParameterTypes[root_index] : ROOT_TEXTURE_SRV;
-                    bool root_param_is_sampler = root_type == ROOT_SAMPLER;
+                    bool is_sampler = root_type == ROOT_SAMPLER;
 
-                    if (root_param_is_sampler || pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                    if (is_sampler || program_binding.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                     {
                         const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
                         frame_resources.m_ScratchBuffer.AllocateSampler(context, pipeline_type, sampler, root_index);
                     }
                     else if (root_type == ROOT_TEXTURE_UAV)
                     {
-                        if (!frame_resources.m_ScratchBuffer.AllocateImage(context, pipeline_type, texture, root_index)) return false;
+                        if (!frame_resources.m_ScratchBuffer.AllocateImage(context, pipeline_type, texture, root_index))
+                            return false;
                     }
                     else
                     {
@@ -3345,14 +3426,14 @@ namespace dmGraphics
                 } break;
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    DX12StorageBuffer* buffer = context->m_CurrentStorageBuffers[dx12_res.m_Set][dx12_res.m_Binding];
+                    DX12StorageBuffer* buffer = context->m_CurrentStorageBuffers[root_binding.m_Set][root_binding.m_Binding];
                     if (!buffer || !buffer->m_DeviceBuffer.m_Resource)
                     {
-                        dmLogWarning("No storage buffer is bound at set %u, binding %u.", dx12_res.m_Set, dx12_res.m_Binding);
+                        dmLogWarning("No storage buffer is bound at set %u, binding %u.", root_binding.m_Set, root_binding.m_Binding);
                         break;
                     }
 
-                    const bool read_only = pgm_res.m_Res->m_AccessFlags == SHADER_RESOURCE_ACCESS_READ;
+                    const bool read_only = program_binding.m_Res->m_AccessFlags == SHADER_RESOURCE_ACCESS_READ;
                     const D3D12_RESOURCE_STATES target_state = read_only
                         ? (D3D12_RESOURCE_STATES) (D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
                         : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
@@ -3374,17 +3455,17 @@ namespace dmGraphics
                 } break;
                 case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
-                    DX12UniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[dx12_res.m_Set][dx12_res.m_Binding];
+                    DX12UniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[root_binding.m_Set][root_binding.m_Binding];
 
                     if (bound_ubo)
                     {
-                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
-                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, pgm_res.m_Res->m_BindingInfo.m_BlockSize))
+                        UniformBufferLayout* program_layout = (UniformBufferLayout*) program_binding.m_BindingUserData;
+                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *program_layout, program_binding.m_Res->m_BindingInfo.m_BlockSize))
                         {
                             dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
                                 bound_ubo->m_BaseUniformBuffer.m_Layout,
-                                pgm_res.m_Res->m_Name,
-                                *pgm_layout);
+                                program_binding.m_Res->m_Name,
+                                *program_layout);
 
                             // Fallback to the scratch buffer uniform setup
                             bound_ubo = 0;
@@ -3406,11 +3487,11 @@ namespace dmGraphics
                     }
                     else
                     {
-                        const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, root_index, uniform_size_nonalign);
+                        const uint32_t uniform_size = program_binding.m_Res->m_BindingInfo.m_BlockSize;
+                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, root_index, uniform_size);
                         if (!gpu_mapped_memory)
                             return false;
-                        memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_UniformBufferOffset], uniform_size_nonalign);
+                        memcpy(gpu_mapped_memory, &program->m_UniformData[program_binding.m_UniformBufferOffset], uniform_size);
                     }
                 } break;
                 case BINDING_FAMILY_GENERIC:
@@ -3579,7 +3660,7 @@ namespace dmGraphics
             return;
 
         // From graphics_vulkan.cpp
-        if (IsRenderTargetbound(context, context->m_CurrentRenderTarget))
+        if (IsRenderTargetBound(context, context->m_CurrentRenderTarget))
         {
             EndRenderPass(context);
         }
@@ -3661,69 +3742,69 @@ namespace dmGraphics
         BuildUniforms(&program->m_BaseProgram);
     }
 
-static bool IsShaderCompiled(void* data, uint32_t data_size)
-{
-    const char* header = (const char*)data;
-    return data_size >= 4 &&
-        ((header[0] == 'D' && header[1] == 'X' && header[2] == 'B' && header[3] == 'C') ||
-         (header[0] == 'D' && header[1] == 'X' && header[2] == 'I' && header[3] == 'L'));
-}
-
-static HRESULT CreateShaderModuleFromBlob(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader)
-{
-    HashState64 shader_hash_state;
-    dmHashInit64(&shader_hash_state, false);
-    dmHashUpdateBuffer64(&shader_hash_state, data, data_size);
-    shader->m_Hash = dmHashFinal64(&shader_hash_state);
-
-    shader->m_ShaderBlob = 0;
-    shader->m_DataSize = data_size;
-    shader->m_Data = malloc(data_size);
-    memcpy(shader->m_Data, data, data_size);
-    return S_OK;
-}
-
-HRESULT CreateShaderModule(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader)
-{
-    if (IsShaderCompiled(data, data_size))
-        return CreateShaderModuleFromBlob(context, target, data, data_size, shader);
-    dmLogError("Shader was not compiled to DXBC");
-    return E_FAIL;
-}
-
-static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, ShaderDesc::Shader** shaders, uint32_t shader_count)
-{
-    uint32_t num_bindings = 0;
-
-    for (int i = 0; i < shader_count; ++i)
+    static bool IsShaderCompiled(void* data, uint32_t data_size)
     {
-        num_bindings += shaders[i]->m_HlslResourceMapping.m_Count;
+        const char* header = (const char*)data;
+        return data_size >= 4 &&
+            ((header[0] == 'D' && header[1] == 'X' && header[2] == 'B' && header[3] == 'C') ||
+             (header[0] == 'D' && header[1] == 'X' && header[2] == 'I' && header[3] == 'L'));
     }
 
-    program->m_RootSignatureResources.SetCapacity(num_bindings);
-    program->m_RootSignatureResources.SetSize(num_bindings);
-
-    uint32_t offset = 0;
-
-    for (int i = 0; i < shader_count; ++i)
+    static HRESULT CreateShaderModuleFromBlob(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader)
     {
-        for (int j = 0; j < shaders[i]->m_HlslResourceMapping.m_Count; ++j)
-        {
-            uint32_t index = offset + j;
-            program->m_RootSignatureResources[index].m_RootParameterIndex = shaders[i]->m_HlslResourceMapping[j].m_RootParameterIndex;
-            program->m_RootSignatureResources[index].m_NameHash = shaders[i]->m_HlslResourceMapping[j].m_NameHash;
-            program->m_RootSignatureResources[index].m_Binding  = shaders[i]->m_HlslResourceMapping[j].m_Binding;
-            program->m_RootSignatureResources[index].m_Set      = shaders[i]->m_HlslResourceMapping[j].m_Set;
+        HashState64 shader_hash_state;
+        dmHashInit64(&shader_hash_state, false);
+        dmHashUpdateBuffer64(&shader_hash_state, data, data_size);
+        shader->m_Hash = dmHashFinal64(&shader_hash_state);
 
-            if (program->m_RootSignatureResources[index].m_NameHash == HASH_SPIRV_Cross_NumWorkgroups)
-            {
-                program->m_NumWorkGroupsResourceIndex = index;
-            }
+        shader->m_ShaderBlob = 0;
+        shader->m_DataSize = data_size;
+        shader->m_Data = malloc(data_size);
+        memcpy(shader->m_Data, data, data_size);
+        return S_OK;
+    }
+
+    HRESULT CreateShaderModule(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader)
+    {
+        if (IsShaderCompiled(data, data_size))
+            return CreateShaderModuleFromBlob(context, target, data, data_size, shader);
+        dmLogError("Shader was not compiled to DXBC");
+        return E_FAIL;
+    }
+
+    static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, ShaderDesc::Shader** shaders, uint32_t shader_count)
+    {
+        uint32_t num_bindings = 0;
+
+        for (int i = 0; i < shader_count; ++i)
+        {
+            num_bindings += shaders[i]->m_HlslResourceMapping.m_Count;
         }
 
-        offset += shaders[i]->m_HlslResourceMapping.m_Count;
+        program->m_RootSignatureResources.SetCapacity(num_bindings);
+        program->m_RootSignatureResources.SetSize(num_bindings);
+
+        uint32_t offset = 0;
+
+        for (int i = 0; i < shader_count; ++i)
+        {
+            for (int j = 0; j < shaders[i]->m_HlslResourceMapping.m_Count; ++j)
+            {
+                uint32_t index = offset + j;
+                program->m_RootSignatureResources[index].m_RootParameterIndex = shaders[i]->m_HlslResourceMapping[j].m_RootParameterIndex;
+                program->m_RootSignatureResources[index].m_NameHash = shaders[i]->m_HlslResourceMapping[j].m_NameHash;
+                program->m_RootSignatureResources[index].m_Binding  = shaders[i]->m_HlslResourceMapping[j].m_Binding;
+                program->m_RootSignatureResources[index].m_Set      = shaders[i]->m_HlslResourceMapping[j].m_Set;
+
+                if (program->m_RootSignatureResources[index].m_NameHash == HASH_SPIRV_Cross_NumWorkgroups)
+                {
+                    program->m_NumWorkGroupsResourceIndex = index;
+                }
+            }
+
+            offset += shaders[i]->m_HlslResourceMapping.m_Count;
+        }
     }
-}
 
     static HProgram DX12NewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
@@ -3753,7 +3834,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             HRESULT hr = CreateShaderModule(context, "cs_5_1", ddf_cp->m_Source.m_Data, ddf_cp->m_Source.m_Count, program->m_ComputeModule);
             if (FAILED(hr))
             {
-                if (error_buffer && error_buffer_size) dmSnPrintf(error_buffer, error_buffer_size, "DX12 shader/root signature creation failed: 0x%08x", (unsigned) hr);
+                if (error_buffer && error_buffer_size)
+                    dmSnPrintf(error_buffer, error_buffer_size, "DX12 shader/root signature creation failed: 0x%08x", (unsigned) hr);
                 DestroyProgram(&program->m_BaseProgram);
                 DX12DeleteProgram(_context, (HProgram) program);
                 return 0;
@@ -3778,7 +3860,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             }
             if (FAILED(hr))
             {
-                if (error_buffer && error_buffer_size) dmSnPrintf(error_buffer, error_buffer_size, "DX12 shader/root signature creation failed: 0x%08x", (unsigned) hr);
+                if (error_buffer && error_buffer_size)
+                    dmSnPrintf(error_buffer, error_buffer_size, "DX12 shader/root signature creation failed: 0x%08x", (unsigned) hr);
                 DestroyProgram(&program->m_BaseProgram);
                 DX12DeleteProgram(_context, (HProgram) program);
                 return 0;
@@ -3797,7 +3880,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             HRESULT hr = CreateShaderModule(context, "vs_5_1", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
             if (FAILED(hr))
             {
-                if (error_buffer && error_buffer_size) dmSnPrintf(error_buffer, error_buffer_size, "DX12 shader/root signature creation failed: 0x%08x", (unsigned) hr);
+                if (error_buffer && error_buffer_size)
+                    dmSnPrintf(error_buffer, error_buffer_size, "DX12 shader/root signature creation failed: 0x%08x", (unsigned) hr);
                 DestroyProgram(&program->m_BaseProgram);
                 DX12DeleteProgram(_context, (HProgram) program);
                 return 0;
@@ -3806,7 +3890,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             hr = CreateShaderModule(context, "ps_5_1", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
             if (FAILED(hr))
             {
-                if (error_buffer && error_buffer_size) dmSnPrintf(error_buffer, error_buffer_size, "DX12 shader/root signature creation failed: 0x%08x", (unsigned) hr);
+                if (error_buffer && error_buffer_size)
+                    dmSnPrintf(error_buffer, error_buffer_size, "DX12 shader/root signature creation failed: 0x%08x", (unsigned) hr);
                 DestroyProgram(&program->m_BaseProgram);
                 DX12DeleteProgram(_context, (HProgram) program);
                 return 0;
@@ -3821,7 +3906,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             hr = context->m_Device->CreateRootSignature(0, ddf->m_HlslRootSignature.m_Data, ddf->m_HlslRootSignature.m_Count, DM_IID_PPV_ARGS(&program->m_RootSignature));
             if (FAILED(hr))
             {
-                if (error_buffer && error_buffer_size) dmSnPrintf(error_buffer, error_buffer_size, "DX12 shader/root signature creation failed: 0x%08x", (unsigned) hr);
+                if (error_buffer && error_buffer_size)
+                    dmSnPrintf(error_buffer, error_buffer_size, "DX12 shader/root signature creation failed: 0x%08x", (unsigned) hr);
                 DestroyProgram(&program->m_BaseProgram);
                 DX12DeleteProgram(_context, (HProgram) program);
                 return 0;
@@ -3850,19 +3936,27 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(modules); ++i)
         {
             DX12ShaderModule* module = modules[i];
-            if (!module) continue;
-            if (module->m_ShaderBlob) module->m_ShaderBlob->Release(); else free(module->m_Data);
-            if (module->m_RootSignatureBlob) module->m_RootSignatureBlob->Release();
-            if (module->m_RootSignature) module->m_RootSignature->Release();
+            if (!module)
+                continue;
+            if (module->m_ShaderBlob)
+                module->m_ShaderBlob->Release();
+            else
+                free(module->m_Data);
+            if (module->m_RootSignatureBlob)
+                module->m_RootSignatureBlob->Release();
+            if (module->m_RootSignature)
+                module->m_RootSignature->Release();
             delete module;
         }
         if (program->m_RootSignature)
         {
             dmArray<IUnknown*>& retired = context->m_FrameResources[context->m_CurrentFrameIndex].m_ObjectsToDestroy;
-            if (retired.Full()) retired.OffsetCapacity(8);
+            if (retired.Full())
+                retired.OffsetCapacity(8);
             retired.Push(program->m_RootSignature);
         }
-        if (context->m_CurrentProgram == program) context->m_CurrentProgram = 0;
+        if (context->m_CurrentProgram == program)
+            context->m_CurrentProgram = 0;
         delete[] program->m_UniformData;
         delete program;
     }
@@ -3890,7 +3984,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static bool DX12ReloadProgram(HContext context, HProgram handle, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         DX12ShaderProgram* replacement = (DX12ShaderProgram*) DX12NewProgram(context, ddf, error_buffer, error_buffer_size);
-        if (!replacement) return false;
+        if (!replacement)
+            return false;
         DX12ShaderProgram* program = (DX12ShaderProgram*) handle;
         // These structs contain owning arrays and pointers; transfer ownership without copying their allocations.
         unsigned char previous[sizeof(DX12ShaderProgram)];
@@ -3995,11 +4090,13 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         if (rt->m_MultisampleColor[attachment])
         {
             dmArray<ID3D12Resource*>& retired = context->m_FrameResources[context->m_CurrentFrameIndex].m_ResourcesToDestroy;
-            if (retired.Full()) retired.OffsetCapacity(8);
+            if (retired.Full())
+                retired.OffsetCapacity(8);
             retired.Push(rt->m_MultisampleColor[attachment]);
             rt->m_MultisampleColor[attachment] = 0;
         }
-        if (rt->m_SampleDesc.Count <= 1) return;
+        if (rt->m_SampleDesc.Count <= 1)
+            return;
         D3D12_RESOURCE_DESC desc = resolve_desc;
         desc.SampleDesc = rt->m_SampleDesc;
         D3D12_CLEAR_VALUE clear = {};
@@ -4252,16 +4349,19 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         if (ctx->m_CurrentRenderTarget == render_target)
         {
             EndRenderPass(ctx);
-            if (ctx->m_MainRenderTarget == render_target) ctx->m_MainRenderTarget = 0;
+            if (ctx->m_MainRenderTarget == render_target)
+                ctx->m_MainRenderTarget = 0;
             ctx->m_CurrentRenderTarget = ctx->m_MainRenderTarget;
-            if (ctx->m_FrameBegun && ctx->m_MainRenderTarget) BeginRenderPass(ctx, ctx->m_MainRenderTarget);
+            if (ctx->m_FrameBegun && ctx->m_MainRenderTarget)
+                BeginRenderPass(ctx, ctx->m_MainRenderTarget);
         }
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
         {
             if (rt->m_MultisampleColor[i])
             {
                 dmArray<ID3D12Resource*>& retired = ctx->m_FrameResources[ctx->m_CurrentFrameIndex].m_ResourcesToDestroy;
-                if (retired.Full()) retired.OffsetCapacity(8);
+                if (retired.Full())
+                    retired.OffsetCapacity(8);
                 retired.Push(rt->m_MultisampleColor[i]);
             }
             if (brt->m_TextureColor[i])
@@ -4613,15 +4713,17 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         return -1;
     }
 
-    static inline float GetMaxAnisotrophyClamped(float max_anisotropy_requested)
+    static inline float GetClampedMaxAnisotropy(float max_anisotropy_requested)
     {
         return dmMath::Min(max_anisotropy_requested, (float)D3D12_REQ_MAXANISOTROPY); // D3D12_REQ_MAXANISOTROPY=16
     }
 
     static inline D3D12_FILTER GetSamplerFilter(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter)
     {
-        if (minfilter == TEXTURE_FILTER_DEFAULT) minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
-        if (magfilter == TEXTURE_FILTER_DEFAULT) magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
+        if (minfilter == TEXTURE_FILTER_DEFAULT)
+            minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
+        if (magfilter == TEXTURE_FILTER_DEFAULT)
+            magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
         const bool linear_min = minfilter == TEXTURE_FILTER_LINEAR || minfilter == TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST || minfilter == TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
         const bool linear_mip = minfilter == TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR || minfilter == TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
         return D3D12_ENCODE_BASIC_FILTER(linear_min ? D3D12_FILTER_TYPE_LINEAR : D3D12_FILTER_TYPE_POINT,
@@ -4631,13 +4733,13 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static inline D3D12_TEXTURE_ADDRESS_MODE GetAddressMode(TextureWrap mode)
     {
-        switch(mode)
+        switch (mode)
         {
             case TEXTURE_WRAP_CLAMP_TO_BORDER:  return D3D12_TEXTURE_ADDRESS_MODE_BORDER;
             case TEXTURE_WRAP_CLAMP_TO_EDGE:    return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
             case TEXTURE_WRAP_MIRRORED_REPEAT:  return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
             case TEXTURE_WRAP_REPEAT:           return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-            default:break;
+            default: break;
         }
         assert(0);
         return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -4673,7 +4775,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         desc.MinLOD              = 0;
         desc.MaxLOD              = minfilter == TEXTURE_FILTER_NEAREST || minfilter == TEXTURE_FILTER_LINEAR ? 0.0f : (float) dmMath::Max(1u, (uint32_t) maxLod) - 1.0f;
         desc.MipLODBias          = 0.0f;
-        desc.MaxAnisotropy       = (UINT) GetMaxAnisotrophyClamped(max_anisotropy);
+        desc.MaxAnisotropy       = (UINT) GetClampedMaxAnisotropy(max_anisotropy);
         desc.ComparisonFunc      = D3D12_COMPARISON_FUNC_NEVER;
 
         new_sampler.m_Desc = desc;
@@ -4685,7 +4787,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static void DX12SetTextureParamsInternal(DX12Context* context, DX12Texture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
         const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
-        float anisotropy_clamped = GetMaxAnisotrophyClamped(max_anisotropy);
+        float anisotropy_clamped = GetClampedMaxAnisotropy(max_anisotropy);
 
         if (minfilter == TEXTURE_FILTER_DEFAULT)
             minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
@@ -4725,7 +4827,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             case TEXTURE_FORMAT_STENCIL:
                 dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(params.m_Format));
                 return;
-            default:break;
+            default: break;
         }
 
         DX12Texture* tex             = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
@@ -4875,65 +4977,91 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     {
         DX12Context* context = (DX12Context*) _context;
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
-        if (!rt || !rt->m_Base.m_TextureColor[0] || !buffer || !width || !height || (uint64_t) width * height * 4 > buffer_size) return;
+        if (!rt || !rt->m_Base.m_TextureColor[0] || !buffer || !width || !height || (uint64_t) width * height * 4 > buffer_size)
+            return;
+
         DX12Texture* color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[0]);
         const DXGI_FORMAT format = color->m_ResourceDesc.Format;
         if ((format != DXGI_FORMAT_R8G8B8A8_UNORM && format != DXGI_FORMAT_B8G8R8A8_UNORM) || x < 0 || y < 0 ||
-            (uint64_t) x + width > color->m_ResourceDesc.Width || (uint64_t) y + height > color->m_ResourceDesc.Height) return;
-        const bool bound = context->m_FrameBegun && EndRenderPass(context);
-        DX12OneTimeCommandList temporary = {};
-        ID3D12GraphicsCommandList* commands = context->m_CommandList;
-        if (!context->m_FrameBegun) { CreateOneTimeCommandList(context->m_Device, &temporary); commands = temporary.m_CommandList; }
+            (uint64_t) x + width > color->m_ResourceDesc.Width || (uint64_t) y + height > color->m_ResourceDesc.Height)
+            return;
+
+        // Suspend the active pass while its color attachment is copied.
+        const bool restore_render_pass = context->m_FrameBegun && EndRenderPass(context);
+        DX12OneTimeCommandList one_time_cmd_list = {};
+        ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
+        if (!context->m_FrameBegun)
+        {
+            CreateOneTimeCommandList(context->m_Device, &one_time_cmd_list);
+            cmd_list = one_time_cmd_list.m_CommandList;
+        }
+
         const UINT subresource = rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? rt->m_Base.m_CubeMapFace * color->m_ResourceDesc.MipLevels : 0;
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
-        UINT64 size = 0;
-        context->m_Device->GetCopyableFootprints(&color->m_ResourceDesc, subresource, 1, 0, &footprint, NULL, NULL, &size);
+        UINT64 readback_size = 0;
+        context->m_Device->GetCopyableFootprints(&color->m_ResourceDesc, subresource, 1, 0, &footprint, NULL, NULL, &readback_size);
         ID3D12Resource* readback = 0;
-        HRESULT hr = context->m_Device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK), D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer(size), D3D12_RESOURCE_STATE_COPY_DEST, NULL, DM_IID_PPV_ARGS(&readback));
+        HRESULT hr = context->m_Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(readback_size),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            NULL,
+            DM_IID_PPV_ARGS(&readback));
         if (FAILED(hr))
         {
             OUTPUT_HRESULT(hr);
-            if (temporary.m_CommandList) DestroyOneTimeCommandList(&temporary);
-            if (bound) BeginRenderPass(context, context->m_CurrentRenderTarget);
+            if (one_time_cmd_list.m_CommandList)
+                DestroyOneTimeCommandList(&one_time_cmd_list);
+            if (restore_render_pass)
+                BeginRenderPass(context, context->m_CurrentRenderTarget);
             return;
         }
-        const D3D12_RESOURCE_STATES previous = color->m_ResourceStates[subresource];
-        TransitionTexture(commands, color, D3D12_RESOURCE_STATE_COPY_SOURCE, subresource, 1);
+
+        const D3D12_RESOURCE_STATES previous_state = color->m_ResourceStates[subresource];
+        TransitionTexture(cmd_list, color, D3D12_RESOURCE_STATE_COPY_SOURCE, subresource, 1);
         CD3DX12_TEXTURE_COPY_LOCATION source(color->m_Resource, subresource), destination(readback, footprint);
         // Match ReadPixels' bottom-left region coordinates and top-to-bottom BGRA output.
         const UINT top = color->m_ResourceDesc.Height - y - height;
         D3D12_BOX box = { (UINT) x, top, 0, (UINT) x + width, top + height, 1 };
-        commands->CopyTextureRegion(&destination, 0, 0, 0, &source, &box);
-        TransitionTexture(commands, color, previous, subresource, 1);
-        if (context->m_FrameBegun) FlushDX12Commands(context);
+        cmd_list->CopyTextureRegion(&destination, 0, 0, 0, &source, &box);
+        TransitionTexture(cmd_list, color, previous_state, subresource, 1);
+
+        // Readback must finish before the CPU maps the copied pixels.
+        if (context->m_FrameBegun)
+            FlushDX12Commands(context);
         else
         {
-            commands->Close();
-            ID3D12CommandList* lists[] = { commands };
+            cmd_list->Close();
+            ID3D12CommandList* lists[] = { cmd_list };
             context->m_CommandQueue->ExecuteCommandLists(1, lists);
             WaitForDX12Idle(context);
-            DestroyOneTimeCommandList(&temporary);
+            DestroyOneTimeCommandList(&one_time_cmd_list);
         }
-        uint8_t* mapped = 0;
-        D3D12_RANGE range = { 0, (SIZE_T) size };
-        hr = readback->Map(0, &range, (void**) &mapped);
+
+        uint8_t* mapped_data = 0;
+        D3D12_RANGE read_range = { 0, (SIZE_T) readback_size };
+        hr = readback->Map(0, &read_range, (void**) &mapped_data);
         CHECK_HR_ERROR(hr);
         if (SUCCEEDED(hr))
         {
             for (uint32_t row = 0; row < height; ++row)
                 for (uint32_t col = 0; col < width; ++col)
                 {
-                    const uint8_t* src = mapped + footprint.Offset + row * footprint.Footprint.RowPitch + col * 4;
+                    const uint8_t* src = mapped_data + footprint.Offset + row * footprint.Footprint.RowPitch + col * 4;
                     uint8_t* dst = (uint8_t*) buffer + (row * width + col) * 4;
                     dst[0] = src[format == DXGI_FORMAT_R8G8B8A8_UNORM ? 2 : 0];
-                    dst[1] = src[1]; dst[2] = src[format == DXGI_FORMAT_R8G8B8A8_UNORM ? 0 : 2]; dst[3] = src[3];
+                    dst[1] = src[1];
+                    dst[2] = src[format == DXGI_FORMAT_R8G8B8A8_UNORM ? 0 : 2];
+                    dst[3] = src[3];
                 }
-            D3D12_RANGE written = { 0, 0 };
-            readback->Unmap(0, &written);
+            D3D12_RANGE written_range = { 0, 0 };
+            readback->Unmap(0, &written_range);
         }
+
         readback->Release();
-        if (bound) BeginRenderPass(context, context->m_CurrentRenderTarget);
+        if (restore_render_pass)
+            BeginRenderPass(context, context->m_CurrentRenderTarget);
     }
 
     static void DX12SetViewport(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)

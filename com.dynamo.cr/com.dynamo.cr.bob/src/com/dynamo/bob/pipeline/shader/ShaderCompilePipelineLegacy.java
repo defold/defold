@@ -231,7 +231,12 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
     }
 
     @Override
-    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws CompileExceptionError, IOException {
+    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) throws CompileExceptionError, IOException {
+        // HLSL recompilation uses the shared SPIR-V path, as the specialized entry points did.
+        if (rootSignatureOverride != null || hLSLMoveSVPositionToFront) {
+            return super.crossCompile(shaderType, shaderLanguage, rootSignatureOverride, hLSLMoveSVPositionToFront);
+        }
+
         ShaderModuleLegacy module = getShaderModule(shaderType);
         if (module == null) {
             throw new CompileExceptionError("No module found for " + shaderType);

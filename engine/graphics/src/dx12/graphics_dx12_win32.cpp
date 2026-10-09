@@ -25,7 +25,7 @@ extern DX12Context* g_DX12Context; // For CHECK_HR_ERROR
 static void SetupDX12Context(const ContextParams& params, DX12Context* context)
 {
     memset(context, 0, sizeof(*context));
-    context->m_NumFramesInFlight       = MAX_FRAMES_IN_FLIGHT;
+    context->m_NumFramesInFlight                     = MAX_FRAMES_IN_FLIGHT;
     context->m_BaseContext.m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
     context->m_BaseContext.m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
     context->m_BaseContext.m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
@@ -33,13 +33,24 @@ static void SetupDX12Context(const ContextParams& params, DX12Context* context)
     context->m_BaseContext.m_Window                  = params.m_Window;
     context->m_BaseContext.m_Width                   = params.m_Width;
     context->m_BaseContext.m_Height                  = params.m_Height;
-    context->m_SwapInterval                         = params.m_SwapInterval;
-    context->m_UseValidationLayers     = params.m_UseValidationLayers;
-    const ContextFeature features[] = { CONTEXT_FEATURE_MULTI_TARGET_RENDERING, CONTEXT_FEATURE_TEXTURE_ARRAY,
-        CONTEXT_FEATURE_COMPUTE_SHADER, CONTEXT_FEATURE_VSYNC, CONTEXT_FEATURE_INSTANCING,
-        CONTEXT_FEATURE_3D_TEXTURES, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX, CONTEXT_FEATURE_BC_ARRAY_TEXTURES };
+    context->m_SwapInterval                          = params.m_SwapInterval;
+    context->m_UseValidationLayers                   = params.m_UseValidationLayers;
+
+    const ContextFeature features[] = {
+        CONTEXT_FEATURE_MULTI_TARGET_RENDERING,
+        CONTEXT_FEATURE_TEXTURE_ARRAY,
+        CONTEXT_FEATURE_COMPUTE_SHADER,
+        CONTEXT_FEATURE_VSYNC,
+        CONTEXT_FEATURE_INSTANCING,
+        CONTEXT_FEATURE_3D_TEXTURES,
+        CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX,
+        CONTEXT_FEATURE_BC_ARRAY_TEXTURES
+    };
+
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(features); ++i)
+    {
         SetContextFeatureSupported(&context->m_BaseContext, features[i]);
+    }
 }
 
 static IDXGIFactory4* CreateDXGIFactory()
@@ -57,12 +68,17 @@ static IDXGIAdapter1* CreateDeviceAdapter(IDXGIFactory4* factory)
 {
     if (!factory) return 0;
     IDXGIAdapter1* adapter = 0;
+
     for (UINT i = 0; factory->EnumAdapters1(i, &adapter) == S_OK; ++i)
     {
         DXGI_ADAPTER_DESC1 desc = {};
         adapter->GetDesc1(&desc);
+
         if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) && SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), NULL)))
+        {
             return adapter;
+        }
+
         adapter->Release();
     }
     return 0;
@@ -150,7 +166,7 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
     swap_chain_desc.OutputWindow         = dmPlatform::GetWindowsHWND(context->m_BaseContext.m_Window);
     swap_chain_desc.SampleDesc           = sample_desc;
     swap_chain_desc.Windowed             = true;
-    swap_chain_desc.Flags               = context->m_AllowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+    swap_chain_desc.Flags                = context->m_AllowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
     IDXGISwapChain* swap_chain_tmp = 0;
     hr = factory->CreateSwapChain(context->m_CommandQueue, &swap_chain_desc, &swap_chain_tmp);
@@ -225,8 +241,10 @@ bool DX12IsSupported()
 {
     IDXGIFactory4* factory = CreateDXGIFactory();
     IDXGIAdapter1* adapter = CreateDeviceAdapter(factory);
-    if (factory) factory->Release();
-    if (adapter) adapter->Release();
+    if (factory)
+        factory->Release();
+    if (adapter)
+        adapter->Release();
     return adapter != 0;
 }
 

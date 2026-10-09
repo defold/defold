@@ -796,29 +796,9 @@ public class ShaderCompilePipeline {
     //////////////////////////
     // PUBLIC API
     //////////////////////////
-    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
-        return crossCompile(shaderType, shaderLanguage, null);
-    }
-
-    public Shaderc.ShaderCompileResult crossCompileWithRootSignature(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride) throws IOException, CompileExceptionError {
-        return crossCompileWithRootSignature(shaderType, shaderLanguage, rootSignatureOverride, false);
-    }
-
-    public Shaderc.ShaderCompileResult crossCompileWithRootSignature(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) throws IOException, CompileExceptionError {
-        assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
-        return crossCompile(shaderType, shaderLanguage, rootSignatureOverride, hLSLMoveSVPositionToFront);
-    }
-
-    public Shaderc.ShaderCompileResult crossCompileWithHLSLSVPositionFirst(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
-        assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50);
-        return crossCompile(shaderType, shaderLanguage, null, true);
-    }
-
-    private Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride) throws IOException, CompileExceptionError {
-        return crossCompile(shaderType, shaderLanguage, rootSignatureOverride, false);
-    }
-
-    private Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) throws IOException, CompileExceptionError {
+    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) throws IOException, CompileExceptionError {
+        assert(rootSignatureOverride == null || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
+        assert(!hLSLMoveSVPositionToFront || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50);
         int version = ShaderLanguageToVersion(shaderLanguage);
 
         ShaderModule module = getShaderModule(shaderType);

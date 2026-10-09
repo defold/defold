@@ -322,7 +322,7 @@ public class ShaderCompilers {
                 for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
 
                     boolean variantTextureArray = false;
-                    Shaderc.ShaderCompileResult crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                    Shaderc.ShaderCompileResult crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage, null, false);
 
                     if (!shaderTypeKeys.containsKey(shaderModule.type)) {
                         shaderTypeKeys.put(shaderModule.type, true);
@@ -347,7 +347,7 @@ public class ShaderCompilers {
                     if (fragmentShaderIndex >= 0 && hLSLShaderHasSVPositionInput(compiled_shaders.get(fragmentShaderIndex).data)) {
                         hLSLMoveSVPositionToFront = true;
                         for (int i = 0; i < compiled_shaders.size(); ++i) {
-                            Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompileWithHLSLSVPositionFirst(compiled_shader_types.get(i), shaderLanguage);
+                            Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompile(compiled_shader_types.get(i), shaderLanguage, null, true);
                             compiled_shaders.set(i, recompiledShader);
                         }
                     }
@@ -376,7 +376,7 @@ public class ShaderCompilers {
 
                         for (int i = 0; i < shaderModules.size(); ++i) {
                             ShaderCompilePipeline.ShaderModuleDesc shaderModule = shaderModules.get(i);
-                            Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompileWithRootSignature(shaderModule.type, shaderLanguage, mergedRootSignatureText, hLSLMoveSVPositionToFront);
+                            Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompile(shaderModule.type, shaderLanguage, mergedRootSignatureText, hLSLMoveSVPositionToFront);
                             recompiledShader.hLSLRootSignature = hlslRootSignature.hLSLRootSignature;
                             compiled_shaders.set(i, recompiledShader);
                         }

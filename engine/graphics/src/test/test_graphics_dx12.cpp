@@ -14,8 +14,8 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <vector>
-#include <string>
+#include <dlib/array.h>
+#include <dlib/dstrings.h>
 #include <dlib/time.h>
 #include <wrl/client.h>
 #include "graphics_adapter.h"
@@ -30,26 +30,121 @@ namespace dmGraphics
 }
 extern "C" void GraphicsAdapterDX12();
 
-static void     RequireHR(HRESULT hr)
+static void ReleasePipeline(void*, const uint64_t*, DX12Pipeline* pipeline)
+{
+    (*pipeline)->Release();
+}
+
+static bool IsTestAdapterSupported()
+{
+    return true;
+}
+
+static void RequireHR(HRESULT hr)
 {
     ASSERT_EQ(S_OK, hr);
 }
 
-class DX12Test : public jc_test_base_class
+// Build real DXBC and serialized signatures, then load via the public program API.
+struct TestProgram
 {
-    public:
-    DX12Context*                   m_Context;
-    ComPtr<ID3D12InfoQueue>        m_Info;
-    ComPtr<ID3D12CommandAllocator> m_Allocator;
-    ComPtr<ID3D12Fence>            m_Fence;
-    uint64_t                       m_FenceValue;
-    std::vector<HTexture>          m_Textures;
+    ShaderDesc m_Desc;
+    // Own the compiled blobs referenced by the descriptor until the test finishes.
+    dmArray<ID3DBlob*> m_Blobs;
 
-    HContext                       Context()
+    TestProgram()
+    {
+        memset(&m_Desc, 0, sizeof(m_Desc));
+        m_Blobs.SetCapacity(4);
+    }
+
+    ~TestProgram()
+    {
+        for (uint32_t i = 0; i < m_Desc.m_Shaders.m_Count; ++i)
+            free(m_Desc.m_Shaders[i].m_HlslResourceMapping.m_Data);
+        DeleteShaderDesc(&m_Desc);
+        for (uint32_t i = 0; i < m_Blobs.Size(); ++i)
+            m_Blobs[i]->Release();
+    }
+
+    void AddShaderStage(const char* source, ShaderDesc::ShaderType stage)
+    {
+        ComPtr<ID3DBlob> code, errors;
+        const char* profile = "ps_5_1";
+        if (stage == ShaderDesc::SHADER_TYPE_COMPUTE)
+            profile = "cs_5_1";
+        else if (stage == ShaderDesc::SHADER_TYPE_VERTEX)
+            profile = "vs_5_1";
+        HRESULT hr = D3DCompile(source, strlen(source), 0, 0, 0, "main", profile, 0, 0, &code, &errors);
+        if (FAILED(hr) && errors)
+            printf("%s\n", (const char*)errors->GetBufferPointer());
+        RequireHR(hr);
+        AddShader(&m_Desc, ShaderDesc::LANGUAGE_HLSL_51, stage, (uint8_t*)code->GetBufferPointer(), (uint32_t)code->GetBufferSize());
+        if (m_Blobs.Full())
+            m_Blobs.OffsetCapacity(4);
+        m_Blobs.Push(code.Detach());
+    }
+
+    void SetRootSignature(const char* text)
+    {
+        ComPtr<ID3DBlob> root, errors;
+        const char* prefix = "#define main \"";
+        const char* suffix = "\"\n";
+        dmArray<char> source;
+        source.SetCapacity((uint32_t)(strlen(prefix) + strlen(text) + strlen(suffix) + 1));
+        source.SetSize(source.Capacity());
+        dmSnPrintf(source.Begin(), source.Size(), "%s%s%s", prefix, text, suffix);
+        RequireHR(D3DCompile(source.Begin(), source.Size() - 1, 0, 0, 0, "main", "rootsig_1_0", 0, 0, &root, &errors));
+        m_Desc.m_HlslRootSignature.m_Data = (uint8_t*)root->GetBufferPointer();
+        m_Desc.m_HlslRootSignature.m_Count = (uint32_t)root->GetBufferSize();
+        if (m_Blobs.Full())
+            m_Blobs.OffsetCapacity(4);
+        m_Blobs.Push(root.Detach());
+    }
+
+    void AddBinding(const char* name, uint32_t binding, uint32_t root_index, ShaderDesc::ShaderDataType type, BindingType family, uint32_t shader_index = 0)
+    {
+        AddShaderResource(&m_Desc, name, type, binding, 0, family);
+        ShaderDesc::Shader& shader = m_Desc.m_Shaders[shader_index];
+        shader.m_HlslResourceMapping.m_Data = (ShaderDesc::HLSLResourceMapping*)realloc(shader.m_HlslResourceMapping.m_Data,
+            sizeof(ShaderDesc::HLSLResourceMapping) * (shader.m_HlslResourceMapping.m_Count + 1));
+        ShaderDesc::HLSLResourceMapping& map = shader.m_HlslResourceMapping.m_Data[shader.m_HlslResourceMapping.m_Count++];
+        memset(&map, 0, sizeof(map));
+        map.m_NameHash = dmHashString64(name);
+        map.m_Binding = binding;
+        map.m_RootParameterIndex = root_index;
+    }
+
+    HProgram CreateProgram(HContext context)
+    {
+        char error[1024] = {};
+        HProgram program = NewProgram(context, &m_Desc, error, sizeof(error));
+        if (!program)
+            printf("Program load: %s\n", error);
+        return program;
+    }
+};
+
+static const char* FULLSCREEN_VS =
+    "float4 main(uint id:SV_VertexID):SV_Position {float2 p[3]={float2(-1,-1),float2(-1,3),float2(3,-1)};"
+    "return float4(p[id],0.5,1);"
+    "}";
+
+struct DX12Test : public jc_test_base_class
+{
+    DX12Context* m_Context;
+    ComPtr<ID3D12InfoQueue> m_Info;
+    ComPtr<ID3D12CommandAllocator> m_Allocator;
+    ComPtr<ID3D12Fence> m_Fence;
+    uint64_t m_FenceValue;
+    dmArray<HTexture> m_Textures;
+
+    HContext GetContext()
     {
         return (HContext)m_Context;
     }
-    DX12FrameResource& Frame()
+
+    DX12FrameResource& GetFrame()
     {
         return m_Context->m_FrameResources[0];
     }
@@ -67,8 +162,10 @@ class DX12Test : public jc_test_base_class
         g_DX12Context = m_Context;
         RequireHR(D3D12CreateDevice(warp.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_Context->m_Device)));
         RequireHR(m_Context->m_Device->QueryInterface(IID_PPV_ARGS(&m_Info)));
-        D3D12_MESSAGE_ID        clear_warnings[] = { D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
-                                                     D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE };
+        D3D12_MESSAGE_ID clear_warnings[] = {
+            D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+            D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
+        };
         D3D12_INFO_QUEUE_FILTER filter = {};
         filter.DenyList.NumIDs = DM_ARRAY_SIZE(clear_warnings);
         filter.DenyList.pIDList = clear_warnings;
@@ -79,18 +176,18 @@ class DX12Test : public jc_test_base_class
         RequireHR(m_Context->m_Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_Allocator.Get(), 0, IID_PPV_ARGS(&m_Context->m_CommandList)));
         RequireHR(m_Context->m_Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_Fence)));
         m_FenceValue = 0;
-        Frame().m_CommandAllocator = m_Allocator.Get();
+        GetFrame().m_CommandAllocator = m_Allocator.Get();
         m_Context->m_FrameBegun = 1;
         m_Context->m_BaseContext.m_DefaultTextureMinFilter = TEXTURE_FILTER_NEAREST;
         m_Context->m_BaseContext.m_DefaultTextureMagFilter = TEXTURE_FILTER_NEAREST;
         m_Context->m_PipelineState = GetDefaultPipelineState();
-        Frame().m_ScratchBuffer.Initialize(m_Context, 0);
+        GetFrame().m_ScratchBuffer.Initialize(m_Context, 0);
         // Deliberately small to exercise the uniform fallback as well as ring allocations.
-        Frame().m_UploadRing.Initialize(m_Context, 256 * 300);
+        GetFrame().m_UploadRing.Initialize(m_Context, 256 * 300);
         CreateTextureSampler(m_Context, TEXTURE_FILTER_NEAREST, TEXTURE_FILTER_NEAREST, TEXTURE_WRAP_CLAMP_TO_EDGE, TEXTURE_WRAP_CLAMP_TO_EDGE, TEXTURE_WRAP_CLAMP_TO_EDGE, 1, 1);
     }
 
-    void Submit()
+    void SubmitAndWait()
     {
         RequireHR(m_Context->m_CommandList->Close());
         ID3D12CommandList* lists[] = { m_Context->m_CommandList };
@@ -110,13 +207,13 @@ class DX12Test : public jc_test_base_class
 
     void TearDown() override
     {
-        Submit();
-        for (HTexture texture : m_Textures)
-            DeleteTexture(Context(), texture);
-        FlushResourcesToDestroy(Frame());
-        Frame().m_ScratchBuffer.Destroy();
-        Frame().m_UploadRing.Destroy();
-        m_Context->m_PipelineCache.Iterate<void>(+[](void*, const uint64_t*, DX12Pipeline* pipeline) { (*pipeline)->Release(); }, 0);
+        SubmitAndWait();
+        for (uint32_t i = 0; i < m_Textures.Size(); ++i)
+            DeleteTexture(GetContext(), m_Textures[i]);
+        FlushResourcesToDestroy(GetFrame());
+        GetFrame().m_ScratchBuffer.Destroy();
+        GetFrame().m_UploadRing.Destroy();
+        m_Context->m_PipelineCache.Iterate<void>(ReleasePipeline, 0);
         m_Context->m_CommandList->Close();
         m_Context->m_CommandList->Release();
         m_Context->m_CommandQueue->Release();
@@ -126,8 +223,11 @@ class DX12Test : public jc_test_base_class
         {
             SIZE_T size = 0;
             m_Info->GetMessage(i, 0, &size);
-            std::vector<uint8_t> buffer(size);
-            D3D12_MESSAGE*       message = (D3D12_MESSAGE*)buffer.data();
+            dmArray<uint8_t> buffer;
+            buffer.SetCapacity((uint32_t)size);
+            buffer.SetSize(buffer.Capacity());
+            memset(buffer.Begin(), 0, buffer.Size());
+            D3D12_MESSAGE* message = (D3D12_MESSAGE*)buffer.Begin();
             m_Info->GetMessage(i, message, &size);
             if (message->Severity <= D3D12_MESSAGE_SEVERITY_WARNING)
             {
@@ -141,28 +241,30 @@ class DX12Test : public jc_test_base_class
         g_DX12Context = 0;
     }
 
-    HTexture Texture(TextureType type, uint16_t width, uint16_t height, uint16_t layers, uint8_t mips)
+    HTexture CreateTestTexture(TextureType type, uint16_t width, uint16_t height, uint16_t layers, uint8_t mips)
     {
+        const bool is_volume = type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_IMAGE_3D;
         TextureCreationParams params;
         params.m_Type = type;
         params.m_Width = width;
         params.m_Height = height;
-        params.m_LayerCount = layers > 255 ? 1 : layers;
-        params.m_Depth = layers > 255 || type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_IMAGE_3D ? layers : 1;
-        if (type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_IMAGE_3D)
-            params.m_LayerCount = 1;
+        // Large arrays use the depth field because the layer-count field is only 8 bits.
+        params.m_LayerCount = is_volume || layers > 255 ? 1 : layers;
+        params.m_Depth = is_volume || layers > 255 ? layers : 1;
         params.m_MipMapCount = mips;
-        HTexture texture = NewTexture(Context(), params);
-        m_Textures.push_back(texture);
+        HTexture texture = NewTexture(GetContext(), params);
+        if (m_Textures.Full())
+            m_Textures.OffsetCapacity(8);
+        m_Textures.Push(texture);
         return texture;
     }
 
-    DX12Texture* TextureData(HTexture texture)
+    DX12Texture* GetTextureData(HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(m_Context->m_BaseContext.m_AssetHandleContainer, texture);
     }
 
-    HRenderTarget Target(uint32_t width, uint32_t height, uint32_t flags = BUFFER_TYPE_COLOR0_BIT, uint32_t samples = 1)
+    HRenderTarget CreateTestRenderTarget(uint32_t width, uint32_t height, uint32_t flags = BUFFER_TYPE_COLOR0_BIT, uint32_t samples = 1)
     {
         RenderTargetCreationParams params;
         params.m_SampleCount = samples;
@@ -175,53 +277,65 @@ class DX12Test : public jc_test_base_class
         params.m_DepthBufferCreationParams.m_Width = params.m_DepthBufferParams.m_Width = width;
         params.m_DepthBufferCreationParams.m_Height = params.m_DepthBufferParams.m_Height = height;
         params.m_DepthBufferParams.m_Format = TEXTURE_FORMAT_DEPTH;
-        return NewRenderTarget(Context(), flags, params);
+        return NewRenderTarget(GetContext(), flags, params);
     }
 
-    std::vector<uint8_t> ReadTexture(HTexture texture, uint32_t mip, uint32_t layer)
+    void ReadTexture(HTexture texture, uint32_t mip, uint32_t layer, dmArray<uint8_t>& bytes)
     {
-        DX12Texture*                       tex = TextureData(texture);
-        const uint32_t                     subresource = D3D12CalcSubresource(mip, layer, 0, tex->m_ResourceDesc.MipLevels, tex->m_ResourceDesc.DepthOrArraySize);
+        DX12Texture* tex = GetTextureData(texture);
+        const uint32_t subresource = D3D12CalcSubresource(mip, layer, 0, tex->m_ResourceDesc.MipLevels, tex->m_ResourceDesc.DepthOrArraySize);
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
-        UINT                               rows;
-        UINT64                             row_bytes, size;
+        UINT rows;
+        UINT64 row_bytes, size;
         m_Context->m_Device->GetCopyableFootprints(&tex->m_ResourceDesc, subresource, 1, 0, &footprint, &rows, &row_bytes, &size);
         ComPtr<ID3D12Resource> readback;
-        RequireHR(m_Context->m_Device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK), D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(size), D3D12_RESOURCE_STATE_COPY_DEST, 0, IID_PPV_ARGS(&readback)));
+        RequireHR(m_Context->m_Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(size),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            0,
+            IID_PPV_ARGS(&readback)));
         TransitionTexture(m_Context->m_CommandList, tex, D3D12_RESOURCE_STATE_COPY_SOURCE, subresource, 1);
         CD3DX12_TEXTURE_COPY_LOCATION src(tex->m_Resource, subresource), dst(readback.Get(), footprint);
         m_Context->m_CommandList->CopyTextureRegion(&dst, 0, 0, 0, &src, 0);
-        Submit();
+        SubmitAndWait();
         uint8_t* mapped;
         RequireHR(readback->Map(0, 0, (void**)&mapped));
-        std::vector<uint8_t> bytes((size_t)row_bytes * rows * footprint.Footprint.Depth);
+        // Strip DX12 row padding from the copied subresource.
+        const uint32_t byte_count = (uint32_t)(row_bytes * rows * footprint.Footprint.Depth);
+        bytes.SetSize(0);
+        bytes.SetCapacity(byte_count);
+        bytes.SetSize(byte_count);
         for (UINT row = 0; row < rows * footprint.Footprint.Depth; ++row)
-            memcpy(bytes.data() + row * row_bytes, mapped + footprint.Offset + row * footprint.Footprint.RowPitch, (size_t)row_bytes);
+            memcpy(bytes.Begin() + row * row_bytes, mapped + footprint.Offset + row * footprint.Footprint.RowPitch, (size_t)row_bytes);
         readback->Unmap(0, 0);
-        return bytes;
     }
 };
 
 // Verifies array-layer uploads and partial RGB conversion preserve untouched pixels.
 TEST_F(DX12Test, ArrayUploadsAndPartialRGBUpdates)
 {
-    HTexture texture = Texture(TEXTURE_TYPE_2D_ARRAY, 8, 8, 20, 3);
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D_ARRAY, 8, 8, 20, 3);
     for (uint32_t mip = 0; mip < 3; ++mip)
     {
-        const uint32_t       width = 8 >> mip;
-        std::vector<uint8_t> pixels(width * width * 3 * 20);
+        const uint32_t width = 8 >> mip;
+        dmArray<uint8_t> pixels;
+        pixels.SetCapacity(width * width * 3 * 20);
+        pixels.SetSize(pixels.Capacity());
+        memset(pixels.Begin(), 0, pixels.Size());
         for (uint32_t layer = 0; layer < 20; ++layer)
-            memset(pixels.data() + layer * width * width * 3, 10 + layer + mip * 30, width * width * 3);
+            memset(pixels.Begin() + layer * width * width * 3, 10 + layer + mip * 30, width * width * 3);
         TextureParams params;
         params.m_Format = TEXTURE_FORMAT_RGB;
-        params.m_Data = pixels.data();
+        params.m_Data = pixels.Begin();
         params.m_DataSize = width * width * 3;
         params.m_Width = params.m_Height = width;
         params.m_LayerCount = 20;
         params.m_MipMap = mip;
-        SetTexture(Context(), texture, params);
+        SetTexture(GetContext(), texture, params);
     }
-    ASSERT_EQ(60u, TextureData(texture)->m_ResourceStates.Size());
+    ASSERT_EQ(60u, GetTextureData(texture)->m_ResourceStates.Size());
     // A source containing only two 2x2 slices must not be expanded as a full 20-layer texture.
     uint8_t patch[2 * 2 * 3 * 2];
     memset(patch, 201, sizeof(patch));
@@ -235,70 +349,85 @@ TEST_F(DX12Test, ArrayUploadsAndPartialRGBUpdates)
     params.m_Width = params.m_Height = 2;
     params.m_Data = patch;
     params.m_DataSize = sizeof(patch) / 2;
-    SetTexture(Context(), texture, params);
+    SetTexture(GetContext(), texture, params);
     for (uint32_t mip = 0; mip < 3; ++mip)
         for (uint32_t layer = 0; layer < 20; ++layer)
         {
-            const uint32_t       width = 8 >> mip;
-            std::vector<uint8_t> bytes = ReadTexture(texture, mip, layer);
+            const uint32_t width = 8 >> mip;
+            dmArray<uint8_t> bytes;
+            ReadTexture(texture, mip, layer, bytes);
             for (uint32_t y = 0; y < width; ++y)
                 for (uint32_t x = 0; x < width; ++x)
                 {
-                    uint8_t expected = mip == 1 && layer >= 17 && layer <= 18 && x >= 1 && x < 3 && y >= 1 && y < 3 ? 201 : 10 + layer + mip * 30;
+                    const bool is_patch = mip == 1 && layer >= 17 && layer <= 18 &&
+                                          x >= 1 && x < 3 && y >= 1 && y < 3;
+                    const uint8_t expected = is_patch ? 201 : 10 + layer + mip * 30;
                     ASSERT_EQ(expected, bytes[(y * width + x) * 4]);
                     ASSERT_EQ(255, bytes[(y * width + x) * 4 + 3]);
                 }
         }
-    TransitionTexture(m_Context->m_CommandList, TextureData(texture), (D3D12_RESOURCE_STATES)(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+    TransitionTexture(m_Context->m_CommandList, GetTextureData(texture), (D3D12_RESOURCE_STATES)(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
 }
 
 // Verifies maximum array layers and cubemap mip uploads use the correct subresources.
 TEST_F(DX12Test, MaximumArrayLayersAndCubemapMips)
 {
-    HTexture             array = Texture(TEXTURE_TYPE_2D_ARRAY, 1, 1, 2048, 1);
-    std::vector<uint8_t> pixels(2048 * 4, 77);
-    TextureParams        params;
+    HTexture array = CreateTestTexture(TEXTURE_TYPE_2D_ARRAY, 1, 1, 2048, 1);
+    dmArray<uint8_t> pixels;
+    pixels.SetCapacity(2048 * 4);
+    pixels.SetSize(pixels.Capacity());
+    memset(pixels.Begin(), 77, pixels.Size());
+    TextureParams params;
     params.m_Format = TEXTURE_FORMAT_RGBA;
-    params.m_Data = pixels.data();
+    params.m_Data = pixels.Begin();
     params.m_DataSize = 4;
     params.m_Width = params.m_Height = 1;
-    SetTexture(Context(), array, params);
-    ASSERT_EQ(2048u, TextureData(array)->m_ResourceStates.Size());
-    ASSERT_EQ(77, ReadTexture(array, 0, 2047)[0]);
-    HTexture cube = Texture(TEXTURE_TYPE_CUBE_MAP, 8, 8, 1, 4);
+    SetTexture(GetContext(), array, params);
+    ASSERT_EQ(2048u, GetTextureData(array)->m_ResourceStates.Size());
+    dmArray<uint8_t> bytes;
+    ReadTexture(array, 0, 2047, bytes);
+    ASSERT_EQ(77, bytes[0]);
+    HTexture cube = CreateTestTexture(TEXTURE_TYPE_CUBE_MAP, 8, 8, 1, 4);
     for (uint32_t mip = 0; mip < 4; ++mip)
     {
         const uint32_t width = 8 >> mip;
-        pixels.assign(width * width * 4 * 6, 30 + mip);
-        params.m_Data = pixels.data();
+        pixels.SetSize(0);
+        pixels.SetCapacity(width * width * 4 * 6);
+        pixels.SetSize(pixels.Capacity());
+        memset(pixels.Begin(), 30 + mip, pixels.Size());
+        params.m_Data = pixels.Begin();
         params.m_DataSize = width * width * 4;
         params.m_Width = params.m_Height = width;
         params.m_MipMap = mip;
-        SetTexture(Context(), cube, params);
+        SetTexture(GetContext(), cube, params);
     }
-    ASSERT_EQ(24u, TextureData(cube)->m_ResourceStates.Size());
-    ASSERT_EQ(33, ReadTexture(cube, 3, 5)[0]);
+    ASSERT_EQ(24u, GetTextureData(cube)->m_ResourceStates.Size());
+    ReadTexture(cube, 3, 5, bytes);
+    ASSERT_EQ(33, bytes[0]);
 }
 
 // Verifies compressed array updates preserve blocks outside the updated region.
 TEST_F(DX12Test, CompressedArraySubUpdatePreservesOtherBlocks)
 {
-    HTexture texture = Texture(TEXTURE_TYPE_2D_ARRAY, 16, 16, 19, 2);
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D_ARRAY, 16, 16, 19, 2);
     for (uint32_t mip = 0; mip < 2; ++mip)
     {
-        const uint32_t       width = 16 >> mip;
-        const uint32_t       slice_size = (width / 4) * (width / 4) * 8;
-        std::vector<uint8_t> pixels(slice_size * 19);
+        const uint32_t width = 16 >> mip;
+        const uint32_t slice_size = (width / 4) * (width / 4) * 8;
+        dmArray<uint8_t> pixels;
+        pixels.SetCapacity(slice_size * 19);
+        pixels.SetSize(pixels.Capacity());
+        memset(pixels.Begin(), 0, pixels.Size());
         for (uint32_t layer = 0; layer < 19; ++layer)
-            memset(pixels.data() + layer * slice_size, layer + mip * 30, slice_size);
+            memset(pixels.Begin() + layer * slice_size, layer + mip * 30, slice_size);
         TextureParams params;
         params.m_Format = TEXTURE_FORMAT_RGB_BC1;
-        params.m_Data = pixels.data();
+        params.m_Data = pixels.Begin();
         params.m_DataSize = slice_size;
         params.m_Width = params.m_Height = width;
         params.m_LayerCount = 19;
         params.m_MipMap = mip;
-        SetTexture(Context(), texture, params);
+        SetTexture(GetContext(), texture, params);
     }
     uint8_t block[8];
     memset(block, 201, sizeof(block));
@@ -312,24 +441,27 @@ TEST_F(DX12Test, CompressedArraySubUpdatePreservesOtherBlocks)
     params.m_Width = params.m_Height = 4;
     params.m_Data = block;
     params.m_DataSize = sizeof(block);
-    SetTexture(Context(), texture, params);
-    std::vector<uint8_t> bytes = ReadTexture(texture, 1, 18);
-    ASSERT_EQ(32u, bytes.size());
-    for (uint32_t i = 0; i < bytes.size(); ++i)
+    SetTexture(GetContext(), texture, params);
+    dmArray<uint8_t> bytes;
+    ReadTexture(texture, 1, 18, bytes);
+    ASSERT_EQ(32u, bytes.Size());
+    for (uint32_t i = 0; i < bytes.Size(); ++i)
         ASSERT_EQ(i >= 24 ? 201 : 48, bytes[i]);
-    ASSERT_EQ(47, ReadTexture(texture, 1, 17)[0]);
-    ASSERT_EQ(18, ReadTexture(texture, 0, 18)[0]);
+    ReadTexture(texture, 1, 17, bytes);
+    ASSERT_EQ(47, bytes[0]);
+    ReadTexture(texture, 0, 18, bytes);
+    ASSERT_EQ(18, bytes[0]);
 }
 
 // Verifies stencil operations and separate face settings produce the expected pipeline state.
 TEST_F(DX12Test, StencilStateAndSeparateFaces)
 {
-    SetStencilMask(Context(), 0x53);
-    SetStencilFuncSeparate(Context(), FACE_TYPE_FRONT, COMPARE_FUNC_EQUAL, 0x37, 0x71);
-    SetStencilFuncSeparate(Context(), FACE_TYPE_BACK, COMPARE_FUNC_NOTEQUAL, 0x37, 0x71);
-    SetStencilOpSeparate(Context(), FACE_TYPE_FRONT, STENCIL_OP_INCR, STENCIL_OP_DECR_WRAP, STENCIL_OP_REPLACE);
-    SetStencilOpSeparate(Context(), FACE_TYPE_BACK, STENCIL_OP_INCR_WRAP, STENCIL_OP_DECR, STENCIL_OP_INVERT);
-    EnableState(Context(), STATE_STENCIL_TEST);
+    SetStencilMask(GetContext(), 0x53);
+    SetStencilFuncSeparate(GetContext(), FACE_TYPE_FRONT, COMPARE_FUNC_EQUAL, 0x37, 0x71);
+    SetStencilFuncSeparate(GetContext(), FACE_TYPE_BACK, COMPARE_FUNC_NOTEQUAL, 0x37, 0x71);
+    SetStencilOpSeparate(GetContext(), FACE_TYPE_FRONT, STENCIL_OP_INCR, STENCIL_OP_DECR_WRAP, STENCIL_OP_REPLACE);
+    SetStencilOpSeparate(GetContext(), FACE_TYPE_BACK, STENCIL_OP_INCR_WRAP, STENCIL_OP_DECR, STENCIL_OP_INVERT);
+    EnableState(GetContext(), STATE_STENCIL_TEST);
     D3D12_DEPTH_STENCIL_DESC desc = GetDepthStencilState(m_Context->m_PipelineState);
     ASSERT_TRUE(desc.StencilEnable);
     ASSERT_EQ(0x53, desc.StencilWriteMask);
@@ -342,8 +474,8 @@ TEST_F(DX12Test, StencilStateAndSeparateFaces)
     ASSERT_EQ(D3D12_STENCIL_OP_INCR, desc.BackFace.StencilFailOp);
     ASSERT_EQ(D3D12_STENCIL_OP_DECR_SAT, desc.BackFace.StencilDepthFailOp);
     ASSERT_EQ(D3D12_STENCIL_OP_INVERT, desc.BackFace.StencilPassOp);
-    SetStencilFuncSeparate(Context(), FACE_TYPE_FRONT_AND_BACK, COMPARE_FUNC_ALWAYS, 0, 0xff);
-    SetStencilOpSeparate(Context(), FACE_TYPE_FRONT_AND_BACK, STENCIL_OP_KEEP, STENCIL_OP_ZERO, STENCIL_OP_INVERT);
+    SetStencilFuncSeparate(GetContext(), FACE_TYPE_FRONT_AND_BACK, COMPARE_FUNC_ALWAYS, 0, 0xff);
+    SetStencilOpSeparate(GetContext(), FACE_TYPE_FRONT_AND_BACK, STENCIL_OP_KEEP, STENCIL_OP_ZERO, STENCIL_OP_INVERT);
     desc = GetDepthStencilState(m_Context->m_PipelineState);
     ASSERT_EQ(0, memcmp(&desc.FrontFace, &desc.BackFace, sizeof(desc.FrontFace)));
 }
@@ -352,20 +484,20 @@ TEST_F(DX12Test, StencilStateAndSeparateFaces)
 TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
 {
     const uint32_t count = 600;
-    HTexture       texture = Texture(TEXTURE_TYPE_2D, 1, 1, 1, 1);
-    uint8_t        red[] = { 255, 0, 0, 255 };
-    TextureParams  tex_params;
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 1, 1, 1, 1);
+    uint8_t red[] = { 255, 0, 0, 255 };
+    TextureParams tex_params;
     tex_params.m_Format = TEXTURE_FORMAT_RGBA;
     tex_params.m_Data = red;
     tex_params.m_DataSize = sizeof(red);
     tex_params.m_Width = tex_params.m_Height = 1;
-    SetTexture(Context(), texture, tex_params);
-    TransitionTexture(m_Context->m_CommandList, TextureData(texture), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    SetTexture(GetContext(), texture, tex_params);
+    TransitionTexture(m_Context->m_CommandList, GetTextureData(texture), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
     const char* source =
-    "Texture2D<float4> tex:register(t0); SamplerState smp:register(s0);"
-    "cbuffer Values:register(b0){uint index;float value;} RWStructuredBuffer<float4> output:register(u0);"
-    "[numthreads(1,1,1)] void main(){output[index]=tex.SampleLevel(smp,float2(0.5,0.5),0)+value;}";
+        "Texture2D<float4> tex:register(t0); SamplerState smp:register(s0);"
+        "cbuffer Values:register(b0){uint index;float value;} RWStructuredBuffer<float4> output:register(u0);"
+        "[numthreads(1,1,1)] void main(){output[index]=tex.SampleLevel(smp,float2(0.5,0.5),0)+value;}";
     ComPtr<ID3DBlob> shader, errors, signature;
     RequireHR(D3DCompile(source, strlen(source), 0, 0, 0, "main", "cs_5_1", 0, 0, &shader, &errors));
     D3D12_DESCRIPTOR_RANGE ranges[2] = {};
@@ -394,8 +526,20 @@ TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
     ComPtr<ID3D12PipelineState> pso;
     RequireHR(m_Context->m_Device->CreateComputePipelineState(&pso_desc, IID_PPV_ARGS(&pso)));
     ComPtr<ID3D12Resource> output, readback;
-    RequireHR(m_Context->m_Device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(count * 16, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS), D3D12_RESOURCE_STATE_COMMON, 0, IID_PPV_ARGS(&output)));
-    RequireHR(m_Context->m_Device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK), D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(count * 16), D3D12_RESOURCE_STATE_COPY_DEST, 0, IID_PPV_ARGS(&readback)));
+    RequireHR(m_Context->m_Device->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        D3D12_HEAP_FLAG_NONE,
+        &CD3DX12_RESOURCE_DESC::Buffer(count * 16, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+        D3D12_RESOURCE_STATE_COMMON,
+        0,
+        IID_PPV_ARGS(&output)));
+    RequireHR(m_Context->m_Device->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+        D3D12_HEAP_FLAG_NONE,
+        &CD3DX12_RESOURCE_DESC::Buffer(count * 16),
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        0,
+        IID_PPV_ARGS(&readback)));
 
     D3D12_RESOURCE_BARRIER initial_barrier = CD3DX12_RESOURCE_BARRIER::Transition(output.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     m_Context->m_CommandList->ResourceBarrier(1, &initial_barrier);
@@ -406,25 +550,25 @@ TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
         m_Context->m_CommandList->SetComputeRootUnorderedAccessView(3, output->GetGPUVirtualAddress());
         for (uint32_t i = 0; i < count; ++i)
         {
-            ASSERT_TRUE(Frame().m_ScratchBuffer.Prepare(m_Context, 1, 1));
-            Frame().m_ScratchBuffer.AllocateTexture2D(m_Context, PIPELINE_TYPE_COMPUTE, TextureData(texture), 0);
-            Frame().m_ScratchBuffer.AllocateSampler(m_Context, PIPELINE_TYPE_COMPUTE, m_Context->m_TextureSamplers[0], 1);
+            ASSERT_TRUE(GetFrame().m_ScratchBuffer.Prepare(m_Context, 1, 1));
+            GetFrame().m_ScratchBuffer.AllocateTexture2D(m_Context, PIPELINE_TYPE_COMPUTE, GetTextureData(texture), 0);
+            GetFrame().m_ScratchBuffer.AllocateSampler(m_Context, PIPELINE_TYPE_COMPUTE, m_Context->m_TextureSamplers[0], 1);
             struct Constants
             {
                 uint32_t index;
-                float    value;
+                float value;
             } constants = { i, (float)(i + frame) };
-            void* data = Frame().m_ScratchBuffer.AllocateConstantBuffer(m_Context, PIPELINE_TYPE_COMPUTE, 2, sizeof(constants));
+            void* data = GetFrame().m_ScratchBuffer.AllocateConstantBuffer(m_Context, PIPELINE_TYPE_COMPUTE, 2, sizeof(constants));
             ASSERT_NE((void*)0, data);
             memcpy(data, &constants, sizeof(constants));
             m_Context->m_CommandList->Dispatch(1, 1, 1);
         }
-        ASSERT_EQ(3u, Frame().m_ScratchBuffer.m_DescriptorPools.Size());
-        ASSERT_GT(Frame().m_ResourcesToDestroy.Size(), 0u);
+        ASSERT_EQ(3u, GetFrame().m_ScratchBuffer.m_DescriptorPools.Size());
+        ASSERT_GT(GetFrame().m_ResourcesToDestroy.Size(), 0u);
         D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(output.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
         m_Context->m_CommandList->ResourceBarrier(1, &barrier);
         m_Context->m_CommandList->CopyResource(readback.Get(), output.Get());
-        Submit();
+        SubmitAndWait();
         float* values;
         RequireHR(readback->Map(0, 0, (void**)&values));
         for (uint32_t i = 0; i < count; ++i)
@@ -433,10 +577,10 @@ TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
             ASSERT_EQ((float)(i + frame), values[i * 4 + 1]);
         }
         readback->Unmap(0, 0);
-        // Reuse only after Submit has waited for the fence. No page allocations on the second frame.
-        FlushResourcesToDestroy(Frame());
-        Frame().m_ScratchBuffer.Reset(m_Context);
-        Frame().m_UploadRing.Reset();
+        // Reuse only after SubmitAndWait has waited for the fence. No page allocations on the second frame.
+        FlushResourcesToDestroy(GetFrame());
+        GetFrame().m_ScratchBuffer.Reset(m_Context);
+        GetFrame().m_UploadRing.Reset();
         if (frame == 0)
         {
             barrier = CD3DX12_RESOURCE_BARRIER::Transition(output.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -446,9 +590,9 @@ TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
     // CPU sampler caching must not write beyond a fixed heap or truncate indices at 1024.
     for (uint32_t i = 1; i <= 1100; ++i)
         CreateTextureSampler(m_Context, TEXTURE_FILTER_NEAREST, TEXTURE_FILTER_NEAREST, TEXTURE_WRAP_CLAMP_TO_EDGE, TEXTURE_WRAP_CLAMP_TO_EDGE, TEXTURE_WRAP_CLAMP_TO_EDGE, 1, 1.0f + i / 128.0f);
-    SetTextureParams(Context(), texture, TEXTURE_FILTER_NEAREST, TEXTURE_FILTER_NEAREST, TEXTURE_WRAP_CLAMP_TO_EDGE, TEXTURE_WRAP_CLAMP_TO_EDGE, TEXTURE_WRAP_CLAMP_TO_EDGE, 1.0f + 1100 / 128.0f);
-    ASSERT_GT(TextureData(texture)->m_TextureSamplerIndex, 1024u);
-    ASSERT_EQ(m_Context->m_TextureSamplers.Size() - 1, TextureData(texture)->m_TextureSamplerIndex);
+    SetTextureParams(GetContext(), texture, TEXTURE_FILTER_NEAREST, TEXTURE_FILTER_NEAREST, TEXTURE_WRAP_CLAMP_TO_EDGE, TEXTURE_WRAP_CLAMP_TO_EDGE, TEXTURE_WRAP_CLAMP_TO_EDGE, 1.0f + 1100 / 128.0f);
+    ASSERT_GT(GetTextureData(texture)->m_TextureSamplerIndex, 1024u);
+    ASSERT_EQ(m_Context->m_TextureSamplers.Size() - 1, GetTextureData(texture)->m_TextureSamplerIndex);
 }
 
 // Verifies masked stencil references clip rendered pixels correctly.
@@ -464,16 +608,16 @@ TEST_F(DX12Test, StencilClipsPixelsWithMaskedReference)
     params.m_DepthBufferParams.m_Width = params.m_DepthBufferParams.m_Height = 4;
     params.m_StencilBufferParams = params.m_DepthBufferParams;
     params.m_StencilBufferParams.m_Format = TEXTURE_FORMAT_STENCIL;
-    HRenderTarget target = NewRenderTarget(Context(), BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT, params);
+    HRenderTarget target = NewRenderTarget(GetContext(), BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT, params);
     m_Context->m_CurrentRenderTarget = target;
     m_Context->m_MainRenderTarget = target;
-    SetRenderTarget(Context(), target, RenderTargetBindingParams());
-    HTexture          color = GetRenderTargetTexture(Context(), target, BUFFER_TYPE_COLOR0_BIT);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    HTexture color = GetRenderTargetTexture(GetContext(), target, BUFFER_TYPE_COLOR0_BIT);
     DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(m_Context->m_BaseContext.m_AssetHandleContainer, target);
-    ASSERT_EQ(2u, TextureData(rt->m_Base.m_TextureDepthStencil)->m_ResourceStates.Size());
-    Clear(Context(), BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1, 0);
-    const char*      vs = "float4 main(uint id:SV_VertexID):SV_Position {float2 p[3]={float2(-1,-1),float2(-1,3),float2(3,-1)};return float4(p[id],0.5,1);}";
-    const char*      ps = "float4 main():SV_Target {return float4(1,0,0,1);}";
+    ASSERT_EQ(2u, GetTextureData(rt->m_Base.m_TextureDepthStencil)->m_ResourceStates.Size());
+    Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1, 0);
+    const char* vs = FULLSCREEN_VS;
+    const char* ps = "float4 main():SV_Target {return float4(1,0,0,1);}";
     ComPtr<ID3DBlob> vertex, fragment, errors, signature;
     RequireHR(D3DCompile(vs, strlen(vs), 0, 0, 0, "main", "vs_5_1", 0, 0, &vertex, &errors));
     RequireHR(D3DCompile(ps, strlen(ps), 0, 0, 0, "main", "ps_5_1", 0, 0, &fragment, &errors));
@@ -496,94 +640,36 @@ TEST_F(DX12Test, StencilClipsPixelsWithMaskedReference)
     D3D12_VIEWPORT viewport = { 0, 0, 4, 4, 0, 1 };
     m_Context->m_CommandList->RSSetViewports(1, &viewport);
     m_Context->m_ViewportChanged = 0;
-    DisableState(Context(), STATE_DEPTH_TEST);
-    DisableState(Context(), STATE_CULL_FACE);
-    EnableState(Context(), STATE_STENCIL_TEST);
-    SetColorMask(Context(), false, false, false, false);
-    SetStencilMask(Context(), 0x0f);
-    SetStencilFunc(Context(), COMPARE_FUNC_ALWAYS, 0x35, 0xff);
-    SetStencilOp(Context(), STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    EnableState(GetContext(), STATE_STENCIL_TEST);
+    SetColorMask(GetContext(), false, false, false, false);
+    SetStencilMask(GetContext(), 0x0f);
+    SetStencilFunc(GetContext(), COMPARE_FUNC_ALWAYS, 0x35, 0xff);
+    SetStencilOp(GetContext(), STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
     D3D12_RECT scissor = { 0, 0, 2, 4 };
     m_Context->m_CommandList->RSSetScissorRects(1, &scissor);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    SetColorMask(Context(), true, true, true, true);
-    SetStencilMask(Context(), 0);
-    SetStencilFunc(Context(), COMPARE_FUNC_EQUAL, 0xa5, 0x0f);
-    SetStencilOp(Context(), STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_KEEP);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    SetColorMask(GetContext(), true, true, true, true);
+    SetStencilMask(GetContext(), 0);
+    SetStencilFunc(GetContext(), COMPARE_FUNC_EQUAL, 0xa5, 0x0f);
+    SetStencilOp(GetContext(), STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_KEEP);
     scissor.right = 4;
     m_Context->m_CommandList->RSSetScissorRects(1, &scissor);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    std::vector<uint8_t> pixels = ReadTexture(color, 0, 0);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    dmArray<uint8_t> pixels;
+    ReadTexture(color, 0, 0, pixels);
     for (uint32_t y = 0; y < 4; ++y)
         for (uint32_t x = 0; x < 4; ++x)
             ASSERT_EQ(x < 2 ? 255 : 0, pixels[(y * 4 + x) * 4]);
     m_Context->m_CurrentProgram = 0;
-    DeleteRenderTarget(Context(), target);
+    DeleteRenderTarget(GetContext(), target);
 }
-
-// Build real DXBC and serialized signatures, then load via the public program API.
-struct TestProgram
-{
-    ShaderDesc                    m_Desc = {};
-    std::vector<ComPtr<ID3DBlob>> m_Blobs;
-    ~TestProgram()
-    {
-        for (uint32_t i = 0; i < m_Desc.m_Shaders.m_Count; ++i)
-            free(m_Desc.m_Shaders[i].m_HlslResourceMapping.m_Data);
-        DeleteShaderDesc(&m_Desc);
-    }
-    void Shader(const char* source, ShaderDesc::ShaderType stage)
-    {
-        ComPtr<ID3DBlob> code, errors;
-        HRESULT          hr = D3DCompile(source, strlen(source), 0, 0, 0, "main", stage == ShaderDesc::SHADER_TYPE_COMPUTE ? "cs_5_1" : stage == ShaderDesc::SHADER_TYPE_VERTEX ? "vs_5_1" :
-                                                                                                                                                                                  "ps_5_1",
-                                0,
-                                0,
-                                &code,
-                                &errors);
-        if (FAILED(hr) && errors)
-            printf("%s\n", (const char*)errors->GetBufferPointer());
-        RequireHR(hr);
-        AddShader(&m_Desc, ShaderDesc::LANGUAGE_HLSL_51, stage, (uint8_t*)code->GetBufferPointer(), (uint32_t)code->GetBufferSize());
-        m_Blobs.push_back(code);
-    }
-    void Root(const char* text)
-    {
-        ComPtr<ID3DBlob>  root, errors;
-        const std::string source = std::string("#define main \"") + text + "\"\n";
-        RequireHR(D3DCompile(source.c_str(), source.size(), 0, 0, 0, "main", "rootsig_1_0", 0, 0, &root, &errors));
-        m_Desc.m_HlslRootSignature.m_Data = (uint8_t*)root->GetBufferPointer();
-        m_Desc.m_HlslRootSignature.m_Count = (uint32_t)root->GetBufferSize();
-        m_Blobs.push_back(root);
-    }
-    void Binding(const char* name, uint32_t binding, uint32_t root_index, ShaderDesc::ShaderDataType type, BindingType family, uint32_t shader_index = 0)
-    {
-        AddShaderResource(&m_Desc, name, type, binding, 0, family);
-        ShaderDesc::Shader& shader = m_Desc.m_Shaders[shader_index];
-        shader.m_HlslResourceMapping.m_Data = (ShaderDesc::HLSLResourceMapping*)realloc(shader.m_HlslResourceMapping.m_Data,
-                                                                                        sizeof(ShaderDesc::HLSLResourceMapping) * (shader.m_HlslResourceMapping.m_Count + 1));
-        ShaderDesc::HLSLResourceMapping& map = shader.m_HlslResourceMapping.m_Data[shader.m_HlslResourceMapping.m_Count++];
-        memset(&map, 0, sizeof(map));
-        map.m_NameHash = dmHashString64(name);
-        map.m_Binding = binding;
-        map.m_RootParameterIndex = root_index;
-    }
-    HProgram Load(HContext context)
-    {
-        char     error[1024] = {};
-        HProgram program = NewProgram(context, &m_Desc, error, sizeof(error));
-        if (!program)
-            printf("Program load: %s\n", error);
-        return program;
-    }
-};
-
-static const char* FULLSCREEN_VS = "float4 main(uint id:SV_VertexID):SV_Position {float2 p[3]={float2(-1,-1),float2(-1,3),float2(3,-1)};return float4(p[id],0.5,1);}";
 
 // Verifies volume mip uploads and Z-slice updates preserve untouched voxels.
 TEST_F(DX12Test, VolumeMipUploadsAndZSubUpdates)
 {
-    HTexture      texture = Texture(TEXTURE_TYPE_3D, 8, 8, 4, 3);
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_3D, 8, 8, 4, 3);
     TextureParams params;
     params.m_Format = TEXTURE_FORMAT_RGB;
     for (uint32_t mip = 0; mip < 3; ++mip)
@@ -591,9 +677,12 @@ TEST_F(DX12Test, VolumeMipUploadsAndZSubUpdates)
         params.m_MipMap = mip;
         params.m_Width = params.m_Height = 8 >> mip;
         params.m_Depth = dmMath::Max(1u, 4u >> mip);
-        std::vector<uint8_t> data(params.m_Width * params.m_Height * params.m_Depth * 3, 20 + mip);
-        params.m_Data = data.data();
-        SetTexture(Context(), texture, params);
+        dmArray<uint8_t> data;
+        data.SetCapacity(params.m_Width * params.m_Height * params.m_Depth * 3);
+        data.SetSize(data.Capacity());
+        memset(data.Begin(), 20 + mip, data.Size());
+        params.m_Data = data.Begin();
+        SetTexture(GetContext(), texture, params);
     }
     params.m_MipMap = 1;
     params.m_Width = params.m_Height = 2;
@@ -604,198 +693,213 @@ TEST_F(DX12Test, VolumeMipUploadsAndZSubUpdates)
     uint8_t patch[12];
     memset(patch, 99, sizeof(patch));
     params.m_Data = patch;
-    SetTexture(Context(), texture, params);
-    ASSERT_EQ(D3D12_RESOURCE_DIMENSION_TEXTURE3D, TextureData(texture)->m_ResourceDesc.Dimension);
-    ASSERT_EQ(3u, TextureData(texture)->m_ResourceStates.Size());
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(D3D12_RESOURCE_DIMENSION_TEXTURE3D, GetTextureData(texture)->m_ResourceDesc.Dimension);
+    ASSERT_EQ(3u, GetTextureData(texture)->m_ResourceStates.Size());
     for (uint32_t mip = 0; mip < 3; ++mip)
     {
-        auto     pixels = ReadTexture(texture, mip, 0);
-        uint32_t w = 8 >> mip, depth = dmMath::Max(1u, 4u >> mip);
+        dmArray<uint8_t> pixels;
+        ReadTexture(texture, mip, 0, pixels);
+        const uint32_t width = 8 >> mip;
+        const uint32_t depth = dmMath::Max(1u, 4u >> mip);
         for (uint32_t z = 0; z < depth; ++z)
-            for (uint32_t y = 0; y < w; ++y)
-                for (uint32_t x = 0; x < w; ++x)
-                    ASSERT_EQ(mip == 1 && z == 1 && x >= 1 && x < 3 && y >= 1 && y < 3 ? 99 : 20 + mip, pixels[((z * w + y) * w + x) * 4]);
+            for (uint32_t y = 0; y < width; ++y)
+                for (uint32_t x = 0; x < width; ++x)
+                {
+                    const bool is_patch = mip == 1 && z == 1 && x >= 1 && x < 3 && y >= 1 && y < 3;
+                    const uint8_t expected = is_patch ? 99 : 20 + mip;
+                    ASSERT_EQ(expected, pixels[((z * width + y) * width + x) * 4]);
+                }
     }
-    Frame().m_ScratchBuffer.Prepare(m_Context, 1, 0);
+    GetFrame().m_ScratchBuffer.Prepare(m_Context, 1, 0);
     // View creation is also exercised by the compute sampling test below.
 }
 
 // Verifies resizing a bound target restores its pass before a clear, guarding against stale RTV/DSV handles.
 TEST_F(DX12Test, BoundTargetResizeRestoresClearAttachments)
 {
-    HRenderTarget other = Target(1, 1);
+    HRenderTarget other = CreateTestRenderTarget(1, 1);
     for (uint32_t samples = 1; samples <= 4; samples *= 4)
     {
-        HRenderTarget target = Target(4, 4, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, samples);
-        SetRenderTarget(Context(), target, RenderTargetBindingParams());
+        HRenderTarget target = CreateTestRenderTarget(4, 4, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, samples);
+        SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(m_Context->m_BaseContext.m_AssetHandleContainer, target);
         for (uint32_t size = 2; size < 7; ++size)
         {
-            SetRenderTargetSize(Context(), target, size, size);
+            SetRenderTargetSize(GetContext(), target, size, size);
             ASSERT_TRUE(rt->m_Base.m_IsBound);
             ASSERT_EQ(target, m_Context->m_CurrentRenderTarget);
-            ASSERT_EQ(D3D12_RESOURCE_STATE_DEPTH_WRITE, TextureData(rt->m_Base.m_TextureDepthStencil)->m_ResourceStates[0]);
-            Clear(Context(), BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, 0, 0, 255, 255, 0.25f, 0);
+            ASSERT_EQ(D3D12_RESOURCE_STATE_DEPTH_WRITE, GetTextureData(rt->m_Base.m_TextureDepthStencil)->m_ResourceStates[0]);
+            Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, 0, 0, 255, 255, 0.25f, 0);
             uint8_t pixel[4] = {};
-            ReadPixels(Context(), 1, 1, 1, 1, pixel, sizeof(pixel));
+            ReadPixels(GetContext(), 1, 1, 1, 1, pixel, sizeof(pixel));
             ASSERT_EQ(255, pixel[0]);
             ASSERT_EQ(0, pixel[2]);
         }
-        SetRenderTarget(Context(), other, RenderTargetBindingParams());
-        Submit();
-        DeleteRenderTarget(Context(), target);
+        SetRenderTarget(GetContext(), other, RenderTargetBindingParams());
+        SubmitAndWait();
+        DeleteRenderTarget(GetContext(), target);
     }
-    DeleteRenderTarget(Context(), other);
+    DeleteRenderTarget(GetContext(), other);
 }
 
 // Verifies MRT shaders can draw to a single color attachment without DX12 validation errors.
 TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
 {
-    HRenderTarget target = Target(4, 4);
-    SetRenderTarget(Context(), target, RenderTargetBindingParams());
-    SetViewport(Context(), 0, 0, 4, 4);
-    DisableState(Context(), STATE_CULL_FACE);
-    DisableState(Context(), STATE_DEPTH_TEST);
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
     TestProgram shader;
-    shader.Shader(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
-    shader.Shader("struct Out {float4 color:SV_Target0;float4 extra:SV_Target1;}; Out main(){Out o;o.color=float4(1,0,0,1);o.extra=float4(0,1,0,1);return o;}", ShaderDesc::SHADER_TYPE_FRAGMENT);
-    shader.Root("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
-    HProgram program = shader.Load(Context());
+    shader.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage(
+        "struct Out {float4 color:SV_Target0;"
+        "float4 extra:SV_Target1;"
+        "};"
+        " Out main(){Out o;"
+        "o.color=float4(1,0,0,1);"
+        "o.extra=float4(0,1,0,1);"
+        "return o;"
+        "}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram program = shader.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, program);
-    EnableProgram(Context(), program);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    EnableProgram(GetContext(), program);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     uint8_t pixel[4] = {};
-    ReadPixels(Context(), 1, 1, 1, 1, pixel, sizeof(pixel));
+    ReadPixels(GetContext(), 1, 1, 1, 1, pixel, sizeof(pixel));
     ASSERT_EQ(255, pixel[2]);
     ASSERT_EQ(0, pixel[1]);
-    Submit();
-    DisableProgram(Context());
-    DeleteProgram(Context(), program);
-    DeleteRenderTarget(Context(), target);
+    SubmitAndWait();
+    DisableProgram(GetContext());
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), target);
 }
 
 // Verifies multisample MRT clears, resize and public readback preserve attachment colors.
 TEST_F(DX12Test, MultisampleMRTClearResizeAndPublicReadback)
 {
-    HRenderTarget target = Target(4, 4, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_COLOR1_BIT | BUFFER_TYPE_DEPTH_BIT, 4);
-    HRenderTarget other = Target(1, 1);
-    SetRenderTarget(Context(), target, RenderTargetBindingParams());
-    auto rt = GetAssetFromContainer<DX12RenderTarget>(m_Context->m_BaseContext.m_AssetHandleContainer, target);
+    HRenderTarget target = CreateTestRenderTarget(4, 4, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_COLOR1_BIT | BUFFER_TYPE_DEPTH_BIT, 4);
+    HRenderTarget other = CreateTestRenderTarget(1, 1);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(m_Context->m_BaseContext.m_AssetHandleContainer, target);
     ASSERT_EQ(4u, rt->m_SampleDesc.Count);
-    ASSERT_EQ(4u, TextureData(rt->m_Base.m_TextureDepthStencil)->m_ResourceDesc.SampleDesc.Count);
-    Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 255, 0, 0, 255, 1, 0);
-    Clear(Context(), BUFFER_TYPE_COLOR1_BIT | BUFFER_TYPE_DEPTH_BIT, 0, 255, 0, 255, 1, 0);
+    ASSERT_EQ(4u, GetTextureData(rt->m_Base.m_TextureDepthStencil)->m_ResourceDesc.SampleDesc.Count);
+    Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 255, 0, 0, 255, 1, 0);
+    Clear(GetContext(), BUFFER_TYPE_COLOR1_BIT | BUFFER_TYPE_DEPTH_BIT, 0, 255, 0, 255, 1, 0);
     uint8_t pixels[4 * 4 * 4] = {};
-    ReadPixels(Context(), 0, 0, 4, 4, pixels, sizeof(pixels));
+    ReadPixels(GetContext(), 0, 0, 4, 4, pixels, sizeof(pixels));
     for (uint32_t i = 0; i < 16; ++i)
     {
         ASSERT_EQ(255, pixels[i * 4 + 2]);
         ASSERT_EQ(0, pixels[i * 4 + 1]);
     }
-    SetRenderTarget(Context(), other, RenderTargetBindingParams());
-    auto green = ReadTexture(rt->m_Base.m_TextureColor[1], 0, 0);
+    SetRenderTarget(GetContext(), other, RenderTargetBindingParams());
+    dmArray<uint8_t> green;
+    ReadTexture(rt->m_Base.m_TextureColor[1], 0, 0, green);
     for (uint32_t i = 0; i < 16; ++i)
         ASSERT_EQ(255, green[i * 4 + 1]);
     for (uint32_t size = 2; size < 7; ++size)
     {
-        SetRenderTargetSize(Context(), target, size, size);
-        SetRenderTarget(Context(), target, RenderTargetBindingParams());
-        Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
-        ReadPixels(Context(), 1, 1, 1, 1, pixels, sizeof(pixels));
+        SetRenderTargetSize(GetContext(), target, size, size);
+        SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+        Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+        ReadPixels(GetContext(), 1, 1, 1, 1, pixels, sizeof(pixels));
         ASSERT_EQ(255, pixels[0]);
         ASSERT_EQ(0, pixels[2]);
-        SetRenderTarget(Context(), other, RenderTargetBindingParams());
+        SetRenderTarget(GetContext(), other, RenderTargetBindingParams());
     }
-    Submit();
-    DeleteRenderTarget(Context(), target);
-    DeleteRenderTarget(Context(), other);
+    SubmitAndWait();
+    DeleteRenderTarget(GetContext(), target);
+    DeleteRenderTarget(GetContext(), other);
 }
 
 // Verifies shader reload, line rendering, depth bias and scissor survive pipeline changes.
 TEST_F(DX12Test, ShaderReloadLinesBiasAndScissor)
 {
-    HRenderTarget target = Target(4, 4, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT);
-    SetRenderTarget(Context(), target, RenderTargetBindingParams());
-    SetViewport(Context(), 0, 0, 4, 4);
-    DisableState(Context(), STATE_CULL_FACE);
-    DisableState(Context(), STATE_DEPTH_TEST);
+    HRenderTarget target = CreateTestRenderTarget(4, 4, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
     TestProgram red, green;
-    red.Shader(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
-    red.Shader("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
-    red.Root("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
-    green.Shader(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
-    green.Shader("float4 main():SV_Target{return float4(0,1,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
-    green.Root("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
-    HProgram program = red.Load(Context());
+    red.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    red.AddShaderStage("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    red.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    green.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    green.AddShaderStage("float4 main():SV_Target{return float4(0,1,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    green.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram program = red.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, program);
-    EnableProgram(Context(), program);
-    Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 0, 1, 0);
-    SetScissor(Context(), 0, 0, 2, 4);
-    EnableState(Context(), STATE_SCISSOR_TEST);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    EnableProgram(GetContext(), program);
+    Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 0, 1, 0);
+    SetScissor(GetContext(), 0, 0, 2, 4);
+    EnableState(GetContext(), STATE_SCISSOR_TEST);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     uint8_t pixels[64] = {};
-    ReadPixels(Context(), 0, 0, 4, 4, pixels, sizeof(pixels));
+    ReadPixels(GetContext(), 0, 0, 4, 4, pixels, sizeof(pixels));
     for (uint32_t i = 0; i < 16; ++i)
         ASSERT_EQ(i % 4 < 2 ? 255 : 0, pixels[i * 4 + 2]);
     char error[512] = {};
-    ASSERT_TRUE(ReloadProgram(Context(), program, &green.m_Desc, error, sizeof(error)));
+    ASSERT_TRUE(ReloadProgram(GetContext(), program, &green.m_Desc, error, sizeof(error)));
     // Readback breaks and restores the render pass, retaining the scissor rectangle.
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    ReadPixels(Context(), 0, 0, 4, 4, pixels, sizeof(pixels));
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    ReadPixels(GetContext(), 0, 0, 4, 4, pixels, sizeof(pixels));
     for (uint32_t i = 0; i < 16; ++i)
         ASSERT_EQ(i % 4 < 2 ? 255 : 0, pixels[i * 4 + 1]);
-    DisableState(Context(), STATE_SCISSOR_TEST);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    ReadPixels(Context(), 0, 0, 4, 4, pixels, sizeof(pixels));
+    DisableState(GetContext(), STATE_SCISSOR_TEST);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    ReadPixels(GetContext(), 0, 0, 4, 4, pixels, sizeof(pixels));
     for (uint32_t i = 0; i < 16; ++i)
         ASSERT_EQ(255, pixels[i * 4 + 1]);
     ShaderDesc invalid = {};
-    ASSERT_FALSE(ReloadProgram(Context(), program, &invalid, error, sizeof(error)));
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    Draw(Context(), PRIMITIVE_LINES, 0, 2, 1);
-    EnableState(Context(), STATE_POLYGON_OFFSET_FILL);
-    SetPolygonOffset(Context(), 2.0f, 3.0f);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    ASSERT_FALSE(ReloadProgram(GetContext(), program, &invalid, error, sizeof(error)));
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    Draw(GetContext(), PRIMITIVE_LINES, 0, 2, 1);
+    EnableState(GetContext(), STATE_POLYGON_OFFSET_FILL);
+    SetPolygonOffset(GetContext(), 2.0f, 3.0f);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     ASSERT_GE(m_Context->m_PipelineCache.Size(), 4u);
-    Submit();
-    DeleteProgram(Context(), program);
-    DeleteRenderTarget(Context(), target);
+    SubmitAndWait();
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), target);
 }
 
 // Verifies front/back culling matches the engine convention across render targets.
 TEST_F(DX12Test, FrontAndBackCulling)
 {
-    HRenderTarget target = Target(8, 8);
-    SetRenderTarget(Context(), target, RenderTargetBindingParams());
-    SetViewport(Context(), 0, 0, 8, 8);
-    DisableState(Context(), STATE_DEPTH_TEST);
+    HRenderTarget target = CreateTestRenderTarget(8, 8);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 8, 8);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
     TestProgram shader;
-    shader.Shader(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
-    shader.Shader("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
-    shader.Root("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
-    HProgram program = shader.Load(Context());
+    shader.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram program = shader.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, program);
-    EnableProgram(Context(), program);
+    EnableProgram(GetContext(), program);
     const uint16_t indices[] = { 0, 1, 2 };
-    HIndexBuffer index_buffer = NewIndexBuffer(Context(), sizeof(indices), indices, BUFFER_USAGE_STATIC_DRAW);
+    HIndexBuffer index_buffer = NewIndexBuffer(GetContext(), sizeof(indices), indices, BUFFER_USAGE_STATIC_DRAW);
     const PrimitiveType triangles[] = { PRIMITIVE_TRIANGLES, PRIMITIVE_TRIANGLE_STRIP };
     const FaceWinding windings[] = { FACE_WINDING_CW, FACE_WINDING_CCW };
     uint8_t pixels[8 * 8 * 4] = {};
-    SetCullFace(Context(), FACE_TYPE_FRONT_AND_BACK);
-    EnableState(Context(), STATE_CULL_FACE);
-    for (PrimitiveType primitive : triangles)
+    SetCullFace(GetContext(), FACE_TYPE_FRONT_AND_BACK);
+    EnableState(GetContext(), STATE_CULL_FACE);
+    for (uint32_t primitive_index = 0; primitive_index < DM_ARRAY_SIZE(triangles); ++primitive_index)
     {
-        for (FaceWinding winding : windings)
+        for (uint32_t winding_index = 0; winding_index < DM_ARRAY_SIZE(windings); ++winding_index)
         {
-            SetFaceWinding(Context(), winding);
+            SetFaceWinding(GetContext(), windings[winding_index]);
             for (uint32_t indexed = 0; indexed < 2; ++indexed)
             {
-                Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+                Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
                 if (indexed)
-                    DrawElements(Context(), primitive, 0, 3, TYPE_UNSIGNED_SHORT, index_buffer, 2);
+                    DrawElements(GetContext(), triangles[primitive_index], 0, 3, TYPE_UNSIGNED_SHORT, index_buffer, 2);
                 else
-                    Draw(Context(), primitive, 0, 3, 2);
-                ReadPixels(Context(), 0, 0, 8, 8, pixels, sizeof(pixels));
+                    Draw(GetContext(), triangles[primitive_index], 0, 3, 2);
+                ReadPixels(GetContext(), 0, 0, 8, 8, pixels, sizeof(pixels));
                 for (uint32_t i = 0; i < 64; ++i)
                 {
                     ASSERT_EQ(255, pixels[i * 4]);
@@ -806,223 +910,247 @@ TEST_F(DX12Test, FrontAndBackCulling)
     }
 
     // Disabling culling must restore a user's scissor without a pass break or viewport change.
-    SetScissor(Context(), 0, 0, 4, 8);
-    EnableState(Context(), STATE_SCISSOR_TEST);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    DisableState(Context(), STATE_CULL_FACE);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    ReadPixels(Context(), 0, 0, 8, 8, pixels, sizeof(pixels));
+    SetScissor(GetContext(), 0, 0, 4, 8);
+    EnableState(GetContext(), STATE_SCISSOR_TEST);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    ReadPixels(GetContext(), 0, 0, 8, 8, pixels, sizeof(pixels));
     for (uint32_t i = 0; i < 64; ++i)
         ASSERT_EQ(i % 8 < 4 ? 255 : 0, pixels[i * 4 + 2]);
 
     // Switching from both faces to a single face must also restore rasterization.
-    Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
-    EnableState(Context(), STATE_CULL_FACE);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    SetCullFace(Context(), FACE_TYPE_FRONT);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    SetCullFace(Context(), FACE_TYPE_BACK);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    ReadPixels(Context(), 0, 0, 8, 8, pixels, sizeof(pixels));
+    Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+    EnableState(GetContext(), STATE_CULL_FACE);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    SetCullFace(GetContext(), FACE_TYPE_FRONT);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    SetCullFace(GetContext(), FACE_TYPE_BACK);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    ReadPixels(GetContext(), 0, 0, 8, 8, pixels, sizeof(pixels));
     for (uint32_t i = 0; i < 64; ++i)
         ASSERT_EQ(i % 8 < 4 ? 255 : 0, pixels[i * 4 + 2]);
 
     // Lines have no faces. Compare against unculled lines, immediately after a culled triangle.
-    DisableState(Context(), STATE_SCISSOR_TEST);
-    DisableState(Context(), STATE_CULL_FACE);
-    Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+    DisableState(GetContext(), STATE_SCISSOR_TEST);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
     TestProgram line_shader;
-    line_shader.Shader("float4 main(uint id:SV_VertexID):SV_Position {float2 p[2]={float2(-0.75,-0.5),float2(0.75,0.5)};return float4(p[id],0.5,1);}", ShaderDesc::SHADER_TYPE_VERTEX);
-    line_shader.Shader("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
-    line_shader.Root("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
-    HProgram line_program = line_shader.Load(Context());
+    line_shader.AddShaderStage(
+        "float4 main(uint id:SV_VertexID):SV_Position {float2 p[2]={float2(-0.75,-0.5),float2(0.75,0.5)};"
+        "return float4(p[id],0.5,1);"
+        "}", ShaderDesc::SHADER_TYPE_VERTEX);
+    line_shader.AddShaderStage("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    line_shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram line_program = line_shader.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, line_program);
-    EnableProgram(Context(), line_program);
-    Draw(Context(), PRIMITIVE_LINES, 0, 2, 1);
+    EnableProgram(GetContext(), line_program);
+    Draw(GetContext(), PRIMITIVE_LINES, 0, 2, 1);
     uint8_t line_pixels[sizeof(pixels)] = {};
-    ReadPixels(Context(), 0, 0, 8, 8, line_pixels, sizeof(line_pixels));
+    ReadPixels(GetContext(), 0, 0, 8, 8, line_pixels, sizeof(line_pixels));
     uint32_t red_pixels = 0;
     for (uint32_t i = 0; i < 64; ++i)
         red_pixels += line_pixels[i * 4 + 2] == 255;
     ASSERT_GT(red_pixels, 0u);
-    SetCullFace(Context(), FACE_TYPE_FRONT_AND_BACK);
-    EnableState(Context(), STATE_CULL_FACE);
+    SetCullFace(GetContext(), FACE_TYPE_FRONT_AND_BACK);
+    EnableState(GetContext(), STATE_CULL_FACE);
     for (uint32_t indexed = 0; indexed < 2; ++indexed)
     {
-        Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
-        EnableProgram(Context(), program);
-        Draw(Context(), PRIMITIVE_TRIANGLE_STRIP, 0, 3, 1);
-        EnableProgram(Context(), line_program);
+        Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+        EnableProgram(GetContext(), program);
+        Draw(GetContext(), PRIMITIVE_TRIANGLE_STRIP, 0, 3, 1);
+        EnableProgram(GetContext(), line_program);
         if (indexed)
-            DrawElements(Context(), PRIMITIVE_LINES, 0, 2, TYPE_UNSIGNED_SHORT, index_buffer, 1);
+            DrawElements(GetContext(), PRIMITIVE_LINES, 0, 2, TYPE_UNSIGNED_SHORT, index_buffer, 1);
         else
-            Draw(Context(), PRIMITIVE_LINES, 0, 2, 1);
-        ReadPixels(Context(), 0, 0, 8, 8, pixels, sizeof(pixels));
+            Draw(GetContext(), PRIMITIVE_LINES, 0, 2, 1);
+        ReadPixels(GetContext(), 0, 0, 8, 8, pixels, sizeof(pixels));
         ASSERT_EQ(0, memcmp(line_pixels, pixels, sizeof(pixels)));
     }
-    Submit();
+    SubmitAndWait();
     DeleteIndexBuffer(index_buffer);
-    DeleteProgram(Context(), line_program);
-    DeleteProgram(Context(), program);
-    DeleteRenderTarget(Context(), target);
+    DeleteProgram(GetContext(), line_program);
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), target);
 }
 
 // Verifies culling both faces preserves vertex shader storage writes.
 TEST_F(DX12Test, FrontAndBackCullingPreservesVertexWrites)
 {
-    HTexture written = Texture(TEXTURE_TYPE_IMAGE_2D, 3, 1, 1, 1);
+    HTexture written = CreateTestTexture(TEXTURE_TYPE_IMAGE_2D, 3, 1, 1, 1);
     uint32_t zero[3] = {};
     TextureParams params;
     params.m_Format = TEXTURE_FORMAT_R32UI;
     params.m_Width = 3;
     params.m_Height = 1;
     params.m_Data = zero;
-    SetTexture(Context(), written, params);
-    HRenderTarget target = Target(4, 4);
-    SetRenderTarget(Context(), target, RenderTargetBindingParams());
-    SetViewport(Context(), 0, 0, 4, 4);
-    DisableState(Context(), STATE_DEPTH_TEST);
+    SetTexture(GetContext(), written, params);
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
     TestProgram shader;
-    shader.Shader("RWTexture2D<uint> written:register(u0); float4 main(uint id:SV_VertexID):SV_Position {written[uint2(id,0)]=id+1;float2 p[3]={float2(-1,-1),float2(-1,3),float2(3,-1)};return float4(p[id],0.5,1);}", ShaderDesc::SHADER_TYPE_VERTEX);
-    shader.Shader("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
-    shader.Root("DescriptorTable(UAV(u0), visibility=SHADER_VISIBILITY_VERTEX), RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
-    shader.Binding("written", 0, 0, ShaderDesc::SHADER_TYPE_UIMAGE2D, BINDING_TYPE_TEXTURE);
-    HProgram program = shader.Load(Context());
+    shader.AddShaderStage(
+        "RWTexture2D<uint> written:register(u0);"
+        " float4 main(uint id:SV_VertexID):SV_Position {written[uint2(id,0)]=id+1;"
+        "float2 p[3]={float2(-1,-1),float2(-1,3),float2(3,-1)};"
+        "return float4(p[id],0.5,1);"
+        "}", ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("DescriptorTable(UAV(u0), visibility=SHADER_VISIBILITY_VERTEX), RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    shader.AddBinding("written", 0, 0, ShaderDesc::SHADER_TYPE_UIMAGE2D, BINDING_TYPE_TEXTURE);
+    HProgram program = shader.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, program);
-    EnableTexture(Context(), 0, 0, written);
-    EnableProgram(Context(), program);
-    SetCullFace(Context(), FACE_TYPE_FRONT_AND_BACK);
-    EnableState(Context(), STATE_CULL_FACE);
-    Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    EnableTexture(GetContext(), 0, 0, written);
+    EnableProgram(GetContext(), program);
+    SetCullFace(GetContext(), FACE_TYPE_FRONT_AND_BACK);
+    EnableState(GetContext(), STATE_CULL_FACE);
+    Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     uint8_t pixels[4 * 4 * 4] = {};
-    ReadPixels(Context(), 0, 0, 4, 4, pixels, sizeof(pixels));
+    ReadPixels(GetContext(), 0, 0, 4, 4, pixels, sizeof(pixels));
     for (uint32_t i = 0; i < 16; ++i)
         ASSERT_EQ(0, pixels[i * 4 + 2]);
-    auto values = ReadTexture(written, 0, 0);
+    dmArray<uint8_t> values;
+    ReadTexture(written, 0, 0, values);
     for (uint32_t i = 0; i < 3; ++i)
-        ASSERT_EQ(i + 1, ((uint32_t*)values.data())[i]);
-    DeleteProgram(Context(), program);
-    DeleteRenderTarget(Context(), target);
+        ASSERT_EQ(i + 1, ((uint32_t*)values.Begin())[i]);
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), target);
 }
 
 // Verifies dependent image dispatches and compute-to-draw transitions synchronize writes.
 TEST_F(DX12Test, DependentImageDispatchesAndComputeToDraw)
 {
-    HTexture      texture = Texture(TEXTURE_TYPE_IMAGE_2D, 4, 4, 1, 1);
-    uint32_t      zero[16] = {};
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_IMAGE_2D, 4, 4, 1, 1);
+    uint32_t zero[16] = {};
     TextureParams params;
     params.m_Format = TEXTURE_FORMAT_R32UI;
     params.m_Width = params.m_Height = 4;
     params.m_Data = zero;
-    SetTexture(Context(), texture, params);
+    SetTexture(GetContext(), texture, params);
     TestProgram compute;
-    compute.Shader("RWTexture2D<uint> image:register(u0); [numthreads(4,4,1)] void main(uint3 p:SV_DispatchThreadID){image[p.xy]=image[p.xy]+1;}", ShaderDesc::SHADER_TYPE_COMPUTE);
-    compute.Root("DescriptorTable(UAV(u0))");
-    compute.Binding("image", 0, 0, ShaderDesc::SHADER_TYPE_UIMAGE2D, BINDING_TYPE_TEXTURE);
-    HProgram cp = compute.Load(Context());
-    ASSERT_NE((HProgram)0, cp);
-    EnableProgram(Context(), cp);
-    EnableTexture(Context(), 0, 0, texture);
+    compute.AddShaderStage(
+        "RWTexture2D<uint> image:register(u0);"
+        " [numthreads(4,4,1)] void main(uint3 p:SV_DispatchThreadID){image[p.xy]=image[p.xy]+1;"
+        "}", ShaderDesc::SHADER_TYPE_COMPUTE);
+    compute.SetRootSignature("DescriptorTable(UAV(u0))");
+    compute.AddBinding("image", 0, 0, ShaderDesc::SHADER_TYPE_UIMAGE2D, BINDING_TYPE_TEXTURE);
+    HProgram compute_program = compute.CreateProgram(GetContext());
+    ASSERT_NE((HProgram)0, compute_program);
+    EnableProgram(GetContext(), compute_program);
+    EnableTexture(GetContext(), 0, 0, texture);
     for (uint32_t i = 0; i < 3; ++i)
-        DispatchCompute(Context(), 1, 1, 1);
+        DispatchCompute(GetContext(), 1, 1, 1);
     uint32_t changed = 8;
     params.m_Data = &changed;
     params.m_Width = params.m_Height = 1;
     params.m_SubUpdate = 1;
-    SetTexture(Context(), texture, params);
-    DispatchCompute(Context(), 1, 1, 1);
+    SetTexture(GetContext(), texture, params);
+    DispatchCompute(GetContext(), 1, 1, 1);
     TestProgram draw;
-    draw.Shader(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
-    draw.Shader("Texture2D<uint> image:register(t0); float4 main(float4 p:SV_Position):SV_Target {uint v=image.Load(int3(p.xy,0));return float4(v/10.0,0.9,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
-    draw.Root("DescriptorTable(SRV(t0)), RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
-    draw.Binding("image", 0, 0, ShaderDesc::SHADER_TYPE_UTEXTURE2D, BINDING_TYPE_TEXTURE, 1);
-    HProgram dp = draw.Load(Context());
-    ASSERT_NE((HProgram)0, dp);
-    HRenderTarget target = Target(4, 4);
-    SetRenderTarget(Context(), target, RenderTargetBindingParams());
-    SetViewport(Context(), 0, 0, 4, 4);
-    DisableState(Context(), STATE_CULL_FACE);
-    DisableState(Context(), STATE_DEPTH_TEST);
-    EnableProgram(Context(), dp);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    draw.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    draw.AddShaderStage(
+        "Texture2D<uint> image:register(t0);"
+        " float4 main(float4 p:SV_Position):SV_Target {uint v=image.Load(int3(p.xy,0));"
+        "return float4(v/10.0,0.9,0,1);"
+        "}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    draw.SetRootSignature("DescriptorTable(SRV(t0)), RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    draw.AddBinding("image", 0, 0, ShaderDesc::SHADER_TYPE_UTEXTURE2D, BINDING_TYPE_TEXTURE, 1);
+    HProgram draw_program = draw.CreateProgram(GetContext());
+    ASSERT_NE((HProgram)0, draw_program);
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+    EnableProgram(GetContext(), draw_program);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     uint8_t pixels[64] = {};
-    ReadPixels(Context(), 0, 0, 4, 4, pixels, sizeof(pixels));
+    ReadPixels(GetContext(), 0, 0, 4, 4, pixels, sizeof(pixels));
     for (uint32_t i = 0; i < 16; ++i)
     {
         ASSERT_NEAR(i == 0 ? 230 : 102, pixels[i * 4 + 2], 1);
         ASSERT_NEAR(230, pixels[i * 4 + 1], 1);
     }
-    Submit();
-    DeleteProgram(Context(), cp);
-    DeleteProgram(Context(), dp);
-    DeleteRenderTarget(Context(), target);
+    SubmitAndWait();
+    DeleteProgram(GetContext(), compute_program);
+    DeleteProgram(GetContext(), draw_program);
+    DeleteRenderTarget(GetContext(), target);
 }
 
 // Verifies volume sampling views and writable volume images address the correct voxels.
 TEST_F(DX12Test, VolumeViewsAndWritableVolume)
 {
-    HTexture      input = Texture(TEXTURE_TYPE_3D, 4, 4, 4, 2);
-    HTexture      output = Texture(TEXTURE_TYPE_IMAGE_3D, 2, 2, 2, 1);
+    HTexture input = CreateTestTexture(TEXTURE_TYPE_3D, 4, 4, 4, 2);
+    HTexture output = CreateTestTexture(TEXTURE_TYPE_IMAGE_3D, 2, 2, 2, 1);
     TextureParams params;
     params.m_Format = TEXTURE_FORMAT_R32UI;
     params.m_Width = params.m_Height = params.m_Depth = 4;
     uint32_t base[64] = {};
     params.m_Data = base;
-    SetTexture(Context(), input, params);
+    SetTexture(GetContext(), input, params);
     uint32_t mip[] = { 3, 3, 3, 3, 7, 7, 7, 7 };
     params.m_Data = mip;
     params.m_MipMap = 1;
     params.m_Width = params.m_Height = params.m_Depth = 2;
-    SetTexture(Context(), input, params);
+    SetTexture(GetContext(), input, params);
     params.m_MipMap = 0;
     params.m_Data = base;
-    SetTexture(Context(), output, params);
+    SetTexture(GetContext(), output, params);
     TestProgram compute;
-    compute.Shader("Texture3D<uint> source:register(t0); RWTexture3D<uint> target:register(u1); [numthreads(2,2,2)] void main(uint3 p:SV_DispatchThreadID){target[p]=source.Load(int4(p,1))*2;}", ShaderDesc::SHADER_TYPE_COMPUTE);
-    compute.Root("DescriptorTable(SRV(t0)), DescriptorTable(UAV(u1))");
-    compute.Binding("source", 0, 0, ShaderDesc::SHADER_TYPE_UTEXTURE3D, BINDING_TYPE_TEXTURE);
-    compute.Binding("target", 1, 1, ShaderDesc::SHADER_TYPE_UIMAGE3D, BINDING_TYPE_TEXTURE);
-    HProgram program = compute.Load(Context());
+    compute.AddShaderStage(
+        "Texture3D<uint> source:register(t0);"
+        " RWTexture3D<uint> target:register(u1);"
+        " [numthreads(2,2,2)] void main(uint3 p:SV_DispatchThreadID){target[p]=source.Load(int4(p,1))*2;"
+        "}", ShaderDesc::SHADER_TYPE_COMPUTE);
+    compute.SetRootSignature("DescriptorTable(SRV(t0)), DescriptorTable(UAV(u1))");
+    compute.AddBinding("source", 0, 0, ShaderDesc::SHADER_TYPE_UTEXTURE3D, BINDING_TYPE_TEXTURE);
+    compute.AddBinding("target", 1, 1, ShaderDesc::SHADER_TYPE_UIMAGE3D, BINDING_TYPE_TEXTURE);
+    HProgram program = compute.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, program);
-    EnableTexture(Context(), 0, 0, input);
-    EnableTexture(Context(), 1, 0, output);
-    EnableProgram(Context(), program);
+    EnableTexture(GetContext(), 0, 0, input);
+    EnableTexture(GetContext(), 1, 0, output);
+    EnableProgram(GetContext(), program);
     for (uint32_t frame = 0; frame < 2; ++frame)
     {
-        DispatchCompute(Context(), 1, 1, 1);
-        auto pixels = ReadTexture(output, 0, 0);
+        DispatchCompute(GetContext(), 1, 1, 1);
+        dmArray<uint8_t> pixels;
+        ReadTexture(output, 0, 0, pixels);
         for (uint32_t i = 0; i < 8; ++i)
-            ASSERT_EQ(i < 4 ? 6 : 14, ((uint32_t*)pixels.data())[i]);
+            ASSERT_EQ(i < 4 ? 6 : 14, ((uint32_t*)pixels.Begin())[i]);
     }
-    DeleteProgram(Context(), program);
+    DeleteProgram(GetContext(), program);
 }
 
 // Verifies depth sampling and resized cubemap targets preserve per-face data.
 TEST_F(DX12Test, DepthSamplingAndCubemapTargetResize)
 {
-    HRenderTarget depth = Target(4, 4, BUFFER_TYPE_DEPTH_BIT);
-    HRenderTarget color = Target(4, 4, BUFFER_TYPE_COLOR0_BIT, 4);
-    auto          color_rt = GetAssetFromContainer<DX12RenderTarget>(m_Context->m_BaseContext.m_AssetHandleContainer, color);
+    HRenderTarget depth = CreateTestRenderTarget(4, 4, BUFFER_TYPE_DEPTH_BIT);
+    HRenderTarget color = CreateTestRenderTarget(4, 4, BUFFER_TYPE_COLOR0_BIT, 4);
+    DX12RenderTarget* color_rt = GetAssetFromContainer<DX12RenderTarget>(m_Context->m_BaseContext.m_AssetHandleContainer, color);
     ASSERT_EQ(4u, color_rt->m_SampleDesc.Count);
-    SetRenderTarget(Context(), depth, RenderTargetBindingParams());
-    Clear(Context(), BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 0.25f, 0);
-    SetRenderTarget(Context(), color, RenderTargetBindingParams());
+    SetRenderTarget(GetContext(), depth, RenderTargetBindingParams());
+    Clear(GetContext(), BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 0.25f, 0);
+    SetRenderTarget(GetContext(), color, RenderTargetBindingParams());
     TestProgram draw;
-    draw.Shader(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
-    draw.Shader("Texture2D<float> depth:register(t0); float4 main(float4 p:SV_Position):SV_Target {return float4(depth.Load(int3(p.xy,0)),0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
-    draw.Root("DescriptorTable(SRV(t0)), RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
-    draw.Binding("depth", 0, 0, ShaderDesc::SHADER_TYPE_TEXTURE2D, BINDING_TYPE_TEXTURE, 1);
-    HProgram program = draw.Load(Context());
+    draw.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    draw.AddShaderStage(
+        "Texture2D<float> depth:register(t0);"
+        " float4 main(float4 p:SV_Position):SV_Target {return float4(depth.Load(int3(p.xy,0)),0,0,1);"
+        "}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    draw.SetRootSignature("DescriptorTable(SRV(t0)), RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    draw.AddBinding("depth", 0, 0, ShaderDesc::SHADER_TYPE_TEXTURE2D, BINDING_TYPE_TEXTURE, 1);
+    HProgram program = draw.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, program);
-    EnableTexture(Context(), 0, 0, GetRenderTargetTexture(Context(), depth, BUFFER_TYPE_DEPTH_BIT));
-    EnableProgram(Context(), program);
-    SetViewport(Context(), 0, 0, 4, 4);
-    DisableState(Context(), STATE_CULL_FACE);
-    DisableState(Context(), STATE_DEPTH_TEST);
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    EnableTexture(GetContext(), 0, 0, GetRenderTargetTexture(GetContext(), depth, BUFFER_TYPE_DEPTH_BIT));
+    EnableProgram(GetContext(), program);
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     uint8_t pixels[64];
-    ReadPixels(Context(), 0, 0, 4, 4, pixels, sizeof(pixels));
+    ReadPixels(GetContext(), 0, 0, 4, 4, pixels, sizeof(pixels));
     for (uint32_t i = 0; i < 16; ++i)
         ASSERT_NEAR(64, pixels[i * 4 + 2], 1);
     RenderTargetCreationParams params;
@@ -1031,30 +1159,31 @@ TEST_F(DX12Test, DepthSamplingAndCubemapTargetResize)
     params.m_ColorBufferCreationParams[0].m_Width = params.m_ColorBufferCreationParams[0].m_Height = 4;
     params.m_ColorBufferParams[0].m_Width = params.m_ColorBufferParams[0].m_Height = 4;
     params.m_ColorBufferParams[0].m_Format = TEXTURE_FORMAT_RGBA;
-    HRenderTarget cube = NewRenderTarget(Context(), BUFFER_TYPE_COLOR0_BIT, params);
+    HRenderTarget cube = NewRenderTarget(GetContext(), BUFFER_TYPE_COLOR0_BIT, params);
     for (uint32_t size = 4; size <= 8; size += 4)
     {
         if (size == 8)
-            SetRenderTargetSize(Context(), cube, size, size);
+            SetRenderTargetSize(GetContext(), cube, size, size);
         for (uint32_t face = 0; face < 6; ++face)
         {
             RenderTargetBindingParams binding;
             binding.m_CubeMapFace = (CubeMapFace)face;
-            SetRenderTarget(Context(), cube, binding);
-            Clear(Context(), BUFFER_TYPE_COLOR0_BIT, 20 + face, 0, 0, 255, 1, 0);
+            SetRenderTarget(GetContext(), cube, binding);
+            Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 20 + face, 0, 0, 255, 1, 0);
         }
-        SetRenderTarget(Context(), color, RenderTargetBindingParams());
+        SetRenderTarget(GetContext(), color, RenderTargetBindingParams());
         for (uint32_t face = 0; face < 6; ++face)
         {
-            auto bytes = ReadTexture(GetRenderTargetTexture(Context(), cube, BUFFER_TYPE_COLOR0_BIT), 0, face);
+            dmArray<uint8_t> bytes;
+            ReadTexture(GetRenderTargetTexture(GetContext(), cube, BUFFER_TYPE_COLOR0_BIT), 0, face, bytes);
             for (uint32_t i = 0; i < size * size; ++i)
                 ASSERT_EQ(20 + face, bytes[i * 4]);
         }
     }
-    DeleteProgram(Context(), program);
-    DeleteRenderTarget(Context(), cube);
-    DeleteRenderTarget(Context(), color);
-    DeleteRenderTarget(Context(), depth);
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), cube);
+    DeleteRenderTarget(GetContext(), color);
+    DeleteRenderTarget(GetContext(), depth);
 }
 
 // Verifies upload and pipeline reuse workloads complete without validation errors.
@@ -1063,22 +1192,22 @@ TEST_F(DX12Test, UploadAndPipelineBenchmark)
     // Opt in after correctness tests. Report CPU submission cost; this is not a GPU throughput measurement.
     if (!getenv("DEFOLD_DX12_BENCHMARK"))
         return;
-    HRenderTarget target = Target(4, 4);
-    SetRenderTarget(Context(), target, RenderTargetBindingParams());
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
     TestProgram shader;
-    shader.Shader(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
-    shader.Shader("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
-    shader.Root("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
-    HProgram program = shader.Load(Context());
-    EnableProgram(Context(), program);
-    SetViewport(Context(), 0, 0, 4, 4);
-    DisableState(Context(), STATE_DEPTH_TEST);
-    DisableState(Context(), STATE_CULL_FACE);
+    shader.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram program = shader.CreateProgram(GetContext());
+    EnableProgram(GetContext(), program);
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+    DisableState(GetContext(), STATE_CULL_FACE);
     uint64_t start = dmTime::GetMonotonicTime();
-    Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
-    uint64_t       cold = dmTime::GetMonotonicTime() - start;
-    float          vertices[16] = {};
-    HVertexBuffer  buffer = NewVertexBuffer(Context(), sizeof(vertices), vertices, BUFFER_USAGE_DYNAMIC_DRAW);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    uint64_t cold = dmTime::GetMonotonicTime() - start;
+    float vertices[16] = {};
+    HVertexBuffer buffer = NewVertexBuffer(GetContext(), sizeof(vertices), vertices, BUFFER_USAGE_DYNAMIC_DRAW);
     const uint32_t count = 1000;
     start = dmTime::GetMonotonicTime();
     for (uint32_t i = 0; i < count; ++i)
@@ -1086,22 +1215,22 @@ TEST_F(DX12Test, UploadAndPipelineBenchmark)
     uint64_t uploads = dmTime::GetMonotonicTime() - start;
     start = dmTime::GetMonotonicTime();
     for (uint32_t i = 0; i < count; ++i)
-        Draw(Context(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+        Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     uint64_t draws = dmTime::GetMonotonicTime() - start;
     printf("DX12 WARP CPU benchmark: cold draw=%llu us, %u uploads=%llu us, %u cached draws=%llu us\n", (unsigned long long)cold, count, (unsigned long long)uploads, count, (unsigned long long)draws);
-    Submit();
+    SubmitAndWait();
     DeleteVertexBuffer(buffer);
-    DeleteProgram(Context(), program);
-    DeleteRenderTarget(Context(), target);
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), target);
 }
 
 // Verifies sampler modes and supported format capabilities match DX12 settings.
 TEST_F(DX12Test, SamplerModesAndFormatCapabilities)
 {
     SetupSupportedTextureFormats(m_Context);
-    ASSERT_TRUE(IsTextureFormatSupported(Context(), TEXTURE_FORMAT_RGB_BC1));
-    ASSERT_FALSE(IsTextureFormatSupported(Context(), TEXTURE_FORMAT_RGBA_ASTC_4X4));
-    ASSERT_FALSE(IsExtensionSupported(Context(), "invented-extension"));
+    ASSERT_TRUE(IsTextureFormatSupported(GetContext(), TEXTURE_FORMAT_RGB_BC1));
+    ASSERT_FALSE(IsTextureFormatSupported(GetContext(), TEXTURE_FORMAT_RGBA_ASTC_4X4));
+    ASSERT_FALSE(IsExtensionSupported(GetContext(), "invented-extension"));
     int32_t point = CreateTextureSampler(m_Context, TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR, TEXTURE_FILTER_NEAREST, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 4, 1);
     ASSERT_EQ(D3D12_FILTER_MIN_MAG_POINT_MIP_LINEAR, m_Context->m_TextureSamplers[point].m_Desc.Filter);
     int32_t linear = CreateTextureSampler(m_Context, TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 4, 1);
@@ -1114,7 +1243,7 @@ int main(int argc, char** argv)
 {
     GraphicsAdapterDX12();
     // The fixture supplies WARP; do not require a hardware adapter or a window.
-    GetRegisteredAdapter(0)->m_IsSupportedCb = []() { return true; };
+    GetRegisteredAdapter(0)->m_IsSupportedCb = IsTestAdapterSupported;
     if (!InstallAdapter(ADAPTER_FAMILY_DIRECTX))
         return 1;
     jc_test_init(&argc, argv);

@@ -76,7 +76,7 @@ public class ShaderProgramBuilderEditorTest {
         ShaderCompilePipeline pipeline = new ShaderCompilePipeline("runtime-sm330");
         try {
             ShaderCompilePipeline.createShaderPipeline(pipeline, module, new ShaderCompilePipeline.Options());
-            String source = new String(pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_GLSL_SM330).data);
+            String source = new String(pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_GLSL_SM330, null, false).data);
             assertTrue(source.matches("(?s).*uniform\\s+vertex_uniforms\\s*\\{.*"));
         } finally {
             ShaderCompilePipeline.destroyShaderPipeline(pipeline);
