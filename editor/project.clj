@@ -91,7 +91,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.10.362"
+                     [cljfx "1.10.363"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -183,8 +183,8 @@
                       "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"
                       "--enable-native-access=ALL-UNNAMED"
                       "--sun-misc-unsafe-memory-access=allow"
-                      "-XX:+UseCompactObjectHeaders"]
                       ;; "-XX:MaxJavaStackTraceDepth=1073741823"
+                      "-XX:+UseCompactObjectHeaders"]
 
   :main ^:skip-aot   com.defold.editor.Main
 

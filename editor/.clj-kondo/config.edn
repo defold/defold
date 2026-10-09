@@ -1,4 +1,9 @@
-{:hooks {:analyze-call {clojure.core/boolean hooks.clojure-core/boolean
+{:lint-as {util.task/scope clojure.core/do
+           util.task/fork clojure.core/do
+           util.task/with-open clojure.core/with-open}
+ :config-in-call {util.task/scope {:linters {:redundant-do {:level :off}}}
+                  util.task/fork {:linters {:redundant-do {:level :off}}}}
+ :hooks {:analyze-call {clojure.core/boolean hooks.clojure-core/boolean
                         clojure.core/bounded-count hooks.clojure-core/bounded-count
                         clojure.core/defn hooks.clojure-core/defn-call
                         clojure.core/defn- hooks.clojure-core/defn-call
@@ -28,6 +33,7 @@
                         dynamo.graph/make-nodes hooks.dynamo-graph/make-nodes
                         dynamo.graph/with-auto-or-fake-evaluation-context hooks.dynamo-graph/with-auto-or-fake-evaluation-context
                         dynamo.graph/with-auto-evaluation-context hooks.dynamo-graph/with-auto-evaluation-context
+                        editor.debugging.variables-test/with-view hooks.editor-debugging-variables-test/with-view
                         editor.editor-extensions.commands/gen-query hooks.editor-editor-extensions-commands/gen-query
                         editor.editor-extensions.runtime/lua-fn hooks.editor-editor-extensions-runtime/lua-fn
                         editor.editor-extensions.runtime/suspendable-lua-fn hooks.editor-editor-extensions-runtime/suspendable-lua-fn
@@ -69,6 +75,8 @@
                         potemkin.namespaces/import-fn hooks.potemkin-namespaces/import-fn
                         potemkin.namespaces/import-macro hooks.potemkin-namespaces/import-macro
                         potemkin.namespaces/import-vars hooks.potemkin-namespaces/import-vars
+                        support.dap-util/with-adapter hooks.support-dap-util/with-adapter
+                        support.dap-util/with-server hooks.support-dap-util/with-server
                         support.test-support/with-clean-system hooks.support-test-support/with-clean-system
                         util.defonce/interface hooks.util-defonce/interface
                         util.defonce/protocol hooks.util-defonce/protocol
@@ -87,5 +95,7 @@
                              editor.defold-project/get-project
                              {:arities #{2}
                               :message "The two-argument get-project arity is deprecated."}}
+           :line-length {:max-line-length 80
+                         :exclude-pattern "^(?!\\s*;)|^\\s*;+ (?:Licensed under the Defold License version 1\\.0 \\(the \"License\"\\); you may not use|Unless required by applicable law or agreed to in writing, software distributed)\\s*$"}
            :refer-all {:exclude [clojure.test]}}
  :config-in-ns {editor.gl.translate-test {:linters {:inline-def {:level :off}}}}}
