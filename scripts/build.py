@@ -940,6 +940,10 @@ class Configuration(object):
             ])
 
     def install_ext(self):
+        self.install_ext_packages()
+        self.build_ext()
+
+    def install_ext_packages(self):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
 
@@ -1041,8 +1045,6 @@ class Configuration(object):
         proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
         if not os.path.exists(proto_path):
             os.makedirs(proto_path)
-
-        self.build_ext()
 
     def get_local_or_remote_file(self, path):
         if os.path.isdir(self.package_path): # is is a local path?
@@ -2416,7 +2418,7 @@ class Configuration(object):
         if self.target_platform != self.host:
             self._build_ext_platform(self.target_platform)
 
-    def _build_ext_platform(self, platform):
+    def _configure_ext_platform(self, platform):
         source_dir = join(self.defold_root, 'external')
         build_dir = join(source_dir, 'build', platform)
         build_type = self._find_cmake_build_type(self.build_options)
@@ -2428,16 +2430,28 @@ class Configuration(object):
             '-DBUILD_TESTS=OFF',
             '-DCMAKE_INSTALL_MESSAGE=LAZY',
         ]
-        build_args = ['cmake', '--build', build_dir]
-        if self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options):
-            build_args.append('--verbose')
-        install_args = ['cmake', '--install', build_dir, '--config', build_type]
+        command = 'CMake configure ext (%s)' % platform
+        self.build_tracker.start_command(command)
+        try:
+            run.env_command(self._form_env(), configure_args, cwd=self.defold_root)
+        finally:
+            self.build_tracker.end_command(command)
+        return build_dir, build_type
 
-        # Keep the build tree and installed files so subsequent build_ext calls
-        # only rebuild changed sources. Engine builds consume the installed libs.
+    def _build_ext_platform(self, platform, configure=True):
         self.build_tracker.start_component('ext', platform)
         try:
-            for name, args in [('configure', configure_args), ('build', build_args), ('install', install_args)]:
+            if configure:
+                build_dir, build_type = self._configure_ext_platform(platform)
+            else:
+                build_dir = join(self.defold_root, 'external', 'build', platform)
+                build_type = self._find_cmake_build_type(self.build_options)
+
+            build_args = ['cmake', '--build', build_dir]
+            if self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options):
+                build_args.append('--verbose')
+            install_args = ['cmake', '--install', build_dir, '--config', build_type]
+            for name, args in [('build', build_args), ('install', install_args)]:
                 command = 'CMake %s ext (%s)' % (name, platform)
                 if name == 'build':
                     previous_ninja_log = self.build_tracker.read_ninja_log(build_dir)
@@ -3696,6 +3710,7 @@ distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
 clean_ext        - Remove external builds and installed dependencies for the selected platform, retaining shared files and SDKs
 install_ext      - Install prepackaged dependencies, then build and install source dependencies
+install_ext_packages - Install prepackaged dependencies without building source dependencies
 build_ext        - Build and install source dependencies for the host and target platform
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
