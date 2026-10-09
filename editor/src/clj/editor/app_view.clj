@@ -2532,7 +2532,8 @@
                         (when-let [content-parent (.getParent (.getContent tab))]
                           (.applyCss content-parent)
                           (.layout content-parent)
-                          (refresh-scene-view! view 0)))))))
+                          (refresh-scene-view! view 0))))))
+      (scene/suspend-scene-view! view))
 
     (.add tabs tab)
     (ui/add-styles! tab style-classes)
