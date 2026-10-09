@@ -215,13 +215,17 @@ namespace dmGraphics
 
         vkqGraphicsAPIInfo api_info = {};
         api_info.vk_physical_device_properties = (void*) physical_device_properties;
+        // explicitly set no flags to make sure kInitFlagSkipFingerprintRecommendationCheck
+        // is NOT set. Device fingerprinting is not of interest BUT the flag must NOT be set
+        // in order for VkQuality to be able to make an ANGLE to Vulkan recommendation
+        int32_t vkq_flags = 0;
         vkQualityInitResult init_result = library.m_InitializeFlagsInfo(
             env,
             app->activity->assetManager,
             app->activity->internalDataPath,
             VKQUALITY_DATA_FILE,
             &api_info,
-            kInitFlagSkipFingerprintRecommendationCheck);
+            vkq_flags);
 
         if (init_result == kSuccess)
         {
