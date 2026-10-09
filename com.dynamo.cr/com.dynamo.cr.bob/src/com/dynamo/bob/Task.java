@@ -22,6 +22,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 import com.dynamo.bob.fs.IResource;
 
@@ -30,9 +34,16 @@ import com.dynamo.bob.fs.IResource;
  * @author Christian Murray
  */
 public class Task {
+    public enum OutputFlags {
+        NONE,
+        UNCOMPRESSED,
+        ENCRYPTED
+    }
+
     private String name;
     private final List<IResource> inputs = new ArrayList<IResource>();
     private final List<IResource> outputs = new ArrayList<IResource>();
+    private final Map<IResource, Set<OutputFlags>> outputFlags = new HashMap<>();
     private final List<String> extraCacheKeys = new ArrayList<String>();
     private Task productOf;
 
@@ -68,10 +79,17 @@ public class Task {
         }
 
         public TaskBuilder<T> addOutput(IResource output) {
+            return addOutput(output, new OutputFlags[0]);
+        }
+
+        public TaskBuilder<T> addOutput(IResource output, OutputFlags... flags) {
             if (!output.isOutput()) {
                 throw new IllegalArgumentException(String.format("Resource '%s' is not an output resource", output));
             }
             task.outputs.add(output);
+            EnumSet<OutputFlags> outputFlags = EnumSet.noneOf(OutputFlags.class);
+            Collections.addAll(outputFlags, flags);
+            task.outputFlags.put(output, Collections.unmodifiableSet(outputFlags));
             return this;
         }
 
@@ -131,6 +149,14 @@ public class Task {
 
     public List<IResource> getOutputs() {
         return Collections.unmodifiableList(outputs);
+    }
+
+    /**
+     * Get the archive flags declared for an output resource.
+     * @return immutable flags, or null if the resource is not an output of this task
+     */
+    public Set<OutputFlags> getOutputFlags(IResource output) {
+        return outputFlags.get(output);
     }
 
     public String getOutputsString() {

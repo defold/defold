@@ -26,11 +26,10 @@ import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
-@BuilderParams(name = "Opus", inExts = ".opus", outExt = ".opusc", paramsForSignature = {"sound-stream-enabled"})
+@BuilderParams(name = "Opus", inExts = ".opus", outExt = ".opusc")
 public class OpusBuilder extends CopyBuilder{
     private static Logger logger = Logger.getLogger(OpusBuilder.class.getName());
     private static String oggzValidateExePath;
@@ -39,12 +38,15 @@ public class OpusBuilder extends CopyBuilder{
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         oggzValidateExePath = Bob.getOptionalHostExeOnce("oggz-validate", oggzValidateExePath);
+        boolean soundStreaming = project.getProjectProperties().getBooleanValue("sound", "stream_enabled", false);
+        // Streamed sounds must be readable directly from the archive.
+        Task task = soundStreaming ? defaultTask(input, Task.OutputFlags.UNCOMPRESSED) : super.create(input);
         if (oggzValidateExePath == null) {
             if (!missingOggzValidateWarningShown) {
                 logger.warning("oggz-validate not found for host platform, skipping Opus validation.");
                 missingOggzValidateWarningShown = true;
             }
-            return super.create(input);
+            return task;
         }
 
         File tmpOggFile = null;
@@ -67,19 +69,6 @@ public class OpusBuilder extends CopyBuilder{
                 String.format("\nSound file validation failed. Make sure your `opus` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
         }
 
-        return super.create(input);
-    }
-
-    @Override
-    public void build(Task task) throws IOException, CompileExceptionError {
-        super.build(task);
-
-        boolean soundStreaming = project.getProjectProperties().getBooleanValue("sound", "stream_enabled", false); // if no value set use old hardcoded path (backward compatability)
-        boolean compressSounds = !soundStreaming; // We want to be able to read directly from the files as-is (without compression)
-        for(IResource res : task.getOutputs()) {
-            if (!compressSounds) {
-                project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
-            }
-        }
+        return task;
     }
 }

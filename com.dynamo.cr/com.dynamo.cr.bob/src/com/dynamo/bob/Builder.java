@@ -71,10 +71,14 @@ public abstract class Builder {
      * @return new task with single input/output
      */
     protected Task defaultTask(IResource input) {
+        return defaultTask(input, new Task.OutputFlags[0]);
+    }
+
+    protected Task defaultTask(IResource input, Task.OutputFlags... outputFlags) {
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
+                .addOutput(input.changeExt(params.outExt()), outputFlags);
         return taskBuilder.build();
     }
 
