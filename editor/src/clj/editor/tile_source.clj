@@ -200,27 +200,6 @@
              :icon collision-icon
              :color (collision-groups/color id)})))
 
-(defn- resolve-animation-frames
-  [tile-count frames]
-  ;; Preserve an unresolved legacy range when the image is missing or invalid.
-  ;; It can be migrated once the tile count is known without losing its bounds.
-  (if-not (map? frames)
-    frames
-    (let [{:keys [start-tile end-tile]} frames]
-      (if-not (and tile-count
-                   start-tile
-                   end-tile
-                   (<= 1 start-tile tile-count)
-                   (<= 1 end-tile tile-count))
-        frames
-        (let [start-tile (long start-tile)
-              end-tile (long end-tile)
-              tile-count (long tile-count)]
-          (if (<= start-tile end-tile)
-            (vec (range start-tile (inc end-tile)))
-            (into (vec (range start-tile (inc tile-count)))
-                  (range 1 (inc end-tile)))))))))
-
 (defn- parse-frame-ranges
   [text]
   (reduce (fn [ranges part]
@@ -281,6 +260,21 @@
     :else
     (coll/join-to-string ", " frames)))
 
+(defn- animation->frames
+  [{:keys [frames start-tile end-tile] :as animation}]
+  (or (coll/not-empty frames)
+      (when (or (contains? animation :start-tile)
+                (contains? animation :end-tile))
+        (let [start-tile (long (or start-tile 0))
+              end-tile (long (or end-tile 0))]
+          ;; Preserve invalid file data for validation and correction. Bound
+          ;; expansion at the file boundary, independently of the sheet size.
+          (if-not (and (<= 1 start-tile end-tile)
+                       (< (- end-tile start-tile) max-animation-frame-count))
+            (select-keys animation [:start-tile :end-tile])
+            (vec (range start-tile (inc end-tile))))))
+      []))
+
 (g/defnk produce-animation-ddf [id frames playback fps flip-horizontal flip-vertical cues]
   (merge (protobuf/make-map-without-defaults Tile$Animation
            :id id
@@ -303,12 +297,13 @@
 
 (defn- validate-animation-frames
   [^long tile-count node-id frames]
-  (let [tiles
-        (if-not (map? frames)
-          frames
-          [(:start-tile frames 0) (:end-tile frames 0)])]
-    (or (validation/prop-error :fatal node-id :frames validation/prop-empty? tiles frames-message)
-        (when-let [tile (coll/first-where (fn [^long tile] (or (< tile 1) (< tile-count tile))) tiles)]
+  (if (map? frames)
+    (g/->error node-id :frames :fatal frames
+               (localization/message "error.tile-source.invalid-legacy-animation-range"
+                                     {"start" (:start-tile frames)
+                                      "end" (:end-tile frames)}))
+    (or (validation/prop-error :fatal node-id :frames validation/prop-empty? frames frames-message)
+        (when-let [tile (coll/first-where (fn [^long tile] (or (< tile 1) (< tile-count tile))) frames)]
           (validation/prop-error :fatal node-id :frames (partial prop-tile-range? tile-count) tile frames-message)))))
 
 (defn- validate-animation-fps [node-id fps]
@@ -322,12 +317,7 @@
 (defn- animation-ddf-errors [tile-count node-id animation-ddf]
   {:pre [(g/node-id? node-id)
          (map? animation-ddf)]} ; Tile$Animation in map format.
-  (let [frames
-        (or (coll/not-empty (:frames animation-ddf))
-            (when (or (contains? animation-ddf :start-tile)
-                      (contains? animation-ddf :end-tile))
-              (select-keys animation-ddf [:start-tile :end-tile]))
-            [])]
+  (let [frames (animation->frames animation-ddf)]
     (coll/not-empty
       (into []
             (remove nil?)
@@ -382,15 +372,8 @@
             (dynamic tooltip (properties/tooltip-dynamic :tile-source.animation :id))
             (dynamic error (g/fnk [_node-id id]
                              (validate-animation-id _node-id id))))
-  (property frames g/Any (default [1]) ; Tile numbers or an unresolved legacy range.
+  (property frames g/Any (default [1]) ; Tile numbers or an invalid legacy range.
             (set set-animation-frames)
-            (value (g/fnk [_node-id frames saved-frame-migrations ^:try tile-count]
-                     (if-not (map? frames)
-                       frames
-                       (or (get saved-frame-migrations (pair _node-id frames))
-                           (resolve-animation-frames
-                             (when-not (g/error-value? tile-count) tile-count)
-                             frames)))))
             (dynamic label (properties/label-dynamic :tile-source :frames))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :frames))
             (dynamic edit-type (g/constantly {:type g/Str
@@ -422,7 +405,6 @@
             (dynamic visible (g/constantly false)))
 
   (input tile-count g/Int)
-  (input saved-frame-migrations g/Any)
   (input tile-source-attributes g/Any)
   (input anim-data g/Any)
   (input gpu-texture g/Any)
@@ -439,11 +421,9 @@
                                         (animation-ddf-errors tile-count _node-id ddf-message))))}))
   (output ddf-message g/Any produce-animation-ddf)
   (output animation-data g/Any
-          (g/fnk [_node-id ddf-message ^:raw frames]
-            (cond-> {:node-id _node-id
-                     :ddf-message ddf-message}
-              (and (map? frames) (:frames ddf-message))
-              (assoc :frame-migration (pair (pair _node-id frames) (:frames ddf-message))))))
+          (g/fnk [_node-id ddf-message]
+            {:node-id _node-id
+             :ddf-message ddf-message}))
   (output updatable g/Any produce-animation-updatable)
   (output scene g/Any produce-animation-scene))
 
@@ -482,7 +462,6 @@
     (e/map (fn [[from to]]
              (g/connect self from animation-node to))
            [[:tile-count :tile-count]
-            [:saved-frame-migrations :saved-frame-migrations]
             [:tile-source-attributes :tile-source-attributes]
             [:anim-data :anim-data]
             [:gpu-texture :gpu-texture]])))
@@ -883,33 +862,7 @@
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached produce-tile-source-outline)
   (output pb g/Any :cached produce-pb)
-  (output saved-frame-migrations g/Any
-          (g/fnk [^:try source-value]
-            (::frame-migrations (meta source-value))))
-  (output save-value g/Any
-          (g/fnk [pb animation-data saved-frame-migrations]
-            ;; Saving makes deferred migrations independent of the current sheet size.
-            ;; Keep the original node/range keys across later saves so renames and undo
-            ;; still resolve to the saved sequence. Metadata is not written to the file.
-            (let [frame-migrations
-                  (into (or saved-frame-migrations {})
-                        (keep :frame-migration)
-                        animation-data)]
-              (cond-> (dissoc pb :convex-hull-points)
-                (coll/not-empty frame-migrations)
-                (vary-meta assoc ::frame-migrations frame-migrations)))))
-  (output save-data g/Any :cached
-          (g/fnk [_node-id resource save-value source-value ^:try tile-count]
-            ;; A wrapped range still on disk would expand differently after a resize.
-            ;; Saving replaces source-value with the explicit frames and clears this metadata.
-            (let [migrated-tile-count (::migrated-tile-count (meta source-value))
-                  dirty
-                  (boolean
-                    (or (resource-node/dirty-save-value? save-value source-value (resource/resource-type resource))
-                        (and migrated-tile-count
-                             (not (g/error-value? tile-count))
-                             (not= migrated-tile-count tile-count))))]
-              (resource-node/make-save-data _node-id resource save-value dirty))))
+  (output save-value g/Any (g/fnk [pb] (dissoc pb :convex-hull-points)))
   (output build-targets g/Any :cached produce-build-targets)
 
   (output gpu-texture g/Any :cached
@@ -1150,12 +1103,7 @@
       flip-horizontal (protobuf/int->boolean :flip-horizontal)
       flip-vertical (protobuf/int->boolean :flip-vertical)
       cues :cues)
-    (g/set-property animation-node :frames
-      (or (coll/not-empty (:frames animation))
-          (when (or (contains? animation :start-tile)
-                    (contains? animation :end-tile))
-            (select-keys animation [:start-tile :end-tile]))
-          []))
+    (g/set-property animation-node :frames (animation->frames animation))
     (attach-animation-node self animation-node)
     (when select-fn
       (select-fn [animation-node]))))
@@ -1193,51 +1141,18 @@
   (g/connect self :collision-groups project :collision-groups))
 
 (defn- sanitize-tile-source
-  [{:keys [proj-path->resource resolve-proj-path-fn]} owner-resource tile-set]
-  (let [tile-count
-        (delay
-          ;; Read dimensions only when a legacy animation needs migration.
-          ;; Broken image references must not prevent loading or saving the file.
-          (try
-            (when-let [image
-                       (coll/first-where
-                         resource/exists?
-                         (into []
-                               (comp (keep tile-set)
-                                     (remove string/blank?)
-                                     (map #(if-not owner-resource % (resolve-proj-path-fn owner-resource %)))
-                                     (keep proj-path->resource))
-                               [:image :collision]))]
-              (when-let [metrics
-                         (texture-set-gen/calculate-tile-metrics
-                           (image-util/read-size image)
-                           {:width (:tile-width tile-set)
-                            :height (:tile-height tile-set)
-                            :margin (:tile-margin tile-set 0)
-                            :spacing (:tile-spacing tile-set 0)}
-                           nil)]
-                (* (long (:tiles-per-row metrics)) (long (:tiles-per-column metrics)))))
-            (catch Exception _
-              nil)))]
-    (if-not (contains? tile-set :animations)
-      tile-set
-      (reduce (fn [result animation]
-                (let [explicit-frames (coll/not-empty (:frames animation))
-                      frames
-                      (or explicit-frames
-                          (resolve-animation-frames @tile-count (select-keys animation [:start-tile :end-tile])))]
-                  (if (map? frames)
-                    (update result :animations conj animation)
-                    (cond-> (update result :animations conj
-                                    (-> animation
-                                        (dissoc :start-tile :end-tile)
-                                        (assoc :frames frames)))
-                      ;; Remember the sheet size until the migrated wrapped range is saved.
-                      (and (not explicit-frames)
-                           (> (long (:start-tile animation)) (long (:end-tile animation))))
-                      (vary-meta assoc ::migrated-tile-count @tile-count)))))
-              (assoc tile-set :animations [])
-              (:animations tile-set)))))
+  [_read-opts _owner-resource tile-set]
+  (if-not (contains? tile-set :animations)
+    tile-set
+    (update tile-set :animations
+            (partial mapv
+                     (fn [animation]
+                       (let [frames (animation->frames animation)]
+                         (if (map? frames)
+                           animation
+                           (-> animation
+                               (dissoc :start-tile :end-tile)
+                               (assoc :frames frames)))))))))
 
 (defn- load-tile-source [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id tile-set :source-value}]
   {:pre [(map? tile-set)]} ; Tile$TileSet in map format.

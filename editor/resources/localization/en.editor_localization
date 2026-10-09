@@ -2721,6 +2721,7 @@ error.mesh.stream-not-found-in-buffer = Stream "{stream}" could not be found in 
 error.tile-map.tiles-outside-tile-source-range = Tile map uses tiles outside the range of this tile source ({count} tiles in source, but a tile with index {index} is used in tile map).
 error.tile-source.more-than-max-collision-groups-in-use = More than {max} collision groups in use.
 error.tile-source.tile-outside-range = "{property}" is outside the tile range (1-{max}).
+error.tile-source.invalid-legacy-animation-range = Invalid legacy animation range ({start}-{end}). Enter a valid sequence in "Frames".
 error.tile-source.tile-data-could-not-be-generated-due-to-invalid-values = Tile data could not be generated due to invalid values.
 error.tile-source.image-and-collision-dimensions-must-match = "Image" and "Collision" must have the same dimensions ({image_width}x{image_height} vs {collision_width}x{collision_height}).
 error.tile-source.total-width-exceeds-image-width = The total width ("Tile Width" + "Tile Margin") is greater than the "Image" width ({total_width} vs {image_width}).

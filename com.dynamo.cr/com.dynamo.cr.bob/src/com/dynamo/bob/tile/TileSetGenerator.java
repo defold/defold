@@ -60,13 +60,11 @@ public class TileSetGenerator {
 
     public static class IndexedAnimIterator implements AnimIterator {
         final List<IndexedAnimDesc> anims;
-        final int tileCount;
         int nextAnimIndex;
         int nextFrameIndex;
 
-        public IndexedAnimIterator(List<IndexedAnimDesc> anims, int tileCount) {
+        public IndexedAnimIterator(List<IndexedAnimDesc> anims) {
             this.anims = anims;
-            this.tileCount = tileCount;
         }
 
         @Override
@@ -84,20 +82,8 @@ public class TileSetGenerator {
             if (!anim.frames.isEmpty()) {
                 return nextFrameIndex < anim.frames.size() ? anim.frames.get(nextFrameIndex++) - 1 : null;
             }
-            int start = anim.getStart();
-            int end = anim.getEnd();
-            if (end <= start) {
-                end += tileCount;
-            }
-            int index = start + nextFrameIndex;
-            if (index < end) {
-                ++nextFrameIndex;
-                if (index >= tileCount)
-                    return index - tileCount;
-                else
-                    return index;
-            }
-            return null;
+            int index = anim.getStart() + nextFrameIndex;
+            return index < anim.getEnd() ? anim.getStart() + nextFrameIndex++ : null;
         }
 
         @Override
@@ -199,11 +185,14 @@ public class TileSetGenerator {
                 }
                 validateAnimationTile(animation, animation.getStartTile(), tileCount);
                 validateAnimationTile(animation, animation.getEndTile(), tileCount);
+                if (animation.getStartTile() > animation.getEndTile()) {
+                    throw new CompileExceptionError(null, -1, String.format("Animation '%s' start tile %d must not exceed end tile %d.",
+                            animation.getId(), animation.getStartTile(), animation.getEndTile()));
+                }
             }
             anims.add(new IndexedAnimDesc(animation));
         }
-        IndexedAnimIterator iterator = new IndexedAnimIterator(anims, tileCount);
-        return iterator;
+        return new IndexedAnimIterator(anims);
     }
 
     private static void validateAnimationTile(Animation animation, int tile, int tileCount) throws CompileExceptionError {

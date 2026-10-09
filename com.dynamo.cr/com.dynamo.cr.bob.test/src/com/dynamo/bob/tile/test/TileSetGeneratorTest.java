@@ -171,16 +171,17 @@ public class TileSetGeneratorTest {
         assertQuadTexCoords(uv, 1.0f / 4, 2.0f / 4, 1.0f - 1.0f / 32, 0.5f - 1.0f / 32, false);
     }
 
+    // Legacy inclusive ranges must enumerate every frame once, including both bounds.
     @Test
-    public void textIndexedAnimIterator() throws Exception, CompileExceptionError {
+    public void testIndexedAnimIterator() {
         List<IndexedAnimDesc> anims = new ArrayList<IndexedAnimDesc>(1);
-        anims.add(new IndexedAnimDesc(newAnim("test", 3, 1).build()));
-        TileSetGenerator.IndexedAnimIterator iterator = new IndexedAnimIterator(anims, 4);
+        anims.add(new IndexedAnimDesc(newAnim("test", 1, 3).build()));
+        TileSetGenerator.IndexedAnimIterator iterator = new IndexedAnimIterator(anims);
         AnimDesc anim = iterator.nextAnim();
         assertEquals(anims.get(0).getId(), anim.getId());
-        assertEquals(3, iterator.nextFrameIndex().intValue());
-        assertEquals(0, iterator.nextFrameIndex().intValue());
         assertEquals(1, iterator.nextFrameIndex().intValue());
+        assertEquals(2, iterator.nextFrameIndex().intValue());
+        assertEquals(3, iterator.nextFrameIndex().intValue());
         assertNull(iterator.nextFrameIndex());
     }
 
@@ -189,7 +190,7 @@ public class TileSetGeneratorTest {
     public void testExplicitFrameIterator() {
         IndexedAnimDesc animation = new IndexedAnimDesc(newAnim("test", 100, 200)
                 .addAllFrames(Arrays.asList(4, 1, 3, 1)).build());
-        IndexedAnimIterator iterator = new IndexedAnimIterator(Arrays.asList(animation), 4);
+        IndexedAnimIterator iterator = new IndexedAnimIterator(Arrays.asList(animation));
         for (int pass = 0; pass < 2; ++pass) {
             assertEquals("test", iterator.nextAnim().getId());
             for (int expected : new int[] {3, 0, 2, 0}) {
@@ -207,6 +208,7 @@ public class TileSetGeneratorTest {
         for (Tile.Playback playback : Tile.Playback.values()) {
             TileSet.Builder tileSet = newTileSet(16, 16);
             tileSet.addAnimations(Tile.Animation.newBuilder().setId("frames")
+                    .setStartTile(4).setEndTile(2)
                     .addAllFrames(Arrays.asList(1, 3, 4, 2, 3))
                     .setPlayback(playback).setFps(12).setFlipHorizontal(1).setFlipVertical(1));
             TextureSet textureSet = TileSetGenerator.generate(tileSet.build(), newImage(64, 16), null)
@@ -236,18 +238,31 @@ public class TileSetGeneratorTest {
         }
     }
 
-    // Legacy inclusive and wrapped ranges must compile to the same frames as their migrated equivalents.
+    // Legacy inclusive and single-frame ranges must compile to their explicit frame equivalents.
     @Test
     public void testLegacyAnimationFrames() throws CompileExceptionError {
         TileSet.Builder tileSet = newTileSet(16, 16);
         tileSet.addAnimations(newAnim("inclusive", 1, 3));
-        tileSet.addAnimations(newAnim("wrapped", 3, 1));
+        tileSet.addAnimations(newAnim("single", 2, 2));
         TextureSet textureSet = TileSetGenerator.generate(tileSet.build(), newImage(64, 16), null)
                 .builder.setTexture("").build();
         TextureSetAnimation inclusive = textureSet.getAnimations(0);
-        TextureSetAnimation wrapped = textureSet.getAnimations(1);
+        TextureSetAnimation single = textureSet.getAnimations(1);
         assertEquals(Arrays.asList(1, 2, 3), textureSet.getFrameIndicesList().subList(inclusive.getStart(), inclusive.getEnd()));
-        assertEquals(Arrays.asList(3, 0, 1), textureSet.getFrameIndicesList().subList(wrapped.getStart(), wrapped.getEnd()));
+        assertEquals(Arrays.asList(2), textureSet.getFrameIndicesList().subList(single.getStart(), single.getEnd()));
+    }
+
+    // Reversed legacy bounds must fail with an animation-specific error instead of wrapping around the sheet.
+    @Test
+    public void testReversedLegacyAnimationRange() {
+        TileSet.Builder tileSet = newTileSet(16, 16);
+        tileSet.addAnimations(newAnim("reversed", 3, 1));
+        try {
+            TileSetGenerator.generate(tileSet.build(), newImage(64, 16), null);
+            fail("Expected reversed legacy animation bounds to fail");
+        } catch (CompileExceptionError e) {
+            assertEquals("Animation 'reversed' start tile 4 must not exceed end tile 2.", e.getMessage());
+        }
     }
 
     private static BufferedImage newImage(int w, int h) {
