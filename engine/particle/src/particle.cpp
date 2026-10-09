@@ -1386,7 +1386,6 @@ namespace dmParticle
     // emitter overrides without a cached layout becoming stale.
     static uint32_t GetCompatiblePackedVertexStride(const dmGraphics::VertexAttributeInfos& infos)
     {
-        using namespace dmGraphics;
         const bool paged_attribute_count = infos.m_NumInfos == 4;
 
         if ((!paged_attribute_count && infos.m_NumInfos != 3) || infos.m_VertexStride != (paged_attribute_count ? PACKED_PARTICLE_PAGED_VERTEX_STRIDE : PACKED_PARTICLE_VERTEX_STRIDE))
@@ -1397,22 +1396,22 @@ namespace dmParticle
         // Order must match the fixed offsets used by WriteVertexDataImpl.
         // The non-paged layout uses the first three attributes.
         static const PackedVertexAttribute expected[] = {
-            { VertexAttribute::SEMANTIC_TYPE_POSITION,   VertexAttribute::VECTOR_TYPE_VEC4,   VertexAttribute::TYPE_FLOAT,         false },
-            { VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   VertexAttribute::VECTOR_TYPE_VEC2,   VertexAttribute::TYPE_FLOAT,         false },
-            { VertexAttribute::SEMANTIC_TYPE_COLOR,      VertexAttribute::VECTOR_TYPE_VEC4,   VertexAttribute::TYPE_UNSIGNED_BYTE, true  },
-            { VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, VertexAttribute::VECTOR_TYPE_SCALAR, VertexAttribute::TYPE_FLOAT,         false }
+            { dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4,   dmGraphics::VertexAttribute::TYPE_FLOAT,         false },
+            { dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2,   dmGraphics::VertexAttribute::TYPE_FLOAT,         false },
+            { dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4,   dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, true  },
+            { dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::TYPE_FLOAT,         false }
         };
 
         for (uint32_t i = 0; i < infos.m_NumInfos; ++i)
         {
-            const VertexAttributeInfo& info = infos.m_Infos[i];
-            if (!MatchesAttribute(info, expected[i]) || info.m_StepFunction != VERTEX_STEP_FUNCTION_VERTEX)
+            const dmGraphics::VertexAttributeInfo& info = infos.m_Infos[i];
+            if (!MatchesAttribute(info, expected[i]) || info.m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_VERTEX)
             {
                 return 0;
             }
         }
 
-        if (infos.m_Infos[0].m_CoordinateSpace != COORDINATE_SPACE_WORLD)
+        if (infos.m_Infos[0].m_CoordinateSpace != dmGraphics::COORDINATE_SPACE_WORLD)
         {
             return 0;
         }

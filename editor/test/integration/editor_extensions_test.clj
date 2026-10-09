@@ -30,6 +30,7 @@
             [editor.editor-extensions.vm :as vm]
             [editor.future :as future]
             [editor.graph-util :as gu]
+            [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.html-view :as html-view]
             [editor.library :as library]
@@ -1602,6 +1603,45 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
               (is (= 200 status))
               (is (= "captured\n" body))
               (is (= [] @displayed-output)))))))))
+
+;; Generated material attribute keys must be readable and writable through their
+;; exported names, even when the keys mix underscores and hyphens.
+(deftest vertex-attribute-property-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
+    (reload-editor-scripts! project)
+    (let [material-node-id (project/get-resource-node project "/builtins/materials/particlefx.material")
+          particlefx-node-id (project/get-resource-node project "/main/main.particlefx")
+          emitter-node-id (-> (g/node-value particlefx-node-id :node-outline) :children first :node-id)
+          original-value [1.0 1.0 1.0 1.0]
+          override-value [0.25 0.5 0.75 0.875]]
+      (doseq [attribute-name ["color" "tint_color" "tint-color"]]
+        (testing attribute-name
+          (g/set-property! material-node-id :attributes
+                           [{:name attribute-name
+                             :semantic-type :semantic-type-color
+                             :data-type :type-unsigned-byte
+                             :vector-type :vector-type-vec4
+                             :normalize true
+                             :values original-value}])
+          (let [ext-key (str "attribute_0_" (string/replace attribute-name \- \_))]
+            (g/with-auto-evaluation-context ec
+              (let [{:keys [rt]} (extensions/ext-state project ec)
+                    getter (graph/ext-value-getter emitter-node-id ext-key project ec)
+                    setter (graph/ext-lua-value-setter emitter-node-id ext-key rt project ec)]
+                (is (coll/any? #{ext-key} (graph/ext-readable-properties emitter-node-id project ec)))
+                (is (some? getter))
+                (is (some? setter))
+                (when getter
+                  (is (= original-value (getter))))
+                (when setter
+                  (g/transact (setter (rt/->lua override-value))))))
+            (g/with-auto-evaluation-context ec
+              (when-let [getter (graph/ext-value-getter emitter-node-id ext-key project ec)]
+                (is (= override-value (getter))))))
+          (is (= override-value
+                 (get-in (g/node-value emitter-node-id :vertex-attribute-overrides)
+                         [(graphics.types/attribute-name-key attribute-name) :values])))
+          (g/set-property! emitter-node-id :vertex-attribute-overrides {}))))))
 
 (deftest property-availability-test
   (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
