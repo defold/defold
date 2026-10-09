@@ -67,6 +67,7 @@ welcome.new-project.rive-project.description = 此模板使用 rive 扩展来帮
 # Welcome -> New Project -> From Tutorial
 welcome.new-project.side-scroller-tutorial.title = 横版卷轴类游戏教程
 welcome.new-project.side-scroller-tutorial.description = 在这个初学者教程中，您将体验在 Defold 中构建简单横版卷轴类游戏。
+welcome.new-project.walking-astronaut-tutorial.title = 俯视角角色移动教程
 welcome.new-project.walking-astronaut-tutorial.description = 在这个初学者教程中，您将学习如何捕获玩家输入并使角色移动和播放动画。您还将了解 Defold 中的核心构建块：游戏对象、组件和集合。
 welcome.new-project.movement-tutorial.title = 角色移动 教程
 welcome.new-project.movement-tutorial.description = 在这个初学者教程中，您将学习如何使用向量和一些简单的向量运算来实现逼真的移动。
@@ -76,6 +77,10 @@ welcome.new-project.colorslide-tutorial.title = 颜色拼图 教程
 welcome.new-project.colorslide-tutorial.description = 在这个中等难度的教程中，您将为一款简单的多关卡移动端游戏构建一个游戏内 GUI、一个用于关卡选择的 GUI 屏幕和一个开始屏幕。
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-3d-platformer.title = 3D 平台跳跃游戏入门套件
+welcome.new-project.sample-3d-platformer.description = 这是一个可直接游玩的 3D 平台跳跃游戏示例，包含响应灵敏的角色操控、跳跃、环绕相机、可收集物、角色动画、光照和阴影。
+welcome.new-project.sample-3d-third-person-playground.title = 3D 第三人称试验场
+welcome.new-project.sample-3d-third-person-playground.description = 这是一个 3D 第三人称游戏示例，您可以使用键盘、鼠标或触控操作移动 3D 角色。它展示了如何搭建一个带阴影的基础 3D 场景。
 welcome.new-project.linker-sample-game.title = 连连看示例游戏
 welcome.new-project.linker-sample-game.description = 这是一款完整的示例游戏，您可以通过点击并拖动来连接相同颜色的鱼，将它们从棋盘上消除。较长的鱼链会产生道具。
 welcome.new-project.roids-sample-game.title = 太空陨石示例游戏
@@ -121,14 +126,22 @@ updater.dialog.button.not-now = 稍后​​​​​
 updater.dialog.button.download = 下载更新
 updater.dialog.button.install-and-restart = 安装并重启
 updater.dialog.button.download-newer-version = 下载新版本
+updater.dialog.button.skip-version = 跳过此版本
+updater.dialog.button.skip-newer-version = 跳过较新版本
 updater.release-notes-dialog.title = 有可用更新
+updater.release-notes-dialog.header = Defold 版本更新摘要 - {count, plural, \=1{{version} 版本的新内容} other{近期版本的新内容}}
+updater.release-notes-dialog.button.later = 稍后
 updater.release-notes-dialog.button.update-now = 立即更新
 updater.up-to-date-dialog.title = 已是最新版本
 updater.up-to-date-dialog.header = 您当前使用的是最新版本的 Defold
+updater.check-failed-dialog.title = 检查失败
+updater.check-failed-dialog.header = 无法检查更新，请稍后再试。
 updater.download-in-progress-dialog.title = 正在更新
+updater.download-in-progress-dialog.header = Defold 已在下载更新
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
 release-notes-tab.title = 更新日志
+release-notes-tab.tooltip = Defold 版本更新摘要 - {version} 版本的新内容
 
 # Time
 time.vague.unknown = 未知
@@ -152,6 +165,7 @@ dialog.button.report = 报告
 dialog.button.disable-scene-editor = 关闭场景编辑器
 dialog.button.cancel = 取消
 dialog.button.delete = 刪除
+dialog.button.apply = 应用
 
 # Error Dialog
 
@@ -270,10 +284,16 @@ dialog.quit-defold.button.quit = 不保存退出
 
 # Project directory unavailable dialog
 
+dialog.project-directory-unavailable.title = 项目文件夹不可用
+dialog.project-directory-unavailable.header = 找不到项目文件夹
+dialog.project-directory-unavailable.content = 项目文件夹已在 Defold 外部被移动、重命名或删除。Defold 必须退出。任何未保存的更改都将丢失。
 
 # Restart Defold dialog
 
+dialog.restart-defold.title = 重启 Defold？
+dialog.restart-defold.header = 有未保存的更改。是否在重启 Defold 前保存？
 dialog.restart-defold.button.cancel = 取消
+dialog.restart-defold.button.save-and-restart = 保存并重启
 
 # Save and upgrade file formats dialogs
 
@@ -345,26 +365,42 @@ dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}
 
 # Notification view
 
+notification.more = 另有 {count} 项
 
 # Fetch libraries notification
 
 notification.fetch-libraries.changed = 项目依赖项已更改。您想现在获取库吗？
+notification.fetch-libraries.problems = 以下依赖项存在问题：\n{dependencies}
 notification.fetch-libraries.action.fetch = 获取库
 notification.fetch-libraries.action.open-game-project = 打开 game.project
+notification.fetch-libraries.problem.missing = 缺失
+notification.fetch-libraries.problem.fetch-failed = 获取失败
 notification.fetch-libraries.problem.failed-http-request = 获取 (HTTP\:{status}) 失败
 notification.fetch-libraries.problem.http-connect-timeout = 获取失败(连接超时)
+notification.fetch-libraries.problem.invalid-archive = 无效的 Defold 归档文件
+notification.fetch-libraries.problem.defold-min-version = 需要 Defold {required} 或更高版本（当前版本为 {current}）。请更新 Defold，或查看旧版扩展是否兼容。
+notification.fetch-libraries.problem.install-failed = 安装失败
+notification.fetch-libraries.problem.unknown = 未知问题 — {problem}
+notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
 # Editor scripts notification
 
+notification.reload-editor-scripts = 编辑器脚本已更改。是否立即重新加载？
+notification.reload-editor-scripts.action.reload = 重新加载编辑器脚本
 
 # Reload plugins notification
 
+notification.reload-plugins-failed.action.restart = 重启 Defold
 
 # Disabled functionality notification
 
+notification.disabled-functionality = 一个错误导致某些编辑器功能被禁用。您可以现在重新启用它或重启编辑器。
+notification.disabled-functionality.action.enable = 重新启用
+notification.disabled-functionality.action.restart = 重启
 
 # Open custom editor notifications
 
+notification.open-custom-editor-failed.action.open-preferences = 打开偏好设置
 
 # Settings notifications
 
@@ -378,6 +414,7 @@ notification.ensure-exists.reason.folder = 配置路径指向文件夹。
 
 notification.lsp.language-server-missing.prompt = 无法执行此操作，因为没有为 {language} 语言运行的语言服务器。
 notification.lsp.language-server-missing.action.about = Defold 中的 LSP 简介
+notification.lsp.formatting-failed.prompt = 无法格式化 {path}：语言服务器未响应。
 
 # Asset browser notifications
 
@@ -489,6 +526,9 @@ dialog.select-gui-component.title = 选择 {component}
 dialog.select-resource.title = 选择资源
 dialog.recent-files.title = 最近的文件
 dialog.recent-files.button.ok = 打开
+dialog.jump-to-symbol.title = 转到符号
+dialog.jump-to-symbol.prompt = 搜索符号…
+dialog.jump-to-symbol.button.ok = OK
 
 # Open resource dialogs
 
@@ -525,6 +565,7 @@ dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
 dialog.bundle.option.identity.none = None
 dialog.bundle.label.architectures = 架构
+dialog.bundle.label.ios-simulator = 模拟器
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
@@ -594,6 +635,7 @@ dialog.bundle.error.bundle-format.required = 未选择打包格式。
 pane.assets = 资产
 pane.changed-files = 更改的文件
 pane.outline = 大纲
+pane.structure = 代码结构
 pane.properties = 属性
 pane.console = 控制台
 pane.curve-editor = 曲线编辑
@@ -672,7 +714,11 @@ prefs.label.code.font.name = 代码编辑器字体(需要重启)
 prefs.label.code.zoom-on-scroll = 滚动缩放
 prefs.label.code.hover = 悬停提示
 prefs.help.code.hover = 悬停时显示代码文档弹窗
+prefs.label.code.enable-lua-language-server = 启用内置的 Lua 语言服务器
+prefs.help.code.enable-lua-language-server = 在此项目中为游戏脚本和编辑器脚本启用 Lua 代码辅助。禁用此功能可降低大型项目的内存占用。
 prefs.label.code.auto-closing-parens = 自动补全括号
+prefs.label.code.format-on-save = 保存时格式化
+prefs.help.code.format-on-save = 保存时使用语言服务器格式化已打开的文件。
 
 # Extensions tab
 prefs.label.extensions.build-server = 构建服务器
@@ -693,6 +739,8 @@ prefs.label.dev.custom-engine = 自定义引擎
 prefs.keymap.filter.prompt = 过滤键盘映射…
 prefs.keymap.command = 命令
 prefs.keymap.shortcuts = 快捷键
+prefs.keymap.badge.mouse-binding = 鼠标绑定
+prefs.keymap.badge.mouse-modifier = 鼠标修饰键
 prefs.keymap.context-menu.new-shortcut = 新建快捷键…
 prefs.keymap.context-menu.reset-to-default = 重置为默认值
 prefs.keymap.context-menu.remove = 移除 {shortcut}
@@ -705,6 +753,16 @@ prefs.keymap.warnings = 警告：{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = 可输入字符（可能与文本输入冲突）
 prefs.keymap.warning.conflicts = 与{shortcuts}冲突
+prefs.keymap.warning.duplicate = 绑定已存在，将被忽略
+prefs.keymap.mouse-binding.button.left = 左键
+prefs.keymap.mouse-binding.button.middle = 中键
+prefs.keymap.mouse-binding.button.right = 右键
+prefs.keymap.mouse-binding.section.button = 鼠标按键
+prefs.keymap.mouse-binding.section.modifiers = 修饰键
+prefs.keymap.context-menu.add-mouse-binding = 添加鼠标绑定
+prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = 重置为默认值
+prefs.keymap.context-menu.edit-modifier = 编辑修饰键
+prefs.keymap.inherited-from = 继承自 {context}
 
 # Progress
 
@@ -732,6 +790,7 @@ progress.updating-dependencies = 正在更新依赖…
 progress.syncing-resources = 同步资源…
 progress.loading-project = 正在加载项目…
 progress.loading-external-changes = 正在加载外部更改…
+progress.editor-scripts-reloaded = 在 {time} 重新加载了编辑器脚本
 progress.writing-files = 正在写入文件…
 progress.caching-save-results = 正在缓存保存结果…
 progress.reading-timestamps = 正在读取时间戳…
@@ -752,6 +811,7 @@ progress.generating-report = 正在生成报告…
 progress.working = 正在处理…
 progress.reading-classes = 正在读取类…
 progress.downloading-archives = 正在下载 {count} 个压缩包…
+progress.downloading-archive = 正在下载 {uri}…
 progress.launching-engine = 正在启动引擎…
 progress.launched-engine = 已启动 {engine}
 progress.engine-launch-failed = 启动失败
@@ -784,6 +844,7 @@ menu.edit = 编辑
 menu.debug = 调试
 menu.view = 视图
 menu.help = 帮助
+menu.dock.new-window = 新窗口
 
 # Commands
 
@@ -866,11 +927,14 @@ command.edit.add-embedded-component.variant.collection = 添加游戏对象
 command.edit.add-embedded-component.variant.collision-object = 添加形状
 command.edit.add-embedded-component.variant.collision-object.option.box = 矩形
 command.edit.add-embedded-component.variant.collision-object.option.capsule = 胶囊
+command.edit.add-embedded-component.variant.collision-object.option.mesh = 网格
 command.edit.add-embedded-component.variant.collision-object.option.sphere = 球形
+command.edit.add-embedded-component.variant.font = 添加样式
 command.edit.add-embedded-component.variant.game-object = 添加组件
 command.edit.add-embedded-component.variant.gui.option.textures = 纹理
 command.edit.add-embedded-component.variant.gui.option.materials = 材质
 command.edit.add-embedded-component.variant.gui.option.fonts = 字体
+command.edit.add-embedded-component.variant.gui.option.layer = 图层
 command.edit.add-embedded-component.variant.gui.option.particlefx = 粒子效果
 command.edit.add-embedded-component.variant.particlefx = 添加触发器
 command.edit.add-embedded-component.variant.particlefx.option.circle = 圆形
@@ -960,7 +1024,7 @@ command.scene.set-camera-type.option.perspective = 透视相机
 command.scene.set-gui-layout = 设置 GUI 布局
 command.scene.toggle-move-whole-pixels = 移动整体像素
 command.scene.visibility.toggle-filters = 切换可见性过滤器
-command.scene.visibility.toggle-component-guides = 切换组件向导
+command.scene.visibility.toggle-component-guides = 切换组件辅助标记
 command.scene.visibility.toggle-grid = 切换网格
 command.scene.visibility.toggle-selection = 显示/隐藏选中对象
 command.scene.visibility.hide-unselected = 隐藏未选中对象
@@ -994,6 +1058,7 @@ command.help.report-issue = 反馈问题
 command.help.report-suggestion = 报告建议
 command.help.open-issues = 搜索问题
 command.help.open-donations = 发展基金
+command.help.check-for-updates = 检查更新
 command.app.about = 关于
 command.vcs.diff = 查看差异
 command.vcs.revert = 还原
@@ -1044,6 +1109,7 @@ operation.atlas.move-pivot-point = 移动轴心点
 operation.collision-object.add-shape = 添加形状
 operation.collection.add-collection = 添加集合
 operation.collection.add-game-object = 添加游戏对象
+operation.font.add-style = 添加字体样式
 operation.game-object.add-component = 添加组件
 operation.gui.add-gui-node = 添加 GUI 节点
 operation.gui.add-layer = 添加图层
@@ -1065,12 +1131,41 @@ operation.tile-map.add-layer = 添加图层
 
 # Font Styles
 
+font.style.default = (默认)
+scene.font.style = 样式：{style}
 
 # Scene View Popups
 
+scene-popup.reset-defaults-button = 重置为默认值
+scene-popup.grid.plane = 平面
+scene-popup.grid.color = 颜色
+scene-popup.grid.opacity = 不透明度
+scene-popup.camera.move-speed = 移动速度
+scene-popup.camera.look-sensitivity = 视角灵敏度
+scene-popup.camera.fov = 视野
+scene-popup.camera.invert-y = 反转Y轴
+scene-popup.camera.walking-mode = 步行模式
+scene-popup.scene-visibility.visibility-filters = 可见性过滤器
+scene-popup.scene-visibility.collision-shapes = 碰撞形状
+scene-popup.scene-visibility.camera = 相机
+scene-popup.scene-visibility.gui-bounds = GUI 边界框
+scene-popup.scene-visibility.gui-shapes = GUI 形状
+scene-popup.scene-visibility.gui-particle-effects = GUI 粒子效果
+scene-popup.scene-visibility.gui-spine-scenes = GUI Spine 场景
+scene-popup.scene-visibility.gui-text = GUI 文本
+scene-popup.scene-visibility.lights = 灯光
+scene-popup.scene-visibility.models = 模型
+scene-popup.scene-visibility.particle-effects = 粒子效果
+scene-popup.scene-visibility.skeletons = 骨骼
+scene-popup.scene-visibility.spine-scenes = Spine 场景
+scene-popup.scene-visibility.sprites = 精灵
+scene-popup.scene-visibility.text = 文本
+scene-popup.scene-visibility.tile-maps = 瓦片地图
+scene-popup.scene-visibility.component-guides = 组件辅助标记
 
 # Properties
 
+property.tooltip = {help, select, none {} other {帮助：{help}\n\n}}在编辑器脚本中可作为"{id}"使用。
 
 # Properties: universal
 
@@ -1084,6 +1179,7 @@ property.position = 位置
 property.rotation = 旋转
 property.scale = 缩放
 property.size = 尺寸
+property.size.tooltip = 对象的宽度、高度，以及适用时的深度。当“尺寸”为只读属性时，其值会根据对象的内容或渲染资源自动计算。对于 GUI 节点，尺寸还用于定义输入命中检测的边界。
 property.url = URL
 
 # Properties: appmanifest
@@ -1094,6 +1190,8 @@ property.appmanifest.rig+model = 骨骼 + 模型
 property.appmanifest.exclude-record = 排除录制
 property.appmanifest.profiler = 分析器
 property.appmanifest.exclude-sound = 排除声音
+property.appmanifest.exclude-gui = 排除 GUI
+property.appmanifest.exclude-gui.tooltip = 从引擎中移除 GUI 资源、组件和 Lua 支持。仅当项目不使用 GUI 场景或脚本时启用此功能。
 property.appmanifest.exclude-sound-decoder-wav = 排除声音解码器：WAV
 property.appmanifest.exclude-sound-decoder-ogg = 排除声音解码器：OGG
 property.appmanifest.include-sound-decoder-opus = 包含声音解码器：Opus
@@ -1103,7 +1201,6 @@ property.appmanifest.exclude-image = 排除图像
 property.appmanifest.exclude-types = 排除类型
 property.appmanifest.exclude-basis-transcoder = 排除Basis转码器
 property.appmanifest.use-android-support-lib = 使用 Android 支持库
-property.appmanifest.graphics = 绘图
 property.appmanifest.graphics-osx = 绘图(macOS)
 property.appmanifest.graphics-web = 绘图(HTML5)
 property.appmanifest.use-font-layout = 使用完整文本布局系统
@@ -1695,8 +1792,10 @@ form.label.project.display.fullscreen = 全屏
 form.label.project.display.display_profiles = 显示配置文件
 form.label.project.display.dynamic_orientation = 动态方向
 form.label.project.display.update_frequency = 更新频率
+form.help.project.display.update_frequency = 期望的游戏循环和渲染频率，以赫兹为单位。`0` 使用可变帧率。在由 Defold 控制应用程序循环的平台上，正值会使用计时器进行帧调度，并暂时禁用呈现垂直同步；将此值设回 `0` 后，会恢复所请求的**交换间隔**。
 form.label.project.display.swap_interval = 交换间隔
 form.label.project.display.vsync = 垂直同步
+form.help.project.display.vsync = **已弃用的兼容性设置。**禁用时，会强制将所请求的**交换间隔**设为 `0`；启用时，行为由**交换间隔**决定，除非正值的**更新频率**启用了计时器帧调度。新项目请使用**交换间隔**。
 form.label.project.display.variable_dt = 可变增量时间
 form.label.project.display.display_device_info = 显示设备信息
 
