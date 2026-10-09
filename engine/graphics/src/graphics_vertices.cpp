@@ -120,9 +120,12 @@ namespace dmGraphics
         return 0;
     }
 
-    // Engine streams and generated defaults are floats. Material values already use
-    // the destination storage type and bypass this conversion when copied.
-    static uint8_t* WriteUnpackedAttributeFromFloat(uint8_t* write_ptr, float value, const UnpackAttributeData& dst_data)
+    // Engine streams and generated defaults are floats. For normalized integer
+    // attributes, the CPU must pack these values into the storage range first
+    // (e.g. 0.5 becomes 128 for UNORM8). The GPU normalizes the stored integers
+    // when reading vertices; it does not pack our source floats during upload.
+    // Material values already use the destination storage type and are copied directly.
+    static uint8_t* WriteVertexAttributeFromFloatToStorage(uint8_t* write_ptr, float value, const UnpackAttributeData& dst_data)
     {
         if (!dst_data.m_Normalize || dst_data.m_DataType == VertexAttribute::TYPE_FLOAT)
             return WriteVertexAttributeFromDouble(write_ptr, value, dst_data.m_DataType);
@@ -241,7 +244,7 @@ namespace dmGraphics
                 {
                     float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr + i * src_element_byte_width);
 
-                    write_ptr = WriteUnpackedAttributeFromFloat(write_ptr, float_value, dst_data);
+                    write_ptr = WriteVertexAttributeFromFloatToStorage(write_ptr, float_value, dst_data);
                 }
             }
         }
@@ -262,7 +265,7 @@ namespace dmGraphics
                     {
                         float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr + src_index * src_element_byte_width);
 
-                        write_ptr = WriteUnpackedAttributeFromFloat(write_ptr, float_value, dst_data);
+                        write_ptr = WriteVertexAttributeFromFloatToStorage(write_ptr, float_value, dst_data);
                     }
 
                     write_ptr += dst_element_byte_width;
@@ -290,14 +293,14 @@ namespace dmGraphics
                         {
                             float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, read_ptr + src_index * src_element_byte_width);
 
-                            WriteUnpackedAttributeFromFloat(write_ptr, float_value, dst_data);
+                            WriteVertexAttributeFromFloatToStorage(write_ptr, float_value, dst_data);
                         }
                         read_ptr += dst_element_byte_width;
                     }
                     // Fill the rest with the identity matrix
                     else
                     {
-                        WriteUnpackedAttributeFromFloat(write_ptr, (row == col) ? 1.0f : 0.0f, dst_data);
+                        WriteVertexAttributeFromFloatToStorage(write_ptr, (row == col) ? 1.0f : 0.0f, dst_data);
                     }
 
                     write_ptr += dst_element_byte_width;
@@ -330,7 +333,7 @@ namespace dmGraphics
             {
                 float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr + i * src_element_byte_width);
 
-                write_ptr = WriteUnpackedAttributeFromFloat(write_ptr, float_value, dst_data);
+                write_ptr = WriteVertexAttributeFromFloatToStorage(write_ptr, float_value, dst_data);
             }
         }
 
@@ -360,7 +363,7 @@ namespace dmGraphics
         {
             float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr);
 
-            WriteUnpackedAttributeFromFloat(src_value_buffer, float_value, dst_data);
+            WriteVertexAttributeFromFloatToStorage(src_value_buffer, float_value, dst_data);
             src_value_read_ptr = src_value_buffer;
         }
 
@@ -596,7 +599,7 @@ namespace dmGraphics
                         }
                         else
                         {
-                            WriteUnpackedAttributeFromFloat(v4_one_as_w_backing + 3 * dst_element_byte_width, 1.0f, dst_data);
+                            WriteVertexAttributeFromFloatToStorage(v4_one_as_w_backing + 3 * dst_element_byte_width, 1.0f, dst_data);
                         }
 
                         src_data.m_ValuePtr     = v4_one_as_w_backing;
