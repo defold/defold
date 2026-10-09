@@ -1040,7 +1040,6 @@ command.scene.visibility.show-last-hidden = Mostrar últimos objetos ocultos
 command.scene.visibility.show-all = Mostrar todos los objetos ocultos
 command.scene.play = Reproducir
 command.scene.stop = Parar
-command.scene.frame-selection = Selección de encuadre
 command.scene.realign-camera = Realinear cámara
 command.scene.toggle-tile-palette = Seleccionar celda (tile)…
 command.scene.select-erase-tool = Seleccionar borrador
