@@ -163,7 +163,9 @@
          (with-redefs [scene/refresh-scene-view!
                        (fn [view-id _dt]
                          (swap! rendered-bounds assoc view-id
-                                (.getLayoutBounds ^Parent (g/node-value view-id :parent))))]
+                                (.getLayoutBounds ^Parent (g/node-value view-id :parent))))
+                       scene/suspend-scene-view! (fn [_view-id])
+                       scene/resume-scene-view! (fn [_view-id])]
            (let [tab-pane (TabPane.)
                  tab-spec (assoc (make-test-tab-spec {}) :view-type {:id :scene})
                  ^Tab first-tab (app-view/make-editor-tab! app-view test-util/localization (.getTabs tab-pane) tab-spec {})
