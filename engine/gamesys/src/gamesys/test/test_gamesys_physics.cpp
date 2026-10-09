@@ -14,6 +14,7 @@
 
 #include <test_script.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
 #include <gamesys/components/comp_collision_object.h>
@@ -239,6 +240,55 @@ TEST_F(ComponentTest, Box2DChainApiTest)
     RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext,
                          "/collision_object/box2d_chain_test.goc", "/box2d_chain_test");
 }
+
+class CollisionShapeScale3DTest : public Bullet3DComponentTest
+{
+    void SetUp() override
+    {
+        SetContentFolder("collision_object_3d");
+        m_projectOptions.m_Scale = (float)atof(GetParam());
+        ScriptBaseTest::SetUp();
+    }
+};
+
+// Verify Lua shape reads/writes and native Bullet sizes at non-unit scales, guarding against #11636.
+TEST_P(CollisionShapeScale3DTest, GetSetCollisionShape)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collision_object_3d/get_set_shape_3d.goc",
+                                      dmHashString64("/get_set_shape_3d"), 0, Point3(0, 0, 0),
+                                      Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+
+    uint32_t component_type = 0;
+    dmGameObject::HComponent component = 0;
+    dmGameObject::HComponentWorld component_world = 0;
+    ASSERT_EQ(dmGameObject::RESULT_OK,
+              dmGameObject::GetComponent(go, dmHashString64("collisionobject"), &component_type, &component, &component_world));
+    btCollisionObject* object = (btCollisionObject*)dmGameSystem::CompCollisionObjectGetBullet3DCollisionObject(component);
+    ASSERT_NE((void*)0, object);
+    ASSERT_EQ(COMPOUND_SHAPE_PROXYTYPE, object->getCollisionShape()->getShapeType());
+    btCompoundShape* compound = (btCompoundShape*)object->getCollisionShape();
+    ASSERT_EQ(3, compound->getNumChildShapes());
+
+    const float scale = m_projectOptions.m_Scale;
+    btSphereShape* sphere = (btSphereShape*)compound->getChildShape(0);
+    ASSERT_EQ(SPHERE_SHAPE_PROXYTYPE, sphere->getShapeType());
+    ASSERT_NEAR(5.0f * scale, sphere->getRadius(), 0.00001f);
+    btBoxShape* box = (btBoxShape*)compound->getChildShape(1);
+    ASSERT_EQ(BOX_SHAPE_PROXYTYPE, box->getShapeType());
+    ASSERT_NEAR(6.0f * scale, box->getHalfExtentsWithMargin().x(), 0.00001f);
+    ASSERT_NEAR(9.0f * scale, box->getHalfExtentsWithMargin().y(), 0.00001f);
+    ASSERT_NEAR(12.0f * scale, box->getHalfExtentsWithMargin().z(), 0.00001f);
+    btCapsuleShape* capsule = (btCapsuleShape*)compound->getChildShape(2);
+    ASSERT_EQ(CAPSULE_SHAPE_PROXYTYPE, capsule->getShapeType());
+    ASSERT_NEAR(3.0f * scale, capsule->getRadius(), 0.00001f);
+    ASSERT_NEAR(7.0f * scale, capsule->getHalfHeight(), 0.00001f);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static const char* collision_shape_scales[] = {"1.0", "0.1", "0.01"};
+INSTANTIATE_TEST_CASE_P(PhysicsScale, CollisionShapeScale3DTest, jc_test_values_in(collision_shape_scales));
 
 TEST_F(Bullet3DComponentTest, Bullet3DApiTest)
 {

@@ -1758,37 +1758,37 @@ namespace dmPhysics
         return gravity;
     }
 
-    void GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius)
+    void GetCollisionShapeRadius3D(HWorld3D world, HCollisionShape3D shape, float* radius)
     {
         btCollisionShape* bt_shape = (btCollisionShape*) shape;
         assert(bt_shape->getShapeType() == SPHERE_SHAPE_PROXYTYPE);
-        *radius = ((btSphereShape*) bt_shape)->getRadius();
+        *radius = ((btSphereShape*) bt_shape)->getRadius() * world->m_Context->m_InvScale;
     }
 
-    void GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height)
+    void GetCollisionShapeCapsuleRadiusHeight3D(HWorld3D world, HCollisionShape3D shape, float* radius, float* half_height)
     {
         btCollisionShape* bt_shape = (btCollisionShape*) shape;
         assert(bt_shape->getShapeType() == CAPSULE_SHAPE_PROXYTYPE);
         btCapsuleShape* as_capsule = (btCapsuleShape*) bt_shape;
-        *radius                    = as_capsule->getRadius();
-        *half_height               = as_capsule->getHalfHeight();
+        *radius                    = as_capsule->getRadius() * world->m_Context->m_InvScale;
+        *half_height               = as_capsule->getHalfHeight() * world->m_Context->m_InvScale;
     }
 
-    void SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius)
+    void SetCollisionShapeRadius3D(HWorld3D world, HCollisionShape3D shape, float radius)
     {
         btCollisionShape* bt_shape = (btCollisionShape*) shape;
         assert(bt_shape->getShapeType() == SPHERE_SHAPE_PROXYTYPE);
-        ((btSphereShape*) bt_shape)->setUnscaledRadius(radius);
+        ((btSphereShape*) bt_shape)->setUnscaledRadius(radius * world->m_Context->m_Scale);
     }
 
-    void GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz)
+    void GetCollisionShapeHalfBoxExtents3D(HWorld3D world, HCollisionShape3D shape, float* xyz)
     {
         btCollisionShape* bt_shape = (btCollisionShape*) shape;
         assert(bt_shape->getShapeType() == BOX_SHAPE_PROXYTYPE);
         const btVector3& half_extents = ((btBoxShape*) bt_shape)->getHalfExtentsWithMargin();
-        xyz[0] = half_extents.getX();
-        xyz[1] = half_extents.getY();
-        xyz[2] = half_extents.getZ();
+        xyz[0] = half_extents.getX() * world->m_Context->m_InvScale;
+        xyz[1] = half_extents.getY() * world->m_Context->m_InvScale;
+        xyz[2] = half_extents.getZ() * world->m_Context->m_InvScale;
     }
 
     void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)
