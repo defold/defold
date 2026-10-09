@@ -74,6 +74,14 @@ namespace dmParticle
         PACKED_PARTICLE_PAGED_VERTEX_STRIDE = 32,
     };
 
+    struct PackedVertexAttribute
+    {
+        dmGraphics::VertexAttribute::SemanticType m_SemanticType;
+        dmGraphics::VertexAttribute::VectorType   m_VectorType;
+        dmGraphics::VertexAttribute::DataType     m_DataType;
+        bool                                      m_Normalize;
+    };
+
     AnimationData::AnimationData()
     {
         memset(this, 0, sizeof(*this));
@@ -622,8 +630,7 @@ namespace dmParticle
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties, dmParticleDDF::Emitter* emitter_ddf, float dt);
-    static GenerateVertexDataResult WriteVertexData(Emitter* emitter,
-                                                    uint32_t particle_start, uint32_t particle_count,
+    static GenerateVertexDataResult WriteVertexData(Emitter* emitter, uint32_t particle_start, uint32_t particle_count,
                                                     const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* bytes_written);
     static void GenerateKeys(Emitter* emitter, float max_particle_life_time);
     static void SortParticles(Emitter* emitter);
@@ -1328,7 +1335,9 @@ namespace dmParticle
                 // writer. Keep double precision at rounding boundaries.
                 uint8_t packed_color[4];
                 for (uint32_t c = 0; c < 4; ++c)
+                {
                     packed_color[c] = (uint8_t) floor(dmMath::Clamp((double) color_to_write[c], 0.0, 1.0) * 255.0 + 0.5);
+                }
 
                 for (uint32_t v = 0; v < 6; ++v)
                 {
@@ -1338,7 +1347,9 @@ namespace dmParticle
                     memcpy(write_ptr + 16, tex_coord_flat + v * 2, 2 * sizeof(float));
                     memcpy(write_ptr + 24, packed_color, sizeof(packed_color));
                     if (PackedStride == PACKED_PARTICLE_PAGED_VERTEX_STRIDE)
+                    {
                         memcpy(write_ptr + 28, &page_index, sizeof(page_index));
+                    }
                     write_ptr += PackedStride;
                 }
             }
@@ -1362,36 +1373,49 @@ namespace dmParticle
         return res;
     }
 
+    static inline bool MatchesAttribute(const dmGraphics::VertexAttributeInfo& info, const PackedVertexAttribute& expected)
+    {
+        return info.m_SemanticType == expected.m_SemanticType &&
+               info.m_VectorType == expected.m_VectorType &&
+               info.m_DataType == expected.m_DataType &&
+               info.m_Normalize == expected.m_Normalize;
+    }
+
     // Match resolved attributes, not material names, so compatible custom materials
     // also qualify. Re-evaluate per generation call to handle material reloads and
     // emitter overrides without a cached layout becoming stale.
-    static uint32_t GetPackedVertexStride(const dmGraphics::VertexAttributeInfos& infos)
+    static uint32_t GetCompatiblePackedVertexStride(const dmGraphics::VertexAttributeInfos& infos)
     {
         using namespace dmGraphics;
-        const bool paged = infos.m_NumInfos == 4;
-        if ((!paged && infos.m_NumInfos != 3) ||
-            infos.m_VertexStride != (paged ? PACKED_PARTICLE_PAGED_VERTEX_STRIDE : PACKED_PARTICLE_VERTEX_STRIDE))
-            return 0;
+        const bool paged_attribute_count = infos.m_NumInfos == 4;
 
-        const VertexAttribute::SemanticType semantics[] = {
-            VertexAttribute::SEMANTIC_TYPE_POSITION, VertexAttribute::SEMANTIC_TYPE_TEXCOORD,
-            VertexAttribute::SEMANTIC_TYPE_COLOR, VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX
+        if ((!paged_attribute_count && infos.m_NumInfos != 3) || infos.m_VertexStride != (paged_attribute_count ? PACKED_PARTICLE_PAGED_VERTEX_STRIDE : PACKED_PARTICLE_VERTEX_STRIDE))
+        {
+            return 0;
+        }
+
+        // Order must match the fixed offsets used by WriteVertexDataImpl.
+        // The non-paged layout uses the first three attributes.
+        static const PackedVertexAttribute expected[] = {
+            { VertexAttribute::SEMANTIC_TYPE_POSITION,   VertexAttribute::VECTOR_TYPE_VEC4,   VertexAttribute::TYPE_FLOAT,         false },
+            { VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   VertexAttribute::VECTOR_TYPE_VEC2,   VertexAttribute::TYPE_FLOAT,         false },
+            { VertexAttribute::SEMANTIC_TYPE_COLOR,      VertexAttribute::VECTOR_TYPE_VEC4,   VertexAttribute::TYPE_UNSIGNED_BYTE, true  },
+            { VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, VertexAttribute::VECTOR_TYPE_SCALAR, VertexAttribute::TYPE_FLOAT,         false }
         };
-        const VertexAttribute::VectorType vectors[] = {
-            VertexAttribute::VECTOR_TYPE_VEC4, VertexAttribute::VECTOR_TYPE_VEC2,
-            VertexAttribute::VECTOR_TYPE_VEC4, VertexAttribute::VECTOR_TYPE_SCALAR
-        };
+
         for (uint32_t i = 0; i < infos.m_NumInfos; ++i)
         {
             const VertexAttributeInfo& info = infos.m_Infos[i];
-            if (info.m_SemanticType != semantics[i] || info.m_VectorType != vectors[i] ||
-                info.m_StepFunction != VERTEX_STEP_FUNCTION_VERTEX ||
-                info.m_DataType != (i == 2 ? VertexAttribute::TYPE_UNSIGNED_BYTE : VertexAttribute::TYPE_FLOAT) ||
-                info.m_Normalize != (i == 2))
+            if (!MatchesAttribute(info, expected[i]) || info.m_StepFunction != VERTEX_STEP_FUNCTION_VERTEX)
+            {
                 return 0;
+            }
         }
+
         if (infos.m_Infos[0].m_CoordinateSpace != COORDINATE_SPACE_WORLD)
+        {
             return 0;
+        }
 
         // Engine streams supply every matched semantic, so material default values
         // are ignored here just as they are by WriteAttributes.
@@ -1408,15 +1432,16 @@ namespace dmParticle
                                                     uint32_t vertex_buffer_size,
                                                     uint32_t* bytes_written)
     {
-        const uint32_t stride = GetPackedVertexStride(attribute_infos);
+        const uint32_t stride = GetCompatiblePackedVertexStride(attribute_infos);
         if (stride == PACKED_PARTICLE_VERTEX_STRIDE)
-            return WriteVertexDataImpl<PACKED_PARTICLE_VERTEX_STRIDE>(emitter, particle_start, particle_count, attribute_infos,
-                color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
-        if (stride == PACKED_PARTICLE_PAGED_VERTEX_STRIDE)
-            return WriteVertexDataImpl<PACKED_PARTICLE_PAGED_VERTEX_STRIDE>(emitter, particle_start, particle_count, attribute_infos,
-                color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
-        return WriteVertexDataImpl<0>(emitter, particle_start, particle_count, attribute_infos,
-            color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
+        {
+            return WriteVertexDataImpl<PACKED_PARTICLE_VERTEX_STRIDE>(emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
+        }
+        else if (stride == PACKED_PARTICLE_PAGED_VERTEX_STRIDE)
+        {
+            return WriteVertexDataImpl<PACKED_PARTICLE_PAGED_VERTEX_STRIDE>(emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
+        }
+        return WriteVertexDataImpl<0>(emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
     }
 
     struct SortPred
