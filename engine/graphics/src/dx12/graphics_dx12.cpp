@@ -2008,11 +2008,36 @@ namespace dmGraphics
             return;
         }
         const bool is_volume = texture->m_ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D;
-        const uint32_t layer_base = is_volume ? 0 : params.m_SubUpdate ? params.m_Slice : 0;
-        const uint32_t total_layers = is_volume ? 1 : texture->m_ResourceDesc.DepthOrArraySize;
-        const uint32_t layer_count = is_volume ? 1 : params.m_SubUpdate ? dmMath::Max(1u, (uint32_t) params.m_LayerCount) : total_layers;
-        const uint32_t depth = is_volume ? dmMath::Max(1u, (uint32_t) params.m_Depth) : 1;
-        const uint32_t mip_depth = is_volume ? dmMath::Max(1u, (uint32_t) texture->m_ResourceDesc.DepthOrArraySize >> target_mip) : 1;
+        uint32_t layer_base;
+        uint32_t total_layers;
+        uint32_t layer_count;
+        uint32_t depth;
+        uint32_t mip_depth;
+        if (is_volume)
+        {
+            layer_base = 0;
+            total_layers = 1;
+            layer_count = 1;
+            depth = dmMath::Max(1u, (uint32_t) params.m_Depth);
+            mip_depth = dmMath::Max(1u, (uint32_t) texture->m_ResourceDesc.DepthOrArraySize >> target_mip);
+        }
+        else
+        {
+            total_layers = texture->m_ResourceDesc.DepthOrArraySize;
+            depth = 1;
+            mip_depth = 1;
+            if (params.m_SubUpdate)
+            {
+                layer_base = params.m_Slice;
+                layer_count = dmMath::Max(1u, (uint32_t) params.m_LayerCount);
+            }
+            else
+            {
+                layer_base = 0;
+                layer_count = total_layers;
+            }
+        }
+
         if (params.m_Z >= mip_depth || depth > mip_depth - params.m_Z)
         {
             dmLogError("DX12 texture update is outside the mip depth");
@@ -2095,7 +2120,7 @@ namespace dmGraphics
         // Copy per array slice
         for (uint32_t i = 0; i < layer_count; ++i)
         {
-            const uint32_t array_layer            = layer_base + i;
+            const uint32_t array_layer       = layer_base + i;
             const uint32_t subresource_index = D3D12CalcSubresource(target_mip, array_layer, 0, texture->m_ResourceDesc.MipLevels, total_layers);
             TransitionTexture(cmd_list, texture, D3D12_RESOURCE_STATE_COPY_DEST, subresource_index, 1);
 
