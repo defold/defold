@@ -394,10 +394,10 @@
             (dynamic label (properties/label-dynamic :tile-source :frames))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :frames))
             (dynamic edit-type (g/constantly {:type g/Str
-                                            :input-pattern #"[0-9 ,-]*"
-                                            :to-type frames->string
-                                            :to-string frames->string
-                                            :to-value parse-frames}))
+                                              :input-pattern #"[0-9 ,-]*"
+                                              :to-type frames->string
+                                              :to-string frames->string
+                                              :to-value parse-frames}))
             (dynamic error (g/fnk [_node-id frames tile-count]
                              ;; Editor scripts can inspect properties before the
                              ;; animation is attached to its tile source.
@@ -1151,11 +1151,11 @@
       flip-vertical (protobuf/int->boolean :flip-vertical)
       cues :cues)
     (g/set-property animation-node :frames
-                    (or (coll/not-empty (:frames animation))
-                        (when (or (contains? animation :start-tile)
-                                  (contains? animation :end-tile))
-                          (select-keys animation [:start-tile :end-tile]))
-                        []))
+      (or (coll/not-empty (:frames animation))
+          (when (or (contains? animation :start-tile)
+                    (contains? animation :end-tile))
+            (select-keys animation [:start-tile :end-tile]))
+          []))
     (attach-animation-node self animation-node)
     (when select-fn
       (select-fn [animation-node]))))

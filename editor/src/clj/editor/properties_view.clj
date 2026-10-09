@@ -267,11 +267,11 @@
          :editable (not (properties/read-only? property))}
         (cond-> input-pattern
           (assoc :text-formatter
-                 {:fx/type fx/ext-recreate-on-key-changed
-                  :key input-pattern
-                  :desc {:fx/type fx.text-formatter/lifecycle
-                         ;; TextFormatter filters are immutable.
-                         :filter (fn/partial filter-inserted-text input-pattern)}}))
+            {:fx/type fx/ext-recreate-on-key-changed
+             :key input-pattern
+             :desc {:fx/type fx.text-formatter/lifecycle
+                    ;; TextFormatter filters are immutable.
+                    :filter (fn/partial filter-inserted-text input-pattern)}}))
         (resolve-value property)
         (resolve-validation property localization-state)
         (resolve-script-property-style-class property))))
