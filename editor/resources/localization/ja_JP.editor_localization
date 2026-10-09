@@ -580,6 +580,7 @@ dialog.bundle.label.code-signing-identity = コード署名のID
 dialog.bundle.label.provisioning-profile = プロビジョニングプロファイル
 dialog.bundle.title.choose-provisioning-profile = プロビジョニングプロファイルを選択
 dialog.bundle.filter.provisioning-profile = プロビジョニングプロファイル (*.mobileprovision)
+dialog.bundle.label.on-bundled = バンドル時
 dialog.bundle.option.on-bundled.install = 接続されたデバイスにインストール
 dialog.bundle.option.on-bundled.launch = インストール済みのアプリを起動
 dialog.bundle.label.android.keystore = キーストア
@@ -896,6 +897,7 @@ command.run.set-resolution = 解像度を設定
 command.run.set-resolution.option.android-devices = Androidデバイス
 command.run.set-resolution.option.apple = アップル
 command.run.set-resolution.option.custom-resolution = カスタム解像度…
+command.run.set-resolution.option.handheld = 携帯デバイス
 command.run.set-resolution.option.ipad = iPad
 command.run.set-resolution.option.iphone = iPhone
 command.run.set-resolution.option.native-resolutions = ネイティブの解像度
@@ -930,6 +932,7 @@ command.edit.add-embedded-component.variant.collision-object = シェイプを�
 command.edit.add-embedded-component.variant.collision-object.option.box = 四角形
 command.edit.add-embedded-component.variant.collision-object.option.capsule = カプセル
 command.edit.add-embedded-component.variant.collision-object.option.circle = サークル
+command.edit.add-embedded-component.variant.collision-object.option.hull = 凸包
 command.edit.add-embedded-component.variant.collision-object.option.mesh = メッシュ
 command.edit.add-embedded-component.variant.collision-object.option.rectangle = 長方形
 command.edit.add-embedded-component.variant.collision-object.option.sphere = 球体
@@ -1139,6 +1142,7 @@ operation.tile-map.add-layer = レイヤーを追加
 
 # Font Styles
 
+font.style.default = （デフォルト）
 scene.font.style = スタイル\: {style}
 
 # Scene View Popups
@@ -1149,6 +1153,7 @@ scene-popup.grid.color = 色
 scene-popup.grid.opacity = 不透明度
 scene-popup.camera.move-speed = 移動速度
 scene-popup.camera.look-sensitivity = 視点移動速度
+scene-popup.camera.fov = 視野角
 scene-popup.camera.invert-y = Y軸を反転
 scene-popup.camera.walking-mode = 歩行モード
 scene-popup.scene-visibility.visibility-filters = 表示フィルタ
@@ -1548,12 +1553,12 @@ property.mesh.position-stream.tooltip = 頂点位置を含むバッファスト�
 property.mesh.primitive-type = プリミティブタイプ
 property.mesh.primitive-type.tooltip = 連続する頂点がどのようにジオメトリを形成するかを制御します。「Lines（線）」は独立した頂点のペアを使用し、「Triangles（三角形）」は独立した三つの頂点のグループを使用します。一方、「Triangle Strip（トライアングルストリップ）」は、最初の二つの頂点以降、頂点が追加されるごとに三角形を形成します。
 property.mesh.vertices = 頂点
-property.mesh.vertices.tooltip = 頂点ごとのストリームを含む `.buffer` リソースを選択します。たとえば、位置、通常、色、テクスチャ座標などです。 実行時には、 `resource.set_buffer()` でその内容を置き換えることができます。
+property.mesh.vertices.tooltip = 頂点ごとのストリームを含む `.buffer` リソースを選択します。たとえば、位置、法線、色、テクスチャ座標などです。実行時には `resource.set_buffer()` でその内容を置き換えることができます。
 
 # Properties: model
 
 property.model.animations = アニメーション
-property.model.animations.tooltip = アニメーションセット、glTF、またはこのモデルで利用可能なスケルタルまたはモーフィングターゲットアニメーションを含むGLBリソース。 アニメーションの id を **Default Animation** として選択するか、`model.play_animation()` で再生します。
+property.model.animations.tooltip = アニメーションセット、glTF、またはこのモデルで利用可能なスケルタルまたはモーフィングターゲットアニメーションを含むGLBリソース。 アニメーションの id を **Default Animation** として選択するか、`model.play_anim()` で再生します。
 property.model.create-go-bones = GOボーンを作成
 property.model.create-go-bones.tooltip = スケルトンの各ボーンに対してランタイム用のゲームオブジェクトが生成され、手のボーンと武器などのアタッチメントとの間に親子関係の設定ができるようになります。これらのボーンオブジェクトは `model.get_go()` で取得可能であり、コレクションのゲームオブジェクト上限数にカウントされます。
 property.model.default-animation = 既定アニメーション
@@ -1731,6 +1736,7 @@ property.tile-source.tile-width.tooltip = マージンと間隔を除いた、�
 
 # Outline
 
+outline.atlas.no-image = <画像無し>
 outline.atlas = アトラス
 outline.camera = カメラ
 outline.collection = コレクション
@@ -1917,14 +1923,17 @@ form.help.project.project.bundle_exclude_resources = **バンドルリソース*
 
 form.label.project.android = Android
 form.help.project.android = Android関連設定
-form.label.project.android.app_icon_36x36 = App Icon 36x36
+form.label.project.android.app_icon_36x36 = アプリアイコン 36x36
 form.help.project.android.app_icon_36x36 = **ldpi**デバイス（密度0.75倍）のランチャーアイコンとして使用される36x36のPNG画像です。設定されていない場合、Defoldは設定済みのAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
 form.label.project.android.app_icon_48x48 = App Icon 48x48
 form.help.project.android.app_icon_48x48 = **mdpi**デバイス（密度1倍）でランチャーアイコンとして使用される48x48のPNG画像です。設定されていない場合、Defoldは構成されたAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
+form.label.project.android.app_icon_72x72 = アプリアイコン 72x72
 form.help.project.android.app_icon_72x72 = **hdpi**デバイス（密度1.5倍）でランチャーアイコンとして使用される72x72のPNG画像です。設定されていない場合、Defoldは設定済みのAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
 form.label.project.android.app_icon_96x96 = App Icon 96x96
 form.help.project.android.app_icon_96x96 = **xhdpi**デバイス（密度2倍）でランチャーアイコンとして使用される96x96のPNG画像です。設定されていない場合、Defoldは設定されたAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
+form.label.project.android.app_icon_144x144 = アプリアイコン 144x144
 form.help.project.android.app_icon_144x144 = **xxhdpi**デバイス（3倍の密度）でランチャーアイコンとして使用される144x144のPNG画像です。設定されていない場合、Defoldは設定済みのAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
+form.label.project.android.app_icon_192x192 = アプリアイコン 192x192
 form.help.project.android.app_icon_192x192 = **xxxhdpi**デバイス（4倍の密度）でランチャーアイコンとして使用される192x192のPNG画像です。設定されていない場合、Defoldは構成されたAndroidアプリのアイコンのうち最大のもの、または組み込みのアイコンを拡大縮小して使用します。
 form.label.project.android.push_icon_small = プッシュ通知用スモールアイコン
 form.help.project.android.push_icon_small = 画面密度に応じた適切な小アイコンが見つからない場合、フォールバック用のPNGが小通知アイコンとして使用されます。プッシュ通知用アイコンが設定されていない場合は、アプリケーションアイコンが使用されます。
@@ -1966,6 +1975,7 @@ form.label.project.android.target_sdk_version = ターゲットSDKバージョ�
 form.help.project.android.target_sdk_version = アプリケーションが設計およびテストの対象としているAndroid APIレベルです。これはプラットフォームの互換性やストアの要件に影響を及ぼしますが、**最小SDKバージョン**によって許可されているデバイスを除外するものではありません。
 form.label.project.android.package = パッケージ
 form.help.project.android.package = `com.example.game` のような、不変かつ一意な Android アプリケーション ID を指定します。ドットで区切られたセグメントを少なくとも 2 つ含める必要があり、各セグメントは英字で開始し、英字、数字、またはアンダースコアのみで構成する必要があります。リリース後にこの ID を変更すると、別のアプリケーションとして扱われます。リリース前に `com.example.todo` を適切な ID に置き換えてください。
+form.label.project.android.gcm_sender_id = GCM送信者ID
 form.help.project.android.gcm_sender_id = プッシュ通知に使用する Firebase Cloud Messaging 送信者 ID です。これは Android パッケージ名ではなく、Firebase によって割り当てられた数値のプロジェクト識別子です。プッシュメッセージングを設定しない場合は、空欄のままにしてください。
 form.label.project.android.fcm_application_id = FCM アプリケーション ID
 form.help.project.android.fcm_application_id = Firebase Cloud Messaging で使用される、この Android アプリの Firebase アプリケーション ID です。これは登録済みの Firebase アプリを識別するものであり、パッケージ名や送信者 ID とは異なります。プッシュメッセージ機能を設定しない場合は、空欄のままにしてください。
@@ -2029,10 +2039,15 @@ form.help.project.html5.transparent_graphics_context = HTML5グラフィック�
 
 form.label.project.ios = iOS
 form.help.project.ios = iOS 関連設定
+form.label.project.ios.app_icon_76x76 = アプリアイコン 76x76
 form.help.project.ios.app_icon_76x76 = iPadのホーム画面アイコンに使用される、正方形の **76 × 76 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.label.project.ios.app_icon_120x120 = アプリアイコン 120x120
 form.help.project.ios.app_icon_120x120 = iPhoneのホーム画面用2倍サイズアイコンとして使用される、正方形の **120 × 120 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.label.project.ios.app_icon_152x152 = アプリアイコン 152x152
 form.help.project.ios.app_icon_152x152 = iPadのホーム画面用2倍サイズアイコンとして使用される、正方形の **152 × 152 px PNG** 画像です。指定がない場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.label.project.ios.app_icon_167x167 = アプリアイコン 167x167
 form.help.project.ios.app_icon_167x167 = iPad Proのホーム画面用2倍サイズアイコンに使用される、正方形の **167 × 167 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOSアイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.label.project.ios.app_icon_180x180 = アプリアイコン 180x180
 form.help.project.ios.app_icon_180x180 = iPhoneのホーム画面用3倍サイズアイコンとして使用される、正方形の **180 × 180 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大・縮小して使用します。
 form.label.project.ios.icons_asset = アイコンアセット
 form.help.project.ios.icons_asset = App Store用アイコンを含むiOSアイコン一式を収めたXcodeアイコンカタログ（`Assets.car`）を作成しました。汎用iOSデバイス向けにビルドすると、Defoldによってアプリケーションバンドルにコピーされます。
@@ -2111,7 +2126,7 @@ form.label.project.gui.max_animation_count = 最大アニメーション数
 form.help.project.gui.max_animation_count = 各GUIシーンにおいて同時にアクティブにできるアニメーションの最大数です。この容量はシーンごとにあらかじめ確保されており、上限に達すると、それ以上のアニメーションは開始されません。
 form.label.project.gui.max_particle_count = パーティクル最大数
 form.help.project.gui.max_particle_count = 各GUIシーンで描画されるGUIパーティクルの最大数です。この上限を超えたパーティクルはシミュレーションは継続されますが、描画は行われません。頂点バッファは実際の使用量に応じてこの上限まで拡張されるため、より多くのパーティクルを描画すると、それだけ多くのグラフィックスメモリが消費されます。
-form.label.project.gui.max_particlefx_count = パーティクル最大数
+form.label.project.gui.max_particlefx_count = パーティクルFX最大数
 form.help.project.gui.max_particlefx_count = 読み込まれたコレクション内で同時に再生可能なGUI ParticleFXインスタンスの最大数です。エンジンはこの容量を事前に確保します。容量が上限に達した場合、それ以降の再生リクエストは無視されます。
 form.label.project.gui.safe_area_mode = セーフエリアモード
 form.help.project.gui.safe_area_mode = AndroidおよびiOSにおいて、GUIの調整でセーフエリアの余白をどのように利用するかを制御します。**None**はインセットを無視します。**Long Side**は、landscape（横向き）では左右、portrait（縦向き）では上下のインセットを使用します。**Short Side**は、それらとは逆の組み合わせを使用します。**Both Sides**は4辺すべてのインセットを使用します。インセットを持たないプラットフォームではウィンドウ全体が使用され、スクリプトによってGUIシーンごとにこのモードを上書きすることも可能です。
@@ -2166,7 +2181,6 @@ form.label.project.sound.max_sound_data = 最大サウンドリソース数
 form.help.project.sound.max_sound_data = 同時に読み込み可能な固有のサウンドリソースの最大数です。サウンドデータ用のスロットが不足しているというエラーがエンジンから報告された場合は、この値を増やしてください。ただし、値を大きくすると、より多くのメモリが確保されます。
 form.label.project.sound.max_sound_buffers = 最大サウンドバッファ
 form.help.project.sound.max_sound_buffers = **OpenAL** サウンドバックエンドで使用されるバッファリング用バジェットです。OpenAL は、**最大サウンドソース数**の2倍未満の値を、自動的にその最小値まで引き上げます。値を大きくすると、キューに入れられる音声データやメモリ使用量が増加します。なお、他のバックエンドではこの設定は無視されます。
-form.label.project.sound.max_sound_sources = 最大サウンドリソース
 form.help.project.sound.max_sound_sources = **OpenAL** バックエンドが同時に出力できる最大音声数です。すべてのソースが使用中の状態で新たな音声を再生しようとすると失敗します。また、値を大きくすると、より多くのバッファとメモリが必要になります。他の音声バックエンドでは、この設定は無視されます。
 form.label.project.sound.max_sound_instances = 最大サウンドインスタンス数
 form.help.project.sound.max_sound_instances = 同時に存在できるサウンドインスタンスもしくはボイスの最大数です。サウンドを開始する呼び出しごとにインスタンスが生成され、上限に達すると再生は失敗します。値を大きくすると、より多くのメモリが確保されます。
@@ -2343,11 +2357,11 @@ form.help.project.physics.ray_cast_limit_2d = **2D**物理演算を使用する�
 form.label.project.physics.ray_cast_limit_3d = 3Dレイキャスト制限
 form.help.project.physics.ray_cast_limit_3d = **3D** 物理演算を使用する際、物理ワールドおよびフレームごとにキューに入れられる非同期レイキャストリクエストの最大数です。制限を超えるリクエストは無視されます。
 form.label.project.physics.trigger_overlap_capacity = トリガー重複許容量
-form.help.project.physics.trigger_overlap_capacity = 入力と終了メッセージの物理オブジェクトごとにトラッキングされる最大同時トリガー重複数。これを超えるオーバーラップはトラッキングされず、警告が発生します。
+form.help.project.physics.trigger_overlap_capacity = トリガーへの進入・退出を通知するために、物理オブジェクトごとに追跡する同時オーバーラップの最大数です。上限を超えたオーバーラップは追跡されず、警告が出力されます。
 form.label.project.physics.velocity_threshold = 速度しきい値
 form.help.project.physics.velocity_threshold = **2D**の物体が跳ね返らず、非弾性として扱われる相対衝突速度のしきい値です。この値を大きくすると、細かくガタつくような跳ね返りを抑えることができます。
 form.label.project.physics.max_fixed_timesteps = 最大固定タイムステップ数
-form.help.project.physics.max_fixed_timesteps = 1回の更新における弾丸 3Dシミュレーションの最大サブステップ数です。これにより、処理の遅いフレームの後に発生する「追いつき処理」が制限されるほか、**固定タイムステップを使用**が無効な場合の弾丸の動作にも影響します。
+form.help.project.physics.max_fixed_timesteps = 1回の更新におけるBulletの3Dシミュレーションの最大サブステップ数です。処理の遅いフレームの後に行われる「追いつき処理」を制限します。また、**固定タイムステップを使用**が無効な場合のBulletの動作にも影響します。
 
 form.label.project.profiler = プロファイラ
 form.help.project.profiler = ランタイムプロファイラ関連設定
