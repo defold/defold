@@ -1277,7 +1277,6 @@ property.atlas.extrude-borders = Expansión de bordes
 property.atlas.extrude-borders.tooltip = El número de veces que los píxeles de borde de cada imagen se copian hacia afuera. Esto evita que las imágenes vecinas sangren en la imagen cuando un shader muestrea cerca de su borde.
 property.atlas.max-page-width = Ancho de página máximo
 property.atlas.max-page-height = Alto de página máximo
-property.atlas.max-page-size = Tamaño de página
 property.atlas.max-page-size.tooltip = La anchura y altura máximas de cada página en un atlas de varias páginas. Establece ambos valores por encima de cero para habilitar la paginación; los componentes que usan el atlas deben usar un material de atlas paginado.
 property.atlas.rename-patterns = Renombrar patrones
 property.atlas.rename-patterns.tooltip = Patrones `search\=replace` separados por comas aplicados a cada nombre base de imagen. Por ejemplo, `hat\=cat,_normal\=` cambia `hat_normal` a `cat`; los nombres coincidentes son útiles cuando los fotogramas corresponden a múltiples atlas.
