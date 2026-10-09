@@ -2161,8 +2161,10 @@ public class Project implements AutoCloseable {
             // Collect declared flags before execution, including for skipped and cached tasks.
             outputs.clear();
             for (Task task : getTasks()) {
-                for (IResource res : task.getOutputs()) {
-                    outputs.put(res.getAbsPath(), task.getOutputFlags(res));
+                List<IResource> taskOutputs = task.getOutputs();
+                for (int outputIndex = 0; outputIndex < taskOutputs.size(); ++outputIndex) {
+                    IResource res = taskOutputs.get(outputIndex);
+                    outputs.put(res.getAbsPath(), task.getOutputFlags(outputIndex));
                 }
             }
 

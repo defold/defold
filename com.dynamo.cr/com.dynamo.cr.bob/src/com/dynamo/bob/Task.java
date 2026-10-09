@@ -18,13 +18,12 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import com.dynamo.bob.fs.IResource;
@@ -40,10 +39,29 @@ public class Task {
         ENCRYPTED
     }
 
+    private static final OutputFlags[] OUTPUT_FLAG_VALUES = OutputFlags.values();
+    private static final List<Set<OutputFlags>> OUTPUT_FLAG_SETS = createOutputFlagSets();
+
+    private static List<Set<OutputFlags>> createOutputFlagSets() {
+        int combinations = 1 << OUTPUT_FLAG_VALUES.length;
+        List<Set<OutputFlags>> flagSets = new ArrayList<>(combinations);
+        for (int mask = 0; mask < combinations; ++mask) {
+            EnumSet<OutputFlags> flags = EnumSet.noneOf(OutputFlags.class);
+            for (OutputFlags flag : OUTPUT_FLAG_VALUES) {
+                if ((mask & (1 << flag.ordinal())) != 0) {
+                    flags.add(flag);
+                }
+            }
+            flagSets.add(Collections.unmodifiableSet(flags));
+        }
+        return Collections.unmodifiableList(flagSets);
+    }
+
     private String name;
     private final List<IResource> inputs = new ArrayList<IResource>();
     private final List<IResource> outputs = new ArrayList<IResource>();
-    private final Map<IResource, Set<OutputFlags>> outputFlags = new HashMap<>();
+    // Each output has one bit per enum value; unflagged tasks need no bit set.
+    private BitSet outputFlags;
     private final List<String> extraCacheKeys = new ArrayList<String>();
     private Task productOf;
 
@@ -79,17 +97,26 @@ public class Task {
         }
 
         public TaskBuilder<T> addOutput(IResource output) {
-            return addOutput(output, new OutputFlags[0]);
-        }
-
-        public TaskBuilder<T> addOutput(IResource output, OutputFlags... flags) {
             if (!output.isOutput()) {
                 throw new IllegalArgumentException(String.format("Resource '%s' is not an output resource", output));
             }
             task.outputs.add(output);
-            EnumSet<OutputFlags> outputFlags = EnumSet.noneOf(OutputFlags.class);
-            Collections.addAll(outputFlags, flags);
-            task.outputFlags.put(output, Collections.unmodifiableSet(outputFlags));
+            return this;
+        }
+
+        public TaskBuilder<T> addOutput(IResource output, OutputFlags flag) {
+            int outputIndex = task.outputs.size();
+            addOutput(output);
+            task.setOutputFlag(outputIndex, flag);
+            return this;
+        }
+
+        public TaskBuilder<T> addOutput(IResource output, OutputFlags... flags) {
+            int outputIndex = task.outputs.size();
+            addOutput(output);
+            for (OutputFlags flag : flags) {
+                task.setOutputFlag(outputIndex, flag);
+            }
             return this;
         }
 
@@ -151,12 +178,40 @@ public class Task {
         return Collections.unmodifiableList(outputs);
     }
 
+    private void setOutputFlag(int outputIndex, OutputFlags flag) {
+        if (outputFlags == null) {
+            outputFlags = new BitSet();
+        }
+        outputFlags.set(outputIndex * OUTPUT_FLAG_VALUES.length + flag.ordinal());
+    }
+
+    /**
+     * Get the archive flags declared for an output index.
+     * @return immutable flags, or null if the index is outside this task's outputs
+     */
+    public Set<OutputFlags> getOutputFlags(int outputIndex) {
+        if (outputIndex < 0 || outputIndex >= outputs.size()) {
+            return null;
+        }
+        int mask = 0;
+        if (outputFlags != null) {
+            int offset = outputIndex * OUTPUT_FLAG_VALUES.length;
+            for (int flagIndex = 0; flagIndex < OUTPUT_FLAG_VALUES.length; ++flagIndex) {
+                if (outputFlags.get(offset + flagIndex)) {
+                    mask |= 1 << flagIndex;
+                }
+            }
+        }
+        return OUTPUT_FLAG_SETS.get(mask);
+    }
+
     /**
      * Get the archive flags declared for an output resource.
      * @return immutable flags, or null if the resource is not an output of this task
      */
     public Set<OutputFlags> getOutputFlags(IResource output) {
-        return outputFlags.get(output);
+        // Match the previous map's behavior when an equal output is added again.
+        return getOutputFlags(outputs.lastIndexOf(output));
     }
 
     public String getOutputsString() {
