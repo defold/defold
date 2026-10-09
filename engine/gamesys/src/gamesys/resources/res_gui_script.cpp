@@ -36,7 +36,7 @@ namespace dmGameSystem
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
 
         dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
 
@@ -58,7 +58,7 @@ namespace dmGameSystem
         if (!dmGameObject::RegisterSubModules(params->m_Factory, gui_context->m_ScriptContext, lua_module))
         {
             dmDDF::FreeMessage(lua_module);
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_LUA_ERROR;
         }
 
         dmGui::HScript script = dmGui::NewScript(gui_context->m_GuiContext);
@@ -73,7 +73,7 @@ namespace dmGameSystem
         else
         {
             dmDDF::FreeMessage(lua_module);
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_SCRIPT_CREATION_ERROR;
         }
     }
 
@@ -92,7 +92,7 @@ namespace dmGameSystem
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK ) {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
@@ -156,4 +156,3 @@ namespace dmGameSystem
 }
 
 DM_DECLARE_RESOURCE_TYPE(ResourceTypeGuiScript, "gui_scriptc", dmGameSystem::ResourceTypeGuiScript_Register, dmGameSystem::ResourceTypeGuiScript_Unregister);
-

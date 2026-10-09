@@ -45,7 +45,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_Skeleton_DESCRIPTOR, (void**) &skeleton);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         *params->m_PreloadData = skeleton;
@@ -75,7 +75,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_Skeleton_DESCRIPTOR, (void**) &spine_scene);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         SkeletonResource* ss_resource = (SkeletonResource*)dmResource::GetResource(params->m_Resource);

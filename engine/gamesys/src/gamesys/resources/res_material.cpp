@@ -261,7 +261,7 @@ namespace dmGameSystem
 
             if (!material)
             {
-                return dmResource::RESULT_DDF_ERROR;
+                return dmResource::RESULT_PROTOBUF_ERROR;
             }
 
             MaterialResource* resource = new MaterialResource;
@@ -305,7 +305,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::MaterialDesc>(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         if (!ValidateFormat(ddf))
         {
@@ -325,7 +325,7 @@ namespace dmGameSystem
             dmRender::HMaterial material = CreateAndInitializeRenderMaterial(params->m_Factory, render_context, resources, ddf);
             if (!material)
             {
-                return dmResource::RESULT_DDF_ERROR;
+                return dmResource::RESULT_PROTOBUF_ERROR;
             }
 
             resource->m_Material = material;
@@ -341,7 +341,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::MaterialDesc>(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         if (!ValidateFormat(ddf))
         {

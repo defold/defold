@@ -41,7 +41,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         *params->m_PreloadData = ddf;
@@ -237,7 +237,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         BufferResource* buffer_resource = (BufferResource*)ResourceDescriptorGetResource(params->m_Resource);
         ReleaseResources(params->m_Factory, buffer_resource);
