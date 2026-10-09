@@ -1266,7 +1266,8 @@
                      (when (< index item-count)
                        (aset results index (f (items index)))
                        (recur)))))))
-           ;; Keep dotimes in statement position to avoid a compiler-generated function.
+           ;; Keep dotimes in statement position to avoid a compiler-generated
+           ;; function.
            nil)
          (LazilyPersistentVector/createOwning results)))))
   ([f coll & colls]
@@ -1299,7 +1300,8 @@
                             (finally
                               (.release budget))))
                         (aset results index (visit child-node)))))
-                  ;; Keep dotimes in statement position to avoid a compiler-generated function.
+                  ;; Keep dotimes in statement position to avoid a
+                  ;; compiler-generated function.
                   nil)
                 (LazilyPersistentVector/createOwning results)))
             (visit [node]

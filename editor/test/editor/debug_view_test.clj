@@ -57,7 +57,8 @@
       (recur))))
 
 ;; Start and replacement convert enabled editor breakpoints to DAP lines and
-;; conditions; invalidation refreshes the selected frame, and detach closes the session.
+;; conditions; invalidation refreshes the selected frame, and detach closes the
+;; session.
 (deftest debugger-session-lifecycle-test
   (test-support/with-clean-system
     (let [workspace (workspace/make-workspace "test/resources/empty_project" {} {} nil)
@@ -190,7 +191,8 @@
                   (let [target {:address "127.0.0.1" :debugger-port port}
                         operations
                         ;; Both actions run in one FX invocation, so the earlier
-                        ;; replacement cannot run its queued connection callback yet.
+                        ;; replacement cannot run its queued connection callback
+                        ;; yet.
                         (ui/run-now
                           (let [first-start (debug-view/start-debugger! view project target false)]
                             [first-start
@@ -220,8 +222,8 @@
                           (dap/close! session))))))
                 (finally (dap/close! old-session))))))))))
 
-;; Prompt evaluation uses the selected frame during selection notifications,
-;; and the public console stream contains the evaluated table's formatted result.
+;; Prompt evaluation uses the selected frame during selection notifications, and
+;; the public console stream contains the evaluated table's formatted result.
 (deftest table-evaluation-prompt-test
   (test-support/with-clean-system
     (console/clear-console!)
@@ -296,7 +298,8 @@
     (is (= :running (dap/status session)))))
 
 ;; Execute the shipped Lua scripts to verify per-instance ports and remote
-;; binding, and ensure discovery reports the returned port of an existing listener.
+;; binding, and ensure discovery reports the returned port of an existing
+;; listener.
 (deftest attach-startup-script-test
   (doseq [[filename expected-address] [["start.lua" "nil"]
                                        ["start_remote.lua" "0.0.0.0"]]]

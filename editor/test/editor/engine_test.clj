@@ -85,7 +85,8 @@
             (finally (.destroyForcibly ^Process process)))))
       (finally (fs/delete-directory! directory)))))
 
-;; Real HTTP reboot requests preserve debugger, instance, focus and final project arguments.
+;; Real HTTP reboot requests preserve debugger, instance, focus and final
+;; project arguments.
 (deftest debug-reboot-test
   (let [requests (LinkedBlockingQueue.)
         server (HttpServer/create (InetSocketAddress. "127.0.0.1" 0) 0)]

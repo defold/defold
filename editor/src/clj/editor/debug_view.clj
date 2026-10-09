@@ -224,8 +224,11 @@
                 output (dap/evaluation-result->string debug-session snapshot result)]
             (doseq [line (string/split-lines output)]
               (console/append-console-entry! :eval-result line)))
-          (catch Exception exception
-            (console/append-console-entry! :eval-error (sanitize-eval-error (ex-message exception)))))))))
+          (catch Throwable e
+            (console/append-console-entry! :eval-error
+                                           (sanitize-eval-error
+                                             (or (ex-message e)
+                                                 (.getSimpleName (class e)))))))))))
 
 (defn- setup-tool-bar!
   [^Parent console-tool-bar localization]
@@ -353,7 +356,7 @@
     (setup-prompt-field! debug-view debugger-prompt-field))
 
   (ui/observe-selection call-stack-view
-                        (fn [_ selected-frames]
+                        (fn on-call-stack-selection-changed [_ selected-frames]
                           (let [{:keys [file line]} (single selected-frames)]
                             (when (and file line (pos? (long line)))
                               (let [open-resource-fn (g/node-value debug-view :open-resource-fn)]
@@ -406,7 +409,7 @@
   (let [snapshot (volatile! nil)]
     (ui/->timer
       4 "debugger-update-timer"
-      (fn [_timer _ _]
+      (fn on-update-timer [_timer _ _]
         (when-not (ui/ui-disabled?)
           (when-let [debug-session (g/node-value debug-view :debug-session)]
             (let [breakpoints (collect-enabled-breakpoints project)
@@ -466,17 +469,17 @@
 (defn- make-debugger-callbacks
   [debug-view]
   {:on-connected
-   (fn [debug-session _snapshot]
+   (fn on-connected [debug-session _snapshot]
      (when (identical? debug-session (g/node-value debug-view :debug-session))
        (state-changed! debug-view true)))
 
    :on-suspended
-   (fn [debug-session snapshot _event]
+   (fn on-suspended [debug-session snapshot _event]
      (update-suspension-state! debug-view debug-session
                                (dap/suspension snapshot)))
 
    :on-resumed
-   (fn [debug-session _snapshot]
+   (fn on-resumed [debug-session _snapshot]
      (when (and (identical? debug-session (g/node-value debug-view :debug-session))
                 (= :running (dap/status debug-session)))
        (g/transact
@@ -485,17 +488,17 @@
        (state-changed! debug-view false)))
 
    :on-invalidated
-   (fn [debug-session _snapshot _event]
+   (fn on-invalidated [debug-session _snapshot _event]
      (when (identical? debug-session (g/node-value debug-view :debug-session))
        (load-frame-variables! debug-view)))
 
    :on-output
-   (fn [_debug-session _snapshot {:keys [output category]}]
+   (fn on-output [_debug-session _snapshot {:keys [output category]}]
      (doseq [line (string/split-lines output)]
        (console/append-console-entry! (if (= "stderr" category) :eval-error :eval-result) line)))
 
    :on-closed
-   (fn [debug-session _snapshot]
+   (fn on-closed [debug-session _snapshot]
      ;; A late close from an old connection must not clear a new one.
      (when (identical? debug-session (g/node-value debug-view :debug-session))
        (g/transact
@@ -522,7 +525,7 @@
   [debug-view project target stop-on-entry]
   (let [workspace (project/workspace project)
         resolve-port
-        (fn []
+        (fn resolve-port []
           (let [target (latest-target target)]
             (or (:debugger-port target)
                 (when (targets/remote-target? target)
@@ -535,7 +538,7 @@
                       :target target
                       :stop-on-entry stop-on-entry
                       :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))
-                      :on-error (fn [session _snapshot exception]
+                      :on-error (fn on-error [session _snapshot exception]
                                   (when (identical? session (g/node-value debug-view :debug-session))
                                     (show-connect-failed-info! exception workspace)))
                       (make-debugger-callbacks debug-view))]
@@ -646,7 +649,8 @@
         (g/set-property debug-view :pending-debugger-start nil))
       (when-let [debug-session (current-session debug-view)]
         (future/io
-          ;; A pending replacement already closes this session; just wait for it.
+          ;; A pending replacement already closes this session; just wait for
+          ;; it.
           (if pending-start
             (dap/close! debug-session)
             (dap/disconnect! debug-session)))))))

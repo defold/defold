@@ -116,6 +116,6 @@
   `(let [^StructuredTaskScope scope# ~'task-scope#]
      (.fork scope#
             ^Callable
-            (fn []
+            (fn run-task# []
               (Var/resetThreadBindingFrame ~'task-binding-frame#)
               ~@body))))

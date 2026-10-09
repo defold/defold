@@ -95,5 +95,7 @@
                              editor.defold-project/get-project
                              {:arities #{2}
                               :message "The two-argument get-project arity is deprecated."}}
+           :line-length {:max-line-length 80
+                         :exclude-pattern "^(?!\\s*;)|^\\s*;+ (?:Licensed under the Defold License version 1\\.0 \\(the \"License\"\\); you may not use|Unless required by applicable law or agreed to in writing, software distributed)\\s*$"}
            :refer-all {:exclude [clojure.test]}}
  :config-in-ns {editor.gl.translate-test {:linters {:inline-def {:level :off}}}}}

@@ -125,7 +125,8 @@
                (not focus)
                (conj "--config=display.focus_on_show=0")
 
-               ;; The engine recognizes a project file only as the final argument.
+               ;; The engine recognizes a project file only as the final
+               ;; argument.
                true
                (conj (str local-url "/game.projectc")))]
     (try
@@ -206,7 +207,7 @@
               :address loopback-address})
            (when-let [[_ port] (re-find #"Lua DAP debugger (?:listening on [^\s]+:|port: )(\d+)" output)]
              (let [port (parse-long port)]
-               (when (and port (<= 1 port 65535))
+               (when (and port (<= 1 (long port) 65535))
                  {:debugger-port port}))))))
 
 ;; Parse a line from engine output to extract engine version info.

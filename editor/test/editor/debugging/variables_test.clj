@@ -107,7 +107,8 @@
         [_ snapshot] (if (= :continued (first event)) (dap-util/take-event! events) event)]
     (ui/run-now (variables/show-frame! view session snapshot frame-id))))
 
-;; Session notifications preserve the control and loaded rows; replacement displays the new session's values.
+;; Session notifications preserve the control and loaded rows; replacement
+;; displays the new session's values.
 (deftest session-subscription-lifecycle-test
   (let [loads (atom 0)]
     (with-view
@@ -142,7 +143,8 @@
             (is (nil? (item-at view ["old"])))
             (is (= "value" (:value (.getValue (item-at view ["new"])))))))))))
 
-;; A load can finish before resume but render afterwards; a real continued event must prevent stale selection restoration.
+;; A load can finish before resume but render afterwards; a real continued event
+;; must prevent stale selection restoration.
 (deftest resumed-session-does-not-restore-selection-test
   (with-view
     (fn [_ _ frame-id] [(variable "self" (str frame-id) 0)])
@@ -163,7 +165,8 @@
     (ui/run-now
       (is (coll/empty? (ui/selection view))))))
 
-;; Clearing removes stale values; same-frame refreshes preserve expansion and selection.
+;; Clearing removes stale values; same-frame refreshes preserve expansion and
+;; selection.
 (deftest frame-refresh-test
   (let [loads (atom 0)]
     (with-view
@@ -187,7 +190,8 @@
           (is (= "child" (:name (first (ui/selection view)))))))
       (is (= 3 @loads)))))
 
-;; A coalesced same-frame refresh must keep expansion working without rendering the cleared tree.
+;; A coalesced same-frame refresh must keep expansion working without rendering
+;; the cleared tree.
 (deftest unchanged-frame-refresh-test
   (let [root-requests (atom 0)]
     (with-view
@@ -206,7 +210,8 @@
       (is (= 2 @root-requests))
       (ui/run-now (is (= "value" (:value (.getValue (item-at view ["self" "child"])))))))))
 
-;; Expansion before rendering resolves the displayed item's intent against the refreshed frame.
+;; Expansion before rendering resolves the displayed item's intent against the
+;; refreshed frame.
 (deftest current-reference-expansion-test
   (let [child-request (promise)]
     (with-view
@@ -227,7 +232,8 @@
         (dap-util/await-ui! view #(item-at view ["self" "child"]))
         (ui/run-now (is (= "current" (:value (.getValue (item-at view ["self" "child"]))))))))))
 
-;; Stale displayed tables must not save expansion after becoming scalar, absent, or cleared.
+;; Stale displayed tables must not save expansion after becoming scalar, absent,
+;; or cleared.
 (deftest stale-item-expansion-test
   (doseq [shape [:scalar :absent :cleared]]
     (let [child-requests (atom [])]
@@ -250,7 +256,8 @@
         (ui/run-now (is (not (.isExpanded (item-at view ["self"])))))
         (is (= [] @child-requests))))))
 
-;; Recursive Alt expansion must not fetch reference zero or save expansion paths for scalar leaves.
+;; Recursive Alt expansion must not fetch reference zero or save expansion paths
+;; for scalar leaves.
 (deftest recursive-expansion-skips-leaves-test
   (let [variable-requests (atom [])]
     (with-view
@@ -278,7 +285,8 @@
       (ui/run-now (is (not (.isExpanded (item-at view ["self" "scalar"])))))
       (is (= {1 1, 2 2, 3 1} (frequencies @variable-requests))))))
 
-;; Opened paths reload new references and values across stops; collapsed branches stay closed.
+;; Opened paths reload new references and values across stops; collapsed
+;; branches stay closed.
 (deftest restore-expanded-paths-test
   (let [variable-requests (atom [])]
     (with-view
@@ -328,7 +336,8 @@
       (ui/run-now (is (not (.isExpanded (item-at view ["self" "nested"])))))
       (is (= {[3 301] 2 [3 303] 1} (frequencies @variable-requests))))))
 
-;; Saved expansion survives a table becoming scalar or absent without fetching its children.
+;; Saved expansion survives a table becoming scalar or absent without fetching
+;; its children.
 (deftest changing-variable-shapes-test
   (let [variable-requests (atom [])]
     (with-view
@@ -354,7 +363,8 @@
       (ui/run-now (is (= "4" (:value (.getValue (item-at view ["self" "value"]))))))
       (is (= [1 4] @variable-requests)))))
 
-;; A completed old frame refresh cannot overwrite another frame in the same suspension.
+;; A completed old frame refresh cannot overwrite another frame in the same
+;; suspension.
 (deftest stale-frame-response-test
   (let [pending (promise)]
     (with-view
@@ -377,7 +387,8 @@
                                (.getChildren (.getRoot view)))))
           (is (= "2" (:value (.getValue (item-at view ["new"]))))))))))
 
-;; Render the scene offscreen so JavaFX supplies cell geometry without showing a window.
+;; Render the scene offscreen so JavaFX supplies cell geometry without showing a
+;; window.
 (defn- render-view! [^TreeView view]
   (.snapshot (.getScene view) nil))
 
@@ -399,7 +410,8 @@
         row
         (.getIndex ^TreeCell (.getLastVisibleCell flow)))))
 
-;; Reusing the variables view for a new session must reset expansion, selection, and scroll position.
+;; Reusing the variables view for a new session must reset expansion, selection,
+;; and scroll position.
 (deftest new-session-resets-tree-state-test
   (let [variable-requests (atom [])]
     (with-view
@@ -447,7 +459,8 @@
           (is (= "self" (:name (viewport view)))))
         (is (= [10001] @variable-requests))))))
 
-;; A coalesced session change must discard native selection even when the new rows have equal values.
+;; A coalesced session change must discard native selection even when the new
+;; rows have equal values.
 (deftest coalesced-session-change-test
   (with-view
     (fn [_ _ _] [(variable "value" "same" 0)])
@@ -477,7 +490,8 @@
             (is (coll/empty? (ui/selection view)))
             (is (= "same" (:value (.getValue (item-at view ["value"])))))))))))
 
-;; Declarative setup preserves the skin across refreshes and forwards Space to editor shortcuts.
+;; Declarative setup preserves the skin across refreshes and forwards Space to
+;; editor shortcuts.
 (deftest skin-and-space-shortcut-test
   (let [space-presses (atom 0)]
     (with-view
@@ -500,7 +514,8 @@
             (is (= "value" (:name (first (ui/selection view))))))
           (is (= generation @space-presses)))))))
 
-;; Focus-only keyboard navigation survives rendering and load completion without reselecting the saved item.
+;; Focus-only keyboard navigation survives rendering and load completion without
+;; reselecting the saved item.
 (deftest keyboard-focus-survives-loading-test
   (let [pending (promise)]
     (with-view
@@ -531,7 +546,8 @@
         (ui/run-now
           (is (= "child" (:name (.getValue ^TreeItem (.getFocusedItem (.getFocusModel view)))))))))))
 
-;; A real rejected request is reported through the console stream and retries only on explicit expansion.
+;; A real rejected request is reported through the console stream and retries
+;; only on explicit expansion.
 (deftest failed-child-load-can-retry-test
   (test-support/with-clean-system
     (console/clear-console!)
@@ -585,7 +601,8 @@
           (.join stream)
           (console/clear-console!))))))
 
-;; Collapsing a table while children load must keep it closed and avoid restoring it at the next stop.
+;; Collapsing a table while children load must keep it closed and avoid
+;; restoring it at the next stop.
 (deftest collapse-during-load-test
   (let [pending (promise)
         child-requests (atom [])]
@@ -612,7 +629,8 @@
       (dap-util/await-ui! view #(item-at view ["self" "child"]))
       (is (= [1 2] @child-requests)))))
 
-;; Clearing selection with the keyboard survives a pending wire response and the next stop.
+;; Clearing selection with the keyboard survives a pending wire response and the
+;; next stop.
 (deftest cleared-selection-survives-loading-test
   (let [pending (promise)]
     (with-view
@@ -641,7 +659,8 @@
         (dap-util/await-ui! view #(= "2" (some-> (item-at view ["self" "child"]) .getValue :value)))
         (ui/run-now (is (coll/empty? (ui/selection view))))))))
 
-;; Repeated clears of an empty tree must preserve the pending scroll position for the next refresh.
+;; Repeated clears of an empty tree must preserve the pending scroll position
+;; for the next refresh.
 (deftest repeated-clear-preserves-scroll-position-test
   (with-view
     (fn [_ _ frame-id] (mapv #(variable (str "field-" %) (str frame-id) 0) (range 80)))
@@ -663,7 +682,8 @@
       (ui/run-now
         (is (= row (:row (viewport view))))))))
 
-;; Navigation before queued advancement must cancel restoration even when the callback has old state.
+;; Navigation before queued advancement must cancel restoration even when the
+;; callback has old state.
 (deftest navigation-before-refresh-render-cancels-scroll-restoration-test
   (let [pending (promise)
         values (fn [frame-id] (mapv #(variable (str "field-" %) (str frame-id) 0) (range 80)))]
@@ -713,7 +733,8 @@
         (is (= 40 (:row after)))
         (is (= "2-field-40" (:name after)))))))
 
-;; Restoring a scrolled tree after it shrinks must leave its remaining rows visible.
+;; Restoring a scrolled tree after it shrinks must leave its remaining rows
+;; visible.
 (deftest shrinking-tree-restores-scroll-position-test
   (with-view
     (fn [_ _ frame-id]
@@ -733,7 +754,8 @@
       (is (nil? (item-at view ["field-40"])))
       (is (item-visible? view (item-at view ["remaining"]))))))
 
-;; Refresh retains the first visible row after insertion; navigation overrides delayed restoration.
+;; Refresh retains the first visible row after insertion; navigation overrides
+;; delayed restoration.
 (deftest restore-scroll-position-test
   (let [pending (promise)
         values (fn [generation]

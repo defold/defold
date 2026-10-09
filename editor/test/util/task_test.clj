@@ -36,8 +36,9 @@
 (defonce/interface CloseMethod
   (^void close []))
 
-;; Objects with a close method need not implement AutoCloseable, guarding against
-;; a forced interface cast rejecting values accepted by clojure.core/with-open.
+;; Objects with a close method need not implement AutoCloseable, guarding
+;; against a forced interface cast rejecting values accepted by
+;; clojure.core/with-open.
 (deftest with-open-close-method-test
   (let [closed (atom 0)
         value (reify CloseMethod
@@ -79,8 +80,9 @@
     (is (= [close-error] (vec (.getSuppressed ^Throwable outcome))))
     (is (= [:first] @closed))))
 
-;; Every resource closes despite cleanup failures; a body failure remains primary,
-;; otherwise the first cleanup failure remains primary and later ones are suppressed.
+;; Every resource closes despite cleanup failures; a body failure remains
+;; primary, otherwise the first cleanup failure remains primary and later ones
+;; are suppressed.
 (deftest with-open-close-failures-test
   (doseq [body-fails [false true]]
     (let [closed (atom [])
@@ -109,8 +111,8 @@
 (defn- results [subtasks]
   (mapv #(.get ^StructuredTaskScope$Subtask %) subtasks))
 
-;; All children run concurrently on virtual threads, and the returned body
-;; value is available only after its children have completed, including nil/false.
+;; All children run concurrently on virtual threads, and the returned body value
+;; is available only after its children have completed, including nil/false.
 (deftest all-successful-test
   (let [started (CountDownLatch. 3)
         owner (Thread/currentThread)]
@@ -180,8 +182,9 @@
                       value))]))))
       (is (= :outer *binding-value*)))))
 
-;; Child failure propagates unchanged only after cancelled siblings finish cleanup.
-;; Holding cleanup catches scopes that interrupt their children but return early.
+;; Child failure propagates unchanged only after cancelled siblings finish
+;; cleanup. Holding cleanup catches scopes that interrupt their children but
+;; return early.
 (deftest child-failure-joins-cleanup-test
   (doseq [policy [:all-successful :first-completed]]
     (let [exception (ex-info "child failure" {})

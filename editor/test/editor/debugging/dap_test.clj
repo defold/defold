@@ -28,7 +28,8 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-;; Watches expose real debugger state changes, ignore transport-only traffic, and stop notifying after removal.
+;; Watches expose real debugger state changes, ignore transport-only traffic,
+;; and stop notifying after removal.
 (deftest session-watches-test
   (dap-util/with-adapter
     "/project"
@@ -77,7 +78,8 @@
     (is (= [:output {:output "héj 🦊"}] (dap-util/take-event! events)))
     (is (= [:output {:output "next"}] (dap-util/take-event! events)))))
 
-;; Initialization configures breakpoints; edits replace sources and detach preserves the debuggee.
+;; Initialization configures breakpoints; edits replace sources and detach
+;; preserves the debuggee.
 (deftest configuration-and-breakpoints-test
   (dap-util/with-adapter
     "/project"
@@ -111,7 +113,8 @@
     (dap/close! session)
     (is (nil? (.poll ^LinkedBlockingQueue events)))))
 
-;; Inspection and control use the current frame/thread and invalidate references on resume.
+;; Inspection and control use the current frame/thread and invalidate references
+;; on resume.
 (deftest inspection-and-control-test
   (dap-util/with-adapter
     "/project"
@@ -222,7 +225,8 @@
       (is (nil? (dap/suspension @session)))
       (is (nil? (dap/stack session nil))))))
 
-;; Table evaluation preserves nested contents and bounds shared/cyclic references.
+;; Table evaluation preserves nested contents and bounds shared/cyclic
+;; references.
 (deftest evaluation-result-contents-test
   (let [children {1 [{:name "[1]" :value "false" :variablesReference 0}
                      {:name "nested" :value "table: nested" :variablesReference 2}
@@ -257,7 +261,8 @@
         (is (= [1 2 3] (into [] (comp (filter #(= "variables" (:command %)))
                                       (map #(get-in % [:arguments :variablesReference]))) @requests)))))))
 
-;; Recursive result printing is bounded, and resume discards a partially loaded result.
+;; Recursive result printing is bounded, and resume discards a partially loaded
+;; result.
 (deftest evaluation-result-lifetime-test
   (doseq [resume [false true]]
     (dap-util/with-adapter
@@ -285,7 +290,8 @@
           (do (is (string/includes? output "child = table: 17"))
               (is (= (vec (range 1 17)) references))))))))
 
-;; Resume during stack, scopes or variables retrieval discards stale frame contents.
+;; Resume during stack, scopes or variables retrieval discards stale frame
+;; contents.
 (deftest stale-frame-variables-test
   (doseq [resume-command ["stackTrace" "scopes" "variables"]]
     (testing (str "Resume during " resume-command)
@@ -324,7 +330,8 @@
           (is (= [:continued] (dap-util/take-event! events)))
           (is (nil? (dap/suspension @session))))))))
 
-;; Concurrent evaluations correlate out-of-order replies; request failure leaves the session usable.
+;; Concurrent evaluations correlate out-of-order replies; request failure leaves
+;; the session usable.
 (deftest responses-and-disconnect-test
   (let [first-received (promise)]
     (dap-util/with-adapter
@@ -351,7 +358,8 @@
       (is (= [:closed] (dap-util/take-event! events)))
       (is (= :closed (dap/status session))))))
 
-;; A successful response immediately before EOF is delivered, including a nil body.
+;; A successful response immediately before EOF is delivered, including a nil
+;; body.
 (deftest response-before-eof-test
   (doseq [body [{:result "last response"} nil]]
     (dap-util/with-adapter
@@ -365,7 +373,8 @@
       (dap/close! session)
       (is (= :closed (dap/status session))))))
 
-;; UI callbacks can schedule public operations without blocking later notifications.
+;; UI callbacks can schedule public operations without blocking later
+;; notifications.
 (deftest callbacks-can-schedule-requests-test
   (let [result (future/make)
         second-output (promise)
@@ -390,7 +399,8 @@
       (is (dap-util/await! second-output))
       (is (= ["first" "second"] @order)))))
 
-;; Callbacks retain event snapshots and wire order even when events arrive together.
+;; Callbacks retain event snapshots and wire order even when events arrive
+;; together.
 (deftest callbacks-observe-event-state-test
   (let [observed (atom [])
         closed (promise)]
@@ -420,7 +430,8 @@
              @observed))
       (is (= :closed (dap/status session))))))
 
-;; An unanswered public request times out, closes the session and rejects subsequent work.
+;; An unanswered public request times out, closes the session and rejects
+;; subsequent work.
 (deftest request-timeout-closes-session-test
   (dap-util/with-adapter
     "/project"
@@ -434,7 +445,8 @@
     (is (= :closed (dap/status session)))
     (is (thrown? IOException (dap/evaluate! session nil "after-close")))))
 
-;; Malformed/truncated wire messages fail waiting requests and report an error rather than clean EOF.
+;; Malformed/truncated wire messages fail waiting requests and report an error
+;; rather than clean EOF.
 (deftest protocol-error-closes-session-test
   (doseq [fragment ["\r\n\r\n" "Content-Length: 2" "Content-Length: 4\r\n\r\n{}"
                     "Content-Length: 2\r\ncontent-length: 2\r\n\r\n{}"
@@ -483,7 +495,8 @@
       (let [[_ snapshot] (dap-util/take-event! events)]
         (is (= [expected] (mapv :file (dap/stack session snapshot))))))))
 
-;; Disconnect cancels pending port discovery without reporting a connection error.
+;; Disconnect cancels pending port discovery without reporting a connection
+;; error.
 (deftest connection-cancellation-test
   (let [closed (future/make)
         errors (atom [])
@@ -496,7 +509,8 @@
     (is (= :closed (dap/status session)))
     (is (= [] @errors))))
 
-;; A server disappearing during initialization reports attachment failure and closes the session.
+;; A server disappearing during initialization reports attachment failure and
+;; closes the session.
 (deftest handshake-disconnect-test
   (with-open [server (ServerSocket. 0 1 (InetAddress/getLoopbackAddress))]
     (let [adapter
@@ -517,7 +531,8 @@
           (dap/close! session)
           (dap-util/await! adapter))))))
 
-;; Closing a stalled handshake closes the socket and rejects concurrent evaluation.
+;; Closing a stalled handshake closes the socket and rejects concurrent
+;; evaluation.
 (deftest close-during-initialization-test
   (with-open [server (ServerSocket. 0 1 (InetAddress/getLoopbackAddress))]
     (let [initializing (promise)
@@ -537,7 +552,8 @@
         (dap-util/await! adapter)
         (finally (.close server) (dap-util/await! (future/io (dap/close! session))))))))
 
-;; Breakpoint edits during initialization reach the adapter; a stop during configuration stays suspended.
+;; Breakpoint edits during initialization reach the adapter; a stop during
+;; configuration stays suspended.
 (deftest breakpoint-edits-during-connection-test
   (with-open [server (ServerSocket. 0 1 (InetAddress/getLoopbackAddress))]
     (let [initializing (future/make)
@@ -601,7 +617,8 @@
           (future/complete! acknowledge true)
           (dap/close! session))))))
 
-;; Closing releases an outstanding evaluation, rejects later work and notifies once.
+;; Closing releases an outstanding evaluation, rejects later work and notifies
+;; once.
 (deftest close-settles-work-test
   (let [received (promise)]
     (dap-util/with-adapter
@@ -619,7 +636,8 @@
         (is (nil? (.poll ^LinkedBlockingQueue events)))
         (is (= :closed (dap/status session)))))))
 
-;; Pending breakpoint edits coalesce and a following evaluation observes completed synchronization.
+;; Pending breakpoint edits coalesce and a following evaluation observes
+;; completed synchronization.
 (deftest pending-breakpoint-edits-coalesce-test
   (let [started (promise)
         release (CountDownLatch. 1)]
@@ -642,7 +660,8 @@
                                      (map #(get-in % [:arguments :breakpoints 0 :line]))) @requests)))
       (is (= "evaluate" (:command (peek @requests)))))))
 
-;; Close rejects work immediately but waits for an interrupted resolver's cleanup.
+;; Close rejects work immediately but waits for an interrupted resolver's
+;; cleanup.
 (deftest close-joins-connection-test
   (let [started (promise)
         interrupted (promise)
@@ -681,7 +700,8 @@
         (.countDown release)
         (dap-util/await! (future/io (dap/close! session)))))))
 
-;; Closing interrupts an unanswered breakpoint workflow and rejects concurrent evaluation.
+;; Closing interrupts an unanswered breakpoint workflow and rejects concurrent
+;; evaluation.
 (deftest close-during-breakpoint-sync-test
   (let [started (promise)]
     (dap-util/with-adapter
@@ -699,8 +719,8 @@
         (is (coll/not-any? #(= "evaluate" (:command %)) @requests))
         (is (= [:closed] (dap-util/take-event! events)))))))
 
-;; A failed breakpoint synchronization reports the adapter error, closes the session,
-;; and rejects later evaluation instead of sending it to the adapter.
+;; A failed breakpoint synchronization reports the adapter error, closes the
+;; session, and rejects later evaluation instead of sending it to the adapter.
 (deftest breakpoint-failure-closes-session-test
   (let [started (promise)
         release (CountDownLatch. 1)]
@@ -724,7 +744,8 @@
       (is (thrown? IOException (dap/evaluate! session nil "after-failure")))
       (is (coll/not-any? #(= "evaluate" (:command %)) @requests)))))
 
-;; A UI callback can schedule background close without deadlocking transport cleanup.
+;; A UI callback can schedule background close without deadlocking transport
+;; cleanup.
 (deftest close-scheduled-from-callback-test
   (let [closed (promise)]
     (dap-util/with-adapter
@@ -752,7 +773,8 @@
         "/project"
         {:on-output (fn [_ _ _] (deliver notified true))}
         (fn [request _ out _]
-          ;; Queue the notification before the response releases the caller to close.
+          ;; Queue the notification before the response releases the caller to
+          ;; close.
           (dap-util/event! out "output" {:output "queued notification"})
           (dap-util/respond! out request {}))
         (ui/run-later

@@ -102,8 +102,8 @@
               {:key 2 :value :middle}]
              (into [] (coll/sort #(compare (:key %1) (:key %2)) items)))))))
 
-;; Verify projected ordering, stability, and reducible consumption.
-;; Guard against changing sort-by semantics when replacing sequence-based sorting.
+;; Verify projected ordering, stability, and reducible consumption. Guard
+;; against changing sort-by semantics when replacing sequence-based sorting.
 (deftest sort-by-test
   (testing "Sorts by projected keys and preserves equal-key order."
     (let [items [{:key 2 :value :middle}

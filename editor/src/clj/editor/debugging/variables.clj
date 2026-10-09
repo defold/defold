@@ -53,7 +53,8 @@
           path))
 
 (defn- decorate-variables [parent-path variables]
-  ;; Locals and upvalues can share names, so include their occurrence in the key.
+  ;; Locals and upvalues can share names, so include their occurrence in the
+  ;; key.
   (first
     (reduce (fn [[items occurrences] {:keys [name value] :as variable}]
               (let [occurrence (long (get occurrences name 0))]
@@ -97,7 +98,8 @@
                       :when (and (pos? (long variablesReference))
                                  (contains? expanded-paths path))]
                 (load-children! swap-state context path variablesReference)))
-            ;; Keep the parent pending until restored descendants have claimed their loads.
+            ;; Keep the parent pending until restored descendants have claimed
+            ;; their loads.
             (swap-state
               (fn [state]
                 (if-not (current-load? state context)
@@ -108,7 +110,8 @@
                           (fn [state]
                             (if-not (current-load? state context)
                               state
-                              ;; Keep failures expandable without automatically retrying them.
+                              ;; Keep failures expandable without automatically
+                              ;; retrying them.
                               (-> state
                                   (update :failed-paths conj path)
                                   (update :pending dissoc path)))))]
@@ -126,7 +129,7 @@
      :expanded (and table (contains? expanded-paths path))
 
      :on-expanded-changed
-     (fn [expanded]
+     (fn on-expanded-changed [expanded]
        (let [{:keys [context] :as state}
              (swap-state
                (fn [{:keys [context] :as state}]
@@ -150,7 +153,7 @@
 (def ^:private prop-restored-selection
   (fx/make-prop
     (fx.mutator/setter
-      (fn [^TreeView view selection]
+      (fn restore-selection! [^TreeView view selection]
         (let [selection-model (.getSelectionModel view)]
           (when-let [item (when selection (find-item (.getRoot view) selection))]
             (when-not (identical? item (.getSelectedItem selection-model))
@@ -160,7 +163,7 @@
 (def ^:private prop-restored-scroll-row
   (fx/make-prop
     (fx.mutator/setter
-      (fn [^TreeView view [swap-state scroll-row]]
+      (fn restore-scroll-row! [^TreeView view [swap-state scroll-row]]
         (when scroll-row
           (.scrollTo view (int (min (long scroll-row) (max 0 (dec (.getExpandedItemCount view))))))
           (swap-state dissoc :scroll-row))))
@@ -169,7 +172,7 @@
 (def ^:private prop-extended-tree-view-skin
   (fx/make-prop
     (fx.mutator/setter
-      (fn [^TreeView view enabled]
+      (fn set-extended-tree-view-skin! [^TreeView view enabled]
         (.setSkin view (when enabled (ExtendedTreeViewSkin. view)))))
     fx.lifecycle/scalar))
 
@@ -197,7 +200,7 @@
                 {prop-restored-selection (when ready selection)
                  prop-restored-scroll-row [(:swap-state props) (when ready scroll-row)]
                  :on-selected-item-changed
-                 (fn [^TreeItem item]
+                 (fn on-selected-item-changed [^TreeItem item]
                    ((:swap-state props) assoc :selection (some-> item .getValue :path)))})}]}
   [{:keys [state swap-state]}]
   {:fx/type fx.tree-view/lifecycle
@@ -207,7 +210,7 @@
    prop-extended-tree-view-skin true
 
    :event-filter
-   (fn [^Event event]
+   (fn on-tree-view-event [^Event event]
      (let [event-type (.getEventType event)]
        (when (contains? #{ScrollEvent/SCROLL MouseEvent/MOUSE_PRESSED KeyEvent/KEY_PRESSED} event-type)
          (swap-state dissoc :scroll-row))

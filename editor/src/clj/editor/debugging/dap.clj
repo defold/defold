@@ -65,7 +65,7 @@
   (deref [_] (:debugger @data))
   (addWatch [this key callback]
     (.addWatch data key
-               (fn [key _ old-data new-data]
+               (fn on-debugger-state-changed [key _ old-data new-data]
                  (let [old-state (:debugger old-data)
                        new-state (:debugger new-data)]
                    (when-not (identical? old-state new-state)
@@ -113,7 +113,7 @@
         (throw exception)))))
 
 (defn- request-operation [command arguments response]
-  (fn [{:keys [out next-seq] :as state}]
+  (fn write-request! [{:keys [out next-seq] :as state}]
     (let [id (inc (long next-seq))]
       (write-message! out {:seq id :type "request" :command command :arguments arguments})
       (-> state (assoc :next-seq id) (assoc-in [:pending id] response)))))
@@ -128,13 +128,14 @@
     (let [response (future/make)
           operation (request-operation command arguments response)]
       (.add coordinator-queue
-            (fn [{:keys [^LinkedBlockingQueue protocol-queue] :as state}]
+            (fn enqueue-protocol-request! [{:keys [^LinkedBlockingQueue protocol-queue] :as state}]
               (.add protocol-queue operation)
               state))
       response)
     (future/failed (IOException. "Debugger disconnected"))))
 
-;; External callers enqueue through the coordinator and wait on their own thread.
+;; External callers enqueue through the coordinator and wait on their own
+;; thread.
 (defn- request! [session command arguments]
   (await-response! session command (send-request! session command arguments)))
 
@@ -225,7 +226,7 @@
           (catch Throwable exception exception))]
     (when-not (.isInterrupted (Thread/currentThread))
       (.add protocol-queue
-            (fn [{:keys [session stop-requested]}]
+            (fn on-reader-closed [{:keys [session stop-requested]}]
               (when failure (throw failure))
               (if (= :connecting (status session))
                 (throw (IOException. "Debugger disconnected"))
@@ -292,7 +293,7 @@
         (protocol-request! state "configurationDone" {}))
       (await-response! session "attach" attach-response)
       (.add protocol-queue
-            (fn [{:keys [session] :as state}]
+            (fn on-initialized [{:keys [session] :as state}]
               (swap! (:data session) update :debugger
                      #(cond-> % (= :connecting (:status %)) (assoc :status :running)))
               (notify! state :on-connected)
@@ -327,7 +328,8 @@
     (let [in (BufferedInputStream. (.getInputStream socket))
           out (.getOutputStream socket)]
       (task/scope :all-successful
-        ;; Reader: read and parse socket messages, then queue protocol operations.
+        ;; Reader: read and parse socket messages, then queue protocol
+        ;; operations.
         (task/fork (read-messages! protocol-queue in))
 
         ;; Protocol: own socket writes, sequence numbers and pending responses.
