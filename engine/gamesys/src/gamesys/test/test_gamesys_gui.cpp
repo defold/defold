@@ -2563,6 +2563,125 @@ TEST_P(BoxRenderTest, BoxRender)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+// Defold #5400: end-to-end GUI material opt-in with a static, single-page
+// tilesource. These native golden checks are separate from the Python-only
+// geometry reference: they must pass through .gui material registration,
+// texture-set UV metadata and RenderBoxNodes in the engine.
+struct TiledSlice9GuiParams
+{
+    const char* m_GOPath;
+    uint32_t m_ExpectedVertices;
+    bool m_Tiled;
+};
+
+class TiledSlice9GuiTest : public GamesysTest<TiledSlice9GuiParams>
+{
+public:
+    const char* GetContentFolder() const override
+    {
+        return GamesysContentFolderFromResourcePath(GetParam().m_GOPath);
+    }
+};
+
+TEST_P(TiledSlice9GuiTest, StaticFrameTiledVersusStretch)
+{
+    const TiledSlice9GuiParams& p = GetParam();
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.m_GOPath,
+                                      dmHashString64("/go"), 0, Point3(0, 0, 0),
+                                      Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(m_Collection,
+                                                                        dmHashString64("guic"));
+    dmGameSystem::GuiWorld* gui_world = (dmGameSystem::GuiWorld*)dmGameObject::GetWorld(m_Collection,
+                                                                                        component_type_index);
+    ASSERT_NE((dmGameSystem::GuiWorld*)0, gui_world);
+    dmGui::SetSceneAdjustReference(gui_world->m_Components[0]->m_Scene,
+                                   dmGui::ADJUST_REFERENCE_DISABLED);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    // Original frame is 32x32 with 2px borders. A 64x48 target repeats
+    // ceil(60/28)=3 middle tiles on X, ceil(44/28)=2 on Y:
+    // (3+2)*(2+2)=20 quads * 6 vertices = 120. Stretch stays at 9*6=54.
+    ASSERT_EQ(p.m_ExpectedVertices, gui_world->m_ClientVertexBuffer.Size());
+
+    const dmGameSystem::BoxVertex* vertices = gui_world->m_ClientVertexBuffer.Begin();
+    ASSERT_NE((const dmGameSystem::BoxVertex*)0, vertices);
+    EXPECT_NEAR(-32.0f, vertices[0].m_Position[0], EPSILON);
+    EXPECT_NEAR(-24.0f, vertices[0].m_Position[1], EPSILON);
+    EXPECT_NEAR(0.0f,   vertices[0].m_UV[0], EPSILON);
+    EXPECT_NEAR(0.5f,   vertices[0].m_UV[1], EPSILON);
+
+    // Frozen lower-left corner, shared by both modes.
+    EXPECT_NEAR(-30.0f, vertices[1].m_Position[0], EPSILON);
+    EXPECT_NEAR(-24.0f, vertices[1].m_Position[1], EPSILON);
+    EXPECT_NEAR(0.03125f, vertices[1].m_UV[0], EPSILON);
+
+    if (p.m_Tiled)
+    {
+        // First full center-axis tile, followed by the final 4px clipped
+        // center-axis tile. These expected values depend on the packed 64px
+        // tilesource texture, not on atlas-global sampler wrap/repeat.
+        EXPECT_NEAR(-30.0f,   vertices[6].m_Position[0], EPSILON);
+        EXPECT_NEAR( -2.0f,   vertices[7].m_Position[0], EPSILON);
+        EXPECT_NEAR(0.46875f, vertices[7].m_UV[0], EPSILON);
+        EXPECT_NEAR( 26.0f,   vertices[18].m_Position[0], EPSILON);
+        EXPECT_NEAR( 30.0f,   vertices[19].m_Position[0], EPSILON);
+        EXPECT_NEAR(0.03125f, vertices[18].m_UV[0], EPSILON);
+        EXPECT_NEAR(0.09375f, vertices[19].m_UV[0], EPSILON);
+
+        // The left edge and center first Y tiles span 28px vertically;
+        // the next center Y tile is a 16px clipped repeat.
+        EXPECT_NEAR(-22.0f, vertices[30].m_Position[1], EPSILON);
+        EXPECT_NEAR(  6.0f, vertices[32].m_Position[1], EPSILON);
+        EXPECT_NEAR(-22.0f, vertices[42].m_Position[1], EPSILON);
+        EXPECT_NEAR(  6.0f, vertices[44].m_Position[1], EPSILON);
+        EXPECT_NEAR(  6.0f, vertices[60].m_Position[1], EPSILON);
+        EXPECT_NEAR( 22.0f, vertices[62].m_Position[1], EPSILON);
+    }
+    else
+    {
+        // Same physical dimensions and source texture: no material opt-in
+        // means nine stretched quads, not the tiled branch.
+        EXPECT_NEAR(30.0f, vertices[7].m_Position[0], EPSILON);
+        EXPECT_NEAR(0.46875f, vertices[7].m_UV[0], EPSILON);
+    }
+
+    for (uint32_t i = 0; i < p.m_ExpectedVertices; ++i)
+    {
+        EXPECT_NEAR(0.0f, vertices[i].m_PageIndex, EPSILON);
+        EXPECT_GE(vertices[i].m_UV[0], -EPSILON);
+        EXPECT_LE(vertices[i].m_UV[0], 0.5f + EPSILON);
+        EXPECT_GE(vertices[i].m_UV[1], 0.5f - EPSILON);
+        EXPECT_LE(vertices[i].m_UV[1], 1.0f + EPSILON);
+    }
+
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGraphics::Flip(m_GraphicsContext);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+const TiledSlice9GuiParams tiled_slice9_gui_params[] = {
+    { "/gui/render_box_tiled_test.goc", 120, true },
+    { "/gui/render_box_tiled_stretch_test.goc", 54, false },
+};
+INSTANTIATE_TEST_CASE_P(TiledSlice9Static, TiledSlice9GuiTest, jc_test_values_in(tiled_slice9_gui_params));
+
 /* Label */
 
 void AssertPointEquals(const Vector4& p, float x, float y)
