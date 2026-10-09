@@ -5275,7 +5275,12 @@ static void LogFrameBufferError(GLenum status)
 
     #undef DRAW_BUFFERS_FN
 
-        CHECK_GL_FRAMEBUFFER_ERROR;
+        // Framebuffer status queries can stall WebGL. Creation and attachment changes
+        // are checked separately; only verify ordinary binds when requested.
+        if (context->m_BaseContext.m_VerifyGraphicsCalls)
+        {
+            CHECK_GL_FRAMEBUFFER_ERROR;
+        }
     }
 
     static void OpenGLSetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)
