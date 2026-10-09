@@ -1617,12 +1617,12 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
       (doseq [attribute-name ["color" "tint_color" "tint-color"]]
         (testing attribute-name
           (g/set-property! material-node-id :attributes
-                           [{:name attribute-name
-                             :semantic-type :semantic-type-color
-                             :data-type :type-unsigned-byte
-                             :vector-type :vector-type-vec4
-                             :normalize true
-                             :values original-value}])
+            [{:name attribute-name
+              :semantic-type :semantic-type-color
+              :data-type :type-unsigned-byte
+              :vector-type :vector-type-vec4
+              :normalize true
+              :values original-value}])
           (let [ext-key (str "attribute_0_" (string/replace attribute-name \- \_))]
             (g/with-auto-evaluation-context ec
               (let [{:keys [rt]} (extensions/ext-state project ec)
