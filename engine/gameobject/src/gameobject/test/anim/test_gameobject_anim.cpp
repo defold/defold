@@ -15,6 +15,7 @@
 #include <jc_test/jc_test.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/easing.h>
@@ -403,7 +404,8 @@ protected:
         m_Type.m_GetPropertyFunction = GetRefreshProperty;
         m_Type.m_SetPropertyFunction = SetRefreshProperty;
         // Attach a test component to the empty resource prototype. Restore it before instance destruction.
-        m_Component = new dmGameObject::Prototype::Component(0, hash("refresh"), 0, &m_Type, 0,
+        m_Component = (dmGameObject::Prototype::Component*)malloc(sizeof(dmGameObject::Prototype::Component));
+        *m_Component = dmGameObject::Prototype::Component(0, hash("refresh"), 0, &m_Type, 0,
             dmVMath::Point3(0), dmVMath::Quat::identity(), dmVMath::Vector3(1));
         m_Prototype->m_Components = m_Component;
         m_Prototype->m_ComponentCount = 1;
@@ -413,7 +415,7 @@ protected:
     {
         m_Prototype->m_Components = m_SavedComponents;
         m_Prototype->m_ComponentCount = m_SavedComponentCount;
-        delete m_Component;
+        free(m_Component);
         AnimTest::TearDown();
     }
 
