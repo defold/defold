@@ -39,6 +39,7 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
+            [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -526,9 +527,16 @@
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
     (let [root ^Parent (.getRoot scene)
-          styles (vec (.getStylesheets root))]
-      (.forget (com.sun.javafx.css.StyleManager/getInstance) scene)
-      (.setAll (.getStylesheets root) ^Collection styles))))
+          prefs (editor.prefs/global)
+          theme (prefs/get prefs [:window :theme])
+          resolved-theme (resolve-theme theme)
+          css-resource (theme-css-resource resolved-theme)
+          new-styles [(str (io/resource css-resource))]]
+      ;; Remove old editor CSS and add new one
+      (let [current-styles (vec (.getStylesheets root))
+            filtered-styles (remove #(.contains % "editor.css") current-styles)]
+        (.forget (com.sun.javafx.css.StyleManager/getInstance) scene)
+        (.setAll (.getStylesheets root) ^Collection (into new-styles filtered-styles))))))
 
 (defn visible! [^Node node v]
   (.setVisible node v))
@@ -717,8 +725,21 @@
                (when (zero? suppress-count)
                  (listen-fn old new))))))
 
-(defn- apply-default-css! [^Parent root]
-  (.. root getStylesheets (add (str (io/resource "editor.css"))))
+(defn- theme-css-resource [theme]
+  (case theme
+    :light "editor-light.css"
+    "editor.css"))
+
+(defn- resolve-theme [theme]
+  "Resolve :system to actual system theme"
+  (case theme
+    :system (os/system-theme)
+    theme))
+
+(defn- apply-default-css! [^Parent root theme]
+  (let [resolved-theme (resolve-theme theme)
+        css-resource (theme-css-resource resolved-theme)]
+    (.. root getStylesheets (add (str (io/resource css-resource)))))
   nil)
 
 (defn- apply-user-css! [^Parent root]
@@ -727,15 +748,55 @@
       (.. root getStylesheets (add (str (.toURI css))))))
   nil)
 
-(defn apply-css! [^Parent root]
-  (apply-default-css! root)
+(defn apply-css! [^Parent root theme]
+  (apply-default-css! root theme)
   (apply-user-css! root))
 
 (defn load-fxml
-  ^Parent [path]
+  ^Parent [path theme]
   (let [root ^Parent (FXMLLoader/load (io/resource path))]
-    (apply-user-css! root)
+    (apply-css! root theme)
     root))
+
+(defn load-fxml-default
+  ^Parent [path]
+  (load-fxml path :dark))
+
+;; Theme watcher for live theme switching
+(defonce ^:private theme-watcher-key (Object.))
+(defonce ^:private theme-change-callbacks (atom {}))
+
+(defn add-theme-change-callback! [key callback]
+  (swap! theme-change-callbacks assoc key callback))
+
+(defn remove-theme-change-callback! [key]
+  (swap! theme-change-callbacks dissoc key))
+
+(defn notify-theme-change! [theme]
+  (doseq [callback (vals @theme-change-callbacks)]
+    (callback theme)))
+
+(defn- start-theme-watcher! [prefs]
+  (when-not (contains? @theme-change-callbacks theme-watcher-key)
+    (let [callback (fn [theme]
+                     (run-now
+                       (notify-theme-change! theme)
+                       (reload-root-styles!)))
+          system-theme-atom (atom (os/system-theme))]
+      (add-theme-change-callback! theme-watcher-key callback)
+      ;; Watch for preference changes
+      (prefs/update! prefs [:window :theme] (fn [_] (notify-theme-change! (prefs/get @global-state prefs [:window :theme]))))
+      ;; Watch for system theme changes (poll every 5 seconds)
+      (future
+        (loop []
+          (Thread/sleep 5000)
+          (when (= :system (prefs/get @global-state prefs [:window :theme]))
+            (let [current-system-theme (os/system-theme)
+                  previous-system-theme @system-theme-atom]
+              (when-not (= current-system-theme previous-system-theme)
+                (reset! system-theme-atom current-system-theme)
+                (run-now (notify-theme-change! :system)))))
+          (recur))))))
 
 (defn- empty-svg []
   {:tag :svg, :attrs nil, :content [{:tag :path, :attrs {:d "M0,0"}, :content nil}]})
