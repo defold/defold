@@ -1142,6 +1142,10 @@ public class Project implements AutoCloseable {
     }
 
     public void buildEnginePlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+        buildEnginePlatform(buildDir, cacheDir, appmanifestOptions, platform, Progress.discarding());
+    }
+
+    public void buildEnginePlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
@@ -1191,7 +1195,7 @@ public class Project implements AutoCloseable {
             extender.setHeaders(buildServerHeaders);
 
             String buildPlatform = platform.getExtenderPair();
-            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, progress);
 
             cleanEngine(platform, buildDir);
 
@@ -1204,6 +1208,10 @@ public class Project implements AutoCloseable {
     }
 
     public void buildLibraryPlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+        buildLibraryPlatform(buildDir, cacheDir, appmanifestOptions, platform, Progress.discarding());
+    }
+
+    public void buildLibraryPlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
@@ -1263,7 +1271,7 @@ public class Project implements AutoCloseable {
             extender.setHeaders(buildServerHeaders);
 
             String buildPlatform = platform.getExtenderPair();
-            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, progress);
 
             BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
         } catch (ConnectException e) {
@@ -1300,9 +1308,9 @@ public class Project implements AutoCloseable {
                         TimeProfiler.addData("variant", appmanifestOptions.get("withSymbols"));
                         try {
                             if (shouldBuildArtifact("library")) {
-                                buildLibraryPlatform( buildDir, cacheDir, appmanifestOptions, platform);
+                                buildLibraryPlatform(buildDir, cacheDir, appmanifestOptions, platform, architectureProgress);
                             } else {
-                                buildEnginePlatform( buildDir, cacheDir, appmanifestOptions, platform);
+                                buildEnginePlatform(buildDir, cacheDir, appmanifestOptions, platform, architectureProgress);
                             }
                         } catch (Throwable e) {
                             throw new RuntimeException(e);
@@ -2055,10 +2063,12 @@ public class Project implements AutoCloseable {
                             boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this, getPlatform());
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
-                            var buildPhases = commandProgress.split(3);
+                            // setup 10%, then engine and resources: 30%/60% with a remote engine build, 10%/80% without
+                            IProgress.ISplit buildPhases = commandProgress.split(10);
+                            int engineParts = shouldBuildRemoteEngine ? 3 : 1;
 
                             if (shouldBuildProject) {
-                                try (var setupProgress = buildPhases.subtask()) {
+                                try (IProgress setupProgress = buildPhases.subtask(1)) {
                                     // do this before buildRemoteEngine to prevent concurrent modification exception, since
                                     // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
                                     // when sending to extender
@@ -2071,15 +2081,18 @@ public class Project implements AutoCloseable {
                                     TimeProfiler.stop();
                                 }
                             } else {
-                                buildPhases.worked();
+                                buildPhases.worked(1);
                             }
 
                             TimeProfiler.start("PrepEngine");
                             TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
                             AtomicBoolean remoteBuildFailed = new AtomicBoolean(false);
-                            var engineProgress = buildPhases.subtask();
+                            IProgress engineProgress = buildPhases.subtask(engineParts);
+                            // Resource building owns the message until we start waiting for the engine
+                            Progress.Deferred remoteEngineProgress = null;
                             if (shouldBuildRemoteEngine) {
-                                remoteBuildFuture = buildRemoteEngine(engineProgress, executor, remoteBuildFailed);
+                                remoteEngineProgress = Progress.deferMessages(engineProgress);
+                                remoteBuildFuture = buildRemoteEngine(remoteEngineProgress, executor, remoteBuildFailed);
                             } else {
                                 // Remove the remote built executables in the build folder, they're still in the cache
                                 var engineSplit = engineProgress.split(2);
@@ -2092,7 +2105,7 @@ public class Project implements AutoCloseable {
                             }
                             TimeProfiler.stop();
                             boolean resourceBuildingFailed = false;
-                            try (var resourceProgress = buildPhases.subtask()) {
+                            try (IProgress resourceProgress = buildPhases.subtask(9 - engineParts)) {
                                 if (shouldBuildProject) {
                                     result = createAndRunTasks(resourceProgress, remoteBuildFailed);
                                 }
@@ -2107,6 +2120,7 @@ public class Project implements AutoCloseable {
                                     // if an exception was thrown in buildRemoteEngine() the
                                     // original exception is included in the ExecutionException
                                     try {
+                                        remoteEngineProgress.releaseMessages();
                                         remoteBuildFuture.get();
                                     } catch (ExecutionException | InterruptedException e) {
                                         Throwable cause = e.getCause();

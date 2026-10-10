@@ -17,7 +17,7 @@
             [util.coll :refer [pair]]
             [util.defonce :as defonce])
   (:import [com.defold.editor.localization MessagePattern]
-           [com.dynamo.bob IProgress$Message$Building IProgress$Message$BuildingEngine IProgress$Message$Bundling IProgress$Message$Cleaning IProgress$Message$CleaningEngine IProgress$Message$DownloadingArchive IProgress$Message$DownloadingArchives IProgress$Message$DownloadingSymbols IProgress$Message$GeneratingReport IProgress$Message$ReadingClasses IProgress$Message$ReadingTasks IProgress$Message$TranspilingToLua IProgress$Message$Working]))
+           [com.dynamo.bob IProgress$Message$Building IProgress$Message$BuildingEngine IProgress$Message$BuildingEngineStage IProgress$Message$Bundling IProgress$Message$Cleaning IProgress$Message$CleaningEngine IProgress$Message$DownloadingArchive IProgress$Message$DownloadingArchives IProgress$Message$DownloadingSymbols IProgress$Message$GeneratingReport IProgress$Message$ReadingClasses IProgress$Message$ReadingTasks IProgress$Message$TranspilingToLua IProgress$Message$Working]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -55,6 +55,7 @@
      (condp instance? message
        IProgress$Message$Bundling (localization/message "progress.bundling")
        IProgress$Message$BuildingEngine (localization/message "progress.building-engine")
+       IProgress$Message$BuildingEngineStage (localization/message "progress.building-engine-stage" {"platform" (.platform ^IProgress$Message$BuildingEngineStage message) "detail" (.label ^IProgress$Message$BuildingEngineStage message)})
        IProgress$Message$CleaningEngine (localization/message "progress.cleaning-engine")
        IProgress$Message$DownloadingSymbols (localization/message "progress.downloading-symbols")
        IProgress$Message$TranspilingToLua (localization/message "progress.transpiling-to-lua")
