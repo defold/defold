@@ -134,8 +134,7 @@ namespace dmGameObject
         if (new_size == old_size)
             return;
 
-        g_Register->m_CollectionRegistry.SetCapacity(new_size);
-        g_Register->m_CollectionRegistry.SetSize(new_size);
+        g_Register->m_CollectionRegistry.EnsureSize(new_size);
         for (uint32_t i = new_size; i-- > old_size;)
         {
             CollectionRegistrySlot& slot = g_Register->m_CollectionRegistry[i];
@@ -424,8 +423,7 @@ namespace dmGameObject
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
         m_ContextRegistry = 0;
         m_Mutex = dmMutex::New();
-        m_Prototypes.SetCapacity(16);
-        m_Prototypes.SetSize(16);
+        m_Prototypes.EnsureSize(16);
         m_PrototypeIndices.SetCapacity(16);
         memset(m_Prototypes.Begin(), 0, sizeof(Prototype*) * m_Prototypes.Size());
         EMPTY_PROTOTYPE.m_Index = m_PrototypeIndices.Pop();
@@ -455,8 +453,7 @@ namespace dmGameObject
                 return false;
             }
             uint32_t capacity = dmMath::Min(old_capacity * 2, (uint32_t)INVALID_PROTOTYPE_INDEX);
-            regist->m_Prototypes.SetCapacity(capacity);
-            regist->m_Prototypes.SetSize(capacity);
+            regist->m_Prototypes.EnsureSize(capacity);
             memset(regist->m_Prototypes.Begin() + old_capacity, 0, sizeof(Prototype*) * (capacity - old_capacity));
             regist->m_PrototypeIndices.SetCapacity((uint16_t)capacity);
         }
@@ -501,15 +498,11 @@ namespace dmGameObject
         m_Factory = factory;
         m_Register = regist;
         m_CollectionResource = 0;
-        m_Instances.SetCapacity(max_instances);
-        m_Instances.SetSize(max_instances);
+        m_Instances.EnsureSize(max_instances);
         m_InstanceIndices.SetCapacity(max_instances);
-        m_WorldTransforms.SetCapacity(max_instances);
-        m_WorldTransforms.SetSize(max_instances);
-        m_LocalTransforms.SetCapacity(max_instances);
-        m_LocalTransforms.SetSize(max_instances);
-        m_ParentIndices.SetCapacity(max_instances);
-        m_ParentIndices.SetSize(max_instances);
+        m_WorldTransforms.EnsureSize(max_instances);
+        m_LocalTransforms.EnsureSize(max_instances);
+        m_ParentIndices.EnsureSize(max_instances);
         m_IDToInstance.SetCapacity(max_instances);
         m_InputFocusStack.SetCapacity(max_input_stack_entries);
         m_NameHash = 0;

@@ -723,8 +723,7 @@ namespace dmGameObject
     Result PostScriptMessage(const dmDDF::Descriptor* payload_descriptor, const uint8_t* payload, uint32_t payload_size, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call)
     {
         dmArray<uint8_t> msg_buffer;
-        msg_buffer.SetCapacity(sizeof(dmGameObjectDDF::ScriptMessage) + payload_size);
-        msg_buffer.SetSize(msg_buffer.Capacity());
+        msg_buffer.EnsureSize(sizeof(dmGameObjectDDF::ScriptMessage) + payload_size);
 
         dmGameObjectDDF::ScriptMessage* script_msg = (dmGameObjectDDF::ScriptMessage*)msg_buffer.Begin();
         script_msg->m_PayloadSize = payload_size;

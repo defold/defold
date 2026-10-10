@@ -171,8 +171,7 @@ namespace dmGameObject
             *params.m_World = world;
             const uint32_t anim_count = 512;
             world->m_Animations.SetCapacity(anim_count);
-            world->m_AnimMap.SetCapacity(MAX_CAPACITY);
-            world->m_AnimMap.SetSize(MAX_CAPACITY);
+            world->m_AnimMap.EnsureSize(MAX_CAPACITY);
             world->m_AnimMapIndexPool.SetCapacity(MAX_CAPACITY);
             // This is fetched from res_collection.cpp (ResCollectionCreate)
             const int32_t instance_count = params.m_MaxInstances;
