@@ -314,14 +314,14 @@
         -fx-height: 30px;
         -fx-font-size: 110%;
         -fx-text-fill: -df-text;
-        -fx-effect: dropshadow(one-pass-box, rgba(0, 0, 0, 1), 0, 0, 1, 1);
+        -fx-effect: dropshadow(one-pass-box, -df-scene-text-shadow, 0, 0, 1, 1);
     }
 
     .info-text-area {
         -fx-font-family: 'Dejavu Sans Mono';
-        -fx-text-fill: #A2B0BE;
-        -fx-highlight-text-fill: #A2B0BE;
-        -fx-highlight-fill: #264A8B;
+        -fx-text-fill: -df-text;
+        -fx-highlight-text-fill: -df-selection-text;
+        -fx-highlight-fill: -df-selection-fill;
 
         .content {
             -fx-background-color: -df-background-lightish;

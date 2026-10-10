@@ -14,6 +14,12 @@
 	-df-component-lighter:    #b0b0b0;		// button hovered
 	-df-component-icon:       #666666;		// button icon
 
+	// Selection / overlays
+	-df-selection-fill:       #B3D4FC;				// text highlight, list selection
+	-df-selection-text:       #1A1A1A;				// text on selection fill
+	-df-overlay:              #E8E8E8BF;				// translucent panel over scene
+	-df-scene-text-shadow:    rgba(0, 0, 0, 0.15);	// info label outline on scene
+
 	// Text and icons
 	-df-text-dark:            #4a4a4a;		// property components
 	-df-text:                 #333333;		// non editable text, input field hint
