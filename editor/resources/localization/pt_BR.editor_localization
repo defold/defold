@@ -167,6 +167,9 @@ dialog.button.cancel = Cancelar
 dialog.button.delete = Deletar
 dialog.button.apply = Aplicar
 
+# Model glTF Auto Fill Dialog
+
+
 # Error Dialog
 
 dialog.error.title = Erro
@@ -1404,6 +1407,9 @@ property.font.characters.tooltip = Caracteres incluídos ao construir uma fonte 
 property.font.all-chars = Todos Caracteres
 property.font.style = Estilo
 property.font.markup = Marcação
+
+# Properties: glTF
+
 
 # Properties: gui
 
