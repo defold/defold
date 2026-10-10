@@ -13,7 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.os
-  (:import [com.dynamo.bob Platform]))
+  (:require [clojure.string :as str])
+  (:import [com.dynamo.bob Platform]
+           [java.lang ProcessBuilder]
+           [java.io BufferedReader InputStreamReader]))
 
 (defn- os-raw []
   (keyword (.. Platform getHostPlatform getOs)))
@@ -35,3 +38,54 @@
   (and (is-linux?)
        (or (some? (System/getenv "WAYLAND_DISPLAY"))
            (= "wayland" (System/getenv "XDG_SESSION_TYPE")))))
+
+;; System theme detection via platform-specific commands
+(defn- run-command [cmd]
+  (try
+    (let [proc (-> (ProcessBuilder. cmd) (.redirectErrorStream true) .start)
+          reader (BufferedReader. (InputStreamReader. (.getInputStream proc)))
+          output (slurp reader)]
+      (.waitFor proc)
+      (str/trim output))
+    (catch Exception _
+      nil)))
+
+(defn- macos-dark-mode? []
+  (when (is-mac-os?)
+    (let [output (run-command ["defaults" "read" "-g" "AppleInterfaceStyle"])]
+      (= "Dark" output))))
+
+(defn- windows-dark-mode? []
+  (when (is-win32?)
+    (let [output (run-command ["reg" "query" "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize" "/v" "AppsUseLightTheme"])]
+      (when output
+        (let [value (last (str/split output #"\s+"))]
+          (= "0x0" value))))))
+
+(defn- linux-dark-mode? []
+  (when (is-linux?)
+    (or
+      ;; GNOME
+      (let [output (run-command ["gsettings" "get" "org.gnome.desktop.interface" "color-scheme"])]
+        (when output
+          (some-> (re-find #"dark" output) boolean)))
+      ;; KDE
+      (let [output (run-command ["kreadconfig5" "--group" "Colors" "--key" "ColorScheme" 2>/dev/null])]
+        (when output
+          (some-> (re-find #"(?i)dark" output) boolean)))
+      ;; Fallback: GTK_THEME env var
+      (let [gtk-theme (System/getenv "GTK_THEME")]
+        (when gtk-theme
+          (some-> (re-find #"(?i)dark" gtk-theme) boolean))))))
+
+(defn system-dark-mode? []
+  "Returns true if the system is in dark mode, false otherwise"
+  (cond
+    (is-mac-os?) (macos-dark-mode?)
+    (is-win32?) (windows-dark-mode?)
+    (is-linux?) (linux-dark-mode?)
+    :else false))
+
+(defn system-theme []
+  "Returns :dark or :light based on system preference"
+  (if (system-dark-mode?) :dark :light))
