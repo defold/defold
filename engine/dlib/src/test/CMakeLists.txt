@@ -157,6 +157,7 @@ dlib_add_test(test_dstrings)
 
 if(NOT DLIB_TEST_SKIP_HTTP)
   dlib_add_test(test_http C SKIP_RUN)
+  dlib_add_test(test_httpclient SKIP_RUN)
   if(NOT DLIB_TEST_SKIP_HTTP_RUN AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
     # The C HTTP tests use endpoints provided by dlib's Java server.
     set(_http_server_classes "${CMAKE_CURRENT_BINARY_DIR}/http_server")
@@ -176,37 +177,41 @@ if(NOT DLIB_TEST_SKIP_HTTP)
       VERBATIM)
     add_custom_target(test_http_server
       DEPENDS "${_http_server_classes}/TestHttpServer.class")
-    add_dependencies(test_http test_http_server)
-
     _defold_find_python(_http_test_python)
-    set(_http_test_command
-      "${_http_test_python}" "${DLIB_ROOT}/scripts/run_test_http.py"
-      --java "${DEFOLD_JAVA_EXECUTABLE}"
-      --classpath "${_http_server_classpath}"
-      --keystore "${DLIB_TEST_ROOT}/data/keystore"
-      "$<TARGET_FILE:test_http>")
-    defold_test_run_settings(_http_test_runner _http_test_options shared)
-    add_custom_target(run_test_http
-      COMMAND ${_http_test_runner} ${_http_test_command}
-      DEPENDS test_http
-      ${_http_test_options}
-      VERBATIM
-      COMMENT "Running test_http with dlib's HTTP test server")
-    set(_http_test_dependency test_http)
-    if(CMAKE_GENERATOR STREQUAL "Xcode")
-      add_custom_target(prepare_run_test_http DEPENDS test_http)
-      set(_http_test_dependency prepare_run_test_http)
-    endif()
-    defold_register_sequential_test_command(run_test_http
-      COMMAND ${_http_test_command}
-      DEPENDS ${_http_test_dependency})
-    if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
-      defold_add_to_run_tests(run_test_http
+    foreach(_http_test IN ITEMS test_http test_httpclient)
+      add_dependencies(${_http_test} test_http_server)
+      set(_http_test_command
+        "${_http_test_python}" "${DLIB_ROOT}/scripts/run_test_http.py"
+        --java "${DEFOLD_JAVA_EXECUTABLE}"
+        --classpath "${_http_server_classpath}"
+        --keystore "${DLIB_TEST_ROOT}/data/keystore"
+        "$<TARGET_FILE:${_http_test}>")
+      if(_http_test STREQUAL "test_httpclient")
+        # Exercise TLS 1.2 RSA-PSS negotiation and TLS 1.3 using the local server.
+        list(APPEND _http_test_command "--test-filter=dmHttpClient.Tls*")
+      endif()
+      defold_test_run_settings(_http_test_runner _http_test_options shared)
+      add_custom_target(run_${_http_test}
+        COMMAND ${_http_test_runner} ${_http_test_command}
+        DEPENDS ${_http_test}
+        ${_http_test_options}
+        VERBATIM
+        COMMENT "Running ${_http_test} with dlib's HTTP test server")
+      set(_http_test_dependency ${_http_test})
+      if(CMAKE_GENERATOR STREQUAL "Xcode")
+        add_custom_target(prepare_run_${_http_test} DEPENDS ${_http_test})
+        set(_http_test_dependency prepare_run_${_http_test})
+      endif()
+      defold_register_sequential_test_command(run_${_http_test}
         COMMAND ${_http_test_command}
-        DEPENDS test_http)
-    endif()
+        DEPENDS ${_http_test_dependency})
+      if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_${_http_test}
+          COMMAND ${_http_test_command}
+          DEPENDS ${_http_test})
+      endif()
+    endforeach()
   endif()
-  dlib_add_test(test_httpclient SKIP_RUN)
   dlib_add_test(test_httpcache SKIP_RUN)
   dlib_add_test(test_httpserver SKIP_RUN)
   dlib_add_test(test_webserver SKIP_RUN)
