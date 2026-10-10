@@ -40,6 +40,8 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^:private launched-targets (atom []))
+;; Keep Stop available while an exited target's diagnostic is still open.
+(defonce ^:private launch-stop-signals (atom #{}))
 (defonce ^:private mdns-targets (atom []))
 ;; We cache the selected target in an atom to avoid garbage from parsing prefs.
 ;; Must clear when launched-targets or mdns-targets change.
@@ -81,6 +83,8 @@
 (defn kill-launched-targets! []
   (doseq [launched-target @launched-targets]
     (kill-launched-target! launched-target))
+  (doseq [stop-signal @launch-stop-signals]
+    (future/complete! stop-signal nil))
   (reset! launched-targets [])
   (clear-selected-target-hint!))
 
@@ -112,39 +116,45 @@
 
 (defn monitor-launched-target! [target localization]
   (future/io
-    (try
-      (let [exit-code (process/await-exit-code (:process target))
-            stop-signal (:stop-signal target)]
-        ;; A child may keep stdout open, so do not wait for the log pump.
-        (when (and (not (future/done? stop-signal))
-                   (not (zero? exit-code))
-                   (console/current-stream? (:log-stream target)))
-          (console/append-console-line!
-            (localization
-              (localization/message "console.application-exited"
-                                    {"code" (if (os/is-win32?)
-                                              (format "0x%08X" (bit-and exit-code 0xffffffff))
-                                              (str exit-code))})))
-          ;; Retry STATUS_DLL_NOT_FOUND once so Windows can name the missing
-          ;; DLL. Keep the retry local and close it when Stop is requested.
-          (when (and (os/is-win32?) (= 0xc0000135 (bit-and exit-code 0xffffffff)))
-            (when-let [^ProcessHandle diagnostic-process (process/start-with-default-error-mode! (:process-options target) (:command target))]
-              (try
-                (.get (CompletableFuture/anyOf (into-array CompletableFuture [stop-signal (.onExit diagnostic-process)])))
-                (finally
-                  (.destroy diagnostic-process)))))))
-      (catch Exception exception
-        (log/warn :exception exception)
-        (when (and (not (future/done? (:stop-signal target)))
-                   (console/current-stream? (:log-stream target)))
-          (console/append-console-line!
-            (localization
-              (localization/message "console.application-diagnostic-failed"
-                                    {"error" (ex-message exception)})))))
-      (finally
-        (swap! launched-targets coll/filterv-> #(not= (:id %) (:id target)))
-        (clear-selected-target-hint!)
-        (invalidate-target-menu!)))))
+    (let [stop-signal (:stop-signal target)]
+      (swap! launch-stop-signals conj stop-signal)
+      (try
+        (let [exit-code (try
+                          ;; A child may keep stdout open, so do not wait for
+                          ;; the log pump before notifying target listeners.
+                          (process/await-exit-code (:process target))
+                          (finally
+                            (swap! launched-targets coll/filterv-> #(not= (:id %) (:id target)))
+                            (clear-selected-target-hint!)
+                            (invalidate-target-menu!)))]
+          (when (and (not (future/done? stop-signal))
+                     (not (zero? exit-code))
+                     (console/current-stream? (:log-stream target)))
+            (console/append-console-line!
+              (localization
+                (localization/message "console.application-exited"
+                                      {"code" (if (os/is-win32?)
+                                                (format "0x%08X" (bit-and exit-code 0xffffffff))
+                                                (str exit-code))})))
+            ;; Retry STATUS_DLL_NOT_FOUND once so Windows can name the missing
+            ;; DLL. Keep the retry local and close it when Stop is requested.
+            (when (and (os/is-win32?) (= 0xc0000135 (bit-and exit-code 0xffffffff)))
+              (when-let [^ProcessHandle diagnostic-process (process/start-with-default-error-mode! (:process-options target) (:command target))]
+                (try
+                  (.get (CompletableFuture/anyOf (into-array CompletableFuture [stop-signal (.onExit diagnostic-process)])))
+                  (finally
+                    (.destroy diagnostic-process)))))))
+        (catch Exception exception
+          (log/warn :exception exception)
+          (when (and (not (future/done? stop-signal))
+                     (console/current-stream? (:log-stream target)))
+            (console/append-console-line!
+              (localization
+                (localization/message "console.application-diagnostic-failed"
+                                      {"error" (ex-message exception)})))))
+        (finally
+          (swap! launch-stop-signals disj stop-signal)
+          (invalidate-target-menu!))))))
 
 (defn- find-by-id [targets id]
   (coll/first-where #(= (:id %) id) targets))
@@ -410,7 +420,11 @@
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
   (prefs/set! prefs [:run :selected-target-id] (:id target))
-  (console/set-log-service-stream (engine/get-log-service-stream target))
+  (if (remote-target? target)
+    (console/set-log-service-stream (engine/get-log-service-stream target))
+    (do
+      (console/reset-console-stream! (:log-stream target))
+      (console/reset-remote-log-pump-thread! nil)))
   target)
 
 (defn- url-message
@@ -531,7 +545,8 @@
     (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart localization)))
 
 (handler/defhandler :run.stop :global
-  (enabled? [app-view] (launched-targets?))
+  (enabled? [app-view]
+    (or (launched-targets?) (coll/not-empty @launch-stop-signals)))
   (active? [] true)
   (run []
     (kill-launched-targets!)))
