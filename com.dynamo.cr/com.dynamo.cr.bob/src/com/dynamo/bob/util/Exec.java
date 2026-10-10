@@ -27,6 +27,8 @@ import com.dynamo.bob.logging.Logger;
 
 public class Exec {
 
+    private static final int STATUS_DLL_NOT_FOUND = 0xC0000135;
+
     private static String verbosity = System.getenv("DM_BOB_VERBOSE");
     private static Logger logger = Logger.getLogger(Exec.class.getName());
 
@@ -73,6 +75,10 @@ public class Exec {
             catch (InterruptedException e) {
                 e.printStackTrace();
             }
+        }
+        if (ret == STATUS_DLL_NOT_FOUND && Platform.getHostPlatform().isWindows()) {
+            String executable = new File(pb.command().get(0)).getName();
+            throw new IOException(String.format("%s is missing a required DLL (0x%08X, STATUS_DLL_NOT_FOUND).", executable, ret));
         }
         return ret;
     }
