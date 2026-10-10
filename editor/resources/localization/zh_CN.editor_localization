@@ -167,6 +167,9 @@ dialog.button.cancel = 取消
 dialog.button.delete = 刪除
 dialog.button.apply = 应用
 
+# Model glTF Auto Fill Dialog
+
+
 # Error Dialog
 
 dialog.error.title = 错误
@@ -1293,6 +1296,9 @@ property.font.cache-width = 缓存宽度
 property.font.cache-height = 缓存高度
 property.font.characters = 字符
 property.font.all-chars = 所有字符
+
+# Properties: glTF
+
 
 # Properties: gui
 
