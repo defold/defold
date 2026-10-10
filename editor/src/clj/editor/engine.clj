@@ -363,4 +363,6 @@
     (let [p (apply process/start! opts command args)]
       {:process p
        :name (.getName engine)
-       :log-stream (process/out p)})))
+       :log-stream (process/out p)
+       :command (into [command] args)
+       :process-options opts})))

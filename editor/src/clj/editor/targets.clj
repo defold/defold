@@ -22,13 +22,16 @@
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.notifications :as notifications]
+            [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [service.log :as log]
             [util.coll :as coll])
   (:import [com.dynamo.discovery MDNS MDNS$Logger MDNSServiceInfo]
            [java.io ByteArrayOutputStream]
+           [java.lang ProcessHandle]
            [java.net InetAddress NetworkInterface URL URLConnection]
            [java.util UUID]))
 
@@ -61,6 +64,11 @@
     (.destroy process)))
 
 (defn kill-launched-target! [target]
+  (when-let [stop-requested (:stop-requested target)]
+    (locking stop-requested
+      (reset! stop-requested true)
+      (when-let [^ProcessHandle diagnostic-process @(:diagnostic-process target)]
+        (.destroy diagnostic-process))))
   (let [^Process process (:process target)]
     (when (.isAlive process)
       (when-let [_ (:url target)]
@@ -94,18 +102,52 @@
   (let [launched-target (assoc target
                           :local-address "127.0.0.1"
                           :id (str (UUID/randomUUID))
-                          :instance-index instance-index)]
+                          :instance-index instance-index
+                          :stop-requested (atom false)
+                          :diagnostic-process (atom nil))]
     (when (= instance-index 0)
       (kill-launched-targets!))
     (swap! launched-targets conj launched-target)
     (clear-selected-target-hint!)
     (invalidate-target-menu!)
-    (process/on-exit! (:process launched-target)
-                      (fn []
-                        (swap! launched-targets coll/filterv-> #(not= (:id %) (:id launched-target)))
-                        (clear-selected-target-hint!)
-                        (invalidate-target-menu!)))
     launched-target))
+
+(defn monitor-launched-target! [target ^Thread log-pump localization]
+  (future
+    (try
+      (let [exit-code (process/await-exit-code (:process target))
+            stop-requested (:stop-requested target)]
+        ;; Consume all engine output before appending the exit diagnostic.
+        (.join log-pump)
+        (locking stop-requested
+          (when (and (not @stop-requested)
+                     (not (zero? exit-code))
+                     (console/current-stream? (:log-stream target)))
+            (console/append-console-line!
+              (localization
+                (localization/message "console.application-exited"
+                                      {"code" (if (os/is-win32?)
+                                                (format "0x%08X" (bit-and exit-code 0xffffffff))
+                                                (str exit-code))})))
+            ;; STATUS_DLL_NOT_FOUND happens before engine initialization.
+            ;; Retry once so Windows can display the missing DLL's name.
+            (when (and (os/is-win32?) (= 0xc0000135 (bit-and exit-code 0xffffffff)))
+              (reset! (:diagnostic-process target)
+                      (process/start-with-default-error-mode! (:process-options target) (:command target))))))
+        (when-let [^ProcessHandle diagnostic-process @(:diagnostic-process target)]
+          (.get (.onExit diagnostic-process))))
+      (catch Exception exception
+        (log/warn :exception exception)
+        (when (and (not @(:stop-requested target))
+                   (console/current-stream? (:log-stream target)))
+          (console/append-console-line!
+            (localization
+              (localization/message "console.application-diagnostic-failed"
+                                    {"error" (ex-message exception)})))))
+      (finally
+        (swap! launched-targets coll/filterv-> #(not= (:id %) (:id target)))
+        (clear-selected-target-hint!)
+        (invalidate-target-menu!)))))
 
 (defn- find-by-id [targets id]
   (coll/first-where #(= (:id %) id) targets))

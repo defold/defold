@@ -1050,17 +1050,22 @@
 
 (defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug focus]
   (let [selected-target (targets/selected-target prefs)
-        launch-new-engine! (fn []
+        launch-new-engine! (fn launch-new-engine! []
                              (targets/kill-launched-targets!)
                              (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
-                                   last-launched-target (last launched-targets)]
+                                   last-launched-target (last launched-targets)
+                                   localization (g/with-auto-evaluation-context evaluation-context
+                                                  (workspace/localization (project/workspace project evaluation-context) evaluation-context))]
+                               (console/reset-console-stream! (:log-stream last-launched-target))
+                               (console/reset-remote-log-pump-thread! nil)
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
-                                                   #(on-launched-hook! project (:process launched-target) %))
-                                 (let [log-stream (:log-stream launched-target)]
-                                   (console/reset-console-stream! log-stream)
-                                   (console/reset-remote-log-pump-thread! nil)
-                                   (console/start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs)))))
+                                                   (fn on-target-url-found [url]
+                                                     (on-launched-hook! project (:process launched-target) url)))
+                                 (let [log-pump (console/start-log-pump!
+                                                  (:log-stream launched-target)
+                                                  (make-launched-log-sink launched-target (partial on-service-url-found prefs)))]
+                                   (targets/monitor-launched-target! launched-target log-pump localization)))
                                last-launched-target))]
     (try
       {:target
