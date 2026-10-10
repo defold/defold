@@ -167,6 +167,9 @@ dialog.button.cancel = キャンセル
 dialog.button.delete = 削除
 dialog.button.apply = 適用
 
+# Model glTF Auto Fill Dialog
+
+
 # Error Dialog
 
 dialog.error.title = エラー
@@ -1422,6 +1425,9 @@ property.font.style = スタイル
 property.font.style.tooltip = 選択したフォントのベース・スタイル。ベース・スタイルを指定しない場合は空のままにします。インラインマークアップは選択したスタイルよりも優先されます。
 property.font.markup = マークアップ
 property.font.markup.tooltip = このスタイルを定義するリッチテキストタグを開きます。サイズ、リンク、スプライトを含むリッチテキストタグをすべてサポートしています。
+
+# Properties: glTF
+
 
 # Properties: gui
 
