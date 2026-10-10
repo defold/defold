@@ -81,7 +81,7 @@ public class ShaderCompilePipelineTest {
         assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4, resourceTypeToShaderDataType(types.get(0).members[1].type));
 
         for (ShaderDesc.Language l : allLanguages) {
-            pipelineVertex.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, l);
+            pipelineVertex.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, l, null, false);
         }
 
         ShaderCompilePipeline.destroyShaderPipeline(pipelineVertex);
@@ -129,7 +129,7 @@ public class ShaderCompilePipelineTest {
         assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4, resourceTypeToShaderDataType(types.get(0).members[3].type));
 
         for (ShaderDesc.Language l : allLanguages) {
-            pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, l);
+            pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, l, null, false);
         }
 
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
@@ -279,8 +279,8 @@ public class ShaderCompilePipelineTest {
             assertEquals(0, fragment.binding);
             for (ShaderDesc.Language language : new ShaderDesc.Language[] {
                     ShaderDesc.Language.LANGUAGE_GLSL_SM430, ShaderDesc.Language.LANGUAGE_GLES_SM300 }) {
-                String vs = new String(pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, language).data);
-                String fs = new String(pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, language).data);
+                String vs = new String(pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, language, null, false).data);
+                String fs = new String(pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, language, null, false).data);
                 assertTrue(vs, vs.matches("(?s).*layout\\(binding = 0, std430\\) readonly buffer VertexData.*"));
                 assertTrue(fs, fs.matches("(?s).*layout\\(binding = 1, std430\\) readonly buffer FragmentData.*"));
                 assertTrue(vs, vs.matches("(?s).*layout\\(binding = 2, std430\\) readonly buffer Shared.*"));
@@ -548,7 +548,7 @@ public class ShaderCompilePipelineTest {
             // per-stage bytes emitted by glslang.
             Shaderc.ShaderCompileResult fragmentSpirv = pipeline.crossCompile(
                     ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
-                    ShaderDesc.Language.LANGUAGE_SPIRV);
+                    ShaderDesc.Language.LANGUAGE_SPIRV, null, false);
             long fragmentContext = ShadercJni.NewShaderContext(
                     Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue(),
                     fragmentSpirv.data);
@@ -621,7 +621,7 @@ public class ShaderCompilePipelineTest {
 
         boolean didException = false;
         try {
-            pipelineFragment.crossCompile(fsDesc.type, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+            pipelineFragment.crossCompile(fsDesc.type, ShaderDesc.Language.LANGUAGE_GLES_SM100, null, false);
         } catch (CompileExceptionError e) {
             didException = true;
         }
@@ -654,7 +654,7 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testFragment");
         ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsDesc, options);
 
-        Shaderc.ShaderCompileResult compileResult = pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        Shaderc.ShaderCompileResult compileResult = pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330, null, false);
         String compiledStr = new String(compileResult.data);
 
         assertTrue(compiledStr.contains("color = vec4(1.0);"));
@@ -677,7 +677,7 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testFragment");
         ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsDescLegacy, new ShaderCompilePipeline.Options());
 
-        compileResult = pipelineFragmentLegacy.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        compileResult = pipelineFragmentLegacy.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330, null, false);
         compiledStr = new String(compileResult.data);
 
         assertTrue(compiledStr.contains("_DMENGINE_GENERATED_gl_FragColor_0 = vec4(1.0);"));
@@ -703,7 +703,7 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipeline.createShaderPipeline(pipelineVertex, vsDesc, new ShaderCompilePipeline.Options());
         Shaderc.ShaderCompileResult compileResult = pipelineVertex.crossCompile(
                 ShaderDesc.ShaderType.SHADER_TYPE_VERTEX,
-                ShaderDesc.Language.LANGUAGE_WGSL);
+                ShaderDesc.Language.LANGUAGE_WGSL, null, false);
         String compiledStr = new String(compileResult.data);
 
         assertTrue(compiledStr.contains("// defold-webgpu-flipped-entry-point: _defold_webgpu_main_flipped"));
@@ -816,7 +816,7 @@ public class ShaderCompilePipelineTest {
 
         Shaderc.ShaderCompileResult compileResult = pipelineFragmentLegacy.crossCompile(
                 ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
-                ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                ShaderDesc.Language.LANGUAGE_GLES_SM100, null, false);
         String src = new String(compileResult.data);
 
         String expectedFloatHighpPrecision =

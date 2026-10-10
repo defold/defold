@@ -44,7 +44,7 @@ public class ShaderProgramBuilderEditor {
 
         ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourcePath, shaderDescs, options);
         try {
-            Shaderc.ShaderCompileResult result = pipeline.crossCompile(shaderType, shaderLanguage);
+            Shaderc.ShaderCompileResult result = pipeline.crossCompile(shaderType, shaderLanguage, null, false);
 
             String compiledSource = new String(result.data);
             // SM330 supports array textures, but editor previews still upload atlas pages as
@@ -139,7 +139,7 @@ public class ShaderProgramBuilderEditor {
                     Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
                     byte[] source;
                     try {
-                        result = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                        result = pipeline.crossCompile(shaderModule.type, shaderLanguage, null, false);
                         source = result.data;
                     } catch (CompileExceptionError e) {
                         shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(new String[]{e.getMessage()}));
