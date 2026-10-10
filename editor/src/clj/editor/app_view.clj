@@ -3390,24 +3390,29 @@
 
 (handler/defhandler :theme.set-system :global
   (run [prefs]
-    (prefs/set! prefs [:window :theme] :system)))
+    (prefs/set! prefs [:window :theme] :system)
+    (ui/reload-root-styles!)))
 
 (handler/defhandler :theme.set-dark :global
   (run [prefs]
-    (prefs/set! prefs [:window :theme] :dark)))
+    (prefs/set! prefs [:window :theme] :dark)
+    (ui/reload-root-styles!)))
 
 (handler/defhandler :theme.set-light :global
   (run [prefs]
-    (prefs/set! prefs [:window :theme] :light)))
+    (prefs/set! prefs [:window :theme] :light)
+    (ui/reload-root-styles!)))
 
 (handler/defhandler :theme.cycle :global
   (run [prefs]
     (let [current (prefs/get prefs [:window :theme])
-          next (case current
-                 :system :dark
-                 :dark :light
-                 :light :system)]
-      (prefs/set! prefs [:window :theme] next))))
+
+          next-theme (case current
+                       :system :dark
+                       :dark :light
+                       :light :system)]
+      (prefs/set! prefs [:window :theme] next-theme)
+      (ui/reload-root-styles!))))
 
 (defn- put-on-clipboard!
   [s]
