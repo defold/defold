@@ -26,6 +26,7 @@
 namespace
 {
     const uint32_t BUFFER_FRAMES = 256;
+    const uint32_t MAX_BUFFER_FRAMES = 1024;
 
     template <typename T>
     struct FakeComObject : T
@@ -65,11 +66,21 @@ namespace
     {
         const wchar_t* m_Id;
         uint32_t       m_NonzeroSamples;
+        uint32_t       m_Activations;
+        uint32_t       m_Stops;
+        uint32_t       m_SampleRate;
+        uint32_t       m_BufferFrames;
+        uint32_t       m_Channels;
         bool           m_Invalidated;
 
         FakeEndpoint()
             : m_Id(0)
             , m_NonzeroSamples(0)
+            , m_Activations(0)
+            , m_Stops(0)
+            , m_SampleRate(44100)
+            , m_BufferFrames(BUFFER_FRAMES)
+            , m_Channels(2)
             , m_Invalidated(false)
         {
         }
@@ -79,7 +90,7 @@ namespace
     {
         FakeEndpoint* m_Endpoint;
         HANDLE        m_BufferEvent;
-        float         m_Buffer[BUFFER_FRAMES * 2];
+        float         m_Buffer[MAX_BUFFER_FRAMES * 2];
 
         FakeRenderClient(FakeEndpoint* endpoint)
             : m_Endpoint(endpoint)
@@ -91,7 +102,7 @@ namespace
         {
             if (m_Endpoint->m_Invalidated)
                 return AUDCLNT_E_DEVICE_INVALIDATED;
-            if (frames > BUFFER_FRAMES)
+            if (frames > m_Endpoint->m_BufferFrames || frames > MAX_BUFFER_FRAMES)
                 return AUDCLNT_E_BUFFER_TOO_LARGE;
             memset(m_Buffer, 0, sizeof(m_Buffer));
             *buffer = (BYTE*)m_Buffer;
@@ -104,7 +115,7 @@ namespace
                 return AUDCLNT_E_DEVICE_INVALIDATED;
             if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT))
             {
-                for (uint32_t i = 0; i < frames * 2; ++i)
+                for (uint32_t i = 0; i < frames * m_Endpoint->m_Channels; ++i)
                     m_Endpoint->m_NonzeroSamples += m_Buffer[i] != 0.0f;
             }
             // Complete each render synchronously, with no wall-clock sleeps.
@@ -148,7 +159,7 @@ namespace
         {
             if (m_Endpoint->m_Invalidated)
                 return AUDCLNT_E_DEVICE_INVALIDATED;
-            *frames = BUFFER_FRAMES;
+            *frames = m_Endpoint->m_BufferFrames;
             return S_OK;
         }
         HRESULT STDMETHODCALLTYPE GetStreamLatency(REFERENCE_TIME*)
@@ -173,10 +184,10 @@ namespace
             WAVEFORMATEX* mix = (WAVEFORMATEX*)CoTaskMemAlloc(sizeof(WAVEFORMATEX));
             memset(mix, 0, sizeof(*mix));
             mix->wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
-            mix->nChannels = 2;
-            mix->nSamplesPerSec = 44100;
+            mix->nChannels = (WORD)m_Endpoint->m_Channels;
+            mix->nSamplesPerSec = m_Endpoint->m_SampleRate;
             mix->wBitsPerSample = 32;
-            mix->nBlockAlign = 8;
+            mix->nBlockAlign = mix->nChannels * sizeof(float);
             mix->nAvgBytesPerSec = mix->nSamplesPerSec * mix->nBlockAlign;
             *format = mix;
             return S_OK;
@@ -194,6 +205,7 @@ namespace
         }
         HRESULT STDMETHODCALLTYPE Stop()
         {
+            ++m_Endpoint->m_Stops;
             return S_OK;
         }
         HRESULT STDMETHODCALLTYPE Reset()
@@ -234,6 +246,7 @@ namespace
 
         HRESULT STDMETHODCALLTYPE Activate(REFIID iid, DWORD, PROPVARIANT*, void** object)
         {
+            ++m_Endpoint->m_Activations;
             FakeAudioClient* client = new FakeAudioClient(m_Endpoint);
             HRESULT          result = client->QueryInterface(iid, object);
             client->Release();
@@ -260,11 +273,15 @@ namespace
     struct FakeEnumerator : FakeComObject<IMMDeviceEnumerator>
     {
         FakeEndpoint           m_Endpoints[2];
-        uint32_t               m_DefaultEndpoint;
+        int32_t                m_DefaultEndpoint;
+        int32_t                m_ChangeDefaultDuringOpen;
+        HRESULT                m_RegisterResult;
         IMMNotificationClient* m_NotificationClient;
 
         FakeEnumerator()
             : m_DefaultEndpoint(0)
+            , m_ChangeDefaultDuringOpen(-1)
+            , m_RegisterResult(S_OK)
             , m_NotificationClient(0)
         {
             m_Endpoints[0].m_Id = L"output-a";
@@ -279,7 +296,18 @@ namespace
         {
             if (flow != eRender || role != eConsole)
                 return E_INVALIDARG;
+            if (m_DefaultEndpoint < 0)
+            {
+                *device = 0;
+                return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+            }
             *device = new FakeDevice(&m_Endpoints[m_DefaultEndpoint]);
+            if (m_ChangeDefaultDuringOpen >= 0)
+            {
+                int32_t endpoint = m_ChangeDefaultDuringOpen;
+                m_ChangeDefaultDuringOpen = -1;
+                ChangeDefaultEndpoint(endpoint);
+            }
             return S_OK;
         }
         HRESULT STDMETHODCALLTYPE GetDevice(LPCWSTR id, IMMDevice** device)
@@ -298,6 +326,8 @@ namespace
         HRESULT STDMETHODCALLTYPE RegisterEndpointNotificationCallback(IMMNotificationClient* client)
         {
             assert(!m_NotificationClient);
+            if (FAILED(m_RegisterResult))
+                return m_RegisterResult;
             // MMDeviceAPI does not AddRef the callback; its owner keeps it alive.
             m_NotificationClient = client;
             return S_OK;
@@ -309,13 +339,13 @@ namespace
             return S_OK;
         }
 
-        void ChangeDefaultEndpoint(uint32_t endpoint)
+        void ChangeDefaultEndpoint(int32_t endpoint)
         {
             m_DefaultEndpoint = endpoint;
             // Both endpoints remain valid. A default change alone must not
             // manufacture AUDCLNT_E_DEVICE_INVALIDATED on the old endpoint.
             if (m_NotificationClient)
-                m_NotificationClient->OnDefaultDeviceChanged(eRender, eConsole, m_Endpoints[endpoint].m_Id);
+                m_NotificationClient->OnDefaultDeviceChanged(eRender, eConsole, endpoint < 0 ? 0 : m_Endpoints[endpoint].m_Id);
         }
     };
 
@@ -369,6 +399,7 @@ struct WasapiRoutingTest : jc_test_base_class
             dmSound::DeleteSoundData(m_SoundData);
         dmSound::Finalize();
         EXPECT_EQ((IMMNotificationClient*)0, g_Enumerator->m_NotificationClient);
+        EXPECT_EQ(1u, g_Enumerator->m_References);
         g_Enumerator->Release();
         g_Enumerator = 0;
     }
@@ -404,6 +435,12 @@ TEST_F(WasapiRoutingTest, FollowsDefaultEndpointWithoutDeviceLoss)
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
     ASSERT_EQ(old_samples, g_Enumerator->m_Endpoints[0].m_NonzeroSamples);
     ASSERT_GT(g_Enumerator->m_Endpoints[1].m_NonzeroSamples, new_samples);
+    ASSERT_EQ(1u, g_Enumerator->m_Endpoints[0].m_Stops);
+
+    g_Enumerator->ChangeDefaultEndpoint(0);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    ASSERT_GT(g_Enumerator->m_Endpoints[0].m_NonzeroSamples, old_samples);
+    ASSERT_EQ(1u, g_Enumerator->m_Endpoints[1].m_Stops);
 }
 
 // Verify existing device-loss recovery works, independently of default-change notifications.
@@ -417,6 +454,118 @@ TEST_F(WasapiRoutingTest, RecoversInvalidatedEndpoint)
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
     ASSERT_GT(g_Enumerator->m_Endpoints[1].m_NonzeroSamples, 0u);
     ASSERT_TRUE(dmSound::IsPlaying(m_Instance));
+}
+
+// Guard #10258 while idle: reopen before the next sound is decoded or queued.
+TEST_F(WasapiRoutingTest, SwitchesWhileIdleBeforeNextPlayback)
+{
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(m_Instance));
+    m_Instance = 0;
+    ASSERT_EQ(dmSound::RESULT_NOTHING_TO_PLAY, dmSound::Update());
+    g_Enumerator->ChangeDefaultEndpoint(1);
+    ASSERT_EQ(dmSound::RESULT_NOTHING_TO_PLAY, dmSound::Update());
+    ASSERT_EQ(1u, g_Enumerator->m_Endpoints[1].m_Activations);
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(m_SoundData, &m_Instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Play(m_Instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    ASSERT_EQ(0u, g_Enumerator->m_Endpoints[0].m_NonzeroSamples);
+    ASSERT_GT(g_Enumerator->m_Endpoints[1].m_NonzeroSamples, 0u);
+}
+
+// Capture and communications defaults must not interrupt console playback.
+TEST_F(WasapiRoutingTest, IgnoresOtherFlowsAndRoles)
+{
+    ASSERT_NE((IMMNotificationClient*)0, g_Enumerator->m_NotificationClient);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    g_Enumerator->m_NotificationClient->OnDefaultDeviceChanged(eCapture, eConsole, L"microphone");
+    g_Enumerator->m_NotificationClient->OnDefaultDeviceChanged(eRender, eCommunications, L"headset");
+    g_Enumerator->m_NotificationClient->OnDefaultDeviceChanged(eRender, eMultimedia, L"speakers");
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    ASSERT_EQ(1u, g_Enumerator->m_Endpoints[0].m_Activations);
+    ASSERT_EQ(0u, g_Enumerator->m_Endpoints[0].m_Stops);
+}
+
+// Reopening must use the new endpoint's format without overrunning existing mixer buffers.
+TEST_F(WasapiRoutingTest, SwitchesToDifferentMixFormat)
+{
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    g_Enumerator->m_Endpoints[1].m_SampleRate = 48000;
+    g_Enumerator->m_Endpoints[1].m_BufferFrames = MAX_BUFFER_FRAMES;
+    g_Enumerator->m_Endpoints[1].m_Channels = 1;
+    g_Enumerator->ChangeDefaultEndpoint(1);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    ASSERT_EQ(48000u, dmSound::GetMixRate());
+    ASSERT_GT(g_Enumerator->m_Endpoints[1].m_NonzeroSamples, 0u);
+    ASSERT_TRUE(dmSound::IsPlaying(m_Instance));
+}
+
+// A null default must release the old subscription and retry until an output returns.
+TEST_F(WasapiRoutingTest, RetriesWhenNoDefaultEndpointIsAvailable)
+{
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    g_Enumerator->ChangeDefaultEndpoint(-1);
+    ASSERT_EQ(dmSound::RESULT_INIT_ERROR, dmSound::Update());
+    ASSERT_EQ((IMMNotificationClient*)0, g_Enumerator->m_NotificationClient);
+    ASSERT_EQ(1u, g_Enumerator->m_References);
+    ASSERT_EQ(dmSound::RESULT_INIT_ERROR, dmSound::Update());
+    g_Enumerator->ChangeDefaultEndpoint(1);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    ASSERT_GT(g_Enumerator->m_Endpoints[1].m_NonzeroSamples, 0u);
+    ASSERT_TRUE(dmSound::IsPlaying(m_Instance));
+}
+
+// A notification received while reopening must survive until the following update.
+TEST_F(WasapiRoutingTest, PreservesNotificationDuringReopen)
+{
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    g_Enumerator->m_ChangeDefaultDuringOpen = 0;
+    g_Enumerator->ChangeDefaultEndpoint(1);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    ASSERT_EQ(1u, g_Enumerator->m_Endpoints[1].m_Activations);
+    uint32_t old_samples = g_Enumerator->m_Endpoints[0].m_NonzeroSamples;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    ASSERT_EQ(2u, g_Enumerator->m_Endpoints[0].m_Activations);
+    ASSERT_GT(g_Enumerator->m_Endpoints[0].m_NonzeroSamples, old_samples);
+}
+
+// Failed callback registration must release COM resources and allow the next retry.
+TEST_F(WasapiRoutingTest, CleansUpFailedNotificationRegistration)
+{
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    g_Enumerator->m_RegisterResult = E_FAIL;
+    g_Enumerator->ChangeDefaultEndpoint(1);
+    ASSERT_EQ(dmSound::RESULT_INIT_ERROR, dmSound::Update());
+    ASSERT_EQ((IMMNotificationClient*)0, g_Enumerator->m_NotificationClient);
+    ASSERT_EQ(1u, g_Enumerator->m_References);
+    g_Enumerator->m_RegisterResult = S_OK;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    ASSERT_GT(g_Enumerator->m_Endpoints[1].m_NonzeroSamples, 0u);
+}
+
+static DWORD WINAPI NotifyDefaultFromThread(void* context)
+{
+    IMMNotificationClient* client = (IMMNotificationClient*)context;
+    HRESULT                result = client->OnDefaultDeviceChanged(eRender, eConsole, L"output-b");
+    client->Release();
+    return result;
+}
+
+// Windows callbacks run on another thread and must only schedule work for the sound update.
+TEST_F(WasapiRoutingTest, DefersNotificationFromAnotherThread)
+{
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    ASSERT_NE((IMMNotificationClient*)0, g_Enumerator->m_NotificationClient);
+    g_Enumerator->m_DefaultEndpoint = 1;
+    g_Enumerator->m_NotificationClient->AddRef();
+    HANDLE thread = CreateThread(0, 0, NotifyDefaultFromThread, g_Enumerator->m_NotificationClient, 0, 0);
+    ASSERT_NE((HANDLE)0, thread);
+    DWORD wait_result = WaitForSingleObject(thread, 5000);
+    CloseHandle(thread);
+    ASSERT_EQ((DWORD)WAIT_OBJECT_0, wait_result);
+    ASSERT_EQ(0u, g_Enumerator->m_Endpoints[1].m_Activations);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    ASSERT_GT(g_Enumerator->m_Endpoints[1].m_NonzeroSamples, 0u);
 }
 
 extern "C" void dmExportedSymbols();
