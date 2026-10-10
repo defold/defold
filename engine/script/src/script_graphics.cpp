@@ -337,6 +337,7 @@ namespace dmScript
         ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_VENDOR,   "vendor");
         ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_WEBGPU,   "webgpu");
         ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_DIRECTX,  "dx12");
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_METAL,    "metal");
         default: break;
         }
     #undef ADAPTER_FAMILY_CASE

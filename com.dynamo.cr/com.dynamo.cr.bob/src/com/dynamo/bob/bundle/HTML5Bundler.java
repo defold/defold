@@ -50,6 +50,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.archive.EngineVersion;
 
@@ -102,7 +103,7 @@ public class HTML5Bundler implements IBundler {
 
 
         // Same value as engine is compiled with; 268435456
-        int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
+        long customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024L * 1024;
 
         {// Deprecated method of setting the heap size. For backwards compatibility
             if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
@@ -193,6 +194,9 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_HAS_WASM_ENGINE", hasWasm);
 
         properties.put("DEFOLD_HAS_WASM_PTHREAD_ENGINE", architectures.contains(Platform.WasmPthreadWeb));
+
+        List<String> shaderAdapters = BundleHelper.createArrayFromString(project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, ""));
+        properties.put("DEFOLD_HAS_WEBGPU", shaderAdapters.contains(ShaderCompilers.SHADER_ADAPTER_WEBGPU));
     }
 
     static class SplitFile {

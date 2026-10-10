@@ -27,7 +27,7 @@
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.fn :as fn]
-            [util.http-server :as http-server]
+            [util.http-server.types :as http-server.types]
             [util.path :as path])
   (:import [com.dynamo.bob.fs GltfContainer GltfContainer$Asset GltfContainer$Extraction GltfContainer$ImageAsset GltfContainer$ImageLocation GltfContainer$ImageReference GltfContainer$MaterialAsset GltfContainer$MeshMetadata GltfContainer$SamplerBinding GltfContainer$TextureMetadata]
            [com.dynamo.bob.pipeline ModelImporterJni$DataResolver]
@@ -109,10 +109,10 @@
   path/Coercions
   (as-path [_this] (path/as-path entry))
 
-  http-server/ContentType
-  (content-type [_this] (http-server/content-type entry))
+  http-server.types/ContentType
+  (content-type [_this] (http-server.types/content-type entry))
 
-  http-server/->Connection
+  http-server.types/->Connection
   (->connection [this] (io/input-stream this)))
 
 (core/register-record-type! EmbeddedImageResource)

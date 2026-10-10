@@ -42,6 +42,13 @@ static inline uint32_t NextBreak(TextGlyph* glyphs, uint32_t num_glyphs, uint32_
         if (c != 0)
             *n = *n + 1;
     } while (c != 0 && !dmUtf8::IsBreaking(c));
+
+    // Count CRLF as one separator so neither codepoint contributes to line width.
+    if (c == '\r' && *cursor < num_glyphs && glyphs[*cursor].m_Codepoint == CHAR_NEWLINE)
+    {
+        ++(*cursor);
+        c = CHAR_NEWLINE;
+    }
     return c;
 }
 
@@ -55,6 +62,11 @@ static inline uint32_t SkipWS(TextGlyph* glyphs, uint32_t num_glyphs, uint32_t* 
             *n = *n + 1;
     } while (c != 0 && (c == dmUtf8::UTF_WHITESPACE_SPACE || c == dmUtf8::UTF_WHITESPACE_ZERO_WIDTH_SPACE));
 
+    if (c == '\r' && *cursor < num_glyphs && glyphs[*cursor].m_Codepoint == CHAR_NEWLINE)
+    {
+        ++(*cursor);
+        c = CHAR_NEWLINE;
+    }
     return c;
 }
 
@@ -179,6 +191,9 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
         }
         trailing_space_width += g.m_Advance;
     }
+    if (last.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
+        return last.m_X - row_start_x + last.m_Advance;
+
     float extent_last = last.m_LeftBearing + last.m_Width;
     float width = last.m_X - row_start_x + extent_last + trailing_space_width;
     return width;
@@ -356,6 +371,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     layout->m_NumValidGlyphs = 0;
     layout->m_UseRichText = resolved != 0 || settings->m_UseBaseStyle;
     layout->m_BaseStyleName = settings->m_UseBaseStyle ? settings->m_BaseStyle : 0;
+    layout->m_MonospacePadding = settings->m_Monospace ? settings->m_Padding : 0.0f;
     layout->m_ElapsedTime = 0.0;
     layout->m_ReleaseObject = 0;
     layout->m_ObjectContext = 0;

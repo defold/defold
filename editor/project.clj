@@ -91,7 +91,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.10.362"
+                     [cljfx "1.10.363"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -112,6 +112,8 @@
 
                      [net.objecthunter/exp4j "0.4.8"]]
 
+  ;; ci/cache_key.py reads this :version. If keys or the map structure change,
+  ;; check and update that script as needed.
   :icu4j {:version "77.1"}
 
   :source-paths      ["src/clj"]
@@ -153,6 +155,8 @@
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"
+                      ;; ci/cache_key.py reads this :version. If keys or the map structure change,
+                      ;; check and update that script as needed.
                       :lua-language-server {:version "3.19.1"
                                             :sha256 {"arm64-macos" "0bc077f4447f076b4c92c14e9fd303f5b569eda2ec74b4dca2b55f75fae2e90c"
                                                      "x86_64-macos" "eb373c159cbe556711d7cd316315de2dce969bfd54b31edb7eb9cab2937f2cca"
@@ -183,8 +187,8 @@
                       "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"
                       "--enable-native-access=ALL-UNNAMED"
                       "--sun-misc-unsafe-memory-access=allow"
-                      "-XX:+UseCompactObjectHeaders"]
                       ;; "-XX:MaxJavaStackTraceDepth=1073741823"
+                      "-XX:+UseCompactObjectHeaders"]
 
   :main ^:skip-aot   com.defold.editor.Main
 

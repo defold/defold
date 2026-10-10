@@ -64,7 +64,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -748,8 +748,9 @@
       (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :app.preferences :global
-  (run [workspace prefs app-view localization]
+  (run [workspace prefs app-view project localization]
     (prefs-dialog/open! prefs localization)
+    (project/update-language-servers! project prefs {})
     (workspace/update-build-settings! workspace prefs)
     (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
@@ -992,18 +993,15 @@
       (throw e))))
 
 (defn- make-launched-log-sink [launched-target on-service-url-found]
-  (let [initial-output (atom "")
-        version-line (atom nil)
+  (let [version-line (atom nil)
         updated-target (atom nil)]
     (fn [line]
-      (when (< (count @initial-output) 5000)
-        (swap! initial-output str line "\n")
-        (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (let [result-target (targets/update-launched-target! launched-target target-info)]
-            (reset! updated-target result-target)))
-        (when (not @version-line)
-          (when-let [engine-version-line (engine/parse-engine-version-line line)]
-            (reset! version-line engine-version-line))))
+      ;; Metadata may arrive after startup, e.g. when attaching a debugger.
+      (when-let [target-info (engine/parse-launched-target-info line)]
+        (reset! updated-target (targets/update-launched-target! launched-target target-info)))
+      (when-not @version-line
+        (when-let [engine-version-line (engine/parse-engine-version-line line)]
+          (reset! version-line engine-version-line)))
       ;; After the version line, wait briefly for stream readiness, then call the callback.
       (when (and @updated-target (= @version-line line))
         (future
@@ -1024,10 +1022,13 @@
   (try
     (report-build-launch-progress!
       (localization/message "progress.rebooting-engine" {"engine" (targets/target-message target)}))
-    (engine/reboot! target (local-url target web-server) debug focus)
-    (report-build-launch-progress!
-      (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
-    target
+    (let [target (assoc target :debugger-port (when debug (engine/debugger-port target)))]
+      (when (targets/launched-target? target)
+        (targets/update-launched-target! target (select-keys target [:debugger-port])))
+      (engine/reboot! target (local-url target web-server) debug focus)
+      (report-build-launch-progress!
+        (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
+      target)
     (catch Exception e
       (report-build-launch-progress! (localization/message "progress.engine-reboot-failed"))
       (throw e))))
@@ -1559,8 +1560,8 @@
         (if (and (handle-build-results! workspace render-build-error! build-results)
                  (or engine skip-engine))
           (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server true true)]
-            (when (and target (nil? (debug-view/current-session debug-view)))
-              (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0)))
+            (when (and target (not (debug-view/current-session debug-view)))
+              (debug-view/start-debugger! debug-view project target false))
             (cond-> build-results
               error (assoc :error (exception->target-error error))
               target (assoc :target target)))
@@ -2855,7 +2856,7 @@
       view :view
       {:fx/type fxui/ext-with-anchor-pane-props
        :desc {:fx/type ui/ext-value :value parent}
-       :props {:children [{:fx/type markdown/view
+       :props {:children [{:fx/type markdown-view/view
                            :anchor-pane/top 0
                            :anchor-pane/right 0
                            :anchor-pane/bottom 0

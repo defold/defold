@@ -1,5 +1,6 @@
 /label/invalid_label.go
 /label/invalid_vertexspace.label
+/label/layout_object_pivot.go
 /label/link_hover.go
 /label/styled_labels.go
 /label/test_comp.go

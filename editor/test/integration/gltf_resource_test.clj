@@ -31,9 +31,10 @@
             [integration.test-util :as test-util]
             [service.log :as log]
             [support.test-support :as test-support :refer [with-clean-system]]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.http-server.types :as http-server.types])
   (:import [java.awt.image BufferedImage]
-           [java.io ByteArrayOutputStream IOException]
+           [java.io ByteArrayOutputStream IOException InputStream]
            [java.net URI]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
@@ -523,6 +524,8 @@
                 (is (= {:width 1 :height 1} (g/node-value image-node :size)))
                 (is (not (g/error-value? (g/node-value image-node :content-generator))))))))))))
 
+;; Verifies GLB changes refresh image content and HTTP streams, guarding against
+;; stale image data and broken protocols after namespace moves.
 (deftest glb-image-content-depends-on-its-container
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
     (with-open [_deleter (test-util/make-directory-deleter project-path)]
@@ -558,8 +561,13 @@
                 (.put image-bytes))
               (test-support/write-until-new-mtime source-file (.array glb)))
             (workspace/resource-sync! workspace)
-            (let [node (test-util/resource-node project "/image.glb/images/0.png")
+            (let [image-resource (workspace/find-resource workspace "/image.glb/images/0.png")
+                  node (test-util/resource-node project "/image.glb/images/0.png")
                   generator (g/node-value node :content-generator)]
+              (is (= "image/png" (http-server.types/content-type image-resource)))
+              (with-open [^InputStream stream (http-server.types/->connection image-resource)]
+                (is (= (unchecked-int color)
+                       (.getRGB ^BufferedImage (ImageIO/read stream) 0 0))))
               (is (not (g/error-value? generator)))
               (when-not (g/error-value? generator)
                 (is (= (unchecked-int color)

@@ -295,6 +295,7 @@ set(_DEFOLD_ENGINE_LIBS
   resource
   extension
   script
+  debugger
   render
   rig
   gameobject
@@ -389,10 +390,12 @@ foreach(_DEFOLD_DMSDK_DIR IN LISTS _DEFOLD_DMSDK_DIRS)
     get_filename_component(_DEFOLD_DMSDK_HEADER_DIR "${_DEFOLD_DMSDK_HEADER}" DIRECTORY)
     if(_DEFOLD_DMSDK_HEADER_DIR)
       install(FILES "${_DEFOLD_DMSDK_DIR}/${_DEFOLD_DMSDK_HEADER}"
-              DESTINATION "sdk/include/dmsdk/${_DEFOLD_DMSDK_HEADER_DIR}")
+              DESTINATION "sdk/include/dmsdk/${_DEFOLD_DMSDK_HEADER_DIR}"
+              COMPONENT defold_sdk_headers)
     else()
       install(FILES "${_DEFOLD_DMSDK_DIR}/${_DEFOLD_DMSDK_HEADER}"
-              DESTINATION sdk/include/dmsdk)
+              DESTINATION sdk/include/dmsdk
+              COMPONENT defold_sdk_headers)
     endif()
   endforeach()
 endforeach()

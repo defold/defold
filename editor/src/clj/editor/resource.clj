@@ -28,7 +28,7 @@
             [util.defonce :as defonce]
             [util.digest :as digest]
             [util.fn :as fn]
-            [util.http-server :as http-server]
+            [util.http-server.types :as http-server.types]
             [util.path :as path]
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
@@ -444,7 +444,7 @@
   (:textual? resource-type))
 
 (defn- content-type [resource]
-  (or (http-server/ext->content-type (type-ext resource))
+  (or (http-server.types/ext->content-type (type-ext resource))
       (if (textual-resource-type? (resource-type resource))
         "text/plain"
         "application/octet-stream")))
@@ -495,10 +495,10 @@
   path/Coercions
   (as-path [_this] (path/as-path abs-path))
 
-  http-server/ContentType
+  http-server.types/ContentType
   (content-type [resource] (content-type resource))
 
-  http-server/->Data
+  http-server.types/->Data
   (->data [_] (path/as-path abs-path)))
 
 (defn make-file-resource [workspace ^String root-path ^File file children editable-proj-path? unloaded-proj-path?]
@@ -633,15 +633,15 @@
   path/Coercions
   (as-path [_this] (path/as-path zip-uri))
 
-  http-server/ContentType
+  http-server.types/ContentType
   (content-type [resource] (content-type resource))
 
-  http-server/->Connection
+  http-server.types/->Connection
   (->connection [_]
     (let [zip-file (ZipFile. (io/file zip-uri))
           entry (.getEntry zip-file zip-entry)]
       (reify
-        http-server/ConnectionContentLength
+        http-server.types/ConnectionContentLength
         (connection-content-length [_]
           (let [size (.getSize entry)]
             (when-not (= -1 size) size)))
@@ -713,10 +713,10 @@
   path/Coercions
   (as-path [_this] (path/as-path source))
 
-  http-server/ContentType
+  http-server.types/ContentType
   (content-type [this] (content-type this))
 
-  http-server/->Connection
+  http-server.types/->Connection
   (->connection [this] (io/input-stream this)))
 
 (core/register-record-type! EmbeddedResource)

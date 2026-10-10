@@ -71,8 +71,10 @@ static void touchUpdate(NativeTouch *touch, int x, int y, int phase)
             return;
         }
 
-        touch->DX = x - touch->X;
-        touch->DY = y - touch->Y;
+        // Accumulate until read, since browsers can send multiple updates with
+        // identical positions before the next frame consumes the touch (#10264).
+        touch->DX += x - touch->X;
+        touch->DY += y - touch->Y;
         touch->X = x;
         touch->Y = y;
 

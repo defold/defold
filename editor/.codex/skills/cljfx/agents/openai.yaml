@@ -1,0 +1,7 @@
+interface:
+  display_name: "cljfx"
+  short_description: "cljfx components, props, callbacks, and state"
+  default_prompt: "Use $cljfx to implement or review this change using cljfx semantics."
+
+policy:
+  allow_implicit_invocation: true

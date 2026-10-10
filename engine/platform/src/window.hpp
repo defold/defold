@@ -38,6 +38,8 @@ namespace dmPlatform
     int32_t        GetMouseButton(HWindow window, int32_t button);
     int32_t        GetMouseWheel(HWindow window);
     void           GetMousePosition(HWindow window, int32_t* x, int32_t* y);
+    bool           IsMouseLeftButtonFromTouch(HWindow window);
+    bool           IsMousePositionFromTouch(HWindow window);
     uint32_t       GetTouchData(HWindow window, WindowTouchData* touch_data, uint32_t touch_data_count);
     bool           GetAcceleration(HWindow window, float* x, float* y, float* z);
     bool           GetSafeArea(HWindow window, WindowSafeArea* out);
