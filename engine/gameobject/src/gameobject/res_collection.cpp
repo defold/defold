@@ -85,7 +85,7 @@ namespace dmGameObject
                     scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
                 }
 
-                instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
+                collection->m_LocalTransforms[instance->m_Index] = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
 
                 dmHashInit64(&instance->m_CollectionPathHashState, true);
                 const char* path_end = strrchr(instance_desc.m_Id, *ID_SEPARATOR);
@@ -152,8 +152,8 @@ namespace dmGameObject
             if (CREATE_RESULT_OK == create_result) {
                 // Set properties
                 uint32_t component_instance_data_index = 0;
-                Prototype::Component* components = instance->m_Prototype->m_Components;
-                uint32_t comp_count = instance->m_Prototype->m_ComponentCount;
+                Prototype::Component* components = GetPrototype(collection, instance)->m_Components;
+                uint32_t comp_count = GetPrototype(collection, instance)->m_ComponentCount;
                 for (uint32_t comp_i = 0; comp_i < comp_count; ++comp_i)
                 {
                     Prototype::Component& component = components[comp_i];

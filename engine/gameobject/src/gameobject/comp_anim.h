@@ -19,6 +19,28 @@
 
 namespace dmGameObject
 {
+    struct Collection;
+    struct Instance;
+
+    const uint32_t EULER_PENDING = 1;
+    const uint32_t EULER_WRITTEN = 2;
+
+    struct EulerRotation
+    {
+        dmVMath::Vector3 m_Value;
+        uint32_t m_InstanceIndex;
+        uint32_t m_State;
+        uint32_t m_NextFree;
+    };
+
+    // Borrowed until the next Euler pool growth. Records retain axis values until
+    // instance deletion, including after animations stop, for partial Euler setters.
+    EulerRotation* GetEulerRotation(Collection* collection, Instance* instance, bool create);
+    void ReleaseEulerRotation(Collection* collection, HGameObject instance);
+
+    // Synchronize in-progress animation writes before a collection-wide transform refresh.
+    void CommitPendingEulerRotations(Collection* collection);
+
     CreateResult CompAnimNewWorld(const ComponentNewWorldParams& params);
 
     CreateResult CompAnimDeleteWorld(const ComponentDeleteWorldParams& params);

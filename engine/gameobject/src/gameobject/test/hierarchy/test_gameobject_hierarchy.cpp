@@ -26,6 +26,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
+#include "../comp_anim.h"
 #include <gameobject/gameobject_ddf.h>
 
 #define EPSILON 0.000001f
@@ -104,6 +105,20 @@ static void AssertWorldPosition(dmGameObject::HInstance instance, const Point3& 
     ASSERT_NEAR(expected.getX(), actual.getX(), EPSILON);
     ASSERT_NEAR(expected.getY(), actual.getY(), EPSILON);
     ASSERT_NEAR(expected.getZ(), actual.getZ(), EPSILON);
+}
+
+static void AssertWorldMatrix(dmGameObject::HInstance instance, const Matrix4& expected)
+{
+    const Matrix4& actual = dmGameObject::GetWorldMatrix(instance);
+    for (uint32_t column = 0; column < 4; ++column)
+    {
+        for (uint32_t row = 0; row < 4; ++row)
+        {
+            float value = expected.getElem(column, row);
+            float tolerance = 0.00005f * dmMath::Max(1.0f, fabsf(value));
+            ASSERT_NEAR(value, actual.getElem(column, row), tolerance);
+        }
+    }
 }
 
 static void AssertPosition(dmGameObject::HInstance instance, const Point3& expected)
@@ -427,6 +442,314 @@ TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
     dmGameObject::Delete(m_Collection, parent, true);
     ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
+}
+
+// Direct position writes and explicit Euler setters must remain valid through reparenting and
+// deletion, and a reused transform slot must start with identity and no parent.
+TEST_F(HierarchyTest, TransformPropertyPointersSurviveHierarchyChanges)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance grandchild = dmGameObject::New(m_Collection, 0);
+    dmGameObject::SetPosition(parent, Point3(10, 0, 0));
+    dmGameObject::SetScale(parent, Vector3(2, 3, 4));
+    dmGameObject::SetPosition(child, Point3(1, 0, 0));
+    dmGameObject::SetPosition(grandchild, Point3(1, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(grandchild, child));
+
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyDesc position;
+    dmGameObject::PropertyDesc euler;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(child, 0, dmHashString64("position"), options, position));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(child, 0, dmHashString64("euler"), options, euler));
+    float* position_ptr = position.m_ValuePtr;
+    ASSERT_NE((float*)0, position_ptr);
+    ASSERT_EQ((float*)0, euler.m_ValuePtr);
+
+    position_ptr[0] = 4;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(child, 0, dmHashString64("euler.z"), options, dmGameObject::PropertyVar(90.0f)));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(child, Point3(18, 0, 0));
+    AssertWorldPosition(grandchild, Point3(18, 3, 0));
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, 0));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(child, Point3(4, 0, 0));
+    AssertWorldPosition(grandchild, Point3(4, 1, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(grandchild, Point3(18, 3, 0));
+
+    dmGameObject::PropertyDesc current;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(child, 0, dmHashString64("position"), options, current));
+    ASSERT_EQ(position_ptr, current.m_ValuePtr);
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    uint32_t slot = dmGameObject::GetInstanceFromHandle(collection, child)->m_Index;
+    dmGameObject::Delete(m_Collection, child, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(grandchild, Point3(12, 0, 0));
+
+    dmGameObject::HInstance replacement = dmGameObject::New(m_Collection, 0);
+    ASSERT_EQ(slot, dmGameObject::GetInstanceFromHandle(collection, replacement)->m_Index);
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(replacement, Point3(0, 0, 0));
+    ASSERT_EQ((dmGameObject::HInstance)0, dmGameObject::GetParent(replacement));
+    ASSERT_NEAR(1.0f, dmGameObject::GetRotation(replacement).getW(), EPSILON);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(replacement).getX(), EPSILON);
+}
+
+// Parents allocated after their children must still update first, including after a
+// same-depth reparent that keeps the traversal order valid.
+TEST_F(HierarchyTest, TransformOrderUpdatesParentsFirst)
+{
+    dmGameObject::HInstance grandchild = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance other_parent = dmGameObject::New(m_Collection, 0);
+    dmGameObject::SetPosition(parent, Point3(10, 0, 0));
+    dmGameObject::SetRotation(parent, Quat::rotationZ(3.14159265f / 2.0f));
+    dmGameObject::SetScale(parent, Vector3(2, 2, 2));
+    dmGameObject::SetPosition(other_parent, Point3(100, 0, 0));
+    dmGameObject::SetPosition(child, Point3(1, 0, 0));
+    dmGameObject::SetPosition(grandchild, Point3(2, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(grandchild, child));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(child, Point3(10, 2, 0));
+    AssertWorldPosition(grandchild, Point3(10, 6, 0));
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, other_parent));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(child, Point3(101, 0, 0));
+    AssertWorldPosition(grandchild, Point3(103, 0, 0));
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(grandchild, parent));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(grandchild, Point3(10, 4, 0));
+}
+
+// Deleting a middle node and reusing its slot must preserve the traversal;
+// scene inspection must also see new roots before the next transform update.
+TEST_F(HierarchyTest, TransformOrderSurvivesDeletionAndSlotReuse)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance grandchild = dmGameObject::New(m_Collection, 0);
+    dmGameObject::SetPosition(parent, Point3(10, 0, 0));
+    dmGameObject::SetPosition(child, Point3(1, 0, 0));
+    dmGameObject::SetPosition(grandchild, Point3(2, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(grandchild, child));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(grandchild, Point3(13, 0, 0));
+
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    uint32_t slot = dmGameObject::GetInstanceFromHandle(collection, child)->m_Index;
+    dmGameObject::Delete(m_Collection, child, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::HInstance replacement = dmGameObject::New(m_Collection, 0);
+    ASSERT_EQ(slot, dmGameObject::GetInstanceFromHandle(collection, replacement)->m_Index);
+    dmGameObject::SetPosition(replacement, Point3(100, 0, 0));
+
+    dmGameObject::SceneNode root;
+    ASSERT_TRUE(dmGameObject::TraverseGetRoot(m_Register, &root));
+    dmGameObject::SceneNodeIterator it = dmGameObject::TraverseIterateChildren(&root);
+    uint32_t roots = 0;
+    while (dmGameObject::TraverseIterateNext(&it))
+    {
+        ASSERT_TRUE(it.m_Node.m_Instance == parent || it.m_Node.m_Instance == replacement);
+        ++roots;
+    }
+    ASSERT_EQ(2U, roots);
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(grandchild, Point3(12, 0, 0));
+    AssertWorldPosition(replacement, Point3(100, 0, 0));
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(parent, replacement));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(grandchild, Point3(112, 0, 0));
+    dmGameObject::Delete(m_Collection, replacement, true);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::UpdateTransforms(m_Collection);
+    for (uint32_t level = 0; level < dmGameObject::MAX_HIERARCHICAL_DEPTH; ++level)
+        ASSERT_EQ(0U, collection->m_LevelIndices[level].Size());
+}
+
+// Repeated depth changes and slot reuse must preserve all world matrices, including
+// when entries cross several depth boundaries in a single hierarchy operation.
+TEST_F(HierarchyTest, TransformOrderMatchesReferenceDuringChurn)
+{
+    const uint32_t count = 32;
+    dmGameObject::HInstance instances[count];
+    for (uint32_t i = count; i > 0; --i)
+        instances[i - 1] = dmGameObject::New(m_Collection, 0);
+    for (uint32_t i = 1; i < count; ++i)
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(instances[i], instances[i - 1]));
+
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    uint32_t random = 12345;
+    for (uint32_t frame = 0; frame < 128; ++frame)
+    {
+        random = random * 1664525 + 1013904223;
+        uint32_t child = 1 + random % (count - 1);
+        if (frame % 4 == 0)
+        {
+            dmGameObject::Delete(m_Collection, instances[child], false);
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            instances[child] = dmGameObject::New(m_Collection, 0);
+        }
+        random = random * 1664525 + 1013904223;
+        uint32_t parent = random % (child + 1);
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(instances[child], parent == child ? 0 : instances[parent]));
+
+        Matrix4 expected[count];
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Point3 position(0.01f * i, 0.02f * frame, 0.03f * i);
+            Quat rotation = Quat::rotationZ(0.03f * i + 0.001f * frame);
+            Vector3 scale(1.01f, 0.99f, 1.0f);
+            dmGameObject::SetPosition(instances[i], position);
+            dmGameObject::SetRotation(instances[i], rotation);
+            dmGameObject::SetScale(instances[i], scale);
+            Matrix4 local = Matrix4::translation(Vector3(position)) * Matrix4::rotation(rotation) * Matrix4::scale(scale);
+            dmGameObject::HInstance parent_instance = dmGameObject::GetParent(instances[i]);
+            expected[i] = local;
+            if (parent_instance)
+            {
+                uint32_t parent_index = 0;
+                while (parent_index < i && instances[parent_index] != parent_instance)
+                    ++parent_index;
+                ASSERT_LT(parent_index, i);
+                expected[i] = expected[parent_index] * local;
+            }
+        }
+        dmGameObject::UpdateTransforms(m_Collection);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmGameObject::Instance* instance = dmGameObject::GetInstanceFromHandle(collection, instances[i]);
+            const Matrix4& actual = dmGameObject::GetWorldMatrix(collection, instance);
+            for (uint32_t column = 0; column < 4; ++column)
+            {
+                for (uint32_t row = 0; row < 4; ++row)
+                    ASSERT_NEAR(expected[i].getElem(column, row), actual.getElem(column, row), 0.001f);
+            }
+        }
+    }
+}
+
+// A rotated child under non-uniform scale produces shear; descendants must use
+// that full affine basis instead of a world TRS approximation.
+TEST_F(HierarchyTest, WorldTransformsPreserveShear)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance grandchild = dmGameObject::New(m_Collection, 0);
+    dmGameObject::SetScale(parent, Vector3(2, 1, 1));
+    dmGameObject::SetRotation(child, Quat::rotationZ(3.14159265f / 4.0f));
+    dmGameObject::SetPosition(grandchild, Point3(1, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(grandchild, child));
+    dmGameObject::UpdateTransforms(m_Collection);
+
+    Matrix4 child_world = Matrix4::scale(Vector3(2, 1, 1)) * Matrix4::rotationZ(3.14159265f / 4.0f);
+    AssertWorldMatrix(child, child_world);
+    AssertWorldMatrix(grandchild, child_world * Matrix4::translation(Vector3(1, 0, 0)));
+    AssertWorldPosition(grandchild, Point3(2.0f * M_SQRT1_2, M_SQRT1_2, 0));
+    ASSERT_NEAR(-1.5f, dot(child_world.getCol0(), child_world.getCol1()), EPSILON);
+}
+
+// Both bulk and ancestor-chain updates must match general matrix multiplication
+// across mixed-axis rotations, shear, negative scale, and singular zero scale.
+TEST_F(HierarchyTest, WorldTransformsMatchMatrixReference)
+{
+    const uint32_t count = 5;
+    dmGameObject::HInstance instances[count];
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        instances[i] = dmGameObject::New(m_Collection, 0);
+        if (i)
+            ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(instances[i], instances[i - 1]));
+    }
+    const Vector3 scales[] = {
+        Vector3(2, 1, 1), Vector3(1, -2, 0.5f), Vector3(0, 2, -1),
+        Vector3(1.01f, 0.99f, 1.02f), Vector3(0.01f, 10, 0.5f), Vector3(0.8f, 1.5f, 1.1f)
+    };
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    for (uint32_t frame = 0; frame < 64; ++frame)
+    {
+        Matrix4 expected[count];
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Vector3 position(0.25f * i, -0.1f * frame, 0.03f * (i + frame));
+            Quat rotation = Quat::rotationX(0.05f * frame) * Quat::rotationY(0.1f * i) * Quat::rotationZ(0.07f * (frame + i));
+            Vector3 scale = scales[(frame + i) % (sizeof(scales) / sizeof(scales[0]))];
+            dmGameObject::SetPosition(instances[i], Point3(position));
+            dmGameObject::SetRotation(instances[i], rotation);
+            dmGameObject::SetScale(instances[i], scale);
+            Matrix4 local = Matrix4::translation(position) * Matrix4::rotation(rotation) * Matrix4::scale(scale);
+            expected[i] = i ? expected[i - 1] * local : local;
+        }
+        if (frame & 1)
+            dmGameObject::UpdateTransformsForInstance(collection, dmGameObject::GetInstanceFromHandle(collection, instances[count - 1]));
+        else
+            dmGameObject::UpdateTransforms(m_Collection);
+        for (uint32_t i = 0; i < count; ++i)
+            AssertWorldMatrix(instances[i], expected[i]);
+    }
+}
+
+// An instance refresh must commit pending Euler data before producing its world matrix.
+TEST_F(HierarchyTest, InstanceRefreshCommitsPendingRotation)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0);
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    dmGameObject::Instance* instance = dmGameObject::GetInstanceFromHandle(collection, go);
+    dmGameObject::EulerRotation* euler = dmGameObject::GetEulerRotation(collection, instance, true);
+    euler->m_Value.setZ(90);
+    euler->m_State = dmGameObject::EULER_PENDING | dmGameObject::EULER_WRITTEN;
+
+    dmGameObject::UpdateTransformsForInstance(collection, instance);
+    ASSERT_NEAR(M_SQRT1_2, dmGameObject::GetRotation(go).getZ(), 0.0001f);
+    ASSERT_NEAR(M_SQRT1_2, dmGameObject::GetRotation(go).getW(), 0.0001f);
+    Vector4 x_axis = dmGameObject::GetWorldMatrix(go).getCol0();
+    ASSERT_NEAR(0.0f, x_axis.getX(), 0.0001f);
+    ASSERT_NEAR(1.0f, x_axis.getY(), 0.0001f);
+}
+
+// Batched Euler animation writeback leaves objects without changed Euler tracks untouched.
+TEST_F(HierarchyTest, EulerWritebackSkipsUnmarkedSlots)
+{
+    const uint32_t count = 49;
+    dmGameObject::HInstance objects[count];
+    Quat untouched = dmVMath::EulerToQuat(Vector3(45, 0, 0));
+    Quat committed = dmVMath::EulerToQuat(Vector3(0, 0, 90));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        objects[i] = dmGameObject::New(m_Collection, 0);
+        dmGameObject::SetRotation(objects[i], untouched);
+        if (i == 0 || i == 15 || i == 16 || i == 48)
+        {
+            dmGameObject::PropertyVar target(Vector3(0, 0, 90));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::Animate(m_Collection, objects[i], 0,
+                dmHashString64("euler"), dmGameObject::PLAYBACK_ONCE_FORWARD, target,
+                dmEasing::Curve(dmEasing::TYPE_LINEAR), 0, 0, 0, 0, 0));
+        }
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        Quat expected = (i == 0 || i == 15 || i == 16 || i == 48) ? committed : untouched;
+        Quat actual = dmGameObject::GetRotation(objects[i]);
+        for (uint32_t axis = 0; axis < 4; ++axis)
+            ASSERT_NEAR(expected.getElem(axis), actual.getElem(axis), 0.0001f);
+    }
+    dmGameObject::SetRotation(objects[0], untouched);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t axis = 0; axis < 4; ++axis)
+        ASSERT_NEAR(untouched.getElem(axis), dmGameObject::GetRotation(objects[0]).getElem(axis), 0.0001f);
 }
 
 TEST_F(HierarchyTest, TransformChangesMarkCollectionDirty)
@@ -1255,8 +1578,9 @@ static void SetProperties(dmGameObject::HInstance instance)
 {
     dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(dmGameObject::GetCollection(instance));
     dmGameObject::Instance* instance_ptr = dmGameObject::GetInstanceFromHandle(collection_ptr, instance);
-    dmGameObject::Prototype::Component* components = instance_ptr->m_Prototype->m_Components;
-    uint32_t count = instance_ptr->m_Prototype->m_ComponentCount;
+    dmGameObject::Prototype* prototype = dmGameObject::GetPrototype(collection_ptr, instance_ptr);
+    dmGameObject::Prototype::Component* components = prototype->m_Components;
+    uint32_t count = prototype->m_ComponentCount;
     uint32_t component_instance_data_index = 0;
     dmGameObject::ComponentSetPropertiesParams params;
     params.m_Instance = instance;

@@ -15,6 +15,7 @@
 #include <jc_test/jc_test.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/easing.h>
@@ -305,6 +306,309 @@ TEST_F(AnimTest, AnimateEuler)
 #undef ASSERT_FRAME
 }
 
+struct EulerCallbackState
+{
+    dmGameObject::HCollection m_Collection;
+    dmGameObject::HInstance m_Other;
+    dmVMath::Quat m_Rotation;
+    dmVMath::Quat m_OtherRotation;
+    uint32_t m_Count;
+    bool m_DirtyTransforms;
+};
+
+static void ReadEulerCallback(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+                             bool finished, void* userdata1, void* userdata2)
+{
+    EulerCallbackState* state = (EulerCallbackState*)userdata1;
+    state->m_Rotation = dmGameObject::GetRotation(instance);
+    state->m_OtherRotation = dmGameObject::GetRotation(state->m_Other);
+    state->m_DirtyTransforms = dmGameObject::GetCollectionFromHandle(state->m_Collection)->m_DirtyTransforms;
+    ++state->m_Count;
+}
+
+// All evaluated Euler axes and other objects must be committed before the first completion callback.
+TEST_F(AnimTest, EulerCommittedBeforeCallbacks)
+{
+    dmGameObject::HInstance first = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::HInstance second = dmGameObject::New(m_Collection, "/dummy.goc");
+    EulerCallbackState state = {};
+    state.m_Collection = m_Collection;
+    state.m_Other = second;
+    m_UpdateContext.m_DT = 0.5f;
+    dmEasing::Curve easing(dmEasing::TYPE_LINEAR);
+    dmGameObject::PropertyVar first_target(dmVMath::Vector3(20, 30, 40));
+    dmGameObject::PropertyVar second_target(180.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, first, 0, hash("euler"),
+        dmGameObject::PLAYBACK_ONCE_FORWARD, first_target,
+        easing, 0.5f, 0, ReadEulerCallback, &state, 0));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, second, 0, hash("euler.z"),
+        dmGameObject::PLAYBACK_ONCE_FORWARD, second_target,
+        easing, 0.5f, 0, 0, 0, 0));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(1u, state.m_Count);
+    ASSERT_TRUE(state.m_DirtyTransforms);
+    dmVMath::Quat expected = dmVMath::EulerToQuat(dmVMath::Vector3(20, 30, 40));
+    for (uint32_t i = 0; i < 4; ++i)
+        ASSERT_NEAR(expected.getElem(i), state.m_Rotation.getElem(i), 0.0001f);
+    ASSERT_NEAR(1.0f, state.m_OtherRotation.getZ(), 0.0001f);
+    ASSERT_NEAR(0.0f, state.m_OtherRotation.getW(), 0.0001f);
+}
+
+// A first scalar Euler animation must retain unanimated axes without a getter allocating its record.
+TEST_F(AnimTest, EulerAnimationStartsFromUncachedRotation)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0);
+    dmVMath::Quat rotation = dmVMath::EulerToQuat(dmVMath::Vector3(20, 30, 40));
+    dmGameObject::SetRotation(go, rotation);
+    dmVMath::Vector3 initial = dmVMath::QuatToEuler(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
+    dmGameObject::PropertyVar target(80.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::Animate(m_Collection, go, 0,
+        dmHashString64("euler.z"), dmGameObject::PLAYBACK_ONCE_FORWARD, target,
+        dmEasing::Curve(dmEasing::TYPE_LINEAR), 0.5f, 0, 0, 0, 0));
+    m_UpdateContext.m_DT = 0.25f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    initial.setZ((initial.getZ() + 80.0f) * 0.5f);
+    dmVMath::Quat expected = dmVMath::EulerToQuat(initial);
+    dmVMath::Quat actual = dmGameObject::GetRotation(go);
+    for (uint32_t axis = 0; axis < 4; ++axis)
+        ASSERT_NEAR(expected.getElem(axis), actual.getElem(axis), 0.0001f);
+}
+
+class EulerRefreshAnimTest : public AnimTest
+{
+protected:
+    void SetUp() override
+    {
+        AnimTest::SetUp();
+        m_SetterCount = 0;
+        m_PropertyObject = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, m_PropertyObject);
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            m_Objects[i] = dmGameObject::New(m_Collection, 0);
+            ASSERT_NE((dmGameObject::HInstance)0, m_Objects[i]);
+        }
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Objects[1], m_Objects[0]));
+        dmGameObject::SetPosition(m_Objects[0], dmVMath::Point3(2, 3, 4));
+        dmGameObject::SetPosition(m_Objects[1], dmVMath::Point3(1, -2, 3));
+        dmGameObject::SetPosition(m_Objects[2], dmVMath::Point3(-1, 2, 5));
+        dmGameObject::SetScale(m_Objects[0], dmVMath::Vector3(2, 3, 4));
+        dmGameObject::UpdateTransforms(m_Collection);
+
+        dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+        m_Prototype = dmGameObject::GetPrototype(collection, dmGameObject::GetInstanceFromHandle(m_PropertyObject));
+        m_SavedComponents = m_Prototype->m_Components;
+        m_SavedComponentCount = m_Prototype->m_ComponentCount;
+        m_Type.m_Context = this;
+        m_Type.m_GetPropertyFunction = GetRefreshProperty;
+        m_Type.m_SetPropertyFunction = SetRefreshProperty;
+        // Attach a test component to the empty resource prototype. Restore it before instance destruction.
+        m_Component = (dmGameObject::Prototype::Component*)malloc(sizeof(dmGameObject::Prototype::Component));
+        *m_Component = dmGameObject::Prototype::Component(0, hash("refresh"), 0, &m_Type, 0,
+            dmVMath::Point3(0), dmVMath::Quat::identity(), dmVMath::Vector3(1));
+        m_Prototype->m_Components = m_Component;
+        m_Prototype->m_ComponentCount = 1;
+    }
+
+    void TearDown() override
+    {
+        m_Prototype->m_Components = m_SavedComponents;
+        m_Prototype->m_ComponentCount = m_SavedComponentCount;
+        free(m_Component);
+        AnimTest::TearDown();
+    }
+
+    static dmGameObject::PropertyResult GetRefreshProperty(const dmGameObject::ComponentGetPropertyParams& params,
+                                                          dmGameObject::PropertyDesc& out_value)
+    {
+        out_value.m_Variant = dmGameObject::PropertyVar(0.0f);
+        out_value.m_ValuePtr = 0;
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
+
+    static dmGameObject::PropertyResult SetRefreshProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        EulerRefreshAnimTest* test = (EulerRefreshAnimTest*)params.m_Context;
+        if (test->m_RefreshCollection)
+        {
+            dmGameObject::UpdateTransforms(test->m_Collection);
+        }
+        else
+        {
+            dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(test->m_Collection);
+            dmGameObject::UpdateTransformsForInstance(collection, dmGameObject::GetInstanceFromHandle(test->m_Objects[1]));
+        }
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            test->m_RefreshedRotations[i] = dmGameObject::GetRotation(test->m_Objects[i]);
+            test->m_RefreshedMatrices[i] = dmGameObject::GetWorldMatrix(test->m_Objects[i]);
+        }
+        ++test->m_SetterCount;
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
+
+    void TestRefresh(bool refresh_collection, bool animate_quaternion)
+    {
+        m_RefreshCollection = refresh_collection;
+        m_UpdateContext.m_DT = 0.25f;
+        dmVMath::Quat rotations[3];
+        dmVMath::Matrix4 matrices[3];
+        dmEasing::Curve easing(dmEasing::TYPE_LINEAR);
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            float angle = 90.0f * (i + 1);
+            dmGameObject::PropertyVar target(angle);
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, m_Objects[i], 0, hash("euler.z"),
+                dmGameObject::PLAYBACK_ONCE_FORWARD, target, easing, 1, 0, 0, 0, 0));
+            rotations[i] = dmVMath::EulerToQuat(dmVMath::Vector3(0, 0, angle * 0.25f));
+            matrices[i] = dmVMath::Matrix4::translation(dmVMath::Vector3(dmGameObject::GetPosition(m_Objects[i])))
+                * dmVMath::Matrix4::rotation(rotations[i]) * dmVMath::Matrix4::scale(dmGameObject::GetScale(m_Objects[i]));
+            if (i == 1)
+                matrices[i] = matrices[0] * matrices[i];
+        }
+        dmVMath::Matrix4 unrelated_initial = dmGameObject::GetWorldMatrix(m_Objects[2]);
+        dmGameObject::PropertyVar target(1.0f);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, m_PropertyObject, hash("refresh"), hash("value"),
+            dmGameObject::PLAYBACK_ONCE_FORWARD, target, easing, 1, 0, 0, 0, 0));
+        if (animate_quaternion)
+        {
+            // These pointer writes happen after the setter's refresh and must not consume final Euler writeback.
+            dmGameObject::PropertyVar rotation_target(dmVMath::Quat::rotationX(1.0f));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, m_Objects[1], 0, hash("rotation"),
+                dmGameObject::PLAYBACK_ONCE_FORWARD, rotation_target, easing, 1, 0, 0, 0, 0));
+        }
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_EQ(1u, m_SetterCount);
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            bool refreshed = refresh_collection || i != 2;
+            dmVMath::Quat refreshed_rotation = refreshed ? rotations[i] : dmVMath::Quat::identity();
+            dmVMath::Matrix4 refreshed_matrix = refreshed ? matrices[i] : unrelated_initial;
+            dmVMath::Quat final_rotation = dmGameObject::GetRotation(m_Objects[i]);
+            const dmVMath::Matrix4& final_matrix = dmGameObject::GetWorldMatrix(m_Objects[i]);
+            for (uint32_t axis = 0; axis < 4; ++axis)
+            {
+                ASSERT_NEAR(refreshed_rotation.getElem(axis), m_RefreshedRotations[i].getElem(axis), 0.0001f);
+                ASSERT_NEAR(rotations[i].getElem(axis), final_rotation.getElem(axis), 0.0001f);
+                for (uint32_t row = 0; row < 4; ++row)
+                {
+                    ASSERT_NEAR(refreshed_matrix.getElem(axis, row), m_RefreshedMatrices[i].getElem(axis, row), 0.0001f);
+                    ASSERT_NEAR(matrices[i].getElem(axis, row), final_matrix.getElem(axis, row), 0.0001f);
+                }
+            }
+        }
+    }
+
+    dmGameObject::HInstance m_PropertyObject;
+    dmGameObject::HInstance m_Objects[3];
+    dmGameObject::Prototype* m_Prototype;
+    dmGameObject::Prototype::Component* m_SavedComponents;
+    dmGameObject::Prototype::Component* m_Component;
+    dmGameObject::ComponentType m_Type;
+    uint32_t m_SavedComponentCount;
+    uint32_t m_SetterCount;
+    bool m_RefreshCollection;
+    dmVMath::Quat m_RefreshedRotations[3];
+    dmVMath::Matrix4 m_RefreshedMatrices[3];
+};
+
+// A setter refresh must commit pending rotations on the requested ancestor chain, leaving other branches cached.
+TEST_F(EulerRefreshAnimTest, EulerInstanceRefreshDuringEvaluation)
+{
+    TestRefresh(false, false);
+}
+
+// A collection refresh during evaluation must commit all pending Euler writes before calculating matrices.
+TEST_F(EulerRefreshAnimTest, EulerCollectionRefreshDuringEvaluation)
+{
+    TestRefresh(true, false);
+}
+
+// Refreshing an ancestor chain must retain Euler precedence over quaternion tracks evaluated later in the pass.
+TEST_F(EulerRefreshAnimTest, EulerInstanceRefreshBeforeQuaternionAnimation)
+{
+    TestRefresh(false, true);
+}
+
+// A collection refresh must retain final Euler writeback after subsequent quaternion animation pointer writes.
+TEST_F(EulerRefreshAnimTest, EulerCollectionRefreshBeforeQuaternionAnimation)
+{
+    TestRefresh(true, true);
+}
+
+// Separate axis tracks share one Euler value, including delayed writes and angles beyond one turn.
+TEST_F(AnimTest, EulerDelayedAxesAndCancellation)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    m_UpdateContext.m_DT = 0.25f;
+    dmEasing::Curve easing(dmEasing::TYPE_LINEAR);
+    dmGameObject::PropertyVar target_x(120.0f);
+    dmGameObject::PropertyVar target_y(60.0f);
+    dmGameObject::PropertyVar target_z(720.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, go, 0, hash("euler.x"),
+        dmGameObject::PLAYBACK_ONCE_FORWARD, target_x, easing, 1, 0, 0, 0, 0));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, go, 0, hash("euler.y"),
+        dmGameObject::PLAYBACK_ONCE_FORWARD, target_y, easing, 1, 0.25f, 0, 0, 0));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, go, 0, hash("euler.z"),
+        dmGameObject::PLAYBACK_ONCE_FORWARD, target_z, easing, 1, 0, 0, 0, 0));
+
+    for (uint32_t frame = 1; frame <= 2; ++frame)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        dmVMath::Quat expected = dmVMath::EulerToQuat(dmVMath::Vector3(30.0f * frame, 15.0f * (frame - 1), 180.0f * frame));
+        dmVMath::Quat actual = dmGameObject::GetRotation(go);
+        for (uint32_t i = 0; i < 4; ++i)
+            ASSERT_NEAR(expected.getElem(i), actual.getElem(i), 0.0001f);
+    }
+    // Cancellation queries the property and normalizes its Euler representation from the quaternion.
+    dmVMath::Quat before_cancel = dmGameObject::GetRotation(go);
+    dmVMath::Vector3 retained = dmVMath::QuatToEuler(before_cancel.getX(), before_cancel.getY(), before_cancel.getZ(), before_cancel.getW());
+    CancelAnimations(m_Collection, go, 0, hash("euler.x"));
+    CancelAnimations(m_Collection, go, 0, hash("euler.y"));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    retained.setZ(540);
+    dmVMath::Quat expected = dmVMath::EulerToQuat(retained);
+    dmVMath::Quat actual = dmGameObject::GetRotation(go);
+    for (uint32_t i = 0; i < 4; ++i)
+        ASSERT_NEAR(expected.getElem(i), actual.getElem(i), 0.0001f);
+}
+
+// Euler writeback only overrides quaternion animation when an Euler value changes, in either creation order.
+TEST_F(AnimTest, EulerWritebackOnlyForChangedValues)
+{
+    dmGameObject::HInstance objects[4];
+    dmVMath::Quat target_rotation = dmVMath::EulerToQuat(dmVMath::Vector3(90, 0, 0));
+    dmEasing::Curve easing(dmEasing::TYPE_LINEAR);
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        dmhash_t properties[2] = { hash("euler.z"), hash("rotation") };
+        dmGameObject::PropertyVar targets[2] = {
+            dmGameObject::PropertyVar((i & 1) ? 90.0f : 0.0f),
+            dmGameObject::PropertyVar(target_rotation)
+        };
+        for (uint32_t j = 0; j < 2; ++j)
+        {
+            uint32_t property = (i & 2) ? 1 - j : j;
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, properties[property],
+                dmGameObject::PLAYBACK_ONCE_FORWARD, targets[property], easing, 1, 0, 0, 0, 0));
+        }
+    }
+    m_UpdateContext.m_DT = 0.25f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmVMath::Quat expected = (i & 1)
+            ? dmVMath::EulerToQuat(dmVMath::Vector3(0, 0, 22.5f))
+            : dmVMath::Quat(target_rotation.getX() * 0.25f, 0, 0, 1 + (target_rotation.getW() - 1) * 0.25f);
+        dmVMath::Quat actual = dmGameObject::GetRotation(objects[i]);
+        for (uint32_t j = 0; j < 4; ++j)
+            ASSERT_NEAR(expected.getElem(j), actual.getElem(j), 0.0001f);
+    }
+}
+
 void AnimationStoppedToDelete(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                     bool finished, void* userdata1, void* userdata2)
 {
@@ -479,6 +783,230 @@ TEST_F(AnimTest, DelayedNotStopped)
     ASSERT_EQ(1.0f, X(go));
 
     dmGameObject::Delete(m_Collection, go, false);
+}
+
+// Growing and recycling Euler storage must preserve running bindings and reset records for new instance handles.
+TEST_F(AnimTest, EulerPoolGrowthAndReuse)
+{
+    const uint32_t count = 768;
+    dmGameObject::HInstance objects[count];
+    m_UpdateContext.m_DT = 0.25f;
+    dmEasing::Curve easing(dmEasing::TYPE_LINEAR);
+    dmGameObject::PropertyVar target(720.0f);
+    objects[0] = dmGameObject::New(m_Collection, "/dummy.goc");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[0], 0, hash("euler.z"),
+        dmGameObject::PLAYBACK_ONCE_FORWARD, target, easing, 1, 0, 0, 0, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 1; i < count; ++i)
+    {
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, objects[i]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("euler.z"),
+            dmGameObject::PLAYBACK_ONCE_FORWARD, target, easing, 1, 0, 0, 0, 0));
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        dmVMath::Quat expected = dmVMath::EulerToQuat(dmVMath::Vector3(0, 0, i == 0 ? 360 : 180));
+        dmVMath::Quat actual = dmGameObject::GetRotation(objects[i]);
+        for (uint32_t axis = 0; axis < 4; ++axis)
+            ASSERT_NEAR(expected.getElem(axis), actual.getElem(axis), 0.0001f);
+    }
+    for (uint32_t i = 0; i < count; i += 2)
+        dmGameObject::Delete(m_Collection, objects[i], false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PropertyVar replacement_target(180.0f);
+    for (uint32_t i = 0; i < count; i += 2)
+    {
+        dmGameObject::HInstance old_handle = objects[i];
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE(old_handle, objects[i]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("euler.z"),
+            dmGameObject::PLAYBACK_ONCE_FORWARD, replacement_target, easing, 1, 0, 0, 0, 0));
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        dmVMath::Quat expected = dmVMath::EulerToQuat(dmVMath::Vector3(0, 0, (i & 1) ? 360 : 45));
+        dmVMath::Quat actual = dmGameObject::GetRotation(objects[i]);
+        for (uint32_t axis = 0; axis < 4; ++axis)
+            ASSERT_NEAR(expected.getElem(axis), actual.getElem(axis), 0.0001f);
+    }
+}
+
+struct EulerPoolCallbackState
+{
+    AnimTest* m_Test;
+    dmGameObject::HInstance m_Objects[700];
+    bool m_Called;
+};
+
+static void GrowEulerPoolCallback(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+    bool finished, void* userdata1, void* userdata2)
+{
+    EulerPoolCallbackState* state = (EulerPoolCallbackState*)userdata1;
+    ASSERT_TRUE(finished);
+    state->m_Called = true;
+    dmGameObject::PropertyVar target(360.0f);
+    for (uint32_t i = 0; i < 700; ++i)
+    {
+        state->m_Objects[i] = dmGameObject::New(state->m_Test->m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, state->m_Objects[i]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(state->m_Test->m_Collection, state->m_Objects[i], 0,
+            hash("euler.z"), dmGameObject::PLAYBACK_ONCE_FORWARD, target,
+            dmEasing::Curve(dmEasing::TYPE_LINEAR), 1, 0, 0, 0, 0));
+    }
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instance, 0, hash("euler.x"), options,
+        dmGameObject::PropertyVar(60.0f)));
+}
+
+// Completion callbacks may grow both pools and then access the completed object's retained Euler axes.
+TEST_F(AnimTest, EulerPoolGrowthDuringCallback)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    m_UpdateContext.m_DT = 0.25f;
+    EulerPoolCallbackState state = {};
+    state.m_Test = this;
+    dmGameObject::PropertyVar target(450.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, go, 0, hash("euler.z"),
+        dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR),
+        0.25f, 0, GrowEulerPoolCallback, &state, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(state.m_Called);
+    dmVMath::Quat expected = dmVMath::EulerToQuat(dmVMath::Vector3(60, 0, 450));
+    for (uint32_t axis = 0; axis < 4; ++axis)
+        ASSERT_NEAR(expected.getElem(axis), dmGameObject::GetRotation(go).getElem(axis), 0.0001f);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    expected = dmVMath::EulerToQuat(dmVMath::Vector3(0, 0, 90));
+    for (uint32_t i = 0; i < 700; ++i)
+        for (uint32_t axis = 0; axis < 4; ++axis)
+            ASSERT_NEAR(expected.getElem(axis), dmGameObject::GetRotation(state.m_Objects[i]).getElem(axis), 0.0001f);
+}
+
+// More than 65k tracks must evaluate correctly, including cancellation and reuse of high indices.
+TEST_F(AnimTest, AnimationPoolGrowthAndReuse)
+{
+    const uint32_t count = 100000;
+    dmGameObject::DeleteCollection(m_Collection);
+    dmGameObject::PostUpdate(m_Register);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, count + 1, 0);
+    ASSERT_NE((dmGameObject::HCollection)0, m_Collection);
+
+    dmArray<dmGameObject::HInstance> objects;
+    objects.EnsureSize(count);
+    dmGameObject::PropertyVar position_target(4.0f);
+    dmGameObject::PropertyVar euler_target(180.0f);
+    dmEasing::Curve easing(dmEasing::TYPE_LINEAR);
+    m_UpdateContext.m_DT = 0.25f;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, objects[i]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.x"),
+            dmGameObject::PLAYBACK_ONCE_FORWARD, position_target, easing, 1, 0, AnimationStopped, this, 0));
+        if (i % 20 < 3)
+        {
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("euler.z"),
+                dmGameObject::PLAYBACK_ONCE_FORWARD, euler_target, easing, 1, 0, 0, 0, 0));
+        }
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmVMath::Quat expected_rotation = dmVMath::EulerToQuat(dmVMath::Vector3(0, 0, 45));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        ASSERT_NEAR(1.0f, X(objects[i]), EPSILON);
+        if (i % 20 < 3)
+        {
+            for (uint32_t axis = 0; axis < 4; ++axis)
+                ASSERT_NEAR(expected_rotation.getElem(axis), dmGameObject::GetRotation(objects[i]).getElem(axis), 0.0001f);
+        }
+    }
+    dmGameObject::CancelAnimationCallbacks(m_Collection, this);
+    for (uint32_t i = 0; i < count; i += 2)
+    {
+        dmGameObject::CancelAnimations(m_Collection, objects[i]);
+        dmGameObject::Delete(m_Collection, objects[i], false);
+    }
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PropertyVar replacement_target(8.0f);
+    for (uint32_t i = 0; i < count; i += 2)
+    {
+        dmGameObject::HInstance previous = objects[i];
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, objects[i]);
+        ASSERT_NE(previous, objects[i]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.x"),
+            dmGameObject::PLAYBACK_ONCE_FORWARD, replacement_target, easing, 1, 0, AnimationStopped, this, 0));
+    }
+    for (uint32_t frame = 0; frame < 4; ++frame)
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < count; ++i)
+        ASSERT_NEAR((i & 1) ? 4.0f : 8.0f, X(objects[i]), EPSILON);
+    ASSERT_EQ(count / 2, m_FinishCount);
+    ASSERT_EQ(0u, m_CancelCount);
+}
+
+struct AnimationGrowthCallbackState
+{
+    AnimTest* m_Test;
+    dmArray<dmGameObject::HInstance> m_Objects;
+    bool m_Called;
+};
+
+static void CountGrowthAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+    bool finished, void* userdata1, void* userdata2)
+{
+    ASSERT_TRUE(finished);
+    ++((AnimTest*)userdata2)->m_FinishCount;
+}
+
+static void GrowAnimationsCallback(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+    bool finished, void* userdata1, void* userdata2)
+{
+    AnimationGrowthCallbackState* state = (AnimationGrowthCallbackState*)userdata1;
+    ASSERT_TRUE(finished);
+    state->m_Called = true;
+    dmGameObject::PropertyVar target(4.0f);
+    for (uint32_t i = 0; i < state->m_Objects.Size(); ++i)
+    {
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(state->m_Test->m_Collection, state->m_Objects[i], 0,
+            hash("position.x"), dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR),
+            1, 0, CountGrowthAnimationStopped, &state->m_Objects[i], state->m_Test));
+    }
+}
+
+// Completion callbacks may grow every animation container beyond 65k, including the listener table.
+TEST_F(AnimTest, AnimationPoolGrowthDuringCallback)
+{
+    const uint32_t count = 70000;
+    dmGameObject::DeleteCollection(m_Collection);
+    dmGameObject::PostUpdate(m_Register);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, count + 1, 0);
+    ASSERT_NE((dmGameObject::HCollection)0, m_Collection);
+
+    AnimationGrowthCallbackState state;
+    state.m_Test = this;
+    state.m_Called = false;
+    state.m_Objects.EnsureSize(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        state.m_Objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, state.m_Objects[i]);
+    }
+    dmGameObject::PropertyVar target(1.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, state.m_Objects[0], 0, hash("position.y"),
+        dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR),
+        0.25f, 0, GrowAnimationsCallback, &state, 0));
+    m_UpdateContext.m_DT = 0.25f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(state.m_Called);
+    ASSERT_EQ(0u, m_FinishCount);
+    m_UpdateContext.m_DT = 1.0f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < count; ++i)
+        ASSERT_NEAR(4.0f, X(state.m_Objects[i]), EPSILON);
+    ASSERT_EQ(count, m_FinishCount);
 }
 
 TEST_F(AnimTest, LoadTest)

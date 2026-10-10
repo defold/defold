@@ -40,11 +40,14 @@ namespace dmGameObject
     // TODO: Configurable?
     const uint32_t MAX_MESSAGE_DATA_SIZE = 256;
 
+    const uint16_t INVALID_PROTOTYPE_INDEX = 0xffff;
+
     struct Prototype
     {
         Prototype()
             : m_Components(0)
             , m_ComponentCount(0)
+            , m_Index(INVALID_PROTOTYPE_INDEX)
         {
         }
         ~Prototype();
@@ -83,6 +86,7 @@ namespace dmGameObject
 
         Component*     m_Components;
         uint32_t       m_ComponentCount;
+        uint16_t       m_Index;
         // Resources referenced through property overrides inside the prototype
         dmArray<void*> m_PropertyResources;
     };
@@ -105,12 +109,9 @@ namespace dmGameObject
     // NOTE: Actual size of Instance is sizeof(Instance) + sizeof(uintptr_t) * m_UserDataCount
     struct Instance
     {
-        Instance(Prototype* prototype)
+        Instance(uint16_t prototype_index, uint32_t index)
         {
-            m_Transform.SetIdentity();
-            m_EulerRotation = Vector3(0.0f, 0.0f, 0.0f);
-            m_PrevEulerRotation = Vector3(0.0f, 0.0f, 0.0f);
-            m_Prototype = prototype;
+            m_PrototypeIndex = prototype_index;
             m_IdentifierIndex = INVALID_INSTANCE_POOL_INDEX;
             m_Generation = 0;
             m_Identifier = UNNAMED_IDENTIFIER;
@@ -119,8 +120,7 @@ namespace dmGameObject
             m_Initialized = 0;
             m_Bone = 0;
             m_Generated = 0;
-            m_Parent = INVALID_INSTANCE_INDEX;
-            m_Index = INVALID_INSTANCE_INDEX;
+            m_Index = index;
             m_LevelIndex = INVALID_INSTANCE_INDEX;
             m_SiblingIndex = INVALID_INSTANCE_INDEX;
             m_FirstChildIndex = INVALID_INSTANCE_INDEX;
@@ -135,44 +135,16 @@ namespace dmGameObject
         {
         }
 
-        dmTransform::Transform m_Transform;
-
-        // Shadowed rotation expressed in euler coordinates
-        Vector3 m_EulerRotation;
-        // Previous euler rotation, used to detect if the euler rotation has changed and should overwrite the real rotation (needed by animation)
-        Vector3 m_PrevEulerRotation;
-        Prototype*      m_Prototype;
-
-        uint32_t        m_IdentifierIndex;
-        uint32_t        m_Generation;
-        dmhash_t        m_Identifier;
-
         // Collection path hash-state. Used for calculating global identifiers. Contains the hash-state for the collection-path to the instance.
         // We might, in the future, for memory reasons, move this hash-state to a data-structure shared among all instances from the same collection.
         HashState64     m_CollectionPathHashState;
 
-        // Hierarchical depth
-        uint16_t        m_Depth : 8;
-        // If the instance was initialized or not (Init())
-        uint16_t        m_Initialized : 1;
-        // If this game object is part of a skeleton
-        uint16_t        m_Bone : 1;
-        // If this is a generated instance, i.e. if the instance id is uniquely generated
-        uint16_t        m_Generated : 1;
-        // Used for deferred deletion
-        uint16_t        m_ToBeDeleted : 1;
-        // Used for deferred add-to-update
-        uint16_t        m_ToBeAdded : 1;
-        // Marks instances that existed when collection initialization began
-        uint16_t        m_InitSnapshot : 1;
-        // Padding
-        uint16_t        m_Pad : 2;
+        dmhash_t        m_Identifier;
 
-        // Index to parent
-        uint32_t        m_Parent;
-
-        // Index to Collection::m_Instances
+        // Stable slot in the collection's instance, local TRS, parent and world arrays.
         uint32_t        m_Index;
+        uint32_t        m_IdentifierIndex;
+        uint32_t        m_Generation;
 
         // Index to Collection::m_LevelIndex. Index is relative to current level (m_Depth), eg first object in level L always has level-index 0
         // Level-index is used to reorder Collection::m_LevelIndex entries in O(1). Given an instance we need to find where the
@@ -192,6 +164,27 @@ namespace dmGameObject
         uint32_t        m_FirstChildIndex;
 
         uint32_t        m_ComponentInstanceUserDataCount;
+
+        // Hierarchical depth
+        uint16_t        m_Depth : 8;
+        // If the instance was initialized or not (Init())
+        uint16_t        m_Initialized : 1;
+        // If this game object is part of a skeleton
+        uint16_t        m_Bone : 1;
+        // If this is a generated instance, i.e. if the instance id is uniquely generated
+        uint16_t        m_Generated : 1;
+        // Used for deferred deletion
+        uint16_t        m_ToBeDeleted : 1;
+        // Used for deferred add-to-update
+        uint16_t        m_ToBeAdded : 1;
+        // Marks instances that existed when collection initialization began
+        uint16_t        m_InitSnapshot : 1;
+        uint16_t        : 2;
+
+        // Stable slot in Register::m_Prototypes, shared by instances of the resource.
+        uint16_t        m_PrototypeIndex;
+
+        // Variable-size component data; this must remain the last member.
         uintptr_t       m_ComponentInstanceUserData[0];
     };
 
@@ -225,6 +218,10 @@ namespace dmGameObject
         // Generational collection handle registry. Protected by m_Mutex
         dmArray<CollectionRegistrySlot> m_CollectionRegistry;
         uint16_t                        m_FirstFreeCollection;
+
+        // Borrowed prototype resources. Slot zero is the empty prototype.
+        dmArray<Prototype*>         m_Prototypes;
+        dmIndexPool16               m_PrototypeIndices;
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
         uint32_t                    m_DefaultInputStackCapacity;
@@ -278,6 +275,11 @@ namespace dmGameObject
         // Array of world transforms. Calculated using m_LevelIndices above
         dmArray<Matrix4>         m_WorldTransforms;
 
+        // Fixed-capacity transform storage, indexed by the stable instance slot.
+        // These arrays must not move while instances or animation pointers exist.
+        dmArray<dmTransform::Transform> m_LocalTransforms;
+        dmArray<uint32_t>        m_ParentIndices;
+
         // Identifier to game-object handle mapping
         dmHashTable64<HGameObject> m_IDToInstance;
 
@@ -321,6 +323,15 @@ namespace dmGameObject
         uint32_t                 m_FirstUpdate : 1;
     };
 
+    inline Prototype* GetPrototype(Collection* collection, const Instance* instance)
+    {
+        return collection->m_Register->m_Prototypes[instance->m_PrototypeIndex];
+    }
+
+    // Resource callbacks allocate and release stable slots in the register.
+    bool RegisterPrototype(HRegister regist, Prototype* prototype);
+    void UnregisterPrototype(HRegister regist, Prototype* prototype);
+
     // Used by res_collection.cpp
     Instance* NewInstance(Collection* collection, Prototype* proto, const char* prototype_name);
     Instance* GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier);
@@ -336,14 +347,14 @@ namespace dmGameObject
     Result GetComponent(Collection* collection, Instance* instance, dmhash_t component_id, uint32_t* component_type, HComponent* out_component, HComponentWorld* out_world);
 
     void SetPosition(Collection* collection, Instance* instance, Point3 position);
-    Point3 GetPosition(Instance* instance);
+    Point3 GetPosition(Collection* collection, Instance* instance);
     void SetRotation(Collection* collection, Instance* instance, Quat rotation);
-    Quat GetRotation(Instance* instance);
+    Quat GetRotation(Collection* collection, Instance* instance);
     void SetScale(Collection* collection, Instance* instance, float scale);
     void SetScale(Collection* collection, Instance* instance, Vector3 scale);
     void SetScaleXY(Collection* collection, Instance* instance, float scale_x, float scale_y);
-    float GetUniformScale(Instance* instance);
-    Vector3 GetScale(Instance* instance);
+    float GetUniformScale(Collection* collection, Instance* instance);
+    Vector3 GetScale(Collection* collection, Instance* instance);
     Point3 GetWorldPosition(Collection* collection, Instance* instance);
     Quat GetWorldRotation(Collection* collection, Instance* instance);
     float GetWorldUniformScale(Collection* collection, Instance* instance);
@@ -369,7 +380,7 @@ namespace dmGameObject
     Result AttachCollection(Collection* collection, const char* name);
     void DetachCollection(Collection* collection, bool unregister_handle);
 
-    void* GetResource(Instance* instance);
+    void* GetResource(Collection* collection, Instance* instance);
 
     void AcquireInputFocus(Collection* collection, Instance* instance);
     void ReleaseInputFocus(Collection* collection, Instance* instance);
