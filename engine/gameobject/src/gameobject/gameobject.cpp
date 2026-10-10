@@ -3037,15 +3037,17 @@ namespace dmGameObject
         DM_PROFILE("UpdateTransforms");
 
         // Calculate world transforms
+        dmTransform::Transform* local_transforms = collection->m_LocalTransforms.Begin();
+        Matrix4* world_transforms = collection->m_WorldTransforms.Begin();
+        uint32_t* parents = collection->m_ParentIndices.Begin();
         // First root-level instances
         dmArray<uint32_t>& root_level = collection->m_LevelIndices[0];
         uint32_t root_count = root_level.Size();
         for (uint32_t i = 0; i < root_count; ++i)
         {
             uint32_t index = root_level[i];
-            Instance* instance = collection->m_Instances[index];
-            collection->m_WorldTransforms[index] = dmTransform::ToMatrix4(collection->m_LocalTransforms[instance->m_Index]);
-            uint32_t parent_index = collection->m_ParentIndices[instance->m_Index];
+            world_transforms[index] = dmTransform::ToMatrix4(local_transforms[index]);
+            uint32_t parent_index = parents[index];
             assert(parent_index == INVALID_INSTANCE_INDEX);
         }
 
@@ -3056,14 +3058,13 @@ namespace dmGameObject
             for (uint32_t i = 0; i < instance_count; ++i)
             {
                 uint32_t index = level[i];
-                Instance* instance = collection->m_Instances[index];
-                Matrix4* trans = &collection->m_WorldTransforms[index];
+                Matrix4* trans = &world_transforms[index];
 
-                uint32_t parent_index = collection->m_ParentIndices[instance->m_Index];
+                uint32_t parent_index = parents[index];
                 assert(parent_index != INVALID_INSTANCE_INDEX);
 
-                Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
-                Matrix4 own = dmTransform::ToMatrix4(collection->m_LocalTransforms[instance->m_Index]);
+                Matrix4* parent_trans = &world_transforms[parent_index];
+                Matrix4 own = dmTransform::ToMatrix4(local_transforms[index]);
                 *trans = *parent_trans * own;
             }
         }
