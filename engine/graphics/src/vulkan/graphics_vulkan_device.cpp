@@ -1432,14 +1432,6 @@ bail:
         vk_depth_stencil_create_info.front                 = vk_stencil_op_state_front;
         vk_depth_stencil_create_info.back                  = vk_stencil_op_state_back;
 
-        if (render_target->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
-        {
-            // Match the offscreen cull-face adjustment in DrawSetup: its
-            // positive-height viewport reverses the effective winding.
-            vk_depth_stencil_create_info.front = vk_stencil_op_state_back;
-            vk_depth_stencil_create_info.back  = vk_stencil_op_state_front;
-        }
-
         const VkDynamicState vk_dynamic_state[3] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS};
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;

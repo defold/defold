@@ -1,4 +1,5 @@
-{:lint-as {util.task/scope clojure.core/do
+{:lint-as {util.fn/defn-cached clojure.core/defn
+           util.task/scope clojure.core/do
            util.task/fork clojure.core/do
            util.task/with-open clojure.core/with-open}
  :config-in-call {util.task/scope {:linters {:redundant-do {:level :off}}}

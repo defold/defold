@@ -171,6 +171,39 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testGLTFValidatorRequiresTangentSpaceForClearcoat() throws IOException {
+        String source = """
+                {
+                    "asset": {"version": "2.0"},
+                    "extensionsUsed": ["KHR_materials_clearcoat"],
+                    "meshes": [{"primitives": [{
+                        "attributes": {"POSITION": 0, "NORMAL": 1, "TEXCOORD_0": 2},
+                        "material": 0
+                    }]}],
+                    "accessors": [
+                        {"type": "VEC3", "componentType": 5126, "count": 3, "min": [0,0,0], "max": [1,1,0]},
+                        {"type": "VEC3", "componentType": 5126, "count": 3},
+                        {"type": "VEC2", "componentType": 5126, "count": 3}
+                    ],
+                    "images": [{"uri": "normal.png"}],
+                    "textures": [{"source": 0}],
+                    "materials": [{
+                        %s
+                        "extensions": {"KHR_materials_clearcoat": {"clearcoatNormalTexture": {"index": 0}}}
+                    }]
+                }
+                """;
+        for (boolean hasNormalMap : new boolean[] {false, true}) {
+            String gltf = source.formatted(hasNormalMap ? "\"normalTexture\": {\"index\": 0}," : "");
+            GLTFValidator.ValidateResult result = GLTFValidator.validateGltf(
+                    gltf.getBytes(StandardCharsets.UTF_8), "gltf", false);
+            assertEquals(hasNormalMap, result.result());
+            assertEquals(!hasNormalMap, result.errors().stream().anyMatch(
+                    error -> "MESH_PRIMITIVE_NO_TANGENT_SPACE".equals(error.code())));
+        }
+    }
+
+    @Test
     public void testGLTFValidatorInvalid() throws IOException {
         for (Map.Entry<String, String> entry : invalidGLTFFiles.entrySet()) {
             String invalidGLTFFile = entry.getKey();

@@ -150,7 +150,10 @@
     (mapv path->resource roots)))
 
 (defn- temp-resource-file! [^File dir resource]
-  (let [target (File. dir (resource/resource-name resource))]
+  (let [resource-type (resource/resource-type resource)
+        export-name-fn (:export-name-fn resource-type)
+        ^String export-name (export-name-fn resource)
+        target (File. dir export-name)]
     (if (= :file (resource/source-type resource))
       (with-open [in (io/input-stream resource)
                   out (io/output-stream target)]
@@ -377,11 +380,12 @@
           resource (first selection)
           src-files (.getFiles (Clipboard/getSystemClipboard))
           dest-path (.toPath (io/file (resource/abs-path resource)))]
-      (if-let [conflicting-file (some #(let [src-path (.toPath ^File %)]
-                                         (when (and (.startsWith dest-path src-path)
-                                                    (not= dest-path src-path))
-                                           %))
-                                      src-files)]
+      (if-let [conflicting-file (coll/first-where
+                                  (fn [^File src-file]
+                                    (let [src-path (.toPath src-file)]
+                                      (and (.startsWith dest-path src-path)
+                                           (not= dest-path src-path))))
+                                  src-files)]
         (let [res-proj-path (resource/proj-path resource)
               dest-proj-path (resource/file->proj-path (workspace/project-directory workspace) conflicting-file)]
           (notifications/show!
@@ -435,7 +439,7 @@
                                ext (resource/ext resource)]
                            (pair resource-file
                                  (io/file parent (cond-> new-base-name
-                                                   (and (not dir) (seq ext))
+                                                   (and (not dir) (coll/not-empty ext))
                                                    (str "." ext))))))
                        resources)]
     (when-not (some #(resource-watch/reserved-proj-path?

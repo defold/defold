@@ -16,6 +16,7 @@
   (:require [clojure.test :refer :all]
             [util.fn :as fn])
   (:import [clojure.lang ArityException ExceptionInfo]
+           [com.github.benmanes.caffeine.cache Caffeine]
            [java.util.concurrent ExecutionException]))
 
 (defn- arity-void-test-fn
@@ -113,6 +114,62 @@
 
 (defn- memoized-fn-cache [memoized-fn]
   (deref (::fn/memoize-cache (meta memoized-fn))))
+
+(def defn-cached-call-count (atom 0))
+
+(fn/defn-cached cached-test-fn
+  "A cached function used by defn-cached-test."
+  {:cache (-> (Caffeine/newBuilder)
+              (.maximumSize 16)
+              (.build))}
+  ([{:keys [value]}]
+   (swap! defn-cached-call-count inc)
+   (case value
+     ::throw (throw (Exception. "Failed"))
+     ::nil nil
+     (Object.)))
+  ([prefix value & suffixes]
+   (swap! defn-cached-call-count inc)
+   (into [prefix value] suffixes)))
+
+(deftest defn-cached-test
+  (fn/clear-cached! cached-test-fn)
+  (reset! defn-cached-call-count 0)
+  (let [value (random-uuid)
+        argument {:value value}
+        result (cached-test-fn argument)]
+    (is (identical? result (cached-test-fn argument)))
+    (is (= 1 @defn-cached-call-count)))
+
+  (let [value (random-uuid)]
+    (is (= [:prefix value :a :b]
+           (cached-test-fn :prefix value :a :b)))
+    (is (= [:prefix value :a :b]
+           (cached-test-fn :prefix value :a :b)))
+    (is (= 2 @defn-cached-call-count)))
+
+  (let [argument {:value ::throw}]
+    (is (thrown? Exception (cached-test-fn argument)))
+    (is (thrown? Exception (cached-test-fn argument)))
+    (is (= 4 @defn-cached-call-count)))
+
+  (let [argument {:value ::nil}]
+    (is (nil? (cached-test-fn argument)))
+    (is (nil? (cached-test-fn argument)))
+    (is (= 5 @defn-cached-call-count)))
+
+  (is (= "A cached function used by defn-cached-test."
+         (:doc (meta #'cached-test-fn))))
+  (is (= '([{:keys [value]}] [prefix value & suffixes])
+         (:arglists (meta #'cached-test-fn))))
+
+  (let [argument {:value (random-uuid)}
+        first-result (cached-test-fn argument)]
+    (is (nil? (fn/clear-cached! cached-test-fn)))
+    (is (not (identical? first-result (cached-test-fn argument)))))
+
+  (is (thrown? IllegalArgumentException
+               (fn/clear-cached! identity))))
 
 (deftest memoize-test
   (testing "Returns unique instances"

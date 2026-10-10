@@ -24,6 +24,6 @@ void main()
     vec4 tint_pm = vec4(tint.xyz * tint.w, tint.w);
     vec4 color = texture(tex0, var_texcoord0.xy) * tint_pm;
     vec3 ambient = ambient_light();
-    vec3 diffuse = diffuse_lambert(normalize(var_normal), var_position.xyz);
+    vec3 diffuse = diffuse_lambert(normalize(var_normal), var_position.xyz, var_view);
     out_fragColor = vec4(color.rgb * (ambient + diffuse), color.a);
 }

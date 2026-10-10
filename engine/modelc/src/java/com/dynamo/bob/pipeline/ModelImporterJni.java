@@ -71,7 +71,7 @@ public class ModelImporterJni {
     }
 
     // The suffix of the path dictates which loader it will use
-    public static native Modelimporter.Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
+    public static native Modelimporter.Scene LoadFromBufferInternal(Modelimporter.Options options, String path, byte[] buffer, Object data_resolver);
 
     //public static native int AddressOf(Object o);
     public static native void TestException(String message);
@@ -91,7 +91,9 @@ public class ModelImporterJni {
 
     public static Modelimporter.Scene LoadFromBuffer(Modelimporter.Options options, String path, byte[] bytes, DataResolver data_resolver)
     {
-        return ModelImporterJni.LoadFromBufferInternal(path, bytes, data_resolver);
+        if (options == null)
+            options = new Modelimporter.Options();
+        return ModelImporterJni.LoadFromBufferInternal(options, path, bytes, data_resolver);
     }
 
 

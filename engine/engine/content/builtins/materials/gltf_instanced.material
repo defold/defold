@@ -1,0 +1,48 @@
+name: "gltf_instanced"
+tags: "model"
+vertex_program: "/builtins/materials/gltf_instanced.vp"
+fragment_program: "/builtins/materials/gltf.fp"
+vertex_space: VERTEX_SPACE_LOCAL
+vertex_constants {
+  name: "mtx_view"
+  type: CONSTANT_TYPE_VIEW
+}
+vertex_constants {
+  name: "mtx_proj"
+  type: CONSTANT_TYPE_PROJECTION
+}
+samplers {
+  name: "PbrMetallicRoughness_baseColorTexture"
+  wrap_u: WRAP_MODE_REPEAT
+  wrap_v: WRAP_MODE_REPEAT
+  filter_min: FILTER_MODE_MIN_LINEAR
+  filter_mag: FILTER_MODE_MAG_LINEAR
+}
+samplers {
+  name: "PbrMetallicRoughness_metallicRoughnessTexture"
+  wrap_u: WRAP_MODE_REPEAT
+  wrap_v: WRAP_MODE_REPEAT
+  filter_min: FILTER_MODE_MIN_LINEAR
+  filter_mag: FILTER_MODE_MAG_LINEAR
+}
+samplers {
+  name: "PbrMaterial_normalTexture"
+  wrap_u: WRAP_MODE_REPEAT
+  wrap_v: WRAP_MODE_REPEAT
+  filter_min: FILTER_MODE_MIN_LINEAR
+  filter_mag: FILTER_MODE_MAG_LINEAR
+}
+samplers {
+  name: "PbrMaterial_occlusionTexture"
+  wrap_u: WRAP_MODE_REPEAT
+  wrap_v: WRAP_MODE_REPEAT
+  filter_min: FILTER_MODE_MIN_LINEAR
+  filter_mag: FILTER_MODE_MAG_LINEAR
+}
+samplers {
+  name: "PbrMaterial_emissiveTexture"
+  wrap_u: WRAP_MODE_REPEAT
+  wrap_v: WRAP_MODE_REPEAT
+  filter_min: FILTER_MODE_MIN_LINEAR
+  filter_mag: FILTER_MODE_MAG_LINEAR
+}
