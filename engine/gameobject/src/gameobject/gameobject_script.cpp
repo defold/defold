@@ -581,14 +581,25 @@ namespace dmGameObject
         if (out_collection)
             *out_collection = collection;
         if (lua_gettop(L) == instance_arg && !lua_isnil(L, instance_arg)) {
-            dmMessage::URL receiver;
-            dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
-            if (receiver.m_Socket != dmGameObject::GetMessageSocket(hcollection))
+            dmhash_t identifier;
+            dmhash_t* hash = dmScript::ToHash(L, instance_arg);
+            if (hash)
             {
-                luaL_error(L, "function called can only access instances within the same collection.");
+                // Hashes already name a path in this collection; no default URL is needed.
+                identifier = *hash;
+            }
+            else
+            {
+                dmMessage::URL receiver;
+                dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
+                if (receiver.m_Socket != dmGameObject::GetMessageSocket(hcollection))
+                {
+                    luaL_error(L, "function called can only access instances within the same collection.");
+                }
+                identifier = receiver.m_Path;
             }
 
-            Instance* instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
+            Instance* instance = GetInstanceFromIdentifier(collection, identifier);
             if (!instance)
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
