@@ -1400,35 +1400,52 @@
 (defn- supports-camera-inset-drawable? [node-id]
   (g/node-instance? (g/now) SceneView node-id))
 
+(defn- destroy-drawables! [node-id]
+  (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
+    (gl/with-drawable-as-current drawable
+      (scene-cache/drop-context! gl)
+      (when-let [async-copy-state-atom (g/node-value node-id :async-copy-state)]
+        (scene-async/dispose! @async-copy-state-atom gl))
+      (.glFinish gl))
+    (.destroy drawable))
+  (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
+    (gl/with-drawable-as-current picking-drawable
+      (scene-cache/drop-context! gl)
+      (.glFinish gl))
+    (.destroy picking-drawable))
+  (when (supports-camera-inset-drawable? node-id)
+    (when-let [^GLAutoDrawable camera-inset-drawable (g/node-value node-id :camera-inset-drawable)]
+      (gl/with-drawable-as-current camera-inset-drawable
+        (scene-cache/drop-context! gl)
+        (.glFinish gl))
+      (.destroy camera-inset-drawable)))
+  (g/transact
+    {:undoable false}
+    (concat
+      (g/set-property node-id :drawable nil)
+      (g/set-property node-id :picking-drawable nil)
+      (when (supports-camera-inset-drawable? node-id)
+        (g/set-property node-id :camera-inset-drawable nil))
+      (g/set-property node-id :async-copy-state nil))))
+
 (defn dispose-scene-view! [node-id]
   (when (g/node-by-id node-id)
-    (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
-      (gl/with-drawable-as-current drawable
-        (scene-cache/drop-context! gl)
-        (when-let [async-copy-state-atom (g/node-value node-id :async-copy-state)]
-          (scene-async/dispose! @async-copy-state-atom gl))
-        (.glFinish gl))
-      (.destroy drawable))
-    (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
-      (gl/with-drawable-as-current picking-drawable
-        (scene-cache/drop-context! gl)
-        (.glFinish gl))
-      (.destroy picking-drawable))
-    (when (supports-camera-inset-drawable? node-id)
-      (when-let [^GLAutoDrawable camera-inset-drawable (g/node-value node-id :camera-inset-drawable)]
-        (gl/with-drawable-as-current camera-inset-drawable
-          (scene-cache/drop-context! gl)
-          (.glFinish gl))
-        (.destroy camera-inset-drawable)))
-    (ui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
-    (g/transact
-      {:undoable false}
-      (concat
-        (g/set-property node-id :drawable nil)
-        (g/set-property node-id :picking-drawable nil)
-        (when (supports-camera-inset-drawable? node-id)
-          (g/set-property node-id :camera-inset-drawable nil))
-        (g/set-property node-id :async-copy-state nil)))))
+    (destroy-drawables! node-id)
+    (ui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)))
+
+(defn suspend-scene-view! [node-id]
+  (when (g/node-by-id node-id)
+    (let [^ImageView image-view (g/node-value node-id :image-view)]
+      (ui/user-data! image-view ::suspended true)
+      (destroy-drawables! node-id)
+      (.setImage image-view nil)
+      (ui/user-data! image-view ::last-renderables nil))))
+
+(defn resume-scene-view! [node-id]
+  (when (g/node-by-id node-id)
+    (let [^ImageView image-view (g/node-value node-id :image-view)]
+      (ui/user-data! image-view ::suspended false)
+      (.requestLayout (.getParent image-view)))))
 
 (defn active-scene-view
   ([app-view]
@@ -2009,45 +2026,38 @@
                          (g/transact
                            {:undoable false}
                            (g/set-property view-id :viewport viewport))
-                         (if-let [view-id (ui/user-data image-view ::view-id)]
-                           (when-some [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
-                             (doto drawable
-                               (.setSurfaceSize width height))
-                             (let [async-copy-state-atom (g/node-value view-id :async-copy-state)
-                                   async-copy-state @async-copy-state-atom]
-                               (when (or (not= (int width) (int (:width async-copy-state)))
-                                         (not= (int height) (int (:height async-copy-state))))
-                                 ;; Resize invalidates the framebuffer even if
-                                 ;; the renderables themselves did not change.
-                                 (ui/user-data! image-view ::last-renderables nil))
-                               (reset! async-copy-state-atom (scene-async/request-resize async-copy-state width height))))
-                           (let [drawable (gl/offscreen-drawable width height)
-                                 picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)
-                                 camera-inset-drawable (when (supports-camera-inset-drawable? view-id)
-                                                         (gl/offscreen-drawable camera-inset-width camera-inset-height))]
+                         (let [initialized (some? (ui/user-data image-view ::view-id))]
+                           (when-not initialized
                              (ui/user-data! image-view ::view-id view-id)
                              (register-event-handler! this image-view view-id)
                              (ui/on-closed! (:tab opts) (fn [_]
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
                              (when (:camera opts)
-                               (ui/user-data! image-view ::preserve-initial-camera true))
-                             (if camera-inset-drawable
-                               (g/transact
-                                 {:undoable false}
-                                 (g/set-properties view-id
-                                   :drawable drawable
-                                   :picking-drawable picking-drawable
-                                   :camera-inset-drawable camera-inset-drawable
-                                   :async-copy-state (atom (scene-async/make-async-copy-state width height))))
-                               (g/transact
-                                 {:undoable false}
-                                 (g/set-properties view-id
-                                   :drawable drawable
-                                   :picking-drawable picking-drawable
-                                   :async-copy-state (atom (scene-async/make-async-copy-state width height)))))
-                             (when-not (:camera opts)
-                               (frame-selection! view-id false))))))
+                               (ui/user-data! image-view ::preserve-initial-camera true)))
+                           (when-not (ui/user-data image-view ::suspended)
+                             (if-let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
+                               (let [async-copy-state-atom (g/node-value view-id :async-copy-state)
+                                     async-copy-state @async-copy-state-atom]
+                                 (.setSurfaceSize drawable width height)
+                                 (when (or (not= (int width) (int (:width async-copy-state)))
+                                           (not= (int height) (int (:height async-copy-state))))
+                                   ;; Resize invalidates the framebuffer even if
+                                   ;; the renderables themselves did not change.
+                                   (ui/user-data! image-view ::last-renderables nil))
+                                 (reset! async-copy-state-atom (scene-async/request-resize async-copy-state width height)))
+                               (when-let [drawable (gl/offscreen-drawable width height)]
+                                 (g/transact
+                                   {:undoable false}
+                                   (concat
+                                     (g/set-properties view-id
+                                       :drawable drawable
+                                       :picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)
+                                       :async-copy-state (atom (scene-async/make-async-copy-state width height)))
+                                     (when (supports-camera-inset-drawable? view-id)
+                                       (g/set-property view-id :camera-inset-drawable (gl/offscreen-drawable camera-inset-width camera-inset-height))))))))
+                           (when-not (or initialized (:camera opts))
+                             (frame-selection! view-id false)))))
                      (catch Throwable error
                        (error-reporting/report-exception! error)))
                    (proxy-super layoutChildren))))]
