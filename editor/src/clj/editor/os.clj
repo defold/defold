@@ -85,7 +85,20 @@
     (is-linux?) (linux-dark-mode?)
     :else false))
 
+(def ^:private system-theme-cache-ttl-ms 5000)
+(def ^:private system-theme-cache (atom {:theme nil :expires 0}))
+
 (defn system-theme
-  "Returns :dark or :light based on the current operating system theme."
+  "Returns :dark or :light based on the current operating system theme.
+
+  The detected value is cached briefly so UI code can resolve the :system
+  theme preference without spawning a probe process on every call; the
+  cache expires quickly enough for the theme watcher to notice OS changes."
   []
-  (if (system-dark-mode?) :dark :light))
+  (let [now (System/currentTimeMillis)
+        {:keys [theme expires]} @system-theme-cache]
+    (if (and theme (< now expires))
+      theme
+      (let [fresh (if (system-dark-mode?) :dark :light)]
+        (reset! system-theme-cache {:theme fresh :expires (+ now system-theme-cache-ttl-ms)})
+        fresh))))

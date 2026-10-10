@@ -122,8 +122,9 @@ public class Splash {
             String output = new String(process.getInputStream().readAllBytes()).trim();
             process.waitFor();
             if (process.exitValue() != 0) {
-                // macOS prints an error and exits non-zero in light mode.
-                return os.contains("mac");
+                // macOS prints an error and exits non-zero when no dark mode
+                // is set, i.e. in light mode. Treat any failed probe as light.
+                return false;
             }
             if (os.contains("win")) {
                 return output.endsWith("0x0");
