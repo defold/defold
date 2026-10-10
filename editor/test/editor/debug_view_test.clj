@@ -145,8 +145,8 @@
       (try
         (binding [ui/*main-stage* (atom stage)]
           (let [target (targets/add-launched-target! 1 {:process process
-                                                      :log-stream (.getInputStream process)
-                                                      :address "127.0.0.1"})
+                                                        :log-stream (.getInputStream process)
+                                                        :address "127.0.0.1"})
                 ^Thread log-pump (console/start-log-pump! (:log-stream target) (constantly nil))
                 monitor (targets/monitor-launched-target! target identity)
                 removed (promise)

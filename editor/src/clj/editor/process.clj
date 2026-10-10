@@ -99,9 +99,9 @@
         (.remove environment key)))
     (let [command-line (coll/join-to-string " " (eduction (map quote-windows-argument) command))
           environment-block (.getBytes (str (coll/join-to-string "\u0000"
-                                                                (eduction
-                                                                  (map (fn [[key value]] (str key "=" value)))
-                                                                  environment))
+                                                                 (eduction
+                                                                   (map (fn [[key value]] (str key "=" value)))
+                                                                   environment))
                                             "\u0000\u0000")
                                        StandardCharsets/UTF_16LE)
           environment-memory (doto (Memory. (alength environment-block))
@@ -109,12 +109,12 @@
           startup-info (WinBase$STARTUPINFO.)
           process-info (WinBase$PROCESS_INFORMATION.)
           flags (WinDef$DWORD. (bit-or WinBase/CREATE_DEFAULT_ERROR_MODE
-                                      WinBase/CREATE_UNICODE_ENVIRONMENT
-                                      WinBase/CREATE_NO_WINDOW))]
+                                       WinBase/CREATE_UNICODE_ENVIRONMENT
+                                       WinBase/CREATE_NO_WINDOW))]
       (when-not (.CreateProcessW kernel32 (first command) (.toCharArray (str command-line "\u0000"))
-                                nil nil false flags environment-memory
-                                (some-> dir io/file .getAbsolutePath)
-                                startup-info process-info)
+                                 nil nil false flags environment-memory
+                                 (some-> dir io/file .getAbsolutePath)
+                                 startup-info process-info)
         (throw (Win32Exception. (.GetLastError kernel32))))
       (try
         (.orElse (ProcessHandle/of (.longValue (.-dwProcessId process-info))) nil)
