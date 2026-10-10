@@ -536,40 +536,41 @@
     :system (os/system-theme)
     theme))
 
-(defn- theme-css-urls
-  "Returns the set of stylesheet URLs contributed by the theme system.
-  Used to tell theme stylesheets apart from user and dialog stylesheets."
+(defn current-resolved-theme
+  "Returns the currently selected editor theme, resolved to :dark or :light.
+  Canvas-based views use this to pick paint colors, which cannot be driven
+  through stylesheets."
   []
-  #{(str (io/resource "editor.css"))
-    (str (io/resource "editor-light.css"))})
+  (resolve-theme (prefs/get (prefs/global) [:window :theme])))
 
-(defn- current-theme-css-url []
-  (let [prefs (prefs/global)
-        resolved-theme (resolve-theme (prefs/get prefs [:window :theme]))]
-    (str (io/resource (theme-css-resource resolved-theme)))))
+(def ^:private light-theme-css-replacements
+  "Maps dark stylesheet URLs to their light counterparts."
+  {(str (io/resource "editor.css")) (str (io/resource "editor-light.css"))
+   (str (io/resource "dialogs.css")) (str (io/resource "dialogs-light.css"))
+   (str (io/resource "splash.css")) (str (io/resource "splash-light.css"))})
+
+(defn- themed-stylesheet-urls [stylesheet-urls theme]
+  (if (= :light theme)
+    (map #(get light-theme-css-replacements % %) stylesheet-urls)
+    stylesheet-urls))
 
 (defn apply-theme-css!
-  "Ensures exactly one theme stylesheet is active on the root: replaces any
-  stylesheet the root holds that belongs to the theme system with the one
-  selected by the supplied theme preference value, keeping all other
-  stylesheets in order."
+  "Replaces any stylesheet on the root that belongs to the theme system with
+  the variant selected by the supplied theme preference value, keeping every
+  stylesheet in its original position."
   [^Parent root theme]
   (let [resolved-theme (resolve-theme theme)
-        theme-url (str (io/resource (theme-css-resource resolved-theme)))
-        theme-urls (theme-css-urls)
-        non-theme-stylesheets (into [] (remove theme-urls) (vec (.getStylesheets root)))]
+        stylesheets (themed-stylesheet-urls (vec (.getStylesheets root)) resolved-theme)]
     (when-let [scene (.getScene root)]
       (.forget (com.sun.javafx.css.StyleManager/getInstance) scene))
-    (.setAll (.getStylesheets root) ^Collection (into [theme-url] non-theme-stylesheets)))
+    (.setAll (.getStylesheets root) ^Collection stylesheets))
   nil)
 
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
     (let [root ^Parent (.getRoot scene)
-          theme-urls (theme-css-urls)
-          ;; Keep everything that is not a theme stylesheet (user CSS, ...).
-          non-theme-styles (into [] (remove theme-urls) (vec (.getStylesheets root)))
-          styles (into [(current-theme-css-url)] non-theme-styles)]
+          styles (themed-stylesheet-urls (vec (.getStylesheets root))
+                                         (current-resolved-theme))]
       (.forget (com.sun.javafx.css.StyleManager/getInstance) scene)
       (.setAll (.getStylesheets root) ^Collection styles))))
 
@@ -779,11 +780,23 @@
   (apply-default-css! root theme)
   (apply-user-css! root))
 
+(defn theme-resource-url
+  "Returns the URL of the supplied theme-aware stylesheet resource resolved
+  for the currently selected theme, e.g. \"dialogs.css\" yields
+  dialogs-light.css while the light theme is active."
+  ^String [resource-path]
+  (let [resource-url (str (io/resource resource-path))]
+    (str (case (current-resolved-theme)
+           :light (get light-theme-css-replacements resource-url resource-url)
+           resource-url))))
+
 (defn load-fxml
   "Loads an FXML file and applies any user stylesheet on top of whatever
-  stylesheets the FXML declares itself."
+  stylesheets the FXML declares itself. Theme-owned stylesheets declared by
+  the FXML are swapped for the variant matching the selected theme."
   ^Parent [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))]
+    (apply-theme-css! root (current-resolved-theme))
     (apply-user-css! root)
     root))
 

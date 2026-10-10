@@ -18,6 +18,7 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -100,9 +101,53 @@ public class Splash {
         gameNameLabel.setText(game[0]);
     }
 
+    private static boolean isOsDarkMode() {
+        // Mirrors the detection logic in editor.os/system-dark-mode? for the
+        // platforms where the splash can render.
+        try {
+            String os = System.getProperty("os.name", "").toLowerCase();
+            ProcessBuilder processBuilder;
+            if (os.contains("mac")) {
+                processBuilder = new ProcessBuilder("defaults", "read", "-g", "AppleInterfaceStyle");
+            } else if (os.contains("win")) {
+                processBuilder = new ProcessBuilder("reg", "query",
+                        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                        "/v", "AppsUseLightTheme");
+            } else {
+                processBuilder = new ProcessBuilder("gsettings", "get",
+                        "org.gnome.desktop.interface", "color-scheme");
+            }
+            processBuilder.redirectErrorStream(true);
+            Process process = processBuilder.start();
+            String output = new String(process.getInputStream().readAllBytes()).trim();
+            process.waitFor();
+            if (process.exitValue() != 0) {
+                // macOS prints an error and exits non-zero in light mode.
+                return os.contains("mac");
+            }
+            if (os.contains("win")) {
+                return output.endsWith("0x0");
+            }
+            return output.toLowerCase().contains("dark");
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
     public void show() throws IOException {
         Object root = FXMLLoader.load(this.getClass().getResource("/splash.fxml"));
-        Scene scene = new Scene((Parent) root);
+        Parent splashRoot = (Parent) root;
+        if (!isOsDarkMode()) {
+            // The splash renders before editor preferences are available, so it
+            // follows the operating system theme rather than the theme setting.
+            ObservableList<String> stylesheets = splashRoot.getStylesheets();
+            for (int i = 0; i < stylesheets.size(); i++) {
+                if (stylesheets.get(i).endsWith("splash.css")) {
+                    stylesheets.set(i, Splash.class.getResource("/splash-light.css").toString());
+                }
+            }
+        }
+        Scene scene = new Scene(splashRoot);
         scene.setFill(Color.TRANSPARENT);
         stage = new Stage();
         stage.initStyle(StageStyle.TRANSPARENT);

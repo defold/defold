@@ -280,49 +280,95 @@
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
     (->GlyphMetrics font (make-char-width-cache font-strike) (make-complex-width-cache font) line-height ascent)))
 
-(def ^:private default-editor-color-scheme
-  (let [foreground-color (Color/valueOf "#DDDDDD")
-        background-color (Color/valueOf "#27292D")
-        selection-background-color (Color/valueOf "#4E4A46")
-        execution-marker-color (Color/valueOf "#FBCE2F")
-        execution-marker-frame-color (.deriveColor execution-marker-color 0.0 1.0 1.0 0.5)
-        gutter-background-color (Color/valueOf "#393C41")]
-    [["editor.foreground" foreground-color]
-     ["editor.background" background-color]
-     ["editor.cursor" Color/WHITE]
-     ["editor.selection.background" selection-background-color]
-     ["editor.selection.background.inactive" (.deriveColor selection-background-color 0.0 0.0 0.75 1.0)]
-     ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]
-     ["editor.tab.trigger.word.outline" (Color/valueOf "#A2B0BE")]
-     ["editor.find.term.occurrence" (Color/valueOf "#60C1FF")]
-     ["editor.execution-marker.current" execution-marker-color]
-     ["editor.execution-marker.frame" execution-marker-frame-color]
-     ["editor.gutter.foreground" (Color/valueOf "#A2B0BE")]
-     ["editor.gutter.background" background-color]
-     ["editor.gutter.cursor.line.background" gutter-background-color]
-     ["editor.gutter.cursor.line.background.inactive" (.deriveColor gutter-background-color 0.0 0.0 0.8 1.0)]
-     ["editor.gutter.breakpoint" (Color/valueOf "#AD4051")]
-     ["editor.gutter.execution-marker.current" execution-marker-color]
-     ["editor.gutter.execution-marker.frame" execution-marker-frame-color]
-     ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
-     ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
-     ["editor.matching.brace" (Color/valueOf "#A2B0BE")]
-     ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
-     ["editor.minimap.viewed.range" gutter-background-color]
-     ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
-     ["editor.scroll.tab.hovered" (.deriveColor foreground-color 0.0 1.0 1.0 0.5)]
-     ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
-     ["editor.whitespace.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
-     ["editor.whitespace.rogue" (Color/valueOf "#FBCE2F")]]))
+(defn- default-editor-color-scheme [theme]
+  (if (= :light theme)
+    (let [foreground-color (Color/valueOf "#1A1A1A")
+          background-color (Color/valueOf "#FFFFFF")
+          selection-background-color (Color/valueOf "#B3D4FC")
+          execution-marker-color (Color/valueOf "#B8860B")
+          execution-marker-frame-color (.deriveColor execution-marker-color 0.0 1.0 1.0 0.5)
+          gutter-background-color (Color/valueOf "#E8E8E8")]
+      [["editor.foreground" foreground-color]
+       ["editor.background" background-color]
+       ["editor.cursor" Color/BLACK]
+       ["editor.selection.background" selection-background-color]
+       ["editor.selection.background.inactive" (.deriveColor selection-background-color 0.0 0.0 0.75 1.0)]
+       ["editor.selection.occurrence.outline" (Color/valueOf "#333333")]
+       ["editor.tab.trigger.word.outline" (Color/valueOf "#333333")]
+       ["editor.find.term.occurrence" (Color/valueOf "#0078D4")]
+       ["editor.execution-marker.current" execution-marker-color]
+       ["editor.execution-marker.frame" execution-marker-frame-color]
+       ["editor.gutter.foreground" (Color/valueOf "#4A4A4A")]
+       ["editor.gutter.background" background-color]
+       ["editor.gutter.cursor.line.background" gutter-background-color]
+       ["editor.gutter.cursor.line.background.inactive" (.deriveColor gutter-background-color 0.0 0.0 0.8 1.0)]
+       ["editor.gutter.breakpoint" (Color/valueOf "#AD4051")]
+       ["editor.gutter.execution-marker.current" execution-marker-color]
+       ["editor.gutter.execution-marker.frame" execution-marker-frame-color]
+       ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.12) 0%, transparent 100%")]
+       ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
+       ["editor.matching.brace" (Color/valueOf "#333333")]
+       ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.08) 0%, transparent 100%")]
+       ["editor.minimap.viewed.range" gutter-background-color]
+       ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
+       ["editor.scroll.tab.hovered" (.deriveColor foreground-color 0.0 1.0 1.0 0.5)]
+       ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
+       ["editor.whitespace.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
+       ["editor.whitespace.rogue" (Color/valueOf "#B8860B")]])
+    (let [foreground-color (Color/valueOf "#DDDDDD")
+          background-color (Color/valueOf "#27292D")
+          selection-background-color (Color/valueOf "#4E4A46")
+          execution-marker-color (Color/valueOf "#FBCE2F")
+          execution-marker-frame-color (.deriveColor execution-marker-color 0.0 1.0 1.0 0.5)
+          gutter-background-color (Color/valueOf "#393C41")]
+      [["editor.foreground" foreground-color]
+       ["editor.background" background-color]
+       ["editor.cursor" Color/WHITE]
+       ["editor.selection.background" selection-background-color]
+       ["editor.selection.background.inactive" (.deriveColor selection-background-color 0.0 0.0 0.75 1.0)]
+       ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]
+       ["editor.tab.trigger.word.outline" (Color/valueOf "#A2B0BE")]
+       ["editor.find.term.occurrence" (Color/valueOf "#60C1FF")]
+       ["editor.execution-marker.current" execution-marker-color]
+       ["editor.execution-marker.frame" execution-marker-frame-color]
+       ["editor.gutter.foreground" (Color/valueOf "#A2B0BE")]
+       ["editor.gutter.background" background-color]
+       ["editor.gutter.cursor.line.background" gutter-background-color]
+       ["editor.gutter.cursor.line.background.inactive" (.deriveColor gutter-background-color 0.0 0.0 0.8 1.0)]
+       ["editor.gutter.breakpoint" (Color/valueOf "#AD4051")]
+       ["editor.gutter.execution-marker.current" execution-marker-color]
+       ["editor.gutter.execution-marker.frame" execution-marker-frame-color]
+       ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
+       ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
+       ["editor.matching.brace" (Color/valueOf "#A2B0BE")]
+       ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
+       ["editor.minimap.viewed.range" gutter-background-color]
+       ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
+       ["editor.scroll.tab.hovered" (.deriveColor foreground-color 0.0 1.0 1.0 0.5)]
+       ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
+       ["editor.whitespace.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
+       ["editor.whitespace.rogue" (Color/valueOf "#FBCE2F")]])))
 
-(defn make-color-scheme [ordered-paints-by-pattern]
-  (into []
-        (util/distinct-by first)
-        (concat ordered-paints-by-pattern
-                default-editor-color-scheme)))
-
-(def ^:private code-color-scheme
-  (make-color-scheme
+(defn- theme-syntax-colors [theme]
+  (if (= :light theme)
+    [["comment" (Color/valueOf "#707070")]
+     ["string" (Color/valueOf "#B8860B")]
+     ["numeric" (Color/valueOf "#6666FF")]
+     ["preprocessor" (Color/valueOf "#9C6B3D")]
+     ["punctuation" (Color/valueOf "#CC4400")]
+     ["keyword" (Color/valueOf "#CC4400")]
+     ["storage" (Color/valueOf "#CC4400")]
+     ["constant" (Color/valueOf "#CC00CC")]
+     ["type" (Color/valueOf "#CC00CC")]
+     ["support.function" (Color/valueOf "#008888")]
+     ["support.variable" (Color/valueOf "#B000B0")]
+     ["name.function" (Color/valueOf "#228B22")]
+     ["parameter.function" (Color/valueOf "#9C6B3D")]
+     ["variable.language" (Color/valueOf "#B000B0")]
+     ["editor.error" (Color/valueOf "#C00000")]
+     ["editor.warning" (Color/valueOf "#CC5500")]
+     ["editor.info" (Color/valueOf "#666666")]
+     ["editor.debug" (Color/valueOf "#0050C8")]]
     [["comment" (Color/valueOf "#B0B0B0")]
      ["string" (Color/valueOf "#FBCE2F")]
      ["numeric" (Color/valueOf "#AAAAFF")]
@@ -341,6 +387,13 @@
      ["editor.warning" (Color/valueOf "#FF9A34")]
      ["editor.info" (Color/valueOf "#CCCFD3")]
      ["editor.debug" (Color/valueOf "#3B8CF8")]]))
+
+(defn make-color-scheme [ordered-paints-by-pattern]
+  (into []
+        (util/distinct-by first)
+        (concat ordered-paints-by-pattern
+                (theme-syntax-colors (ui/current-resolved-theme))
+                (default-editor-color-scheme (ui/current-resolved-theme)))))
 
 (defn color-lookup
   ^Paint [color-scheme key]
@@ -4546,7 +4599,7 @@
                         (g/make-nodes
                           [view [CodeEditorView
                                  :canvas canvas
-                                 :color-scheme code-color-scheme
+                                 :color-scheme (make-color-scheme [])
                                  :font-size (.getValue font-size-property)
                                  :font-name (.getValue font-name-property)
                                  :grammar grammar

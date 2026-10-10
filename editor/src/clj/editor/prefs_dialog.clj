@@ -877,7 +877,7 @@
    :min-height 500
    :scene
    {:fx/type fx.scene/lifecycle
-    :stylesheets [(str (io/resource "dialogs.css"))]
+    :stylesheets [(ui/theme-resource-url "dialogs.css")]
     :on-key-pressed handle-scene-key-pressed
     :root
     {:fx/type fx.tab-pane/lifecycle

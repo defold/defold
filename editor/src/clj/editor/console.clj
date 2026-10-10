@@ -725,29 +725,30 @@
               {:match #"^DEBUG:.+?:"
                :name "console.debug"}]})
 
-(def ^:private console-color-scheme
-  (let [^Color background-color (Color/valueOf "#27292D")
-        ^Color selection-background-color (Color/valueOf "#264A8B")]
+(defn- console-color-scheme []
+  (let [light? (= :light (ui/current-resolved-theme))
+        ^Color background-color (Color/valueOf (if light? "#FFFFFF" "#27292D"))
+        ^Color selection-background-color (Color/valueOf (if light? "#B3D4FC" "#264A8B"))]
     (view/make-color-scheme
-      [["console.reload.successful" (Color/valueOf "#33CC33")]
-       ["console.error" (Color/valueOf "#FF6161")]
-       ["console.fatal" (Color/valueOf "#FF6161")]
-       ["console.warning" (Color/valueOf "#FF9A34")]
-       ["console.info" (Color/valueOf "#CCCFD3")]
-       ["console.debug" (Color/valueOf "#3B8CF8")]
-       ["editor.error" (Color/valueOf "#FF6161")]
-       ["editor.warning" (Color/valueOf "#FF9A34")]
-       ["editor.info" (Color/valueOf "#CCCFD3")]
-       ["editor.debug" (Color/valueOf "#3B8CF8")]
-       ["editor.foreground" (Color/valueOf "#A2B0BE")]
+      [["console.reload.successful" (Color/valueOf (if light? "#228B22" "#33CC33"))]
+       ["console.error" (Color/valueOf (if light? "#C00000" "#FF6161"))]
+       ["console.fatal" (Color/valueOf (if light? "#C00000" "#FF6161"))]
+       ["console.warning" (Color/valueOf (if light? "#CC5500" "#FF9A34"))]
+       ["console.info" (Color/valueOf (if light? "#333333" "#CCCFD3"))]
+       ["console.debug" (Color/valueOf (if light? "#0050C8" "#3B8CF8"))]
+       ["editor.error" (Color/valueOf (if light? "#C00000" "#FF6161"))]
+       ["editor.warning" (Color/valueOf (if light? "#CC5500" "#FF9A34"))]
+       ["editor.info" (Color/valueOf (if light? "#666666" "#CCCFD3"))]
+       ["editor.debug" (Color/valueOf (if light? "#0050C8" "#3B8CF8"))]
+       ["editor.foreground" (Color/valueOf (if light? "#1A1A1A" "#A2B0BE"))]
        ["editor.background" background-color]
        ["editor.cursor" Color/TRANSPARENT]
-       ["editor.gutter.eval.expression" (Color/valueOf "#DDDDDD")]
-       ["editor.gutter.eval.error" (Color/valueOf "#FF6161")]
-       ["editor.gutter.eval.result" (Color/valueOf "#52575C")]
+       ["editor.gutter.eval.expression" (Color/valueOf (if light? "#1A1A1A" "#DDDDDD"))]
+       ["editor.gutter.eval.error" (Color/valueOf (if light? "#C00000" "#FF6161"))]
+       ["editor.gutter.eval.result" (Color/valueOf (if light? "#8A8A8A" "#52575C"))]
        ["editor.selection.background" selection-background-color]
        ["editor.selection.background.inactive" (.interpolate selection-background-color background-color 0.25)]
-       ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]])))
+       ["editor.selection.occurrence.outline" (Color/valueOf (if light? "#333333" "#A2B0BE"))]])))
 
 (defn- openable-resource? [value]
   (and (resource/openable-resource? value)
@@ -768,7 +769,7 @@
                :canvas canvas
                :canvas-width (.getWidth canvas)
                :canvas-height (.getHeight canvas)
-               :color-scheme console-color-scheme
+               :color-scheme (console-color-scheme)
                :grammar console-grammar
                :gutter-view (ConsoleGutterView.)
                :highlighted-find-term (.getValue find-term-property)

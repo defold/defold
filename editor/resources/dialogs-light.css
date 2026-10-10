@@ -1,0 +1,1532 @@
+@font-face {
+  src: url("OpenSans-Regular.ttf");
+}
+@font-face {
+  font-family: "Source Sans Pro";
+  src: url("SourceSansPro-Regular.ttf");
+}
+@font-face {
+  src: url("SourceSansPro-Semibold.ttf");
+}
+@font-face {
+  src: url("SourceSansPro-SemiBoldItalic.ttf");
+}
+@font-face {
+  src: url("SourceSansPro-Italic.ttf");
+}
+@font-face {
+  src: url("SourceSansPro-Light.ttf");
+}
+@font-face {
+  src: url("DejaVuSansMono.ttf");
+}
+.root {
+  -fx-font-size: 13px;
+  -fx-font-family: "Source Sans Pro";
+}
+
+Text.strong {
+  -fx-font-family: "Source Sans Pro Semibold";
+}
+
+Text.emphasis {
+  -fx-font-family: "Source Sans Pro Italic";
+}
+
+Label.strong {
+  -fx-font-family: "Source Sans Pro Semibold";
+}
+
+Label.emphasis {
+  -fx-font-family: "Source Sans Pro Italic";
+}
+
+#build-errors-container .tree-cell {
+  -fx-font-family: "Dejavu Sans Mono";
+  -fx-font-size: 90%;
+}
+
+.cljfx-form-title {
+  -fx-font-family: "Source Sans Pro Light";
+  -fx-font-size: 200%;
+  -fx-font-smoothing-type: lcd;
+}
+
+#welcome-dialog .df-header {
+  -fx-font-family: "Source Sans Pro Light";
+  -fx-font-size: 150%;
+  -fx-font-smoothing-type: lcd;
+}
+#welcome-dialog .df-sub-header {
+  -fx-font-family: "Source Sans Pro";
+  -fx-font-size: 125%;
+  -fx-font-smoothing-type: lcd;
+}
+
+#welcome-dialog #left-pane .pane-button {
+  -fx-font-family: "Source Sans Pro Semibold";
+  -fx-font-size: 110%;
+}
+
+#welcome-dialog #progress-overlay #progress-header {
+  -fx-font-family: "Source Sans Pro Light";
+  -fx-font-size: 150%;
+  -fx-font-smoothing-type: lcd;
+}
+
+* {
+  -df-background-darker: derive(#f5f5f5, -10%);
+  -df-background: #f5f5f5;
+  -df-background-lightish: #e8e8e8;
+  -df-background-light: #e0e0e0;
+  -df-background-lighter: #d0d0d0;
+  -df-background-input: #ffffff;
+  -df-component-darker: #e0e0e0;
+  -df-component-dark: #d0d0d0;
+  -df-component-light: #c0c0c0;
+  -df-component-lighter: #b0b0b0;
+  -df-component-icon: #666666;
+  -df-text-dark: #4a4a4a;
+  -df-text: #333333;
+  -df-text-light: #1a1a1a;
+  -df-text-selected: #000000;
+  -df-defold-red-dark: derive(#c00000, -10%);
+  -df-defold-red: #c00000;
+  -df-defold-red-light: derive(#c00000, 10%);
+  -df-defold-yellow-dark: derive(#b8860b, -10%);
+  -df-defold-yellow: #b8860b;
+  -df-defold-yellow-light: derive(#b8860b, 10%);
+  -df-defold-yellow-lighter: derive(#b8860b, 20%);
+  -df-defold-green-dark: derive(#228b22, -10%);
+  -df-defold-green: #228b22;
+  -df-defold-green-light: derive(#228b22, 10%);
+  -df-defold-green-lighter: derive(#228b22, 20%);
+  -df-defold-orange-dark: derive(#cc5500, -10%);
+  -df-defold-orange: #cc5500;
+  -df-defold-orange-light: derive(#cc5500, 10%);
+  -df-defold-blue-dark: derive(#0066cc, -10%);
+  -df-defold-blue: #0066cc;
+  -df-defold-blue-light: derive(#0066cc, 10%);
+  -df-defold-blue-lighter: derive(#0066cc, 20%);
+  /* Status colors */
+  -df-error-severity-fatal: -df-defold-red;
+  -df-error-severity-fatal-dim: -df-defold-red-dark;
+  -df-error-severity-warning: -df-defold-yellow;
+  -df-error-severity-warning-dim: -df-defold-yellow-dark;
+  -df-error-severity-info: -df-defold-blue-lighter;
+  /* Lua script colors - adjusted for light background */
+  -df-script-helper: #008888;
+  -df-script-self: #b000b0;
+  -df-script-logic: #b8860b;
+  -df-script-constant: #cc00cc;
+  -df-script-function: #008800;
+  -df-script-keyword: #cc4400;
+  -df-script-operator: #008888;
+  -df-script-string: #b8860b;
+  -df-script-comment: #880088;
+  -df-script-number: #6666ff;
+  -df-script-intellisense: #00aaaa;
+  /* File extension group colors */
+  -df-folder: -df-text-dark;
+  -df-folder-active: -df-text;
+  -df-unknown-file: -df-text-dark;
+  -df-unknown-file-active: -df-text;
+  -df-design-file: -df-defold-blue;
+  -df-design-file-active: -df-defold-blue-lighter;
+  -df-script-file: -df-defold-yellow;
+  -df-script-file-active: -df-defold-yellow-lighter;
+  -df-property-file: -df-defold-green;
+  -df-property-file-active: -df-defold-green-light;
+}
+
+.spacing-smaller {
+  -fx-spacing: 16px;
+}
+
+.spacing-default {
+  -fx-spacing: 24px;
+}
+
+.label {
+  -fx-font-size: 110%;
+  -fx-font-family: "Source Sans Pro";
+  -fx-text-fill: -df-text;
+}
+
+.header {
+  -fx-font-size: 22px;
+  -fx-font-family: "Source Sans Pro Light";
+  -fx-text-fill: -df-text;
+}
+
+.button {
+  -fx-font-size: 110%;
+  -fx-font-family: "Source Sans Pro";
+  -fx-border-radius: 2px;
+  -fx-background-radius: 2px;
+  -fx-background-color: transparent;
+  -fx-padding: 6px 12px;
+}
+.button:hover {
+  -fx-background-color: rgba(255, 255, 255, 0.04);
+}
+.button:focused {
+  -fx-background-color: rgba(255, 255, 255, 0.04);
+}
+.button:focused:hover {
+  -fx-background-color: rgba(255, 255, 255, 0.08);
+}
+.button:armed {
+  -fx-background-color: transparent;
+}
+.button:armed:hover {
+  -fx-background-color: transparent;
+}
+.button:disabled {
+  -fx-text-fill: -df-text;
+  -fx-border-color: -df-text-dark;
+  -fx-opacity: 0.4;
+}
+
+.button-primary {
+  -fx-text-fill: -df-defold-blue-light;
+  -fx-border-color: -df-defold-blue-light;
+}
+.button-primary:hover, .button-primary:focused {
+  -fx-text-fill: -df-defold-blue-lighter;
+  -fx-border-color: -df-defold-blue-lighter;
+}
+
+.button-secondary {
+  -fx-text-fill: -df-text;
+  -fx-border-color: -df-text-dark;
+}
+.button-secondary:hover, .button-secondary:focused {
+  -fx-text-fill: -df-text-selected;
+  -fx-border-color: -df-text;
+}
+
+.button-danger {
+  -fx-text-fill: -df-defold-red;
+  -fx-border-color: -df-defold-red;
+}
+.button-danger:hover, .button-danger:focused {
+  -fx-text-fill: -df-defold-red-light;
+  -fx-border-color: -df-defold-red-light;
+}
+
+.ext-button.button-darker {
+  -fx-background-color: derive(-df-component-dark, -25%);
+}
+
+.button-icon {
+  -fx-text-fill: -df-text;
+  -fx-background-radius: 2px;
+  -fx-border-radius: 2px;
+  -fx-background-color: -df-component-dark;
+  -fx-padding: 0;
+  -fx-min-width: 28px;
+  -fx-max-width: 28px;
+  -fx-pref-width: 28px;
+  -fx-min-height: 28px;
+  -fx-max-height: 28px;
+  -fx-pref-height: 28px;
+  -fx-focus-traversable: false;
+  -fx-border-width: 0;
+}
+.button-icon:hover {
+  -fx-background-color: -df-component-lighter;
+}
+.button-icon:armed {
+  -fx-background-color: -df-background-light !important;
+}
+
+.dialog-body {
+  -fx-background-color: -df-background;
+}
+
+.dialog-body-small {
+  -fx-pref-width: 440px;
+}
+
+.dialog-body-default {
+  -fx-pref-width: 540px;
+}
+
+.dialog-body-large {
+  -fx-pref-width: 640px;
+}
+
+.dialog-content {
+  -fx-background-color: rgba(0, 0, 0, 0.14);
+  -fx-border-width: 1 0;
+  -fx-border-color: -df-background-lighter;
+}
+
+.dialog-content-padding {
+  -fx-padding: 32px;
+}
+
+.dialog-no-content {
+  -fx-pref-height: 40px;
+}
+
+.dialog-with-content-header {
+  -fx-padding: 24px;
+}
+
+.dialog-without-content-header {
+  -fx-padding: 24px 24px 0 24px;
+}
+
+.dialog-with-content-footer {
+  -fx-padding: 24px;
+}
+
+.dialog-without-content-footer {
+  -fx-padding: 0 24px 24px 24px;
+}
+
+.text-field {
+  -fx-font-family: "Source Sans Pro";
+  -fx-font-size: 110%;
+  -fx-highlight-fill: -df-component-light;
+  -fx-text-fill: -df-text-selected;
+  -fx-prompt-text-fill: -df-component-light;
+  -fx-background-color: -df-background-input;
+  -fx-border-width: 1px;
+  -fx-padding: 4px 8px;
+}
+.text-field:readonly {
+  -fx-text-fill: -df-text;
+  -fx-background-color: transparent;
+  -fx-focus-traversable: false;
+}
+.text-field:focused {
+  -fx-border-width: 1px 1px 2px 1px;
+  -fx-padding: 4px 8px 3px 8px;
+}
+.text-field:readonly {
+  -fx-border-width: 1px;
+  -fx-padding: 4px 8px;
+}
+
+.text-field-default {
+  -fx-border-color: -df-background-lighter;
+}
+.text-field-default:focused {
+  -fx-border-color: -df-background-lighter -df-background-lighter -df-defold-orange -df-background-lighter;
+}
+.text-field-default:readonly {
+  -fx-border-color: -df-background-lighter;
+}
+
+.text-field-error {
+  -fx-border-color: -df-defold-red-dark;
+}
+.text-field-error:focused {
+  -fx-border-color: -df-defold-red-dark -df-defold-red-dark -df-defold-red -df-defold-red-dark;
+}
+.text-field-error:readonly {
+  -fx-border-color: -df-defold-red-dark;
+}
+
+.text-area {
+  -fx-font-family: "Source Sans Pro";
+  -fx-font-size: 110%;
+  -fx-highlight-fill: -df-component-light;
+  -fx-text-fill: -df-text-selected;
+  -fx-prompt-text-fill: -df-component-light;
+  -fx-background-color: -df-background-input;
+  -fx-border-width: 1px;
+}
+.text-area:readonly {
+  -fx-text-fill: -df-text;
+  -fx-background-color: transparent;
+  -fx-focus-traversable: false;
+}
+.text-area:focused {
+  -fx-border-width: 1px 1px 2px 1px;
+  -fx-border-insets: 0px 0px 1px 0px;
+}
+.text-area .content {
+  -fx-padding: 4px 8px;
+  -fx-background-color: transparent;
+}
+.text-area:readonly {
+  -fx-border-width: 1px;
+  -fx-border-insets: 0px;
+}
+
+.text-area-default {
+  -fx-border-color: -df-background-lighter;
+}
+.text-area-default:focused {
+  -fx-border-color: -df-background-lighter -df-background-lighter -df-defold-orange -df-background-lighter;
+}
+.text-area-default:readonly {
+  -fx-border-color: -df-background-lighter;
+}
+
+.text-area-error {
+  -fx-border-color: -df-defold-red-dark;
+}
+.text-area-error:focused {
+  -fx-border-color: -df-defold-red-dark -df-defold-red-dark -df-defold-red -df-defold-red-dark;
+}
+.text-area-error:readonly {
+  -fx-border-color: -df-defold-red-dark;
+}
+
+.text-area-borderless {
+  -fx-border-color: transparent;
+}
+.text-area-borderless:focused {
+  -fx-border-color: transparent transparent transparent transparent;
+}
+.text-area-borderless:readonly {
+  -fx-border-color: transparent;
+}
+
+.text-area-with-dialog-content-padding .content {
+  -fx-padding: 32px;
+}
+
+.scroll-bar {
+  -fx-background-color: transparent;
+}
+.scroll-bar > .thumb {
+  -fx-background-color: -df-component-darker;
+  -fx-background-radius: 5px;
+  -fx-background-insets: 1px;
+}
+.scroll-bar > .thumb:hover {
+  -fx-background-color: -df-component-light;
+}
+.scroll-bar > .thumb:pressed {
+  -fx-background-color: -df-component-light;
+}
+.scroll-bar:vertical {
+  -fx-pref-width: 10px;
+}
+.scroll-bar:vertical > .increment-button, .scroll-bar:vertical > .decrement-button {
+  -fx-pref-width: 15px;
+}
+.scroll-bar:horizontal {
+  -fx-pref-height: 10px;
+}
+.scroll-bar > .increment-button,
+.scroll-bar > .increment-button > .increment-arrow,
+.scroll-bar > .decrement-button,
+.scroll-bar > .decrement-button > .decrement-arrow {
+  -fx-shape: null;
+  -fx-padding: 0;
+}
+
+.scroll-pane > .viewport {
+  -fx-background-color: transparent;
+}
+
+.corner {
+  -fx-background-color: transparent;
+}
+
+.input-grid-pane {
+  -fx-hgap: 16px;
+  -fx-vgap: 16px;
+}
+
+.hyperlink {
+  -fx-font-size: 110%;
+  -fx-font-family: "Source Sans Pro";
+  -fx-text-fill: -df-defold-blue-light;
+  -fx-border-width: 0;
+  -fx-padding: 0;
+}
+.hyperlink:visited {
+  -fx-underline: false;
+}
+.hyperlink:hover {
+  -fx-text-fill: -df-defold-blue-lighter;
+  -fx-underline: true;
+}
+
+Text {
+  -fx-font-size: 110%;
+  -fx-font-family: "Source Sans Pro";
+  -fx-fill: -df-text;
+}
+
+.progress-bar {
+  -fx-background-radius: 0;
+  -fx-min-width: 140px;
+}
+.progress-bar .bar {
+  -fx-background-color: -df-defold-blue-lighter;
+  -fx-background-insets: 0;
+  -fx-background-radius: 4;
+  -fx-pref-height: 5px;
+}
+.progress-bar .track {
+  -fx-background-color: -df-component-light;
+}
+
+.context-menu {
+  -fx-background-color: -df-component-dark;
+  -fx-background-radius: 2px;
+  -fx-padding: 5px;
+}
+.context-menu .menu-item:focused {
+  -fx-background-color: -df-component-lighter;
+  -fx-background-radius: 1px;
+}
+.context-menu .menu-item:focused > .label {
+  -fx-text-fill: -df-text-selected;
+}
+.context-menu .menu-item:disabled {
+  -fx-background-color: transparent;
+}
+.context-menu .menu-item:disabled > .label {
+  -fx-text-fill: -df-text;
+}
+.context-menu .separator {
+  -fx-padding: 3 0;
+}
+.context-menu .separator > .line {
+  -fx-background-color: -df-component-light;
+  -fx-border-color: transparent;
+}
+.context-menu .separator:horizontal > .line {
+  -fx-pref-height: 1;
+}
+.context-menu .separator:vertical > .line {
+  -fx-pref-width: 1;
+}
+
+.list-view {
+  -fx-background-color: transparent;
+}
+.list-view:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:selected {
+  -fx-border-color: -df-defold-orange;
+}
+
+.list-cell {
+  -fx-font-size: 110%;
+  -fx-font-family: "Source Sans Pro";
+  -fx-text-fill: -df-text;
+  -fx-background-color: transparent;
+  -fx-border-width: 0 0 0 2;
+  -fx-border-color: transparent;
+}
+.list-cell:selected {
+  -fx-background-color: -df-background-light;
+}
+.list-cell:hover {
+  -fx-text-fill: -df-text-selected;
+}
+.list-cell:hover > .content > TextFlow > Text {
+  -fx-fill: -df-text-selected;
+}
+.list-cell:hover > .content > TextFlow > Text.matched {
+  -fx-fill: -df-defold-blue-lighter;
+}
+.list-cell.resource > .content > .image-view {
+  -fx-effect: innershadow(gaussian, -df-unknown-file, 20, 0.3, 0, 0);
+}
+.list-cell.resource:selected > .content > .image-view, .list-cell.resource:hover > .content > .image-view {
+  -fx-effect: innershadow(gaussian, -df-unknown-file-active, 20, 0.3, 0, 0);
+}
+.list-cell.resource-folder > .content > .image-view {
+  -fx-effect: innershadow(gaussian, -df-folder, 20, 0.3, 0, 0);
+}
+.list-cell.resource-folder:selected > .content > .image-view, .list-cell.resource-folder:hover > .content > .image-view {
+  -fx-effect: innershadow(gaussian, -df-folder-active, 20, 0.3, 0, 0);
+}
+.list-cell.resource-kind-script > .content > .image-view {
+  -fx-effect: innershadow(gaussian, -df-script-file, 20, 0.3, 0, 0);
+}
+.list-cell.resource-kind-script:selected > .content > .image-view, .list-cell.resource-kind-script:hover > .content > .image-view {
+  -fx-effect: innershadow(gaussian, -df-script-file-active, 20, 0.3, 0, 0);
+}
+.list-cell.resource-kind-design > .content > .image-view {
+  -fx-effect: innershadow(gaussian, -df-design-file, 20, 0.3, 0, 0);
+}
+.list-cell.resource-kind-design:selected > .content > .image-view, .list-cell.resource-kind-design:hover > .content > .image-view {
+  -fx-effect: innershadow(gaussian, -df-design-file-active, 20, 0.3, 0, 0);
+}
+.list-cell.resource-kind-property > .content > .image-view {
+  -fx-effect: innershadow(gaussian, -df-property-file, 20, 0.3, 0, 0);
+}
+.list-cell.resource-kind-property:selected > .content > .image-view, .list-cell.resource-kind-property:hover > .content > .image-view {
+  -fx-effect: innershadow(gaussian, -df-property-file-active, 20, 0.3, 0, 0);
+}
+
+Text {
+  -fx-font-smoothing-type: lcd;
+  -fx-fill: -df-text;
+}
+Text.diminished {
+  -fx-opacity: 0.5;
+}
+Text.matched {
+  -fx-fill: -df-defold-blue-lighter;
+}
+
+TextFlow.deprecated > Text {
+  -fx-strikethrough: true;
+  -fx-opacity: 0.75;
+}
+
+.check-box:hover {
+  -fx-text-fill: -df-text-selected;
+}
+.check-box:hover > .box {
+  -fx-background-color: -df-background-input;
+  -fx-border-color: -df-component-light;
+}
+.check-box:selected > .box > .mark {
+  -fx-background-color: -df-text;
+}
+.check-box:selected:hover > .box > .mark {
+  -fx-background-color: -df-text-selected;
+}
+.check-box:focused {
+  -fx-text-fill: -df-text-selected;
+}
+.check-box:focused > .box {
+  -fx-background-color: -df-background;
+  -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+  -fx-border-width: 1px 1px 2px 1px;
+  -fx-alignment: top-left;
+}
+.check-box:focused > .box > .mark {
+  -fx-background-insets: 1.5px 0 -1.5px 0;
+  -fx-padding: 5px 5px 5px 6px;
+}
+.check-box > .box {
+  -fx-background-color: -df-background-input;
+  -fx-background-insets: 0;
+  -fx-background-radius: 0;
+  -fx-border-width: 1px;
+  -fx-border-color: -df-component-dark;
+}
+.check-box > .box > .mark {
+  -fx-shape: "M 4.5 9.1 L 0 4.7 L 1.4 3.3 L 4.5 6.3 L 10.8 0 L 12.2 1.4 L 4.5 9.1 L 4.5 9.1";
+  -fx-scale-shape: false;
+  -fx-padding: 5px 5px 6px 6px;
+}
+.check-box:indeterminate > .box > .mark {
+  -fx-shape: "M0,0H10V2H0Z";
+  -fx-scale-shape: false;
+  -fx-padding: 8.5px 8.5px;
+  -fx-background-color: -df-text;
+}
+
+.combo-box {
+  -fx-background-radius: 0px;
+  -fx-border-radius: 0px;
+  -fx-background-insets: 0;
+  -fx-background-color: -df-background-input;
+  -fx-background-radius: 3px;
+  -fx-min-height: 26px;
+  -fx-max-height: 26px;
+  -fx-max-width: Infinity;
+}
+.combo-box > .list-cell {
+  -fx-text-fill: -df-text-light;
+  -fx-padding: 3px 8px 3px 8px;
+  -fx-border-color: -df-component-dark;
+  -fx-border-width: 1px 0 1px 1px;
+  -fx-border-radius: 2px 0 0 2px;
+  -fx-background-radius: 2px 0 0 2px;
+}
+.combo-box:hover > .list-cell {
+  -fx-border-color: -df-component-light;
+}
+.combo-box:focused {
+  -fx-background-insets: 0 0 0 0;
+}
+.combo-box:focused > .list-cell {
+  -fx-padding: 3px 8px 2px 8px;
+  -fx-background-color: -df-background;
+  -fx-border-width: 1px 0 2px 1px;
+  -fx-border-color: -df-background-lighter -df-background-lighter -df-defold-orange -df-background-lighter;
+}
+.combo-box:showing > .arrow-button > .arrow {
+  -fx-background-color: -df-text-selected;
+  -fx-rotate: 180;
+}
+.combo-box:showing > .list-cell {
+  -fx-text-fill: -df-text-light;
+  -fx-padding: 3px 8px 3px 8px;
+  -fx-border-width: 1px 0 1px 1px;
+  -fx-border-color: -df-component-dark;
+}
+.combo-box > .arrow-button {
+  -fx-border-radius: 0 2px 2px 0;
+  -fx-background-radius: 0 2px 2px 0;
+  -fx-background-insets: 0;
+  -fx-background-color: -df-component-dark;
+  -fx-border-width: 1px 1px 1px 0px;
+  -fx-border-color: -df-component-dark;
+  -fx-padding: 5px 8px;
+}
+.combo-box > .arrow-button > .arrow {
+  -fx-background-color: -df-text;
+}
+.combo-box > .arrow-button:hover {
+  -fx-background-color: -df-component-lighter;
+}
+.combo-box > .arrow-button:hover > .arrow {
+  -fx-background-color: -df-text-selected;
+}
+.combo-box > .arrow-button:pressed, .combo-box > .arrow-button:focused {
+  -fx-background-color: -df-component-light;
+}
+.combo-box:warning > .list-cell {
+  -fx-border-color: -df-error-severity-warning-dim;
+}
+.combo-box:warning:hover > .list-cell {
+  -fx-border-color: -df-error-severity-warning;
+}
+.combo-box:warning:focused > .list-cell {
+  -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim;
+}
+.combo-box:warning > .arrow-button {
+  -fx-border-color: -df-error-severity-warning-dim;
+}
+.combo-box:error > .list-cell {
+  -fx-border-color: -df-error-severity-fatal-dim;
+}
+.combo-box:error:hover > .list-cell {
+  -fx-border-color: -df-error-severity-fatal;
+}
+.combo-box:error:focused > .list-cell {
+  -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim;
+}
+.combo-box:error > .arrow-button {
+  -fx-border-color: -df-error-severity-fatal-dim;
+}
+.combo-box .text-field, .combo-box .text-input {
+  /*-fx-border-width: 0;*/
+  -fx-background-insets: 0;
+}
+.combo-box .text-field:hover, .combo-box .text-input:hover {
+  -fx-background-insets: 0;
+  /*-fx-border-width: 0;*/
+}
+.combo-box .text-field:focused, .combo-box .text-input:focused {
+  -fx-border-width: 1;
+  -fx-border-color: -df-background-lighter;
+  -fx-padding: 4px 8px;
+}
+
+.combo-box-popup > .list-view {
+  -fx-min-width: 10em;
+  -fx-background-color: -df-background-light;
+  -fx-border-width: 0;
+  -fx-border-color: -df-background-lighter;
+  -fx-border-insets: 0;
+  -fx-background-insets: 0;
+  -fx-text-fill: -df-background-lighter;
+}
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell {
+  -fx-background-color: -df-background;
+  -fx-color: -df-text-dark;
+}
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:hover {
+  -fx-cursor: hand;
+  -fx-text-fill: -df-text-selected;
+}
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:selected {
+  -fx-text-fill: -df-text-selected;
+  -fx-background-color: -df-background-light;
+}
+
+.radio-button:hover {
+  -fx-text-fill: -df-text-selected;
+}
+.radio-button:focused:selected {
+  -fx-text-fill: -df-text-selected;
+}
+.radio-button:selected .radio {
+  -fx-border-color: transparent transparent -df-defold-orange transparent;
+}
+.radio-button:selected .dot {
+  -fx-background-color: -df-text;
+}
+.radio-button:selected:hover .radio {
+  -fx-border-color: transparent transparent -df-defold-orange transparent;
+}
+.radio-button:selected:hover .dot {
+  -fx-background-color: -df-text-selected;
+}
+.radio-button .radio {
+  -fx-background-radius: 50%;
+  -fx-border-radius: 50%;
+  -fx-background-image: null;
+  -fx-background-color: -df-background;
+  -fx-border-width: 1;
+  -fx-border-color: -df-background-lighter;
+}
+.radio-button .dot {
+  -fx-shape: "M 100 100 a 50 50 0 1 0 0.00001 0";
+}
+
+.progress-indicator {
+  -fx-progress-color: -df-component-lighter;
+}
+
+.tab-header-background {
+  -fx-background-color: -df-background;
+}
+
+.tab-header-area {
+  -fx-padding: 0;
+}
+
+.tab-label {
+  -fx-text-fill: -df-text;
+}
+
+.tab {
+  -fx-background-color: -df-background;
+  -fx-background-radius: 0;
+  -fx-border-width: 0 0 2px 0;
+  -fx-border-color: -df-background;
+  -fx-padding: 10px 14px 8px 14px;
+}
+.tab:selected {
+  -fx-border-color: -df-defold-orange;
+}
+.tab:selected > .tab-container > .tab-label, .tab:hover > .tab-container > .tab-label {
+  -fx-text-fill: -df-text-selected;
+}
+.tab > .tab-container > .focus-indicator {
+  -fx-border-width: 0;
+}
+
+.tab-content-area {
+  -fx-background-color: -df-background-light;
+}
+
+.text-field {
+  -fx-background-radius: 0px;
+  -fx-border-radius: 0px;
+  -fx-padding: 4px 8px;
+  -fx-background-color: -df-background-input;
+  -fx-border-width: 1px 1px 1px 1px;
+  -fx-border-color: -df-component-dark;
+  -fx-text-fill: -df-text-light;
+  -fx-prompt-text-fill: -df-text-dark;
+  -fx-min-height: 26px;
+}
+.text-field:hover {
+  -fx-border-color: -df-component-light;
+}
+.text-field:focused {
+  -fx-background-color: -df-background;
+  -fx-border-width: 1px 1px 2px 1px;
+  -fx-border-insets: 0px 0px 0px 0px;
+  -fx-padding: 4px 8px 3px 8px;
+  -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+  -fx-text-fill: -df-text-light;
+  -fx-border-radius: 0;
+}
+.text-field:readonly {
+  -fx-text-fill: -df-text-dark;
+  -fx-cursor: default;
+}
+.text-field:readonly:focused {
+  -fx-background-radius: 0px;
+  -fx-border-radius: 0px;
+  -fx-padding: 4px 8px;
+  -fx-background-color: -df-background-light;
+  -fx-border-width: 1px 1px 1px 1px;
+  -fx-border-color: -df-component-dark;
+  -fx-text-fill: -df-text-light;
+  -fx-prompt-text-fill: -df-text;
+  -fx-min-height: 26px;
+}
+.text-field:disabled {
+  -fx-opacity: 0.4;
+}
+
+.tooltip {
+  -fx-background-radius: 4px;
+  -fx-border-radius: 4px;
+  -fx-background-color: -df-component-dark;
+  -fx-text-fill: -df-text-selected;
+  -fx-font-size: 13px;
+  -fx-padding: 4px 8px;
+}
+
+.ext-spacing-none {
+  -fx-spacing: 0;
+}
+.ext-spacing-small {
+  -fx-spacing: 4px;
+}
+.ext-spacing-medium {
+  -fx-spacing: 8px;
+}
+.ext-spacing-large {
+  -fx-spacing: 16px;
+}
+.ext-grid-spacing-none {
+  -fx-hgap: 0;
+  -fx-vgap: 0;
+}
+.ext-grid-spacing-small {
+  -fx-hgap: 4px;
+  -fx-vgap: 4px;
+}
+.ext-grid-spacing-medium {
+  -fx-hgap: 8px;
+  -fx-vgap: 8px;
+}
+.ext-grid-spacing-large {
+  -fx-hgap: 16px;
+  -fx-vgap: 16px;
+}
+.ext-padding-none {
+  -fx-padding: 0;
+}
+.ext-padding-small {
+  -fx-padding: 16px;
+}
+.ext-padding-medium {
+  -fx-padding: 24px;
+}
+.ext-padding-large {
+  -fx-padding: 40px;
+}
+.ext-heading-style-h1 {
+  -fx-font-size: 26px;
+  -fx-font-family: "Source Sans Pro Light";
+}
+.ext-heading-style-h2 {
+  -fx-font-size: 24px;
+  -fx-font-family: "Source Sans Pro Light";
+}
+.ext-heading-style-h3 {
+  -fx-font-size: 22px;
+  -fx-font-family: "Source Sans Pro Light";
+}
+.ext-heading-style-h4 {
+  -fx-font-size: 20px;
+}
+.ext-heading-style-h5 {
+  -fx-font-size: 18px;
+}
+.ext-heading-style-h6 {
+  -fx-font-size: 16px;
+}
+.ext-heading-style-form {
+  -fx-font-size: 26px;
+  -fx-font-family: "Source Sans Pro Light";
+}
+.ext-heading-style-dialog {
+  -fx-font-size: 22px;
+  -fx-font-family: "Source Sans Pro Light";
+}
+.ext-scroll-pane > .scroll-bar .thumb {
+  -fx-background-color: -df-component-dark;
+}
+.ext-scroll-pane > .scroll-bar .thumb:hover {
+  -fx-background-color: -df-component-lighter;
+}
+.ext-separator {
+  -fx-min-width: 1px;
+  -fx-min-height: 1px;
+  -fx-background-color: -df-background-light;
+}
+.ext-separator:horizontal {
+  -fx-max-height: 1px;
+}
+.ext-separator:vertical {
+  -fx-max-width: 1px;
+}
+.ext-icon-container {
+  -fx-min-width: 26px;
+  -fx-min-height: 26px;
+  -fx-max-width: 26px;
+  -fx-max-height: 26px;
+}
+.ext-label {
+  -fx-padding: 4px 0px;
+}
+.ext-label-color-hint {
+  -fx-text-fill: -df-text-dark;
+}
+.ext-label-color-override {
+  -fx-text-fill: -df-defold-blue-lighter;
+}
+.ext-label-color-warning {
+  -fx-text-fill: -df-error-severity-warning;
+}
+.ext-label-color-error {
+  -fx-text-fill: -df-error-severity-fatal;
+}
+.ext-button {
+  -fx-background-color: -df-component-dark;
+  -fx-background-radius: 2px;
+  -fx-border-radius: 2px;
+  -fx-font-size: 110%;
+  -fx-font-family: "Source Sans Pro";
+  -fx-text-fill: -df-text;
+  -fx-graphic-text-gap: 0;
+  -fx-min-height: 26px;
+  -fx-max-height: 26px;
+}
+.ext-button:hover {
+  -fx-background-color: -df-component-lighter;
+  -fx-text-fill: -df-text-selected;
+}
+.ext-button:armed {
+  -fx-background-color: -df-component-light;
+  -fx-text-fill: -df-text-selected;
+}
+.ext-button:disabled {
+  -fx-opacity: 0.4;
+}
+.ext-button-text {
+  -fx-padding: 0 8px;
+}
+.ext-button-text-and-icon {
+  -fx-padding: 0 8px 0 1px;
+}
+.ext-check-box {
+  -fx-font-size: 110%;
+  -fx-font-family: "Source Sans Pro";
+  -fx-text-fill: -df-text;
+  -fx-label-padding: 0 0 0 4px;
+  -fx-min-height: 26px;
+  -fx-max-height: 26px;
+}
+.ext-check-box > .box {
+  -fx-border-radius: 2px;
+  -fx-background-radius: 2px;
+}
+.ext-check-box:warning > .box {
+  -fx-border-color: -df-error-severity-warning-dim;
+}
+.ext-check-box:warning:focused > .box {
+  -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim;
+}
+.ext-check-box:error > .box {
+  -fx-border-color: -df-error-severity-fatal-dim;
+}
+.ext-check-box:error:focused > .box {
+  -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim;
+}
+.ext-radio-button {
+  -fx-font-size: 110%;
+  -fx-font-family: "Source Sans Pro";
+  -fx-text-fill: -df-text;
+  -fx-label-padding: 0 0 0 4px;
+  -fx-min-height: 26px;
+  -fx-max-height: 26px;
+}
+.ext-text-field {
+  -fx-min-height: 26px;
+  -fx-max-height: 26px;
+  -fx-min-width: 40px;
+  -fx-pref-width: 160px;
+  -fx-max-width: Infinity;
+  -fx-border-radius: 2px;
+  -fx-background-radius: 3px;
+}
+.ext-text-field:focused {
+  -fx-border-radius: 2px;
+  -fx-background-radius: 3px;
+}
+.ext-text-field:warning {
+  -fx-border-color: -df-error-severity-warning-dim;
+}
+.ext-text-field:warning:hover {
+  -fx-border-color: -df-error-severity-warning;
+}
+.ext-text-field:warning:focused {
+  -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim;
+}
+.ext-text-field:error {
+  -fx-border-color: -df-error-severity-fatal-dim;
+}
+.ext-text-field:error:hover {
+  -fx-border-color: -df-error-severity-fatal;
+}
+.ext-text-field:error:focused {
+  -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim;
+}
+.ext-text-area {
+  -fx-border-radius: 2px;
+  -fx-background-radius: 3px;
+  -fx-border-width: 1px;
+  -fx-border-color: -df-component-dark;
+  -fx-background-color: -df-background-input;
+  -fx-prompt-text-fill: -df-text-dark;
+  -fx-highlight-fill: -df-background-input;
+  -fx-highlight-text-fill: -df-text-selected;
+  -fx-padding: 1px 1px;
+}
+.ext-text-area:readonly {
+  -fx-text-fill: -df-text-dark;
+  -fx-text-inner-color: -df-text-dark;
+  -fx-highlight-text-fill: -df-text-dark;
+}
+.ext-text-area:hover {
+  -fx-border-color: -df-component-light;
+}
+.ext-text-area:focused {
+  -fx-border-width: 1px 1px 2px 1px;
+  -fx-padding: 1px 1px -1px 1px;
+  -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+  -fx-background-color: -df-background;
+  -fx-highlight-fill: -fx-accent;
+}
+.ext-text-area:warning {
+  -fx-border-color: -df-error-severity-warning-dim;
+}
+.ext-text-area:warning:hover {
+  -fx-border-color: -df-error-severity-warning;
+}
+.ext-text-area:warning:focused {
+  -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim;
+}
+.ext-text-area:error {
+  -fx-border-color: -df-error-severity-fatal-dim;
+}
+.ext-text-area:error:hover {
+  -fx-border-color: -df-error-severity-fatal;
+}
+.ext-text-area:error:focused {
+  -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim;
+}
+.ext-text-area > .scroll-pane {
+  -fx-background-color: transparent;
+}
+.ext-text-area > .scroll-pane > .viewport {
+  -fx-background-color: transparent;
+}
+.ext-text-area > .scroll-pane > .scroll-bar > .thumb {
+  -fx-background-color: -df-component-dark;
+}
+.ext-text-area > .scroll-pane > .scroll-bar > .thumb:hover {
+  -fx-background-color: -df-component-light;
+}
+.ext-text-area > .scroll-pane > .scroll-bar > .thumb:pressed {
+  -fx-background-color: -df-component-lighter;
+}
+.ext-table-view {
+  -fx-border-width: 1;
+  -fx-padding: 1px;
+  -fx-border-color: -df-component-dark;
+  -fx-background-insets: 0;
+  -fx-background-color: -df-background-input;
+}
+.ext-table-view:hover {
+  -fx-border-color: -df-component-light;
+}
+.ext-table-view:focused {
+  -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+  -fx-border-width: 1px 1px 2px 1px;
+  -fx-padding: 1px 1px 0 1px;
+  -fx-background-color: -df-background;
+}
+.ext-table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected {
+  -fx-background-color: -df-background-lighter;
+}
+.ext-table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected > .table-cell {
+  -fx-text-fill: -df-text-selected;
+}
+.ext-table-view > .column-header-background {
+  -fx-border-width: 0 0 1 0;
+  -fx-border-color: -df-component-dark;
+  -fx-background-color: transparent;
+}
+.ext-table-view > .column-header-background > .filler {
+  -fx-background-color: transparent;
+}
+.ext-table-view > .column-header-background > .nested-column-header > .column-header {
+  -fx-background-color: transparent;
+  -fx-border-width: 0 1 0 0;
+  -fx-border-color: -df-component-dark;
+}
+.ext-table-view > .column-header-background > .nested-column-header > .column-header > .label {
+  -fx-text-fill: -df-text;
+  -fx-alignment: center-left;
+}
+.ext-table-view > .virtual-flow > .clipped-container > .sheet > .table-row-cell {
+  -fx-background-color: transparent;
+}
+.ext-table-view > .virtual-flow > .clipped-container > .sheet > .table-row-cell > .table-cell {
+  -fx-border-width: 0 1 0 0;
+  -fx-border-color: -df-component-dark;
+  -fx-text-fill: -df-text;
+  -fx-padding: 0 2px;
+}
+.ext-table-view > .virtual-flow > .scroll-bar > .thumb {
+  -fx-background-color: -df-component-dark;
+}
+.ext-table-view > .virtual-flow > .scroll-bar > .thumb:hover {
+  -fx-background-color: -df-component-light;
+}
+.ext-table-view > .virtual-flow > .scroll-bar > .thumb:pressed {
+  -fx-background-color: -df-component-lighter;
+}
+.ext-hover-overlay > * {
+  visibility: hidden;
+}
+.ext-hover-overlay:hover > *, .ext-hover-overlay:pressed > * {
+  visibility: visible;
+  -fx-background-color: -df-background-input;
+  -fx-background-radius: 1px;
+}
+.ext-scrubber {
+  -fx-cursor: v-resize;
+  -fx-pref-height: 26px;
+}
+.ext-scrubber:hover > .image-view {
+  -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1, 0, 0);
+}
+.ext-scrubber:pressed > .image-view {
+  -fx-effect: innershadow(gaussian, -df-defold-blue-light, 20, 1, 0, 0);
+}
+.ext-toggle-button {
+  -fx-background-color: -df-component-dark;
+  -fx-background-radius: 2px;
+  -fx-border-width: 0;
+  -fx-min-width: 26px;
+  -fx-min-height: 26px;
+  -fx-max-height: 26px;
+}
+.ext-color-picker-icon {
+  -fx-min-width: 26px;
+  -fx-max-width: 26px;
+  -fx-min-height: 26px;
+  -fx-max-height: 26px;
+  -fx-border-color: -df-component-dark;
+  -fx-border-radius: 0 2px 2px 0;
+  -fx-border-width: 1px 1px 1px 0;
+  -fx-padding: 0 0 0 1px;
+  -fx-background-color: -df-component-dark;
+  -fx-background-radius: 0 3px 3px 0;
+}
+.ext-color-picker-icon > .arrow-button {
+  visibility: hidden;
+}
+.ext-color-picker-icon > .color-picker-label {
+  -fx-content-display: graphic-only;
+}
+.ext-color-picker-field {
+  -fx-background-radius: 3px 0 0 3px;
+  -fx-border-radius: 2px 0 0 2px;
+  -fx-border-width: 1px 0 1px 1px;
+}
+.ext-color-picker-field:focused {
+  -fx-border-width: 1px 0 2px 1px;
+  -fx-border-radius: 2px 0 0 2px;
+}
+.ext-color-picker:hover > .ext-color-picker-field, .ext-color-picker:hover > .ext-color-picker-icon {
+  -fx-border-color: -df-component-light;
+}
+.ext-color-picker:focus-within > .ext-color-picker-field {
+  -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+}
+.ext-color-picker:focus-within > .ext-color-picker-icon {
+  -fx-border-color: -df-component-light;
+}
+.ext-color-picker:warning > .ext-color-picker-field, .ext-color-picker:warning > .ext-color-picker-icon {
+  -fx-border-color: -df-error-severity-warning-dim;
+}
+.ext-color-picker:warning:hover > .ext-color-picker-field, .ext-color-picker:warning:hover > .ext-color-picker-icon, .ext-color-picker:warning:focus-within > .ext-color-picker-field, .ext-color-picker:warning:focus-within > .ext-color-picker-icon {
+  -fx-border-color: -df-error-severity-warning;
+}
+.ext-color-picker:error > .ext-color-picker-field, .ext-color-picker:error > .ext-color-picker-icon {
+  -fx-border-color: -df-error-severity-fatal-dim;
+}
+.ext-color-picker:error:hover > .ext-color-picker-field, .ext-color-picker:error:hover > .ext-color-picker-icon, .ext-color-picker:error:focus-within > .ext-color-picker-field, .ext-color-picker:error:focus-within > .ext-color-picker-icon {
+  -fx-border-color: -df-error-severity-fatal;
+}
+.ext-resource-picker > .ext-resource-picker-field {
+  -fx-background-radius: 3px 0 0 3px;
+  -fx-border-radius: 2px 0 0 2px;
+  -fx-border-width: 1px 0 1px 1px;
+}
+.ext-resource-picker > .ext-resource-picker-open-button, .ext-resource-picker > .ext-resource-picker-browse-button {
+  -fx-background-color: -df-component-dark;
+  -fx-background-radius: 0;
+  -fx-border-color: -df-component-dark;
+  -fx-border-radius: 0;
+  -fx-border-width: 1px 0 1px 0;
+}
+.ext-resource-picker > .ext-resource-picker-browse-button {
+  -fx-background-radius: 0 3px 3px 0;
+  -fx-border-radius: 0 2px 2px 0;
+  -fx-border-width: 1px 1px 1px 0;
+}
+.ext-resource-picker:hover > .ext-resource-picker-field, .ext-resource-picker:hover > .ext-resource-picker-open-button, .ext-resource-picker:hover > .ext-resource-picker-browse-button {
+  -fx-border-color: -df-component-light;
+}
+.ext-resource-picker > .ext-resource-picker-open-button:hover, .ext-resource-picker > .ext-resource-picker-browse-button:hover {
+  -fx-background-color: -df-component-light;
+  -fx-text-fill: -df-text-selected;
+}
+.ext-resource-picker > .ext-resource-picker-open-button:disabled, .ext-resource-picker > .ext-resource-picker-browse-button:disabled {
+  -fx-opacity: 1;
+  -fx-background-color: derive(-df-component-dark, -20%);
+  -fx-text-fill: -df-text-dark;
+}
+.ext-resource-picker > .ext-resource-picker-open-button:armed, .ext-resource-picker > .ext-resource-picker-browse-button:armed {
+  -fx-background-color: -df-component-light;
+  -fx-text-fill: -df-text-selected;
+}
+.ext-resource-picker:focus-within > .ext-resource-picker-field {
+  -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+  -fx-border-width: 1px 0 2px 1px;
+}
+.ext-resource-picker:focus-within > .ext-resource-picker-open-button, .ext-resource-picker:focus-within > .ext-resource-picker-browse-button {
+  -fx-border-color: -df-component-light;
+}
+.ext-resource-picker:warning > .ext-resource-picker-field, .ext-resource-picker:warning > .ext-resource-picker-open-button, .ext-resource-picker:warning > .ext-resource-picker-browse-button {
+  -fx-border-color: -df-error-severity-warning-dim;
+}
+.ext-resource-picker:warning:hover > .ext-resource-picker-field, .ext-resource-picker:warning:hover > .ext-resource-picker-open-button, .ext-resource-picker:warning:hover > .ext-resource-picker-browse-button, .ext-resource-picker:warning:focus-within > .ext-resource-picker-field, .ext-resource-picker:warning:focus-within > .ext-resource-picker-open-button, .ext-resource-picker:warning:focus-within > .ext-resource-picker-browse-button {
+  -fx-border-color: -df-error-severity-warning;
+}
+.ext-resource-picker:error > .ext-resource-picker-field, .ext-resource-picker:error > .ext-resource-picker-open-button, .ext-resource-picker:error > .ext-resource-picker-browse-button {
+  -fx-border-color: -df-error-severity-fatal-dim;
+}
+.ext-resource-picker:error:hover > .ext-resource-picker-field, .ext-resource-picker:error:hover > .ext-resource-picker-open-button, .ext-resource-picker:error:hover > .ext-resource-picker-browse-button, .ext-resource-picker:error:focus-within > .ext-resource-picker-field, .ext-resource-picker:error:focus-within > .ext-resource-picker-open-button, .ext-resource-picker:error:focus-within > .ext-resource-picker-browse-button {
+  -fx-border-color: -df-error-severity-fatal;
+}
+.ext-resource-picker:drag-over > .ext-resource-picker-field, .ext-resource-picker:drag-over > .ext-resource-picker-open-button, .ext-resource-picker:drag-over > .ext-resource-picker-browse-button {
+  -fx-border-color: -df-defold-green;
+}
+.ext-resource-picker:drag-over:drag-invalid > .ext-resource-picker-field, .ext-resource-picker:drag-over:drag-invalid > .ext-resource-picker-open-button, .ext-resource-picker:drag-over:drag-invalid > .ext-resource-picker-browse-button {
+  -fx-border-color: -df-defold-red;
+}
+.ext-combo-box > .label {
+  -fx-border-color: -df-component-dark;
+  -fx-border-radius: 2px 0 0 2px;
+  -fx-border-width: 1px 0 1px 1px;
+  -fx-background-color: -df-background-input;
+  -fx-background-radius: 3px 0 0 3px;
+  -fx-min-height: 26px;
+  -fx-max-height: 26px;
+  -fx-max-width: Infinity;
+  -fx-text-fill: -df-text-selected;
+  -fx-padding: 1px 8px 1px 8px;
+}
+.ext-combo-box:hover > .label {
+  -fx-border-color: -df-component-light;
+}
+.ext-combo-box:hover > .ext-combo-box-arrow-button {
+  -fx-border-color: -df-component-light;
+}
+.ext-combo-box:hover > .ext-combo-box-arrow-button > .ext-combo-box-arrow {
+  -fx-background-color: -df-text-selected;
+}
+.ext-combo-box:focused > .label {
+  -fx-background-color: -df-background;
+  -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+  -fx-border-width: 1px 0 2px 1px;
+  -fx-padding: 1px 8px 0px 8px;
+}
+.ext-combo-box:focused > .ext-combo-box-arrow-button {
+  -fx-border-color: -df-component-light;
+}
+.ext-combo-box:focused > .ext-combo-box-arrow-button > .ext-combo-box-arrow {
+  -fx-background-color: -df-text-selected;
+}
+.ext-combo-box:focused:showing > .label {
+  -fx-border-color: -df-component-light;
+  -fx-border-width: 1px 0 1px 1px;
+  -fx-padding: 1px 8px 1px 8px;
+}
+.ext-combo-box:showing > .ext-combo-box-arrow-button {
+  -fx-border-radius: 0 2px 0 0;
+  -fx-background-radius: 0 3px 0 0;
+}
+.ext-combo-box:showing > .ext-combo-box-arrow-button > .ext-combo-box-arrow {
+  -fx-scale-y: -1;
+}
+.ext-combo-box:showing > .label {
+  -fx-border-radius: 2px 0 0 0;
+  -fx-background-radius: 3px 0 0 0;
+}
+.ext-combo-box-arrow-button {
+  -fx-background-color: -df-component-dark;
+  -fx-background-radius: 0 3px 3px 0;
+  -fx-border-color: -df-component-dark;
+  -fx-border-width: 1px 1px 1px 0;
+  -fx-border-radius: 0 2px 2px 0;
+  -fx-min-width: 26px;
+  -fx-max-width: 26px;
+  -fx-min-height: 26px;
+  -fx-max-height: 26px;
+}
+.ext-combo-box-arrow-button:disabled {
+  -fx-opacity: 0.4;
+}
+.ext-combo-box-arrow {
+  -fx-shape: "M 0 0 h 10 l -5 6 z";
+  -fx-scale-shape: false;
+  -fx-background-color: -df-text;
+  -fx-background-insets: 0 -0.5px 0 0.5px;
+}
+.ext-combo-box-popup-background {
+  -fx-background-color: -df-background;
+  -fx-border-color: -df-component-light;
+  -fx-border-width: 1px;
+  -fx-border-radius: 0 0 2px 2px;
+  -fx-background-radius: 0 0 3px 3px;
+  -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0, 0, 8);
+}
+.ext-combo-box-popup-background:warning {
+  -fx-border-color: -df-component-light -df-error-severity-warning -df-error-severity-warning -df-error-severity-warning;
+}
+.ext-combo-box-popup-background:error {
+  -fx-border-color: -df-component-light -df-error-severity-fatal -df-error-severity-fatal -df-error-severity-fatal;
+}
+.ext-combo-box-popup-field, .ext-combo-box-popup-field:focused {
+  -fx-border-radius: 0;
+  -fx-background-radius: 0;
+  -fx-border-width: 0 0 1px 0;
+  -fx-border-color: -df-component-light;
+  -fx-padding: 4px 8px;
+}
+.ext-combo-box-popup-list > .virtual-flow > .scroll-bar > .thumb {
+  -fx-background-color: -df-component-dark;
+}
+.ext-combo-box-popup-list > .virtual-flow > .scroll-bar > .thumb:hover {
+  -fx-background-color: -df-component-light;
+}
+.ext-combo-box-popup-list > .virtual-flow > .scroll-bar > .thumb:pressed {
+  -fx-background-color: -df-component-lighter;
+}
+.ext-combo-box-popup-list > .virtual-flow > .clipped-container > .sheet > .cell {
+  -fx-padding: 4px 6px;
+}
+.ext-combo-box-popup-list > .virtual-flow > .clipped-container > .sheet > .cell:hover > TextFlow > Text, .ext-combo-box-popup-list > .virtual-flow > .clipped-container > .sheet > .cell:selected > TextFlow > Text {
+  -fx-fill: -df-text-selected;
+}
+.ext-combo-box-popup-list > .virtual-flow > .clipped-container > .sheet > .cell:hover > TextFlow > Text.matched, .ext-combo-box-popup-list > .virtual-flow > .clipped-container > .sheet > .cell:selected > TextFlow > Text.matched {
+  -fx-fill: -df-defold-blue-lighter;
+}
+.ext-combo-box-popup-list > .virtual-flow > .clipped-container > .sheet > .cell:selected {
+  -fx-border-color: -df-defold-orange;
+  -fx-border-width: 0 0 0 2px;
+}
+.ext-combo-box:warning > .label {
+  -fx-border-color: -df-error-severity-warning-dim;
+}
+.ext-combo-box:warning > .ext-combo-box-arrow-button {
+  -fx-border-color: -df-error-severity-warning-dim;
+}
+.ext-combo-box:warning:hover > .label, .ext-combo-box:warning:focused > .label {
+  -fx-border-color: -df-error-severity-warning;
+}
+.ext-combo-box:warning:hover > .ext-combo-box-arrow-button, .ext-combo-box:warning:focused > .ext-combo-box-arrow-button {
+  -fx-border-color: -df-error-severity-warning;
+}
+.ext-combo-box:error > .label {
+  -fx-border-color: -df-error-severity-fatal-dim;
+}
+.ext-combo-box:error > .ext-combo-box-arrow-button {
+  -fx-border-color: -df-error-severity-fatal-dim;
+}
+.ext-combo-box:error:hover > .label, .ext-combo-box:error:focused > .label {
+  -fx-border-color: -df-error-severity-fatal;
+}
+.ext-combo-box:error:hover > .ext-combo-box-arrow-button, .ext-combo-box:error:focused > .ext-combo-box-arrow-button {
+  -fx-border-color: -df-error-severity-fatal;
+}
+.ext-tab-pane > .tab-content-area {
+  -fx-background-color: null;
+}
+.ext-tab-icon {
+  -fx-min-width: 16px;
+  -fx-max-width: 16px;
+  -fx-min-height: 16px;
+  -fx-max-height: 16px;
+}
+
+.keymap-shortcut {
+  -fx-background-color: -df-component-light;
+  -fx-border-radius: 4px;
+  -fx-background-radius: 4px;
+  -fx-padding: 0px 4px;
+  -fx-alignment: center;
+}
+.keymap-shortcut:warning {
+  -fx-text-fill: -df-defold-yellow-dark;
+}
+.keymap-shortcut:inherited {
+  -fx-text-fill: -df-text-dark;
+  -fx-background-color: -df-component-dark;
+}
+.keymap-shortcut:overridden {
+  -fx-text-fill: -df-defold-blue-light;
+}
+.keymap-shortcuts {
+  -fx-padding: 2px 0;
+}
+.keymap-command:overridden > .label {
+  -fx-text-fill: -df-defold-blue-light;
+}
+.keymap-command-arrow {
+  -fx-opacity: 0.6;
+}
+.keymap-mouse-binding-badge {
+  -fx-background-color: derive(-df-background-light, 5%);
+  -fx-background-radius: 4px;
+  -fx-padding: 0px 5px;
+  -fx-text-fill: -df-text-selected;
+  -fx-font-size: 85%;
+  -fx-alignment: center;
+  -fx-min-width: 28px;
+  -fx-max-width: 28px;
+}
+.keymap-mouse-binding-preview {
+  -fx-background-color: -df-component-light;
+  -fx-background-radius: 4px;
+  -fx-padding: 4px 8px;
+}
+.keymap-warning {
+  -fx-background-color: -df-component-light;
+  -fx-pref-width: 15px;
+  -fx-pref-height: 13px;
+  -fx-scale-y: -1;
+}
+.keymap-new-shortcut-background {
+  -fx-background-color: -df-component-dark;
+  -fx-border-color: -df-component-lighter;
+  -fx-border-width: 1px;
+  -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0, 0, 8);
+}
+
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected > .table-cell > .keymap-command > .label {
+  -fx-text-fill: -df-text-selected;
+}
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected > .table-cell > .keymap-command:overridden > .label {
+  -fx-text-fill: -df-defold-blue-lighter;
+}
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected > .table-cell > .keymap-shortcuts > .keymap-shortcut {
+  -fx-text-fill: -df-text-selected;
+  -fx-background-color: -df-component-lighter;
+}
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected > .table-cell > .keymap-shortcuts > .keymap-shortcut:warning {
+  -fx-text-fill: -df-defold-yellow;
+}
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected > .table-cell > .keymap-shortcuts > .keymap-shortcut:inherited {
+  -fx-text-fill: -df-text-dark;
+  -fx-background-color: -df-component-light;
+}
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected > .table-cell > .keymap-shortcuts > .keymap-shortcut:overridden {
+  -fx-text-fill: -df-defold-blue-lighter;
+}
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected > .table-cell > .keymap-shortcuts > .keymap-warning-container > .keymap-warning {
+  -fx-background-color: -df-component-lighter;
+}
