@@ -173,7 +173,8 @@
     MouseEvent/MOUSE_RELEASED})
 
 (defn- load-stage! [workspace project prefs localization project-path cli-options updater newly-created?]
-  (let [^StackPane root (ui/load-fxml "editor.fxml")
+  (let [theme (prefs/get prefs [:window :theme])
+        ^StackPane root (ui/load-fxml "editor.fxml" theme)
         stage (ui/make-stage)
         scene (Scene. root)]
     (ui/install-external-drag-guard! scene)
@@ -185,6 +186,9 @@
 
     (ui/show! stage localization)
     (targets/start)
+
+    ;; Start theme watcher for live theme switching
+    (ui/start-theme-watcher! prefs)
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^Node menu-bar-space (.lookup root "#menu-bar-space")
