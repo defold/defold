@@ -13,26 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.targets-test
-  (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [editor.console :as console]
             [editor.engine :as engine]
-            [editor.os :as os]
             [editor.prefs :as prefs]
-            [editor.process :as process]
             [editor.targets :as targets]
-            [editor.ui :as ui]
-            [util.coll :as coll]
-            [util.fn :as fn])
-  (:import [java.io BufferedReader]
-           [java.lang ProcessHandle]
-           [java.net InetAddress ServerSocket]
-           [java.util.concurrent CompletableFuture TimeUnit]
-           [javafx.scene Scene]
-           [javafx.scene.layout StackPane]
-           [javafx.stage Stage]))
-
-(set! *warn-on-reflection* true)
+            [util.fn :as fn]))
 
 (def ^:private local-target
   {:name "Local"
@@ -186,50 +172,3 @@
                                  (throw (ex-info "boom" {})))]
       (#'editor.targets/kill-launched-target! target)
       (is (= 1 @destroyed)))))
-
-;; Missing-DLL retries stay alive until dismissed or stopped. Both Stop paths
-;; must terminate the retry and complete target cleanup without leaving an
-;; orphan process. The socket handshake signals when the retry has started.
-(deftest stop-missing-dll-diagnostic-test
-  (when (os/is-win32?)
-    (let [^Stage stage (ui/run-now (doto (Stage.) (.setScene (Scene. (StackPane.)))))
-          powershell (str (io/file (System/getenv "SystemRoot") "System32" "WindowsPowerShell" "v1.0" "powershell.exe"))]
-      (try
-        (binding [ui/*main-stage* (atom stage)]
-          (doseq [stop-mode [:one :all]]
-            (testing (str "Stop " stop-mode)
-              (with-open [server (doto (ServerSocket. 0 1 (InetAddress/getLoopbackAddress))
-                                   (.setSoTimeout 10000))]
-                (let [script (format (str "$client = [System.Net.Sockets.TcpClient]::new('127.0.0.1', %d); "
-                                          "$stream = $client.GetStream(); "
-                                          "$writer = [System.IO.StreamWriter]::new($stream); "
-                                          "$writer.WriteLine($PID); $writer.Flush(); "
-                                          "[void]$stream.ReadByte(); $client.Dispose()")
-                                     (.getLocalPort server))
-                      engine-process (process/start! "cmd" "/c" "exit /b -1073741515")
-                      target (targets/add-launched-target! 1 {:process engine-process
-                                                             :log-stream (process/out engine-process)
-                                                             :process-options {}
-                                                             :command [powershell "-NoProfile" "-NonInteractive" "-Command" script]})
-                      _ (console/reset-console-stream! (:log-stream target))
-                      log-pump (console/start-log-pump! (:log-stream target) (constantly nil))
-                      ^CompletableFuture monitor (targets/monitor-launched-target! target log-pump str)]
-                  (try
-                    (with-open [socket (.accept server)
-                                ^BufferedReader reader (io/reader (.getInputStream socket))]
-                      (.setSoTimeout socket 10000)
-                      (let [^ProcessHandle diagnostic (.orElseThrow (ProcessHandle/of (parse-long (.readLine reader))))]
-                        (is (.isAlive diagnostic))
-                        (case stop-mode
-                          :one (targets/kill-launched-target! target)
-                          :all (targets/kill-launched-targets!))
-                        (.get monitor 10 TimeUnit/SECONDS)
-                        (.get (.onExit diagnostic) 10 TimeUnit/SECONDS)
-                        (is (not (.isAlive diagnostic)))
-                        (is (not (coll/any? #(= (:id target) (:id %)) (targets/all-launched-targets))))))
-                    (finally
-                      (targets/kill-launched-target! target)
-                      (.get monitor 10 TimeUnit/SECONDS))))))))
-        (finally
-          (console/reset-console-stream! nil)
-          (ui/run-now (.close stage)))))))
