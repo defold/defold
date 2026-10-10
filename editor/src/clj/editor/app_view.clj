@@ -1062,10 +1062,10 @@
                                  (targets/when-url (:id launched-target)
                                                    (fn on-target-url-found [url]
                                                      (on-launched-hook! project (:process launched-target) url)))
-                                 (let [log-pump (console/start-log-pump!
-                                                  (:log-stream launched-target)
-                                                  (make-launched-log-sink launched-target (partial on-service-url-found prefs)))]
-                                   (targets/monitor-launched-target! launched-target log-pump localization)))
+                                 (console/start-log-pump!
+                                   (:log-stream launched-target)
+                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs)))
+                                 (targets/monitor-launched-target! launched-target localization))
                                last-launched-target))]
     (try
       {:target

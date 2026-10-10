@@ -148,7 +148,7 @@
                                                       :log-stream (.getInputStream process)
                                                       :address "127.0.0.1"})
                 ^Thread log-pump (console/start-log-pump! (:log-stream target) (constantly nil))
-                monitor (targets/monitor-launched-target! target log-pump identity)
+                monitor (targets/monitor-launched-target! target identity)
                 removed (promise)
                 cancel-watch (targets/when-url-or-removed (:id target) #(deliver removed %))]
             (try
@@ -168,6 +168,7 @@
                 (targets/kill-launched-target! target)
                 (try
                   (dap-util/await! monitor)
+                  (.join log-pump 10000)
                   (is (not (.isAlive log-pump)))
                   (is (nil? (deref removed 0 ::not-removed)))
                   (finally (cancel-watch)))))))

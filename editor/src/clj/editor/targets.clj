@@ -110,13 +110,12 @@
     (invalidate-target-menu!)
     launched-target))
 
-(defn monitor-launched-target! [target ^Thread log-pump localization]
+(defn monitor-launched-target! [target localization]
   (future/io
     (try
       (let [exit-code (process/await-exit-code (:process target))
             stop-signal (:stop-signal target)]
-        ;; Consume all engine output before appending the exit diagnostic.
-        (.join log-pump)
+        ;; A child may keep stdout open, so do not wait for the log pump.
         (when (and (not (future/done? stop-signal))
                    (not (zero? exit-code))
                    (console/current-stream? (:log-stream target)))
