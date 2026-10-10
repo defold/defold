@@ -32,6 +32,7 @@
             [clojure.string :as string]
             [clojure.xml :as xml]
             [dynamo.graph :as g]
+            [editor.colors :as colors]
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
@@ -562,13 +563,15 @@
   "Ensures the root carries the theme stylesheets matching the supplied
   theme preference value: theme-owned stylesheets already present are
   replaced in place, and a root without any (the project window, whose
-  FXML declares none) gets the editor stylesheet prepended."
+  FXML declares none) gets the editor stylesheet prepended. Also syncs the
+  GL scene palette used by scene, image and curve views."
   [^Parent root theme]
   (let [resolved-theme (resolve-theme theme)
         themed (themed-stylesheet-urls (vec (.getStylesheets root)) resolved-theme)
         themed (if (some theme-css-url-set themed)
                  themed
                  (into [(str (io/resource (theme-css-resource resolved-theme)))] themed))]
+    (colors/apply-scene-theme! resolved-theme)
     (when-let [scene (.getScene root)]
       (.forget (com.sun.javafx.css.StyleManager/getInstance) scene))
     (.setAll (.getStylesheets root) ^Collection themed))
@@ -579,6 +582,7 @@
     (let [root ^Parent (.getRoot scene)
           styles (themed-stylesheet-urls (vec (.getStylesheets root))
                                          (current-resolved-theme))]
+      (colors/apply-scene-theme! (current-resolved-theme))
       (.forget (com.sun.javafx.css.StyleManager/getInstance) scene)
       (.setAll (.getStylesheets root) ^Collection styles))))
 

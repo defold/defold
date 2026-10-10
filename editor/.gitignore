@@ -37,3 +37,6 @@ pom.xml.asc
 /.portal
 /defunload-issues.txt
 /src/antlr
+/resources/dialogs-light.css
+/resources/editor-light.css
+/resources/splash-light.css
