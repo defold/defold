@@ -554,16 +554,24 @@
     (map #(get light-theme-css-replacements % %) stylesheet-urls)
     stylesheet-urls))
 
+(def ^:private theme-css-url-set
+  (set (concat (keys light-theme-css-replacements)
+               (vals light-theme-css-replacements))))
+
 (defn apply-theme-css!
-  "Replaces any stylesheet on the root that belongs to the theme system with
-  the variant selected by the supplied theme preference value, keeping every
-  stylesheet in its original position."
+  "Ensures the root carries the theme stylesheets matching the supplied
+  theme preference value: theme-owned stylesheets already present are
+  replaced in place, and a root without any (the project window, whose
+  FXML declares none) gets the editor stylesheet prepended."
   [^Parent root theme]
   (let [resolved-theme (resolve-theme theme)
-        stylesheets (themed-stylesheet-urls (vec (.getStylesheets root)) resolved-theme)]
+        themed (themed-stylesheet-urls (vec (.getStylesheets root)) resolved-theme)
+        themed (if (some theme-css-url-set themed)
+                 themed
+                 (into [(str (io/resource (theme-css-resource resolved-theme)))] themed))]
     (when-let [scene (.getScene root)]
       (.forget (com.sun.javafx.css.StyleManager/getInstance) scene))
-    (.setAll (.getStylesheets root) ^Collection stylesheets))
+    (.setAll (.getStylesheets root) ^Collection themed))
   nil)
 
 (defn reload-root-styles! []
