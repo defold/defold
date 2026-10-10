@@ -19,6 +19,7 @@
             [editor.console :as console]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
+            [editor.future :as future]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.notifications :as notifications]
@@ -33,7 +34,8 @@
            [java.io ByteArrayOutputStream]
            [java.lang ProcessHandle]
            [java.net InetAddress NetworkInterface URL URLConnection]
-           [java.util UUID]))
+           [java.util UUID]
+           [java.util.concurrent CompletableFuture]))
 
 (set! *warn-on-reflection* true)
 
@@ -64,11 +66,8 @@
     (.destroy process)))
 
 (defn kill-launched-target! [target]
-  (when-let [stop-requested (:stop-requested target)]
-    (locking stop-requested
-      (reset! stop-requested true)
-      (when-let [^ProcessHandle diagnostic-process @(:diagnostic-process target)]
-        (.destroy diagnostic-process))))
+  (when-let [stop-signal (:stop-signal target)]
+    (future/complete! stop-signal nil))
   (let [^Process process (:process target)]
     (when (.isAlive process)
       (when-let [_ (:url target)]
@@ -103,8 +102,7 @@
                           :local-address "127.0.0.1"
                           :id (str (UUID/randomUUID))
                           :instance-index instance-index
-                          :stop-requested (atom false)
-                          :diagnostic-process (atom nil))]
+                          :stop-signal (future/make))]
     (when (= instance-index 0)
       (kill-launched-targets!))
     (swap! launched-targets conj launched-target)
@@ -113,32 +111,32 @@
     launched-target))
 
 (defn monitor-launched-target! [target ^Thread log-pump localization]
-  (future
+  (future/io
     (try
       (let [exit-code (process/await-exit-code (:process target))
-            stop-requested (:stop-requested target)]
+            stop-signal (:stop-signal target)]
         ;; Consume all engine output before appending the exit diagnostic.
         (.join log-pump)
-        (locking stop-requested
-          (when (and (not @stop-requested)
-                     (not (zero? exit-code))
-                     (console/current-stream? (:log-stream target)))
-            (console/append-console-line!
-              (localization
-                (localization/message "console.application-exited"
-                                      {"code" (if (os/is-win32?)
-                                                (format "0x%08X" (bit-and exit-code 0xffffffff))
-                                                (str exit-code))})))
-            ;; STATUS_DLL_NOT_FOUND happens before engine initialization.
-            ;; Retry once so Windows can display the missing DLL's name.
-            (when (and (os/is-win32?) (= 0xc0000135 (bit-and exit-code 0xffffffff)))
-              (reset! (:diagnostic-process target)
-                      (process/start-with-default-error-mode! (:process-options target) (:command target))))))
-        (when-let [^ProcessHandle diagnostic-process @(:diagnostic-process target)]
-          (.get (.onExit diagnostic-process))))
+        (when (and (not (future/done? stop-signal))
+                   (not (zero? exit-code))
+                   (console/current-stream? (:log-stream target)))
+          (console/append-console-line!
+            (localization
+              (localization/message "console.application-exited"
+                                    {"code" (if (os/is-win32?)
+                                              (format "0x%08X" (bit-and exit-code 0xffffffff))
+                                              (str exit-code))})))
+          ;; Retry STATUS_DLL_NOT_FOUND once so Windows can name the missing
+          ;; DLL. Keep the retry local and close it when Stop is requested.
+          (when (and (os/is-win32?) (= 0xc0000135 (bit-and exit-code 0xffffffff)))
+            (when-let [^ProcessHandle diagnostic-process (process/start-with-default-error-mode! (:process-options target) (:command target))]
+              (try
+                (.get (CompletableFuture/anyOf (into-array CompletableFuture [stop-signal (.onExit diagnostic-process)])))
+                (finally
+                  (.destroy diagnostic-process)))))))
       (catch Exception exception
         (log/warn :exception exception)
-        (when (and (not @(:stop-requested target))
+        (when (and (not (future/done? (:stop-signal target)))
                    (console/current-stream? (:log-stream target)))
           (console/append-console-line!
             (localization
