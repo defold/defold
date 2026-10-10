@@ -2,4 +2,5 @@ font: "/font/IBMPlexMono-Bold.ttf"
 material: "/font/material_valid.material"
 size: 96
 output_format: TYPE_DISTANCE_FIELD
+runtime: true
 characters: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"

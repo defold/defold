@@ -7,7 +7,7 @@ In the engine we have several concepts that together make up our text rendering 
 * text shaping
 * text rendering.
 
-The engine supports bitmap fonts and rasterized distance-field fonts. It currently doesn't support true vector rendering by default.
+The engine supports bitmap, distance-field and opt-in Slug vector fonts. See [the Slug vector font algorithm](FONT_SLUG_ALGORITHM.md) for curve rendering, bitmap effects, and texture layouts.
 
 For text layout, we support both a very basic layout and also full text shaping, as an opt-in.
 
@@ -86,9 +86,25 @@ the line appears solid.
 
 ### Runtime generation
 
-For `.ttf` and `.otf` fonts, we can generate distance fields at runtime. This helps keep the game bundle size to a minimum.
+For Dynamic `.font` resources, the `font_gen` library loads `.ttf` and `.otf`
+resources and generates SDF or Vector glyph data at runtime. It is linked by
+default. Static fonts use their compiled glyph bank and do not require this
+library.
 
-This is an opt-in feature that requires building the engine locally with `--enable-feature=font_layout` or using an app manifest.
+Local engine builds can omit runtime generation with
+`--disable-feature=font_gen`. Such an engine rejects Dynamic font resources
+with an explicit error, while Static fonts continue to load normally.
+
+For a custom engine built by Extender, select the API-compatible null library
+in an app manifest:
+
+```yaml
+platforms:
+    common:
+        context:
+            excludeLibs: ["font_gen"]
+            libs: ["font_gen_null"]
+```
 
 See the [documentation](https://defold.com/manuals/font/#enabling-runtime-fonts) on more detailed instructions.
 
@@ -149,7 +165,14 @@ Multiple `HFont` instances may be associated with a font collection. See `AddFon
 
 #### Prewarming text
 
-When the `.fontc` resource is loaded, and if it's a runtime font, we check the `characters` field of the DDF struct to help figure out which glyphs to load immediately.
+When a Dynamic `.fontc` resource is loaded, `characters` determines which glyphs
+to prewarm, including vector fonts with bitmap effects. Face-only vector fonts
+use an internal reference size of 16 px. Vector effects use the authored `size`
+for both Static and Dynamic fonts. A label or GUI node's display size does not
+change the font's generation size.
+
+Non-default outline/shadow colors or alpha on labels and GUI text nodes, and rich-text outline/shadow tags, require the corresponding effect to be enabled in the Vector `.font` resource. Otherwise the build fails. Unchanged default colors do not request an effect. This also applies to GUI layout and template overrides.
+
 
 We do this by creating an `HTextLayout` using this text, and then sending the resulting glyph indices to our glyph-generation thread.
 

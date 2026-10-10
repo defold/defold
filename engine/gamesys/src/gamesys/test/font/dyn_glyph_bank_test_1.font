@@ -7,3 +7,4 @@ shadow_alpha: 1.0
 shadow_blur: 2
 font: "/font/valid.ttf"
 output_format: TYPE_DISTANCE_FIELD
+runtime: true

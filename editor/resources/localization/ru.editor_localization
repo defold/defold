@@ -1255,7 +1255,6 @@ property.appmanifest.graphics-android.tooltip = Выберите графиче�
 property.appmanifest.graphics-web = Графика (HTML5)
 property.appmanifest.graphics-web.tooltip = Выберите графический бэкенд для сборок HTML5. По умолчанию используется WebGL; включение WebGL и WebGPU позволяет использовать запасной вариант, но увеличивает размер движка.
 property.appmanifest.use-font-layout = Полная система текста
-property.appmanifest.use-font-layout.tooltip = Включает полную систему компоновки текста, необходимую для создания SDF-шрифтов из TrueType во время выполнения. Для растеризации глифов во время выполнения также требуется `font.runtime_generation` в `game.project`; поддерживаются, например, тексты справа налево.
 property.appmanifest.use-rich-text = Форматированный текст
 property.appmanifest.use-rich-text.tooltip = Включает обработку форматированного текста и стилевые эффекты для надписей и GUI-текста. Отключите, чтобы уменьшить размер движка; разметка будет отображаться как обычный текст.
 
@@ -2262,7 +2261,6 @@ form.help.project.engine.max_time_step = Ограничивает прошедш
 form.label.project.font = Шрифт
 form.help.project.font = Параметры шрифта
 form.label.project.font.runtime_generation = Генерация на лету
-form.help.project.font.runtime_generation = Создаёт глифы TrueType по мере необходимости вместо их запекания в текстуры. Применяется к шрифтам **Distance Field** с совместимым материалом; во время выполнения коллекции шрифтов могут добавлять другие источники TTF. Для целевых сборок требуется параметр **Использовать полную систему компоновки текста** в манифесте приложения. Добавьте в **Символы** типичный для проекта текст с нужной компоновкой, чтобы заранее подготовить часто используемые глифы. Это может уменьшить размер сборки и расход памяти во время выполнения.
 
 form.label.project.graphics = Графика
 form.help.project.graphics = Настройки графики

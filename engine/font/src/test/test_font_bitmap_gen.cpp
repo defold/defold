@@ -445,6 +445,19 @@ static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HText
     dmGraphics::Flip(g_ImageContext);
 }
 
+void WriteFontTestImage(const FontImageCase& c, uint32_t width, uint32_t height, dmArray<uint8_t>& pixels, const char* metadata)
+{
+    char directory[1024];
+    GetFontImageDirectory(directory, sizeof(directory));
+    WriteFontImage(directory, c.m_Name, width, height, pixels);
+    char filename[1200];
+    dmSnPrintf(filename, sizeof(filename), "%s/%s.json", directory, c.m_Name);
+    FILE* data = fopen(filename, "wb");
+    ASSERT_NE((FILE*)0, data);
+    fprintf(data, "%s\n", metadata);
+    ASSERT_EQ(0, fclose(data));
+}
+
 static bool AppendAlignmentPixels(void* context, const void* data, uint32_t size)
 {
     dmArray<uint8_t>* pixels = (dmArray<uint8_t>*)context;
@@ -512,6 +525,11 @@ static void TestFontImage(const FontImageCase& c)
     }
     InitializeFontImages();
     ASSERT_NE((dmGraphics::HContext)0, g_ImageContext);
+    if (strstr(c.m_Source, "vector"))
+    {
+        TestFontVectorImage(c, g_ImageContext);
+        return;
+    }
     const bool  fnt = strcmp(c.m_Source, "fnt") == 0;
     const bool  bank_source = fnt || strstr(c.m_Source, "_bank");
     const bool  bitmap = fnt || strstr(c.m_Source, "bitmap");
@@ -810,21 +828,18 @@ static void TestFontImage(const FontImageCase& c)
         ASSERT_EQ(previous_pixels.Size(), pixels.Size());
         ASSERT_NE(0, memcmp(previous_pixels.Begin(), pixels.Begin(), pixels.Size()));
     }
+    char metadata[1024];
+    dmSnPrintf(metadata, sizeof(metadata), "{\"backend\":\"opengl\",\"source\":\"render-target\",\"glyphs\":%u,\"lines\":%u,\"vertices\":%u,\"layers\":%u,\"width\":%u,\"height\":%u,\"origin_x\":%d,\"origin_top\":%d,\"layout_width\":%u,\"font_ascent\":%.9g,\"font_descent\":%.9g,\"outline_data\":%s,\"atlas_width\":%u,\"atlas_height\":%u,\"atlas_hash\":\"%016llx\",\"vertex_hash\":\"%016llx\"}",
+        TextLayoutGetGlyphCount(layout), TextLayoutGetLineCount(layout), metrics.m_VertexCount, metrics.m_LayerCount,
+        width, height, geometry.m_OriginX, geometry.m_OriginTop, geometry.m_LayoutWidth,
+        FontGetAscent(font, FontGetScaleFromSize(font, c.m_Size)), FontGetDescent(font, FontGetScaleFromSize(font, c.m_Size)), outline_data ? "true" : "false",
+        atlas_width, atlas_height, (unsigned long long)dmHashBuffer64(atlas.Begin(), atlas.Size()),
+        (unsigned long long)dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
+    WriteFontTestImage(c, width, height, pixels, metadata);
+
     char directory[1024];
     GetFontImageDirectory(directory, sizeof(directory));
-    WriteFontImage(directory, c.m_Name, width, height, pixels);
     char filename[1200];
-    dmSnPrintf(filename, sizeof(filename), "%s/%s.json", directory, c.m_Name);
-    FILE* data = fopen(filename, "wb");
-    ASSERT_NE((FILE*)0, data);
-    fprintf(data, "{\"backend\":\"opengl\",\"source\":\"render-target\",\"glyphs\":%u,\"lines\":%u,\"vertices\":%u,\"layers\":%u,\"width\":%u,\"height\":%u,\"origin_x\":%d,\"origin_top\":%d,\"layout_width\":%u,\"font_ascent\":%.9g,\"font_descent\":%.9g,\"outline_data\":%s,", TextLayoutGetGlyphCount(layout), TextLayoutGetLineCount(layout), metrics.m_VertexCount, metrics.m_LayerCount, width, height, geometry.m_OriginX, geometry.m_OriginTop, geometry.m_LayoutWidth, FontGetAscent(font, FontGetScaleFromSize(font, c.m_Size)), FontGetDescent(font, FontGetScaleFromSize(font, c.m_Size)), outline_data ? "true" : "false");
-    // Fingerprint the exact CPU data sent to GL to distinguish glyph-generation
-    // differences from backend sampling differences across CI hosts.
-    fprintf(data, "\"atlas_width\":%u,\"atlas_height\":%u,\"atlas_hash\":\"%016llx\",\"vertex_hash\":\"%016llx\"}\n",
-            atlas_width, atlas_height,
-            (unsigned long long)dmHashBuffer64(atlas.Begin(), atlas.Size()),
-            (unsigned long long)dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
-    ASSERT_EQ(0, fclose(data));
 
     // Reuse the half-alpha fixtures for component alpha above one. Runtime
     // queuing is covered in test_render.cpp; these comparisons check the final
@@ -909,7 +924,7 @@ static void PrintUsage(const char* executable)
     "Usage: %s [--output folder] [--case matrix-case | manual options]\n"
     "No case/options: generate the complete supported matrix.\n"
     "Manual defaults: ttf_sdf, size 40, single layer, outline 4, opaque face/outline, no shadow.\n"
-    "  --source ttf_sdf|otf_sdf|ttf_bitmap|otf_bitmap|ttf_sdf_bank|otf_sdf_bank|ttf_bitmap_bank|otf_bitmap_bank|fnt\n"
+    "  --source ttf_sdf|otf_sdf|ttf_bitmap|otf_bitmap|ttf_sdf_bank|otf_sdf_bank|ttf_bitmap_bank|otf_bitmap_bank|fnt|ttf_vector|otf_vector|ttf_vector_bank|otf_vector_bank\n"
     "  --layers single|multi  --text text  --markup\n"
     "  --size pixels  --outline pixels  --outline-alpha 0..1  --face-alpha 0..1\n"
     "  --shadow-alpha 0..1  --shadow-blur pixels  --shadow-x pixels  --shadow-y pixels\n"
@@ -970,7 +985,7 @@ int main(int argc, char** argv)
         }
         if (strcmp(option, "--source") == 0)
         {
-            const char* sources[] = { "ttf_sdf", "otf_sdf", "ttf_bitmap", "otf_bitmap", "ttf_sdf_bank", "otf_sdf_bank", "ttf_bitmap_bank", "otf_bitmap_bank", "fnt" };
+            const char* sources[] = { "ttf_sdf", "otf_sdf", "ttf_bitmap", "otf_bitmap", "ttf_sdf_bank", "otf_sdf_bank", "ttf_bitmap_bank", "otf_bitmap_bank", "fnt", "ttf_vector", "otf_vector", "ttf_vector_bank", "otf_vector_bank" };
             bool        supported = false;
             for (uint32_t j = 0; j < sizeof(sources) / sizeof(sources[0]); ++j)
                 supported |= strcmp(value, sources[j]) == 0;
@@ -1036,6 +1051,11 @@ int main(int argc, char** argv)
     if (manual && selected)
     {
         fprintf(stderr, "Use either --case or manual options.\n");
+        return 2;
+    }
+    if (manual && strstr(g_ManualCase.m_Source, "vector") && !g_ManualCase.m_Multi)
+    {
+        fprintf(stderr, "Vector sources require --layers multi.\n");
         return 2;
     }
     if (selected)

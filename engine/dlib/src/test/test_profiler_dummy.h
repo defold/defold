@@ -46,6 +46,7 @@ struct ProfilerDummyProperty
 
 struct ProfilerDummyContext
 {
+    uint64_t m_Time; // Test-controlled time in microseconds.
     int m_NumProperties;
     int m_NumSamples;
     int m_NumErrors;

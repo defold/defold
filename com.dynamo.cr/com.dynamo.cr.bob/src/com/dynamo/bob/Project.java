@@ -1672,7 +1672,6 @@ public class Project implements AutoCloseable {
         options.add(new GameProjectBuildOption("model-max-morph-target-texture-width", "model-max-morph-target-texture-width", "model", "max_morph_target_texture_width", GameProjectBuildOption.ValueType.INTEGER));
         options.add(new GameProjectBuildOption("model-max-morph-target-texture-height", "model-max-morph-target-texture-height", "model", "max_morph_target_texture_height", GameProjectBuildOption.ValueType.INTEGER));
         options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus", "disabled", GameProjectBuildOption.ValueType.BOOLEAN));
-        options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font", "runtime_generation", GameProjectBuildOption.ValueType.BOOLEAN));
 
         Platform currentPlatform = getPlatform();
         final List<Platform> architectures = Platform.getArchitecturesFromString(this.option("architectures", ""), currentPlatform);

@@ -1,0 +1,7 @@
+font: "/font/valid.ttf"
+material: "/font/material_valid.material"
+size: 14
+shadow_alpha: 0.5
+shadow_blur: 4
+runtime: 0
+vector_font_mode: VECTOR_FONT_MODE_SDF

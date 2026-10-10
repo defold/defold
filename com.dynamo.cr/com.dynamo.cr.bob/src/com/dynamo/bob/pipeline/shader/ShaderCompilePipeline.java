@@ -772,7 +772,7 @@ public class ShaderCompilePipeline {
 
             if (!result.lastError.isEmpty()) {
                 String excludeKey = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ? "exclude_gles_sm100" : null;
-                String exclusionMessage = excludeKey != null ? "\nEnable the 'shader." + excludeKey + "' option in game.project if you don't intend to use this language." : "";
+                String exclusionMessage = excludeKey != null ? "\nThis shader requires features unavailable in OpenGL ES 2.0 / WebGL 1.0. To disable support for these graphics APIs, enable 'shader." + excludeKey + "' in game.project (Shader > Exclude GLES 2.0)." : "";
                 throw new CompileExceptionError("Cross-compilation of shader type: " + shaderType + ", to language: " + shaderLanguage + " failed, reason: " + result.lastError + exclusionMessage);
             }
 

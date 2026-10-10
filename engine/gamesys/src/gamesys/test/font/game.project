@@ -1,2 +1,2 @@
-[font]
-runtime_generation = 1
+[shader]
+exclude_gles_sm100 = 1

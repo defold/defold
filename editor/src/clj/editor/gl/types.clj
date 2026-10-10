@@ -104,6 +104,7 @@
     GL3/GL_BOOL_VEC3 :uniform-type-bool-vec3
     GL3/GL_BOOL_VEC4 :uniform-type-bool-vec4
     GL3/GL_SAMPLER_2D :uniform-type-sampler-2d
+    GL3/GL_UNSIGNED_INT_SAMPLER_2D :uniform-type-sampler-2d
     GL3/GL_SAMPLER_CUBE :uniform-type-sampler-cube))
 
 (defn element-type-gl-type

@@ -732,8 +732,12 @@ class FontImageReportTest(unittest.TestCase):
                 self.assertTrue(set(report.SOURCES).issubset({c['source'] for c in cases}))
                 self.assertEqual(rich, any(c['markup'] for c in cases))
                 self.assertEqual(full, any(c['source'] == 'arabic' for c in cases))
+                vector = [c for c in cases if c['source'] in report.VECTOR_SOURCES]
+                self.assertEqual(set(report.VECTOR_SOURCES), {c['source'] for c in vector})
+                self.assertTrue(all(c['multi'] for c in vector))
+                self.assertEqual(4 * (9 if rich else 4), len(vector))
                 count += len(cases)
-        self.assertEqual(428, count)
+        self.assertEqual(532, count)
 
     # Verifies all pivots use the shared preview references and that a one-pixel
     # text shift fails even with the large unchanged white box from #13339.
@@ -801,7 +805,7 @@ class FontImageReportTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             root=Path(temporary)
             summary=report.build_reports(root/'missing',root/'report',{},False)
-            self.assertEqual(428,summary['failed'])
+            self.assertEqual(532,summary['failed'])
             self.assertEqual(0,summary['completed'])
             self.assertEqual('fail',summary['status'])
             self.assertTrue((root/'report/index.html').exists())
@@ -832,6 +836,7 @@ class BitmapGeneratorCliTest(unittest.TestCase):
                      ('--size', 'nan'), ('--size', '0'), ('--outline', '-1'),
                      ('--face-alpha', '1.1'), ('--size', '40px'), ('--layers', 'both'),
                      ('--outline',), ('--unknown', '1'),
+                     ('--source', 'ttf_vector', '--layers', 'single'),
                      ('--alignment-preview',), ('--case', 'ttf_sdf_single_default', '--alignment-preview'),
                      ('--case', 'ttf_sdf_single_default', '--size', '50')):
             with self.subTest(args=args):

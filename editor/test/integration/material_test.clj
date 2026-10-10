@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.material-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.form :as form]
             [editor.protobuf :as protobuf]
@@ -148,3 +149,19 @@
         (test-util/with-prop [node-id :fragment-program v]
           (is (g/error? (g/node-value node-id :shader)))
           (is (g/error? (g/node-value node-id :build-targets))))))))
+
+;; Vector shader builds require an explicit compatibility choice and track changes to that setting.
+(deftest vector-shader-requires-explicit-gles2-exclusion
+  (test-util/with-loaded-project
+    (let [settings (test-util/resource-node project "/game.project")
+          material (test-util/resource-node project "/builtins/fonts/font-vector.material")]
+      (doseq [exclude [false true false]]
+        (test-util/set-setting! settings ["shader" "exclude_gles_sm100"] exclude)
+        (let [error (test-util/build-error! material)]
+          (if exclude
+            (is (nil? error))
+            (do
+              (is (g/error-fatal? error))
+              (is (string/includes? (test-util/localization (g/error-message error)) "shader.exclude_gles_sm100"))
+              (is (string/includes? (test-util/localization (g/error-message error)) "OpenGL ES 2.0 / WebGL 1.0")))))
+        (is (= exclude (test-util/get-setting settings ["shader" "exclude_gles_sm100"])))))))
