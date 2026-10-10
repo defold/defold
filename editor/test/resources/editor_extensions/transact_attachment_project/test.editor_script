@@ -313,7 +313,7 @@ function M.get_commands()
                 print("Transaction: add animations and collision groups")
                 editor.transact({
                     editor.tx.add(tilesource, "animations", {id = "idle"}),
-                    editor.tx.add(tilesource, "animations", {id = "walk", start_tile = 2, end_tile = 6}),
+                    editor.tx.add(tilesource, "animations", {id = "walk", frames = "2-6"}),
                     editor.tx.add(tilesource, "collision_groups", {id = "obstacle"}),
                     editor.tx.add(tilesource, "collision_groups", {id = "character"}),
                     editor.tx.add(tilesource, "collision_groups", {}),
