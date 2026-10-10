@@ -659,6 +659,8 @@ console.button.filter = Filter
 console.filter.enable-filtering = Enable filtering
 console.filter.add-filter = Add filter (e.g. text, !exclude)
 console.search = Search
+console.application-exited = ERROR: Application exited with the following code: {code}
+console.application-diagnostic-failed = ERROR: Could not show the application startup diagnostic: {error}
 
 # Breakpoints Tab
 
