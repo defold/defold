@@ -339,3 +339,13 @@ dlib_add_test(test_pprint)
 dlib_add_test(test_objectpool)
 dlib_add_test(test_opaque_handle_container)
 dlib_add_test(test_crypt)
+
+if(NOT TARGET_PLATFORM MATCHES "web$")
+  defold_embed_to_header(
+    INPUT "${DLIB_ROOT}/../engine/content/builtins/ca-certificates/cacert.pem"
+    OUTPUT_HEADER "${CMAKE_CURRENT_BINARY_DIR}/cacert.pem.embed.h"
+    OUTPUT_CPP "${CMAKE_CURRENT_BINARY_DIR}/cacert.pem.embed.cpp")
+  dlib_add_test(test_ssl_certificates
+    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/cacert.pem.embed.cpp"
+    INCLUDES "${CMAKE_CURRENT_BINARY_DIR}")
+endif()
