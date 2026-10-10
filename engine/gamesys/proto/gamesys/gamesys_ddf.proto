@@ -83,11 +83,13 @@ message SoundEvent
 message SetGain
 {
     optional float gain = 1 [default=1.0];
+    optional uint32 play_id = 2 [default=0xffffffff]; // Must be same as dmSound::INVALID_PLAY_ID
 }
 
 message SetPan
 {
     optional float pan = 1 [default=0.0];
+    optional uint32 play_id = 2 [default=0xffffffff]; // Must be same as dmSound::INVALID_PLAY_ID
 }
 
 message SetSpeed
