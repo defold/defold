@@ -448,7 +448,7 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        File appDir = new File(bundleDirectory, title);
+        File appDir = new File(bundleDirectory, enginePrefix);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
         FileUtils.deleteDirectory(appDir);
