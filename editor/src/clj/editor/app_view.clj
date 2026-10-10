@@ -3388,6 +3388,27 @@
 (handler/defhandler :window.show-search-results :global
   (run [^Stage main-stage tool-tab-pane] (show-search-results! (.getScene main-stage) tool-tab-pane)))
 
+(handler/defhandler :theme.set-system :global
+  (run [prefs]
+    (prefs/set! prefs [:window :theme] :system)))
+
+(handler/defhandler :theme.set-dark :global
+  (run [prefs]
+    (prefs/set! prefs [:window :theme] :dark)))
+
+(handler/defhandler :theme.set-light :global
+  (run [prefs]
+    (prefs/set! prefs [:window :theme] :light)))
+
+(handler/defhandler :theme.cycle :global
+  (run [prefs]
+    (let [current (prefs/get prefs [:window :theme])
+          next (case current
+                 :system :dark
+                 :dark :light
+                 :light :system)]
+      (prefs/set! prefs [:window :theme] next))))
+
 (defn- put-on-clipboard!
   [s]
   (doto (Clipboard/getSystemClipboard)
