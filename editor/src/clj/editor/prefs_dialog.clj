@@ -132,10 +132,11 @@
    :on-value-changed #(do (localization/set-locale! localization %)
                           (analytics/track-locale! %))})
 
-(defmethod form-input :enum [_path schema value on-value-changed localization-state localization]
+(defmethod form-input :enum [_path schema value on-value-changed localization-state _localization]
   (let [values (:values schema)
-        to-string (fn [v]
-                    (let [key (str "prefs.enum." (coll/join-to-string "." (map name [:window :theme])) "." (name v))]
+
+        to-string (fn enum-value-display-name [v]
+                    (let [key (str "prefs.enum." (coll/join-to-string "." (map name _path)) "." (name v))]
                       (if (localization/defines-message-key? localization-state key)
                         (localization-state (localization/message key))
                         (camel/->TitleCase (name v)))))]
