@@ -24,6 +24,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
+#include "../comp_anim.h"
 #include "../gameobject_script.h"
 #include <gameobject/gameobject_ddf.h>
 #include "../gameobject_props.h"
@@ -386,64 +387,73 @@ static dmhash_t hash(const char* s)
         ASSERT_NEAR(v0, *desc.m_ValuePtr, epsilon);\
     }\
 
-#define ASSERT_GET_PROP_V3(go, prop, v, epsilon)\
+#define ASSERT_GET_PROP_V3(go, prop, v, epsilon, has_value_ptr)\
     {\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(has_value_ptr, desc.m_ValuePtr != 0);\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);\
         ASSERT_EQ(hash(prop ".x"), desc.m_ElementIds[0]);\
         ASSERT_EQ(hash(prop ".y"), desc.m_ElementIds[1]);\
         ASSERT_EQ(hash(prop ".z"), desc.m_ElementIds[2]);\
-        ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
-        ASSERT_NEAR(v.getY(), desc.m_ValuePtr[1], epsilon);\
-        ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[2], epsilon);\
+        ASSERT_NEAR(v.getX(), desc.m_Variant.m_V4[0], epsilon);\
+        ASSERT_NEAR(v.getY(), desc.m_Variant.m_V4[1], epsilon);\
+        ASSERT_NEAR(v.getZ(), desc.m_Variant.m_V4[2], epsilon);\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
+        ASSERT_EQ(has_value_ptr, desc.m_ValuePtr != 0);\
 \
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".x"), opt, desc));\
+        ASSERT_EQ(has_value_ptr, desc.m_ValuePtr != 0);\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
-        ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
+        ASSERT_NEAR(v.getX(), desc.m_Variant.m_Number, epsilon);\
 \
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".y"), opt, desc));\
+        ASSERT_EQ(has_value_ptr, desc.m_ValuePtr != 0);\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
-        ASSERT_NEAR(v.getY(), desc.m_ValuePtr[0], epsilon);\
+        ASSERT_NEAR(v.getY(), desc.m_Variant.m_Number, epsilon);\
 \
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".z"), opt, desc));\
+        ASSERT_EQ(has_value_ptr, desc.m_ValuePtr != 0);\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
-        ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[0], epsilon);\
+        ASSERT_NEAR(v.getZ(), desc.m_Variant.m_Number, epsilon);\
     }
 
-#define ASSERT_SET_PROP_V3(go, prop, v, epsilon)\
+#define ASSERT_SET_PROP_V3(go, prop, v, epsilon, has_value_ptr)\
     {\
         dmGameObject::PropertyVar var(v);\
         dmGameObject::PropertyOptions opt;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), opt, var));\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
-        ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
-        ASSERT_NEAR(v.getY(), desc.m_ValuePtr[1], epsilon);\
-        ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[2], epsilon);\
+        ASSERT_EQ(has_value_ptr, desc.m_ValuePtr != 0);\
+        ASSERT_NEAR(v.getX(), desc.m_Variant.m_V4[0], epsilon);\
+        ASSERT_NEAR(v.getY(), desc.m_Variant.m_V4[1], epsilon);\
+        ASSERT_NEAR(v.getZ(), desc.m_Variant.m_V4[2], epsilon);\
 \
         float v0 = v.getX() + 1.0f;\
         dmhash_t id = hash(prop ".x");\
         var = dmGameObject::PropertyVar(v0);\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, opt, var));\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, opt, desc));\
-        ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
+        ASSERT_EQ(has_value_ptr, desc.m_ValuePtr != 0);\
+        ASSERT_NEAR(v0, desc.m_Variant.m_Number, epsilon);\
 \
         v0 = v.getY() + 1.0f;\
         id = hash(prop ".y");\
         var = dmGameObject::PropertyVar(v0);\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, opt, var));\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, opt, desc));\
-        ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
+        ASSERT_EQ(has_value_ptr, desc.m_ValuePtr != 0);\
+        ASSERT_NEAR(v0, desc.m_Variant.m_Number, epsilon);\
 \
         v0 = v.getZ() + 1.0f;\
         id = hash(prop ".z");\
         var = dmGameObject::PropertyVar(v0);\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, id, opt, var));\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, id, opt, desc));\
-        ASSERT_NEAR(v0, desc.m_ValuePtr[0], epsilon);\
+        ASSERT_EQ(has_value_ptr, desc.m_ValuePtr != 0);\
+        ASSERT_NEAR(v0, desc.m_Variant.m_Number, epsilon);\
     }
 
 #define ASSERT_GET_PROP_V4(go, prop, v, epsilon)\
@@ -530,14 +540,14 @@ TEST_F(PropsTest, PropsGetSet)
 
     Vector3 pos(1, 2, 3);
     dmGameObject::SetPosition(go, Point3(pos));
-    ASSERT_GET_PROP_V3(go, "position", pos, epsilon);
+    ASSERT_GET_PROP_V3(go, "position", pos, epsilon, true);
     pos *= 2.0f;
-    ASSERT_SET_PROP_V3(go, "position", pos, epsilon);
+    ASSERT_SET_PROP_V3(go, "position", pos, epsilon, true);
 
     // Uniform scale
     dmGameObject::SetScale(go, 2.0f);
-    ASSERT_GET_PROP_V3(go, "scale", Vector3(2.0f), epsilon);
-    ASSERT_SET_PROP_V3(go, "scale", Vector3(3.0f), epsilon);
+    ASSERT_GET_PROP_V3(go, "scale", Vector3(2.0f), epsilon, true);
+    ASSERT_SET_PROP_V3(go, "scale", Vector3(3.0f), epsilon, true);
 
     // Non-uniform scale
     dmGameObject::SetScale(go, 2.0f);
@@ -567,9 +577,9 @@ TEST_F(PropsTest, PropsGetSet)
     dmGameObject::SetRotation(go, rot);
     Vector3 euler(90.0f, 0.0f, 0.0f);               // bank, heading, attitude
 
-    ASSERT_GET_PROP_V3(go, "euler", euler, epsilon);
+    ASSERT_GET_PROP_V3(go, "euler", euler, epsilon, false);
     euler = Vector3(0.0f, 0.0f, 1.0);
-    ASSERT_SET_PROP_V3(go, "euler", euler, epsilon);
+    ASSERT_SET_PROP_V3(go, "euler", euler, epsilon, false);
 
     dmGameObject::Delete(m_Collection, go, false);
 }
@@ -582,6 +592,127 @@ TEST_F(PropsTest, PropsGetSet)
 #undef ASSERT_SET_PROP_V3
 #undef ASSERT_GET_PROP_V4
 #undef ASSERT_SET_PROP_V4
+
+// Euler properties expose values without raw pointers, and their setters commit before any matrix update.
+TEST_F(PropsTest, EulerSettersCommitImmediately)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0);
+    dmGameObject::PropertyOptions options;
+    const char* properties[] = {"euler.x", "euler.y", "euler.z"};
+    for (uint32_t axis = 0; axis < 3; ++axis)
+    {
+        dmGameObject::SetRotation(go, Quat(0, 0, 0, 1));
+        dmGameObject::PropertyDesc desc;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash("euler"), options, desc));
+        ASSERT_EQ((float*)0, desc.m_ValuePtr);
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
+        for (uint32_t i = 0; i < 3; ++i)
+            ASSERT_NEAR(0.0f, desc.m_Variant.m_V4[i], 0.0001f);
+        dmGameObject::UpdateTransforms(m_Collection);
+        ASSERT_FALSE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(properties[axis]), options, dmGameObject::PropertyVar(90.0f)));
+        ASSERT_TRUE(dmGameObject::GetCollectionFromHandle(m_Collection)->m_DirtyTransforms);
+        Vector3 euler(0, 0, 0);
+        euler.setElem(axis, 90);
+        Quat expected = dmVMath::EulerToQuat(euler);
+        Quat actual = dmGameObject::GetRotation(go);
+        for (uint32_t i = 0; i < 4; ++i)
+            ASSERT_NEAR(expected.getElem(i), actual.getElem(i), 0.0001f);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(properties[axis]), options, desc));
+        ASSERT_EQ((float*)0, desc.m_ValuePtr);
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);
+        ASSERT_NEAR(90.0f, desc.m_Variant.m_Number, 0.02f);
+    }
+}
+
+// Euler reads must not allocate retained records, and first writes must retain the quaternion's other axes.
+TEST_F(PropsTest, EulerReadsDoNotCreateRecords)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0);
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    dmGameObject::Instance* instance = dmGameObject::GetInstanceFromHandle(collection, go);
+    Quat rotation = dmVMath::EulerToQuat(Vector3(20, 30, 40));
+    dmGameObject::SetRotation(go, rotation);
+    Vector3 initial = dmVMath::QuatToEuler(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
+    dmGameObject::PropertyOptions options;
+    const char* properties[] = {"euler", "euler.x", "euler.y", "euler.z"};
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmGameObject::PropertyDesc value;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(properties[i]), options, value));
+        ASSERT_EQ((float*)0, value.m_ValuePtr);
+        ASSERT_EQ((dmGameObject::EulerRotation*)0, dmGameObject::GetEulerRotation(collection, instance, false));
+        if (i == 0)
+        {
+            for (uint32_t axis = 0; axis < 3; ++axis)
+                ASSERT_NEAR(initial.getElem(axis), value.m_Variant.m_V4[axis], 0.001f);
+        }
+        else
+        {
+            ASSERT_NEAR(initial.getElem(i - 1), value.m_Variant.m_Number, 0.001f);
+        }
+    }
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash("euler.z"), options,
+        dmGameObject::PropertyVar(90.0f)));
+    ASSERT_NE((dmGameObject::EulerRotation*)0, dmGameObject::GetEulerRotation(collection, instance, false));
+    initial.setZ(90.0f);
+    Quat expected = dmVMath::EulerToQuat(initial);
+    Quat actual = dmGameObject::GetRotation(go);
+    for (uint32_t axis = 0; axis < 4; ++axis)
+        ASSERT_NEAR(expected.getElem(axis), actual.getElem(axis), 0.0001f);
+}
+
+// A rotation getter commits pending Euler values and preserves final writeback and other pending objects.
+TEST_F(PropsTest, EulerPendingReadsPreserveWritebackState)
+{
+    dmGameObject::HInstance first = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance second = dmGameObject::New(m_Collection, 0);
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    dmGameObject::Instance* first_instance = dmGameObject::GetInstanceFromHandle(collection, first);
+    dmGameObject::Instance* second_instance = dmGameObject::GetInstanceFromHandle(collection, second);
+    dmGameObject::EulerRotation* second_euler = dmGameObject::GetEulerRotation(collection, second_instance, true);
+    second_euler->m_Value.setX(30);
+    second_euler->m_State = dmGameObject::EULER_PENDING | dmGameObject::EULER_WRITTEN;
+    dmGameObject::EulerRotation* first_euler = dmGameObject::GetEulerRotation(collection, first_instance, true);
+    first_euler->m_Value.setZ(450);
+    first_euler->m_State = dmGameObject::EULER_PENDING | dmGameObject::EULER_WRITTEN;
+
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyDesc value;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(first, 0, dmHashString64("euler.z"), options, value));
+    ASSERT_EQ(450.0, value.m_Variant.m_Number);
+    ASSERT_NEAR(1.0f, dmGameObject::GetRotation(first).getW(), 0.0001f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(first, 0, dmHashString64("rotation"), options, value));
+    Quat expected = dmVMath::EulerToQuat(Vector3(0, 0, 450));
+    for (uint32_t i = 0; i < 4; ++i)
+        ASSERT_NEAR(expected.getElem(i), value.m_Variant.m_V4[i], 0.0001f);
+    ASSERT_EQ(dmGameObject::EULER_WRITTEN, first_euler->m_State);
+    second_euler = dmGameObject::GetEulerRotation(collection, second_instance, false);
+    ASSERT_EQ(dmGameObject::EULER_PENDING | dmGameObject::EULER_WRITTEN, second_euler->m_State);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(first, 0, dmHashString64("euler.z"), options, dmGameObject::PropertyVar(90.0f)));
+    ASSERT_EQ(dmGameObject::EULER_WRITTEN, first_euler->m_State);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(second, 0, dmHashString64("rotation"), options, value));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(second, 0, dmHashString64("euler.x"), options, value));
+    ASSERT_NEAR(30.0, value.m_Variant.m_Number, 0.02f);
+}
+
+// Partial Euler setters preserve the other authored axes rather than reconstructing a different decomposition.
+TEST_F(PropsTest, EulerPartialSettersRetainOtherAxes)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0);
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash("euler"), options,
+        dmGameObject::PropertyVar(Vector3(20, 30, 120))));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash("euler.x"), options,
+        dmGameObject::PropertyVar(40.0f)));
+    Quat expected = dmVMath::EulerToQuat(Vector3(40, 30, 120));
+    Quat actual = dmGameObject::GetRotation(go);
+    for (uint32_t i = 0; i < 4; ++i)
+        ASSERT_NEAR(expected.getElem(i), actual.getElem(i), 0.0001f);
+}
 
 float DiffVector3(dmVMath::Vector3 a, dmVMath::Vector3 b)
 {

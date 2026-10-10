@@ -41,6 +41,10 @@ namespace dmGameObject
 #define MAX_CAPACITY 65000u
 #define MIN_CAPACITY_GROWTH 2048u
 
+    static const dmhash_t PROP_EULER_X = dmHashString64("euler.x");
+    static const dmhash_t PROP_EULER_Y = dmHashString64("euler.y");
+    static const dmhash_t PROP_EULER_Z = dmHashString64("euler.z");
+
     struct Animation
     {
         HInstance           m_Instance;
@@ -68,6 +72,9 @@ namespace dmGameObject
         uint16_t            m_Backwards : 1;
         uint16_t            m_FirstUpdate : 1;
         uint16_t            m_IsGameObjectTransformProperty : 1;
+        uint16_t            m_IsGameObjectEulerProperty : 1;
+        uint16_t            m_EulerChannel : 2;
+        uint32_t            m_EulerSlot;
     };
 
     struct AnimWorld
@@ -77,8 +84,84 @@ namespace dmGameObject
         dmIndexPool<uint16_t>               m_AnimMapIndexPool;
         dmHashTable<HGameObject, uint16_t>  m_InstanceToIndex;
         dmHashTable<uintptr_t, uint16_t>    m_ListenerInstanceToIndex;
+        dmArray<EulerRotation>              m_EulerRotations;
+        dmHashTable<HGameObject, uint32_t>   m_InstanceToEulerIndex;
+        uint32_t                            m_FirstFreeEulerIndex;
         uint32_t                            m_InUpdate : 1;
     };
+
+    static AnimWorld* GetWorld(Collection* collection);
+
+    static EulerRotation* GetEulerRotation(AnimWorld* world, Collection* collection, Instance* instance, bool create)
+    {
+        HGameObject handle = GetInstanceHandle(collection, instance);
+        uint32_t* index_ptr = world->m_InstanceToEulerIndex.Get(handle);
+        if (index_ptr)
+            return &world->m_EulerRotations[*index_ptr];
+        if (!create)
+            return 0;
+
+        uint32_t index = world->m_FirstFreeEulerIndex;
+        if (index != INVALID_INSTANCE_INDEX)
+        {
+            world->m_FirstFreeEulerIndex = world->m_EulerRotations[index].m_NextFree;
+        }
+        else
+        {
+            if (world->m_EulerRotations.Full())
+            {
+                uint32_t capacity = world->m_EulerRotations.Capacity();
+                capacity = dmMath::Min(collection->m_Instances.Capacity(), capacity + dmMath::Max(512u, capacity / 2));
+                world->m_EulerRotations.SetCapacity(capacity);
+                world->m_InstanceToEulerIndex.SetCapacity(dmMath::Max(1u, capacity / 3), capacity);
+            }
+            index = world->m_EulerRotations.Size();
+            world->m_EulerRotations.SetSize(index + 1);
+        }
+        EulerRotation& euler = world->m_EulerRotations[index];
+        // Reads do not allocate records. Initialize all axes when a writer first
+        // needs retained Euler state, including scalar animations and setters.
+        Quat rotation = collection->m_LocalTransforms[instance->m_Index].GetRotation();
+        euler.m_Value = dmVMath::QuatToEuler(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
+        euler.m_InstanceIndex = instance->m_Index;
+        euler.m_State = 0;
+        euler.m_NextFree = INVALID_INSTANCE_INDEX;
+        world->m_InstanceToEulerIndex.Put(handle, index);
+        return &euler;
+    }
+
+    EulerRotation* GetEulerRotation(Collection* collection, Instance* instance, bool create)
+    {
+        return GetEulerRotation(GetWorld(collection), collection, instance, create);
+    }
+
+    void ReleaseEulerRotation(Collection* collection, HGameObject instance)
+    {
+        AnimWorld* world = GetWorld(collection);
+        uint32_t* index_ptr = world->m_InstanceToEulerIndex.Get(instance);
+        if (!index_ptr)
+            return;
+        uint32_t index = *index_ptr;
+        EulerRotation& euler = world->m_EulerRotations[index];
+        euler.m_State = 0;
+        euler.m_InstanceIndex = INVALID_INSTANCE_INDEX;
+        euler.m_NextFree = world->m_FirstFreeEulerIndex;
+        world->m_FirstFreeEulerIndex = index;
+        world->m_InstanceToEulerIndex.Erase(instance);
+    }
+
+    static void CommitEulerRotations(AnimWorld* world, Collection* collection)
+    {
+        for (uint32_t i = 0; i < world->m_EulerRotations.Size(); ++i)
+        {
+            EulerRotation& euler = world->m_EulerRotations[i];
+            if (euler.m_State & EULER_WRITTEN)
+            {
+                collection->m_LocalTransforms[euler.m_InstanceIndex].SetRotation(dmVMath::EulerToQuat(euler.m_Value));
+                euler.m_State = 0;
+            }
+        }
+    }
 
     CreateResult CompAnimNewWorld(const ComponentNewWorldParams& params)
     {
@@ -96,6 +179,7 @@ namespace dmGameObject
             const uint32_t table_count = dmMath::Max(1, instance_count/3);
             world->m_InstanceToIndex.SetCapacity(table_count, instance_count);
             world->m_ListenerInstanceToIndex.SetCapacity(table_count, instance_count);
+            world->m_FirstFreeEulerIndex = INVALID_INSTANCE_INDEX;
             world->m_InUpdate = 0;
             return CREATE_RESULT_OK;
         }
@@ -178,15 +262,18 @@ namespace dmGameObject
          *
          * The second pass advances and evaluates the animations.
          *
-         * The third pass prunes stopped animations and call callbacks.
+         * Euler writes are committed after evaluation, once per touched instance,
+         * before the third pass prunes stopped animations and calls callbacks.
          *
          * The reason for this is to give consistent animation evaluation, independent of ordering.
          */
         UpdateResult result = UPDATE_RESULT_OK;
         AnimWorld* world = (AnimWorld*)params.m_World;
+        Collection* collection = GetCollectionFromHandle(params.m_Collection);
         world->m_InUpdate = 1;
         uint32_t size = world->m_Animations.Size();
         bool transforms_updated = false;
+        bool euler_updated = false;
 
         DM_PROPERTY_ADD_U32(rmtp_ComponentsAnim, size);
 
@@ -208,7 +295,9 @@ namespace dmGameObject
                 // Update from-value
                 if (!anim.m_Composite)
                 {
-                    if (anim.m_Value != 0x0)
+                    if (anim.m_IsGameObjectEulerProperty)
+                        anim.m_From = world->m_EulerRotations[anim.m_EulerSlot].m_Value.getElem(anim.m_EulerChannel);
+                    else if (anim.m_Value != 0x0)
                         anim.m_From = *anim.m_Value;
                     else
                     {
@@ -314,7 +403,20 @@ namespace dmGameObject
                 }
                 t = dmEasing::GetValue(anim.m_Easing, t);
                 float v = anim.m_From + (anim.m_To - anim.m_From) * t;
-                if (anim.m_Value != 0x0)
+                if (anim.m_IsGameObjectEulerProperty)
+                {
+                    // Unchanged Euler tracks must not overwrite quaternion animations.
+                    EulerRotation& euler = world->m_EulerRotations[anim.m_EulerSlot];
+                    float* value = (float*)&euler.m_Value + anim.m_EulerChannel;
+                    bool euler_changed = memcmp(value, &v, sizeof(v)) != 0;
+                    *value = v;
+                    if (euler_changed)
+                    {
+                        euler.m_State |= EULER_PENDING | EULER_WRITTEN;
+                        euler_updated = true;
+                    }
+                }
+                else if (anim.m_Value != 0x0)
                 {
                     *anim.m_Value = v;
                 }
@@ -330,6 +432,13 @@ namespace dmGameObject
             {
                 StopAnimation(&anim, true);
             }
+        }
+        if (transforms_updated)
+            collection->m_DirtyTransforms = 1;
+        if (euler_updated)
+        {
+            DM_PROFILE("EulerWriteback");
+            CommitEulerRotations(world, collection);
         }
         i = 0;
         // Prune canceled animations and call callbacks
@@ -491,6 +600,17 @@ namespace dmGameObject
         animation.m_Playing = 1;
         animation.m_Composite = composite ? 1 : 0;
         animation.m_IsGameObjectTransformProperty = component_id == 0 && IsGameObjectTransformProperty(property_id) ? 1 : 0;
+        animation.m_IsGameObjectEulerProperty = component_id == 0 && !composite &&
+            (property_id == PROP_EULER_X || property_id == PROP_EULER_Y || property_id == PROP_EULER_Z) ? 1 : 0;
+        if (animation.m_IsGameObjectEulerProperty)
+        {
+            Collection* collection;
+            Instance* target = GetInstanceFromHandle(instance, &collection);
+            EulerRotation* euler = GetEulerRotation(world, collection, target, true);
+            // Indices survive pool growth; no animation retains a pointer into the pool.
+            animation.m_EulerSlot = (uint32_t)(euler - world->m_EulerRotations.Begin());
+            animation.m_EulerChannel = property_id == PROP_EULER_X ? 0 : property_id == PROP_EULER_Y ? 1 : 2;
+        }
         if (animation.m_Playback == PLAYBACK_ONCE_BACKWARD || animation.m_Playback == PLAYBACK_LOOP_BACKWARD)
             animation.m_Backwards = 1;
         animation.m_FirstUpdate = 1;

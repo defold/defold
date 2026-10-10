@@ -26,6 +26,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
+#include "../comp_anim.h"
 #include <gameobject/gameobject_ddf.h>
 
 #define EPSILON 0.000001f
@@ -427,6 +428,121 @@ TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
     dmGameObject::Delete(m_Collection, parent, true);
     ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
+}
+
+// Direct position writes and explicit Euler setters must remain valid through reparenting and
+// deletion, and a reused transform slot must start with identity and no parent.
+TEST_F(HierarchyTest, TransformPropertyPointersSurviveHierarchyChanges)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance grandchild = dmGameObject::New(m_Collection, 0);
+    dmGameObject::SetPosition(parent, Point3(10, 0, 0));
+    dmGameObject::SetScale(parent, Vector3(2, 3, 4));
+    dmGameObject::SetPosition(child, Point3(1, 0, 0));
+    dmGameObject::SetPosition(grandchild, Point3(1, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(grandchild, child));
+
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyDesc position;
+    dmGameObject::PropertyDesc euler;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(child, 0, dmHashString64("position"), options, position));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(child, 0, dmHashString64("euler"), options, euler));
+    float* position_ptr = position.m_ValuePtr;
+    ASSERT_NE((float*)0, position_ptr);
+    ASSERT_EQ((float*)0, euler.m_ValuePtr);
+
+    position_ptr[0] = 4;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(child, 0, dmHashString64("euler.z"), options, dmGameObject::PropertyVar(90.0f)));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(child, Point3(18, 0, 0));
+    AssertWorldPosition(grandchild, Point3(18, 3, 0));
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, 0));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(child, Point3(4, 0, 0));
+    AssertWorldPosition(grandchild, Point3(4, 1, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(grandchild, Point3(18, 3, 0));
+
+    dmGameObject::PropertyDesc current;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(child, 0, dmHashString64("position"), options, current));
+    ASSERT_EQ(position_ptr, current.m_ValuePtr);
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    uint32_t slot = dmGameObject::GetInstanceFromHandle(collection, child)->m_Index;
+    dmGameObject::Delete(m_Collection, child, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(grandchild, Point3(12, 0, 0));
+
+    dmGameObject::HInstance replacement = dmGameObject::New(m_Collection, 0);
+    ASSERT_EQ(slot, dmGameObject::GetInstanceFromHandle(collection, replacement)->m_Index);
+    dmGameObject::UpdateTransforms(m_Collection);
+    AssertWorldPosition(replacement, Point3(0, 0, 0));
+    ASSERT_EQ((dmGameObject::HInstance)0, dmGameObject::GetParent(replacement));
+    ASSERT_NEAR(1.0f, dmGameObject::GetRotation(replacement).getW(), EPSILON);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(replacement).getX(), EPSILON);
+}
+
+// Transform updates must use committed quaternions and leave pending animation Euler data alone.
+TEST_F(HierarchyTest, TransformUpdatesUseCommittedRotation)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0);
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    dmGameObject::Instance* instance = dmGameObject::GetInstanceFromHandle(collection, go);
+    dmGameObject::EulerRotation* euler = dmGameObject::GetEulerRotation(collection, instance, true);
+    euler->m_Value.setZ(90);
+    euler->m_State = dmGameObject::EULER_PENDING | dmGameObject::EULER_WRITTEN;
+
+    dmGameObject::UpdateTransforms(m_Collection);
+    ASSERT_NEAR(1.0f, dmGameObject::GetRotation(go).getW(), EPSILON);
+    dmGameObject::UpdateTransformsForInstance(collection, instance);
+    ASSERT_NEAR(1.0f, dmGameObject::GetRotation(go).getW(), EPSILON);
+
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyDesc rotation;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, dmHashString64("rotation"), options, rotation));
+    ASSERT_NEAR(M_SQRT1_2, dmGameObject::GetRotation(go).getZ(), 0.0001f);
+    ASSERT_NEAR(M_SQRT1_2, dmGameObject::GetRotation(go).getW(), 0.0001f);
+    dmGameObject::UpdateTransforms(m_Collection);
+    Vector4 x_axis = dmGameObject::GetWorldMatrix(go).getCol0();
+    ASSERT_NEAR(0.0f, x_axis.getX(), 0.0001f);
+    ASSERT_NEAR(1.0f, x_axis.getY(), 0.0001f);
+}
+
+// Batched Euler animation writeback leaves objects without changed Euler tracks untouched.
+TEST_F(HierarchyTest, EulerWritebackSkipsUnmarkedSlots)
+{
+    const uint32_t count = 49;
+    dmGameObject::HInstance objects[count];
+    Quat untouched = dmVMath::EulerToQuat(Vector3(45, 0, 0));
+    Quat committed = dmVMath::EulerToQuat(Vector3(0, 0, 90));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        objects[i] = dmGameObject::New(m_Collection, 0);
+        dmGameObject::SetRotation(objects[i], untouched);
+        if (i == 0 || i == 15 || i == 16 || i == 48)
+        {
+            dmGameObject::PropertyVar target(Vector3(0, 0, 90));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::Animate(m_Collection, objects[i], 0,
+                dmHashString64("euler"), dmGameObject::PLAYBACK_ONCE_FORWARD, target,
+                dmEasing::Curve(dmEasing::TYPE_LINEAR), 0, 0, 0, 0, 0));
+        }
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        Quat expected = (i == 0 || i == 15 || i == 16 || i == 48) ? committed : untouched;
+        Quat actual = dmGameObject::GetRotation(objects[i]);
+        for (uint32_t axis = 0; axis < 4; ++axis)
+            ASSERT_NEAR(expected.getElem(axis), actual.getElem(axis), 0.0001f);
+    }
+    dmGameObject::SetRotation(objects[0], untouched);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t axis = 0; axis < 4; ++axis)
+        ASSERT_NEAR(untouched.getElem(axis), dmGameObject::GetRotation(objects[0]).getElem(axis), 0.0001f);
 }
 
 TEST_F(HierarchyTest, TransformChangesMarkCollectionDirty)

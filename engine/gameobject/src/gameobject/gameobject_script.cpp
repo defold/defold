@@ -599,11 +599,6 @@ namespace dmGameObject
         return GetInstanceFromHandle(collection, i->m_Instance);
     }
 
-    static Instance* ResolveInstance(lua_State* L, int instance_arg)
-    {
-        return ResolveInstance(L, instance_arg, 0);
-    }
-
     void GetComponentFromLua(lua_State* L, int index, HCollection hcollection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
     {
         Collection* collection = GetCollectionFromHandle(hcollection);
@@ -1113,8 +1108,9 @@ namespace dmGameObject
      */
     int Script_GetPosition(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, dmVMath::Vector3(dmGameObject::GetPosition(instance)));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmScript::PushVector3(L, dmVMath::Vector3(dmGameObject::GetPosition(collection, instance)));
         return 1;
     }
 
@@ -1140,8 +1136,9 @@ namespace dmGameObject
      */
     int Script_GetRotation(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushQuat(L, dmGameObject::GetRotation(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmScript::PushQuat(L, dmGameObject::GetRotation(collection, instance));
         return 1;
     }
 
@@ -1167,8 +1164,9 @@ namespace dmGameObject
      */
     static int Script_GetScale(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, dmGameObject::GetScale(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmScript::PushVector3(L, dmGameObject::GetScale(collection, instance));
         return 1;
     }
 
@@ -1194,8 +1192,9 @@ namespace dmGameObject
      */
     int Script_GetScaleUniform(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetUniformScale(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        lua_pushnumber(L, dmGameObject::GetUniformScale(collection, instance));
         return 1;
     }
 

@@ -22,6 +22,7 @@
 
 #include "../gameobject.h"
 #include "../gameobject_private.h"
+#include "../gameobject_props.h"
 #include "../component.h"
 
 #include "gameobject/test/reload/test_gameobject_reload_ddf.h"
@@ -49,6 +50,11 @@ struct ReloadTargetWorld
     int m_FinalCount;
     int m_AddToUpdateCount;
     int m_ReloadCount;
+    bool m_ChangeReloadTransform;
+    bool m_ReloadQuaternionOnly;
+    float m_FinalPositionX;
+    Quat m_FinalRotation;
+    Quat m_FinalWrittenRotation;
     uint16_t m_InitPrototypeIndex;
     uint16_t m_FinalPrototypeIndex;
 };
@@ -254,6 +260,20 @@ dmGameObject::CreateResult ReloadTest::CompReloadTargetInit(const dmGameObject::
     ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
     rt_world->m_InitCount++;
     rt_world->m_InitPrototypeIndex = dmGameObject::GetInstanceFromHandle(params.m_Instance)->m_PrototypeIndex;
+    if (rt_world->m_ChangeReloadTransform)
+    {
+        dmGameObject::SetPosition(params.m_Instance, Point3(99, 0, 0));
+        if (rt_world->m_ReloadQuaternionOnly)
+        {
+            dmGameObject::SetRotation(params.m_Instance, dmVMath::EulerToQuat(Vector3(20, 30, 120)));
+        }
+        else
+        {
+            dmGameObject::PropertyOptions options;
+            dmGameObject::SetProperty(params.m_Instance, 0, dmHashString64("euler"), options,
+                dmGameObject::PropertyVar(Vector3(20, 30, 120)));
+        }
+    }
     return dmGameObject::CREATE_RESULT_OK;
 }
 
@@ -262,6 +282,16 @@ dmGameObject::CreateResult ReloadTest::CompReloadTargetFinal(const dmGameObject:
     ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
     rt_world->m_FinalCount++;
     rt_world->m_FinalPrototypeIndex = dmGameObject::GetInstanceFromHandle(params.m_Instance)->m_PrototypeIndex;
+    if (rt_world->m_ChangeReloadTransform)
+    {
+        rt_world->m_FinalPositionX = dmGameObject::GetPosition(params.m_Instance).getX();
+        rt_world->m_FinalRotation = dmGameObject::GetRotation(params.m_Instance);
+        dmGameObject::SetPosition(params.m_Instance, Point3(13, 0, 0));
+        dmGameObject::PropertyOptions options;
+        dmGameObject::SetProperty(params.m_Instance, 0, dmHashString64("euler.z"), options,
+            dmGameObject::PropertyVar(13.0f));
+        rt_world->m_FinalWrittenRotation = dmGameObject::GetRotation(params.m_Instance);
+    }
     return dmGameObject::CREATE_RESULT_OK;
 }
 
@@ -348,6 +378,77 @@ TEST_F(ReloadTest, ReloadKeepsSeparatePrototypeSlots)
         ASSERT_EQ((dmGameObject::Prototype*)0, m_Register->m_Prototypes[m_World->m_FinalPrototypeIndex]);
         ASSERT_EQ(prototype, m_Register->m_Prototypes[index]);
         ASSERT_EQ(count, m_Register->m_PrototypeIndices.Size());
+    }
+}
+
+// Reload init/final callbacks must see independent new/old transforms and Euler axes
+// even when their instances share the same collection slot and Euler pool record.
+TEST_F(ReloadTest, ReloadCallbacksKeepSeparateTransforms)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/rt.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::SetPosition(go, Point3(7, 0, 0));
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, dmHashString64("euler"), options,
+        dmGameObject::PropertyVar(Vector3(5, 10, 110))));
+    m_World->m_ChangeReloadTransform = true;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/rt.goc", 0));
+    ASSERT_NEAR(7.0f, m_World->m_FinalPositionX, 0.000001f);
+    ASSERT_NEAR(99.0f, dmGameObject::GetPosition(go).getX(), 0.000001f);
+    Quat old_rotation = dmVMath::EulerToQuat(Vector3(5, 10, 110));
+    for (uint32_t axis = 0; axis < 4; ++axis)
+        ASSERT_NEAR(old_rotation.getElem(axis), m_World->m_FinalRotation.getElem(axis), 0.0001f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, dmHashString64("euler.x"), options,
+        dmGameObject::PropertyVar(40.0f)));
+    Quat new_rotation = dmVMath::EulerToQuat(Vector3(40, 30, 120));
+    for (uint32_t axis = 0; axis < 4; ++axis)
+        ASSERT_NEAR(new_rotation.getElem(axis), dmGameObject::GetRotation(go).getElem(axis), 0.0001f);
+    m_World->m_ChangeReloadTransform = false;
+}
+
+// Creating Euler records in reload callbacks must preserve previously uncached old/new quaternion axes.
+TEST_F(ReloadTest, ReloadCallbacksInitializeUncachedEulerAxes)
+{
+    for (uint32_t quaternion_only = 0; quaternion_only < 2; ++quaternion_only)
+    {
+        dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/rt.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, go);
+        ASSERT_TRUE(dmGameObject::Init(m_Collection));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        Quat old_rotation = dmVMath::EulerToQuat(Vector3(5, 10, 110));
+        dmGameObject::SetRotation(go, old_rotation);
+        m_World->m_ChangeReloadTransform = true;
+        m_World->m_ReloadQuaternionOnly = quaternion_only != 0;
+
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/rt.goc", 0));
+        Vector3 old_euler = dmVMath::QuatToEuler(old_rotation.getX(), old_rotation.getY(), old_rotation.getZ(), old_rotation.getW());
+        old_euler.setZ(13.0f);
+        Quat expected = dmVMath::EulerToQuat(old_euler);
+        for (uint32_t axis = 0; axis < 4; ++axis)
+            ASSERT_NEAR(expected.getElem(axis), m_World->m_FinalWrittenRotation.getElem(axis), 0.0001f);
+
+        Vector3 new_euler(20, 30, 120);
+        if (quaternion_only)
+        {
+            Quat new_rotation = dmVMath::EulerToQuat(new_euler);
+            new_euler = dmVMath::QuatToEuler(new_rotation.getX(), new_rotation.getY(), new_rotation.getZ(), new_rotation.getW());
+        }
+        new_euler.setX(40.0f);
+        dmGameObject::PropertyOptions options;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, dmHashString64("euler.x"), options,
+            dmGameObject::PropertyVar(40.0f)));
+        expected = dmVMath::EulerToQuat(new_euler);
+        Quat actual = dmGameObject::GetRotation(go);
+        for (uint32_t axis = 0; axis < 4; ++axis)
+            ASSERT_NEAR(expected.getElem(axis), actual.getElem(axis), 0.0001f);
+        m_World->m_ChangeReloadTransform = false;
+        dmGameObject::Delete(m_Collection, go, false);
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     }
 }
 

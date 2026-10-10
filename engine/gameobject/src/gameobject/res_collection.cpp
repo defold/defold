@@ -85,7 +85,7 @@ namespace dmGameObject
                     scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
                 }
 
-                instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
+                collection->m_LocalTransforms[instance->m_Index] = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
 
                 dmHashInit64(&instance->m_CollectionPathHashState, true);
                 const char* path_end = strrchr(instance_desc.m_Id, *ID_SEPARATOR);
