@@ -55,12 +55,41 @@
   ;; Prints "Dark" in dark mode; errors (exit 1) in light mode.
   (= "Dark" (run-command ["defaults" "read" "-g" "AppleInterfaceStyle"])))
 
+(defn windows-light-theme?
+  "Parses the output of `reg query ... /v AppsUseLightTheme` and returns true
+  when the value is 0x1 (light theme). Public for tests."
+  [output]
+  (if-let [value-line (first
+                        (filter #(re-find #"AppsUseLightTheme" %)
+                                (str/split-lines (str output))))]
+    (not (re-find #"0x0\s*$" (str/trimr value-line)))
+    false))
+
+(defn gnome-dark-color-scheme?
+  "Parses the output of `gsettings get org.gnome.desktop.interface
+  color-scheme` (e.g. \"'prefer-dark'\") and returns true when dark.
+  Public for tests."
+  [output]
+  (boolean (and output (re-find #"(?i)dark" output))))
+
+(defn kde-dark-color-scheme?
+  "Parses the output of `kreadconfig6/5 --group General --key ColorScheme`
+  (e.g. \"BreezeDark\") and returns true when dark. Public for tests."
+  [output]
+  (boolean (and output (re-find #"(?i)dark" output))))
+
+(defn gtk-theme-dark?
+  "Parses a GTK_THEME value (e.g. \"Adwaita:dark\") and returns true when
+  dark. Public for tests."
+  [theme]
+  (boolean (and theme (re-find #"(?i)dark" theme))))
+
 (defn- windows-dark-mode? []
   ;; AppsUseLightTheme is REG_DWORD 0x0 in dark mode, 0x1 in light mode.
   (if-let [output (run-command ["reg" "query"
                                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"
                                 "/v" "AppsUseLightTheme"])]
-    (= "0x0" (last (str/split output #"\s+")))
+    (not (windows-light-theme? output))
     false))
 
 (defn- linux-dark-mode? []
@@ -68,13 +97,13 @@
     (or
       ;; GNOME (outputs 'prefer-dark' or 'default')
       (when-let [output (run-command ["gsettings" "get" "org.gnome.desktop.interface" "color-scheme"])]
-        (re-find #"dark" output))
-      ;; KDE Plasma
-      (when-let [output (run-command ["kreadconfig5" "--group" "General" "--key" "ColorScheme"])]
-        (re-find #"(?i)dark" output))
+        (gnome-dark-color-scheme? output))
+      ;; KDE Plasma 6, then Plasma 5
+      (when-let [output (or (run-command ["kreadconfig6" "--group" "General" "--key" "ColorScheme"])
+                            (run-command ["kreadconfig5" "--group" "General" "--key" "ColorScheme"]))]
+        (kde-dark-color-scheme? output))
       ;; Fallback: GTK_THEME environment variable (e.g. "Adwaita:dark")
-      (when-let [gtk-theme (System/getenv "GTK_THEME")]
-        (re-find #"(?i)dark" gtk-theme)))))
+      (gtk-theme-dark? (System/getenv "GTK_THEME")))))
 
 (defn system-dark-mode?
   "Returns true if the operating system is currently in dark mode."

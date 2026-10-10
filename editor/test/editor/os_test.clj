@@ -34,3 +34,43 @@
 (deftest system-theme-covers-host-platform
   (is (contains? #{:win32 :macos :linux} (os/os)))
   (is (contains? #{:dark :light} (os/system-theme))))
+
+;; Verifies the Windows registry parser detects dark mode from real `reg
+;; query` output, including CRLF line endings and REG_DWORD formatting.
+;; Guards against locale/format changes breaking dark-mode detection.
+(deftest windows-light-theme-parses-reg-query-output
+  (let [dark "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\r\n    AppsUseLightTheme    REG_DWORD    0x0\r\n\r\n"
+        light "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\r\n    AppsUseLightTheme    REG_DWORD    0x1\r\n\r\n"]
+    (is (true? (os/windows-light-theme? light)))
+    (is (false? (os/windows-light-theme? dark)))
+    (is (false? (os/windows-light-theme? "")))
+    (is (false? (os/windows-light-theme? nil)))))
+
+;; Verifies the GNOME color-scheme parser accepts the values gsettings emits
+;; ('prefer-dark', 'default', 'prefer-light'). Guards against treating the
+;; light schemes as dark.
+(deftest gnome-color-scheme-parses-gsettings-output
+  (is (true? (os/gnome-dark-color-scheme? "'prefer-dark'")))
+  (is (false? (os/gnome-dark-color-scheme? "'default'")))
+  (is (false? (os/gnome-dark-color-scheme? "'prefer-light'")))
+  (is (false? (os/gnome-dark-color-scheme? "")))
+  (is (false? (os/gnome-dark-color-scheme? nil))))
+
+;; Verifies the KDE parser detects the dark suffix in ColorScheme names such
+;; as BreezeDark and org.kde.breezedark.theme, case-insensitively. Guards
+;; against KDE theme names without the exact "Dark" casing.
+(deftest kde-color-scheme-parses-kreadconfig-output
+  (is (true? (os/kde-dark-color-scheme? "BreezeDark")))
+  (is (true? (os/kde-dark-color-scheme? "org.kde.breezedark.theme")))
+  (is (false? (os/kde-dark-color-scheme? "BreezeLight")))
+  (is (false? (os/kde-dark-color-scheme? "Breeze")))
+  (is (false? (os/kde-dark-color-scheme? nil))))
+
+;; Verifies the GTK_THEME fallback detects the :dark suffix used by GTK
+;; theme names. Guards against the env-var fallback misdetecting light
+;; themes.
+(deftest gtk-theme-parses-dark-suffix
+  (is (true? (os/gtk-theme-dark? "Adwaita:dark")))
+  (is (true? (os/gtk-theme-dark? "Yaru-dark")))
+  (is (false? (os/gtk-theme-dark? "Adwaita")))
+  (is (false? (os/gtk-theme-dark? nil))))
