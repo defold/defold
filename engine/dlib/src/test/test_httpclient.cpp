@@ -1811,6 +1811,8 @@ TEST(dmHttpClient, ProxyHttps)
     ProxyAddRequest(true, g_HttpPortTLS);
 }
 
+// Verifies TLS 1.2 negotiation with the server's default signature algorithms,
+// including RSA-PSS, which mbedTLS 4.1.0 rejected after offering it (#13421).
 TEST(dmHttpClient, Tls12)
 {
     TlsProtocolRequest(g_HttpPortTLS12, "TLSv1.2");
