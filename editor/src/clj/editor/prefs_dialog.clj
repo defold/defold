@@ -67,6 +67,7 @@
                 [:run :quit-on-escape]
                 [:asset-browser :track-active-tab]
                 [:build :lint-code]
+                [:window :theme]
                 [:window :locale]
                 [:run :engine-arguments]]}
        {:pattern (localization/message "prefs.tab.code")
@@ -130,6 +131,19 @@
    :items (localization/available-locales localization-state)
    :on-value-changed #(do (localization/set-locale! localization %)
                           (analytics/track-locale! %))})
+
+(defmethod form-input :enum [_path schema value on-value-changed localization-state localization]
+  (let [values (:values schema)
+        to-string (fn [v]
+                    (let [key (str "prefs.enum." (coll/join-to-string "." (map name [:window :theme])) "." (name v))]
+                      (if (localization/defines-message-key? localization-state key)
+                        (localization-state (localization/message key))
+                        (camel/->TitleCase (name v)))))]
+    {:fx/type fxui.combo-box/view
+     :to-string to-string
+     :value value
+     :items values
+     :on-value-changed on-value-changed}))
 
 (defn- command-label [command]
   (->> (string/split (name command) #"\.")
