@@ -57,22 +57,23 @@
 
 (defn- windows-dark-mode? []
   ;; AppsUseLightTheme is REG_DWORD 0x0 in dark mode, 0x1 in light mode.
-  (when-some [output (run-command ["reg" "query"
-                                   "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"
-                                   "/v" "AppsUseLightTheme"])]
-    (= "0x0" (last (str/split output #"\s+")))))
+  (if-let [output (run-command ["reg" "query"
+                                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"
+                                "/v" "AppsUseLightTheme"])]
+    (= "0x0" (last (str/split output #"\s+")))
+    false))
 
 (defn- linux-dark-mode? []
   (boolean
     (or
       ;; GNOME (outputs 'prefer-dark' or 'default')
-      (when-some [output (run-command ["gsettings" "get" "org.gnome.desktop.interface" "color-scheme"])]
+      (when-let [output (run-command ["gsettings" "get" "org.gnome.desktop.interface" "color-scheme"])]
         (re-find #"dark" output))
       ;; KDE Plasma
-      (when-some [output (run-command ["kreadconfig5" "--group" "General" "--key" "ColorScheme"])]
+      (when-let [output (run-command ["kreadconfig5" "--group" "General" "--key" "ColorScheme"])]
         (re-find #"(?i)dark" output))
       ;; Fallback: GTK_THEME environment variable (e.g. "Adwaita:dark")
-      (when-some [gtk-theme (System/getenv "GTK_THEME")]
+      (when-let [gtk-theme (System/getenv "GTK_THEME")]
         (re-find #"(?i)dark" gtk-theme)))))
 
 (defn system-dark-mode?
