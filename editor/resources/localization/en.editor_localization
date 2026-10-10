@@ -705,6 +705,11 @@ prefs.label.run.quit-on-escape = Escape Quits Game
 prefs.label.asset-browser.track-active-tab = Track Active Tab in Asset Browser
 prefs.label.build.lint-code = Lint Code on Build
 prefs.label.window.locale = Editor Language
+prefs.label.window.theme = Theme
+prefs.help.window.theme = Select the editor color theme. System follows OS setting.
+prefs.enum.window.theme.system = System
+prefs.enum.window.theme.dark = Dark
+prefs.enum.window.theme.light = Light
 prefs.label.run.engine-arguments = Engine Arguments
 prefs.prompt.run.engine-arguments = One argument per line
 prefs.help.run.engine-arguments = Arguments that will be passed to the dmengine executables when the editor builds and runs.\nUse one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan
