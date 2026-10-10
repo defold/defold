@@ -1,0 +1,88 @@
+* {
+	// Background (light theme)
+	-df-background-darker:    derive(#f5f5f5, -10%);	// dialog input field background
+	-df-background:           #f5f5f5;					// main background
+	-df-background-lightish:  #e8e8e8;					// slightly darker panels
+	-df-background-light:     #e0e0e0;					// panels
+	-df-background-lighter:   #d0d0d0;					// tree view selection
+	-df-background-input:     #ffffff;					// input field background
+
+	// Component
+	-df-component-darker:     #e0e0e0;		// button outline, scene view controls panel
+	-df-component-dark:       #d0d0d0;		// button, input field border, context menu
+	-df-component-light:      #c0c0c0;		// button selected, input field border selected
+	-df-component-lighter:    #b0b0b0;		// button hovered
+	-df-component-icon:       #666666;		// button icon
+
+	// Selection / overlays
+	-df-selection-fill:       #B3D4FC;				// text highlight, list selection
+	-df-selection-text:       #1A1A1A;				// text on selection fill
+	-df-overlay:              #E8E8E8BF;				// translucent panel over scene
+	-df-scene-text-shadow:    rgba(0, 0, 0, 0.15);	// info label outline on scene
+
+	// Text and icons
+	-df-text-dark:            #4a4a4a;		// property components
+	-df-text:                 #333333;		// non editable text, input field hint
+	-df-text-light:           #1a1a1a;		// editable text
+	-df-text-selected:        #000000;		// non editable selected text
+
+	// Red
+	-df-defold-red-dark:     derive(#c00000, -10%);
+	-df-defold-red:          #c00000;
+	-df-defold-red-light:    derive(#c00000, 10%);
+
+	// Yellow
+	-df-defold-yellow-dark:    derive(#b8860b, -10%);
+	-df-defold-yellow:         #b8860b;
+	-df-defold-yellow-light:   derive(#b8860b, 10%);
+	-df-defold-yellow-lighter: derive(#b8860b, 20%);
+
+	// Green
+	-df-defold-green-dark:   derive(#228b22, -10%);
+	-df-defold-green:        #228b22;
+	-df-defold-green-light:  derive(#228b22, 10%);
+	-df-defold-green-lighter:derive(#228b22, 20%);
+
+	// Orange
+	-df-defold-orange-dark:  derive(#cc5500, -10%);
+	-df-defold-orange:       #cc5500;
+	-df-defold-orange-light: derive(#cc5500, 10%);
+
+	// Blue
+	-df-defold-blue-dark:    derive(#0066cc, -10%);
+	-df-defold-blue:         #0066cc;
+	-df-defold-blue-light:   derive(#0066cc, 10%);
+	-df-defold-blue-lighter: derive(#0066cc, 20%);
+
+	/* Status colors */
+	-df-error-severity-fatal:       -df-defold-red;
+	-df-error-severity-fatal-dim:   -df-defold-red-dark;
+	-df-error-severity-warning:     -df-defold-yellow;
+	-df-error-severity-warning-dim: -df-defold-yellow-dark;
+	-df-error-severity-info:        -df-defold-blue-lighter;
+
+	/* Lua script colors - adjusted for light background */
+	-df-script-helper:         #008888;
+	-df-script-self:           #b000b0;
+	-df-script-logic:          #b8860b;
+	-df-script-constant:       #cc00cc;
+	-df-script-function:       #008800;
+	-df-script-keyword:        #cc4400;
+	-df-script-operator:       #008888;
+	-df-script-string:         #b8860b;
+	-df-script-comment:        #880088;
+	-df-script-number:         #6666ff;
+	-df-script-intellisense:   #00aaaa;
+
+	/* File extension group colors */
+	-df-folder:                -df-text-dark;
+	-df-folder-active:         -df-text;
+	-df-unknown-file:          -df-text-dark;
+	-df-unknown-file-active:   -df-text;
+	-df-design-file:           -df-defold-blue;
+	-df-design-file-active:    -df-defold-blue-lighter;
+	-df-script-file:           -df-defold-yellow;
+	-df-script-file-active:    -df-defold-yellow-lighter;
+	-df-property-file:         -df-defold-green;
+	-df-property-file-active:  -df-defold-green-light;
+}

@@ -15,7 +15,7 @@
       &-em      { -fx-font-family: "Source Sans Pro Italic"; }
       &-strong  { -fx-font-family: "Source Sans Pro Semibold"; }
       &-strong.md-em { -fx-font-family: "Source Sans Pro Semibold Italic";}
-      &-code    { -fx-font-family: "Dejavu Sans Mono"; -fx-fill: #DDDDDD; }
+      &-code    { -fx-font-family: "Dejavu Sans Mono"; -fx-fill: -df-text-light; }
       &-small   { -fx-fill: -df-text-dark; }
       &-sub     { -fx-font-size: 85%; -fx-translate-y: 3px; }
       &-sup     { -fx-font-size: 85%; -fx-translate-y: -5px; }
@@ -28,12 +28,12 @@
         }
       }
       // code highlight
-      &-n  { -fx-fill: #DDDDDD; }
-      &-c1 { -fx-fill: #B0B0B0; }
-      &-na { -fx-fill: #DDDDDD; }
+      &-n  { -fx-fill: -df-text-light; }
+      &-c1 { -fx-fill: -df-text-dark; }
+      &-na { -fx-fill: -df-text-light; }
       &-nf { -fx-fill: -df-script-function; }
       &-nt { -fx-fill: -df-script-constant; }
-      &-p  { -fx-fill: #DDDDDD; }
+      &-p  { -fx-fill: -df-text-light; }
       &-s  { -fx-fill: -df-script-string; }
       &-s1 { -fx-fill: -df-script-string; }
       &-s2 { -fx-fill: -df-script-string; }
@@ -130,7 +130,7 @@
     &.md-page-root {
         -fx-padding: 30px 30px;
         -fx-font-size: 15px;
-        -md-text-fill: #DDDDDD;
+        -md-text-fill: -df-text-light;
     }
   }
   &-scroll-pane {

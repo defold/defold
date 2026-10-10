@@ -67,6 +67,30 @@
 (def selected-outline-color defold-turquoise)
 (def parent-selected-outline-color defold-light-blue)
 
+(def ^:private light-scene-palette
+  {"scene-background" (hex-color->color "#FFFFFF")
+   "scene-ruler-label" (hex-color->color "#4A4A4A")
+   "scene-ruler-marker" (hex-color->color "#4A4A4A")
+   "outline-color" (hex-color->color "#666666")})
+
+(def ^:private dark-scene-palette
+  {"scene-background" (hex-color->color "#292A2F")
+   "scene-ruler-label" bright-grey
+   "scene-ruler-marker" bright-grey
+   "outline-color" bright-grey})
+
+(defn apply-scene-theme!
+  "Swaps the scene render palette to the supplied theme. Render functions
+  resolve these Vars on every frame, so existing scene views pick up the
+  new colors without a restart."
+  [theme]
+  (let [palette (case theme
+                  :light light-scene-palette
+                  dark-scene-palette)]
+    (doseq [[var-name color] palette]
+      (alter-var-root (resolve (symbol "editor.colors" var-name)) (constantly color))))
+  nil)
+
 (defn selection-color [selection-state]
   (case selection-state
     :self-selected selected-outline-color

@@ -32,6 +32,7 @@
             [clojure.string :as string]
             [clojure.xml :as xml]
             [dynamo.graph :as g]
+            [editor.colors :as colors]
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
@@ -39,6 +40,7 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
+            [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -523,10 +525,70 @@
                  0.0
                  items))))
 
+(defn theme-css-resource
+  "Returns the stylesheet resource name for the supplied resolved theme."
+  [theme]
+  (case theme
+    :light "editor-light.css"
+    "editor.css"))
+
+(defn- resolve-theme
+  "Resolves the :system theme preference to the actual system theme."
+  [theme]
+  (case theme
+    :system (os/system-theme)
+    theme))
+
+(defn current-resolved-theme
+  "Returns the currently selected editor theme, resolved to :dark or :light.
+  Canvas-based views use this to pick paint colors, which cannot be driven
+  through stylesheets."
+  []
+  (resolve-theme (prefs/get (prefs/global) [:window :theme])))
+
+(def ^:private light-theme-css-replacements
+  "Maps dark stylesheet URLs to their light counterparts."
+  {(str (io/resource "editor.css")) (str (io/resource "editor-light.css"))
+   (str (io/resource "dialogs.css")) (str (io/resource "dialogs-light.css"))
+   (str (io/resource "splash.css")) (str (io/resource "splash-light.css"))})
+
+(defn themed-stylesheet-urls
+  "Rewrites the theme-owned stylesheet URLs in the supplied collection to
+  their light counterparts when the theme is :light, leaving every other
+  URL (and the order) untouched. Public for tests."
+  [stylesheet-urls theme]
+  (if (= :light theme)
+    (map #(get light-theme-css-replacements % %) stylesheet-urls)
+    stylesheet-urls))
+
+(def ^:private theme-css-url-set
+  (set (concat (keys light-theme-css-replacements)
+               (vals light-theme-css-replacements))))
+
+(defn apply-theme-css!
+  "Ensures the root carries the theme stylesheets matching the supplied
+  theme preference value: theme-owned stylesheets already present are
+  replaced in place, and a root without any (the project window, whose
+  FXML declares none) gets the editor stylesheet prepended. Also syncs the
+  GL scene palette used by scene, image and curve views."
+  [^Parent root theme]
+  (let [resolved-theme (resolve-theme theme)
+        themed (themed-stylesheet-urls (vec (.getStylesheets root)) resolved-theme)
+        themed (if (some theme-css-url-set themed)
+                 themed
+                 (into [(str (io/resource (theme-css-resource resolved-theme)))] themed))]
+    (colors/apply-scene-theme! resolved-theme)
+    (when-let [scene (.getScene root)]
+      (.forget (com.sun.javafx.css.StyleManager/getInstance) scene))
+    (.setAll (.getStylesheets root) ^Collection themed))
+  nil)
+
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
     (let [root ^Parent (.getRoot scene)
-          styles (vec (.getStylesheets root))]
+          styles (themed-stylesheet-urls (vec (.getStylesheets root))
+                                         (current-resolved-theme))]
+      (colors/apply-scene-theme! (current-resolved-theme))
       (.forget (com.sun.javafx.css.StyleManager/getInstance) scene)
       (.setAll (.getStylesheets root) ^Collection styles))))
 
@@ -717,8 +779,10 @@
                (when (zero? suppress-count)
                  (listen-fn old new))))))
 
-(defn- apply-default-css! [^Parent root]
-  (.. root getStylesheets (add (str (io/resource "editor.css"))))
+(defn- apply-default-css! [^Parent root theme]
+  (let [resolved-theme (resolve-theme theme)
+        css-resource (theme-css-resource resolved-theme)]
+    (.. root getStylesheets (add (str (io/resource css-resource)))))
   nil)
 
 (defn- apply-user-css! [^Parent root]
@@ -727,15 +791,50 @@
       (.. root getStylesheets (add (str (.toURI css))))))
   nil)
 
-(defn apply-css! [^Parent root]
-  (apply-default-css! root)
+(defn apply-css!
+  "Applies the theme stylesheet for the supplied theme preference value,
+  followed by any user stylesheet."
+  [^Parent root theme]
+  (apply-default-css! root theme)
   (apply-user-css! root))
 
+(defn theme-resource-url
+  "Returns the URL of the supplied theme-aware stylesheet resource resolved
+  for the currently selected theme, e.g. \"dialogs.css\" yields
+  dialogs-light.css while the light theme is active."
+  ^String [resource-path]
+  (let [resource-url (str (io/resource resource-path))]
+    (str (case (current-resolved-theme)
+           :light (get light-theme-css-replacements resource-url resource-url)
+           resource-url))))
+
 (defn load-fxml
+  "Loads an FXML file and applies any user stylesheet on top of whatever
+  stylesheets the FXML declares itself. Theme-owned stylesheets declared by
+  the FXML are swapped for the variant matching the selected theme."
   ^Parent [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))]
+    (apply-theme-css! root (current-resolved-theme))
     (apply-user-css! root)
     root))
+
+(defn start-theme-watcher!
+  "Starts a background poll that reloads root styles whenever the operating
+  system theme changes while the theme preference is :system.
+
+  Theme changes made through the editor itself are applied by the command
+  handlers; this watcher only covers the follow-the-system case."
+  [prefs]
+  (let [last-system-theme (atom (os/system-theme))]
+    (future
+      (loop []
+        (Thread/sleep 5000)
+        (when (= :system (prefs/get prefs [:window :theme]))
+          (let [current-system-theme (os/system-theme)]
+            (when-not (= current-system-theme @last-system-theme)
+              (reset! last-system-theme current-system-theme)
+              (run-later (reload-root-styles!)))))
+        (recur)))))
 
 (defn- empty-svg []
   {:tag :svg, :attrs nil, :content [{:tag :path, :attrs {:d "M0,0"}, :content nil}]})

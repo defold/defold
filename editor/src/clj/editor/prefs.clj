@@ -180,7 +180,8 @@
                                       :default true}}}
     :window {:type :object
              :properties
-             {:dimensions {:type :one-of
+             {:theme {:type :enum :values [:system :dark :light] :default :system}
+              :dimensions {:type :one-of
                            :schemas [{:type :enum :values [nil]}
                                      {:type :object
                                       :properties

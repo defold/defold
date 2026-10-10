@@ -67,6 +67,7 @@
                 [:run :quit-on-escape]
                 [:asset-browser :track-active-tab]
                 [:build :lint-code]
+                [:window :theme]
                 [:window :locale]
                 [:run :engine-arguments]]}
        {:pattern (localization/message "prefs.tab.code")
@@ -130,6 +131,20 @@
    :items (localization/available-locales localization-state)
    :on-value-changed #(do (localization/set-locale! localization %)
                           (analytics/track-locale! %))})
+
+(defmethod form-input :enum [_path schema value on-value-changed localization-state _localization]
+  (let [values (:values schema)
+
+        to-string (fn enum-value-display-name [v]
+                    (let [key (str "prefs.enum." (coll/join-to-string "." (map name _path)) "." (name v))]
+                      (if (localization/defines-message-key? localization-state key)
+                        (localization-state (localization/message key))
+                        (camel/->TitleCase (name v)))))]
+    {:fx/type fxui.combo-box/view
+     :to-string to-string
+     :value value
+     :items values
+     :on-value-changed on-value-changed}))
 
 (defn- command-label [command]
   (->> (string/split (name command) #"\.")
@@ -862,7 +877,7 @@
    :min-height 500
    :scene
    {:fx/type fx.scene/lifecycle
-    :stylesheets [(str (io/resource "dialogs.css"))]
+    :stylesheets [(ui/theme-resource-url "dialogs.css")]
     :on-key-pressed handle-scene-key-pressed
     :root
     {:fx/type fx.tab-pane/lifecycle

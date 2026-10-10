@@ -13,6 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.os
+  (:require [clojure.string :as str])
   (:import [com.dynamo.bob Platform]))
 
 (defn- os-raw []
@@ -35,3 +36,98 @@
   (and (is-linux?)
        (or (some? (System/getenv "WAYLAND_DISPLAY"))
            (= "wayland" (System/getenv "XDG_SESSION_TYPE")))))
+
+;; System theme detection via platform-specific commands
+(defn- run-command
+  "Runs a command and returns its trimmed stdout, or nil if the command
+  could not be executed or exited with a non-zero code."
+  [cmd]
+  (try
+    (let [proc (-> (ProcessBuilder. cmd) (.redirectErrorStream true) .start)
+          output (slurp (.getInputStream proc))
+          exit-code (.waitFor proc)]
+      (when (zero? exit-code)
+        (str/trim output)))
+    (catch Exception _
+      nil)))
+
+(defn- macos-dark-mode? []
+  ;; Prints "Dark" in dark mode; errors (exit 1) in light mode.
+  (= "Dark" (run-command ["defaults" "read" "-g" "AppleInterfaceStyle"])))
+
+(defn windows-light-theme?
+  "Parses the output of `reg query ... /v AppsUseLightTheme` and returns true
+  when the value is 0x1 (light theme). Public for tests."
+  [output]
+  (if-let [value-line (first
+                        (filter #(re-find #"AppsUseLightTheme" %)
+                                (str/split-lines (str output))))]
+    (not (re-find #"0x0\s*$" (str/trimr value-line)))
+    false))
+
+(defn gnome-dark-color-scheme?
+  "Parses the output of `gsettings get org.gnome.desktop.interface
+  color-scheme` (e.g. \"'prefer-dark'\") and returns true when dark.
+  Public for tests."
+  [output]
+  (boolean (and output (re-find #"(?i)dark" output))))
+
+(defn kde-dark-color-scheme?
+  "Parses the output of `kreadconfig6/5 --group General --key ColorScheme`
+  (e.g. \"BreezeDark\") and returns true when dark. Public for tests."
+  [output]
+  (boolean (and output (re-find #"(?i)dark" output))))
+
+(defn gtk-theme-dark?
+  "Parses a GTK_THEME value (e.g. \"Adwaita:dark\") and returns true when
+  dark. Public for tests."
+  [theme]
+  (boolean (and theme (re-find #"(?i)dark" theme))))
+
+(defn- windows-dark-mode? []
+  ;; AppsUseLightTheme is REG_DWORD 0x0 in dark mode, 0x1 in light mode.
+  (if-let [output (run-command ["reg" "query"
+                                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"
+                                "/v" "AppsUseLightTheme"])]
+    (not (windows-light-theme? output))
+    false))
+
+(defn- linux-dark-mode? []
+  (boolean
+    (or
+      ;; GNOME (outputs 'prefer-dark' or 'default')
+      (when-let [output (run-command ["gsettings" "get" "org.gnome.desktop.interface" "color-scheme"])]
+        (gnome-dark-color-scheme? output))
+      ;; KDE Plasma 6, then Plasma 5
+      (when-let [output (or (run-command ["kreadconfig6" "--group" "General" "--key" "ColorScheme"])
+                            (run-command ["kreadconfig5" "--group" "General" "--key" "ColorScheme"]))]
+        (kde-dark-color-scheme? output))
+      ;; Fallback: GTK_THEME environment variable (e.g. "Adwaita:dark")
+      (gtk-theme-dark? (System/getenv "GTK_THEME")))))
+
+(defn system-dark-mode?
+  "Returns true if the operating system is currently in dark mode."
+  []
+  (cond
+    (is-mac-os?) (macos-dark-mode?)
+    (is-win32?) (windows-dark-mode?)
+    (is-linux?) (linux-dark-mode?)
+    :else false))
+
+(def ^:private system-theme-cache-ttl-ms 5000)
+(def ^:private system-theme-cache (atom {:theme nil :expires 0}))
+
+(defn system-theme
+  "Returns :dark or :light based on the current operating system theme.
+
+  The detected value is cached briefly so UI code can resolve the :system
+  theme preference without spawning a probe process on every call; the
+  cache expires quickly enough for the theme watcher to notice OS changes."
+  []
+  (let [now (System/currentTimeMillis)
+        {:keys [theme expires]} @system-theme-cache]
+    (if (and theme (< now expires))
+      theme
+      (let [fresh (if (system-dark-mode?) :dark :light)]
+        (reset! system-theme-cache {:theme fresh :expires (+ now system-theme-cache-ttl-ms)})
+        fresh))))
