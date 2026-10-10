@@ -701,8 +701,8 @@ TEST_F(HierarchyTest, WorldTransformsMatchMatrixReference)
     }
 }
 
-// Transform updates must use committed quaternions and leave pending animation Euler data alone.
-TEST_F(HierarchyTest, TransformUpdatesUseCommittedRotation)
+// An instance refresh must commit pending Euler data before producing its world matrix.
+TEST_F(HierarchyTest, InstanceRefreshCommitsPendingRotation)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0);
     dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
@@ -711,17 +711,9 @@ TEST_F(HierarchyTest, TransformUpdatesUseCommittedRotation)
     euler->m_Value.setZ(90);
     euler->m_State = dmGameObject::EULER_PENDING | dmGameObject::EULER_WRITTEN;
 
-    dmGameObject::UpdateTransforms(m_Collection);
-    ASSERT_NEAR(1.0f, dmGameObject::GetRotation(go).getW(), EPSILON);
     dmGameObject::UpdateTransformsForInstance(collection, instance);
-    ASSERT_NEAR(1.0f, dmGameObject::GetRotation(go).getW(), EPSILON);
-
-    dmGameObject::PropertyOptions options;
-    dmGameObject::PropertyDesc rotation;
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, dmHashString64("rotation"), options, rotation));
     ASSERT_NEAR(M_SQRT1_2, dmGameObject::GetRotation(go).getZ(), 0.0001f);
     ASSERT_NEAR(M_SQRT1_2, dmGameObject::GetRotation(go).getW(), 0.0001f);
-    dmGameObject::UpdateTransforms(m_Collection);
     Vector4 x_axis = dmGameObject::GetWorldMatrix(go).getCol0();
     ASSERT_NEAR(0.0f, x_axis.getX(), 0.0001f);
     ASSERT_NEAR(1.0f, x_axis.getY(), 0.0001f);

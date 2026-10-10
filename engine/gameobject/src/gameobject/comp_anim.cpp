@@ -164,6 +164,24 @@ namespace dmGameObject
         world->m_InstanceToEulerIndex.Erase(instance);
     }
 
+    void CommitPendingEulerRotations(Collection* collection)
+    {
+        AnimWorld* world = GetWorld(collection);
+        if (!world->m_InUpdate)
+            return;
+
+        for (uint32_t i = 0; i < world->m_EulerRotations.Size(); ++i)
+        {
+            EulerRotation& euler = world->m_EulerRotations[i];
+            if (euler.m_State & EULER_PENDING)
+            {
+                collection->m_LocalTransforms[euler.m_InstanceIndex].SetRotation(dmVMath::EulerToQuat(euler.m_Value));
+                // Keep final writeback precedence if quaternion tracks are evaluated after this refresh.
+                euler.m_State &= ~EULER_PENDING;
+            }
+        }
+    }
+
     static void CommitEulerRotations(AnimWorld* world, Collection* collection)
     {
         for (uint32_t i = 0; i < world->m_EulerRotations.Size(); ++i)

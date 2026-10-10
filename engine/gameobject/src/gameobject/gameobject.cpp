@@ -3025,9 +3025,25 @@ namespace dmGameObject
         return collection ? DispatchMessages(collection, sockets, socket_count) : false;
     }
 
+    static void UpdateEulerToRotation(Collection* collection, Instance* instance, EulerRotation* euler)
+    {
+        collection->m_LocalTransforms[instance->m_Index].SetRotation(dmVMath::EulerToQuat(euler->m_Value));
+        // Preserve the written marker so the final pass retains Euler precedence over quaternion animation.
+        euler->m_State &= ~EULER_PENDING;
+    }
+
+    static void CommitPendingEulerRotation(Collection* collection, Instance* instance)
+    {
+        EulerRotation* euler = GetEulerRotation(collection, instance, false);
+        if (euler && (euler->m_State & EULER_PENDING))
+            UpdateEulerToRotation(collection, instance, euler);
+    }
+
     void UpdateTransforms(Collection* collection)
     {
         DM_PROFILE("UpdateTransforms");
+
+        CommitPendingEulerRotations(collection);
 
         // Calculate world transforms
         dmTransform::Transform* local_transforms = collection->m_LocalTransforms.Begin();
@@ -3093,6 +3109,7 @@ namespace dmGameObject
         for (int32_t i = (int32_t)count - 1; i >= 0; --i)
         {
             Instance* cur = chain[i];
+            CommitPendingEulerRotation(collection, cur);
             Matrix4 own = dmTransform::ToMatrix4(collection->m_LocalTransforms[cur->m_Index]);
             if (collection->m_ParentIndices[cur->m_Index] == INVALID_INSTANCE_INDEX)
             {
@@ -4025,20 +4042,6 @@ namespace dmGameObject
         if (euler)
             euler->m_Value = value;
         return value;
-    }
-
-    static void UpdateEulerToRotation(Collection* collection, Instance* instance, EulerRotation* euler)
-    {
-        collection->m_LocalTransforms[instance->m_Index].SetRotation(dmVMath::EulerToQuat(euler->m_Value));
-        // Preserve the written marker so the final pass retains Euler precedence over quaternion animation.
-        euler->m_State &= ~EULER_PENDING;
-    }
-
-    static void CommitPendingEulerRotation(Collection* collection, Instance* instance)
-    {
-        EulerRotation* euler = GetEulerRotation(collection, instance, false);
-        if (euler && (euler->m_State & EULER_PENDING))
-            UpdateEulerToRotation(collection, instance, euler);
     }
 
     PropertyResult GetProperty(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value)

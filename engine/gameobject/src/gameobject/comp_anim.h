@@ -38,6 +38,9 @@ namespace dmGameObject
     EulerRotation* GetEulerRotation(Collection* collection, Instance* instance, bool create);
     void ReleaseEulerRotation(Collection* collection, HGameObject instance);
 
+    // Synchronize in-progress animation writes before a collection-wide transform refresh.
+    void CommitPendingEulerRotations(Collection* collection);
+
     CreateResult CompAnimNewWorld(const ComponentNewWorldParams& params);
 
     CreateResult CompAnimDeleteWorld(const ComponentDeleteWorldParams& params);

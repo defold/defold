@@ -374,6 +374,168 @@ TEST_F(AnimTest, EulerAnimationStartsFromUncachedRotation)
         ASSERT_NEAR(expected.getElem(axis), actual.getElem(axis), 0.0001f);
 }
 
+class EulerRefreshAnimTest : public AnimTest
+{
+protected:
+    void SetUp() override
+    {
+        AnimTest::SetUp();
+        m_SetterCount = 0;
+        m_PropertyObject = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, m_PropertyObject);
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            m_Objects[i] = dmGameObject::New(m_Collection, 0);
+            ASSERT_NE((dmGameObject::HInstance)0, m_Objects[i]);
+        }
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Objects[1], m_Objects[0]));
+        dmGameObject::SetPosition(m_Objects[0], dmVMath::Point3(2, 3, 4));
+        dmGameObject::SetPosition(m_Objects[1], dmVMath::Point3(1, -2, 3));
+        dmGameObject::SetPosition(m_Objects[2], dmVMath::Point3(-1, 2, 5));
+        dmGameObject::SetScale(m_Objects[0], dmVMath::Vector3(2, 3, 4));
+        dmGameObject::UpdateTransforms(m_Collection);
+
+        dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+        m_Prototype = dmGameObject::GetPrototype(collection, dmGameObject::GetInstanceFromHandle(m_PropertyObject));
+        m_SavedComponents = m_Prototype->m_Components;
+        m_SavedComponentCount = m_Prototype->m_ComponentCount;
+        m_Type.m_Context = this;
+        m_Type.m_GetPropertyFunction = GetRefreshProperty;
+        m_Type.m_SetPropertyFunction = SetRefreshProperty;
+        // Attach a test component to the empty resource prototype. Restore it before instance destruction.
+        m_Component = new dmGameObject::Prototype::Component(0, hash("refresh"), 0, &m_Type, 0,
+            dmVMath::Point3(0), dmVMath::Quat::identity(), dmVMath::Vector3(1));
+        m_Prototype->m_Components = m_Component;
+        m_Prototype->m_ComponentCount = 1;
+    }
+
+    void TearDown() override
+    {
+        m_Prototype->m_Components = m_SavedComponents;
+        m_Prototype->m_ComponentCount = m_SavedComponentCount;
+        delete m_Component;
+        AnimTest::TearDown();
+    }
+
+    static dmGameObject::PropertyResult GetRefreshProperty(const dmGameObject::ComponentGetPropertyParams& params,
+                                                          dmGameObject::PropertyDesc& out_value)
+    {
+        out_value.m_Variant = dmGameObject::PropertyVar(0.0f);
+        out_value.m_ValuePtr = 0;
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
+
+    static dmGameObject::PropertyResult SetRefreshProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        EulerRefreshAnimTest* test = (EulerRefreshAnimTest*)params.m_Context;
+        if (test->m_RefreshCollection)
+        {
+            dmGameObject::UpdateTransforms(test->m_Collection);
+        }
+        else
+        {
+            dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(test->m_Collection);
+            dmGameObject::UpdateTransformsForInstance(collection, dmGameObject::GetInstanceFromHandle(test->m_Objects[1]));
+        }
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            test->m_RefreshedRotations[i] = dmGameObject::GetRotation(test->m_Objects[i]);
+            test->m_RefreshedMatrices[i] = dmGameObject::GetWorldMatrix(test->m_Objects[i]);
+        }
+        ++test->m_SetterCount;
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
+
+    void TestRefresh(bool refresh_collection, bool animate_quaternion)
+    {
+        m_RefreshCollection = refresh_collection;
+        m_UpdateContext.m_DT = 0.25f;
+        dmVMath::Quat rotations[3];
+        dmVMath::Matrix4 matrices[3];
+        dmEasing::Curve easing(dmEasing::TYPE_LINEAR);
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            float angle = 90.0f * (i + 1);
+            dmGameObject::PropertyVar target(angle);
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, m_Objects[i], 0, hash("euler.z"),
+                dmGameObject::PLAYBACK_ONCE_FORWARD, target, easing, 1, 0, 0, 0, 0));
+            rotations[i] = dmVMath::EulerToQuat(dmVMath::Vector3(0, 0, angle * 0.25f));
+            matrices[i] = dmVMath::Matrix4::translation(dmVMath::Vector3(dmGameObject::GetPosition(m_Objects[i])))
+                * dmVMath::Matrix4::rotation(rotations[i]) * dmVMath::Matrix4::scale(dmGameObject::GetScale(m_Objects[i]));
+            if (i == 1)
+                matrices[i] = matrices[0] * matrices[i];
+        }
+        dmVMath::Matrix4 unrelated_initial = dmGameObject::GetWorldMatrix(m_Objects[2]);
+        dmGameObject::PropertyVar target(1.0f);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, m_PropertyObject, hash("refresh"), hash("value"),
+            dmGameObject::PLAYBACK_ONCE_FORWARD, target, easing, 1, 0, 0, 0, 0));
+        if (animate_quaternion)
+        {
+            // These pointer writes happen after the setter's refresh and must not consume final Euler writeback.
+            dmGameObject::PropertyVar rotation_target(dmVMath::Quat::rotationX(1.0f));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, m_Objects[1], 0, hash("rotation"),
+                dmGameObject::PLAYBACK_ONCE_FORWARD, rotation_target, easing, 1, 0, 0, 0, 0));
+        }
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_EQ(1u, m_SetterCount);
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            bool refreshed = refresh_collection || i != 2;
+            dmVMath::Quat refreshed_rotation = refreshed ? rotations[i] : dmVMath::Quat::identity();
+            dmVMath::Matrix4 refreshed_matrix = refreshed ? matrices[i] : unrelated_initial;
+            dmVMath::Quat final_rotation = dmGameObject::GetRotation(m_Objects[i]);
+            const dmVMath::Matrix4& final_matrix = dmGameObject::GetWorldMatrix(m_Objects[i]);
+            for (uint32_t axis = 0; axis < 4; ++axis)
+            {
+                ASSERT_NEAR(refreshed_rotation.getElem(axis), m_RefreshedRotations[i].getElem(axis), 0.0001f);
+                ASSERT_NEAR(rotations[i].getElem(axis), final_rotation.getElem(axis), 0.0001f);
+                for (uint32_t row = 0; row < 4; ++row)
+                {
+                    ASSERT_NEAR(refreshed_matrix.getElem(axis, row), m_RefreshedMatrices[i].getElem(axis, row), 0.0001f);
+                    ASSERT_NEAR(matrices[i].getElem(axis, row), final_matrix.getElem(axis, row), 0.0001f);
+                }
+            }
+        }
+    }
+
+    dmGameObject::HInstance m_PropertyObject;
+    dmGameObject::HInstance m_Objects[3];
+    dmGameObject::Prototype* m_Prototype;
+    dmGameObject::Prototype::Component* m_SavedComponents;
+    dmGameObject::Prototype::Component* m_Component;
+    dmGameObject::ComponentType m_Type;
+    uint32_t m_SavedComponentCount;
+    uint32_t m_SetterCount;
+    bool m_RefreshCollection;
+    dmVMath::Quat m_RefreshedRotations[3];
+    dmVMath::Matrix4 m_RefreshedMatrices[3];
+};
+
+// A setter refresh must commit pending rotations on the requested ancestor chain, leaving other branches cached.
+TEST_F(EulerRefreshAnimTest, EulerInstanceRefreshDuringEvaluation)
+{
+    TestRefresh(false, false);
+}
+
+// A collection refresh during evaluation must commit all pending Euler writes before calculating matrices.
+TEST_F(EulerRefreshAnimTest, EulerCollectionRefreshDuringEvaluation)
+{
+    TestRefresh(true, false);
+}
+
+// Refreshing an ancestor chain must retain Euler precedence over quaternion tracks evaluated later in the pass.
+TEST_F(EulerRefreshAnimTest, EulerInstanceRefreshBeforeQuaternionAnimation)
+{
+    TestRefresh(false, true);
+}
+
+// A collection refresh must retain final Euler writeback after subsequent quaternion animation pointer writes.
+TEST_F(EulerRefreshAnimTest, EulerCollectionRefreshBeforeQuaternionAnimation)
+{
+    TestRefresh(true, true);
+}
+
 // Separate axis tracks share one Euler value, including delayed writes and angles beyond one turn.
 TEST_F(AnimTest, EulerDelayedAxesAndCancellation)
 {
