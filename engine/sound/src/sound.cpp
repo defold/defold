@@ -277,6 +277,9 @@ namespace dmSound
 
     SoundSystem* g_SoundSystem = 0;
 
+    // Platform callbacks must not access SoundSystem, which can be opening or closing.
+    static int32_atomic_t g_DeviceResetRequested = 0;
+
     DeviceType* g_FirstDevice = 0;
 
     void SetDefaultInitializeParams(InitializeParams* params)
@@ -419,6 +422,7 @@ namespace dmSound
 
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
     {
+        dmAtomicStore32(&g_DeviceResetRequested, 0);
         Result r = PlatformInitialize(config, params);
         if (r != RESULT_OK) {
             return r;
@@ -1991,6 +1995,11 @@ namespace dmSound
     {
         DM_PROFILE(__FUNCTION__);
 
+        // Consume before reopening so a notification arriving during ResetDevice
+        // remains pending for the next update. Also handle changes while idle.
+        if (dmAtomicStore32(&g_DeviceResetRequested, 0))
+            sound->m_DeviceResetPending = true;
+
         if (sound->m_DeviceResetPending)
         {
             Result reset_result = ResetDevice(sound);
@@ -2215,6 +2224,11 @@ namespace dmSound
         }
         sound->m_DeviceResetPending = true;
         sound->m_IsDeviceStarted = false;
+    }
+
+    void RequestDeviceReset()
+    {
+        dmAtomicStore32(&g_DeviceResetRequested, 1);
     }
 
     void GetDecoderOutputSettings(DecoderOutputSettings* settings)

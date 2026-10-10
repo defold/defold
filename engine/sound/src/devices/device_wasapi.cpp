@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/time.h>
@@ -31,16 +32,84 @@
 
 namespace dmDeviceWasapi
 {
+    struct DeviceNotificationClient : IMMNotificationClient
+    {
+        int32_atomic_t m_References;
+
+        DeviceNotificationClient() : m_References(1)
+        {
+        }
+
+        HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** object)
+        {
+            if (!object)
+                return E_POINTER;
+            *object = 0;
+            if (iid != __uuidof(IUnknown) && iid != __uuidof(IMMNotificationClient))
+                return E_NOINTERFACE;
+            *object = static_cast<IMMNotificationClient*>(this);
+            AddRef();
+            return S_OK;
+        }
+
+        ULONG STDMETHODCALLTYPE AddRef()
+        {
+            return dmAtomicIncrement32(&m_References) + 1;
+        }
+
+        ULONG STDMETHODCALLTYPE Release()
+        {
+            ULONG references = dmAtomicDecrement32(&m_References) - 1;
+            if (!references)
+                delete this;
+            return references;
+        }
+
+        HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR)
+        {
+            if (flow == eRender && role == eConsole)
+            {
+                // Windows invokes this on a notification thread. Reopen on the
+                // sound thread, never while inside an MMDeviceAPI callback.
+                dmSound::RequestDeviceReset();
+            }
+            return S_OK;
+        }
+
+        HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(LPCWSTR, DWORD)
+        {
+            return S_OK;
+        }
+
+        HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR)
+        {
+            return S_OK;
+        }
+
+        HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR)
+        {
+            return S_OK;
+        }
+
+        HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(LPCWSTR, const PROPERTYKEY)
+        {
+            return S_OK;
+        }
+    };
+
     struct SoundDevice
     {
-        IAudioClient2*      m_AudioClient;
-        IAudioRenderClient* m_AudioRenderClient;
-        WAVEFORMATEX*       m_MixFormat;
-        HANDLE              m_ClientBufferEvent;
+        IMMDeviceEnumerator*      m_Enumerator;
+        DeviceNotificationClient* m_NotificationClient;
+        IAudioClient2*            m_AudioClient;
+        IAudioRenderClient*       m_AudioRenderClient;
+        WAVEFORMATEX*             m_MixFormat;
+        HANDLE                    m_ClientBufferEvent;
 
         uint32_t            m_Format;
         uint32_t            m_FrameCount;
         bool                m_DeviceInvalidated;
+        bool                m_CoInitialized;
 
         SoundDevice()
         {
@@ -76,6 +145,14 @@ namespace dmDeviceWasapi
         if (!device)
             return;
 
+        if (device->m_NotificationClient)
+        {
+            device->m_Enumerator->UnregisterEndpointNotificationCallback(device->m_NotificationClient);
+            device->m_NotificationClient->Release();
+        }
+        if (device->m_Enumerator)
+            device->m_Enumerator->Release();
+
         if (device->m_AudioRenderClient)
         {
             device->m_AudioRenderClient->Release();
@@ -88,12 +165,16 @@ namespace dmDeviceWasapi
             device->m_AudioClient = 0;
         }
 
-        if (INVALID_HANDLE_VALUE != device->m_ClientBufferEvent)
+        CoTaskMemFree(device->m_MixFormat);
+
+        if (device->m_ClientBufferEvent)
         {
             CloseHandle(device->m_ClientBufferEvent);
-            device->m_ClientBufferEvent = INVALID_HANDLE_VALUE;
+            device->m_ClientBufferEvent = 0;
         }
 
+        if (device->m_CoInitialized)
+            CoUninitialize();
         delete device;
     }
 
@@ -102,35 +183,53 @@ namespace dmDeviceWasapi
         assert(params);
         assert(outdevice);
 
-        CoInitializeEx(0, COINIT_APARTMENTTHREADED);
-
-        IMMDeviceEnumerator* imm_enumerator;
-        IMMDevice* imm_device;
-
-        // Create a device enumerator
-        HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), 0, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&imm_enumerator);
-        if (FAILED(hr))
+        HRESULT hr = CoInitializeEx(0, COINIT_APARTMENTTHREADED);
+        if (FAILED(hr) && hr != RPC_E_CHANGED_MODE)
         {
-            dmLogError("Failed to create device enumerator");
             CheckAndPrintError(hr);
-            return dmSound::RESULT_INIT_ERROR;
-        }
-        hr = imm_enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &imm_device);
-        if (FAILED(hr))
-        {
-            dmLogError("Failed to get default audio endpoint");
-            CheckAndPrintError(hr);
-            imm_enumerator->Release();
             return dmSound::RESULT_INIT_ERROR;
         }
 
         SoundDevice* device = new SoundDevice;
+        device->m_CoInitialized = SUCCEEDED(hr);
+        IMMDevice* imm_device;
+
+        // Create a device enumerator
+        hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), 0, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&device->m_Enumerator);
+        if (FAILED(hr))
+        {
+            dmLogError("Failed to create device enumerator");
+            CheckAndPrintError(hr);
+            DeleteDevice(device);
+            return dmSound::RESULT_INIT_ERROR;
+        }
+
+        // Register before selecting the endpoint so changes during open are not lost.
+        DeviceNotificationClient* notification_client = new DeviceNotificationClient;
+        hr = device->m_Enumerator->RegisterEndpointNotificationCallback(notification_client);
+        if (FAILED(hr))
+        {
+            dmLogError("Failed to register audio device notifications");
+            CheckAndPrintError(hr);
+            notification_client->Release();
+            DeleteDevice(device);
+            return dmSound::RESULT_INIT_ERROR;
+        }
+        device->m_NotificationClient = notification_client;
+
+        hr = device->m_Enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &imm_device);
+        if (FAILED(hr))
+        {
+            dmLogError("Failed to get default audio endpoint");
+            CheckAndPrintError(hr);
+            DeleteDevice(device);
+            return dmSound::RESULT_INIT_ERROR;
+        }
 
         // Activate the endpoint
-        hr = imm_device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, (void**)&device->m_AudioClient);
+        hr = imm_device->Activate(__uuidof(IAudioClient2), CLSCTX_ALL, nullptr, (void**)&device->m_AudioClient);
 
         imm_device->Release();
-        imm_enumerator->Release();
 
         if (FAILED(hr))
         {
@@ -164,6 +263,7 @@ namespace dmDeviceWasapi
             DeleteDevice(device);
             return dmSound::RESULT_INIT_ERROR;
         }
+        device->m_MixFormat = pformat;
 
         dmLogInfo("Mix format:");
         dmLogInfo("  wFormatTag:       %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x", pformat->wFormatTag, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
@@ -188,9 +288,13 @@ namespace dmDeviceWasapi
                 dmLogInfo("  nAvgBytesPerSec:  %d", pformat->nAvgBytesPerSec);
                 dmLogInfo("  nBlockAlign:      %d", pformat->nBlockAlign);
                 dmLogInfo("  wBitsPerSample:   %d", pformat->wBitsPerSample);
+                CoTaskMemFree(pformat);
                 pformat = closest;
+                device->m_MixFormat = pformat;
             }
         }
+        if (closest && closest != pformat)
+            CoTaskMemFree(closest);
 
         if (WAVE_FORMAT_EXTENSIBLE == pformat->wFormatTag)
         {
@@ -277,8 +381,6 @@ namespace dmDeviceWasapi
     static void DeviceWasapiClose(dmSound::HDevice device)
     {
         DeleteDevice((SoundDevice*)device);
-
-        CoUninitialize();
     }
 
     static uint32_t DeviceWasapiFreeBufferSlots(dmSound::HDevice _device)
