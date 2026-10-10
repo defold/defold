@@ -1032,6 +1032,101 @@ static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::
     DestroyVertexAttributeInfos(attribute_infos);
 }
 
+// Verifies normalized engine colors, defaults and packed overrides without changing raw integer conversion.
+TEST_F(dmGraphicsTest, VertexAttributeNormalizedColor)
+{
+    dmGraphics::VertexAttributeInfos infos;
+    InitializeVertexAttributeInfos(infos, 1);
+    AddAttribute(infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,
+        dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4,
+        dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    dmGraphics::VertexAttributeInfo& info = ((dmGraphics::VertexAttributeInfo*) infos.m_Infos)[0];
+    info.m_Normalize = true;
+    infos.m_VertexStride = 4;
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos = &infos;
+    float colors[] = { -0.5f, 0.5f, 1.5f, 0.0f, 0.25f, 0.75f, 0.0f, 1.0f };
+    const float* channels[] = { colors };
+    dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+    uint8_t actual[8] = {};
+    uint8_t expected[] = { 0, 128, 255, 0, 64, 191, 0, 255 };
+    ASSERT_EQ(actual + sizeof(actual), dmGraphics::WriteAttributes(actual, 0, 2, params));
+    ASSERT_VEC(expected, actual, 8);
+
+    // Missing alpha must be opaque in normalized storage too.
+    dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, true);
+    uint8_t expected_rgb[] = { 0, 128, 255, 255 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_rgb, actual, 4);
+
+    info.m_Normalize = false;
+    uint8_t expected_raw[] = { 0, 0, 1, 1 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_raw, actual, 4);
+    info.m_Normalize = true;
+
+    memset(&params.m_Colors, 0, sizeof(params.m_Colors));
+    uint8_t expected_default[] = { 255, 255, 255, 255 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_default, actual, 4);
+
+    uint8_t packed[] = { 17, 128, 231, 64 };
+    info.m_ValuePtr = packed;
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(packed, actual, 4);
+    info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
+    uint8_t expected_packed_rgb[] = { 17, 128, 231, 255 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_packed_rgb, actual, 4);
+    DestroyVertexAttributeInfos(infos);
+}
+
+// Verifies scalar normalization and exact 32-bit endpoints without overflow or double-packing.
+TEST_F(dmGraphicsTest, VertexAttributeNormalizedIntegerEndpoints)
+{
+    dmGraphics::VertexAttributeInfos infos;
+    InitializeVertexAttributeInfos(infos, 1);
+    AddAttribute(infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,
+        dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR,
+        dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    dmGraphics::VertexAttributeInfo& info = ((dmGraphics::VertexAttributeInfo*) infos.m_Infos)[0];
+    info.m_Normalize = true;
+    infos.m_VertexStride = 16;
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos = &infos;
+    float color[] = { 1.0f };
+    const float* channels[] = { color };
+    dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, channels, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, 1, true);
+    uint32_t actual[4] = {};
+    dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+    for (uint32_t i = 0; i < 4; ++i)
+        ASSERT_EQ(0xffffffffu, actual[i]);
+    info.m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
+    dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+    ASSERT_EQ(0x7fffffffu, actual[0]);
+    color[0] = -1.0f;
+    dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+    ASSERT_EQ(0x80000000u, actual[0]);
+    const dmGraphics::VertexAttribute::DataType types[] = {
+        dmGraphics::VertexAttribute::TYPE_BYTE, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE,
+        dmGraphics::VertexAttribute::TYPE_SHORT, dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT,
+        dmGraphics::VertexAttribute::TYPE_FLOAT
+    };
+    const float positive[] = { 64.0f, 128.0f, 16384.0f, 32768.0f, 0.5f };
+    const float negative[] = { -64.0f, 0.0f, -16384.0f, 0.0f, -0.5f };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(types); ++i)
+    {
+        info.m_DataType = types[i];
+        color[0] = 0.5f;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        ASSERT_EQ(positive[i], dmGraphics::VertexAttributeDataTypeToFloat(types[i], (uint8_t*) actual));
+        color[0] = -0.5f;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        ASSERT_EQ(negative[i], dmGraphics::VertexAttributeDataTypeToFloat(types[i], (uint8_t*) actual));
+    }
+    DestroyVertexAttributeInfos(infos);
+}
+
 TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 {
     dmGraphics::VertexAttributeInfos attribute_infos;
