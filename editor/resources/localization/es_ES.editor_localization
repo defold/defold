@@ -167,6 +167,9 @@ dialog.button.cancel = Cancelar
 dialog.button.delete = Eliminar
 dialog.button.apply = Aplicar
 
+# Model glTF Auto Fill Dialog
+
+
 # Error Dialog
 
 dialog.error.title = Error
@@ -1314,6 +1317,9 @@ property.camera.orthographic-mode = Modo de zoom ortográfico
 
 
 # Properties: font
+
+
+# Properties: glTF
 
 
 # Properties: gui
