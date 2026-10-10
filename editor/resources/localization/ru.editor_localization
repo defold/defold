@@ -167,6 +167,9 @@ dialog.button.cancel = Отмена
 dialog.button.delete = Удалить
 dialog.button.apply = Применить
 
+# Model glTF Auto Fill Dialog
+
+
 # Error Dialog
 
 dialog.error.title = Ошибка
@@ -1425,6 +1428,9 @@ property.font.style = Стиль
 property.font.style.tooltip = Базовый стиль выбранного шрифта. Оставьте пустым, чтобы не использовать базовый стиль. Встроенная разметка переопределяет выбранный стиль.
 property.font.markup = Разметка
 property.font.markup.tooltip = Открывающие теги форматированного текста, определяющие этот стиль. Поддерживаются все теги форматированного текста, включая размер, ссылки и спрайты.
+
+# Properties: glTF
+
 
 # Properties: gui
 
