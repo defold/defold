@@ -14,9 +14,12 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.util.Set;
+
 import org.junit.Test;
 
 import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
@@ -154,7 +157,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(0, luaSource.getBytecode().size());
         assertEquals(0, luaSource.getBytecode64().size());
         assertEquals(0, luaSource.getDelta().size());
-        assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
+        assertTrue(p.getOutputFlags("build" + path + "c").contains(Task.OutputFlags.UNCOMPRESSED));
     }
 
     @Test
@@ -171,8 +174,25 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(0, luaSource.getBytecode().size());
         assertEquals(0, luaSource.getBytecode64().size());
         assertEquals(0, luaSource.getDelta().size());
-        assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.ENCRYPTED));
-        assertFalse(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
+        assertTrue(p.getOutputFlags("build" + path + "c").contains(Task.OutputFlags.ENCRYPTED));
+        assertFalse(p.getOutputFlags("build" + path + "c").contains(Task.OutputFlags.UNCOMPRESSED));
+    }
+
+    // Verifies that every Lua output declares its archive flags before compilation, including cached and skipped builds.
+    @Test
+    public void testOutputFlagsDeclaredDuringTaskCreation() throws Exception {
+        Project project = getProject();
+        project.setOption("platform", "wasm-web");
+        for (boolean uncompressed : new boolean[]{false, true}) {
+            project.setOption("use-uncompressed-lua-source", Boolean.toString(uncompressed));
+            for (String extension : new String[]{".lua", ".script", ".gui_script", ".render_script"}) {
+                String path = "/flags_" + uncompressed + extension;
+                addFile(path, "function foo() print('foo') end");
+                Task task = project.createTask(project.getResource(path));
+                assertEquals(Set.of(uncompressed ? Task.OutputFlags.UNCOMPRESSED : Task.OutputFlags.ENCRYPTED),
+                        task.getOutputFlags(task.output(0)));
+            }
+        }
     }
 
     // Leaving these tests in case we decide to reintroduce bytecode generation for Lua 5.1.5

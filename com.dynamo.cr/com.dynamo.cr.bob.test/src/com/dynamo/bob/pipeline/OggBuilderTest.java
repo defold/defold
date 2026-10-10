@@ -14,8 +14,15 @@
 
 package com.dynamo.bob.pipeline;
 
+import static org.junit.Assert.assertEquals;
+
+import java.util.Set;
+
 import org.junit.Before;
 import org.junit.Test;
+
+import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
 
 public class OggBuilderTest extends AbstractProtoBuilderTest {
 
@@ -31,5 +38,21 @@ public class OggBuilderTest extends AbstractProtoBuilderTest {
                 "  component: \"/test.ogg\"\n" +
                 "}\n";
         build("/test.go", src);
+    }
+
+    // Verifies that streaming flags are declared when creating sound tasks, before compilation can be skipped or cached.
+    @Test
+    public void testSoundOutputFlagsDeclaredDuringTaskCreation() throws Exception {
+        Project project = getProject();
+        for (boolean streaming : new boolean[]{false, true}) {
+            project.setOption("sound-stream-enabled", Boolean.toString(streaming));
+            for (String extension : new String[]{".ogg", ".wav"}) {
+                String path = "/flags_" + streaming + extension;
+                addFile(path, getFile("/test.ogg"));
+                Task task = project.createTask(project.getResource(path));
+                Set<Task.OutputFlags> expected = streaming ? Set.of(Task.OutputFlags.UNCOMPRESSED) : Set.of();
+                assertEquals(expected, task.getOutputFlags(task.output(0)));
+            }
+        }
     }
 }
