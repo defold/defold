@@ -720,6 +720,131 @@ TEST_F(AnimTest, EulerPoolGrowthDuringCallback)
             ASSERT_NEAR(expected.getElem(axis), dmGameObject::GetRotation(state.m_Objects[i]).getElem(axis), 0.0001f);
 }
 
+// More than 65k tracks must evaluate correctly, including cancellation and reuse of high indices.
+TEST_F(AnimTest, AnimationPoolGrowthAndReuse)
+{
+    const uint32_t count = 100000;
+    dmGameObject::DeleteCollection(m_Collection);
+    dmGameObject::PostUpdate(m_Register);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, count + 1, 0);
+    ASSERT_NE((dmGameObject::HCollection)0, m_Collection);
+
+    dmArray<dmGameObject::HInstance> objects;
+    objects.EnsureSize(count);
+    dmGameObject::PropertyVar position_target(4.0f);
+    dmGameObject::PropertyVar euler_target(180.0f);
+    dmEasing::Curve easing(dmEasing::TYPE_LINEAR);
+    m_UpdateContext.m_DT = 0.25f;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, objects[i]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.x"),
+            dmGameObject::PLAYBACK_ONCE_FORWARD, position_target, easing, 1, 0, AnimationStopped, this, 0));
+        if (i % 20 < 3)
+        {
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("euler.z"),
+                dmGameObject::PLAYBACK_ONCE_FORWARD, euler_target, easing, 1, 0, 0, 0, 0));
+        }
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmVMath::Quat expected_rotation = dmVMath::EulerToQuat(dmVMath::Vector3(0, 0, 45));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        ASSERT_NEAR(1.0f, X(objects[i]), EPSILON);
+        if (i % 20 < 3)
+        {
+            for (uint32_t axis = 0; axis < 4; ++axis)
+                ASSERT_NEAR(expected_rotation.getElem(axis), dmGameObject::GetRotation(objects[i]).getElem(axis), 0.0001f);
+        }
+    }
+    dmGameObject::CancelAnimationCallbacks(m_Collection, this);
+    for (uint32_t i = 0; i < count; i += 2)
+    {
+        dmGameObject::CancelAnimations(m_Collection, objects[i]);
+        dmGameObject::Delete(m_Collection, objects[i], false);
+    }
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PropertyVar replacement_target(8.0f);
+    for (uint32_t i = 0; i < count; i += 2)
+    {
+        dmGameObject::HInstance previous = objects[i];
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, objects[i]);
+        ASSERT_NE(previous, objects[i]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.x"),
+            dmGameObject::PLAYBACK_ONCE_FORWARD, replacement_target, easing, 1, 0, AnimationStopped, this, 0));
+    }
+    for (uint32_t frame = 0; frame < 4; ++frame)
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < count; ++i)
+        ASSERT_NEAR((i & 1) ? 4.0f : 8.0f, X(objects[i]), EPSILON);
+    ASSERT_EQ(count / 2, m_FinishCount);
+    ASSERT_EQ(0u, m_CancelCount);
+}
+
+struct AnimationGrowthCallbackState
+{
+    AnimTest* m_Test;
+    dmArray<dmGameObject::HInstance> m_Objects;
+    bool m_Called;
+};
+
+static void CountGrowthAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+    bool finished, void* userdata1, void* userdata2)
+{
+    ASSERT_TRUE(finished);
+    ++((AnimTest*)userdata2)->m_FinishCount;
+}
+
+static void GrowAnimationsCallback(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+    bool finished, void* userdata1, void* userdata2)
+{
+    AnimationGrowthCallbackState* state = (AnimationGrowthCallbackState*)userdata1;
+    ASSERT_TRUE(finished);
+    state->m_Called = true;
+    dmGameObject::PropertyVar target(4.0f);
+    for (uint32_t i = 0; i < state->m_Objects.Size(); ++i)
+    {
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(state->m_Test->m_Collection, state->m_Objects[i], 0,
+            hash("position.x"), dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR),
+            1, 0, CountGrowthAnimationStopped, &state->m_Objects[i], state->m_Test));
+    }
+}
+
+// Completion callbacks may grow every animation container beyond 65k, including the listener table.
+TEST_F(AnimTest, AnimationPoolGrowthDuringCallback)
+{
+    const uint32_t count = 70000;
+    dmGameObject::DeleteCollection(m_Collection);
+    dmGameObject::PostUpdate(m_Register);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, count + 1, 0);
+    ASSERT_NE((dmGameObject::HCollection)0, m_Collection);
+
+    AnimationGrowthCallbackState state;
+    state.m_Test = this;
+    state.m_Called = false;
+    state.m_Objects.EnsureSize(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        state.m_Objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, state.m_Objects[i]);
+    }
+    dmGameObject::PropertyVar target(1.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, state.m_Objects[0], 0, hash("position.y"),
+        dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR),
+        0.25f, 0, GrowAnimationsCallback, &state, 0));
+    m_UpdateContext.m_DT = 0.25f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(state.m_Called);
+    ASSERT_EQ(0u, m_FinishCount);
+    m_UpdateContext.m_DT = 1.0f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < count; ++i)
+        ASSERT_NEAR(4.0f, X(state.m_Objects[i]), EPSILON);
+    ASSERT_EQ(count, m_FinishCount);
+}
+
 TEST_F(AnimTest, LoadTest)
 {
     const uint32_t count = 1024;

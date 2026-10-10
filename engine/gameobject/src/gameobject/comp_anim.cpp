@@ -37,8 +37,7 @@ DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, PROFILE_PROPERTY_FRAME_RESET, "#", &rmtp
 
 namespace dmGameObject
 {
-#define INVALID_INDEX 0xffff
-#define MAX_CAPACITY 65000u
+#define INVALID_INDEX 0xffffffffu
 #define MIN_CAPACITY_GROWTH 2048u
 
     static const dmhash_t PROP_EULER_X = dmHashString64("euler.x");
@@ -62,10 +61,10 @@ namespace dmGameObject
         AnimationStopped    m_AnimationStopped;
         void*               m_Userdata1;
         void*               m_Userdata2;
-        uint16_t            m_PreviousListener;
-        uint16_t            m_NextListener;
-        uint16_t            m_Index;
-        uint16_t            m_Next;
+        uint32_t            m_PreviousListener;
+        uint32_t            m_NextListener;
+        uint32_t            m_Index;
+        uint32_t            m_Next;
         uint16_t            m_Playing : 1;
         uint16_t            m_Finished : 1;
         uint16_t            m_Composite : 1;
@@ -80,15 +79,30 @@ namespace dmGameObject
     struct AnimWorld
     {
         dmArray<Animation>                  m_Animations;
-        dmArray<uint16_t>                   m_AnimMap;
-        dmIndexPool<uint16_t>               m_AnimMapIndexPool;
-        dmHashTable<HGameObject, uint16_t>  m_InstanceToIndex;
-        dmHashTable<uintptr_t, uint16_t>    m_ListenerInstanceToIndex;
+        dmArray<uint32_t>                   m_AnimMap;
+        dmIndexPool<uint32_t>               m_AnimMapIndexPool;
+        dmHashTable<HGameObject, uint32_t>   m_InstanceToIndex;
+        dmHashTable<uintptr_t, uint32_t>     m_ListenerInstanceToIndex;
         dmArray<EulerRotation>              m_EulerRotations;
         dmHashTable<HGameObject, uint32_t>   m_InstanceToEulerIndex;
         uint32_t                            m_FirstFreeEulerIndex;
         uint32_t                            m_InUpdate : 1;
     };
+
+    static uint32_t GetAnimationCapacity(uint32_t capacity)
+    {
+        // dmArray uses 32-bit byte sizes. Animation is the largest element in the shared containers.
+        const uint32_t max_capacity = 0xffffffffu / sizeof(Animation);
+        const uint32_t growth = dmMath::Max(MIN_CAPACITY_GROWTH, capacity / 2);
+        return capacity + dmMath::Min(growth, max_capacity - capacity);
+    }
+
+    static void SetAnimationCapacity(AnimWorld* world, uint32_t capacity)
+    {
+        world->m_Animations.SetCapacity(capacity);
+        world->m_AnimMap.EnsureSize(capacity);
+        world->m_AnimMapIndexPool.SetCapacity(capacity);
+    }
 
     static AnimWorld* GetWorld(Collection* collection);
 
@@ -170,12 +184,10 @@ namespace dmGameObject
             AnimWorld* world = new AnimWorld();
             *params.m_World = world;
             const uint32_t anim_count = 512;
-            world->m_Animations.SetCapacity(anim_count);
-            world->m_AnimMap.EnsureSize(MAX_CAPACITY);
-            world->m_AnimMapIndexPool.SetCapacity(MAX_CAPACITY);
+            SetAnimationCapacity(world, anim_count);
             // This is fetched from res_collection.cpp (ResCollectionCreate)
-            const int32_t instance_count = params.m_MaxInstances;
-            const uint32_t table_count = dmMath::Max(1, instance_count/3);
+            const uint32_t instance_count = dmMath::Min((uint32_t)params.m_MaxInstances, anim_count);
+            const uint32_t table_count = dmMath::Max(1u, instance_count/3);
             world->m_InstanceToIndex.SetCapacity(table_count, instance_count);
             world->m_ListenerInstanceToIndex.SetCapacity(table_count, instance_count);
             world->m_FirstFreeEulerIndex = INVALID_INSTANCE_INDEX;
@@ -207,11 +219,11 @@ namespace dmGameObject
         anim->m_Playing = 0;
     }
 
-    static void StopAnimations(AnimWorld* world, uint16_t* head_ptr, dmhash_t component_id, dmhash_t property_id)
+    static void StopAnimations(AnimWorld* world, uint32_t* head_ptr, dmhash_t component_id, dmhash_t property_id)
     {
         if (head_ptr != 0x0)
         {
-            uint16_t index = *head_ptr;
+            uint32_t index = *head_ptr;
             while (index != INVALID_INDEX)
             {
                 Animation* anim = &world->m_Animations[world->m_AnimMap[index]];
@@ -224,11 +236,11 @@ namespace dmGameObject
         }
     }
 
-    static void StopAllAnimations(AnimWorld* world, uint16_t* head_ptr)
+    static void StopAllAnimations(AnimWorld* world, uint32_t* head_ptr)
     {
         if (head_ptr != 0x0)
         {
-            uint16_t index = *head_ptr;
+            uint32_t index = *head_ptr;
             while (index != INVALID_INDEX)
             {
                 Animation* anim = &world->m_Animations[world->m_AnimMap[index]];
@@ -309,13 +321,13 @@ namespace dmGameObject
                     }
                 }
                 // Cancel other currently playing animations
-                uint16_t* head_ptr = world->m_InstanceToIndex.Get(anim.m_Instance);
+                uint32_t* head_ptr = world->m_InstanceToIndex.Get(anim.m_Instance);
                 if (head_ptr != 0x0)
                 {
-                    uint16_t index = *head_ptr;
+                    uint32_t index = *head_ptr;
                     while (index != INVALID_INDEX)
                     {
-                        uint16_t anim_index = world->m_AnimMap[index];
+                        uint32_t anim_index = world->m_AnimMap[index];
                         Animation* a2 = &world->m_Animations[anim_index];
                         if (anim_index != i && !a2->m_FirstUpdate && a2->m_ComponentId == anim.m_ComponentId
                                 && a2->m_PropertyId == anim.m_PropertyId && a2->m_Delay <= 0.0f)
@@ -462,8 +474,8 @@ namespace dmGameObject
                         anim->m_Easing.release_callback(&anim->m_Easing);
                     }
                 }
-                uint16_t* head_ptr = world->m_InstanceToIndex.Get(anim->m_Instance);
-                uint16_t* index_ptr = head_ptr;
+                uint32_t* head_ptr = world->m_InstanceToIndex.Get(anim->m_Instance);
+                uint32_t* index_ptr = head_ptr;
                 while (*index_ptr != INVALID_INDEX)
                 {
                     if (*index_ptr == anim->m_Index)
@@ -533,20 +545,24 @@ namespace dmGameObject
                      bool composite)
     {
         uint32_t top = world->m_Animations.Size();
-        if (top == MAX_CAPACITY)
+        if (world->m_Animations.Full())
         {
-            dmLogError("Animation could not be stored since the buffer is full (%d).", MAX_CAPACITY);
-            return false;
+            uint32_t capacity = GetAnimationCapacity(world->m_Animations.Capacity());
+            if (capacity == world->m_Animations.Capacity())
+            {
+                dmLogError("Animation could not be stored since the buffer reached its byte-size limit (%u).", capacity);
+                return false;
+            }
+            SetAnimationCapacity(world, capacity);
         }
-        uint16_t index = world->m_AnimMapIndexPool.Pop();
-        uint16_t* index_ptr = world->m_InstanceToIndex.Get(instance);
+        uint32_t index = world->m_AnimMapIndexPool.Pop();
+        uint32_t* index_ptr = world->m_InstanceToIndex.Get(instance);
         if (index_ptr == 0x0)
         {
             if (world->m_InstanceToIndex.Full())
             {
-                dmLogError("Animation could not be stored since the instance buffer is full (%d).", world->m_InstanceToIndex.Size());
-                world->m_AnimMapIndexPool.Push(index);
-                return false;
+                uint32_t capacity = GetAnimationCapacity(world->m_InstanceToIndex.Capacity());
+                world->m_InstanceToIndex.SetCapacity(dmMath::Max(1u, capacity / 3), capacity);
             }
             world->m_InstanceToIndex.Put(instance, index);
         }
@@ -560,14 +576,6 @@ namespace dmGameObject
             last_anim->m_Next = index;
         }
 
-        if (world->m_Animations.Full())
-        {
-            // Growth heuristic is to grow with the mean of MIN_CAPACITY_GROWTH and half current capacity, and at least MIN_CAPACITY_GROWTH
-            uint32_t capacity = world->m_Animations.Capacity();
-            uint32_t growth = dmMath::Min(MIN_CAPACITY_GROWTH, (MIN_CAPACITY_GROWTH + capacity / 2) / 2);
-            capacity = dmMath::Min(capacity + growth, MAX_CAPACITY);
-            world->m_Animations.SetCapacity(capacity);
-        }
         uint32_t anim_count = top + 1;
         world->m_Animations.SetSize(anim_count);
 
@@ -622,8 +630,8 @@ namespace dmGameObject
             {
                 if (world->m_ListenerInstanceToIndex.Full())
                 {
-                    dmLogError("Animation listener could not be stored since the buffer is full (%d).", world->m_ListenerInstanceToIndex.Size());
-                    return false;
+                    uint32_t capacity = GetAnimationCapacity(world->m_ListenerInstanceToIndex.Capacity());
+                    world->m_ListenerInstanceToIndex.SetCapacity(dmMath::Max(1u, capacity / 3), capacity);
                 }
             }
             else
@@ -771,7 +779,7 @@ namespace dmGameObject
         }
 
         AnimWorld* world = GetWorld(collection);
-        uint16_t* head_ptr = world->m_InstanceToIndex.Get(instance);
+        uint32_t* head_ptr = world->m_InstanceToIndex.Get(instance);
         StopAnimations(world, head_ptr, component_id, property_id);
         if (element_count > 1)
         {
@@ -792,14 +800,14 @@ namespace dmGameObject
         }
         else
         {
-            uint16_t* head_ptr = world->m_InstanceToIndex.Get(instance);
+            uint32_t* head_ptr = world->m_InstanceToIndex.Get(instance);
             if (head_ptr != 0x0)
             {
                 uint32_t anim_count = world->m_Animations.Size();
-                uint16_t index = *head_ptr;
+                uint32_t index = *head_ptr;
                 while (index != INVALID_INDEX)
                 {
-                    uint16_t anim_index = world->m_AnimMap[index];
+                    uint32_t anim_index = world->m_AnimMap[index];
                     Animation* anim = &world->m_Animations[anim_index];
                     StopAnimation(anim, false);
                     if (anim->m_AnimationStopped != 0x0)
@@ -815,7 +823,7 @@ namespace dmGameObject
                     world->m_AnimMapIndexPool.Push(index);
                     index = anim->m_Next;
                     // delete the instance from the list
-                    anim_index = (uint16_t)(anim - world->m_Animations.Begin());
+                    anim_index = (uint32_t)(anim - world->m_Animations.Begin());
                     anim = &world->m_Animations.EraseSwap(anim_index);
                     --anim_count;
                     if (anim_count > anim_index)
@@ -843,24 +851,24 @@ namespace dmGameObject
 
     static void RemoveAnimationCallback(AnimWorld* world, Animation* anim)
     {
-        uint16_t previous = anim->m_PreviousListener;
-        uint16_t next = anim->m_NextListener;
+        uint32_t previous = anim->m_PreviousListener;
+        uint32_t next = anim->m_NextListener;
 
         if (INVALID_INDEX != previous)
         {
-            uint16_t anim_index_prev = world->m_AnimMap[previous];
+            uint32_t anim_index_prev = world->m_AnimMap[previous];
             world->m_Animations[anim_index_prev].m_NextListener = next;
         }
         if (INVALID_INDEX != next)
         {
-            uint16_t anim_index_next = world->m_AnimMap[next];
+            uint32_t anim_index_next = world->m_AnimMap[next];
             world->m_Animations[anim_index_next].m_PreviousListener = previous;
         }
         if (INVALID_INDEX == previous)
         {
             if (INVALID_INDEX == next)
             {
-                uint16_t* p = world->m_ListenerInstanceToIndex.Get((uintptr_t)anim->m_Userdata1);
+                uint32_t* p = world->m_ListenerInstanceToIndex.Get((uintptr_t)anim->m_Userdata1);
                 if (p != 0)
                     world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
             }
@@ -883,13 +891,13 @@ namespace dmGameObject
         AnimWorld* const world = GetWorld(collection);
         if (!world)
             return;
-        uint16_t* head_ptr = world->m_ListenerInstanceToIndex.Get((uintptr_t)userdata1);
+        uint32_t* head_ptr = world->m_ListenerInstanceToIndex.Get((uintptr_t)userdata1);
         if (0x0 != head_ptr)
         {
-            uint16_t index = *head_ptr;
+            uint32_t index = *head_ptr;
             while (INVALID_INDEX != index)
             {
-                uint16_t anim_index = world->m_AnimMap[index];
+                uint32_t anim_index = world->m_AnimMap[index];
                 Animation* const anim = &world->m_Animations[anim_index];
 
                 index = anim->m_NextListener;
