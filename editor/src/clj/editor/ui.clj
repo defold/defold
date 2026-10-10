@@ -760,8 +760,7 @@
                (when (zero? suppress-count)
                  (listen-fn old new))))))
 
-(defn- apply-default-css!
-  ^Parent [root theme]
+(defn- apply-default-css! [^Parent root theme]
   (let [resolved-theme (resolve-theme theme)
         css-resource (theme-css-resource resolved-theme)]
     (.. root getStylesheets (add (str (io/resource css-resource)))))
