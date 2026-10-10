@@ -548,12 +548,27 @@
         resolved-theme (resolve-theme (prefs/get prefs [:window :theme]))]
     (str (io/resource (theme-css-resource resolved-theme)))))
 
+(defn apply-theme-css!
+  "Ensures exactly one theme stylesheet is active on the root: replaces any
+  stylesheet the root holds that belongs to the theme system with the one
+  selected by the supplied theme preference value, keeping all other
+  stylesheets in order."
+  [^Parent root theme]
+  (let [resolved-theme (resolve-theme theme)
+        theme-url (str (io/resource (theme-css-resource resolved-theme)))
+        theme-urls (theme-css-urls)
+        non-theme-stylesheets (into [] (remove theme-urls) (vec (.getStylesheets root)))]
+    (when-let [scene (.getScene root)]
+      (.forget (com.sun.javafx.css.StyleManager/getInstance) scene))
+    (.setAll (.getStylesheets root) ^Collection (into [theme-url] non-theme-stylesheets)))
+  nil)
+
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
     (let [root ^Parent (.getRoot scene)
           theme-urls (theme-css-urls)
           ;; Keep everything that is not a theme stylesheet (user CSS, ...).
-          non-theme-styles (remove theme-urls (vec (.getStylesheets root)))
+          non-theme-styles (into [] (remove theme-urls) (vec (.getStylesheets root)))
           styles (into [(current-theme-css-url)] non-theme-styles)]
       (.forget (com.sun.javafx.css.StyleManager/getInstance) scene)
       (.setAll (.getStylesheets root) ^Collection styles))))
@@ -759,33 +774,19 @@
   nil)
 
 (defn apply-css!
-  "Applies the theme stylesheet selected in preferences, followed by any
-  user stylesheet."
-  (^Parent [root]
-   (apply-css! root (prefs/get (prefs/global) [:window :theme])))
-  (^Parent [root theme]
-   (apply-default-css! root theme)
-   (apply-user-css! root)))
+  "Applies the theme stylesheet for the supplied theme preference value,
+  followed by any user stylesheet."
+  [^Parent root theme]
+  (apply-default-css! root theme)
+  (apply-user-css! root))
 
 (defn load-fxml
-  "Loads an FXML file and applies stylesheets to it.
-
-  One arity applies any user stylesheet on top of whatever stylesheets the
-  FXML declares itself. Two arity additionally ensures exactly one theme
-  stylesheet is active: any stylesheet the FXML declared that belongs to
-  the theme system is replaced by the one selected in preferences."
-  (^Parent [path]
-   (let [root ^Parent (FXMLLoader/load (io/resource path))]
-     (apply-user-css! root)
-     root))
-  (^Parent [path theme]
-   (let [root ^Parent (load-fxml path)
-         theme-urls (theme-css-urls)
-         non-theme-styles (remove theme-urls (vec (.getStylesheets root)))
-         resolved-theme (resolve-theme theme)
-         theme-url (str (io/resource (theme-css-resource resolved-theme)))]
-     (.setAll (.getStylesheets root) ^Collection (into [theme-url] non-theme-styles))
-     root)))
+  "Loads an FXML file and applies any user stylesheet on top of whatever
+  stylesheets the FXML declares itself."
+  ^Parent [path]
+  (let [root ^Parent (FXMLLoader/load (io/resource path))]
+    (apply-user-css! root)
+    root))
 
 (defn start-theme-watcher!
   "Starts a background poll that reloads root styles whenever the operating

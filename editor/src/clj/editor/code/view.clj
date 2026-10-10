@@ -3228,7 +3228,7 @@
       (hide-hover! view-node)
       (hide-suggestions! view-node)
       (doto list-view
-        ui/apply-css!
+        (ui/apply-css! (prefs/get (prefs/global) [:window :theme]))
         (.setOnMouseClicked
           (ui/event-handler event
             (when-let [item (ui/cell-item-under-mouse event)]

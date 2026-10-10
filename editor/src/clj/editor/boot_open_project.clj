@@ -174,7 +174,8 @@
 
 (defn- load-stage! [workspace project prefs localization project-path cli-options updater newly-created?]
   (let [theme (prefs/get prefs [:window :theme])
-        ^StackPane root (ui/load-fxml "editor.fxml" theme)
+        ^StackPane root (doto (ui/load-fxml "editor.fxml")
+                          (ui/apply-theme-css! theme))
         stage (ui/make-stage)
         scene (Scene. root)]
     (ui/install-external-drag-guard! scene)
