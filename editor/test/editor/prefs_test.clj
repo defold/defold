@@ -1001,3 +1001,28 @@
             (is (not (prefs/set? p []))))
           (finally
             (prefs/unregister-schema! schema-id)))))))
+
+;; Verifies the built-in :window :theme preference accepts every value
+;; offered in the theme selector. Guards against tightening the enum schema
+;; so that a selectable value fails validation when set.
+(deftest theme-pref-schema-accepts-all-selectable-values
+  (let [schema (get-in prefs/default-schema [:properties :window :properties :theme])]
+    (is (some? schema))
+    (doseq [value (:values schema)]
+      (is (prefs/valid? schema value) (str value " should be a valid theme")))))
+
+;; Verifies the built-in :window :theme preference rejects values that are
+;; not selectable in the UI, including nil. Guards against writing invalid
+;; values into prefs.editor_settings, which would throw when persisted.
+(deftest theme-pref-schema-rejects-unknown-values
+  (let [schema (get-in prefs/default-schema [:properties :window :properties :theme])]
+    (is (some? schema))
+    (doseq [value [nil :banana "dark"]]
+      (is (not (prefs/valid? schema value)) (str value " should not be a valid theme")))))
+
+;; Verifies the theme preference defaults to :system so a fresh install
+;; follows the operating system theme.
+(deftest theme-pref-defaults-to-system
+  (let [schema (get-in prefs/default-schema [:properties :window :properties :theme])]
+    (is (some? schema))
+    (is (= :system (prefs/default-value schema)))))
