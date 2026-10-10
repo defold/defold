@@ -229,6 +229,38 @@
                                                        (on-value-changed axis))))}))
                     axes)}})
 
+(defn- make-set-cam-view-row [{:keys [label on-view-changed]}]
+  (let [view-button
+        (fn [axis sign]
+          (let [view-type (case [axis sign]
+                            [:x 1] :right
+                            [:x -1] :left
+                            [:y 1] :top
+                            [:y -1] :bottom
+                            [:z 1] :front
+                            [:z -1] :back)]
+            {:fx/type fx.button/lifecycle
+             :text (str (if (neg? sign) "-" "+") (string/upper-case (name axis)))
+             :style-class ["toggle-button" "plane-toggle"]
+             :on-action (fn [^ActionEvent e]
+                          (when on-view-changed
+                            (on-view-changed view-type))
+                          (.requestFocus (.getParent ^Node (.getSource e))))}))
+        axis-rows
+        (fn [sign]
+          {:fx/type fxui/horizontal
+           :style-class "spaced"
+           :children (mapv (fn [axis] (view-button axis sign)) axes)})]
+    {:fx/type fxui/horizontal
+     :style-class "spaced"
+     :children [{:fx/type fxui/label
+                 :text (or label "")
+                 :h-box/hgrow :always
+                 :max-width Double/MAX_VALUE}
+                {:fx/type fxui/vertical
+                 :style-class "spaced"
+                 :children (mapv axis-rows [1,-1])}]}))
+
 (defn- make-reset-button [{:keys [text swap-state on-reset]}]
   {:fx/type fxui/horizontal
    :style-class "reset-button"
@@ -252,6 +284,9 @@
       :color       (assoc descriptor-with-state :fx/type make-color-row :label (label))
       :vec3-floats (assoc descriptor-with-state :fx/type make-vec3-floats-row)
       :vec3-toggle (assoc descriptor-with-state :fx/type make-vec3-toggle-row :label (label))
+      :set-cam-view {:fx/type make-set-cam-view-row
+                     :label (localization-state (localization/message "menu.view"))
+                     :on-view-changed (:on-view-changed descriptor)}
       :reset-all   {:fx/type make-reset-button
                     :text (localization-state (localization/message "scene-popup.reset-defaults-button"))
                     :swap-state swap-state
@@ -323,6 +358,7 @@
                :color        a labeled color picker
                :vec3-floats  three labeled float input fields for X/Y/Z
                :vec3-toggle  a labeled group of X/Y/Z toggle buttons
+               :set-cam-view two rows of three directional buttons for translating +x/+y/+z and -x/-y/-z
                :reset-all    a button that resets all settings to defaults
                :space        an empty spacer row
                :separator    a horizontal rule divider

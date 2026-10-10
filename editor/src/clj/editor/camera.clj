@@ -637,16 +637,29 @@
     :orthographic (camera-orthographic-frame-aabb camera viewport aabb)
     :perspective (camera-perspective-frame-aabb camera aabb)))
 
+(def ^:private camera-view-types
+  {;; view-type  -> unit direction from focus, euler rotation, plane axis
+   :front  {:dir [0.0  0.0  1.0] :euler [0.0    0.0 0.0] :plane :z}
+   :back   {:dir [0.0  0.0 -1.0] :euler [0.0  180.0 0.0] :plane :z}
+   :right  {:dir [1.0  0.0  0.0] :euler [0.0   90.0 0.0] :plane :x}
+   :left   {:dir [-1.0  0.0  0.0] :euler [0.0  -90.0 0.0] :plane :x}
+   :top    {:dir [0.0  1.0  0.0] :euler [-90.0    0.0 0.0] :plane :y}
+   :bottom {:dir [0.0 -1.0  0.0] :euler [90.0    0.0 0.0] :plane :y}})
+
 (defn camera-orthographic-realign ^Camera
-  [^Camera camera]
-  {:pre [(= :orthographic (:type camera))]}
-  (let [focus ^Vector4d (:focus-point camera)
-        delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
-                          (.sub focus))
-        dist (.length delta)]
-    (assoc camera
-      :position (Point3d. (.x focus) (.y focus) dist)
-      :rotation (Quat4d. 0.0 0.0 0.0 1.0))))
+  ([^Camera camera view-type]
+   {:pre [(= :orthographic (:type camera))
+          (contains? camera-view-types view-type)]}
+   (let [{:keys [dir euler]} (camera-view-types view-type)
+         ^Vector4d focus (:focus-point camera)
+         ^Point3d pos    (:position camera)
+         dist (.length (doto (Vector4d. pos) (.sub focus)))
+         [dx dy dz] dir]
+     (assoc camera
+       :position (Point3d. (+ (.x focus) (* dx dist))
+                           (+ (.y focus) (* dy dist))
+                           (+ (.z focus) (* dz dist)))
+       :rotation (math/euler->quat euler)))))
 
 (defn camera-orthographic-frame-aabb-y
   ^Camera [^Camera camera ^Region viewport ^AABB aabb]
@@ -932,15 +945,36 @@
                          (= (:type camera-3d) :perspective)
                          (camera-orthographic->perspective (perspective-fov-y camera-node)))]
          (set-camera! camera-node local-cam camera-3d animate))
-       (let [is-perspective (= (:type local-cam) :perspective)]
+       (let [is-perspective (= (:type local-cam) :perspective)
+             realign-ortho (fn [camera] (camera-orthographic-realign camera :front))]
          (g/transact
            {:undoable false}
            (g/set-property camera-node :cached-3d-camera local-cam))
          (let [end-camera (cond-> local-cam
                             is-perspective camera-perspective->orthographic
-                            :always camera-orthographic-realign
+                            :always realign-ortho
                             is-perspective (camera-orthographic->perspective (perspective-fov-y camera-node)))]
            (set-camera! camera-node local-cam end-camera animate #(set-camera-type! camera-node :orthographic))))))))
+
+(defn realign-camera-to-view!
+  "Realigns the 3D camera to `view-type` and calls `on-plane-changed` with the
+  resulting grid plane (:x, :y or :z). Only reachable from the camera settings
+  popup, which is unavailable in 2D mode."
+  [camera-node view-type on-plane-changed]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [local-cam (g/node-value camera-node :local-camera evaluation-context)
+          is-perspective (= (:type local-cam) :perspective)
+          realign (fn [camera] (camera-orthographic-realign camera view-type))
+          end-camera (cond-> local-cam
+                       is-perspective camera-perspective->orthographic
+                       :always realign
+                       is-perspective (camera-orthographic->perspective (perspective-fov-y camera-node)))]
+      (g/transact
+        {:undoable false}
+        (g/set-property camera-node :cached-3d-camera local-cam))
+      (set-camera! camera-node local-cam end-camera false)
+      (when on-plane-changed
+        (on-plane-changed (:plane (camera-view-types view-type)))))))
 
 (defn- contains-key-code? [pressed-keys key-codes] (some #(contains? pressed-keys %) key-codes))
 
@@ -1338,7 +1372,7 @@
     :action ["Dolly"]
     :binding {:button :primary :modifiers #{:control :alt}}}])
 
-(defn show-settings! [camera-node ^Parent owner prefs keymap localization]
+(defn show-settings! [camera-node ^Parent owner prefs keymap localization on-plane-changed]
   (let [persp-fov-fn
         (fn persp-fov-fn [^double value]
           (let [camera (g/node-value camera-node :local-camera)
@@ -1358,6 +1392,9 @@
                       (prefs/reset-path! prefs [:scene :perspective-camera])
                       (swap-state merge (prefs/get prefs [:scene :perspective-camera]))
                       (persp-fov-fn (prefs/get prefs prefs-key-fov)))}
+         {:type :set-cam-view
+          :on-view-changed (fn [view-type]
+                             (realign-camera-to-view! camera-node view-type on-plane-changed))}
          {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0 :snap-to 0.25
           :value (prefs/get prefs prefs-key-move-speed)
           :on-value-changed #(prefs/set! prefs prefs-key-move-speed %)
