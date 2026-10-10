@@ -525,7 +525,9 @@
                  0.0
                  items))))
 
-(defn- theme-css-resource [theme]
+(defn theme-css-resource
+  "Returns the stylesheet resource name for the supplied resolved theme."
+  [theme]
   (case theme
     :light "editor-light.css"
     "editor.css"))
@@ -550,7 +552,11 @@
    (str (io/resource "dialogs.css")) (str (io/resource "dialogs-light.css"))
    (str (io/resource "splash.css")) (str (io/resource "splash-light.css"))})
 
-(defn- themed-stylesheet-urls [stylesheet-urls theme]
+(defn themed-stylesheet-urls
+  "Rewrites the theme-owned stylesheet URLs in the supplied collection to
+  their light counterparts when the theme is :light, leaving every other
+  URL (and the order) untouched. Public for tests."
+  [stylesheet-urls theme]
   (if (= :light theme)
     (map #(get light-theme-css-replacements % %) stylesheet-urls)
     stylesheet-urls))
