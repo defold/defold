@@ -58,7 +58,7 @@ if(WITH_METAL AND TARGET graphics_metal)
   defold_register_test_target(test_graphics_metal OFF)
 endif()
 
-if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
+if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
   defold_get_graphics_symbols(_graphics_app_symbols "${TARGET_PLATFORM}")
 
   if(_graphics_app_symbols)
@@ -117,14 +117,14 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
     endif()
     defold_target_link_libraries_web(test_app_graphics "${TARGET_PLATFORM}" library_sys.js)
     defold_register_test_target(test_app_graphics OFF)
-    if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
+    if((NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$") OR TARGET_PLATFORM STREQUAL "arm64_sim-ios")
       # Follow fontviewer: generate aligned embedded assets in the build directory.
       set(_graphics_capture_generated "${CMAKE_CURRENT_BINARY_DIR}/graphics_capture_generated")
-      set(_graphics_capture_shaders vp fp cube.fp vp.msl fp.msl cube.fp.msl vp.wgsl fp.wgsl cube.fp.wgsl)
+      set(_graphics_capture_shaders vp fp cube.fp vp.msl fp.msl cube.fp.msl vp.wgsl fp.wgsl cube.fp.wgsl texture.fp texture.fp.msl texture.fp.wgsl)
       if("GraphicsAdapterVulkan" IN_LIST _graphics_app_symbols)
         find_program(_graphics_glslang NAMES glslang glslangValidator
           HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
-        foreach(_shader IN ITEMS vert frag cube.frag)
+        foreach(_shader IN ITEMS vert frag cube.frag texture.frag)
           if(_shader STREQUAL "vert")
             set(_stage vert)
           else()
@@ -154,11 +154,39 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
       endforeach()
       target_include_directories(test_app_graphics PRIVATE "${_graphics_capture_generated}")
       target_sources(test_app_graphics PRIVATE "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.cpp")
-      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_GRAPHICS_CAPTURE)
+      set(_graphics_texture_dir "${GRAPHICS_TEST_SRC_DIR}/texture_formats")
+      if(TARGET_PLATFORM STREQUAL "arm64_sim-ios")
+        set(_graphics_texture_dir "texture_formats")
+      endif()
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_GRAPHICS_CAPTURE
+        DM_TEST_GRAPHICS_PLATFORM="${TARGET_PLATFORM}"
+        DM_TEST_TEXTURE_FORMATS_DIR="${_graphics_texture_dir}")
 
       _defold_find_python(_graphics_python)
+      # Compile fixture variants with the freshly built host tool. Cross builds
+      # consume the checked-in variants and never execute a target-platform tool.
+      if(NOT CMAKE_CROSSCOMPILING AND TARGET shaderc_standalone)
+        find_program(_graphics_glslang NAMES glslang glslangValidator
+          HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+        # Some Tint packages lack execute permission; the generator stages an executable copy.
+        find_file(_graphics_tint NAMES "tint${CMAKE_EXECUTABLE_SUFFIX}"
+          HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+        set(_graphics_shader_tests "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_shaders.py"
+          --glslang "${_graphics_glslang}" --shaderc "$<TARGET_FILE:shaderc_standalone>"
+          --tint "${_graphics_tint}" --java "${DEFOLD_JAVA_EXECUTABLE}")
+        add_custom_target(run_test_graphics_shaders
+          COMMAND ${_graphics_shader_tests}
+          DEPENDS shaderc_standalone
+          VERBATIM)
+        defold_add_to_run_tests(run_test_graphics_shaders RUN_GROUP graphics
+          COMMAND ${_graphics_shader_tests} DEPENDS shaderc_standalone)
+        defold_register_sequential_test_command(graphics_shaders
+          COMMAND ${_graphics_shader_tests} DEPENDS shaderc_standalone)
+      endif()
       defold_test_run_settings(_graphics_runner _graphics_run_options graphics)
-      if(TARGET_PLATFORM MATCHES "macos$")
+      if(TARGET_PLATFORM STREQUAL "arm64_sim-ios")
+        set(_graphics_matrix metal vulkan)
+      elseif(TARGET_PLATFORM MATCHES "macos$")
         set(_graphics_matrix metal opengl vulkan webgpu)
       elseif(TARGET_PLATFORM MATCHES "linux$")
         set(_graphics_matrix vulkan)
@@ -180,13 +208,17 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
           list(APPEND _graphics_available "${_backend}")
         endif()
       endforeach()
-      set(_graphics_python_command "${CMAKE_COMMAND}" -E env
-        "GRAPHICS_CAPTURE_EXECUTABLE=$<TARGET_FILE:test_app_graphics>"
+      set(_graphics_capture_env)
+      if(NOT TARGET_PLATFORM STREQUAL "arm64_sim-ios")
+        list(APPEND _graphics_capture_env "GRAPHICS_CAPTURE_EXECUTABLE=$<TARGET_FILE:test_app_graphics>")
+      endif()
+      set(_graphics_python_command "${CMAKE_COMMAND}" -E env ${_graphics_capture_env}
         "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_images.py")
       set(_graphics_image_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_images.py"
         --executable "$<TARGET_FILE:test_app_graphics>"
-        --capture-dir "${GRAPHICS_ROOT}/build/graphics-test-images"
-        --output "${GRAPHICS_ROOT}/build/graphics-render-report"
+        --target-platform "${TARGET_PLATFORM}"
+        --capture-dir "${GRAPHICS_ROOT}/build/graphics-test-images/${TARGET_PLATFORM}"
+        --output "${GRAPHICS_ROOT}/build/graphics-render-report/${TARGET_PLATFORM}"
         --matrix ${_graphics_matrix} --available ${_graphics_available})
       add_custom_target(run_test_graphics_images_python
         COMMAND ${_graphics_runner} ${_graphics_python_command}
@@ -197,10 +229,10 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
         DEPENDS test_app_graphics run_test_graphics_images_python
         ${_graphics_run_options} COMMENT "Rendering the graphics likeness matrix")
 
-      # Automatic hosted CI coverage is native Linux/Vulkan. The manual target
+      # Automatic hosted CI coverage is Linux/Vulkan and the iOS simulator. The manual target
       # above always remains available, regardless of this policy.
       set(_graphics_ci_command ${_graphics_image_command})
-      if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$")
+      if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$|^arm64_sim-ios$")
         list(APPEND _graphics_ci_command --skip-all "Hosted CI graphics captures explicitly disabled for ${TARGET_PLATFORM}")
         message(STATUS "Graphics captures skipped on hosted ${TARGET_PLATFORM} CI; manual target remains available")
       endif()
