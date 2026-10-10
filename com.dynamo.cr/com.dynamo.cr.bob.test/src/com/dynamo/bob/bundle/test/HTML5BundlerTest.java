@@ -175,6 +175,67 @@ public class HTML5BundlerTest {
         }
     }
 
+    // Bundle paths must be sanitized while the display title is preserved (#12673).
+    @Test
+    public void testBundleWithSanitizedProjectTitle() throws Exception {
+        File projectDir = temporaryFolder.newFolder("project");
+        File buildDir = new File(projectDir, "build");
+        assertTrue(buildDir.mkdirs());
+        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+            Files.write(new File(buildDir, name).toPath(), new byte[] {1});
+        }
+        try (Project project = new Project(new DefaultFileSystem(), projectDir.getAbsolutePath(), "build")) {
+            BobProjectProperties properties = project.getProjectProperties();
+            properties.loadDefaultMetaFile();
+            properties.putStringValue("html5", "htmlfile", "/template.html");
+            properties.putStringValue("html5", "cssfile", "/style.css");
+            project.getResource("/template.html").setContent(
+                    "<title>{{project.title}}</title>\n{{exe-name}}\n{{DEFOLD_BINARY_PREFIX}}".getBytes(StandardCharsets.UTF_8));
+            project.getResource("/style.css").setContent(new byte[0]);
+            project.setOption("platform", Platform.WasmWeb.getPair());
+            project.setOption("architectures", "wasm-web,wasm_pthread-web");
+
+            // Only the bundling step is under test, so provide small local engine fixtures.
+            for (Platform platform : List.of(Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+                File engineDir = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair());
+                assertTrue(engineDir.mkdirs());
+                for (String name : platform.formatBinaryName("dmengine")) {
+                    Files.write(new File(engineDir, name).toPath(), new byte[] {1});
+                }
+            }
+
+            String[][] titleCases = {
+                {"2248: Merge & Slash", "2248MergeSlash"},
+                {"My Game", "MyGame"},
+                {"My/Game\\Title", "MyGameTitle"},
+                {"Лорем ипсум", "dmengine"},
+                {":*?", "dmengine"}
+            };
+            for (String[] titleCase : titleCases) {
+                String title = titleCase[0];
+                String binaryName = titleCase[1];
+                properties.putStringValue("project", "title", title);
+                File bundleDir = temporaryFolder.newFolder();
+                new HTML5Bundler().bundleApplication(project, Platform.WasmWeb, bundleDir, () -> false);
+
+                File appDir = new File(bundleDir, binaryName);
+                assertTrue(title, appDir.isDirectory());
+                assertEquals(1, bundleDir.list().length);
+                for (String name : List.of("index.html", "dmloader.js", "archive/archive_files.json", "archive/game0.arcd",
+                        binaryName + "_wasm.js", binaryName + ".wasm",
+                        binaryName + "_pthread_wasm.js", binaryName + "_pthread.wasm")) {
+                    assertTrue(name, new File(appDir, name).isFile());
+                }
+                String html = Files.readString(new File(appDir, "index.html").toPath());
+                assertEquals("<title>" + title.replace("&", "&amp;") + "</title>\n" + binaryName + "\n" + binaryName, html);
+                String loader = Files.readString(new File(appDir, "dmloader.js").toPath());
+                assertTrue(loader.contains("\"" + binaryName + ".wasm\""));
+                assertTrue(loader.contains("\"" + binaryName + "_pthread.wasm\""));
+                assertEquals(title, properties.getStringValue("project", "title"));
+            }
+        }
+    }
+
     @Test
     public void testMissingPthreadEngineAbortsBundle() throws Exception {
         // Local Bob builds may still embed this engine. The download failure only

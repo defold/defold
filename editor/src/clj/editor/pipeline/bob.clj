@@ -33,6 +33,7 @@
             [util.http-server :as http-server]
             [util.path :as path])
   (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType Progress Progress$Reporter TaskResult]
+           [com.dynamo.bob.bundle BundleHelper]
            [com.dynamo.bob.logging LogHelper]
            [java.io File OutputStream PrintStream PrintWriter]
            [java.nio.charset StandardCharsets]
@@ -253,7 +254,7 @@
                 (if (= "" path-str)
                   (http-server/redirect "/html5/index.html")
                   (let [resource-path (-> output-path
-                                          (.resolve ^String (project-title project))
+                                          (.resolve (BundleHelper/projectNameToBinaryName (project-title project)))
                                           (.resolve ^String path-str)
                                           (.normalize))]
                     (if (and (.startsWith resource-path output-path)
