@@ -129,7 +129,8 @@
               (ui/run-now (debugger-variables/clear! variables nil)))))))))
 
 ;; A connecting debugger re-reads launched-target metadata when the listener
-;; port arrives later, rather than retaining the initial portless target.
+;; port arrives later. The process monitor completes target removal before
+;; teardown checks the removal callback, guarding against a cleanup hang.
 (deftest late-debugger-port-test
   (test-support/with-clean-system
     (let [workspace (workspace/make-workspace "test/resources/empty_project" {} {} nil)
@@ -143,7 +144,11 @@
           process (.start (ProcessBuilder. ^java.util.List command))]
       (try
         (binding [ui/*main-stage* (atom stage)]
-          (let [target (targets/add-launched-target! 1 {:process process :address "127.0.0.1"})
+          (let [target (targets/add-launched-target! 1 {:process process
+                                                      :log-stream (.getInputStream process)
+                                                      :address "127.0.0.1"})
+                ^Thread log-pump (console/start-log-pump! (:log-stream target) (constantly nil))
+                monitor (targets/monitor-launched-target! target log-pump identity)
                 removed (promise)
                 cancel-watch (targets/when-url-or-removed (:id target) #(deliver removed %))]
             (try
@@ -160,10 +165,11 @@
                     (is (identical? session (debug-view/current-session view)))
                     (finally (dap/close! session)))))
               (finally
-                (.destroyForcibly process)
-                (.waitFor process)
+                (targets/kill-launched-target! target)
                 (try
-                  (is (nil? (dap-util/await! removed)))
+                  (dap-util/await! monitor)
+                  (is (not (.isAlive log-pump)))
+                  (is (nil? (deref removed 0 ::not-removed)))
                   (finally (cancel-watch)))))))
         (finally
           (.destroyForcibly process)
