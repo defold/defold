@@ -21,6 +21,7 @@
 #include <dlib/testutil.h>
 
 #include "../gameobject.h"
+#include "../gameobject_private.h"
 #include "../component.h"
 
 #include "gameobject/test/reload/test_gameobject_reload_ddf.h"
@@ -48,6 +49,8 @@ struct ReloadTargetWorld
     int m_FinalCount;
     int m_AddToUpdateCount;
     int m_ReloadCount;
+    uint16_t m_InitPrototypeIndex;
+    uint16_t m_FinalPrototypeIndex;
 };
 
 static void ResetWorldCounters(ReloadTargetWorld* world) {
@@ -250,6 +253,7 @@ dmGameObject::CreateResult ReloadTest::CompReloadTargetInit(const dmGameObject::
 {
     ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
     rt_world->m_InitCount++;
+    rt_world->m_InitPrototypeIndex = dmGameObject::GetInstanceFromHandle(params.m_Instance)->m_PrototypeIndex;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
@@ -257,6 +261,7 @@ dmGameObject::CreateResult ReloadTest::CompReloadTargetFinal(const dmGameObject:
 {
     ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
     rt_world->m_FinalCount++;
+    rt_world->m_FinalPrototypeIndex = dmGameObject::GetInstanceFromHandle(params.m_Instance)->m_PrototypeIndex;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
@@ -320,6 +325,30 @@ TEST_F(ReloadTest, TestComponentReloadScriptFail)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     dmGameObject::Delete(m_Collection, go, false);
+}
+
+// Reload callbacks must resolve old/new prototype slots independently and release the temporary old slot afterwards.
+TEST_F(ReloadTest, ReloadKeepsSeparatePrototypeSlots)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/rt.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    uint16_t index = dmGameObject::GetInstanceFromHandle(go)->m_PrototypeIndex;
+    uint16_t count = m_Register->m_PrototypeIndices.Size();
+    dmGameObject::Prototype* prototype = m_Register->m_Prototypes[index];
+
+    for (uint32_t reload = 0; reload < 3; ++reload)
+    {
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/rt.goc", 0));
+        ASSERT_EQ(index, dmGameObject::GetInstanceFromHandle(go)->m_PrototypeIndex);
+        ASSERT_EQ(index, m_World->m_InitPrototypeIndex);
+        ASSERT_NE(index, m_World->m_FinalPrototypeIndex);
+        ASSERT_EQ((dmGameObject::Prototype*)0, m_Register->m_Prototypes[m_World->m_FinalPrototypeIndex]);
+        ASSERT_EQ(prototype, m_Register->m_Prototypes[index]);
+        ASSERT_EQ(count, m_Register->m_PrototypeIndices.Size());
+    }
 }
 
 TEST_F(ReloadTest, TestGameObjectReload)

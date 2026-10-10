@@ -1255,8 +1255,9 @@ static void SetProperties(dmGameObject::HInstance instance)
 {
     dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(dmGameObject::GetCollection(instance));
     dmGameObject::Instance* instance_ptr = dmGameObject::GetInstanceFromHandle(collection_ptr, instance);
-    dmGameObject::Prototype::Component* components = instance_ptr->m_Prototype->m_Components;
-    uint32_t count = instance_ptr->m_Prototype->m_ComponentCount;
+    dmGameObject::Prototype* prototype = dmGameObject::GetPrototype(collection_ptr, instance_ptr);
+    dmGameObject::Prototype::Component* components = prototype->m_Components;
+    uint32_t count = prototype->m_ComponentCount;
     uint32_t component_instance_data_index = 0;
     dmGameObject::ComponentSetPropertiesParams params;
     params.m_Instance = instance;

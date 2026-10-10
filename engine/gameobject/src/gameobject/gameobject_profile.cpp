@@ -103,10 +103,10 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
     }
 
     uint32_t next_component = (uint32_t)it->m_NextChild.m_Node;
-    if (next_component < parent->m_Prototype->m_ComponentCount) {
+    Prototype* prototype = GetPrototype(collection, parent);
+    if (next_component < prototype->m_ComponentCount) {
         uint32_t index = next_component;
         Instance* instance = parent;
-        Prototype* prototype = parent->m_Prototype;
 
         // Find the actual component instance data
         // if none exist at this index, fast forward to the next item in the list
@@ -194,7 +194,7 @@ static bool ResolveComponentNode(SceneNode* node, ComponentType** out_component_
     if (!instance)
         return false;
 
-    Prototype* prototype = instance->m_Prototype;
+    Prototype* prototype = GetPrototype(collection, instance);
     uint32_t component_instance_data_index = 0;
     for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
     {
@@ -427,7 +427,7 @@ static bool IterateGameObjectPropertiesGetNext(SceneNodePropertyIterator* pit)
         {
             pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
 
-            dmResource::GetPath(collection->m_Factory, instance->m_Prototype, &pit->m_Property.m_Value.m_Hash);
+            dmResource::GetPath(collection->m_Factory, GetPrototype(collection, instance), &pit->m_Property.m_Value.m_Hash);
         }
         return true;
     }

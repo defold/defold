@@ -423,11 +423,53 @@ namespace dmGameObject
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
         m_ContextRegistry = 0;
         m_Mutex = dmMutex::New();
+        m_Prototypes.SetCapacity(16);
+        m_Prototypes.SetSize(16);
+        m_PrototypeIndices.SetCapacity(16);
+        memset(m_Prototypes.Begin(), 0, sizeof(Prototype*) * m_Prototypes.Size());
+        EMPTY_PROTOTYPE.m_Index = m_PrototypeIndices.Pop();
+        m_Prototypes[EMPTY_PROTOTYPE.m_Index] = &EMPTY_PROTOTYPE;
     }
 
     Register::~Register()
     {
+        // Resource factories may outlive the register during engine shutdown.
+        for (uint32_t i = 0; i < m_Prototypes.Size(); ++i)
+        {
+            if (m_Prototypes[i])
+                m_Prototypes[i]->m_Index = INVALID_PROTOTYPE_INDEX;
+        }
         dmMutex::Delete(m_Mutex);
+    }
+
+    bool RegisterPrototype(HRegister regist, Prototype* prototype)
+    {
+        assert(prototype->m_Index == INVALID_PROTOTYPE_INDEX);
+        if (regist->m_PrototypeIndices.Remaining() == 0)
+        {
+            uint32_t old_capacity = regist->m_Prototypes.Size();
+            if (old_capacity == INVALID_PROTOTYPE_INDEX)
+            {
+                dmLogError("The prototype buffer is full (maximum %u game object prototypes).", INVALID_PROTOTYPE_INDEX - 1);
+                return false;
+            }
+            uint32_t capacity = dmMath::Min(old_capacity * 2, (uint32_t)INVALID_PROTOTYPE_INDEX);
+            regist->m_Prototypes.SetCapacity(capacity);
+            regist->m_Prototypes.SetSize(capacity);
+            memset(regist->m_Prototypes.Begin() + old_capacity, 0, sizeof(Prototype*) * (capacity - old_capacity));
+            regist->m_PrototypeIndices.SetCapacity((uint16_t)capacity);
+        }
+        prototype->m_Index = regist->m_PrototypeIndices.Pop();
+        regist->m_Prototypes[prototype->m_Index] = prototype;
+        return true;
+    }
+
+    void UnregisterPrototype(HRegister regist, Prototype* prototype)
+    {
+        assert(regist->m_Prototypes[prototype->m_Index] == prototype);
+        regist->m_Prototypes[prototype->m_Index] = 0;
+        regist->m_PrototypeIndices.Push(prototype->m_Index);
+        prototype->m_Index = INVALID_PROTOTYPE_INDEX;
     }
 
     ComponentType::ComponentType()
@@ -1112,7 +1154,7 @@ namespace dmGameObject
         uint32_t component_userdata_size = sizeof(((Instance*)0)->m_ComponentInstanceUserData[0]);
         // NOTE: Allocate actual Instance with *all* component instance user-data accounted
         void* instance_memory = ::operator new (sizeof(Instance) + component_instance_userdata_count * component_userdata_size);
-        Instance* instance = new(instance_memory) Instance(proto);
+        Instance* instance = new(instance_memory) Instance(proto->m_Index);
         instance->m_ComponentInstanceUserDataCount = component_instance_userdata_count;
         return instance;
     }
@@ -1147,8 +1189,9 @@ namespace dmGameObject
     }
 
     void UndoNewInstance(Collection* collection, Instance* instance) {
-        if (instance->m_Prototype != &EMPTY_PROTOTYPE) {
-            dmResource::Release(collection->m_Factory, instance->m_Prototype);
+        Prototype* prototype = GetPrototype(collection, instance);
+        if (prototype != &EMPTY_PROTOTYPE) {
+            dmResource::Release(collection->m_Factory, prototype);
         }
         EraseSwapLevelIndex(collection, instance);
 
@@ -1167,7 +1210,7 @@ namespace dmGameObject
     CreateResult CreateComponents(Collection* collection, Instance* instance) {
         DM_PROFILE("CreateComponents");
 
-        Prototype* proto = instance->m_Prototype;
+        Prototype* proto = GetPrototype(collection, instance);
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
         if (proto->m_ComponentCount > 0xFFFF ) {
@@ -1245,7 +1288,7 @@ namespace dmGameObject
     static void DestroyComponents(Collection* collection, Instance* instance) {
         DM_PROFILE("DestroyComponents");
 
-        HPrototype prototype = instance->m_Prototype;
+        HPrototype prototype = GetPrototype(collection, instance);
         uint32_t next_component_instance_data = 0;
         for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
         {
@@ -1271,9 +1314,10 @@ namespace dmGameObject
         }
     }
 
-    void* GetResource(Instance* instance)
+    void* GetResource(Collection* collection, Instance* instance)
     {
-        return instance->m_Prototype == &EMPTY_PROTOTYPE ? 0 : instance->m_Prototype;
+        Prototype* prototype = GetPrototype(collection, instance);
+        return prototype == &EMPTY_PROTOTYPE ? 0 : prototype;
     }
 
     HGameObject New(HCollection hcollection, const char* prototype_name) {
@@ -1439,7 +1483,7 @@ namespace dmGameObject
                 assert(collection->m_Instances[instance->m_Index] == instance);
 
                 uint32_t next_component_instance_data = 0;
-                Prototype* prototype = instance->m_Prototype;
+                Prototype* prototype = GetPrototype(collection, instance);
                 for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
                 {
                     Prototype::Component* component = &prototype->m_Components[i];
@@ -1497,8 +1541,8 @@ namespace dmGameObject
     static bool SetScriptPropertiesFromBuffer(Collection* collection, Instance* instance, const char *prototype_name, HPropertyContainer property_container)
     {
         uint32_t next_component_instance_data = 0;
-        Prototype::Component* components = instance->m_Prototype->m_Components;
-        uint32_t count = instance->m_Prototype->m_ComponentCount;
+        Prototype::Component* components = GetPrototype(collection, instance)->m_Components;
+        uint32_t count = GetPrototype(collection, instance)->m_ComponentCount;
         for (uint32_t i = 0; i < count; ++i) {
             Prototype::Component& component = components[i];
             ComponentType* component_type = component.m_Type;
@@ -1907,8 +1951,8 @@ namespace dmGameObject
                 created.Push(instance);
                 // Set properties
                 uint32_t component_instance_data_index = 0;
-                Prototype::Component* components = instance->m_Prototype->m_Components;
-                uint32_t comp_count = instance->m_Prototype->m_ComponentCount;
+                Prototype::Component* components = GetPrototype(collection, instance)->m_Components;
+                uint32_t comp_count = GetPrototype(collection, instance)->m_ComponentCount;
                 for (uint32_t comp_i = 0; comp_i < comp_count; ++comp_i)
                 {
                     Prototype::Component& component = components[comp_i];
@@ -2118,7 +2162,7 @@ namespace dmGameObject
     static bool InitComponents(Collection* collection, Instance* instance)
     {
         uint32_t next_component_instance_data = 0;
-        Prototype* prototype = instance->m_Prototype;
+        Prototype* prototype = GetPrototype(collection, instance);
         bool init_result = true;
         for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
         {
@@ -2253,7 +2297,7 @@ namespace dmGameObject
     static bool FinalComponents(Collection* collection, Instance* instance)
     {
         uint32_t next_component_instance_data = 0;
-        Prototype* prototype = instance->m_Prototype;
+        Prototype* prototype = GetPrototype(collection, instance);
         for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
         {
             Prototype::Component* component = &prototype->m_Components[i];
@@ -2404,7 +2448,7 @@ namespace dmGameObject
             RemoveFromAddToUpdate(collection, instance);
         }
         dmResource::HFactory factory = collection->m_Factory;
-        Prototype* prototype = instance->m_Prototype;
+        Prototype* prototype = GetPrototype(collection, instance);
         DestroyComponents(collection, instance);
 
         dmHashRelease64(&instance->m_CollectionPathHashState);
@@ -2549,12 +2593,13 @@ namespace dmGameObject
         return GetInstanceFromHandle(instance) != 0;
     }
 
-    Result GetComponentIndex(Instance* instance, dmhash_t component_id, uint16_t* component_index)
+    Result GetComponentIndex(Collection* collection, Instance* instance, dmhash_t component_id, uint16_t* component_index)
     {
         assert(instance != 0x0);
-        for (uint32_t i = 0; i < instance->m_Prototype->m_ComponentCount; ++i)
+        Prototype* prototype = GetPrototype(collection, instance);
+        for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
         {
-            Prototype::Component* component = &instance->m_Prototype->m_Components[i];
+            Prototype::Component* component = &prototype->m_Components[i];
             if (component->m_Id == component_id)
             {
                 *component_index = (uint16_t)i;
@@ -2566,20 +2611,22 @@ namespace dmGameObject
 
     Result GetComponentIndex(HInstance hinstance, dmhash_t component_id, uint16_t* component_index)
     {
-        Instance* instance = GetInstanceFromHandle(hinstance);
+        Collection* collection = 0;
+        Instance* instance = GetInstanceFromHandle(hinstance, &collection);
         if (instance)
-            return GetComponentIndex(instance, component_id, component_index);
+            return GetComponentIndex(collection, instance, component_id, component_index);
         if (component_index)
             *component_index = 0;
         return RESULT_INVALID_INSTANCE;
     }
 
-    Result GetComponentId(Instance* instance, uint16_t component_index, dmhash_t* component_id)
+    Result GetComponentId(Collection* collection, Instance* instance, uint16_t component_index, dmhash_t* component_id)
     {
         assert(instance != 0x0);
-        if (component_index < instance->m_Prototype->m_ComponentCount)
+        Prototype* prototype = GetPrototype(collection, instance);
+        if (component_index < prototype->m_ComponentCount)
         {
-            *component_id = instance->m_Prototype->m_Components[component_index].m_Id;
+            *component_id = prototype->m_Components[component_index].m_Id;
             return RESULT_OK;
         }
         return RESULT_COMPONENT_NOT_FOUND;
@@ -2587,9 +2634,10 @@ namespace dmGameObject
 
     Result GetComponentId(HGameObject hinstance, uint16_t component_index, dmhash_t* component_id)
     {
-        Instance* instance = GetInstanceFromHandle(hinstance);
+        Collection* collection = 0;
+        Instance* instance = GetInstanceFromHandle(hinstance, &collection);
         if (instance)
-            return GetComponentId(instance, component_index, component_id);
+            return GetComponentId(collection, instance, component_index, component_id);
         if (component_id)
             *component_id = 0;
         return RESULT_INVALID_INSTANCE;
@@ -2600,8 +2648,8 @@ namespace dmGameObject
         // TODO: We should probably not store user-data sparse.
         // A lot of loops just to find user-data such as the code below
         assert(instance != 0x0);
-        const Prototype::Component* components = instance->m_Prototype->m_Components;
-        uint32_t n = instance->m_Prototype->m_ComponentCount;
+        const Prototype::Component* components = GetPrototype(collection, instance)->m_Components;
+        uint32_t n = GetPrototype(collection, instance)->m_ComponentCount;
         uint32_t component_instance_data = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -2831,12 +2879,12 @@ namespace dmGameObject
                 return;
             }
         }
-        Prototype* prototype = instance->m_Prototype;
+        Prototype* prototype = GetPrototype(collection, instance);
 
         if (message->m_Receiver.m_Fragment != 0)
         {
             uint16_t component_index;
-            Result result = GetComponentIndex(instance, message->m_Receiver.m_Fragment, &component_index);
+            Result result = GetComponentIndex(collection, instance, message->m_Receiver.m_Fragment, &component_index);
             if (result != RESULT_OK)
             {
                 DM_HASH_REVERSE_MEM(hash_ctx, 512);
@@ -3461,7 +3509,7 @@ namespace dmGameObject
                     Instance* instance = GetInstanceFromHandle(collection, hinstance);
                     if (!instance)
                         continue;
-                    Prototype* prototype = instance->m_Prototype;
+                    Prototype* prototype = GetPrototype(collection, instance);
                     uint32_t components_size = prototype->m_ComponentCount;
 
                     InputResult res = INPUT_RESULT_IGNORED;
@@ -4182,9 +4230,9 @@ namespace dmGameObject
         else
         {
             uint16_t component_index;
-            if (RESULT_OK == GetComponentIndex(instance, component_id, &component_index))
+            if (RESULT_OK == GetComponentIndex(collection, instance, component_id, &component_index))
             {
-                Prototype::Component* components = instance->m_Prototype->m_Components;
+                Prototype::Component* components = GetPrototype(collection, instance)->m_Components;
                 Prototype::Component& component = components[component_index];
                 ComponentType* type = component.m_Type;
                 if (type->m_GetPropertyFunction)
@@ -4605,9 +4653,9 @@ namespace dmGameObject
         else
         {
             uint16_t component_index;
-            if (RESULT_OK == GetComponentIndex(instance, component_id, &component_index))
+            if (RESULT_OK == GetComponentIndex(collection, instance, component_id, &component_index))
             {
-                Prototype::Component* components = instance->m_Prototype->m_Components;
+                Prototype::Component* components = GetPrototype(collection, instance)->m_Components;
                 Prototype::Component& component = components[component_index];
                 ComponentType* type = component.m_Type;
                 if (type->m_SetPropertyFunction)
@@ -4854,7 +4902,7 @@ namespace dmGameObject
             new_instance->m_Initialized = 1;
         }
         // Because of how hot-reloading reloads resources in-place, the old instance would already point to the 'new' resource, so re-point it to the old
-        instance->m_Prototype = old_proto;
+        instance->m_PrototypeIndex = old_proto->m_Index;
         collection->m_Instances[index] = instance;
         if (instance->m_Initialized) {
             FinalComponents(collection, instance);
@@ -4878,14 +4926,15 @@ namespace dmGameObject
                 uint32_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
                 Prototype* prototype = (Prototype*)ResourceDescriptorGetResource(params->m_Resource);
-                if (instance->m_Prototype == prototype) {
+                Prototype* instance_prototype = GetPrototype(collection, instance);
+                if (instance_prototype == prototype) {
                     Prototype* prev_prototype = (Prototype*)ResourceDescriptorGetPrevResource(params->m_Resource);
                     RecreateInstance(collection, index, prev_prototype, prototype, params->m_Filename);
                 } else {
                     uint32_t next_component_instance_data = 0;
-                    for (uint32_t j = 0; j < instance->m_Prototype->m_ComponentCount; ++j)
+                    for (uint32_t j = 0; j < instance_prototype->m_ComponentCount; ++j)
                     {
-                        Prototype::Component& component = instance->m_Prototype->m_Components[j];
+                        Prototype::Component& component = instance_prototype->m_Components[j];
                         ComponentType* type = component.m_Type;
                         if (component.m_ResourceId == ResourceDescriptorGetNameHash(params->m_Resource))
                         {

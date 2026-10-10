@@ -152,8 +152,8 @@ namespace dmGameObject
             if (CREATE_RESULT_OK == create_result) {
                 // Set properties
                 uint32_t component_instance_data_index = 0;
-                Prototype::Component* components = instance->m_Prototype->m_Components;
-                uint32_t comp_count = instance->m_Prototype->m_ComponentCount;
+                Prototype::Component* components = GetPrototype(collection, instance)->m_Components;
+                uint32_t comp_count = GetPrototype(collection, instance)->m_ComponentCount;
                 for (uint32_t comp_i = 0; comp_i < comp_count; ++comp_i)
                 {
                     Prototype::Component& component = components[comp_i];

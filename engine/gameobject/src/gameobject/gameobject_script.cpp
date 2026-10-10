@@ -454,7 +454,7 @@ namespace dmGameObject
         Instance* instance = ResolveScriptInstance(i, &collection);
         out_url->m_Socket = dmGameObject::GetMessageSocket(collection->m_HCollection);
         out_url->m_Path = instance->m_Identifier;
-        out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
+        out_url->m_Fragment = GetPrototype(collection, instance)->m_Components[i->m_ComponentIndex].m_Id;
     }
 
     static dmhash_t ScriptInstanceResolvePathCB(uintptr_t resolve_user_data, const char* path) {
@@ -478,7 +478,7 @@ namespace dmGameObject
         dmMessage::URL url;
         url.m_Socket = dmGameObject::GetMessageSocket(collection->m_HCollection);
         url.m_Path = instance->m_Identifier;
-        url.m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
+        url.m_Fragment = GetPrototype(collection, instance)->m_Components[i->m_ComponentIndex].m_Id;
         dmScript::PushURL(L, url);
         return 1;
     }

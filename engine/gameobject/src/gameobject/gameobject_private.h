@@ -40,11 +40,14 @@ namespace dmGameObject
     // TODO: Configurable?
     const uint32_t MAX_MESSAGE_DATA_SIZE = 256;
 
+    const uint16_t INVALID_PROTOTYPE_INDEX = 0xffff;
+
     struct Prototype
     {
         Prototype()
             : m_Components(0)
             , m_ComponentCount(0)
+            , m_Index(INVALID_PROTOTYPE_INDEX)
         {
         }
         ~Prototype();
@@ -83,6 +86,7 @@ namespace dmGameObject
 
         Component*     m_Components;
         uint32_t       m_ComponentCount;
+        uint16_t       m_Index;
         // Resources referenced through property overrides inside the prototype
         dmArray<void*> m_PropertyResources;
     };
@@ -105,12 +109,12 @@ namespace dmGameObject
     // NOTE: Actual size of Instance is sizeof(Instance) + sizeof(uintptr_t) * m_UserDataCount
     struct Instance
     {
-        Instance(Prototype* prototype)
+        Instance(uint16_t prototype_index)
         {
             m_Transform.SetIdentity();
             m_EulerRotation = Vector3(0.0f, 0.0f, 0.0f);
             m_PrevEulerRotation = Vector3(0.0f, 0.0f, 0.0f);
-            m_Prototype = prototype;
+            m_PrototypeIndex = prototype_index;
             m_IdentifierIndex = INVALID_INSTANCE_POOL_INDEX;
             m_Generation = 0;
             m_Identifier = UNNAMED_IDENTIFIER;
@@ -141,7 +145,6 @@ namespace dmGameObject
         Vector3 m_EulerRotation;
         // Previous euler rotation, used to detect if the euler rotation has changed and should overwrite the real rotation (needed by animation)
         Vector3 m_PrevEulerRotation;
-        Prototype*      m_Prototype;
 
         uint32_t        m_IdentifierIndex;
         uint32_t        m_Generation;
@@ -167,6 +170,9 @@ namespace dmGameObject
         uint16_t        m_InitSnapshot : 1;
         // Padding
         uint16_t        m_Pad : 2;
+
+        // Stable slot in Register::m_Prototypes, shared by instances of the resource.
+        uint16_t        m_PrototypeIndex;
 
         // Index to parent
         uint32_t        m_Parent;
@@ -225,6 +231,10 @@ namespace dmGameObject
         // Generational collection handle registry. Protected by m_Mutex
         dmArray<CollectionRegistrySlot> m_CollectionRegistry;
         uint16_t                        m_FirstFreeCollection;
+
+        // Borrowed prototype resources. Slot zero is the empty prototype.
+        dmArray<Prototype*>         m_Prototypes;
+        dmIndexPool16               m_PrototypeIndices;
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
         uint32_t                    m_DefaultInputStackCapacity;
@@ -321,6 +331,15 @@ namespace dmGameObject
         uint32_t                 m_FirstUpdate : 1;
     };
 
+    inline Prototype* GetPrototype(Collection* collection, const Instance* instance)
+    {
+        return collection->m_Register->m_Prototypes[instance->m_PrototypeIndex];
+    }
+
+    // Resource callbacks allocate and release stable slots in the register.
+    bool RegisterPrototype(HRegister regist, Prototype* prototype);
+    void UnregisterPrototype(HRegister regist, Prototype* prototype);
+
     // Used by res_collection.cpp
     Instance* NewInstance(Collection* collection, Prototype* proto, const char* prototype_name);
     Instance* GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier);
@@ -369,7 +388,7 @@ namespace dmGameObject
     Result AttachCollection(Collection* collection, const char* name);
     void DetachCollection(Collection* collection, bool unregister_handle);
 
-    void* GetResource(Instance* instance);
+    void* GetResource(Collection* collection, Instance* instance);
 
     void AcquireInputFocus(Collection* collection, Instance* instance);
     void ReleaseInputFocus(Collection* collection, Instance* instance);
