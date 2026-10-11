@@ -810,10 +810,16 @@ static CachedGlyph* GetOrCreateGlyph(FontcContext* session, HFont font, uint32_t
     return &session->m_Glyphs.Back();
 }
 
+static float GetLayoutFontSize(FontcContext* session)
+{
+    return session->m_Mode == FONTC_MODE_VECTOR && session->m_Properties.m_FontSize > 0.0f
+           ? session->m_Properties.m_FontSize : session->m_Size;
+}
+
 static TextResult CreateLayout(FontcContext* session, const uint32_t* codepoints, uint32_t count, bool line_break, float width, float leading, float tracking, HTextLayout* layout)
 {
     TextLayoutSettings settings = { 0 };
-    settings.m_Size = session->m_Size;
+    settings.m_Size = GetLayoutFontSize(session);
     settings.m_Width = width;
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
@@ -844,7 +850,7 @@ static uint8_t ResolvePreviewLayoutObject(void* context,
 static TextResult CreateParsedMarkupLayout(FontcContext* session, HMarkup parsed_markup, bool line_break, float width, float leading, float tracking, HTextLayout* layout)
 {
     TextLayoutSettings settings = { 0 };
-    settings.m_Size = session->m_Size;
+    settings.m_Size = GetLayoutFontSize(session);
     settings.m_Width = width;
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
@@ -1811,6 +1817,7 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     memcpy(config->m_FaceColor, properties.m_FaceColor, sizeof(config->m_FaceColor));
     config->m_Width = properties.m_Width;
     config->m_Height = properties.m_Height;
+    config->m_GlyphScale = renderer->m_Mode == FONTC_MODE_VECTOR ? GetLayoutFontSize(renderer) / renderer->m_Size : 1.0f;
     config->m_RecipAtlasWidth = 1.0f / renderer->m_AtlasWidth;
     config->m_RecipAtlasHeight = 1.0f / renderer->m_AtlasHeight;
     config->m_DecorationU = 0.5f / renderer->m_AtlasWidth;
@@ -1821,8 +1828,8 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_SdfShadow = renderer->m_SdfShadow;
     config->m_SdfSpread = renderer->m_SdfSpread;
     config->m_OutlineWidth = renderer->m_OutlineWidth;
-    config->m_ShadowX = renderer->m_ShadowX;
-    config->m_ShadowY = renderer->m_ShadowY;
+    config->m_ShadowX = renderer->m_ShadowX * config->m_GlyphScale;
+    config->m_ShadowY = renderer->m_ShadowY * config->m_GlyphScale;
     config->m_ShadowBlur = renderer->m_ShadowBlur;
     config->m_BaseShadowAlpha = properties.m_BaseShadowAlpha;
     config->m_CacheCellMaxAscent = renderer->m_CellMaxAscent;

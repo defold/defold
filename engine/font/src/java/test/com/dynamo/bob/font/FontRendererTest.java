@@ -546,6 +546,68 @@ public class FontRendererTest {
         }
     }
 
+    // Display-size changes must preserve absolute markup geometry and reuse cached vector glyphs.
+    @Test
+    public void testVectorDisplaySizePreservesPixelMarkupAndAtlas() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        for (boolean useTextShaping : new boolean[] {false, true}) {
+            for (boolean effects : new boolean[] {false, true}) {
+                FontRenderer.Params params = new FontRenderer.Params();
+                params.size = effects ? 37.0f : 16.0f;
+                params.cacheWidth = 512;
+                params.cacheHeight = 512;
+                params.vector = true;
+                params.useTextShaping = useTextShaping;
+                params.outlineWidth = effects ? 2.0f : 0.0f;
+                params.shadowBlur = effects ? 2.0f : 0.0f;
+                params.hasOutline = effects;
+                params.hasShadow = effects;
+                params.layerMask = FontRenderer.LAYER_FACE | (effects ? FontRenderer.LAYER_OUTLINE | FontRenderer.LAYER_SHADOW : 0);
+                try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+                    FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
+                    String markup = "<size=24px><outline size=1><shadow x=2 y=-2 blur=1><ul>Ag</ul></shadow></outline></size>";
+                    properties.fontSize = 24.0f;
+                    renderer.setProperties(properties);
+                    renderer.setMarkup(markup);
+                    renderer.beginBatch();
+                    long version = renderer.generateTexture(0).atlasVersion;
+                    FontRenderer.Layout expected = renderer.measureMarkup(markup, false, 1000.0f, 1.0f, 0.0f);
+                    TestVertices expectedVertices = getVertices(renderer, IDENTITY);
+                    assertTrue(expectedVertices.vertexCount > 0);
+                    for (float size : new float[] {16.0f, 32.0f, 64.0f}) {
+                        properties.fontSize = size;
+                        renderer.setProperties(properties);
+                        FontRenderer.Layout actual = renderer.measureMarkup(markup, false, 1000.0f, 1.0f, 0.0f);
+                        assertEquals(expected.width, actual.width, 0.00001f);
+                        assertEquals(expected.height, actual.height, 0.00001f);
+                        TestVertices actualVertices = getVertices(renderer, IDENTITY);
+                        assertEquals(expectedVertices.vertexCount, actualVertices.vertexCount);
+                        int stride = actualVertices.vertices.remaining() / actualVertices.vertexCount;
+                        for (int vertex = 0; vertex < actualVertices.vertexCount; ++vertex) {
+                            for (int axis = 0; axis < 2; ++axis) {
+                                int offset = vertex * stride + axis * Float.BYTES;
+                                assertEquals(expectedVertices.vertices.getFloat(offset), actualVertices.vertices.getFloat(offset), 0.00001f);
+                            }
+                        }
+                        assertNull(renderer.generateTexture(version).pixels);
+                        for (FontRenderer.Texture texture : renderer.getVectorTextures(version))
+                            assertNull(texture.pixels);
+                    }
+                    properties.fontSize = 16.0f;
+                    renderer.setProperties(properties);
+                    float small = renderer.measureMarkup("<size=2em>Ag</size>", false, 1000.0f, 1.0f, 0.0f).width;
+                    properties.fontSize = 32.0f;
+                    renderer.setProperties(properties);
+                    assertEquals(small * 2, renderer.measureMarkup("<size=2em>Ag</size>", false, 1000.0f, 1.0f, 0.0f).width, 0.00001f);
+                }
+            }
+        }
+    }
+
     private static FontRenderer.Properties properties(float height, float leading, int verticalAlign) {
         FontRenderer.Properties properties = new FontRenderer.Properties();
         properties.height = height;

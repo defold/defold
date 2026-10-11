@@ -287,7 +287,7 @@
         (register-native-styles (FontRenderer. name font-bytes params) renderer-spec)))))
 
 (defn- native-layout-text
-  [font-map text line-break? max-width text-tracking text-leading]
+  [font-map text line-break? max-width text-tracking text-leading font-size]
   (let [^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
         ^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
         style (:style font-map "default")
@@ -295,6 +295,7 @@
         _ (do
             (set! (.-baseStyle properties) (if (= "" style) 0 (MurmurHash/hash64 ^String style)))
             (set! (.-useBaseStyle properties) true)
+            (set! (.-fontSize properties) (float (or font-size 0.0)))
             (.setProperties renderer properties))
         [^FontRenderer$Layout layout use-rich-text native-text native-markup]
         (if-not (.-use-rich-text renderer-spec)
@@ -325,6 +326,7 @@
      :text text
      :style style
      :use-base-style true
+     :font-size font-size
      :native-text native-text
      :native-markup native-markup
      :use-rich-text use-rich-text
@@ -648,7 +650,7 @@
   ([font-map text line-break max-width text-tracking text-leading]
    (if (or (nil? font-map) (coll/empty? text))
      [0 0]
-     (let [{:keys [width height]} (native-layout-text font-map text line-break max-width text-tracking text-leading)]
+     (let [{:keys [width height]} (native-layout-text font-map text line-break max-width text-tracking text-leading nil)]
        [width height]))))
 
 (g/deftype FontData {:type     schema/Keyword
@@ -660,34 +662,28 @@
                      (schema/optional-key :selection-shader) schema/Any})
 
 (defn layout-text
-  "Measures text through the native renderer and scales the metrics for editor previews."
+  "Measures text through the native renderer at the preview's display size."
   [font-map text line-break max-width text-tracking text-leading font-size]
-  (let [reference-size (double (or (:size font-map) 0))
-        font-scale (if (and (some? font-size)
-                            (pos? ^double font-size)
-                            (pos? reference-size))
-                     (/ (double font-size) reference-size)
-                     1.0)
-        unscaled-max-width (/ max-width font-scale)]
-    (if (or (nil? font-map) (coll/empty? text))
+  (if (or (nil? font-map) (coll/empty? text))
+    (let [reference-size (double (or (:size font-map) 0))
+          font-scale (if (and (some? font-size)
+                              (pos? ^double font-size)
+                              (pos? reference-size))
+                       (/ (double font-size) reference-size)
+                       1.0)]
       {:width max-width
        :height 0
        :max-ascent (* (double (or (:max-ascent font-map) 0)) font-scale)
        :max-descent (* (double (or (:max-descent font-map) 0)) font-scale)
        :line-count 0
-       :font-scale font-scale
+       :font-size font-size
        :style (:style font-map "default")
        :text (or text "")
        :line-break line-break
-       :layout-width unscaled-max-width
+       :layout-width max-width
        :text-tracking text-tracking
-       :text-leading text-leading}
-      (-> (native-layout-text font-map text line-break unscaled-max-width text-tracking text-leading)
-          (update :width * font-scale)
-          (update :height * font-scale)
-          (update :max-ascent * font-scale)
-          (update :max-descent * font-scale)
-          (assoc :font-scale font-scale)))))
+       :text-leading text-leading})
+    (native-layout-text font-map text line-break max-width text-tracking text-leading font-size)))
 
 (declare glyph-channels->data-format)
 
@@ -733,17 +729,13 @@
 (scene-cache/register-object-cache! ::native-atlas-states make-native-atlas-state update-native-atlas-state destroy-native-atlas-states)
 
 (defn- entry-transform
-  ^Matrix4d [{:keys [offset world-transform]} font-scale]
+  ^Matrix4d [{:keys [offset world-transform]}]
   (let [[offset-x offset-y] (or offset [0.0 0.0])
         translation (doto (Matrix4d.)
                       (.setIdentity)
                       (.setTranslation (Vector3d. offset-x offset-y 0.0)))
-        scale (doto (Matrix4d.)
-                (.setIdentity)
-                (.setScale font-scale))
         result (Matrix4d. ^Matrix4d world-transform)]
     (.mul result translation)
-    (.mul result scale)
     result))
 
 (defn- make-native-entry-state
@@ -755,11 +747,11 @@
         shadow-alpha (double (:shadow-alpha font-map 1.0))
         align (case (:align entry :center) :left 0 :center 1 :right 2)
         box-height (:box-height entry)
-        font-scale (double (:font-scale text-layout 1.0))
+        font-size (float (or (:font-size text-layout) 0.0))
         vertical-align (case (:vertical-align entry :top) :top 0 :middle 1 :bottom 2)
         line-break (:line-break text-layout)
         width (float (:layout-width text-layout))
-        height (float (/ (or box-height (:max-ascent text-layout)) font-scale))
+        height (float (or box-height (:max-ascent text-layout)))
         leading (float (:text-leading text-layout))
         tracking (float (:text-tracking text-layout))
         vertical-align (int (if box-height vertical-align 0))
@@ -768,14 +760,13 @@
                                     (:outline entry)
                                     (update (:outline entry) 3 #(* outline-alpha %))))
         shadow-color (mapv float (:shadow entry))
-        sdf-scale (float (* font-scale
-                            (effective-sdf-scale (double (:sdf-screen-scale entry 0.0))
-                                                 (:world-transform entry))))
+        sdf-scale (float (effective-sdf-scale (double (:sdf-screen-scale entry 0.0))
+                                              (:world-transform entry)))
         ^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
         text (or (:native-text text-layout)
                  (filter-native-preview-plain-text renderer-spec (:text text-layout)))
         markup (:native-markup text-layout)
-        transform (float-array (geom/as-array (entry-transform entry font-scale)))
+        transform (float-array (geom/as-array (entry-transform entry)))
         properties (FontRenderer$Properties.)]
     (set! (.-lineBreak properties) ^boolean line-break)
     (set! (.-width properties) width)
@@ -795,13 +786,14 @@
     (set! (.-useBaseStyle properties) true)
     (set! (.-baseShadowAlpha properties) (float shadow-alpha))
     (set! (.-sdfScale properties) sdf-scale)
+    (set! (.-fontSize properties) font-size)
     {:properties properties
      :text text
      :markup markup
      :use-rich-text use-rich-text
      :transform transform
-     :atlas-key [(:style text-layout) use-rich-text line-break width tracking text markup]
-     :state-key [(:style text-layout) use-rich-text line-break width height leading tracking align vertical-align
+     :atlas-key [(:style text-layout) font-size use-rich-text line-break width tracking text markup]
+     :state-key [(:style text-layout) font-size use-rich-text line-break width height leading tracking align vertical-align
                  face-color outline-color shadow-color shadow-alpha sdf-scale text markup]}))
 
 (defn- apply-native-entry-state!

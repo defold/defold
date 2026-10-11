@@ -63,6 +63,60 @@
                             [(rem index width) (- height 1 (quot index width))])))
           (.getRGB image 0 0 width height nil 0 width))))
 
+;; Absolute pixel sizes in Label and GUI markup must not scale with the node's base font size.
+(deftest vector-markup-pixel-size-is-independent-of-node-font-size
+  (test-util/with-loaded-project
+    (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
+          label-node (project/get-resource-node project "/label/test.label")
+          gui-node (project/get-resource-node project "/fonts/vector_preview.gui")
+          text-node (:node-id (test-util/outline gui-node [0 0 0]))]
+      (test-util/prop! label-node :font (workspace/find-resource workspace "/fonts/vector_implicit_dynamic.font"))
+      (test-util/prop! font-node :characters "A")
+      (doseq [runtime [false true]
+              node [label-node text-node]]
+        (test-util/prop! font-node :runtime runtime)
+        (test-util/prop! node :text "<size=24px>AAAA</size>")
+        (let [widths (mapv (fn [size]
+                             (test-util/prop! node :font-size size)
+                             (:width (g/valid-node-value node :text-layout)))
+                           [16.0 32.0 64.0])]
+          (is (pos? (first widths)))
+          (is (apply = widths)))
+        (test-util/prop! node :text "<size=2em>AAAA</size>")
+        (test-util/prop! node :font-size 16.0)
+        (let [width (:width (g/valid-node-value node :text-layout))]
+          (test-util/prop! node :font-size 32.0)
+          (is (= (* 2.0 width) (:width (g/valid-node-value node :text-layout)))))))))
+
+;; Rendering fixed pixel markup must match plain text at that size without reuploading the atlases.
+(deftest vector-pixel-size-rendering-reuses-textures
+  (test-util/with-loaded-project
+    (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
+          label-node (project/get-resource-node project "/label/test.label")]
+      (g/transact
+        {:undoable false}
+        [(g/set-property font-node :characters "A")
+         (g/set-property label-node :font (workspace/find-resource workspace "/fonts/vector_implicit_dynamic.font"))
+         (g/set-property label-node :material (workspace/find-resource workspace "/builtins/fonts/label-vector.material"))
+         (g/set-property label-node :font-size 24.0)
+         (g/set-property label-node :text "AAAA")
+         (g/set-property label-node :color [1.0 0.0 1.0 1.0])])
+      (let [[_ view] (test-util/open-scene-view! project app-view "/fonts/vector_preview.go" 512 256)
+            transfers (volatile! [])]
+        (try
+          (record-numeric-texture-transfers! (g/node-value view :drawable) transfers)
+          (let [expected (image-points (g/valid-node-value view :frame) #(= 0xff00ff %))
+                initial-transfers @transfers]
+            (is (< 50 (count expected)))
+            (test-util/prop! label-node :text "<size=24px>AAAA</size>")
+            (doseq [size [16.0 32.0 64.0]]
+              (test-util/prop! label-node :font-size size)
+              (is (= expected (image-points (g/valid-node-value view :frame) #(= 0xff00ff %))))
+              (is (= initial-transfers @transfers))))
+          (finally
+            ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
+            (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))
+
 ;; Vector colors, effects, and picking must survive an empty-text round trip.
 (deftest vector-label-preview-and-picking
   (test-util/with-loaded-project

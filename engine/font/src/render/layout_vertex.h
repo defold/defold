@@ -39,6 +39,8 @@ struct FontLayoutVertexConfig
     float                  m_FaceColor[4];
     float                  m_Width;
     float                  m_Height;
+    // Layout base size / cached glyph size. Zero keeps the layout glyph scale.
+    float                  m_GlyphScale;
     float                  m_RecipAtlasWidth;
     float                  m_RecipAtlasHeight;
     float                  m_DecorationU;

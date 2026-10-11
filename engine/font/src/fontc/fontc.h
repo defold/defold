@@ -157,6 +157,8 @@ extern "C"
         uint32_t m_VerticalAlign;
         uint64_t m_BaseStyle;
         uint32_t m_UseBaseStyle;
+        // Vector layout size in pixels; zero uses the glyph generation size.
+        float    m_FontSize;
     } FontcProperties;
 
     /* Compiled style data. Color arrays are RGBA; flags distinguish inherited

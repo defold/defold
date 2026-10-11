@@ -190,6 +190,8 @@ public final class FontRenderer implements AutoCloseable {
         public float sdfScale;
         public long baseStyle;
         public boolean useBaseStyle;
+        /** Vector layout size in pixels; zero uses Params.size without changing the atlas. */
+        public float fontSize;
     }
 
     /** Font-independent compiled resource style; native setters copy these values. */
@@ -941,6 +943,7 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_VerticalAlign(values, properties.verticalAlign);
             FontcProperties.m_BaseStyle(values, properties.baseStyle);
             FontcProperties.m_UseBaseStyle(values, flag(properties.useBaseStyle));
+            FontcProperties.m_FontSize(values, properties.fontSize);
             checkResult(FontcSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
         }
     }
