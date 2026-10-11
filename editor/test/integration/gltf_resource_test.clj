@@ -535,7 +535,7 @@
               profiles-file (io/file project-path "ktx2.texture_profiles")]
           (fs/create-file! image-file bytes)
           (fs/create-file! profiles-file
-                           (str "path_settings { path: \"/models/**\" profile: \"KTX2\" }\n"
+                           (str "path_settings { path: \"/models/**/*.ktx2\" profile: \"KTX2\" }\n"
                                 "profiles { name: \"KTX2\" platforms { os: OS_ID_GENERIC mipmaps: true "
                                 "premultiply_alpha: false formats { format: TEXTURE_FORMAT_RGBA } } }"))
           (doseq [[name texture-path] [["standalone" "/models/albedo.ktx2"] ["embedded" virtual-path]]]
@@ -607,13 +607,31 @@
                          (:textures (first (gltf/material-binding-descriptors
                                              (workspace/find-resource workspace "/models/robot.gltf") nil #(workspace/find-resource workspace %)))))))
             (let [target-before (first (g/node-value virtual :build-targets))
-                  gpu-before (g/node-value virtual :gpu-texture-generator)]
+                  gpu-before (g/node-value virtual :gpu-texture-generator)
+                  built-before (with-open [_build (test-util/build! virtual)]
+                                 (vec (test-util/node-build-output virtual)))]
               ;; Edit in memory only. Build and preview must track unsaved profile changes.
               (g/transact (g/update-property profiles :pb assoc-in [:profiles 0 :platforms 0 :regenerate-mipmaps] true))
               (is (true? (get-in (g/node-value virtual :texture-profile) [:platforms 0 :regenerate-mipmaps])))
               (is (not= (:content-hash target-before) (:content-hash (first (g/node-value virtual :build-targets)))))
               (is (not (identical? gpu-before (g/node-value virtual :gpu-texture-generator))))
-              (g/transact (g/update-property profiles :pb assoc-in [:profiles 0 :platforms 0 :mipmaps] false))
+              (with-open [_build (test-util/build! virtual)]
+                (is (not= built-before (vec (test-util/node-build-output virtual)))))
+              (g/transact (g/update-property profiles :pb
+                                             #(-> %
+                                                  (assoc-in [:profiles 0 :platforms 0 :mipmaps] false)
+                                                  (assoc-in [:profiles 0 :platforms 0 :max-texture-size] 4)
+                                                  (assoc-in [:profiles 0 :platforms 0 :formats 0 :format] :texture-format-luminance))))
+              (is (true? (g/node-value profiles :dirty)))
+              (doseq [node [standalone virtual]]
+                (with-open [_build (test-util/build! node)]
+                  (let [built (-> (test-util/node-build-output node)
+                                  TextureUtil/textureResourceBytesToTextureImage
+                                  protobuf/pb->map-with-defaults
+                                  :alternatives
+                                  first)]
+                    (is (= {:width 4 :height 2 :format :texture-format-luminance :mip-map-offset [0]}
+                           (select-keys built [:width :height :format :mip-map-offset]))))))
               (is (= 2 (count (:children (g/node-value virtual :scene)))))
               (g/transact (g/update-property profiles :pb
                                              #(-> %
