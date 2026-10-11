@@ -24,7 +24,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
-#include "../comp_anim.h"
+#include "../comp_anim_private.h"
 #include "../gameobject_script.h"
 #include <gameobject/gameobject_ddf.h>
 #include "../gameobject_props.h"

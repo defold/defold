@@ -14,6 +14,7 @@
 
 
 #include "comp_anim.h"
+#include "comp_anim_private.h"
 
 #include <dlib/index_pool.h>
 #include <dlib/profile.h>

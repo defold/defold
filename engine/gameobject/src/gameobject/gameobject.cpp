@@ -30,7 +30,7 @@
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_private.h"
-#include "comp_anim.h"
+#include "comp_anim_private.h"
 #include "gameobject_props.h"
 #include "gameobject_props_lua.h"
 #include "gameobject_props_ddf.h"
