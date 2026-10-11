@@ -14,11 +14,15 @@
 
 (ns editor.camera-test
   (:require [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.camera :as c]
+            [editor.fs :as fs]
             [editor.geom :as geom]
             [editor.math :as math]
-            [editor.types :as t])
-  (:import [javax.vecmath Point3d Vector3d]))
+            [editor.prefs :as prefs]
+            [editor.types :as t]
+            [support.test-support :refer [tx-nodes with-clean-system]])
+  (:import [javax.vecmath Point3d Vector3d Vector4d]))
 
 (deftest frame-zero-aabb
   (testing "Framing an orthographic camera on a zero AABB should produce a valid projection matrix"
@@ -136,3 +140,84 @@
         speed-after (.length velocity)]
     (is (> speed-before 0.1) "Should have built up velocity")
     (is (< speed-after 0.001) "Velocity should have decayed to near zero")))
+
+(defn- make-test-camera [projection]
+  (assoc (c/make-camera projection identity {:fov-x 1000.0 :fov-y 1000.0})
+    :focus-point (Vector4d. 0.0 0.0 0.0 1.0)
+    :position (Point3d. 0.0 0.0 100.0)))
+
+(defn- make-camera-controller [projection]
+  (let [prefs (prefs/make :scopes {:global (fs/create-temp-file! "camera-test" ".editor_settings")}
+                          :schemas [:default])]
+    (first (tx-nodes (g/make-node c/CameraController
+                       :prefs prefs
+                       :local-camera (make-test-camera projection))))))
+
+;; Verifies every quick-view button maps to the expected camera orientation, so
+;; the six-button dispatch and its sign handling cannot silently regress.
+(deftest realign-camera-to-view-orients-each-axis-sign
+  (let [camera (make-test-camera :orthographic)
+        forward (fn [view-type]
+                  (c/camera-forward-vector (c/camera-orthographic-realign camera view-type)))]
+    (testing "positive axes place the camera on the positive side looking toward the focus"
+      (is (neg? (.z (forward :front))))
+      (is (neg? (.x (forward :right))))
+      (is (neg? (.y (forward :top)))))
+    (testing "negative axes place the camera on the negative side looking toward the focus"
+      (is (pos? (.z (forward :back))))
+      (is (pos? (.x (forward :left))))
+      (is (pos? (.y (forward :bottom)))))))
+
+;; Verifies the realign places the camera along the view direction at the
+;; distance it measured from the focus point, so quick views orbit rather than
+;; dolly the camera.
+(deftest realign-camera-to-view-preserves-focus-distance
+  (let [camera (make-test-camera :orthographic)
+        focus ^Vector4d (:focus-point camera)
+        ;; Mirror the distance computation in camera-orthographic-realign, which
+        ;; measures the Vector4d from the camera position to the focus point.
+        dist (.length (doto (Vector4d. ^Point3d (:position camera)) (.sub focus)))
+        expected-position (fn [[dx dy dz]]
+                            (Point3d. (+ (.x focus) (* dx dist))
+                                      (+ (.y focus) (* dy dist))
+                                      (+ (.z focus) (* dz dist))))]
+    (doseq [[view-type dir] [[:front [0.0 0.0 1.0]] [:back [0.0 0.0 -1.0]]
+                             [:right [1.0 0.0 0.0]] [:left [-1.0 0.0 0.0]]
+                             [:top [0.0 1.0 0.0]] [:bottom [0.0 -1.0 0.0]]]]
+      (is (.epsilonEquals ^Point3d (:position (c/camera-orthographic-realign camera view-type))
+                          ^Point3d (expected-position dir)
+                          math/epsilon)
+          (str "camera placed along " view-type " at the measured focus distance")))))
+
+;; Verifies realign-camera-to-view! reports the grid plane for the pressed view
+;; and leaves the camera orthographic when it started orthographic.
+(deftest realign-camera-to-view-orthographic-reports-plane
+  (with-clean-system
+    (let [camera-node (make-camera-controller :orthographic)
+          planes (atom [])]
+      (doseq [[view-type expected-plane] [[:front :z] [:back :z]
+                                          [:right :x] [:left :x]
+                                          [:top :y] [:bottom :y]]]
+        (reset! planes [])
+        (c/realign-camera-to-view! camera-node view-type #(swap! planes conj %))
+        (is (= [expected-plane] @planes)
+            (str "plane reported for " view-type))
+        (is (= :orthographic (:type (g/node-value camera-node :local-camera)))
+            (str "projection preserved for " view-type))))))
+
+;; Verifies realign-camera-to-view! round-trips a perspective camera back to
+;; perspective while still reporting the grid plane.
+(deftest realign-camera-to-view-perspective-round-trips
+  (with-clean-system
+    (let [camera-node (make-camera-controller :perspective)
+          planes (atom [])]
+      (c/realign-camera-to-view! camera-node :top #(swap! planes conj %))
+      (is (= [:y] @planes))
+      (is (= :perspective (:type (g/node-value camera-node :local-camera)))))))
+
+;; Verifies realign-camera-to-view! tolerates a nil on-plane-changed callback,
+;; since the grid plane is optional at the call site.
+(deftest realign-camera-to-view-allows-nil-plane-callback
+  (with-clean-system
+    (let [camera-node (make-camera-controller :orthographic)]
+      (is (nil? (c/realign-camera-to-view! camera-node :front nil))))))
