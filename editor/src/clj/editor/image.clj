@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.image
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -171,7 +170,7 @@
 
 (defn- read-ktx2-info
   [_read-opts _owner-resource readable]
-  (with-open [image (TexcLibraryJni/LoadKtx2 (with-open [stream (io/input-stream readable)] (.readAllBytes stream)))]
+  (with-open [image (TexcLibraryJni/LoadKtx2 (resource/resource->bytes readable))]
     {:dimensions [(.-width image) (.-height image)]
      :format (case (.-vkFormat image)
                0 (if (= 1 (.-supercompression image)) "ETC1S" "UASTC")
