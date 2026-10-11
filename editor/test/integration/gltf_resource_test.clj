@@ -547,7 +547,7 @@
             (is (not (g/error-value? (g/node-value node :build-targets))))))
         (doseq [[name texture-path] bindings
                 [ext property proto-class textures-key] [["mesh" :texture0 MeshProto$MeshDesc :textures]
-                                                        ["script" :__texture Lua$LuaModule :property-resources]]]
+                                                         ["script" :__texture Lua$LuaModule :property-resources]]]
           (let [node (test-util/resource-node project (str "/" name "." ext))
                 property-data (get-in (g/node-value node :_properties) [:properties property])]
             (is (= texture-path (resource/proj-path (:value property-data))))
@@ -584,8 +584,8 @@
             (is (= 2 (count (g/node-value node :mip-texture-request-datas))))
             (is (= "8 x 4 (KTX2 profile)" (:info-text preview-scene)))
             (doseq [[property expected] [[:dimensions [8 4]] [:format "UASTC"] [:supercompression "—"]
-                                        [:mip-count 2] [:channels 3] [:color-space "Linear"]
-                                        [:premultiplied-alpha false] [:orientation "rd"]]]
+                                         [:mip-count 2] [:channels 3] [:color-space "Linear"]
+                                         [:premultiplied-alpha false] [:orientation "rd"]]]
               (let [property-data (get-in (g/node-value node :_properties) [:properties property])]
                 (is (= expected (:value property-data)))
                 (is (true? (:read-only? property-data)))))
@@ -618,7 +618,7 @@
           (with-open [_build (test-util/build! node)]
             (let [output (ByteArrayOutputStream.)
                   profile (tex-gen/match-texture-profile-pb (g/node-value project :texture-profiles)
-                                                           (resource/proj-path (g/node-value node :resource)))
+                                                            (resource/proj-path (g/node-value node :resource)))
                   bob (TextureGenerator/generate bytes profile false)]
               (TextureUtil/writeGenerateResultToOutputStream bob output)
               (is (= (vec (.toByteArray output))
@@ -670,7 +670,7 @@
                               "textures { sampler: \"tex0\" texture: \"/models/albedo.ktx2\" } }"))
         (workspace/resource-sync! workspace)
         (doseq [[name format supercompression mip-count] [["etc1s" "ETC1S" "BasisLZ" 2]
-                                                         ["bc7" "BC7" "—" 1]]]
+                                                          ["bc7" "BC7" "—" 1]]]
           (let [before (:content-hash (first (g/node-value (test-util/resource-node project virtual-path) :build-targets)))
                 changed (ktx2-bytes name)]
             (test-support/write-until-new-mtime image-file changed)

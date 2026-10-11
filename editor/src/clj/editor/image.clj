@@ -197,8 +197,8 @@
   (let [renderable (first renderables)
         [width height] (:dimensions (:user-data renderable))]
     (render-util/render-color-quad! gl render-args ::ktx2-mip-selection
-                                  (scene-picking/renderable-picking-id-uniform renderable)
-                                  [[0 0] [0 height] [width height] [width 0]])))
+                                    (scene-picking/renderable-picking-id-uniform renderable)
+                                    [[0 0] [0 height] [width height] [width 0]])))
 
 (g/defnode Ktx2MipNode
   (inherits outline/OutlineNode)

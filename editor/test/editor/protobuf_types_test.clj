@@ -54,8 +54,8 @@
               @rendered)
             (let [content (.getContent ^ScrollPane (.lookup parent "ScrollPane"))
                   ^ListView formats-list (coll/first-where
-                                          #(= [[0 :texture-format-rgba]] (vec (.getItems ^ListView %)))
-                                          (.lookupAll content ".list-view"))]
+                                           #(= [[0 :texture-format-rgba]] (vec (.getItems ^ListView %)))
+                                           (.lookupAll content ".list-view"))]
               (is (some? formats-list))
               (when formats-list
                 (is (= disabled (.isDisabled formats-list))))
