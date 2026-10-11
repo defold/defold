@@ -601,10 +601,59 @@
         (.addListener showing-property showing-property-listener)
         #(do
            (.stop show-timeline)
+           (.hide tooltip)
            (.removeEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
            (.removeEventHandler node MouseEvent/MOUSE_EXITED on-exit)
            (.removeListener showing-property showing-property-listener))))
     fx.lifecycle/dynamic))
+
+(def ^:private ext-delayed-tooltip
+  (fx/make-ext-with-props {:tooltip prop-delayed-tooltip}))
+
+(defn- bind-lazy-tooltip! [^Node node desc opts]
+  (let [component (volatile! nil)
+        binding-desc {:fx/type ext-delayed-tooltip
+                      :desc {:fx/type fx/ext-instance-factory
+                             :create (constantly node)}
+                      :props {:tooltip desc}}
+        ^EventHandler on-enter
+        (fn [_]
+          (when-not @component
+            (vreset! component (fx/create-component binding-desc opts))))]
+    (.addEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
+    (when (.isHover node)
+      (.handle on-enter nil))
+    (fn dispose-lazy-tooltip! []
+      (.removeEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
+      (when-let [component @component]
+        ;; Retract the binding before deleting the tooltip.
+        (fx/delete-component
+          (fx/advance-component component (assoc binding-desc :props {}) opts)
+          opts)))))
+
+(def prop-lazy-tooltip
+  "A delayed tooltip description whose component is created on first hover."
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn [^Node node bind!]
+        (when bind!
+          (bind! node))))
+    (reify fx.lifecycle/Lifecycle
+      (create [_ desc opts]
+        (let [dispose (volatile! nil)
+              bind! (fn [node]
+                      (vreset! dispose (bind-lazy-tooltip! node desc opts)))]
+          (with-meta {:desc desc :opts opts :bind bind! :dispose dispose}
+                     {`fx.component/instance :bind})))
+      (advance [this component desc opts]
+        (if (and (= desc (:desc component)) (= opts (:opts component)))
+          component
+          (do
+            (fx.lifecycle/delete this component opts)
+            (fx.lifecycle/create this desc opts))))
+      (delete [_ component _]
+        (when-let [dispose @(:dispose component)]
+          (dispose))))))
 
 (defn apply-tooltip [props v]
   (cond

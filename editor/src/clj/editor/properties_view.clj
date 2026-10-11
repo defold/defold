@@ -756,17 +756,18 @@
                                   :mnemonic-parsing false
                                   :focus-traversable false
                                   :text (localization-state (properties/label property))
-                                  :tooltip {:fx/type fxui/tooltip
-                                            :content-display :graphic-only
-                                            :style {:-fx-padding 0}
-                                            :graphic {:fx/type markdown-view/view
-                                                      :content (localization-state
-                                                                 (localization/message
-                                                                   "property.tooltip"
-                                                                   {"help" (properties/tooltip property)
-                                                                    "id" (string/replace (name property-keyword) \- \_)}))
-                                                      :max-width 350.0
-                                                      :project (:project context)}}
+                                  fxui/prop-lazy-tooltip
+                                  {:fx/type fxui/tooltip
+                                   :content-display :graphic-only
+                                   :style {:-fx-padding 0}
+                                   :graphic {:fx/type markdown-view/view
+                                             :content (localization-state
+                                                        (localization/message
+                                                          "property.tooltip"
+                                                          {"help" (properties/tooltip property)
+                                                           "id" (string/replace (name property-keyword) \- \_)}))
+                                             :max-width 350.0
+                                             :project (:project context)}}
                                   prop-button-menu ::property-menu
                                   prop-mouse-pressed-handler focus-mouse-event-source!
                                   prop-property-context [(assoc context :property property) selection-provider]}
