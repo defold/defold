@@ -20,16 +20,39 @@
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.gl :as gl]
-            [editor.gl.texture :as texture]
+            [editor.gl.pass :as pass]
             [editor.gl.vertex2 :as vtx]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [util.coll :as coll]
-            [util.fn :as fn])
-  (:import [java.awt.image BufferedImage]
+            [util.coll :as coll])
+  (:import [com.jogamp.opengl DebugGL3 GL3 GLAutoDrawable]
+           [java.awt.image BufferedImage]
+           [java.nio Buffer]
            [java.util Arrays]
            [javax.vecmath Matrix4d]))
+
+(set! *warn-on-reflection* true)
+
+(defn- record-numeric-texture-transfers! [^GLAutoDrawable drawable transfers]
+  (gl/with-drawable-as-current drawable
+    (let [record-transfer! (fn [format type pixels width height]
+                             ;; Ignore storage allocation without pixel data and ordinary color textures.
+                             (when (and pixels
+                                        (contains? #{[GL3/GL_RGBA GL3/GL_HALF_FLOAT]
+                                                     [GL3/GL_RED_INTEGER GL3/GL_UNSIGNED_INT]}
+                                                   [format type]))
+                               (vswap! transfers conj [format type width height])))]
+      (.setGL drawable
+              (proxy [DebugGL3] [gl]
+                (glTexImage2D [target level internal-format width height border format type pixels]
+                  (.glTexImage2D gl (int target) (int level) (int internal-format) (int width) (int height)
+                                 (int border) (int format) (int type) ^Buffer pixels)
+                  (record-transfer! format type pixels width height))
+                (glTexSubImage2D [target level x y width height format type pixels]
+                  (.glTexSubImage2D gl (int target) (int level) (int x) (int y) (int width) (int height)
+                                    (int format) (int type) ^Buffer pixels)
+                  (record-transfer! format type pixels width height)))))))
 
 (defn- image-points [^BufferedImage image pixel-predicate]
   (let [width (.getWidth image)
@@ -96,7 +119,7 @@
                   (let [^BufferedImage after-image (g/valid-node-value view :frame)]
                     (is (Arrays/equals before-pixels (.getRGB after-image 0 0 width height nil 0 width))))))
               (finally
-                (#'scene/dispose-preview view)
+                ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
                 (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))
 
 (deftest vector-gui-preview-clipping-and-picking
@@ -129,7 +152,7 @@
                 (test-util/mouse-click! view x y)
                 (is (test-util/selected? app-view text-node))))))
         (finally
-          (#'scene/dispose-preview view)
+          ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
           (test-util/close-tab! project app-view "/fonts/vector_preview.gui"))))))
 
 (deftest font-mode-switch-in-open-views
@@ -172,8 +195,8 @@
                     (is (= previous points))
                     (vswap! previous-points assoc [mode view] points))))))
           (finally
-            (#'scene/dispose-preview label-view)
-            (#'scene/dispose-preview gui-view)
+            ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) label-view)
+            ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) gui-view)
             (test-util/close-tab! project app-view "/fonts/vector_preview.go")
             (test-util/close-tab! project app-view "/fonts/vector_preview.gui")))))))
 
@@ -202,9 +225,10 @@
                   (is (= previous points))
                   (vswap! previous-points assoc mode points)))))
           (finally
-            (#'scene/dispose-preview view)
+            ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
             (test-util/close-tab! project app-view path)))))))
 
+;; A batch must upload each numeric atlas once, even when it contains multiple text entries.
 (deftest vector-batch-uploads-numeric-textures-once
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
@@ -221,18 +245,70 @@
                                 :world-transform transform
                                 :text-layout (font/layout-text (:font-map font-data) (str c) false 1000.0 0.0 1.0 36.0)))
                             "AB")
-              update-image! (fn/make-call-logger texture/update-image!)]
-          (with-redefs [texture/update-image! update-image!]
-            (gl/with-drawable-as-current (g/node-value view :drawable)
+              drawable (g/node-value view :drawable)
+              transfers (volatile! [])]
+          (record-numeric-texture-transfers! drawable transfers)
+          (gl/with-drawable-as-current drawable
+            (is (= (* 6 (count entries)) (count (font/request-vertex-buffer gl ::batch font-data entries))))
+            (is (= {[GL3/GL_RGBA GL3/GL_HALF_FLOAT] 1
+                    [GL3/GL_RED_INTEGER GL3/GL_UNSIGNED_INT] 1}
+                   (frequencies (mapv #(subvec % 0 2) @transfers))))
+            (let [initial-transfers @transfers]
               (is (= (* 6 (count entries)) (count (font/request-vertex-buffer gl ::batch font-data entries))))
-              (is (= 2 (count (fn/call-logger-calls update-image!))))
-              (is (= (* 6 (count entries)) (count (font/request-vertex-buffer gl ::batch font-data entries))))
-              (is (= 2 (count (fn/call-logger-calls update-image!)))))))
+              (is (= initial-transfers @transfers)))))
         (finally
-          (#'scene/dispose-preview view)
+          ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
           (test-util/close-tab! project app-view "/fonts/vector_preview.go"))))))
 
-(deftest vector-preview-zoom-reuses-vertices
+;; Camera changes must reuse vector vertices and their version, with and without bitmap effects.
+(deftest vector-zoom-reuses-vertices
+  (test-util/with-loaded-project
+    (let [font-path "/fonts/vector_implicit_dynamic.font"
+          font-node (project/get-resource-node project font-path)
+          label-node (project/get-resource-node project "/label/test.label")]
+      (g/transact
+        {:undoable false}
+        [(g/set-property font-node :characters "O")
+         (g/set-property font-node :size 36)
+         (g/set-property font-node :outline-width 2.0)
+         (g/set-property font-node :shadow-blur 2.0)
+         (g/set-property label-node :font (workspace/find-resource workspace font-path))
+         (g/set-property label-node :text "O")])
+      (doseq [effects [false true]]
+        (testing (str "effects=" effects)
+          (g/transact
+            {:undoable false}
+            [(g/set-property font-node :outline-alpha (if effects 1.0 0.0))
+             (g/set-property font-node :shadow-alpha (if effects 1.0 0.0))])
+          (let [font-data (g/valid-node-value font-node :font-data)
+                entry (assoc (g/valid-node-value label-node :text-data)
+                        :world-transform (doto (Matrix4d.) (.setIdentity)))
+                [_ view] (test-util/open-scene-view! project app-view "/fonts/vector_preview.go" 512 256)
+                camera-id (scene/view->camera view)
+                initial-camera (g/node-value camera-id :local-camera)]
+            (try
+              (gl/with-drawable-as-current (g/node-value view :drawable)
+                (let [initial-render-args (get (g/valid-node-value view :pass->render-args) pass/transparent)
+                      initial-buffer (font/request-vertex-buffer gl ::zoom font-data [entry] initial-render-args)
+                      initial-version (vtx/version initial-buffer)]
+                  (is (pos? (count initial-buffer)))
+                  (is (instance? Matrix4d (:view-proj initial-render-args)))
+                  (doseq [zoom [2.0 4.0 0.5 1.0]]
+                    (g/set-property! camera-id :local-camera
+                      (-> initial-camera
+                          (update :fov-x / zoom)
+                          (update :fov-y / zoom)))
+                    (let [render-args (get (g/valid-node-value view :pass->render-args) pass/transparent)
+                          buffer (font/request-vertex-buffer gl ::zoom font-data [entry] render-args)]
+                      (is (= (= 1.0 zoom) (= (:view-proj initial-render-args) (:view-proj render-args))))
+                      (is (identical? initial-buffer buffer))
+                      (is (= initial-version (vtx/version buffer)))))))
+              (finally
+                ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
+                (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))
+
+;; Rendering zoomed Font, Label, and GUI previews must not upload unchanged numeric atlases again.
+(deftest vector-preview-zoom-reuses-textures
   (test-util/with-loaded-project
     (let [font-path "/fonts/vector_implicit_dynamic.font"
           font-node (project/get-resource-node project font-path)
@@ -256,33 +332,23 @@
           (let [[_ view] (test-util/open-scene-view! project app-view path 512 256)
                 camera-id (scene/view->camera view)
                 initial-camera (g/node-value camera-id :local-camera)
-                buffers (volatile! [])
-                request-vertex-buffer font/request-vertex-buffer
-                update-image! (fn/make-call-logger texture/update-image!)]
+                transfers (volatile! [])]
             (try
-              (with-redefs [font/request-vertex-buffer (fn [& args]
-                                                         (let [buffer (apply request-vertex-buffer args)]
-                                                           (vswap! buffers conj [buffer (vtx/version buffer)])
-                                                           buffer))
-                            texture/update-image! update-image!]
-                (g/valid-node-value view :frame)
-                (let [[[initial-buffer initial-version]] @buffers]
-                  (is (pos? (count initial-buffer)))
-                  (is (= 2 (count (fn/call-logger-calls update-image!))))
-                  (vreset! buffers [])
-                  (doseq [zoom [2.0 4.0 0.5 1.0]]
-                    (g/set-property! camera-id :local-camera
-                      (-> initial-camera
-                          (update :fov-x / zoom)
-                          (update :fov-y / zoom)))
-                    (g/valid-node-value view :frame))
-                  (is (= 4 (count @buffers)))
-                  (doseq [[buffer version] @buffers]
-                    (is (identical? initial-buffer buffer))
-                    (is (= initial-version version)))
-                  (is (= 2 (count (fn/call-logger-calls update-image!))))))
+              (record-numeric-texture-transfers! (g/node-value view :drawable) transfers)
+              (is (instance? BufferedImage (g/valid-node-value view :frame)))
+              (is (= {[GL3/GL_RGBA GL3/GL_HALF_FLOAT] 1
+                      [GL3/GL_RED_INTEGER GL3/GL_UNSIGNED_INT] 1}
+                     (frequencies (mapv #(subvec % 0 2) @transfers))))
+              (let [initial-transfers @transfers]
+                (doseq [zoom [2.0 4.0 0.5 1.0]]
+                  (g/set-property! camera-id :local-camera
+                    (-> initial-camera
+                        (update :fov-x / zoom)
+                        (update :fov-y / zoom)))
+                  (is (instance? BufferedImage (g/valid-node-value view :frame))))
+                (is (= initial-transfers @transfers)))
               (finally
-                (#'scene/dispose-preview view)
+                ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
                 (test-util/close-tab! project app-view path)))))))))
 
 ;; Copied shaders and unsaved fragment edits must render through the selected material in every font view.
@@ -320,5 +386,5 @@
                 (test-util/set-code-editor-lines! fragment-node original-lines)
                 (is (= before (count (image-points (g/valid-node-value view :frame) #(= 0x00ff00 %)))) path))
               (finally
-                (#'scene/dispose-preview view)
+                ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
                 (test-util/close-tab! project app-view path)))))))))
