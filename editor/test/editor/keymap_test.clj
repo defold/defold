@@ -76,3 +76,13 @@
         (is (nil? (keymap/commands m2 "Meta+A")))
         (is (nil? (keymap/shortcuts m2 :a)))
         (is (nil? (keymap/warnings m2 :a)))))))
+
+;; Verifies the theme cycling shortcut is present and parses on every
+;; platform's default keymap. Guards against a malformed modifier token
+;; (e.g. "Control+F10", which KeyCombination rejects) crashing keymap
+;; construction at project load.
+(deftest theme-cycle-shortcut-parses-on-all-platforms
+  (doseq [os [:macos :win32 :linux]]
+    (let [combos (:command->shortcuts (keymap/default os))]
+      (is (contains? (get combos :theme.cycle) (KeyCombination/valueOf "Ctrl+F10"))
+          (str "theme.cycle missing or unparsable on " (name os))))))
