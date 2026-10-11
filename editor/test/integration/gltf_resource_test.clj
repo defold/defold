@@ -491,25 +491,60 @@
           (doseq [link links]
             (is (resource/exists? link))))))))
 
-(deftest ktx2-mesh-and-script-bindings
-  (let [fixture (io/file "../com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/ktx2/uastc.ktx2")
-        bytes (with-open [stream (io/input-stream fixture)] (.readAllBytes stream))
-        content (-> (gltf-content "Paint")
-                    (string/replace "albedo.png" (str "data:image/ktx2;base64," (.encodeToString (Base64/getEncoder) bytes)))
-                    (string/replace "image/png" "image/ktx2"))
+(defn- ktx2-bytes
+  ^bytes [name]
+  (resource/resource->bytes
+    (io/file "../com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/ktx2"
+             (str name ".ktx2"))))
+
+(defn- embedded-ktx2-gltf-content
+  [^bytes bytes]
+  (-> (gltf-content "Paint")
+      (string/replace "albedo.png" (str "data:image/ktx2;base64," (.encodeToString (Base64/getEncoder) bytes)))
+      (string/replace "image/png" "image/ktx2")))
+
+(defn- with-ktx2-project
+  [f]
+  (let [bytes (ktx2-bytes "uastc")]
+    (with-gltf-project :file (embedded-ktx2-gltf-content bytes)
+      (fn [project-path workspace project]
+        (fs/create-file! (io/file project-path "models/albedo.ktx2") bytes)
+        (fs/create-file! (io/file project-path "ktx2.texture_profiles")
+                         (str "path_settings { path: \"/models/**/*.ktx2\" profile: \"KTX2\" }\n"
+                              "profiles { name: \"KTX2\" platforms { os: OS_ID_GENERIC mipmaps: true "
+                              "premultiply_alpha: false formats { format: TEXTURE_FORMAT_RGBA } } }"))
+        (workspace/resource-sync! workspace)
+        (test-util/set-setting! (test-util/resource-node project "/game.project")
+                                ["graphics" "texture_profiles"]
+                                (workspace/find-resource workspace "/ktx2.texture_profiles"))
+        (f project-path workspace project)))))
+
+;; Standalone and embedded KTX2 images support model, mesh and script bindings.
+(deftest ktx2-material-and-script-bindings
+  (let [bytes (ktx2-bytes "uastc")
         bindings [["standalone" "/models/albedo.ktx2"] ["embedded" "/models/robot.gltf/images/Albedo_0.ktx2"]]]
-    (with-gltf-project :file content
+    (with-gltf-project :file (embedded-ktx2-gltf-content bytes)
       (fn [project-path workspace project]
         (fs/create-file! (io/file project-path "models/albedo.ktx2") bytes)
         (fs/create-file! (io/file project-path "vertices.buffer")
                          "[{\"name\":\"position\",\"type\":\"float32\",\"count\":3,\"data\":[0,0,0,1,0,0,0,1,0]}]")
         (doseq [[name texture-path] bindings]
+          (fs/create-file! (io/file project-path (str name ".model"))
+                           (str "mesh: \"/models/robot.gltf\" materials { name: \"Paint\" "
+                                "material: \"/builtins/materials/model.material\" "
+                                "textures { sampler: \"tex0\" texture: \"" texture-path "\" } }"))
           (fs/create-file! (io/file project-path (str name ".mesh"))
                            (str "material: \"/builtins/materials/model.material\" vertices: \"/vertices.buffer\" "
                                 "position_stream: \"position\" textures: \"" texture-path "\""))
           (fs/create-file! (io/file project-path (str name ".script"))
                            (str "go.property('texture', resource.texture('" texture-path "'))")))
         (workspace/resource-sync! workspace)
+        (doseq [[name texture-path] bindings]
+          (let [node (test-util/resource-node project (str "/" name ".model"))
+                binding (-> (g/node-value node :material-binding-infos) first :texture-binding-infos first)]
+            (is (= texture-path (resource/proj-path (:texture binding))))
+            (is (texture-util/texture-lifecycle-generator? (:gpu-texture-generator binding)))
+            (is (not (g/error-value? (g/node-value node :build-targets))))))
         (doseq [[name texture-path] bindings
                 [ext property proto-class textures-key] [["mesh" :texture0 MeshProto$MeshDesc :textures]
                                                         ["script" :__texture Lua$LuaModule :property-resources]]]
@@ -520,169 +555,154 @@
             (with-open [_build (test-util/build! node)]
               (let [built (protobuf/bytes->map-with-defaults proto-class (test-util/node-build-output node))
                     texture-build-path (resource/proj-path (test-util/build-resource project texture-path))]
-                (is (= [texture-build-path] (get built textures-key)))))))))))
+                (is (= [texture-build-path] (get built textures-key)))))))
+        (is (= #{"/models/robot.gltf/images/Albedo_0.ktx2"}
+               (into #{}
+                     (map (comp resource/proj-path :texture))
+                     (:textures (first (gltf/material-binding-descriptors
+                                         (workspace/find-resource workspace "/models/robot.gltf") nil #(workspace/find-resource workspace %)))))))))))
 
-(deftest ktx2-images-build-preview-and-refresh
-  (let [fixture (io/file "../com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/ktx2/uastc.ktx2")
-        bytes (with-open [stream (io/input-stream fixture)] (.readAllBytes stream))
-        content (-> (gltf-content "Paint")
-                    (string/replace "albedo.png" (str "data:image/ktx2;base64," (.encodeToString (Base64/getEncoder) bytes)))
-                    (string/replace "image/png" "image/ktx2"))]
-    (with-gltf-project :file content
-      (fn [project-path workspace project]
-        (let [image-file (io/file project-path "models/albedo.ktx2")
-              virtual-path "/models/robot.gltf/images/Albedo_0.ktx2"
-              profiles-file (io/file project-path "ktx2.texture_profiles")]
-          (fs/create-file! image-file bytes)
-          (fs/create-file! profiles-file
-                           (str "path_settings { path: \"/models/**/*.ktx2\" profile: \"KTX2\" }\n"
-                                "profiles { name: \"KTX2\" platforms { os: OS_ID_GENERIC mipmaps: true "
-                                "premultiply_alpha: false formats { format: TEXTURE_FORMAT_RGBA } } }"))
-          (doseq [[name texture-path] [["standalone" "/models/albedo.ktx2"] ["embedded" virtual-path]]]
-            (fs/create-file! (io/file project-path (str name ".model"))
-                             (str "mesh: \"/models/robot.gltf\" materials { name: \"Paint\" "
-                                  "material: \"/builtins/materials/model.material\" "
-                                  "textures { sampler: \"tex0\" texture: \"" texture-path "\" } }")))
-          (workspace/resource-sync! workspace)
-          (doseq [[name texture-path] [["standalone" "/models/albedo.ktx2"] ["embedded" virtual-path]]]
-            (let [node (test-util/resource-node project (str "/" name ".model"))
-                  binding (-> (g/node-value node :material-binding-infos) first :texture-binding-infos first)]
-              (is (= texture-path (resource/proj-path (:texture binding))))
-              (is (texture-util/texture-lifecycle-generator? (:gpu-texture-generator binding)))
-              (is (not (g/error-value? (g/node-value node :build-targets))))))
-          (test-util/set-setting! (test-util/resource-node project "/game.project")
-                                  ["graphics" "texture_profiles"]
-                                  (workspace/find-resource workspace "/ktx2.texture_profiles"))
-          (let [standalone (test-util/resource-node project "/models/albedo.ktx2")
-                virtual (test-util/resource-node project virtual-path)
-                profiles (test-util/resource-node project "/ktx2.texture_profiles")
-                app-view (test-util/setup-app-view! project)]
-            (doseq [node [standalone virtual]]
-              (is (= {:width 8 :height 4} (g/node-value node :size)))
-              (is (= "KTX2" (:name (g/node-value node :texture-profile))))
-              (is (not (g/error-value? (g/node-value node :gpu-texture))))
-              (is (false? (g/node-value node :dirty)))
-              (let [[_ view] (test-util/open-scene-view! project app-view (resource/proj-path (g/node-value node :resource)) 320 160)
-                    outline (g/node-value node :node-outline)
-                    mips (:children outline)
-                    preview-scene (g/node-value node :scene)
-                    selected-mip (:node-id (second mips))
-                    render-data (g/node-value view :scene-render-data)]
-                (is (= ["Mip 0 (8 x 4)" "Mip 1 (4 x 2)"] (mapv (comp test-util/localization :label) mips)))
-                (is (coll/every? :read-only (conj mips outline)))
-                (is (= ["mip-0" "mip-1"] (mapv :node-outline-key (:children preview-scene))))
-                (is (= 2 (count (g/node-value node :mip-texture-request-datas))))
-                (is (= "8 x 4 (KTX2 profile)" (:info-text preview-scene)))
-                (doseq [[property expected] [[:dimensions [8 4]] [:format "UASTC"] [:supercompression "—"]
-                                            [:mip-count 2] [:channels 3] [:color-space "Linear"]
-                                            [:premultiplied-alpha false] [:orientation "rd"]]]
-                  (let [property-data (get-in (g/node-value node :_properties) [:properties property])]
-                    (is (= expected (:value property-data)))
-                    (is (true? (:read-only? property-data)))))
-                (is (= (set (map :node-id mips))
-                       (into #{} (map :picking-node-id) (get-in render-data [:renderables pass/selection]))))
-                (app-view/select! app-view [selected-mip])
-                (is (= [selected-mip] (mapv :node-id (g/node-value view :selected-renderables))))
-                (let [selected-properties (properties/coalesce (g/node-value app-view :selected-node-properties))]
-                  (is (= [[4 2]] (get-in selected-properties [:properties :dimensions :values])))
-                  (is (true? (get-in selected-properties [:properties :dimensions :read-only?]))))
-                (is (instance? BufferedImage (g/node-value view :frame)))
-                (app-view/select! app-view [node])
-                (let [screen-pos (camera/camera-project (g/node-value view :camera)
-                                                        (g/node-value view :viewport)
-                                                        (Point3d. 26.0 1.0 0.0))]
-                  (test-util/mouse-click! view (.x screen-pos) (.y screen-pos))
-                  (is (= [selected-mip] (g/node-value app-view :selected-node-ids)))))
-              (with-open [_build (test-util/build! node)]
-                (let [output (ByteArrayOutputStream.)
-                      profile (tex-gen/match-texture-profile-pb (g/node-value project :texture-profiles)
-                                                               (resource/proj-path (g/node-value node :resource)))
-                      bob (TextureGenerator/generate bytes profile false)]
-                  (TextureUtil/writeGenerateResultToOutputStream bob output)
-                  (is (= (vec (.toByteArray output))
-                         (vec (resource/resource->bytes (test-util/node-build-resource node))))))))
-            (is (= #{virtual-path}
-                   (into #{}
-                         (map (comp resource/proj-path :texture))
-                         (:textures (first (gltf/material-binding-descriptors
-                                             (workspace/find-resource workspace "/models/robot.gltf") nil #(workspace/find-resource workspace %)))))))
-            (let [target-before (first (g/node-value virtual :build-targets))
-                  gpu-before (g/node-value virtual :gpu-texture-generator)
-                  built-before (with-open [_build (test-util/build! virtual)]
-                                 (vec (test-util/node-build-output virtual)))]
-              ;; Edit in memory only. Build and preview must track unsaved profile changes.
-              (g/transact (g/update-property profiles :pb assoc-in [:profiles 0 :platforms 0 :regenerate-mipmaps] true))
-              (is (true? (get-in (g/node-value virtual :texture-profile) [:platforms 0 :regenerate-mipmaps])))
-              (is (not= (:content-hash target-before) (:content-hash (first (g/node-value virtual :build-targets)))))
-              (is (not (identical? gpu-before (g/node-value virtual :gpu-texture-generator))))
-              (with-open [_build (test-util/build! virtual)]
-                (is (not= built-before (vec (test-util/node-build-output virtual)))))
-              (g/transact (g/update-property profiles :pb
-                                             #(-> %
-                                                  (assoc-in [:profiles 0 :platforms 0 :mipmaps] false)
-                                                  (assoc-in [:profiles 0 :platforms 0 :max-texture-size] 4)
-                                                  (assoc-in [:profiles 0 :platforms 0 :formats 0 :format] :texture-format-luminance))))
-              (is (true? (g/node-value profiles :dirty)))
-              (doseq [node [standalone virtual]]
-                (with-open [_build (test-util/build! node)]
-                  (let [built (-> (test-util/node-build-output node)
-                                  TextureUtil/textureResourceBytesToTextureImage
-                                  protobuf/pb->map-with-defaults
-                                  :alternatives
-                                  first)]
-                    (is (= {:width 4 :height 2 :format :texture-format-luminance :mip-map-offset [0]}
-                           (select-keys built [:width :height :format :mip-map-offset]))))))
-              (is (= 2 (count (:children (g/node-value virtual :scene)))))
-              (g/transact (g/update-property profiles :pb
-                                             #(-> %
-                                                  (assoc-in [:profiles 0 :name] "Changed")
-                                                  (assoc-in [:path-settings 0 :profile] "Changed"))))
-              (is (= "8 x 4 (Changed profile)" (:info-text (g/node-value virtual :scene)))))
-            (let [before (:content-hash (first (g/node-value virtual :build-targets)))
-                  changed (with-open [stream (io/input-stream (io/file (.getParentFile fixture) "etc1s.ktx2"))]
-                            (.readAllBytes stream))]
-              (test-support/write-until-new-mtime image-file changed)
-              (test-support/write-until-new-mtime (io/file project-path "models/robot.gltf")
-                                                  (string/replace content
-                                                                  (.encodeToString (Base64/getEncoder) bytes)
-                                                                  (.encodeToString (Base64/getEncoder) changed)))
-              (workspace/resource-sync! workspace)
-              (let [virtual (test-util/resource-node project virtual-path)]
-                (is (not= before (:content-hash (first (g/node-value virtual :build-targets)))))
-                (is (= "ETC1S" (g/node-value virtual :format)))
-                (is (= "BasisLZ" (g/node-value virtual :supercompression)))))
-            (let [changed (with-open [stream (io/input-stream (io/file (.getParentFile fixture) "bc7.ktx2"))]
-                            (.readAllBytes stream))]
-              (test-support/write-until-new-mtime image-file changed)
-              (test-support/write-until-new-mtime (io/file project-path "models/robot.gltf")
-                                                  (string/replace content
-                                                                  (.encodeToString (Base64/getEncoder) bytes)
-                                                                  (.encodeToString (Base64/getEncoder) changed)))
-              (workspace/resource-sync! workspace)
-              (doseq [path ["/models/albedo.ktx2" virtual-path]]
-                (let [node (test-util/resource-node project path)]
-                  (is (= "BC7" (g/node-value node :format)))
-                  (is (= 1 (count (:children (g/node-value node :node-outline)))))
-                  (is (= 1 (count (:children (g/node-value node :scene))))))))
-            (fs/delete-file! image-file)
-            (workspace/resource-sync! workspace)
-            (is (g/error-value? (g/node-value (test-util/resource-node project "/standalone.model") :build-targets)))
-            (test-support/write-until-new-mtime image-file bytes)
-            (test-support/write-until-new-mtime (io/file project-path "models/robot.gltf") content)
-            (workspace/resource-sync! workspace)
-            (let [virtual (test-util/resource-node project virtual-path)]
-              (is (= {:width 8 :height 4} (g/node-value virtual :size)))
-              (is (= "UASTC" (g/node-value virtual :format)))
-              (is (= 2 (count (:children (g/node-value virtual :node-outline))))))))))))
+;; Authored mips expose read-only metadata and support Outline/scene selection.
+(deftest ktx2-mip-preview-and-selection
+  (with-ktx2-project
+    (fn [_project-path _workspace project]
+      (let [app-view (test-util/setup-app-view! project)]
+        (doseq [path ["/models/albedo.ktx2" "/models/robot.gltf/images/Albedo_0.ktx2"]]
+          (let [node (test-util/resource-node project path)
+                [_ view] (test-util/open-scene-view! project app-view path 320 160)
+                outline (g/node-value node :node-outline)
+                mips (:children outline)
+                preview-scene (g/node-value node :scene)
+                selected-mip (:node-id (second mips))
+                render-data (g/node-value view :scene-render-data)]
+            (is (= {:width 8 :height 4} (g/node-value node :size)))
+            (is (not (g/error-value? (g/node-value node :gpu-texture))))
+            (is (false? (g/node-value node :dirty)))
+            (is (= ["Mip 0 (8 x 4)" "Mip 1 (4 x 2)"] (mapv (comp test-util/localization :label) mips)))
+            (is (coll/every? :read-only (conj mips outline)))
+            (is (= ["mip-0" "mip-1"] (mapv :node-outline-key (:children preview-scene))))
+            (is (= 2 (count (g/node-value node :mip-texture-request-datas))))
+            (is (= "8 x 4 (KTX2 profile)" (:info-text preview-scene)))
+            (doseq [[property expected] [[:dimensions [8 4]] [:format "UASTC"] [:supercompression "—"]
+                                        [:mip-count 2] [:channels 3] [:color-space "Linear"]
+                                        [:premultiplied-alpha false] [:orientation "rd"]]]
+              (let [property-data (get-in (g/node-value node :_properties) [:properties property])]
+                (is (= expected (:value property-data)))
+                (is (true? (:read-only? property-data)))))
+            (is (= (set (map :node-id mips))
+                   (into #{} (map :picking-node-id) (get-in render-data [:renderables pass/selection]))))
+            (app-view/select! app-view [selected-mip])
+            (is (= [selected-mip] (mapv :node-id (g/node-value view :selected-renderables))))
+            (let [selected-properties (properties/coalesce (g/node-value app-view :selected-node-properties))]
+              (is (= [[4 2]] (get-in selected-properties [:properties :dimensions :values])))
+              (is (true? (get-in selected-properties [:properties :dimensions :read-only?]))))
+            (is (instance? BufferedImage (g/node-value view :frame)))
+            (app-view/select! app-view [node])
+            (let [screen-pos (camera/camera-project (g/node-value view :camera)
+                                                    (g/node-value view :viewport)
+                                                    (Point3d. 26.0 1.0 0.0))]
+              (test-util/mouse-click! view (.x screen-pos) (.y screen-pos))
+              (is (= [selected-mip] (g/node-value app-view :selected-node-ids))))))))))
 
+;; Profile matching agrees with Bob, and unsaved edits invalidate KTX2 builds
+;; and previews.
+(deftest ktx2-profile-edits-affect-builds
+  (with-ktx2-project
+    (fn [_project-path _workspace project]
+      (let [standalone (test-util/resource-node project "/models/albedo.ktx2")
+            virtual (test-util/resource-node project "/models/robot.gltf/images/Albedo_0.ktx2")
+            profiles (test-util/resource-node project "/ktx2.texture_profiles")
+            bytes (ktx2-bytes "uastc")]
+        (doseq [node [standalone virtual]]
+          (is (= "KTX2" (:name (g/node-value node :texture-profile))))
+          (with-open [_build (test-util/build! node)]
+            (let [output (ByteArrayOutputStream.)
+                  profile (tex-gen/match-texture-profile-pb (g/node-value project :texture-profiles)
+                                                           (resource/proj-path (g/node-value node :resource)))
+                  bob (TextureGenerator/generate bytes profile false)]
+              (TextureUtil/writeGenerateResultToOutputStream bob output)
+              (is (= (vec (.toByteArray output))
+                     (vec (test-util/node-build-output node)))))))
+        (let [target-before (first (g/node-value virtual :build-targets))
+              gpu-before (g/node-value virtual :gpu-texture-generator)
+              built-before (with-open [_build (test-util/build! virtual)]
+                             (vec (test-util/node-build-output virtual)))]
+          ;; Edit in memory only. Build and preview must track unsaved profile changes.
+          (g/transact (g/update-property profiles :pb assoc-in [:profiles 0 :platforms 0 :regenerate-mipmaps] true))
+          (is (true? (get-in (g/node-value virtual :texture-profile) [:platforms 0 :regenerate-mipmaps])))
+          (is (not= (:content-hash target-before) (:content-hash (first (g/node-value virtual :build-targets)))))
+          (is (not (identical? gpu-before (g/node-value virtual :gpu-texture-generator))))
+          (with-open [_build (test-util/build! virtual)]
+            (is (not= built-before (vec (test-util/node-build-output virtual))))))
+        (g/transact (g/update-property profiles :pb
+                                       #(-> %
+                                            (assoc-in [:profiles 0 :platforms 0 :mipmaps] false)
+                                            (assoc-in [:profiles 0 :platforms 0 :max-texture-size] 4)
+                                            (assoc-in [:profiles 0 :platforms 0 :formats 0 :format] :texture-format-luminance))))
+        (is (true? (g/node-value profiles :dirty)))
+        (doseq [node [standalone virtual]]
+          (with-open [_build (test-util/build! node)]
+            (let [built (-> (test-util/node-build-output node)
+                            TextureUtil/textureResourceBytesToTextureImage
+                            protobuf/pb->map-with-defaults
+                            :alternatives
+                            first)]
+              (is (= {:width 4 :height 2 :format :texture-format-luminance :mip-map-offset [0]}
+                     (select-keys built [:width :height :format :mip-map-offset]))))))
+        (is (= 2 (count (:children (g/node-value virtual :scene)))))
+        (g/transact (g/update-property profiles :pb
+                                       #(-> %
+                                            (assoc-in [:profiles 0 :name] "Changed")
+                                            (assoc-in [:path-settings 0 :profile] "Changed"))))
+        (is (= "8 x 4 (Changed profile)" (:info-text (g/node-value virtual :scene))))))))
+
+;; Source replacement reloads metadata and mips. Missing textures invalidate
+;; their users and recover when restored.
+(deftest ktx2-images-refresh-and-recover
+  (with-ktx2-project
+    (fn [project-path workspace project]
+      (let [image-file (io/file project-path "models/albedo.ktx2")
+            gltf-file (io/file project-path "models/robot.gltf")
+            virtual-path "/models/robot.gltf/images/Albedo_0.ktx2"]
+        (fs/create-file! (io/file project-path "standalone.model")
+                         (str "mesh: \"/models/robot.gltf\" materials { name: \"Paint\" "
+                              "material: \"/builtins/materials/model.material\" "
+                              "textures { sampler: \"tex0\" texture: \"/models/albedo.ktx2\" } }"))
+        (workspace/resource-sync! workspace)
+        (doseq [[name format supercompression mip-count] [["etc1s" "ETC1S" "BasisLZ" 2]
+                                                         ["bc7" "BC7" "—" 1]]]
+          (let [before (:content-hash (first (g/node-value (test-util/resource-node project virtual-path) :build-targets)))
+                changed (ktx2-bytes name)]
+            (test-support/write-until-new-mtime image-file changed)
+            (test-support/write-until-new-mtime gltf-file (embedded-ktx2-gltf-content changed))
+            (workspace/resource-sync! workspace)
+            (is (not= before (:content-hash (first (g/node-value (test-util/resource-node project virtual-path) :build-targets)))))
+            (doseq [path ["/models/albedo.ktx2" virtual-path]]
+              (let [node (test-util/resource-node project path)]
+                (is (= format (g/node-value node :format)))
+                (is (= supercompression (g/node-value node :supercompression)))
+                (is (= mip-count (count (:children (g/node-value node :node-outline)))))
+                (is (= mip-count (count (:children (g/node-value node :scene)))))))))
+        (fs/delete-file! image-file)
+        (workspace/resource-sync! workspace)
+        (is (g/error-value? (g/node-value (test-util/resource-node project "/standalone.model") :build-targets)))
+        (let [bytes (ktx2-bytes "uastc")]
+          (test-support/write-until-new-mtime image-file bytes)
+          (test-support/write-until-new-mtime gltf-file (embedded-ktx2-gltf-content bytes)))
+        (workspace/resource-sync! workspace)
+        (is (not (g/error-value? (g/node-value (test-util/resource-node project "/standalone.model") :build-targets))))
+        (doseq [path ["/models/albedo.ktx2" virtual-path]]
+          (let [node (test-util/resource-node project path)]
+            (is (= {:width 8 :height 4} (g/node-value node :size)))
+            (is (= "UASTC" (g/node-value node :format)))
+            (is (= 2 (count (:children (g/node-value node :node-outline)))))))))))
+
+;; Buffer edits reload KTX2 metadata and mips for file and ZIP resources.
 (deftest buffer-backed-ktx2-reloads-metadata-and-mips
   (doseq [origin [:file :zip]]
     (testing origin
       (let [fixtures (mapv (fn [[name format mip-count]]
-                             {:bytes (with-open [stream (io/input-stream
-                                                          (io/file "../com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/ktx2"
-                                                                   (str name ".ktx2")))]
-                                       (.readAllBytes stream))
+                             {:bytes (ktx2-bytes name)
                               :format format
                               :mip-count mip-count})
                            [["uastc" "UASTC" 2] ["bc7" "BC7" 1] ["etc1s" "ETC1S" 2]])
