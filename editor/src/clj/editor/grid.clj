@@ -301,8 +301,11 @@
 (defn set-active-plane-3d!
   "Sets the active grid plane (:x, :y or :z) in the 3D grid preset."
   [app-view prefs plane]
-  (prefs/set! prefs [:scene :grid-3d :active-plane] plane)
-  (invalidate-grids! app-view))
+  (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
+             grid-id (g/node-value scene-view-id :grid evaluation-context)]
+    (when grid-id
+      (prefs/set! prefs [:scene :grid-3d :active-plane] plane)
+      (invalidate-grids! app-view))))
 
 
 (defn show-settings! [^Parent owner app-view prefs keymap localization]
