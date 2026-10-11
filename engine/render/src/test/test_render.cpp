@@ -2895,6 +2895,7 @@ TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
     ASSERT_EQ(cached, dmRender::GetFromCache(m_SystemFontMap, 65, 2));
     ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), bands->m_Data, band_size * sizeof(uint32_t)));
     data->m_MaxTexels = max_texels;
+    dmRender::PrepareVectorCache(m_SystemFontMap, 3);
     ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::GetFromCache(m_SystemFontMap, 65, 3));
     ASSERT_FALSE(m_SystemFontMap->m_SlugResetPending);
     ASSERT_EQ(0u, data->m_Curves.Size());
@@ -2984,16 +2985,17 @@ protected:
         dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
         m_Formats = context->m_BaseContext.m_TextureFormatSupport;
         context->m_BaseContext.m_TextureFormatSupport |= (1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
-        const char* shader_src = "uniform sampler2D curve_texture; uniform utexture2D band_texture;";
+        const char* shader_src = "uniform sampler2D curve_texture; uniform utexture2D band_texture; uniform sampler2D effect_bitmap;";
         dmGraphics::ShaderDescBuilder builder;
         builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
         builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
         builder.AddTexture("curve_texture", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
         builder.AddTexture("band_texture", 1, dmGraphics::ShaderDesc::SHADER_TYPE_UTEXTURE2D);
+        builder.AddTexture("effect_bitmap", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
         m_Program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
         m_Material = dmRender::NewMaterial(m_Context, m_Program);
-        const char* samplers[] = { "curve_texture", "band_texture" };
-        for (uint32_t i = 0; i < 2; ++i)
+        const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap" };
+        for (uint32_t i = 0; i < 3; ++i)
             ASSERT_TRUE(dmRender::SetMaterialSampler(m_Material, dmHashString64(samplers[i]), i,
                 dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
                 dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
@@ -3119,6 +3121,47 @@ protected:
         FontDestroy(font);
     }
 };
+
+// Atlas overflow recovery must preserve queued texture handles and every glyph.
+TEST_F(VectorFontTest, OverflowKeepsQueuedTexturesAndFirstGlyph)
+{
+    m_SystemFontMap->m_VectorBitmapEffects = true;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    dmRender::DrawTextParams draw;
+    draw.m_Text = "AA";
+    draw.m_Width = 128.0f;
+    draw.m_FaceColor = Vector4(1.0f);
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        dmRender::ClearRenderObjects(m_Context);
+        dmRender::RenderListBegin(m_Context);
+        dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, draw);
+        dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+        dmRender::RenderListEnd(m_Context);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+        dmRender::TextContext& text = m_Context->m_TextContext;
+        const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*)text.m_ClientBuffer;
+        uint32_t visible = 0;
+        for (uint32_t i = 0; i < text.m_VertexIndex; ++i)
+            visible += vertices[i].m_VectorColor[3] != 0;
+        EXPECT_EQ(12u, visible);
+        EXPECT_EQ(m_SystemFontMap->m_VectorSdfTexture, text.m_RenderObjects[0].m_Textures[2]);
+        if (pass == 0)
+        {
+            const float curve[] = { 0,0, .5f,1, 1,0, 0,0 };
+            FontGlyph glyph = {};
+            glyph.m_Vector.m_Data = (const uint8_t*)curve;
+            glyph.m_Vector.m_DataSize = sizeof(curve);
+            glyph.m_Vector.m_CurveCount = 1;
+            FontVectorSlugData* data = m_SystemFontMap->m_SlugData;
+            uint32_t maximum = data->m_MaxTexels;
+            data->m_MaxTexels = data->m_Bands.Size();
+            EXPECT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, text.m_Frame, 999, &glyph, 0));
+            EXPECT_TRUE(m_SystemFontMap->m_SlugResetPending);
+            data->m_MaxTexels = maximum;
+        }
+    }
+}
 
 TEST_F(VectorFontTest, DynamicFaceWithoutPrewarm)
 {

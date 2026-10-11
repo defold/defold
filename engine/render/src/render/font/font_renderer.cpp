@@ -698,12 +698,12 @@ namespace dmRender
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
                 // Vector glyphs are generated synchronously while making vertices.
-                // Apply pending growth before any batch captures texture handles.
+                // Apply pending growth and overflow resets before any batch captures texture handles.
                 for (uint32_t i = 0; i < text_context.m_TextEntries.Size(); ++i)
                 {
                     HFontMap font_map = text_context.m_TextEntries[i].m_FontMap;
                     if (font_map->m_IsVector)
-                        UpdateCacheTexture(font_map);
+                        PrepareVectorCache(font_map, text_context.m_Frame);
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:

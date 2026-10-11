@@ -132,6 +132,8 @@ namespace dmRender
         uint8_t                 m_IsVector:1;
         uint8_t                 :3;
     };
+    // Apply deferred vector atlas changes before any render batch captures textures.
+    void PrepareVectorCache(HFontMap font_map, uint32_t frame);
 }
 
 #endif // #ifndef DM_FONTMAP_PRIVATE_H

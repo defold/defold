@@ -893,6 +893,14 @@ namespace dmRender
         }
     }
 
+    void PrepareVectorCache(HFontMap font_map, uint32_t frame)
+    {
+        UpdateCacheTexture(font_map);
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        if (font_map->m_SlugResetPending && frame != font_map->m_SlugOverflowFrame)
+            ResetVectorCache(font_map);
+    }
+
     static void UpdateGlyphTexture(HFontMap font_map, FontGlyph* g, int32_t x, int32_t y, int32_t offset_y)
     {
         uint32_t glyph_image_width      = g->m_Bitmap.m_Width;
@@ -1154,8 +1162,6 @@ namespace dmRender
 
     CacheGlyph* GetFromCache(HFontMap font_map, uint64_t glyph_key, uint32_t frame)
     {
-        if (font_map->m_SlugResetPending && frame != font_map->m_SlugOverflowFrame)
-            ResetVectorCache(font_map);
         CacheGlyph** glyphp = font_map->m_GlyphCache.Get(glyph_key);
         if (glyphp)
         {
@@ -1187,9 +1193,6 @@ namespace dmRender
     CacheGlyph* AddGlyphToCache(HFontMap font_map, uint32_t frame, uint64_t glyph_key, FontGlyph* glyph, int32_t g_offset_y)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
-
-        if (font_map->m_SlugResetPending && frame != font_map->m_SlugOverflowFrame)
-            ResetVectorCache(font_map);
 
         if (font_map->m_IsVector)
         {
