@@ -86,7 +86,6 @@ public class TextureGenerator {
         public String compressorName;
         public String compressorPresetName;
         public boolean generateMipMaps;
-        public boolean recompress;
         public boolean regenerateMipmaps;
         public TexcLibraryJni.Ktx2Texture ktx2Encoder;
         public int maxTextureSize;
@@ -632,12 +631,8 @@ public class TextureGenerator {
             return result;
         }
 
-        boolean preserve = texture.canRepack && !settings.recompress && flips.isEmpty()
-                && (texture.channels == 3 || texture.premultiplied == settings.premulAlpha)
-                && (settings.ktx2Encoder != null || (texture.vkFormat == 0 && texture.supercompression != 1
-                    && settings.compressorName.equals(TextureCompressorBasisU.TextureCompressorName)))
-                && (settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGB || settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA)
-                && (texture.channels != 4 || settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA);
+        boolean preserve = settings.ktx2Encoder != null && texture.canRepack && flips.isEmpty()
+                && (texture.channels == 3 || texture.premultiplied == settings.premulAlpha);
         builder.setWidth(dimensions[0]).setHeight(dimensions[1])
                 .setOriginalWidth(source.width).setOriginalHeight(source.height).setFormat(settings.textureFormat);
         List<byte[]> result = new ArrayList<>();
@@ -866,7 +861,6 @@ public class TextureGenerator {
                             platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha());
                     settings.powerOfTwo = false;
                     settings.alignToCompressor = false;
-                    settings.recompress = platformProfile.getRecompress();
                     settings.regenerateMipmaps = platformProfile.getRegenerateMipmaps();
                     TexcLibraryJni.Ktx2Texture texture = source.ktx2;
                     if (compress && (texture.vkFormat == 0 || texture.vkFormat >= 145)) {
@@ -933,7 +927,6 @@ public class TextureGenerator {
                                                                                          platformProfile.getMipmaps(),
                                                                                          platformProfile.getMaxTextureSize(),
                                                                                          !source.hdr && platformProfile.getPremultiplyAlpha());
-                    settings.recompress = platformProfile.getRecompress();
                     settings.regenerateMipmaps = platformProfile.getRegenerateMipmaps();
                     List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis, 0);
                     imageBuilder.setCompressionType(compressionType);

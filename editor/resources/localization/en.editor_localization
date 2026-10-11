@@ -2604,7 +2604,6 @@ form.label.texture-profiles.profiles.platforms.formats.compressor-preset = Compr
 form.label.texture-profiles.profiles.platforms.mipmaps = Mipmaps
 form.label.texture-profiles.profiles.platforms.max-texture-size = Max Texture Size
 form.label.texture-profiles.profiles.platforms.premultiply-alpha = Premultiply Alpha
-form.label.texture-profiles.profiles.platforms.recompress = Recompress Source Texture
 form.label.texture-profiles.profiles.platforms.regenerate-mipmaps = Regenerate Source Mipmaps
 
 form.label.factory = Factory

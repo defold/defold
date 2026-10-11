@@ -613,8 +613,6 @@
               (is (true? (get-in (g/node-value virtual :texture-profile) [:platforms 0 :regenerate-mipmaps])))
               (is (not= (:content-hash target-before) (:content-hash (first (g/node-value virtual :build-targets)))))
               (is (not (identical? gpu-before (g/node-value virtual :gpu-texture-generator))))
-              (g/transact (g/update-property profiles :pb assoc-in [:profiles 0 :platforms 0 :recompress] true))
-              (is (true? (get-in (g/node-value profiles :save-value) [:profiles 0 :platforms 0 :recompress])))
               (g/transact (g/update-property profiles :pb assoc-in [:profiles 0 :platforms 0 :mipmaps] false))
               (is (= 2 (count (:children (g/node-value virtual :scene)))))
               (g/transact (g/update-property profiles :pb
