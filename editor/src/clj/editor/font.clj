@@ -1237,12 +1237,24 @@
      :build-fn build-glyph-bank
      :user-data user-data}))
 
-(g/defnk produce-build-targets [_node-id resource font font-source-size save-value runtime material dep-build-targets runtime-generation-build-target font-resource-map ^:try style-errors]
+(defn- prop-material-error [node-id font vector-font-mode material material-samplers]
+  (or (validation/prop-error :fatal node-id :material validation/prop-nil? material material-message)
+      (validation/prop-error :fatal node-id :material validation/prop-resource-not-exists? material material-message)
+      (let [vector (vector-font? font vector-font-mode)
+            has-vector-sampler (coll/any? #(= "curve_texture" (:name %)) material-samplers)]
+        (cond
+          (and vector (not (and has-vector-sampler
+                                (coll/any? #(= "band_texture" (:name %)) material-samplers))))
+          (g/->error node-id :material :fatal material (localization/message "error.font.vector-material-samplers"))
+
+          (and (not vector) has-vector-sampler)
+          (g/->error node-id :material :fatal material (localization/message "error.font.sdf-material-samplers"))))))
+
+(g/defnk produce-build-targets [_node-id resource font font-source-size save-value runtime material vector-font-mode material-samplers dep-build-targets runtime-generation-build-target font-resource-map ^:try style-errors]
   (or (when-let [style-error (g/flatten-errors style-errors)]
         (when (g/error-fatal? style-error)
           style-error))
-      (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)
-                              (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)
+      (when-let [errors (->> [(prop-material-error _node-id font vector-font-mode material material-samplers)
                               (when (some-> font scalable-font?)
                                 (validation/prop-error :fatal _node-id :size validation/prop-zero-or-below?
                                                        (:size (effective-font-desc font (assoc (protobuf/inject-defaults Font$FontDesc save-value) :runtime runtime)))
@@ -1637,17 +1649,7 @@
                                             [:samplers :material-samplers]
                                             [:shader :material-shader])))
             (dynamic error (g/fnk [_node-id font vector-font-mode material-resource material-samplers]
-                             (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material-resource material-message)
-                                 (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material-resource material-message)
-                                 (let [vector (vector-font? font vector-font-mode)
-                                       has-vector-sampler (coll/any? #(= "curve_texture" (:name %)) material-samplers)]
-                                   (cond
-                                     (and vector (not (and has-vector-sampler
-                                                           (coll/any? #(= "band_texture" (:name %)) material-samplers))))
-                                     (g/->error _node-id :material :fatal material-resource (localization/message "error.font.vector-material-samplers"))
-
-                                     (and (not vector) has-vector-sampler)
-                                     (g/->error _node-id :material :fatal material-resource (localization/message "error.font.sdf-material-samplers")))))))
+                             (prop-material-error _node-id font vector-font-mode material-resource material-samplers)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))

@@ -550,6 +550,32 @@
         (test-util/with-prop [node-id p -1]
           (is (g/error-fatal? (test-util/prop-error node-id p))))))))
 
+;; Incompatible font samplers must block Editor builds, including after unsaved material edits.
+(deftest material-sampler-compatibility-blocks-builds
+  (test-util/with-scratch-project "test/resources/test_project"
+    (let [font-node (test-util/resource-node project "/fonts/vector_implicit_dynamic.font")
+          builtin-material (test-util/resource-node project "/builtins/fonts/font-vector.material")
+          material-desc (g/valid-node-value builtin-material :save-value)]
+      (test-util/write-file-resource! workspace "/fonts/compatibility.material" material-desc)
+      (workspace/resource-sync! workspace)
+      (prop! font-node :material (workspace/find-resource workspace "/fonts/compatibility.material"))
+      (prop! font-node :size 36)
+      (let [material-node (test-util/resource-node project "/fonts/compatibility.material")
+            samplers (g/valid-node-value material-node :samplers)]
+        (doseq [[mode sampler-names compatible]
+                [[:vector-font-mode-vector #{"curve_texture" "band_texture" "effect_bitmap"} true]
+                 [:vector-font-mode-vector #{"curve_texture" "effect_bitmap"} false]
+                 [:vector-font-mode-vector #{"band_texture" "effect_bitmap"} false]
+                 [:vector-font-mode-vector #{"curve_texture" "band_texture" "effect_bitmap"} true]
+                 [:vector-font-mode-bitmap #{"curve_texture" "band_texture" "effect_bitmap"} false]
+                 [:vector-font-mode-sdf #{"curve_texture" "band_texture" "effect_bitmap"} false]
+                 [:vector-font-mode-sdf #{"effect_bitmap"} true]]]
+          (testing (str mode " " sampler-names)
+            (prop! font-node :vector-font-mode mode)
+            (prop! material-node :samplers (into [] (filter #(contains? sampler-names (:name %))) samplers))
+            (is (= (not compatible) (g/error-fatal? (test-util/prop-error font-node :material))))
+            (is (= (not compatible) (g/error-fatal? (build/resolve-node-dependencies font-node project))))))))))
+
 (defn pb-property [node-id property]
   (if-some [pb-value ((g/valid-node-value node-id :save-value) property)]
     pb-value
