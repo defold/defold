@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "com.unity.entities": "6.6.0",
-    "com.unity.burst": "2.0.0",
-    "com.unity.collections": "6.6.0",
-    "com.unity.mathematics": "1.4.0"
-  }
-}

@@ -1,9 +1,0 @@
-[0/2] Re-checking globbed directories...
-[1/9] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_memory.dir/benchmark_data_boids.cpp.o
-[2/9] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_mixed.dir/benchmark_data_boids.cpp.o
-[3/9] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_mixed
-[4/9] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_memory
-[5/9] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_core_entt.dir/benchmark_data_boids.cpp.o
-[6/9] Building CXX object engine/data/build/arm64-macos/src/test/CMakeFiles/benchmark_data_core_entt_memory.dir/benchmark_data_boids.cpp.o
-[7/9] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_core_entt_memory
-[8/9] Linking CXX executable engine/data/build/arm64-macos/src/test/benchmark_data_core_entt
