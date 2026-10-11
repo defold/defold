@@ -1,4 +1,22 @@
 #properties {
+    -fx-background-color: -df-background-light;
+    -fx-background-insets: 0;
+    -fx-padding: 16px 0 12px 0;
+
+    // Include JavaFX's offscreen measurement cell as well as visible cells.
+    .property-cell {
+        -fx-background-color: -df-background-light;
+        -fx-border-width: 0;
+        -fx-padding: 0 16px 4px 16px;
+        -fx-graphic-text-gap: 0;
+        -fx-text-fill: -df-text;
+
+        &:selected {
+            -fx-border-width: 0 0 0 2px;
+            -fx-border-color: -df-defold-orange;
+            -fx-padding: 0 16px 4px 14px;
+        }
+    }
 
     .text-field {
         -fx-min-width: 32px;

@@ -14,7 +14,10 @@
 
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
+            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.list-cell :as fx.list-cell]
+            [cljfx.fx.list-view :as fx.list-view]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -38,16 +41,17 @@
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
-            [util.eduction :as e]
             [util.id-vec :as iv])
   (:import [editor.properties Curve CurveSpread]
            [javafx.beans.value ChangeListener]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
-           [javafx.scene Node]
-           [javafx.scene.control Slider]
+           [javafx.scene Node Parent]
+           [javafx.scene.control ListCell ListView MenuButton Slider TextArea]
+           [javafx.scene.control.skin VirtualFlow]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
-           [javafx.scene.paint Color]))
+           [javafx.scene.paint Color]
+           [javafx.scene.text Font Text]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -714,88 +718,242 @@
     (.requestFocus ^Node (.getSource e))
     (.consume e)))
 
-(defn- grid-view [{:keys [localization-state properties context]}]
-  (let [properties (properties/coalesce properties)
-        selection-provider (->SelectionProvider (:original-node-ids properties))]
-    {:fx/type fxui/vertical
-     :padding :small
-     :spacing :small
-     :children
-     (->> properties
-          category-property-edit-types
-          (e/mapcat
-            (fn [[category-title category-properties]]
-              (when-not (coll/empty? category-properties)
-                (-> []
-                    (cond->
-                      category-title
-                      (conj {:fx/type fxui/label
-                             :text (localization-state category-title)
-                             :style-class "property-category"}))
-                    (conj
-                      {:fx/type fxui/grid
-                       :fx/key (:original-node-ids properties)
-                       :on-key-pressed handle-grid-key-pressed
-                       :column-constraints [{:fx/type fx.column-constraints/lifecycle}
-                                            {:fx/type fx.column-constraints/lifecycle
-                                             :hgrow :always}]
-                       :spacing :small
-                       :children
-                       (coll/into-> category-properties []
-                         (coll/mapcat-indexed
-                           (fn [i [property-keyword property]]
-                             (let [overridden (properties/overridden? property)]
-                               (pair
-                                 {:fx/type fxui/menu-button
-                                  :min-width :use-pref-size
-                                  :style-class (cond-> ["property-label"] overridden (conj "overridden"))
-                                  :grid-pane/column 0
-                                  :grid-pane/row i
-                                  :grid-pane/fill-width true
-                                  :grid-pane/valignment :top
-                                  :mnemonic-parsing false
-                                  :focus-traversable false
-                                  :text (localization-state (properties/label property))
-                                  fxui/prop-lazy-tooltip
-                                  {:fx/type fxui/tooltip
-                                   :content-display :graphic-only
-                                   :style {:-fx-padding 0}
-                                   :graphic {:fx/type markdown-view/view
-                                             :content (localization-state
-                                                        (localization/message
-                                                          "property.tooltip"
-                                                          {"help" (properties/tooltip property)
-                                                           "id" (string/replace (name property-keyword) \- \_)}))
-                                             :max-width 350.0
-                                             :project (:project context)}}
-                                  prop-button-menu ::property-menu
-                                  prop-mouse-pressed-handler focus-mouse-event-source!
-                                  prop-property-context [(assoc context :property property) selection-provider]}
-                                 {:fx/type fxui/ext-error-boundary
-                                  :fx/key property-keyword
-                                  :grid-pane/column 1
-                                  :grid-pane/row i
-                                  :grid-pane/fill-width true
-                                  :desc {:fx/type control-view
-                                         :property property
-                                         :context context
-                                         :localization-state localization-state}
-                                  :catch {:fx/type error-view}})))))})))))
-          (into []))}))
+(def ^:private prop-on-label-font-changed
+  (fx.prop/make
+    (fx.mutator/property-change-listener #(.fontProperty ^MenuButton %))
+    fx.lifecycle/change-listener))
+
+(defn- property-label-widths [^Font font items]
+  ;; Measure text with one Text, without constructing offscreen controls.
+  ;; The property-label style reserves 24 pixels for padding and the menu arrow.
+  (let [text (doto (Text.) (.setFont font))]
+    (reduce (fn [widths {:keys [category label]}]
+              (if-not label
+                widths
+                (do
+                  (.setText text label)
+                  (assoc widths category
+                         (max (double (get widths category 0.0))
+                              (+ 24.0 (.getWidth (.getLayoutBounds text))))))))
+            {}
+            items)))
+
+(defn- property-row-view
+  [{:keys [property-keyword property label context localization-state
+           selection-provider label-width on-label-font-changed]}]
+  {:fx/type fxui/grid
+   :max-width Double/MAX_VALUE
+   :on-key-pressed handle-grid-key-pressed
+   :column-constraints [{:fx/type fx.column-constraints/lifecycle
+                         :min-width label-width
+                         :pref-width label-width}
+                        {:fx/type fx.column-constraints/lifecycle
+                         :hgrow :always}]
+   :spacing :small
+   :children
+   [{:fx/type fxui/menu-button
+     :min-width :use-pref-size
+     :style-class (cond-> ["property-label"]
+                    (properties/overridden? property) (conj "overridden"))
+     :grid-pane/column 0
+     :grid-pane/valignment :top
+     :mnemonic-parsing false
+     :focus-traversable false
+     :text label
+     prop-on-label-font-changed on-label-font-changed
+     fxui/prop-lazy-tooltip
+     {:fx/type fxui/tooltip
+      :content-display :graphic-only
+      :style {:-fx-padding 0}
+      :graphic {:fx/type markdown-view/view
+                :content (localization-state
+                           (localization/message
+                             "property.tooltip"
+                             {"help" (properties/tooltip property)
+                              "id" (string/replace (name property-keyword) \- \_)}))
+                :max-width 350.0
+                :project (:project context)}}
+     prop-button-menu ::property-menu
+     prop-mouse-pressed-handler focus-mouse-event-source!
+     prop-property-context [(assoc context :property property) selection-provider]}
+    {:fx/type fxui/ext-error-boundary
+     :grid-pane/column 1
+     :grid-pane/fill-width true
+     :desc {:fx/type control-view
+            :property property
+            :context context
+            :localization-state localization-state}
+     :catch {:fx/type error-view}}]})
+
+(defn- focusable-controls [node]
+  (into []
+        (comp
+          (coll/tree-xf #(and (instance? Parent %)
+                              (.isVisible ^Node %)
+                              (not (.isDisabled ^Node %)))
+                        #(.getChildrenUnmodifiable ^Parent %))
+          (filter #(and (.isFocusTraversable ^Node %)
+                        (.isVisible ^Node %)
+                        (not (.isDisabled ^Node %)))))
+        [node]))
+
+(defn- focus-property-cell! [^ListView list index forward]
+  (let [^VirtualFlow flow (.lookup list ".virtual-flow")]
+    (loop [index (long index)]
+      (when (< -1 index (count (.getItems list)))
+        (if (:category-title (.get (.getItems list) index))
+          (recur (+ index (if forward 1 -1)))
+          (do
+            ;; ListView.scrollTo puts even an already visible row at the top.
+            (.scrollTo flow (int index))
+            (.applyCss list)
+            (.layout list)
+            (let [^ListCell cell (.getVisibleCell flow (int index))
+                  controls (focusable-controls (.getGraphic cell))]
+              (if-let [^Node target ((if forward first peek) controls)]
+                (do
+                  (.select (.getSelectionModel list) (int index))
+                  (.requestFocus target)
+                  true)
+                (recur (+ index (if forward 1 -1)))))))))))
+
+(defn- handle-property-list-event [^Event event]
+  (let [^ListView list (.getSource event)
+        owner (.getFocusOwner (.getScene list))]
+    (cond
+      (= MouseEvent/MOUSE_PRESSED (.getEventType event))
+      (when-let [^ListCell cell (ui/closest-node-of-type ListCell (.getTarget event))]
+        ;; Embedded controls consume clicks before ListCell can select its row.
+        (when (and (identical? list (.getListView cell))
+                   (:property-keyword (.getItem cell)))
+          (.select (.getSelectionModel list) (.getIndex cell))))
+
+      (and (or (= KeyEvent/KEY_PRESSED (.getEventType event))
+               (= KeyEvent/KEY_RELEASED (.getEventType event)))
+           (= KeyCode/TAB (.getCode ^KeyEvent event))
+           (not (.isAltDown ^KeyEvent event))
+           (or (not (.isControlDown ^KeyEvent event))
+               (instance? TextArea owner))
+           (not (.isMetaDown ^KeyEvent event))
+           (identical? list (ui/closest-node-of-type ListView owner)))
+      (when-let [^ListCell cell (ui/closest-node-of-type ListCell owner)]
+        (.select (.getSelectionModel list) (.getIndex cell))
+        (when (and (= KeyEvent/KEY_PRESSED (.getEventType event))
+                   ;; Plain Tab belongs to the multiline editor.
+                   (or (not (instance? TextArea owner))
+                       (.isShiftDown ^KeyEvent event)
+                       (.isControlDown ^KeyEvent event)))
+          (let [forward (not (.isShiftDown ^KeyEvent event))
+                controls (focusable-controls (.getGraphic cell))]
+            (when (identical? owner ((if forward peek first) controls))
+              ;; Commit the focused editor before its cell can be recycled.
+              (.requestFocus (.getGraphic cell))
+              (when (focus-property-cell! list
+                                          (+ (.getIndex cell) (if forward 1 -1))
+                                          forward)
+                (.consume event)))))))))
+
+(def ^:private prop-list-selected-index
+  (fx.prop/make
+    (fx.mutator/setter
+      (fn select-property-index [^ListView list [index _items]]
+        (let [model (.getSelectionModel list)]
+          (if index
+            (.clearAndSelect model (int index))
+            (.clearSelection model)))))
+    fx.lifecycle/scalar))
+
+(ui/defc property-list-view
+  {:compose [{:fx/type fx/ext-state
+              :initial-state {:label-font (Font/getDefault)
+                              :selection-key (:original-node-ids (:selection-provider props))
+                              :selected-property nil}
+              :reset (fn reset-property-list-state [state initial-state]
+                       (assoc initial-state :label-font (:label-font state)))}
+             {:fx/type ui/ext-memo
+              :fn property-label-widths
+              :args [(get-in props [:state :label-font]) (:items props)]
+              :key :label-widths}]}
+  [{:keys [items context localization-state selection-provider state swap-state label-widths]}]
+  (let [on-label-font-changed
+        (fn on-label-font-changed [font]
+          (swap-state assoc :label-font font))]
+    {:fx/type fx.ext.list-view/with-selection-props
+     ;; Like the form view's list selection, include the items as a refresh key:
+     ;; JavaFX can clear selection when items change without changing its index.
+     ;; The extension reapplies selection after updating the list's items.
+     :props {prop-list-selected-index
+             [(when-let [selected-property (:selected-property state)]
+                (coll/first-index-where #(= selected-property (:property-keyword %)) items))
+              items]
+             :on-selected-item-changed
+             (fn on-selected-item-changed [item]
+               (swap-state assoc :selected-property (:property-keyword item)))}
+     :desc {:fx/type fx.list-view/lifecycle
+            :id "properties"
+            :min-height 0
+            :min-width 0
+            :focus-traversable false
+            :event-filter handle-property-list-event
+            :items items
+            :cell-factory
+            {:fx/cell-type fx.list-cell/lifecycle
+             :describe
+             (fn describe-property-cell [{:keys [category category-title property-keyword] :as item}]
+               ;; JavaFX can clear the item before marking the cell empty.
+               (if-not item
+                 {}
+                 {:content-display :graphic-only
+                  :style-class ["cell" "indexed-cell" "list-cell" "property-cell"]
+                  :alignment :top-left
+                  :pref-width 0
+                  :focus-traversable false
+                  :graphic
+                  (if category-title
+                    {:fx/type fxui/label
+                     :text category-title
+                     :style-class "property-category"}
+                    {:fx/type fx/ext-recreate-on-key-changed
+                     :key [(:original-node-ids selection-provider) property-keyword]
+                     :desc (assoc item
+                             :fx/type property-row-view
+                             :context context
+                             :localization-state localization-state
+                             :selection-provider selection-provider
+                             ;; Items and the factory can advance in either
+                             ;; order when a new category is introduced.
+                             :label-width (get label-widths category 24.0)
+                             :on-label-font-changed on-label-font-changed)})}))}}}))
+
+(defn- property-items [coalesced-properties localization-state]
+  (into []
+        (mapcat
+          (fn [[category-title category-properties]]
+            (when-not (coll/empty? category-properties)
+              (into (if category-title
+                      [{:category-title (localization-state category-title)}]
+                      [])
+                    (map (fn [[property-keyword property]]
+                           (cond-> {:property-keyword property-keyword
+                                    :property property
+                                    :label (localization-state (properties/label property))}
+                             category-title (assoc :category category-title))))
+                    category-properties))))
+        (category-property-edit-types coalesced-properties)))
 
 (def ^:private properties-message (localization/message "pane.properties"))
 
 (ui/defc properties-pane-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state context displayed-node-properties]}]
-  {:fx/type fxui/titled-pane
-   :title (localization-state properties-message)
-   :content {:fx/type fxui/scroll
-             :id "properties"
-             :content {:fx/type grid-view
-                       :localization-state localization-state
-                       :context context
-                       :properties displayed-node-properties}}})
+  (let [coalesced-properties (properties/coalesce displayed-node-properties)]
+    {:fx/type fxui/titled-pane
+     :title (localization-state properties-message)
+     :content {:fx/type property-list-view
+               :localization-state localization-state
+               :context context
+               :selection-provider (->SelectionProvider (:original-node-ids coalesced-properties))
+               :items (property-items coalesced-properties localization-state)}}))
 
 (g/defnk produce-pane-desc
   [workspace project app-view search-results-view displayed-node-properties prefs localization]
