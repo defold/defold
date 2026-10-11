@@ -44,10 +44,10 @@
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/ic_console-grey.png");
     &:selected {
-        -fx-background-image: url("icons/tabs/ic_console-white.png");
+        -fx-background-image: url("icons/tabs/ic_console-#{$tab-icon-active}.png");
     }
     &:hover {
-        -fx-background-image: url("icons/tabs/ic_console-white.png");
+        -fx-background-image: url("icons/tabs/ic_console-#{$tab-icon-active}.png");
     }
 }
 
@@ -60,10 +60,10 @@
     -fx-background-image: url("icons/tabs/ic_curve-editor-grey.png");
     -fx-background-position: 10 1 !important;
     &:selected {
-        -fx-background-image: url("icons/tabs/ic_curve-editor-white.png");
+        -fx-background-image: url("icons/tabs/ic_curve-editor-#{$tab-icon-active}.png");
     }
     &:hover {
-        -fx-background-image: url("icons/tabs/ic_curve-editor-white.png");
+        -fx-background-image: url("icons/tabs/ic_curve-editor-#{$tab-icon-active}.png");
     }
 }
 
@@ -71,10 +71,10 @@
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/ic_build-problems-grey.png");
     &:selected {
-        -fx-background-image: url("icons/tabs/ic_build-problems-white.png");
+        -fx-background-image: url("icons/tabs/ic_build-problems-#{$tab-icon-active}.png");
     }
     &:hover {
-        -fx-background-image: url("icons/tabs/ic_build-problems-white.png");
+        -fx-background-image: url("icons/tabs/ic_build-problems-#{$tab-icon-active}.png");
     }
 
     .label {
@@ -135,10 +135,10 @@
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/ic_search-results-grey.png");
     &:selected {
-        -fx-background-image: url("icons/tabs/ic_search-results-white.png");
+        -fx-background-image: url("icons/tabs/ic_search-results-#{$tab-icon-active}.png");
     }
     &:hover {
-        -fx-background-image: url("icons/tabs/ic_search-results-white.png");
+        -fx-background-image: url("icons/tabs/ic_search-results-#{$tab-icon-active}.png");
     }
 }
 
@@ -151,9 +151,9 @@
     -fx-background-position: 10 4 !important;
     -fx-background-image: url("icons/tabs/ic_breakpoints-grey.png");
     &:selected {
-        -fx-background-image: url("icons/tabs/ic_breakpoints-white.png");
+        -fx-background-image: url("icons/tabs/ic_breakpoints-#{$tab-icon-active}.png");
     }
     &:hover {
-        -fx-background-image: url("icons/tabs/ic_breakpoints-white.png");
+        -fx-background-image: url("icons/tabs/ic_breakpoints-#{$tab-icon-active}.png");
     }
 }

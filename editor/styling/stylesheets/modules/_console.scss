@@ -168,12 +168,12 @@
 
 #prev-console {
   @extend .console-image-button-base;
-  -fx-background-image: url("icons/32/Icons_59-Arrow-Left.png");
+  -fx-background-image: url("icons/32/Icons_59-Arrow-Left#{$toolbar-icon-suffix}.png");
 }
 
 #next-console {
   @extend .console-image-button-base;
-  -fx-background-image: url("icons/32/Icons_60-Arrow-Right.png");
+  -fx-background-image: url("icons/32/Icons_60-Arrow-Right#{$toolbar-icon-suffix}.png");
 }
 
 #clear-console {
@@ -183,32 +183,32 @@
 
 #pause-debugger-button {
   @extend .console-image-button-base;
-  -fx-background-image: url("icons/32/Icons_56-Pause.png");
+  -fx-background-image: url("icons/32/Icons_56-Pause#{$toolbar-icon-suffix}.png");
 }
 
 #play-debugger-button {
   @extend .console-image-button-base;
-  -fx-background-image: url("icons/32/Icons_57-Play.png");
+  -fx-background-image: url("icons/32/Icons_57-Play#{$toolbar-icon-suffix}.png");
 }
 
 #stop-debugger-button {
   @extend .console-image-button-base;
-  -fx-background-image: url("icons/32/Icons_58-Stop.png");
+  -fx-background-image: url("icons/32/Icons_58-Stop#{$toolbar-icon-suffix}.png");
 }
 
 #step-over-debugger-button {
   @extend .console-image-button-base;
-  -fx-background-image: url("icons/32/Icons_53-Step-Over.png");
+  -fx-background-image: url("icons/32/Icons_53-Step-Over#{$toolbar-icon-suffix}.png");
 }
 
 #step-in-debugger-button {
   @extend .console-image-button-base;
-  -fx-background-image: url("icons/32/Icons_55-Step-In.png");
+  -fx-background-image: url("icons/32/Icons_55-Step-In#{$toolbar-icon-suffix}.png");
 }
 
 #step-out-debugger-button {
   @extend .console-image-button-base;
-  -fx-background-image: url("icons/32/Icons_54-Step-Out.png");
+  -fx-background-image: url("icons/32/Icons_54-Step-Out#{$toolbar-icon-suffix}.png");
 }
 
 #debugger-prompt-label {
@@ -249,7 +249,7 @@
   -fx-padding: 2 0;
   -fx-background-color: transparent;
   > .line {
-    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-background-color: -df-separator;
     -fx-border-color: transparent;
     -fx-border-width: 1 0 0;
   }

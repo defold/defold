@@ -1,3 +1,12 @@
+// Suffix of the tab icons shown for selected and hovered tabs (icons/tabs/ic_*-<suffix>.png)
+$tab-icon-active: white;
+
+// Suffix of the console toolbar icons (icons/32/Icons_*<suffix>.png)
+$toolbar-icon-suffix: '';
+
+// Suffix of the welcome dialog logo (welcome/defold-logo<suffix>.png)
+$welcome-logo-suffix: '';
+
 * {
 	// Background
 	-df-background-darker:    derive(#212428, -40%);	// dialog input field background (original name: dark-grey-darker)
@@ -13,6 +22,26 @@
 	-df-component-light:      #45474B;		// button selected, input field border selected (original: mid-grey-light)
 	-df-component-lighter:    #52575c;		// button hovered (original name: grey)
 	-df-component-icon:       #8f9296;		// button icon (original name: bright-grey)
+
+	// Selection / overlays
+	-df-selection-fill:       #264A8B;				// text highlight, list selection
+	-df-selection-text:       #A2B0BE;				// text on selection fill
+	-df-overlay:              #2C2E33BF;				// translucent panel over scene
+	-df-scene-text-shadow:    rgba(0, 0, 0, 1);		// info label outline on scene
+	-df-list-highlight-fill:  #4E4A46;				// highlighted (not selected) flat list row
+	-df-md-text:              #DDDDDD;				// markdown text and code
+	-df-md-text-dim:          #B0B0B0;				// markdown code comments
+	-df-separator:            rgba(255, 255, 255, 0.1);	// separator lines
+	-df-border-subtle:        rgba(255, 255, 255, 0.07);	// welcome dialog borders
+	-df-hover-tint:           rgba(255, 255, 255, 0.05);	// welcome dialog selected template
+	-df-scrollbar-thumb:      white;				// welcome dialog scrollbar thumb
+	-df-prompt-dim:           rgba(221, 221, 221, 0.4);	// welcome dialog filter prompt and icon
+	-df-link:                 #5BC0FF;				// sponsor link
+	-df-link-hover:           #89d2ff;				// sponsor link hovered
+	-df-caret:                white;				// script editor text caret
+	-df-icon-strong:          white;				// icon on a button that is hovered
+	-df-dialog-hover:         rgba(255, 255, 255, 0.04);	// dialog button hovered or focused
+	-df-dialog-hover-strong:  rgba(255, 255, 255, 0.08);	// dialog button focused and hovered
 
 	// Text and icons
 	-df-text-dark:            #848484;		// property components (hardcoded in fxml in original css)

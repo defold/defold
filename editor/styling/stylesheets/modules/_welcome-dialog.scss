@@ -16,7 +16,7 @@
 
     .thumb {
       -fx-background-radius: 4px;
-      -fx-background-color: white;
+      -fx-background-color: -df-scrollbar-thumb;
       -fx-opacity: 0.15;
 
       &:hover, &:pressed {
@@ -52,6 +52,10 @@
 
     .defold-logo {
       -fx-padding: 16px;
+
+      .image-view {
+        -fx-image: url("welcome/defold-logo#{$welcome-logo-suffix}.png");
+      }
     }
 
     .really-small-progress-bar {
@@ -96,7 +100,7 @@
   }
 
   .tab-header-pane {
-    -fx-border-color: rgba(255, 255, 255, 0.07);
+    -fx-border-color: -df-border-subtle;
     -fx-border-width: 0px 0px 1px 0px;
     -fx-padding: 0px 24px 0px 24px;
     -fx-min-height: 53px;
@@ -136,7 +140,7 @@
   .header-pane {
     -fx-padding: 0px 16px 8px 16px;
     -fx-border-width: 0px 0px 1px 0px;
-    -fx-border-color: rgba(255, 255, 255, 0.07);
+    -fx-border-color: -df-border-subtle;
     -fx-min-height: 53px;
     -fx-alignment: bottom-left;
 
@@ -203,7 +207,7 @@
       -fx-border-color: transparent;
 
       &:selected {
-        -fx-background-color: rgba(255, 255, 255, 0.05);
+        -fx-background-color: -df-hover-tint;
         -fx-border-color: -df-defold-blue-lighter;
       }
     }
@@ -343,7 +347,7 @@
   .filter-field {
     -fx-pref-width: 106px;
     -fx-padding: 4px 24px 4px 2px;
-    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4);
+    -fx-prompt-text-fill: -df-prompt-dim;
     -fx-background-color: transparent;
     -fx-border-color: transparent;
 
@@ -359,7 +363,7 @@
   }
 
   .filter-field-icon {
-    -fx-fill: rgba(221, 221, 221, 0.4);
+    -fx-fill: -df-prompt-dim;
   }
 
   .location-field {

@@ -46,12 +46,12 @@ $spacing-largest: 40px;
   -fx-background-color: transparent;
   -fx-padding: 6px 12px;
   &:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.04);
+    -fx-background-color: -df-dialog-hover;
   }
   &:focused {
-    -fx-background-color: rgba(255, 255, 255, 0.04);
+    -fx-background-color: -df-dialog-hover;
     &:hover {
-      -fx-background-color: rgba(255, 255, 255, 0.08);
+      -fx-background-color: -df-dialog-hover-strong;
     }
   }
   &:armed {
