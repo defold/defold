@@ -13,7 +13,7 @@ fixed-stride byte rows and any dynamic payloads. **Metadata is shared by all row
 in a table**: a field has a full-name hash, kind and absolute row byte offset; an inline struct
 also identifies its child metadata and size. Rows contain only values and
 alignment padding. Serialization saves current values as the next load's defaults.
-The fixed layouts are declared in the private [data.h](../data/src/data.h):
+The fixed layouts are declared in the private [data.h](../datastore/src/data.h):
 `DataTableHeader` describes each table, and `DataFileFieldMeta` describes each
 field. These occupy 24 and 32 bytes respectively. Field metadata also retains
 the local member hash for constructing or reading nested values. Counts and indices into metadata use uint16:
@@ -69,6 +69,7 @@ uses target-compatible `offsetof`/`sizeof` or equivalent offsets and sizes.
 | Value | Stored bytes | Alignment |
 | --- | --- | --- |
 | Number | 8 (`double`) | 8 |
+| Float / UInt32 | 4 (`float` / `uint32_t`) | 4 |
 | Boolean | 1 | 1 |
 | Vector3 / Vector4 / Matrix4 | 12 / 16 / 64 (`float32` components) | 4 |
 | String / dynamic struct / list reference | 8 (blob offset) | 8 |
@@ -90,6 +91,13 @@ the blob's final string area. String/container accessors resolve offsets rather
 than treating reference slots as native pointers.
 
 ## Runtime Format
+
+Include `<dmsdk/datastore/datastore.h>`. The engine registers its `HDataStore` under
+`DATASTORE_CONTEXT_NAME` in the context registry. Extensions borrow it with
+`ContextRegistryGet(ExtensionParamsGetContextRegistry(params), DATASTORE_CONTEXT_NAME)`.
+It remains available through extension app finalization. Finish jobs and remove
+your queries and tables during cleanup; only the engine destroys this store.
+Standalone tools and tests can own a separate store with `DataCreateStore`.
 
 A **datastore** holds runtime tables, stable row IDs, resource registrations and
 queries for many game objects. A **table** groups rows with the same type, tags
@@ -121,17 +129,21 @@ layout and its tags. `DataCreateRows(store, type, group, count, rows, out_ids)`
 copies complete native rows, including inline members, using the registered row
 size. One group is assigned to every row; each receives its own ID. Native rows
 have no component name. The caller prepares defaults and per-instance values.
-Group membership does not imply ownership or deletion. Supplied values become
-reset defaults, kept in the same dense row order as current values. Swap removal
-moves both rows together and reuses the removed default slot. Inputs live only
+Group membership does not imply ownership or deletion. By default, supplied values
+become reset defaults, kept in the same dense row order as current values. Set
+`DataTableDesc.m_ResetPolicy = DATA_RESET_NONE` for generated simulation rows that
+need no history: AoS creation writes directly into current storage and reset returns
+`DATA_RESULT_INVALID_ARGUMENT`. With history enabled, swap removal moves current
+and default rows together and reuses the removed default slot. Inputs live only
 through the call. Native reference fields use
 `DataReference`: a string pointer, `DataStructInput` (member layout plus native
 bytes), or `DataListInput` (typed array or mixed payloads). These eight-byte
 input slots work inside inline structs too. Creation measures payloads for the
 whole batch, reserves arena storage for strings/lists, and copies dynamic struct
 fields into owned child tables. It does not retain input pointers or deduplicate
-equal strings. String/list arena blocks remain allocated until the table becomes
-empty or is destroyed; fixed row capacity remains available for later insertions.
+equal strings. Replacement, reset and removal recycle string/list payload chunks.
+Empty blocks are freed, retaining at most one small spare per arena; partially used
+blocks keep stable addresses. Fixed row capacity remains available for later insertions.
 List inputs can use one shared element kind and a contiguous native array, or
 per-element `m_Types` with `m_Values` holding payload pointers. Mixed lists support
 all recursive DDF kinds and the runtime math types; both forms store a kind per
@@ -142,9 +154,37 @@ serialization stay internal.
 accepts separate native field arrays. Each `DataFieldArray` pairs a root field
 hash with `count` values; supply every root field once in any order. Inline
 structs use arrays of complete structs. Field names resolve once per batch, then
-values copy directly into the table's byte rows without a temporary AoS buffer.
+values copy into complete native rows, retaining reset rows only when requested
+by the table policy.
 Types and sizes come from the registered layout. Ownership, reset and locking
-rules are the same as for `DataCreateRows`; this changes input layout, not storage.
+rules are the same as for `DataCreateRows`.
+
+### Borrowed native rows
+
+`DataRegisterTableView` exposes caller-owned AoS memory through the same queries,
+field bindings and typed getters. It copies metadata and optional source-row
+indices, but neither values nor reset defaults. Consecutive source indices form
+cached query batches; the field getter keeps its normal offset/stride calculation.
+Views support scalar and math fields. Unregistering releases the view's IDs and
+metadata; the caller retains the values. Create/remove/reset individual rows and
+serialization are unsupported for views.
+
+The caller keeps external memory stable and prevents engine access until jobs
+finish. Datastore reservations do not lock external owners. Views selecting the
+same source rows participate in field-access conflict checks; disjoint selections
+can run together. Multiple rows may share read access, but concurrently writable
+jobs must select distinct physical rows, including within a single reservation.
+
+### Reading dynamic containers
+
+`DataFieldGetView` reads a row field by ID; `DataRowIterGetView` reads a bound query
+field. `DataValueView` is a borrowed, allocation-free view with a private layout.
+Use `DataViewGetField` with a local member hash, or `DataViewGetElement` with a
+list index; then inspect its kind and use a typed getter such as
+`DataViewGetNumber` or `DataViewGetString`. Repeat those steps for nested content.
+This supports native, inline and packed values without making child rows entities
+or exposing general field enumeration. Finish using views before mutation or query
+release.
 
 ### Owned dynamic structs
 
@@ -212,14 +252,14 @@ Numeric and math writes modify these mutable rows directly, without first-write
 allocation or a second private copy of defaults. Replacement strings/containers
 belong to the registration. Runtime reference slots distinguish blob offsets,
 owned string/list pointers and owned child-row indices; file bytes remain unchanged. Rows added without a blob
-retain table-owned defaults instead.
+retain table-owned defaults unless registered with `DATA_RESET_NONE`.
 
 Reset restores loaded/added values: `DataResetRow` targets one component,
 `DataResetBlob` targets one registration's remaining rows, and field reset
 targets one value. IDs survive reset; added/removed rows are not undone. Resetting
 one game object's registration does not affect another. Component/field reset
-releases replacement child rows but keeps string/list payload blocks; complete
-registration reset also frees those blocks.
+releases replacement child rows and string/list payload chunks; complete
+registration reset also frees its spare payload block.
 
 `DataRemoveBlob` removes the registration's remaining rows, invalidates their IDs
 and frees replacement payloads. Dense removal can move another row; its ID remains
@@ -235,7 +275,7 @@ allocations. Mutable runtime rows remain in separate writable storage.
 **Engine integration:** the intended `.goc` packaging is one associated `.datac`
 blob containing all of a prototype's data-component tables, loaded once and
 instantiated for each game object. Grouped blobs and the runtime operations above
-exist in `engine/data`. Bob still writes individual DDF `.datac` resources;
+exist in `engine/datastore`. Bob still writes individual DDF `.datac` resources;
 aggregation and gamesys resource/game-object integration remain future work.
 
 ## Queries
@@ -260,17 +300,19 @@ access and iterate batches and rows using a stable field handle.](images/datasto
    available, or BUSY so the caller can retry. Query creation itself reserves nothing.
 4. **Iterate:** `DataQueryGetRowCount` counts reserved matching rows.
    `DataQueryIterRange(query, first, count)` creates a cursor over a selected range;
-   `DataIterNext` selects a batch, and `DataIterRows` / `DataRowIterNext` traverse
-   its rows. `DataRowIterGetVector3(&rows, color_field)` returns the current color.
+   `DataIterNext` returns `true` for each batch and `false` when exhausted.
+   `DataIterRows` creates a row cursor; `while (DataRowIterNext(&rows))` traverses its rows.
+   `DataRowIterGetVector3(&rows, color_field)` returns the current color.
 5. **Release:** after all iterators and borrowed pointers finish, call
    `DataQueryEnd`. Reuse the query on the next update; destroy it when no longer needed.
 
 A field handle is neither a byte offset nor an index in the query descriptor.
-Each query match stores a compact array of uint32 byte offsets alongside its bindings. Typed pointer getters calculate
+Each query match stores uint32 byte offsets alongside its bindings. The iterator
+caches the table's row stride. Typed pointer getters calculate
 `batch base + row × stride + field offset` inline, without copying, allocation,
 hash lookup or repeated kind checks.
 Writable getters such as `DataRowIterGetNumberMut` require a field declared with
-`DATA_ACCESS_READ_WRITE`; read-only access is the default. Number, Boolean,
+`DATA_ACCESS_READ_WRITE`; read-only access is the default. Number, Float, UInt32, Boolean,
 Vector3, Vector4 and Matrix4 have typed pointer accessors.
 
 Dynamic container members cannot bind because their layout may differ per row.
@@ -280,7 +322,7 @@ Generic `DataValue` is internal.
 
 Cursors allocate nothing and borrow their parent's current batch/row. Do not copy
 active cursors; finish using children and pointers before stepping a parent,
-including on END. Parents must remain alive at the same address. There are no
+including when exhausted. Parents must remain alive at the same address. There are no
 per-row lifetime checks. Field handles last until query destruction; borrowed
 value pointers must also be reacquired after mutations affecting their storage.
 
@@ -299,8 +341,9 @@ by the caller.
 There are no per-table mutexes. Reservations allow concurrent access to different
 tables or non-overlapping fields in the same table.
 Read/read overlaps are allowed; overlapping writes conflict. Reading a whole
-inline struct conflicts with writing a member. Group filters do not narrow these
-reservations. Queries without requested fields reserve reads of complete rows.
+inline struct conflicts with writing a member. Disjoint group filters can reserve
+the same field concurrently; aliases of external views remain conservative.
+Queries without requested fields reserve reads of complete rows.
 
 Explosion reads position and writes health. Regenerate also writes health,
 increasing it up to 100. Whichever reserves access first runs; the other receives
@@ -308,7 +351,9 @@ BUSY and retries after release. Independent queries can proceed concurrently.
 Each query handle has at most one active reservation, shared by its jobs.
 Active reservations use `dmObjectPool` slots: admission scans a dense array and
 release returns the query's slot directly. Query creation reserves pool capacity;
-begin/end reuse it. This follows the instance-pool pattern in
+begin/end reuse it. Query pairs cache field-access compatibility until matching
+tables change. Initial comparison intersects sorted table matches; row churn
+refreshes ranges without discarding compatibility. This follows the instance-pool pattern in
 [rig.cpp](../rig/src/rig.cpp). Query descriptors require valid caller storage; lookup does not repeat pointer validation.
 
 ![The caller submits jobs for admitted queries, waits for them, then releases
@@ -319,8 +364,7 @@ Split the reserved row count into disjoint ranges, and give each job its own
 ID range or thread number. For 8,500 matches and 4,096 rows per job, submit
 `(0, 4096)`, `(4096, 4096)` and `(8192, 308)`. The first begin after structural
 changes rebuilds cached ranges and may allocate; later begins reuse them. Join all
-jobs before `DataQueryEnd`, including when there are no matches. See the
-[submission loop and threaded benchmark](../data/README.md#threaded-update-benchmark).
+jobs before `DataQueryEnd`, including when there are no matches.
 
 Structural operations, query creation/destruction, serialization, ID-based writes
 and resets reject changes while queries are active. String/container replacement
@@ -340,28 +384,32 @@ changes. Do not mix it with active query reservations.
 **Concurrency follow-up:** structural changes currently require every query in
 the store to finish, even when they affect unrelated tables. Investigate allowing
 additions/removals on unreserved tables while keeping active row storage, ID slots,
-query bindings and shared resource pools stable. Also profile query admission:
-conflict scans and range rebuilding after structural changes run under the shared
-store mutex. Keep field-level access reservations and caller-owned jobs; validate
+query bindings and shared resource pools stable. First-time compatibility checks
+and range rebuilding after structural changes still run under the shared store
+mutex. Keep field-level access reservations and caller-owned jobs; validate
 any narrower synchronization with TSAN and concurrent spawn/despawn coverage.
+
+Loaded blob handles use atomic reference counts, so separate stores can retain and
+release the same resource concurrently. Keep a live caller reference during
+registration and keep the immutable bytes alive through the last registration.
 
 ## Implementation
 
-The public [data.h](../data/src/dmsdk/data/data.h) is the umbrella header: existing
-includes still provide the complete C API. It includes the responsibility headers
-below and [data_types.h](../data/src/dmsdk/data/data_types.h) for shared handles,
+The public [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) is the umbrella header; `data.h` forwards to it for compatibility. It includes the responsibility headers
+below and [data_types.h](../datastore/src/dmsdk/datastore/data_types.h) for shared handles,
 IDs, results and value types. Each public header can also be included directly.
 Store, native table/row lifecycle, reset and opaque blob handles are public.
-Serialization and generic construction values remain in the private [data.h](../data/src/data.h).
+Serialization and generic construction values remain in the private [data.h](../datastore/src/data.h).
 
 | Implementation | Public header | Responsibility |
 | --- | --- | --- |
-| [data.cpp](../data/src/data.cpp) | [data.h](../data/src/dmsdk/data/data.h) | Store creation/destruction and locking. Native row lifecycle is declared in [data_table.h](../data/src/dmsdk/data/data_table.h); resource instances in [data_blob.h](../data/src/dmsdk/data/data_blob.h). |
-| [data_query.cpp](../data/src/data_query.cpp) | [data_query.h](../data/src/dmsdk/data/data_query.h) | Query matching, field bindings, cached ranges and access reservations. |
-| [data_iter.cpp](../data/src/data_iter.cpp) | [data_iter.h](../data/src/dmsdk/data/data_iter.h) | Batch, row and field traversal, including iterator value access. |
-| [data_field.cpp](../data/src/data_field.cpp) | [data_field.h](../data/src/dmsdk/data/data_field.h) | Value representation, construction validation, field get/set and reset. |
-| [data_io.cpp](../data/src/data_io.cpp) | [data_blob.h](../data/src/dmsdk/data/data_blob.h) | Public blob loading and release; private serialization. |
+| [data.cpp](../datastore/src/data.cpp) | [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) | Store creation/destruction and locking. Native row lifecycle is declared in [data_table.h](../datastore/src/dmsdk/datastore/data_table.h); resource instances in [data_blob.h](../datastore/src/dmsdk/datastore/data_blob.h). |
+| [data_query.cpp](../datastore/src/data_query.cpp) | [data_query.h](../datastore/src/dmsdk/datastore/data_query.h) | Query matching, field bindings, cached ranges and access reservations. |
+| [data_iter.cpp](../datastore/src/data_iter.cpp) | [data_iter.h](../datastore/src/dmsdk/datastore/data_iter.h) | Batch, row and field traversal, including iterator value access. |
+| [data_field.cpp](../datastore/src/data_field.cpp) | [data_field.h](../datastore/src/dmsdk/datastore/data_field.h) | Value representation, construction validation, field get/set and reset. |
+| [data_container.cpp](../datastore/src/data_container.cpp) | [data_container.h](../datastore/src/dmsdk/datastore/data_container.h) | Borrowed reads of struct members and mixed list elements. |
+| [data_payload.cpp](../datastore/src/data_payload.cpp) | Internal | Block allocation, payload recycling and reclamation. |
+| [data_io.cpp](../datastore/src/data_io.cpp) | [data_blob.h](../datastore/src/dmsdk/datastore/data_blob.h) | Public blob loading and release; private serialization. |
 
-The [library and benchmark documentation](../data/README.md) covers measurements
-and comparisons with Flecs, Bevy and EnTT. Threading tests run under TSAN;
-performance measurements use separate optimized builds without sanitizers.
+The [library README](../datastore/README.md) describes building and running the
+unit tests. Threading tests run under TSAN.

@@ -40,14 +40,14 @@ specific language governing permissions and limitations under the License. -->
 <text x="48" y="457" class="label">4. One cursor per caller-selected range</text>
 <text x="48" y="486" class="mono">DataIterator it = DataQueryIterRange(query, first, count)</text>
 <rect x="48" y="502" width="336" height="140" rx="7" fill="#e8edf2" stroke="#c3d0dd" stroke-width="1.5"/>
-<text x="68" y="531" class="mono">while DataIterNext(&amp;it) == OK:</text>
+<text x="68" y="531" class="mono">while (DataIterNext(&amp;it))</text>
 <text x="68" y="565" class="label">Current batch: one table</text>
 <text x="68" y="597" class="small">A PointLight or SpotLight batch</text>
 <text x="68" y="623" class="small">Range boundaries may split batches.</text>
 <path d="M 384 571 H 420" class="arrow"/>
 <rect x="428" y="502" width="604" height="140" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="448" y="531" class="mono">DataRowIterator rows = DataIterRows(&amp;it)</text>
-<text x="448" y="561" class="mono">while DataRowIterNext(&amp;rows) == OK:</text>
+<text x="448" y="561" class="mono">while DataRowIterNext(&amp;rows):</text>
 <text x="466" y="591" class="mono">color = DataRowIterGetVector3(&amp;rows, color_field)</text>
 <text x="466" y="623" class="small">Use the current value; then advance to the next row.</text>
 <path d="M 540 674 V 698" class="arrow"/>
