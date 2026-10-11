@@ -18,6 +18,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.editor-extensions.graph :as ext-graph]
             [editor.editor-extensions.runtime :as rt]
@@ -1319,6 +1320,47 @@
     (g/tx-nodes-added
       (g/transact
         (gui/add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource name)))))
+
+;; Invalid vector sizes must block GUI builds in every layout, using each layout's effective font.
+(deftest vector-font-size-validation-blocks-build
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/fonts/vector_preview.gui")
+          text-node (gui-node scene "text")]
+      (test-util/set-setting! (test-util/resource-node project "/game.project") ["shader" "exclude_gles_sm100"] true)
+      (add-font! scene "sdf" (workspace/find-resource workspace "/builtins/fonts/default.font"))
+      (doseq [size [0.0 -1.0]]
+        (prop! text-node :font-size size)
+        (is (g/error-fatal? (test-util/prop-error text-node :font-size)))
+        (is (true? (g/error-fatal? (build/resolve-node-dependencies scene project)))))
+      (prop! text-node :font-size 32.0)
+      (is (nil? (test-util/prop-error text-node :font-size)))
+      (is (not (g/error? (build/resolve-node-dependencies scene project))))
+
+      (testing "Invalid sizes in inactive layouts still block builds."
+        (add-layout! project app-view scene "Landscape")
+        (with-visible-layout! scene "Landscape"
+          (prop! text-node :font-size 0.0)
+          (is (g/error-fatal? (test-util/prop-error text-node :font-size))))
+        (is (= 32.0 (prop text-node :font-size)))
+        (is (nil? (test-util/prop-error text-node :font-size)))
+        (is (true? (g/error-fatal? (build/resolve-node-dependencies scene project)))))
+
+      (testing "A layout using an SDF font ignores its hidden size."
+        (with-visible-layout! scene "Landscape"
+          (prop! text-node :font "sdf")
+          (is (nil? (test-util/prop-error text-node :font-size))))
+        (is (not (g/error? (build/resolve-node-dependencies scene project)))))
+
+      (testing "A vector font override validates size even when the base uses an SDF font."
+        (prop! text-node :font "sdf")
+        (prop! text-node :font-size 0.0)
+        (with-visible-layout! scene "Landscape"
+          (prop! text-node :font "vector"))
+        (is (nil? (test-util/prop-error text-node :font-size)))
+        (is (true? (g/error-fatal? (build/resolve-node-dependencies scene project))))
+        (with-visible-layout! scene "Landscape"
+          (prop! text-node :font-size 32.0))
+        (is (not (g/error? (build/resolve-node-dependencies scene project))))))))
 
 (deftest introduce-missing-referenced-gui-resource
   (test-util/with-loaded-project

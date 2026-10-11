@@ -2104,6 +2104,10 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource-localized error-gui-font-not-found-in-scene-message-fn :font))
 
+(defn- validate-font-size [node-id font-data font-size]
+  (when (:vector? font-data)
+    (validation/prop-error :fatal node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :gui :font-size))))
+
 (g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw font-size ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha ^:raw style]
   (assoc visual-base-node-msg
     :manual-size manual-size
@@ -2165,8 +2169,7 @@
   (property font-size g/Num (default (protobuf/default Gui$NodeDesc :font-size))
             (dynamic visible (g/fnk [font-data] (:vector? font-data)))
             (dynamic error (g/fnk [_node-id font-size font-data]
-                             (when (and (:vector? font-data) (not (pos? font-size)))
-                               (validation/prop-error :fatal _node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :gui :font-size)))))
+                             (validate-font-size _node-id font-data font-size)))
             (dynamic edit-type (layout-property-edit-type font-size {:type g/Num}))
             (dynamic label (properties/label-dynamic :gui :font-size))
             (value (layout-property-getter font-size))
@@ -2286,9 +2289,11 @@
                 build-errors-visual-node
                 (when (g/error-fatal? markup-error) markup-error)
                 (mapv (fn [props]
-                        (font/style-error _node-id
-                                          (:font-map (get font-datas (:font props)))
-                                          (:style props "default")))
+                        (let [font-data (get font-datas (:font props))]
+                          (g/package-errors
+                            _node-id
+                            (font/style-error _node-id (:font-map font-data) (:style props "default"))
+                            (validate-font-size _node-id font-data (:font-size props)))))
                       (coll/vals layout->prop->value))
                 (validate-font _node-id font-names font))))))
 
