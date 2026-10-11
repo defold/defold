@@ -3019,10 +3019,10 @@ protected:
         dmRenderTest::TearDown();
     }
 
-    uint32_t Render(const char* source, bool markup, dmRender::FontDefaultVertex* vertices, uint32_t capacity, float elapsed = 0.0f)
+    uint32_t Render(const char* source, bool markup, dmRender::FontDefaultVertex* vertices, uint32_t capacity, float elapsed = 0.0f, float font_size = 1.0f)
     {
         TextLayoutSettings settings = {};
-        settings.m_Size = 1.0f;
+        settings.m_Size = font_size;
         settings.m_Width = 128.0f;
         settings.m_Leading = 1.0f;
         HTextLayout layout = 0;
@@ -3041,6 +3041,7 @@ protected:
         te.m_OutlineAlpha = te.m_ShadowAlpha = 1.0f;
         te.m_Width = settings.m_Width;
         te.m_Leading = settings.m_Leading;
+        te.m_FontSize = font_size;
         te.m_Align = dmRender::TEXT_ALIGN_LEFT;
         te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
         te.m_TextLayout = layout;
@@ -3159,6 +3160,43 @@ TEST_F(VectorFontTest, OverflowKeepsQueuedTexturesAndFirstGlyph)
             EXPECT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, text.m_Frame, 999, &glyph, 0));
             EXPECT_TRUE(m_SystemFontMap->m_SlugResetPending);
             data->m_MaxTexels = maximum;
+        }
+    }
+}
+
+// Inherited offsets scale with vector glyphs and decorations; explicit pixel offsets stay fixed.
+TEST_F(VectorFontTest, RichTextShadowOffsetsScaleWithGlyphsAndDecorations)
+{
+    const uint8_t bitmap[45] = {};
+    m_GlyphBank->m_Provider.m_GlyphPadding = 1;
+    m_GlyphBank->m_Provider.m_GlyphChannels = 3;
+    m_GlyphBank->m_Glyphs[65].m_Data = bitmap;
+    m_GlyphBank->m_Glyphs[65].m_DataSize = sizeof(bitmap);
+    m_SystemFontMap->m_CacheCellPadding = 1;
+    m_SystemFontMap->m_CacheCellMaxAscent = 2;
+    m_SystemFontMap->m_VectorBitmapEffects = true;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_SHADOW;
+    ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_Material));
+    const char* inherited = "<shadow color=#ff0000><size=2em><ul>A</ul></size></shadow>";
+    const char* explicit_offsets = "<shadow color=#ff0000 x=3 y=-2><size=2em><ul>A</ul></size></shadow>";
+    for (uint32_t size = 1; size <= 2; ++size)
+    {
+        dmRender::FontDefaultVertex before[24] = {};
+        dmRender::FontDefaultVertex after[24] = {};
+        m_SystemFontMap->m_ShadowX = m_SystemFontMap->m_ShadowY = 0;
+        ASSERT_EQ(24u, Render(inherited, true, before, 24, 0.0f, (float)size));
+        m_SystemFontMap->m_ShadowX = 3;
+        m_SystemFontMap->m_ShadowY = -2;
+        for (uint32_t explicit_offset = 0; explicit_offset < 2; ++explicit_offset)
+        {
+            ASSERT_EQ(24u, Render(explicit_offset ? explicit_offsets : inherited, true, after, 24, 0.0f, (float)size));
+            const float scale = explicit_offset ? 1.0f : 2.0f * size;
+            for (uint32_t vertex = 0; vertex < 24; ++vertex)
+            {
+                const float shadow_scale = vertex < 12 ? scale : 0.0f;
+                ASSERT_NEAR(3.0f * shadow_scale, after[vertex].m_Position[0] - before[vertex].m_Position[0], EPSILON);
+                ASSERT_NEAR(-2.0f * shadow_scale, after[vertex].m_Position[1] - before[vertex].m_Position[1], EPSILON);
+            }
         }
     }
 }

@@ -65,6 +65,8 @@ struct FontLayoutVertexConfig
     bool                   m_MetricsFromTtf;
     bool                   m_IsSdf;
     bool                   m_IsBMFont;
+    // Vector fonts scale inherited offsets from the cached glyph size to the displayed size.
+    bool                   m_ScaleShadowOffsets;
     bool                   m_ShadowUsesFaceCoverage;
     bool                   m_ShadowIncludesOutline;
     bool                   m_RenderDecorations;

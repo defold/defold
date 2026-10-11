@@ -222,6 +222,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
 
     FontLayoutVertexConfig config = {};
     config.m_Layout = layout;
+    config.m_GlyphScale = base_scale;
     config.m_OutlineColor = dmGraphics::UnpackRGBA(te.m_OutlineColor);
     config.m_ShadowColor = dmGraphics::UnpackRGBA(te.m_ShadowColor);
     config.m_OutlineColor.setW(te.m_OutlineAlpha);
@@ -239,6 +240,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     config.m_BaseShadowAlpha = font_map->m_ShadowAlpha;
     config.m_BaseLayerMask = font_map->m_LayerMask;
     config.m_IsSdf = true;
+    config.m_ScaleShadowOffsets = true;
     config.m_MaxVertexCount = num_vertices;
     config.m_FaceOnly = render_layer_mask == FACE;
     config.m_RenderDecorations = true;
@@ -299,10 +301,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             TextLayoutGetGlyphRenderData(layout, *g, config.m_FaceColor, &render_data);
             // The cached curves and effects use the font's reference size.
             const float font_scale = base_scale * g->m_RenderScale;
-            TextGlyph scaled_glyph = *g;
-            scaled_glyph.m_RenderScale = font_scale;
             FontGlyphLayerRenderData layer_data;
-            FontResolveGlyphLayerRenderData(config, scaled_glyph, render_data, &layer_data);
+            FontResolveGlyphLayerRenderData(config, *g, render_data, &layer_data);
             const bool emit_face = (render_layer_mask & FACE) != 0;
             const bool emit_outline = (render_layer_mask & layer_data.m_LayerMask & OUTLINE) != 0;
             const bool emit_shadow = (render_layer_mask & layer_data.m_LayerMask & SHADOW) != 0;
@@ -393,8 +393,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   sdf_v1,
                                   true,
                                   layer_data.m_SdfOutline,
-                                  layer_data.m_ShadowX * ((render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_X) ? 1.0f : font_scale),
-                                  layer_data.m_ShadowY * ((render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_Y) ? 1.0f : font_scale),
+                                  layer_data.m_ShadowX,
+                                  layer_data.m_ShadowY,
                                   2.0f,
                                   shadow_color,
                                   0,
@@ -478,12 +478,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             scratch.SetCapacity(decoration_metrics.m_VertexCount);
         scratch.SetSize(decoration_metrics.m_VertexCount);
         memset(scratch.Begin(), 0, scratch.Size() * sizeof(FontGlyphVertex));
-        // Express the reference-size outline limit in layout units, matching
-        // the scaled glyph used to resolve the vector glyph's effects above.
-        FontLayoutVertexConfig decoration_config = config;
-        decoration_config.m_OutlineWidth *= base_scale;
-        decoration_config.m_SdfSpread *= base_scale;
-        FontCreateLayoutVertices(decoration_config, decoration_metrics, scratch.Begin(), scratch.Size());
+        FontCreateLayoutVertices(config, decoration_metrics, scratch.Begin(), scratch.Size());
         const uint32_t counts[3] = { decoration_metrics.m_ShadowQuadCount * 6, decoration_metrics.m_OutlineQuadCount * 6, decoration_metrics.m_FaceQuadCount * 6 };
         const uint32_t offsets[3] = { shadow_vertexindex, outline_vertexindex, face_vertexindex };
         // Shared quads wind counterclockwise; vector glyphs wind clockwise.

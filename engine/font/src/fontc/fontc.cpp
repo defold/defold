@@ -1828,8 +1828,8 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_SdfShadow = renderer->m_SdfShadow;
     config->m_SdfSpread = renderer->m_SdfSpread;
     config->m_OutlineWidth = renderer->m_OutlineWidth;
-    config->m_ShadowX = renderer->m_ShadowX * config->m_GlyphScale;
-    config->m_ShadowY = renderer->m_ShadowY * config->m_GlyphScale;
+    config->m_ShadowX = renderer->m_ShadowX;
+    config->m_ShadowY = renderer->m_ShadowY;
     config->m_ShadowBlur = renderer->m_ShadowBlur;
     config->m_BaseShadowAlpha = properties.m_BaseShadowAlpha;
     config->m_CacheCellMaxAscent = renderer->m_CellMaxAscent;
@@ -1841,6 +1841,7 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_MetricsFromTtf = renderer->m_Mode == FONTC_MODE_RASTER;
     config->m_IsSdf = renderer->m_Mode == FONTC_MODE_VECTOR || (renderer->m_Mode == FONTC_MODE_RASTER && !renderer->m_OutputBitmap);
     config->m_IsBMFont = renderer->m_Mode == FONTC_MODE_GLYPH_BANK && renderer->m_Channels == 4;
+    config->m_ScaleShadowOffsets = renderer->m_Mode == FONTC_MODE_VECTOR;
     config->m_ShadowUsesFaceCoverage = renderer->m_Mode == FONTC_MODE_RASTER && renderer->m_OutputBitmap && !renderer->m_HasShadow;
     config->m_ShadowIncludesOutline = renderer->m_Mode == FONTC_MODE_RASTER && renderer->m_OutputBitmap && renderer->m_HasShadow && renderer->m_HasOutline;
     config->m_RenderDecorations = true;

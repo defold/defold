@@ -580,8 +580,9 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
 
     layer_data->m_OutlineColor = FontPackColor(outline_color);
     layer_data->m_ShadowColor = FontPackColor(shadow_color);
-    layer_data->m_ShadowX = render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_X ? render_data.m_ShadowX : config.m_ShadowX;
-    layer_data->m_ShadowY = render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_Y ? render_data.m_ShadowY : config.m_ShadowY;
+    const float shadow_scale = config.m_ScaleShadowOffsets ? render_scale : 1.0f;
+    layer_data->m_ShadowX = render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_X ? render_data.m_ShadowX : config.m_ShadowX * shadow_scale;
+    layer_data->m_ShadowY = render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_Y ? render_data.m_ShadowY : config.m_ShadowY * shadow_scale;
     layer_data->m_LayerMask = GetGlyphLayerMask(config, glyph);
 }
 

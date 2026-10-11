@@ -608,6 +608,52 @@ public class FontRendererTest {
         }
     }
 
+    // Vector previews scale inherited shadow offsets for glyphs and decorations, preserving pixel overrides.
+    @Test
+    public void testVectorShadowOffsetsScaleWithGlyphsAndDecorations() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = 16.0f;
+        params.cacheWidth = 512;
+        params.cacheHeight = 512;
+        params.vector = true;
+        params.hasShadow = true;
+        params.shadowX = 3.0f;
+        params.shadowY = -2.0f;
+        params.layerMask = FontRenderer.LAYER_FACE | FontRenderer.LAYER_SHADOW;
+        try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+            FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
+            for (float size : new float[] {16.0f, 32.0f}) {
+                properties.fontSize = size;
+                renderer.setProperties(properties);
+                renderer.setMarkup("<shadow color=#ff0000 x=0 y=0><size=2em><ul>A</ul></size></shadow>");
+                renderer.beginBatch();
+                renderer.generateTexture(0);
+                TestVertices before = getVertices(renderer, IDENTITY);
+                assertEquals(24, before.vertexCount);
+                for (boolean explicitOffsets : new boolean[] {false, true}) {
+                    renderer.setMarkup(explicitOffsets
+                            ? "<shadow color=#ff0000 x=3 y=-2><size=2em><ul>A</ul></size></shadow>"
+                            : "<shadow color=#ff0000><size=2em><ul>A</ul></size></shadow>");
+                    TestVertices after = getVertices(renderer, IDENTITY);
+                    assertEquals(before.vertexCount, after.vertexCount);
+                    int stride = after.vertices.remaining() / after.vertexCount;
+                    float scale = explicitOffsets ? 1.0f : 2.0f * size / params.size;
+                    for (int vertex = 0; vertex < after.vertexCount; ++vertex) {
+                        int offset = vertex * stride;
+                        float shadowScale = vertex < 12 ? scale : 0.0f;
+                        assertEquals(3.0f * shadowScale, after.vertices.getFloat(offset) - before.vertices.getFloat(offset), 0.00001f);
+                        assertEquals(-2.0f * shadowScale, after.vertices.getFloat(offset + 4) - before.vertices.getFloat(offset + 4), 0.00001f);
+                    }
+                }
+            }
+        }
+    }
+
     private static FontRenderer.Properties properties(float height, float leading, int verticalAlign) {
         FontRenderer.Properties properties = new FontRenderer.Properties();
         properties.height = height;
