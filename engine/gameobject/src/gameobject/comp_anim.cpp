@@ -51,8 +51,21 @@ namespace dmGameObject
         dmhash_t            m_ComponentId;
         dmhash_t            m_PropertyId;
         Playback            m_Playback;
+        uint16_t            m_Playing : 1;
+        uint16_t            m_Finished : 1;
+        uint16_t            m_Composite : 1;
+        uint16_t            m_Backwards : 1;
+        uint16_t            m_FirstUpdate : 1;
+        uint16_t            m_IsGameObjectTransformProperty : 1;
+        uint16_t            m_IsGameObjectEulerProperty : 1;
+        uint16_t            m_EulerChannel : 2;
         dmEasing::Curve     m_Easing;
-        float*              m_Value;
+        // Euler tracks use stable pool slots; other tracks retain property pointers.
+        union
+        {
+            float*          m_Value;
+            uint32_t        m_EulerSlot;
+        };
         float               m_From;
         float               m_To;
         float               m_Delay;
@@ -66,15 +79,6 @@ namespace dmGameObject
         uint32_t            m_NextListener;
         uint32_t            m_Index;
         uint32_t            m_Next;
-        uint16_t            m_Playing : 1;
-        uint16_t            m_Finished : 1;
-        uint16_t            m_Composite : 1;
-        uint16_t            m_Backwards : 1;
-        uint16_t            m_FirstUpdate : 1;
-        uint16_t            m_IsGameObjectTransformProperty : 1;
-        uint16_t            m_IsGameObjectEulerProperty : 1;
-        uint16_t            m_EulerChannel : 2;
-        uint32_t            m_EulerSlot;
     };
 
     struct AnimWorld
