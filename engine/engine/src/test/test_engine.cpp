@@ -15,6 +15,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#include <dmsdk/extension/extension.h>
 #include <testmain/testmain.h>
 #include <dlib/testutil.h>
 
@@ -48,6 +49,19 @@ extern "C" void dmExportedSymbols();
 
 typedef void (*PreRun)(dmEngine::HEngine engine, void* context);
 typedef void (*PostRun)(dmEngine::HEngine engine, void* context);
+
+struct DatastoreContextTest
+{
+    HDataStore m_Store;
+    DataId     m_Row;
+    bool       m_Enabled;
+    bool       m_AppInitialize;
+    bool       m_Initialize;
+    bool       m_Finalize;
+    bool       m_AppFinalize;
+};
+
+static DatastoreContextTest g_DatastoreContextTest;
 
 PreRun g_PreRun = 0;
 PostRun g_PostRun = 0;
@@ -194,6 +208,76 @@ static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void
 #else
     return dmEngine::RunLoop(&params);
 #endif
+}
+
+static ExtensionResult DatastoreAppInitialize(ExtensionAppParams* params)
+{
+    if (!g_DatastoreContextTest.m_Enabled)
+        return EXTENSION_RESULT_OK;
+
+    HContextRegistry contexts = ExtensionAppParamsGetContextRegistry(params);
+    HDataStore       store = (HDataStore)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
+    g_DatastoreContextTest.m_Store = store;
+    if (!store)
+        return EXTENSION_RESULT_INIT_ERROR;
+
+    DataFieldDesc field = { .m_Field = dmHashString64("health"), .m_Type = DATA_TYPE_NUMBER };
+    DataTableDesc table = { .m_Type = dmHashString64("context_test"), .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
+    double        health = 100.0;
+    g_DatastoreContextTest.m_AppInitialize = DataRegisterTable(store, &table) == DATA_RESULT_OK &&
+    DataCreateRows(store, table.m_Type, 0, 1, &health, &g_DatastoreContextTest.m_Row) == DATA_RESULT_OK;
+    return g_DatastoreContextTest.m_AppInitialize ? EXTENSION_RESULT_OK : EXTENSION_RESULT_INIT_ERROR;
+}
+
+static bool CheckDatastoreContext(HContextRegistry contexts)
+{
+    HDataStore store = (HDataStore)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
+    double     health = 0.0;
+    return store && store == g_DatastoreContextTest.m_Store &&
+    DataFieldGetNumber(store, g_DatastoreContextTest.m_Row, dmHashString64("health"), &health) == DATA_RESULT_OK && health == 100.0;
+}
+
+static ExtensionResult DatastoreInitialize(ExtensionParams* params)
+{
+    if (g_DatastoreContextTest.m_Enabled)
+        g_DatastoreContextTest.m_Initialize = CheckDatastoreContext(ExtensionParamsGetContextRegistry(params));
+    return EXTENSION_RESULT_OK;
+}
+
+static ExtensionResult DatastoreFinalize(ExtensionParams* params)
+{
+    if (g_DatastoreContextTest.m_Enabled)
+        g_DatastoreContextTest.m_Finalize = CheckDatastoreContext(ExtensionParamsGetContextRegistry(params));
+    return EXTENSION_RESULT_OK;
+}
+
+static ExtensionResult DatastoreAppFinalize(ExtensionAppParams* params)
+{
+    if (g_DatastoreContextTest.m_Enabled)
+    {
+        g_DatastoreContextTest.m_AppFinalize = CheckDatastoreContext(ExtensionAppParamsGetContextRegistry(params)) &&
+        DataUnregisterTable(g_DatastoreContextTest.m_Store, dmHashString64("context_test")) == DATA_RESULT_OK;
+    }
+    return EXTENSION_RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(TestDatastoreExtension, "TestDatastore", DatastoreAppInitialize, DatastoreAppFinalize, DatastoreInitialize, 0, 0, DatastoreFinalize)
+
+// The same engine-owned datastore is usable throughout the extension lifecycle, including app finalization.
+TEST_F(EngineTest, DatastoreContext)
+{
+    memset(&g_DatastoreContextTest, 0, sizeof(g_DatastoreContextTest));
+    g_DatastoreContextTest.m_Enabled = true;
+    char        project_path[256];
+    const char* argv[] = { "test_engine", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc") };
+    int         result = Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0);
+    g_DatastoreContextTest.m_Enabled = false;
+
+    ASSERT_EQ(0, result);
+    ASSERT_TRUE(g_DatastoreContextTest.m_AppInitialize);
+    ASSERT_TRUE(g_DatastoreContextTest.m_Initialize);
+    ASSERT_TRUE(g_DatastoreContextTest.m_Finalize);
+    ASSERT_TRUE(g_DatastoreContextTest.m_AppFinalize);
 }
 
 static void PreRunTextInput(dmEngine::HEngine engine, void* context)
@@ -1398,6 +1482,7 @@ int main(int argc, char **argv)
     dmLog::CloseConsoleWindow();
 #endif
     dmExportedSymbols();
+    TestDatastoreExtension();
     TestMainPlatformInit();
 
     ProfileInitialize();

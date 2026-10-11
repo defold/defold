@@ -183,6 +183,7 @@ namespace dmEngine
     static void PopulateContextRegistry(HEngine engine)
     {
         ContextRegistrySet(engine->m_ContextRegistry, CONFIGFILE_CONTEXT_NAME, engine->m_Config);
+        ContextRegistrySet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME, engine->m_DataStore);
         dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
         ContextRegistrySet(engine->m_ContextRegistry, WEBSERVER_CONTEXT_NAME, webserver);
         ContextRegistrySet(engine->m_ContextRegistry, GAMEOBJECT_CONTEXT_NAME, engine->m_Register);
@@ -431,6 +432,7 @@ namespace dmEngine
     , m_MainCollectionResource(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
+    , m_DataStore(DataCreateStore())
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_ScriptContext(0x0)
@@ -608,6 +610,9 @@ namespace dmEngine
         if (engine->m_HttpCache)
             dmHttpCache::Close(engine->m_HttpCache);
 #endif
+
+        ContextRegistrySet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME, 0);
+        DataDestroyStore(engine->m_DataStore);
 
         ContextRegistryDestroy(engine->m_ContextRegistry);
         engine->m_ContextRegistry = 0;

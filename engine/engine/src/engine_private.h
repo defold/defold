@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <dmsdk/datastore/datastore.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/gameobject/res_collection.h>
 #include <dlib/hashtable.h>
@@ -128,6 +129,7 @@ namespace dmEngine
         float                                       m_MouseSensitivity;
 
         HJobContext                                 m_JobThreadContext;
+        HDataStore                                  m_DataStore;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
