@@ -209,8 +209,13 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Label$LabelDesc pb)}))
 
-(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets font-map ^:try markup-error style]
-  (or (font/style-error _node-id font-map style)
+(defn- font-size-error [node-id font-map font-size]
+  (when (:vector? font-map)
+    (validation/prop-error :fatal node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :label :font-size))))
+
+(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets font-map ^:try markup-error style font-size]
+  (or (font-size-error _node-id font-map font-size)
+      (font/style-error _node-id font-map style)
       (when (g/error-fatal? markup-error) markup-error)
       (when-let [errors (->> [[font :font font-message]
                               [material :material material-message]]
@@ -251,9 +256,8 @@
             (dynamic tooltip (properties/tooltip-dynamic :label :size)))
   (property font-size g/Num (default (protobuf/default Label$LabelDesc :font-size))
             (dynamic visible (g/fnk [font-data] (:vector? font-data)))
-            (dynamic error (g/fnk [_node-id font-size font-data]
-                             (when (:vector? font-data)
-                               (validation/prop-error :fatal _node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :label :font-size)))))
+            (dynamic error (g/fnk [_node-id font-size font-map]
+                             (font-size-error _node-id font-map font-size)))
             (dynamic label (properties/label-dynamic :label :font-size)))
   (property color types/Color (default (protobuf/default Label$LabelDesc :color))
             (dynamic label (properties/label-dynamic :label :color))

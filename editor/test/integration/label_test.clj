@@ -17,6 +17,7 @@
             [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.gl.pass :as pass]
@@ -304,6 +305,23 @@
       (test-util/with-prop [node :style "missing"]
         (is (g/error-fatal? (test-util/prop-error node :style)))
         (is (g/error-fatal? (g/node-value node :build-targets)))))))
+
+;; Invalid vector sizes must block label builds, while hidden bitmap font sizes remain ignored.
+(deftest vector-font-size-validation-blocks-build
+  (test-util/with-loaded-project
+    (let [label-node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! label-node :font-size 0.0)
+      (is (nil? (test-util/prop-error label-node :font-size)))
+      (is (not (g/error? (g/node-value label-node :build-targets))))
+      (test-util/prop! label-node :font (workspace/find-resource workspace "/fonts/vector_implicit_dynamic.font"))
+      (test-util/prop! label-node :material (workspace/find-resource workspace "/builtins/fonts/label-vector.material"))
+      (doseq [size [0.0 -1.0]]
+        (test-util/prop! label-node :font-size size)
+        (is (g/error-fatal? (test-util/prop-error label-node :font-size)))
+        (is (g/error-fatal? (build/resolve-node-dependencies label-node project))))
+      (test-util/prop! label-node :font-size 32.0)
+      (is (nil? (test-util/prop-error label-node :font-size)))
+      (is (not (g/error? (g/node-value label-node :build-targets)))))))
 
 (deftest vector-font-size-and-style-survive-build
   (test-util/with-temp-project-content
