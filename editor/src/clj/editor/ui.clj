@@ -32,6 +32,7 @@
             [clojure.string :as string]
             [clojure.xml :as xml]
             [dynamo.graph :as g]
+            [editor.colors :as colors]
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
@@ -39,6 +40,7 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
+            [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -59,7 +61,7 @@
            [java.net URI]
            [java.util ArrayDeque Collection]
            [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
-           [javafx.application Platform]
+           [javafx.application ColorScheme Platform]
            [javafx.beans InvalidationListener Observable]
            [javafx.beans.binding Bindings]
            [javafx.beans.property ReadOnlyProperty]
@@ -523,12 +525,162 @@
                  0.0
                  items))))
 
-(defn reload-root-styles! []
-  (when-let [scene (.getScene ^Stage (main-stage))]
-    (let [root ^Parent (.getRoot scene)
-          styles (vec (.getStylesheets root))]
-      (.forget (com.sun.javafx.css.StyleManager/getInstance) scene)
-      (.setAll (.getStylesheets root) ^Collection styles))))
+(defn theme-css-resource
+  "Returns the stylesheet resource name for the supplied resolved theme."
+  [theme]
+  (case theme
+    :light "editor-light.css"
+    "editor.css"))
+
+(defonce ^:private system-theme-cache (atom nil))
+
+(defn- read-system-theme
+  "Returns :dark or :light based on the color scheme of the operating system,
+  as reported by JavaFX, and caches it. Must be called on the JavaFX
+  application thread. Returns :dark, the original look of the editor, when
+  the platform cannot report a color scheme."
+  []
+  (reset! system-theme-cache
+          (try
+            (if (= ColorScheme/DARK (.getColorScheme (Platform/getPreferences)))
+              :dark
+              :light)
+            (catch UnsupportedOperationException _
+              :dark))))
+
+(defn- system-theme
+  "Returns the cached operating system theme. JavaFX only reports the color
+  scheme on the application thread, so reading it lazily is only possible
+  there; other threads get :dark until it has been read."
+  []
+  (or @system-theme-cache
+      (if (Platform/isFxApplicationThread)
+        (read-system-theme)
+        :dark)))
+
+(defn- resolve-theme
+  "Resolves the :system theme preference to the actual system theme."
+  [theme]
+  (case theme
+    :system (system-theme)
+    theme))
+
+(defonce ^:private theme-prefs (atom nil))
+
+(defn set-theme-prefs!
+  "Sets the preferences the theme is read from. Must be called with the
+  preferences the editor was started with, which differ from the default
+  user preferences when --preferences is supplied."
+  [prefs]
+  (reset! theme-prefs prefs)
+  nil)
+
+(defn current-resolved-theme
+  "Returns the currently selected editor theme, resolved to :dark or :light.
+  Canvas-based views use this to pick paint colors, which cannot be driven
+  through stylesheets."
+  []
+  (if-let [prefs @theme-prefs]
+    (resolve-theme (prefs/get prefs [:window :theme]))
+    :dark))
+
+(def ^:private dark->light-css-urls
+  "Maps dark stylesheet URLs to their light counterparts. Stylesheets that have
+  not been generated are left out."
+  (into {}
+        (keep (fn [[dark-resource light-resource]]
+                (let [dark-url (io/resource dark-resource)
+                      light-url (io/resource light-resource)]
+                  (when (and dark-url light-url)
+                    (coll/pair (str dark-url) (str light-url))))))
+        [["editor.css" "editor-light.css"]
+         ["dialogs.css" "dialogs-light.css"]
+         ["splash.css" "splash-light.css"]]))
+
+(def ^:private light->dark-css-urls
+  (coll/pair-map-by val key dark->light-css-urls))
+
+(def ^:private theme-css-url-set
+  (-> #{}
+      (into (coll/keys dark->light-css-urls))
+      (into (coll/vals dark->light-css-urls))))
+
+(defn- css-url-replacements [resolved-theme]
+  (case resolved-theme
+    :light dark->light-css-urls
+    :dark light->dark-css-urls))
+
+(defn themed-stylesheet-urls
+  "Rewrites the theme-owned stylesheet URLs in the supplied collection to the
+  variants of the supplied resolved theme (:dark or :light), in either
+  direction, leaving every other URL (and the order) untouched. Public for
+  tests."
+  [stylesheet-urls resolved-theme]
+  (let [replacements (css-url-replacements resolved-theme)]
+    (mapv #(get replacements % %) stylesheet-urls)))
+
+(defn- swap-theme-stylesheets!
+  "Replaces the theme-owned stylesheets in the supplied list in place. Lists
+  without any are left alone."
+  [^ObservableList stylesheets resolved-theme]
+  (let [current (vec stylesheets)
+        themed (themed-stylesheet-urls current resolved-theme)]
+    (when-not (= current themed)
+      (.setAll stylesheets ^Collection themed))))
+
+(defn apply-theme-css!
+  "Ensures the root carries the theme stylesheets matching the supplied
+  theme preference value: theme-owned stylesheets already present are
+  replaced in place, and a root without any (the project window, whose
+  FXML declares none) gets the editor stylesheet prepended. Also syncs the
+  GL scene palette used by scene, image and curve views."
+  [^Parent root theme]
+  (let [resolved-theme (resolve-theme theme)
+        themed (themed-stylesheet-urls (vec (.getStylesheets root)) resolved-theme)
+        themed (if (coll/any? theme-css-url-set themed)
+                 themed
+                 (into [(str (io/resource (theme-css-resource resolved-theme)))] themed))]
+    (colors/apply-scene-theme! resolved-theme)
+    (when-let [scene (.getScene root)]
+      (.forget (com.sun.javafx.css.StyleManager/getInstance) scene))
+    (.setAll (.getStylesheets root) ^Collection themed))
+  nil)
+
+(defonce ^:private theme-listeners (atom {}))
+
+(defn add-theme-listener!
+  "Registers a function to call, with no arguments, after the theme has been
+  reloaded. Canvas-based views use this to pick new paint colors, since those
+  cannot be driven through stylesheets. Registering again with the same key
+  replaces the previous function."
+  [key listener-fn]
+  (swap! theme-listeners assoc key listener-fn)
+  nil)
+
+(defn remove-theme-listener! [key]
+  (swap! theme-listeners dissoc key)
+  nil)
+
+(defn reload-root-styles!
+  "Reapplies the selected theme to the GL scene palette and to every showing
+  window: the main window, dialogs and popups. Then notifies the theme
+  listeners."
+  []
+  (let [resolved-theme (current-resolved-theme)]
+    (colors/apply-scene-theme! resolved-theme)
+    (doseq [^Window window (Window/getWindows)]
+      (when-let [scene (.getScene window)]
+        (let [root (.getRoot scene)
+              styles (themed-stylesheet-urls (vec (.getStylesheets root)) resolved-theme)]
+          (.forget (com.sun.javafx.css.StyleManager/getInstance) scene)
+          (swap-theme-stylesheets! (.getStylesheets scene) resolved-theme)
+          (.setAll (.getStylesheets root) ^Collection styles))))
+    (run! (fn call-theme-listener [listener-fn]
+            (try
+              (listener-fn)
+              (catch Throwable e
+                (log/error :message "theme listener failed" :exception e))))
+          (coll/vals @theme-listeners))))
 
 (defn visible! [^Node node v]
   (.setVisible node v))
@@ -717,9 +869,13 @@
                (when (zero? suppress-count)
                  (listen-fn old new))))))
 
-(defn- apply-default-css! [^Parent root]
-  (.. root getStylesheets (add (str (io/resource "editor.css"))))
-  nil)
+(defn theme-resource-url
+  "Returns the URL of the supplied theme-aware stylesheet resource resolved
+  for the currently selected theme, e.g. \"dialogs.css\" yields
+  dialogs-light.css while the light theme is active."
+  ^String [resource-path]
+  (let [resource-url (str (io/resource resource-path))]
+    (get (css-url-replacements (current-resolved-theme)) resource-url resource-url)))
 
 (defn- apply-user-css! [^Parent root]
   (let [css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
@@ -727,15 +883,58 @@
       (.. root getStylesheets (add (str (.toURI css))))))
   nil)
 
-(defn apply-css! [^Parent root]
-  (apply-default-css! root)
+(defn apply-css!
+  "Applies the editor stylesheet of the selected theme, followed by any user
+  stylesheet."
+  [^Parent root]
+  (.. root getStylesheets (add (theme-resource-url "editor.css")))
   (apply-user-css! root))
 
 (defn load-fxml
+  "Loads an FXML file and applies any user stylesheet on top of whatever
+  stylesheets the FXML declares itself. Theme-owned stylesheets declared by
+  the FXML are swapped for the variant matching the selected theme."
   ^Parent [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))]
+    (swap-theme-stylesheets! (.getStylesheets root) (current-resolved-theme))
     (apply-user-css! root)
     root))
+
+(defonce ^:private theme-watcher-started (atom false))
+
+(defn start-theme-watcher!
+  "Reloads the styles of all windows when the effective theme changes: when
+  the theme preference is edited (View > Theme, Ctrl+F10 or the Preferences
+  dialog), and when the operating system color scheme changes while the
+  preference is :system. Only the first call starts a watcher."
+  []
+  (when (compare-and-set! theme-watcher-started false true)
+    (let [applied-theme (atom (current-resolved-theme))
+
+          ;; Must run on the JavaFX application thread.
+          refresh-theme!
+          (fn refresh-theme! []
+            (let [theme (current-resolved-theme)]
+              (when-not (= theme (first (reset-vals! applied-theme theme)))
+                (reload-root-styles!))))]
+      ;; The watch runs on whichever thread writes the preferences, and must
+      ;; never fail, since that would abort the write of the preferences.
+      (add-watch prefs/global-state ::theme-pref
+                 (fn theme-pref-watcher [_key _ref old-state new-state]
+                   (try
+                     (when-let [prefs @theme-prefs]
+                       (when-not (= (prefs/get old-state prefs [:window :theme])
+                                    (prefs/get new-state prefs [:window :theme]))
+                         (run-later (refresh-theme!))))
+                     (catch Throwable e
+                       (log/error :message "theme preference watcher failed" :exception e)))))
+      (try
+        (observe (.colorSchemeProperty (Platform/getPreferences))
+                 (fn color-scheme-listener [_observable _old _new]
+                   (read-system-theme)
+                   (refresh-theme!)))
+        (catch UnsupportedOperationException _
+          nil)))))
 
 (defn- empty-svg []
   {:tag :svg, :attrs nil, :content [{:tag :path, :attrs {:d "M0,0"}, :content nil}]})

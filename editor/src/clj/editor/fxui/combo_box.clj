@@ -22,8 +22,8 @@
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
-            [clojure.java.io :as io]
             [editor.fxui :as fxui]
+            [editor.ui :as ui]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [util.coll :as coll]
             [util.eduction :as e]
@@ -217,7 +217,7 @@
                :on-hidden (fn [_] (swap-state hide))
                :content
                [{:fx/type fx.stack-pane/lifecycle
-                 :stylesheets [(str (io/resource "dialogs.css"))]
+                 :stylesheets [(ui/theme-resource-url "dialogs.css")]
                  :children
                  [{:fx/type fx.region/lifecycle
                    :pseudo-classes (if color #{color} #{})

@@ -40,9 +40,6 @@
 (def ^:private vertical-label-spacing 50)
 (def ^:private tick-length 11)
 
-(def ^:private label-color colors/scene-ruler-label)
-(def ^:private marker-color colors/scene-ruler-marker)
-
 (defonce ^:private numbers-path "numbers.png")
 (defonce ^:private ^BufferedImage numbers-image (image-util/read-image (io/resource numbers-path)))
 (defonce ^:private img-dims [(.getWidth numbers-image) (.getHeight numbers-image)])
@@ -86,7 +83,7 @@
 (defn- label! [vb x y text hori?]
   (let [[img-w img-h] img-dims
         [img-w-recip img-h-recip] img-dims-recip
-        [r g b a] label-color
+        [r g b a] colors/scene-ruler-label
         bottom (if hori? y x)
         top (- bottom img-h)]
     (loop [cursor (if hori? x y)
@@ -210,7 +207,7 @@
                       ;; end of triangles; start of lines
                       (let [tri-count (count vertex-buffer)]
                         (try
-                          (let [[r g b a] marker-color
+                          (let [[r g b a] colors/scene-ruler-marker
                                 x0 width
                                 y0 0
                                 x1 (:right viewport)

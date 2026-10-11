@@ -14,7 +14,6 @@
 
 (ns editor.ui.updater
   (:require [cljfx.api :as fx]
-            [clojure.java.io :as io]
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
@@ -70,7 +69,7 @@
    :content {:fx/type markdown-view/view
              :content (:markdown release-notes)
              :project project
-             :stylesheets [(str (io/resource "editor.css"))]
+             :stylesheets [(ui/theme-resource-url "editor.css")]
              :root-props {:style-class "md-page-root"}}
    :footer {:fx/type dialogs/dialog-buttons
             :children [{:fx/type fxui/legacy-button

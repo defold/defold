@@ -70,8 +70,8 @@
                   (fx.composite/props ClippingContainer
                     :pref-height-cap [:setter fx.lifecycle/scalar]))))
 
-(def ^:private dialogs-css-delay
-  (delay (str (io/resource "dialogs.css"))))
+(defn- dialogs-css-url []
+  (ui/theme-resource-url "dialogs.css"))
 
 (defn max-dialog-stage-height []
   (let [screens (Screen/getScreens)
@@ -108,7 +108,7 @@
       (assoc :fx/type fxui/dialog-stage
              :max-height (max-dialog-stage-height)
              :scene {:fx/type fx.scene/lifecycle
-                     :stylesheets [@dialogs-css-delay]
+                     :stylesheets [(dialogs-css-url)]
                      :root (-> root-props
                                (fxui/add-style-classes "dialog-body")
                                (cond->
