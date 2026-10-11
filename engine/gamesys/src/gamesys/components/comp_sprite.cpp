@@ -1296,12 +1296,12 @@ namespace dmGameSystem
         for (uint8_t i = 0; i < texture_num; ++i)
         {
             dmArray<float>& uvs = scratch_uvs[i];
-            uvs.EnsureSize(4*2);
 
             uint32_t frame_index = data->m_Frames[i];
             if (frame_index == 0xFFFFFFFF)
             {
                 // The animation frame wasn't found in the textureset.
+                uvs.EnsureSize(4*2);
                 memset(uvs.Begin(), 0, uvs.Size());
                 continue;
             }
@@ -1311,6 +1311,7 @@ namespace dmGameSystem
             const dmGameSystemDDF::TextureSetAnimation* animation_ddf = data->m_Animations[i];
             if (!animation_ddf)
             {
+                uvs.EnsureSize(4*2);
                 memset(uvs.Begin(), 0, sizeof(float)*uvs.Size());
                 continue;
             }
@@ -1330,17 +1331,26 @@ namespace dmGameSystem
                 flip_flag |= 2;
             }
 
-            const int* tex_lookup = &tex_coord_order[flip_flag * 6];
-            uvs[0] = tc[tex_lookup[0] * 2 + 0];
-            uvs[1] = tc[tex_lookup[0] * 2 + 1];
-            uvs[2] = tc[tex_lookup[1] * 2 + 0];
-            uvs[3] = tc[tex_lookup[1] * 2 + 1];
-            uvs[4] = tc[tex_lookup[2] * 2 + 0];
-            uvs[5] = tc[tex_lookup[2] * 2 + 1];
-            uvs[6] = tc[tex_lookup[4] * 2 + 0];
-            uvs[7] = tc[tex_lookup[4] * 2 + 1];
-
-            scratch_uv_ptrs[i] = uvs.Begin();
+            if (i == 0 && flip_flag == 0)
+            {
+                // The driving atlas always resolves a frame. Its UVs already have quad order
+                // and can be read directly until this sprite's vertices have been written.
+                scratch_uv_ptrs[i] = (float*) tc;
+            }
+            else
+            {
+                uvs.EnsureSize(4*2);
+                const int* tex_lookup = &tex_coord_order[flip_flag * 6];
+                uvs[0] = tc[tex_lookup[0] * 2 + 0];
+                uvs[1] = tc[tex_lookup[0] * 2 + 1];
+                uvs[2] = tc[tex_lookup[1] * 2 + 0];
+                uvs[3] = tc[tex_lookup[1] * 2 + 1];
+                uvs[4] = tc[tex_lookup[2] * 2 + 0];
+                uvs[5] = tc[tex_lookup[2] * 2 + 1];
+                uvs[6] = tc[tex_lookup[4] * 2 + 0];
+                uvs[7] = tc[tex_lookup[4] * 2 + 1];
+                scratch_uv_ptrs[i] = uvs.Begin();
+            }
             scratch_pi_ptrs[i] = &data->m_PageIndices[i];
             tex_transform_ptrs[i] = (float*) &data->m_TextureTransformsPacked[i][0];
         }
@@ -1496,6 +1506,26 @@ namespace dmGameSystem
         return anim_data;
     }
 
+    static bool HasDefaultQuadVertexFormat(const dmGraphics::VertexAttributeInfos& infos)
+    {
+        if (infos.m_NumInfos != 2 || infos.m_VertexStride != 6 * sizeof(float))
+            return false;
+
+        const dmGraphics::VertexAttributeInfo& position = infos.m_Infos[0];
+        const dmGraphics::VertexAttributeInfo& uv = infos.m_Infos[1];
+        return position.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION &&
+               position.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD &&
+               position.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4 &&
+               position.m_DataType == dmGraphics::VertexAttribute::TYPE_FLOAT &&
+               position.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_VERTEX &&
+               position.m_ElementCount == 4 && !position.m_Normalize &&
+               uv.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD &&
+               uv.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2 &&
+               uv.m_DataType == dmGraphics::VertexAttribute::TYPE_FLOAT &&
+               uv.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_VERTEX &&
+               uv.m_ElementCount == 2 && !uv.m_Normalize;
+    }
+
     static void CreateVertexData(SpriteWorld* sprite_world, dmGraphics::VertexAttributeInfos* material_attribute_info,
         uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
@@ -1523,6 +1553,7 @@ namespace dmGameSystem
         const dmGraphics::VertexAttributeInfoMetadata attribute_infos_meta = dmGraphics::GetVertexAttributeInfosMetaData(*scratch_attribute_infos);
         const bool has_local_position_attribute = attribute_infos_meta.m_HasAttributeLocalPosition;
         const bool has_world_position_attribute = attribute_infos_meta.m_HasAttributeWorldPosition;
+        const bool has_default_quad_vertex_format = HasDefaultQuadVertexFormat(*scratch_attribute_infos);
         bool has_default_attribute_infos = true;
 
         for (uint32_t* i = begin; i != end; ++i)
@@ -1718,25 +1749,35 @@ namespace dmGameSystem
                         }
                     }
 
-                    const float* world_matrix_channel[]    = { (float*) &world_matrix };
-                    const float* local_position_channels[] = { (float*) &positions_local };
-                    const float* world_position_channels[] = { (float*) &positions_world };
+                    if (has_default_quad_vertex_format && has_default_attribute_infos)
+                    {
+                        for (uint32_t v = 0; v < 4; ++v)
+                        {
+                            memcpy(vertices, &positions_world[v], 4 * sizeof(float));
+                            memcpy(vertices + 4 * sizeof(float), scratch_uv_ptrs[0] + v * 2, 2 * sizeof(float));
+                            vertices += 6 * sizeof(float);
+                        }
+                    }
+                    else
+                    {
+                        const float* world_matrix_channel[]    = { (float*) &world_matrix };
+                        const float* local_position_channels[] = { (float*) &positions_local };
+                        const float* world_position_channels[] = { (float*) &positions_world };
+                        const uint8_t uv_channels_count = textures_num != 0 ? textures_num : 1;
 
-                    const uint8_t uv_channels_count = textures_num != 0 ? textures_num : 1;
-
-                    FillWriteVertexAttributeParams(&write_params,
-                        scratch_attribute_infos,
-                        world_matrix_channel,
-                        world_position_channels,
-                        local_position_channels,
-                        (const float**) scratch_uv_ptrs,
-                        uv_channels_count,
-                        (const float**) scratch_pi_ptrs,
-                        uv_channels_count,
-                        (const float**) scratch_tt_ptrs,
-                        uv_channels_count);
-
-                    vertices = dmGraphics::WriteAttributes(vertices, 0, 4, write_params);
+                        FillWriteVertexAttributeParams(&write_params,
+                            scratch_attribute_infos,
+                            world_matrix_channel,
+                            world_position_channels,
+                            local_position_channels,
+                            (const float**) scratch_uv_ptrs,
+                            uv_channels_count,
+                            (const float**) scratch_pi_ptrs,
+                            uv_channels_count,
+                            (const float**) scratch_tt_ptrs,
+                            uv_channels_count);
+                        vertices = dmGraphics::WriteAttributes(vertices, 0, 4, write_params);
+                    }
 
                 #if 0
                     for (int f = 0; f < 4; ++f)
