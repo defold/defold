@@ -18,7 +18,6 @@
             [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.font :as font]
-            [editor.font-shader :as font-shader]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.light :as light]
@@ -179,7 +178,7 @@
                :aabb aabb}
         font-map (get-in text-data [:font-data :font-map])
         material-shader (cond-> material-shader
-                          (get-in text-data [:font-data :vector?]) font-shader/with-vector-samplers)
+                          (get-in text-data [:font-data :vector?]) font/with-vector-samplers)
         texture-recip-uniform (some-> font-map font/get-texture-recip-uniform)
         material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
     (if text-data

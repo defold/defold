@@ -26,7 +26,6 @@
             [editor.defold-project :as project]
             [editor.editor-extensions.graph :as ext-graph]
             [editor.editor-extensions.runtime :as rt]
-            [editor.font-shader :as font-shader]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -936,6 +935,39 @@
      (scene-cache/request-object! ::native-vb [request-id (:type font-data) (.isVector ^FontRenderer native-renderer)] gl
                                   (NativeVertexBufferRequest. native-renderer native-entry-states entry-requirements vertex-key)))))
 
+(defn with-vector-samplers [material-shader]
+  (update material-shader :uniforms assoc
+          "effect_bitmap" 0
+          "curve_texture" 1
+          "band_texture" 2))
+
+(defn- make-selection-shader [node-id shader-source-info]
+  (let [fragment-source (s/replace-first (:shader-source shader-source-info)
+                                         #"(?m)^([ \t]*#version[^\r\n]*)"
+                                         "$1\n#define FONT_VECTOR_PICKING")
+        {:keys [shader-type+source-pairs
+                location+attribute-name-pairs
+                array-sampler-name->slice-sampler-names
+                strip-resource-binding-namespace-regex-str
+                attribute-reflection-infos]}
+        (shader/read-combined-shader-info ["shaders/font_vector.vp" "font_vector.fp"] {}
+                                          (fn [path]
+                                            (if (= "font_vector.fp" path)
+                                              fragment-source
+                                              (slurp (io/resource path)))))
+
+        request-data
+        (shader/make-shader-request-data
+          shader-type+source-pairs
+          location+attribute-name-pairs
+          array-sampler-name->slice-sampler-names
+          strip-resource-binding-namespace-regex-str)]
+
+    (with-vector-samplers
+      (shader/make-shader-lifecycle [node-id :vector-selection] request-data attribute-reflection-infos
+                                    {"view_proj" :view-proj
+                                     "id" :id}))))
+
 (defn get-texture-recip-uniform [font-map]
   (let [cache-width (:cache-width font-map)
         cache-height (:cache-height font-map)
@@ -1835,11 +1867,11 @@
           (g/fnk [font vector-font-mode material-shader]
             (if-not (vector-font? font vector-font-mode)
               material-shader
-              (font-shader/with-vector-samplers material-shader))))
+              (with-vector-samplers material-shader))))
   (output selection-shader g/Any :cached
           (g/fnk [_node-id font vector-font-mode vector-shader-source-info]
             (when (vector-font? font vector-font-mode)
-              (font-shader/make-selection-shader _node-id vector-shader-source-info))))
+              (make-selection-shader _node-id vector-shader-source-info))))
   (output type g/Keyword produce-font-type)
   (output font-data FontData :cached (g/fnk [font vector-font-mode type gpu-texture vector-textures font-map selection-shader]
                                        {:type type

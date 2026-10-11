@@ -27,7 +27,6 @@
             [editor.editor-extensions.node-types :as node-types]
             [editor.editor-extensions.runtime :as rt]
             [editor.font :as font]
-            [editor.font-shader :as font-shader]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -2247,7 +2246,7 @@
                                   (get font-shaders font)
                                   (get font-shaders ""))
                   font-shader (cond-> font-shader
-                                (get-in text-data [:font-data :vector?]) font-shader/with-vector-samplers)
+                                (get-in text-data [:font-data :vector?]) font/with-vector-samplers)
                   font-shader (assoc-in font-shader [:uniforms "texture_size_recip"] (some-> font-map font/get-texture-recip-uniform))]
               ;; The material-shader output is used to propagate the shader
               ;; from the GuiSceneNode to our child nodes. Thus, we cannot
