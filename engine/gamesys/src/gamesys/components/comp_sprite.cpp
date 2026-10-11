@@ -1518,6 +1518,12 @@ namespace dmGameSystem
 
         dmGraphics::VertexAttributeInfos* scratch_attribute_infos = GetScratchVertexAttributeInfos(material_attribute_info->m_NumInfos);
         dmGraphics::WriteAttributeParams write_params = {};
+        CopyAttributeInfos(scratch_attribute_infos, material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
+        // Attribute overrides change values, not semantics or coordinate spaces.
+        const dmGraphics::VertexAttributeInfoMetadata attribute_infos_meta = dmGraphics::GetVertexAttributeInfosMetaData(*scratch_attribute_infos);
+        const bool has_local_position_attribute = attribute_infos_meta.m_HasAttributeLocalPosition;
+        const bool has_world_position_attribute = attribute_infos_meta.m_HasAttributeWorldPosition;
+        bool has_default_attribute_infos = true;
 
         for (uint32_t* i = begin; i != end; ++i)
         {
@@ -1540,15 +1546,13 @@ namespace dmGameSystem
                     material_attribute_info,
                     scratch_attribute_infos,
                     dmGraphics::COORDINATE_SPACE_WORLD);
+                has_default_attribute_infos = false;
             }
-            else
+            else if (!has_default_attribute_infos)
             {
                 CopyAttributeInfos(scratch_attribute_infos, material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
+                has_default_attribute_infos = true;
             }
-
-            dmGraphics::VertexAttributeInfoMetadata attribute_infos_meta = dmGraphics::GetVertexAttributeInfosMetaData(*scratch_attribute_infos);
-            bool has_local_position_attribute = attribute_infos_meta.m_HasAttributeLocalPosition;
-            bool has_world_position_attribute = attribute_infos_meta.m_HasAttributeWorldPosition;
 
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
             const uint32_t vb_buffer_offset = vertices - sprite_world->m_VertexBufferData;

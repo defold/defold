@@ -454,6 +454,53 @@ TEST_F(SpriteTest, TexturelessMaterial)
     RenderCollection(m_RenderContext, m_Collection);
 }
 
+// Verify that a dynamic attribute in a batch does not overwrite subsequent sprites' material defaults.
+TEST_F(SpriteTest, MixedDefaultAndDynamicVertexAttributes)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance sprites[3];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sprites); ++i)
+    {
+        sprites[i] = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", i + 1, 0,
+            Point3(0.0f, 0.0f, (float)i), Quat::identity(), Vector3(1.0f));
+        ASSERT_NE(0, sprites[i]);
+    }
+    const Vector4 color(0.25f, 0.5f, 0.75f, 1.0f);
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyDesc default_color;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(sprites[0], dmHashString64("sprite"), dmHashString64("color"), options, default_color));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(sprites[1], dmHashString64("sprite"), dmHashString64("color"), options, dmGameObject::PropertyVar(color)));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+
+    dmGameSystem::MaterialResource* material_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/material_attributes_texture_transform_valid.materialc", (void**)&material_resource));
+    dmGraphics::HVertexDeclaration declaration = dmRender::GetVertexDeclaration(material_resource->m_Material);
+    const uint32_t stride = dmGraphics::GetVertexDeclarationStride(declaration);
+    const uint32_t position_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("position"));
+    const uint32_t color_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("color"));
+    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, color_offset);
+
+    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    dmRender::BufferedRenderBuffer* vertex_buffer = 0;
+    dmRender::BufferedRenderBuffer* index_buffer = 0;
+    dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world, &vertex_buffer, &index_buffer);
+    ASSERT_EQ(12u * stride, dmGraphics::GetVertexBufferSize(vertex_buffer->m_Buffers[0]));
+    const char* vertex_data = ((dmGraphics::VertexBuffer*)vertex_buffer->m_Buffers[0])->m_Buffer;
+    ASSERT_EQ(1.0f, ReadUnalignedFloat(vertex_data + 4 * stride + position_offset + 2 * sizeof(float)));
+    for (uint32_t v = 0; v < 12; ++v)
+    {
+        const bool overridden = ReadUnalignedFloat(vertex_data + v * stride + position_offset + 2 * sizeof(float)) == 1.0f;
+        const float expected[] = {color.getX(), color.getY(), color.getZ(), color.getW()};
+        for (uint32_t c = 0; c < 4; ++c)
+            ASSERT_EQ(overridden ? expected[c] : default_color.m_Variant.m_V4[c], ReadUnalignedFloat(vertex_data + v * stride + color_offset + c * sizeof(float)));
+    }
+
+    dmResource::Release(m_Factory, material_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Test that go.delete() does not influence other sprite animations in progress
 TEST_F(SpriteTest, GoDeletion)
 {
