@@ -574,9 +574,9 @@
               :location location
               :array-size array-size)
 
-            (< (vector-type-component-count target-vector-type)
-               (vector-type-component-count source-vector-type))
-            (assoc :vector-type target-vector-type))))
+      (< (vector-type-component-count target-vector-type)
+         (vector-type-component-count source-vector-type))
+      (assoc :vector-type target-vector-type))))
 
 (defn attribute-info-byte-size
   ^long [{:keys [data-type vector-type :as _attribute-info]}]

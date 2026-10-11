@@ -464,15 +464,15 @@
   [options]
   (validate-evaluation-context-options options)
   (cond-> (assoc options
-                 :local (atom {})
-                 :hits (atom [])
-                 :in-production #{})
+            :local (atom {})
+            :hits (atom [])
+            :in-production #{})
 
-          (not (:no-local-temp options))
-          (assoc :local-temp (atom {}))
+    (not (:no-local-temp options))
+    (assoc :local-temp (atom {}))
 
-          (not (contains? options :tx-data-context))
-          (assoc :tx-data-context (atom {}))))
+    (not (contains? options :tx-data-context))
+    (assoc :tx-data-context (atom {}))))
 
 (defn pruned-evaluation-context
   "Selectively filters out cache entries from the supplied evaluation context.
@@ -508,10 +508,10 @@
 
 (defn- apply-dry-run-cache [evaluation-context]
   (cond-> evaluation-context
-          (:dry-run evaluation-context)
-          (assoc :local (atom @(:local evaluation-context))
-                 :local-temp (some-> (:local-temp evaluation-context) deref atom)
-                 :hits (atom @(:hits evaluation-context)))))
+    (:dry-run evaluation-context)
+    (assoc :local (atom @(:local evaluation-context))
+           :local-temp (some-> (:local-temp evaluation-context) deref atom)
+           :hits (atom @(:hits evaluation-context)))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -970,11 +970,11 @@
                        (let [cls (resolve form)]
                          (->ClassType cls cls)))))
     (cond-> {:value-type typeref :flags (if multivalued? #{:collection} #{})}
-            ;; When we run the bundle, compilation is long past, we we
-            ;; need to re-register the automatic types at runtime. defnode
-            ;; emits code to do that, based on the types we collect here
-            (some? autotype-form)
-            (assoc :register-type-info {(ref-key typeref) autotype-form}))))
+      ;; When we run the bundle, compilation is long past, we we
+      ;; need to re-register the automatic types at runtime. defnode
+      ;; emits code to do that, based on the types we collect here
+      (some? autotype-form)
+      (assoc :register-type-info {(ref-key typeref) autotype-form}))))
 
 (defn- macro-expression?
   [form]
@@ -1050,11 +1050,11 @@
         prop-value-fn (-> propdef :value :fn)
         outdef (cond-> (dissoc propdef :setter :dynamics :statics :value :default)
 
-                       (some? prop-value-fn)
-                       (assoc :fn prop-value-fn)
+                 (some? prop-value-fn)
+                 (assoc :fn prop-value-fn)
 
-                       (nil? prop-value-fn)
-                       (assoc :fn ::default-fn :default-fn-label klabel))
+                 (nil? prop-value-fn)
+                 (assoc :fn ::default-fn :default-fn-label klabel))
         desc {:register-type-info register-type-info
               :property {klabel propdef}
               :property-order-decl (if (contains? intrinsic-properties klabel) [] [klabel])
@@ -1141,9 +1141,9 @@
 
 (defn- defer-display-order-resolution
   [tree]
-  (assoc tree :property-display-order
-         `(merge-display-order ~(:display-order-decl tree) ~(:property-order-decl tree)
-                               ~@(map property-display-order (:supertypes tree)))))
+  (assoc tree
+    :property-display-order `(merge-display-order ~(:display-order-decl tree) ~(:property-order-decl tree)
+                                                  ~@(map property-display-order (:supertypes tree)))))
 
 (defn- update-fn-maps [tree f]
   (-> tree
@@ -1152,14 +1152,14 @@
                           (into {}
                                 (map (fn [[property-label propdef]]
                                        [property-label (cond-> propdef
-                                                               (some? (-> propdef :value :fn))
-                                                               (update :value f)
+                                                         (some? (-> propdef :value :fn))
+                                                         (update :value f)
 
-                                                               (some? (-> propdef :default :fn))
-                                                               (update :default f)
+                                                         (some? (-> propdef :default :fn))
+                                                         (update :default f)
 
-                                                               (some? (-> propdef :dynamics))
-                                                               (update :dynamics (partial coll/map-vals f)))]))
+                                                         (some? (-> propdef :dynamics))
+                                                         (update :dynamics (partial coll/map-vals f)))]))
                                 properties)))))
 
 (defn- wrap-constant-fn? [fn]
@@ -1222,10 +1222,10 @@
 (defn- attach-declared-property
   [{:keys [property] :as description}]
   (assoc description
-         :declared-property (into #{}
-                                  (comp (map key)
-                                        (remove intrinsic-properties))
-                                  property)))
+    :declared-property (into #{}
+                             (comp (map key)
+                                   (remove intrinsic-properties))
+                             property)))
 
 (defn- all-subtree-dependencies
   [tree]
@@ -1295,20 +1295,20 @@
                           (:output node-type-def))
         prop-defs (reduce (fn [prop-defs [property-label prop-def]]
                             (cond-> prop-defs
-                                    (should-def-fn? (-> prop-def :value :fn))
-                                    (update :value conj [[:property property-label :value] (-> prop-def :value :fn)])
+                              (should-def-fn? (-> prop-def :value :fn))
+                              (update :value conj [[:property property-label :value] (-> prop-def :value :fn)])
 
-                                    (should-def-fn? (-> prop-def :default :fn))
-                                    (update :default conj [[:property property-label :default] (-> prop-def :default :fn)])
+                              (should-def-fn? (-> prop-def :default :fn))
+                              (update :default conj [[:property property-label :default] (-> prop-def :default :fn)])
 
-                                    (some? (:dynamics prop-def))
-                                    (update :dynamics into (keep (fn [[dynamic-label {:keys [fn] :as _dyndef}]]
-                                                                   (when (should-def-fn? fn)
-                                                                     [[:property property-label :dynamics dynamic-label] fn]))
-                                                                 (:dynamics prop-def)))
+                              (some? (:dynamics prop-def))
+                              (update :dynamics into (keep (fn [[dynamic-label {:keys [fn] :as _dyndef}]]
+                                                             (when (should-def-fn? fn)
+                                                               [[:property property-label :dynamics dynamic-label] fn]))
+                                                           (:dynamics prop-def)))
 
-                                    (should-def-fn? (-> prop-def :setter :fn))
-                                    (update :setter conj [[:property property-label :setter] (-> prop-def :setter :fn)])))
+                              (should-def-fn? (-> prop-def :setter :fn))
+                              (update :setter conj [[:property property-label :setter] (-> prop-def :setter :fn)])))
                           {:value []
                            :default []
                            :dynamics []

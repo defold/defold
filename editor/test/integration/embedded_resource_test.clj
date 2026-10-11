@@ -20,15 +20,22 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]])
-  (:import [com.google.protobuf ByteString]))
+            [support.test-support :refer [with-clean-system]]
+            [util.http-server.types :as http-server.types])
+  (:import [com.google.protobuf ByteString]
+           [java.io InputStream]))
 
+(set! *warn-on-reflection* true)
+
+;; Verifies expanded entries retain their content and HTTP protocols without a
+;; registered container type, guarding against protocol moves breaking entries.
 (deftest expansion-is-independent-of-workspace-resource-types
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
         extension "embedded-test"]
-    (.addMethod resource/expand extension
-                (fn [source stream]
-                  (assoc source :children [(resource/make-resource-entry source {:path "text" :ext "txt" :content (ByteString/readFrom stream)})])))
+    (defmethod resource/expand extension [source stream]
+      (assoc source :children [(resource/make-resource-entry source (str (resource/proj-path source) "/text")
+                                                             :ext "txt"
+                                                             :content (ByteString/readFrom stream))]))
     (try
       (with-open [_deleter (test-util/make-directory-deleter project-path)]
         (doseq [index (range 16)]
@@ -39,7 +46,10 @@
             (doseq [index (range 16)]
               (let [child (workspace/find-resource workspace (str "/example" index ".embedded-test/text"))]
                 (is (= "txt" (resource/type-ext child)))
-                (is (= "hello" (slurp child)))))
+                (is (= "hello" (slurp child)))
+                (is (= "text/plain" (http-server.types/content-type child)))
+                (with-open [^InputStream stream (http-server.types/->connection child)]
+                  (is (= "hello" (slurp stream))))))
             (let [child-path "/example0.embedded-test/text"]
               (workspace/resource-sync! workspace)
               (is (= "hello" (slurp (workspace/find-resource workspace child-path))))
@@ -47,3 +57,20 @@
                 (is (= ["hello"] (g/node-value (test-util/resource-node project child-path) :lines))))))))
       (finally
         (remove-method resource/expand extension)))))
+
+;; Verifies entries retain their supplied proj-path and reject paths outside the
+;; source, including siblings whose names start with the source's name.
+(deftest entry-proj-path-must-be-beneath-source
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_deleter (test-util/make-directory-deleter project-path)]
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              source (workspace/find-resource workspace "/game.project")
+              entry (resource/make-resource-entry source "/game.project/child.txt")]
+          (is (= "/game.project/child.txt" (resource/proj-path entry)))
+          (is (= "txt" (resource/ext entry)))
+          (doseq [proj-path ["/game.project"
+                             "/game.project-other/child.txt"
+                             "/else/child.txt"
+                             "game.project/child.txt"]]
+            (is (thrown? AssertionError (resource/make-resource-entry source proj-path)))))))))

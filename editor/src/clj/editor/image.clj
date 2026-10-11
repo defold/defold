@@ -368,21 +368,21 @@
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
-                                      :ext exts
-                                      :label (localization/message "resource.type.image")
-                                      :icon "icons/32/Icons_25-AT-Image.png"
-                                      :build-ext "texturec"
-                                      :node-type ImageNode
-                                      :load-fn load-image
-                                      :stateless? true
-                                      :view-types [:scene :default])
+      :ext exts
+      :label (localization/message "resource.type.image")
+      :icon "icons/32/Icons_25-AT-Image.png"
+      :build-ext "texturec"
+      :node-type ImageNode
+      :load-fn load-image
+      :stateless? true
+      :view-types [:scene :default])
     (workspace/register-resource-type workspace
-                                      :ext "ktx2"
-                                      :label (localization/message "resource.type.ktx2")
-                                      :icon "icons/32/Icons_25-AT-Image.png"
-                                      :build-ext "texturec"
-                                      :node-type Ktx2ImageNode
-                                      :load-fn load-ktx2-image
-                                      :read-fn read-ktx2-info
-                                      :view-types [:scene :default])
+      :ext "ktx2"
+      :label (localization/message "resource.type.ktx2")
+      :icon "icons/32/Icons_25-AT-Image.png"
+      :build-ext "texturec"
+      :node-type Ktx2ImageNode
+      :load-fn load-ktx2-image
+      :read-fn read-ktx2-info
+      :view-types [:scene :default])
     (workspace/register-resource-type workspace :ext "texture")))

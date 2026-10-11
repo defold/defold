@@ -85,8 +85,8 @@
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (if (and (= :type property) (= :type-cubemap value))
     (g/set-properties node-id
-                      :type value
-                      :sample-count 1)
+      :type value
+      :sample-count 1)
     (g/set-property node-id property value)))
 
 (g/defnk produce-form-data [_node-id type sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
@@ -197,25 +197,25 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output build-errors g/Any (g/fnk [_node-id type sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
                                (g/package-errors _node-id
-                                                 (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments color-attachments-message)
-                                                 (into [] (map-indexed
-                                                            (fn [i color-attachment]
-                                                              (color-attachment->error-values i color-attachment _node-id :color-attachments))
-                                                            color-attachments))
-                                                 (validation/prop-error :fatal _node-id :type validate-texture-type type (localization/message "form.label.render-target.type"))
-                                                 (validation/prop-error :fatal _node-id :sample-count validate-sample-count sample-count (localization/message "form.label.render-target.sample-count"))
-                                                 (when-let [message (cubemap-sample-count-error type sample-count)]
-                                                   (g/->error _node-id :sample-count :fatal sample-count message))
-                                                 (when-let [message (cubemap-dimensions-error type color-attachments depth-stencil-attachment-width depth-stencil-attachment-height)]
-                                                   (g/->error _node-id :type :fatal type message))
-                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-width validation/prop-negative? depth-stencil-attachment-width depth-stencil-attachment-width-message)
-                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-height validation/prop-negative? depth-stencil-attachment-height depth-stencil-attachment-height-message)
-                                                 (when (and (> depth-stencil-attachment-width 0) (= 0 depth-stencil-attachment-height))
-                                                   (g/->error _node-id :depth-stencil-attachment-width :fatal depth-stencil-attachment-width
-                                                              (localization/message "error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is")))
-                                                 (when (and (> depth-stencil-attachment-height 0) (= 0 depth-stencil-attachment-width))
-                                                   (g/->error _node-id :depth-stencil-attachment-height :fatal depth-stencil-attachment-height
-                                                              (localization/message "error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is")))))))
+                                 (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments color-attachments-message)
+                                 (into [] (map-indexed
+                                            (fn [i color-attachment]
+                                              (color-attachment->error-values i color-attachment _node-id :color-attachments))
+                                            color-attachments))
+                                 (validation/prop-error :fatal _node-id :type validate-texture-type type (localization/message "form.label.render-target.type"))
+                                 (validation/prop-error :fatal _node-id :sample-count validate-sample-count sample-count (localization/message "form.label.render-target.sample-count"))
+                                 (when-let [message (cubemap-sample-count-error type sample-count)]
+                                   (g/->error _node-id :sample-count :fatal sample-count message))
+                                 (when-let [message (cubemap-dimensions-error type color-attachments depth-stencil-attachment-width depth-stencil-attachment-height)]
+                                   (g/->error _node-id :type :fatal type message))
+                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-width validation/prop-negative? depth-stencil-attachment-width depth-stencil-attachment-width-message)
+                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-height validation/prop-negative? depth-stencil-attachment-height depth-stencil-attachment-height-message)
+                                 (when (and (> depth-stencil-attachment-width 0) (= 0 depth-stencil-attachment-height))
+                                   (g/->error _node-id :depth-stencil-attachment-width :fatal depth-stencil-attachment-width
+                                              (localization/message "error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is")))
+                                 (when (and (> depth-stencil-attachment-height 0) (= 0 depth-stencil-attachment-width))
+                                   (g/->error _node-id :depth-stencil-attachment-height :fatal depth-stencil-attachment-height
+                                              (localization/message "error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is")))))))
 
 (defn load-render-target [_load-opts {self :node-id render-target-desc :source-value}]
   {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.

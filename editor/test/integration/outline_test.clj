@@ -733,29 +733,29 @@
 (deftest dnd-collision-shape
   (test-util/with-loaded-project
     (testing "dnd between two embedded"
-             (let [root (test-util/resource-node project "/logic/one_embedded.go")
-                   collision-object (-> (test-util/outline root [0]) :alt-outline :node-id)]
+      (let [root (test-util/resource-node project "/logic/one_embedded.go")
+            collision-object (-> (test-util/outline root [0]) :alt-outline :node-id)]
                ; Original tree:
                ; Game Object
                ; + collisionobject
-               (copy-paste! project app-view root [0])
-               (add-collision-shape app-view collision-object :type-sphere)
+        (copy-paste! project app-view root [0])
+        (add-collision-shape app-view collision-object :type-sphere)
                ; Game Object
                ; + collisionobject
                ;   + sphere
                ; + collisionobject1
-               (is (= 1 (child-count root [0])))
-               (is (= 0 (child-count root [1])))
-               (drag! project root [0 0])
-               (drop! project app-view root [1])
+        (is (= 1 (child-count root [0])))
+        (is (= 0 (child-count root [1])))
+        (drag! project root [0 0])
+        (drop! project app-view root [1])
                ; Game Object
                ; + collisionobject
                ; + collisionobject1
                ;   + sphere
-               (is (= 0 (child-count root [0])))
-               (is (= 1 (child-count root [1])))))
+        (is (= 0 (child-count root [0])))
+        (is (= 1 (child-count root [1])))))
     (testing "dnd between two references of the same file"
-             (let [root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
+      (let [root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
                ; Original tree:
                ; Game Object
                ; + collisionobject - ref
@@ -763,7 +763,7 @@
                ;   + Box (shape)
                ;   + Capsule (shape)
                ; + sprite
-               (copy-paste! project app-view root [0])
+        (copy-paste! project app-view root [0])
                ; Current tree:
                ; Game Object
                ; + collisionobject - ref
@@ -775,9 +775,9 @@
                ;   + Box (shape)
                ;   + Capsule (shape)
                ; + sprite
-               (drag! project root [0 0])
-               ;; Not possible to drag to the second collisionobject1 since they are references to the same file
-               (is (not (drop? project root [1])))))))
+        (drag! project root [0 0])
+        ;; Not possible to drag to the second collisionobject1 since they are references to the same file
+        (is (not (drop? project root [1])))))))
 
 (deftest alt-outlines
   (test-util/with-loaded-project
@@ -815,9 +815,9 @@
   (test-util/with-loaded-project
     (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")
           run-handler! (fn [command user-data root path]
-                        (let [parent (:node-id (outline root path))
-                              env {:app-view app-view :project project :selection [parent] :workspace workspace}]
-                          (test-util/handler-run command [{:env env :name :workbench}] user-data)))
+                         (let [parent (:node-id (outline root path))
+                               env {:app-view app-view :project project :selection [parent] :workspace workspace}]
+                           (test-util/handler-run command [{:env env :name :workbench}] user-data)))
           add-game-object-to-collection! (partial run-handler! :edit.add-embedded-component nil)
           add-child-game-object! (partial run-handler! :edit.add-secondary-embedded-component nil)
           sub-props-collection (test-util/resource-node project "/collection/sub_props.collection")

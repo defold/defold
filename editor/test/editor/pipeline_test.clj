@@ -25,7 +25,8 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as ts])
+            [support.test-support :as ts]
+            [util.defonce :as defonce])
   (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc]
            [java.io ByteArrayOutputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -162,16 +163,18 @@
   (testing "invokes build-fns correctly for multiple inter-dependant build-targets"
     (with-clean-system
       (let [build-fn-calls (atom 0)
-            called!        #(swap! build-fn-calls inc)
-            dep-1          (make-asserting-build-target workspace "1" called! {})
-            dep-2          (make-asserting-build-target workspace "2" called! {})
-            dep-3          (make-asserting-build-target workspace "3" called!
-                                                        {(:resource dep-2) (:resource dep-2)} dep-2)
-            build-targets  [(make-asserting-build-target workspace "4" called!
-                                                         {(:resource dep-1) (:resource dep-1)
-                                                          (:resource dep-3) (:resource dep-3)}
-                                                         dep-1 dep-3)]
-            build-results  (pipeline-build! project build-targets)]
+            called! #(swap! build-fn-calls inc)
+            dep-1 (make-asserting-build-target workspace "1" called! {})
+            dep-2 (make-asserting-build-target workspace "2" called! {})
+            dep-3 (make-asserting-build-target
+                    workspace "3" called!
+                    {(:resource dep-2) (:resource dep-2)} dep-2)
+            build-targets [(make-asserting-build-target
+                             workspace "4" called!
+                             {(:resource dep-1) (:resource dep-1)
+                              (:resource dep-3) (:resource dep-3)}
+                             dep-1 dep-3)]
+            build-results (pipeline-build! project build-targets)]
         (is (= 4 @build-fn-calls))
         (is (= #{"1" "2" "3" "4"} (set (map content (:artifacts build-results)))))))))
 
@@ -203,11 +206,11 @@
                   :material (-> material-target :resource resource/proj-path)}
                  (select-keys pb-data [:tile-set :default-animation :material]))))))))
 
-(defrecord TestResource [workspace proj-path]
+(defonce/record TestResource [workspace proj-path]
   resource/Resource
   (children [_] [])
   (ext [_] (FilenameUtils/getExtension proj-path))
-  (resource-type* [this _resource-types] {:build-ext (str (resource/ext this) "c")})
+  (lookup-resource-type [this _editable->type-ext->resource-type] {:build-ext (str (resource/ext this) "c")})
   (source-type [_] :file)
   (exists? [_] true)
   (read-only? [_] true)

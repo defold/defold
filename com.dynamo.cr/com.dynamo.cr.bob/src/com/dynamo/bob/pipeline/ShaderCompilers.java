@@ -76,7 +76,7 @@ public class ShaderCompilers {
 
     private static LinkedHashSet<GraphicsAdapter> getDefaultShaderAdapters(Platform platform) {
         LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
-        if (platform.isMacOS()) {
+        if (platform.isMacOS() || platform == Platform.Arm64IosSim) {
             adapters.add(GraphicsAdapter.METAL);
         } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
             adapters.add(GraphicsAdapter.VULKAN);
@@ -95,7 +95,7 @@ public class ShaderCompilers {
 
     private static Set<GraphicsAdapter> getShaderAdaptersFromOptions(Platform platform, IShaderCompiler.CompileOptions compileOptions) {
         LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
-        if (compileOptions.shaderAdapters == null) {
+        if (platform == Platform.Arm64IosSim || compileOptions.shaderAdapters == null) {
             return getDefaultShaderAdapters(platform);
         }
         for (String adapterName : compileOptions.shaderAdapters.split(",")) {

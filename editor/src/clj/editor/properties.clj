@@ -528,7 +528,7 @@
                                                                  original-value))
                                                              v)
                                        prop (cond-> prop
-                                              (not-every? nil? original-values)
+                                              (coll/not-every? nil? original-values)
                                               (assoc :original-values original-values))]
                                    (pair k prop)))))
                         visible-prop-colls)]
@@ -694,10 +694,12 @@
            set-operations (resolve-set-operations property values)
            prepare-user-edit-fn (get-in property [:edit-type :prepare-user-edit-fn])
            edited-endpoints (edited-endpoints set-operations)
+
            tx-data-context-map
            (-> (when prepare-user-edit-fn
                  (prepare-user-edit-fn evaluation-context property set-operations))
                (assoc :edited-endpoints edited-endpoints))]
+
        (g/transact
          {:tx-data-context-map tx-data-context-map}
          (concat
@@ -1218,22 +1220,22 @@
          (map (fn [{:keys [source-node-id] :as property-transfer}]
                 {:pre [(g/node-id? source-node-id)]}
                 (as-> property-transfer property-transfer
-                  (merge (sorted-map
-                           :source-node-type-kw (g/node-type-kw basis source-node-id)
-                           :source-node-path (node-util/node-debug-label-path source-node-id evaluation-context))
-                         property-transfer)
-                  (update property-transfer :targets
-                          (fn [property-transfer-targets]
-                            (coll/into-> property-transfer-targets (coll/empty-with-meta property-transfer-targets)
-                              (map (fn [{:keys [target-node-id target-prop-node-id] :as property-transfer-target}]
-                                     {:pre [(g/node-id? target-node-id)
-                                            (g/node-id? target-prop-node-id)]}
-                                     (merge (sorted-map
-                                              :target-node-type-kw (g/node-type-kw basis target-node-id)
-                                              :target-node-path (node-util/node-debug-label-path target-node-id evaluation-context)
-                                              :target-prop-node-type-kw (g/node-type-kw basis target-prop-node-id)
-                                              :target-prop-node-path (node-util/node-debug-label-path target-prop-node-id evaluation-context))
-                                            property-transfer-target))))))))))))))
+                  (-> (sorted-map
+                        :source-node-type-kw (g/node-type-kw basis source-node-id)
+                        :source-node-path (node-util/node-debug-label-path source-node-id evaluation-context))
+                      (coll/merge property-transfer))
+                  (update
+                    property-transfer :targets
+                    coll/transform->
+                    (map (fn [{:keys [target-node-id target-prop-node-id] :as property-transfer-target}]
+                           {:pre [(g/node-id? target-node-id)
+                                  (g/node-id? target-prop-node-id)]}
+                           (-> (sorted-map
+                                 :target-node-type-kw (g/node-type-kw basis target-node-id)
+                                 :target-node-path (node-util/node-debug-label-path target-node-id evaluation-context)
+                                 :target-prop-node-type-kw (g/node-type-kw basis target-prop-node-id)
+                                 :target-prop-node-path (node-util/node-debug-label-path target-prop-node-id evaluation-context))
+                               (coll/merge property-transfer-target)))))))))))))
 
 (defn transfer-overrides-status
   "Returns :ok if the supplied transfer-overrides-plan can be executed,

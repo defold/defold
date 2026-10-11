@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import org.junit.Test;
@@ -22,6 +23,8 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assume.assumeTrue;
 
 public class ShaderProgramBuilderEditorTest {
     private static final String VERTEX = """
@@ -124,5 +127,90 @@ public class ShaderProgramBuilderEditorTest {
         assertTrue(result.source.contains("in vec4 position"));
         assertTrue(result.source.contains("uniform mat4 view_proj"));
         assertFalse(result.source.contains("attribute "));
+    }
+
+    // Verifies storage-buffer compute shaders produce DX12 bytecode and a root signature,
+    // guarding against omitted buffer bindings and malformed root-signature separators.
+    @Test
+    public void runtimeDx12CompilesStorageBuffer() throws Exception {
+        assumeTrue(Platform.getHostPlatform() == Platform.X86_64Win32);
+        ShaderCompilePipeline.ShaderModuleDesc compute = new ShaderCompilePipeline.ShaderModuleDesc();
+        compute.type = ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+        compute.resourcePath = "/storage.cp";
+        compute.source = """
+            #version 430
+            layout(local_size_x = 1) in;
+            layout(std430, binding = 0) buffer Output { uint value; };
+            void main() { value = gl_GlobalInvocationID.x; }
+            """;
+        assertDx12RuntimeShaders(new ShaderCompilePipeline.ShaderModuleDesc[] { compute }, 1);
+    }
+
+    // Verifies both graphics stages produce DX12 bytecode and a root signature even when
+    // supplied in reverse order, guarding against unusable editor-built DX12 shaders.
+    @Test
+    public void runtimeDx12IncludesBytecodeAndRootSignature() throws Exception {
+        assumeTrue(Platform.getHostPlatform() == Platform.X86_64Win32);
+        ShaderCompilePipeline.ShaderModuleDesc vertex = new ShaderCompilePipeline.ShaderModuleDesc();
+        vertex.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+        vertex.resourcePath = "/dx12.vp";
+        vertex.source = VERTEX;
+        ShaderCompilePipeline.ShaderModuleDesc fragment = new ShaderCompilePipeline.ShaderModuleDesc();
+        fragment.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+        fragment.resourcePath = "/dx12.fp";
+        fragment.source = """
+            #version 140
+            uniform fragment_uniforms { vec4 tint; };
+            out vec4 color;
+            void main() { color = tint; }
+            """;
+        assertDx12RuntimeShaders(new ShaderCompilePipeline.ShaderModuleDesc[] { fragment, vertex }, 2);
+    }
+
+    // Verifies compute shaders compile for DX12 with the full editor language list,
+    // guarding against attempts to compile compute shaders for graphics-only languages.
+    @Test
+    public void runtimeDx12ComputeFiltersGraphicsOnlyLanguages() throws Exception {
+        assumeTrue(Platform.getHostPlatform() == Platform.X86_64Win32);
+        ShaderCompilePipeline.ShaderModuleDesc compute = new ShaderCompilePipeline.ShaderModuleDesc();
+        compute.type = ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+        compute.resourcePath = "/dx12.cp";
+        compute.source = """
+            #version 430
+            layout(local_size_x = 1) in;
+            layout(rgba32f, binding = 0) uniform image2D output_image;
+            void main() { imageStore(output_image, ivec2(gl_GlobalInvocationID.xy), vec4(1.0)); }
+            """;
+        assertDx12RuntimeShaders(new ShaderCompilePipeline.ShaderModuleDesc[] { compute }, 1);
+    }
+
+    private static void assertDx12RuntimeShaders(ShaderCompilePipeline.ShaderModuleDesc[] modules, int stageCount) throws Exception {
+        ShaderDesc.Language[] languages = {
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_GLES_SM100,
+            ShaderDesc.Language.LANGUAGE_GLSL_SM430,
+            ShaderDesc.Language.LANGUAGE_SPIRV,
+            ShaderDesc.Language.LANGUAGE_MSL_22,
+            ShaderDesc.Language.LANGUAGE_HLSL_51
+        };
+        ShaderProgramBuilder.ShaderDescBuildResult result = ShaderProgramBuilderEditor.makeShaderDescWithVariants(
+            "/dx12.spc", modules, languages, 0,
+            Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP, Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
+        assertNotNull(java.util.Arrays.toString(result.buildWarnings), result.shaderDesc);
+        assertFalse(result.shaderDesc.getHlslRootSignature().isEmpty());
+        int hlslCount = 0;
+        int spirvCount = 0;
+        for (ShaderDesc.Shader shader : result.shaderDesc.getShadersList()) {
+            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_HLSL_51) {
+                ++hlslCount;
+                assertTrue(shader.getSource().size() > 4);
+                assertEquals("DXBC", shader.getSource().substring(0, 4).toStringUtf8());
+            } else if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_SPIRV) {
+                ++spirvCount;
+            }
+        }
+        assertEquals(stageCount, hlslCount);
+        assertEquals(stageCount, spirvCount);
     }
 }

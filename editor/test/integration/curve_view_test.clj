@@ -63,8 +63,8 @@
 
 (defn- sub-selection [app-view node-id property]
   (->> (g/node-value app-view :sub-selection)
-    (filterv (fn [[nid prop sub-sel]] (and (= node-id nid) (= property prop) sub-sel)))
-    (mapv last)))
+       (filterv (fn [[nid prop sub-sel]] (and (= node-id nid) (= property prop) sub-sel)))
+       (mapv last)))
 
 (defn- make-curve-view! [app-view width height]
   (let [curve-view (curve-view/make-view!
@@ -115,9 +115,9 @@
   (if act
     (let [delta (mapv - exp act)]
       (->> (mapv * delta delta)
-        (reduce +)
-        (Math/sqrt)
-        (> 1.0E-2)))
+           (reduce +)
+           (Math/sqrt)
+           (> 1.0E-2)))
     false))
 
 (deftest move-control-point

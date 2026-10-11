@@ -213,10 +213,10 @@
 (defn- set-extents
   ^Camera [^Camera camera fov-x fov-y z-near z-far]
   (assoc camera
-         :fov-x fov-x
-         :fov-y fov-y
-         :z-near z-near
-         :z-far z-far))
+    :fov-x fov-x
+    :fov-y fov-y
+    :z-near z-near
+    :z-far z-far))
 
 (defn- camera-rotate
   ^Camera [^Camera camera ^Quat4d q]
@@ -299,7 +299,6 @@
                            0.0 sy  0.0 ty
                            0.0 0.0 1.0 0.0
                            0.0 0.0 0.0 1.0])))))
-
 
 (defmacro normalize-to-bipolar [x x-min x-max]
   `(- (/ (* (- ~x ~x-min) 2) ~x-max) 1.0))
@@ -456,7 +455,7 @@
         delta (camera-unproject prev-camera viewport (Point3d. x y (.z prev-point)))]
     (.sub delta world)
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
-           :focus-point (doto focus (.add delta)))))
+      :focus-point (doto focus (.add delta)))))
 
 (defn- set-dolly-target!
   ([camera-node ^double delta]
@@ -485,7 +484,7 @@
         delta ^Vector4d (camera-unproject camera viewport (Point3d. last-x last-y screen-z))]
     (.sub delta world)
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
-           :focus-point (doto focus (.add delta)))))
+      :focus-point (doto focus (.add delta)))))
 
 (defn tumble [^Camera camera ^double dx ^double dy]
   (let [rate 0.005
@@ -521,8 +520,8 @@
     (.add delta focus)
     ;; position is now in delta
     (assoc camera
-           :position (Point3d. (.x delta) (.y delta) (.z delta))
-           :rotation r)))
+      :position (Point3d. (.x delta) (.y delta) (.z delta))
+      :rotation r)))
 
 (def ^:private default-3d-tumble
   "The tumble realign-camera applies when toggling out of 2D mode."
@@ -1045,11 +1044,11 @@
             ;; NOTE: The user might be trying to track/tumble. In case we're still interpolating the dolly, just reset it
             (reset-dolly! self)
             (g/user-data-swap! self ::camera-state assoc
-                               :last-x x
-                               :last-y y
-                               :initial-x x
-                               :initial-y y
-                               :movement movement)
+              :last-x x
+              :last-y y
+              :initial-x x
+              :initial-y y
+              :movement movement)
             ;; NOTE: For a secondary (right) press we still propagate the action so the
             ;; selection handler can pick the object under the cursor before showing the
             ;; context menu. The camera tracks/free-looks via handle-update-tick and swallows
@@ -1082,12 +1081,12 @@
         :mouse-released
         (let [dragging (:is-dragging (g/user-data self ::camera-state))]
           (g/user-data-swap! self ::camera-state assoc
-                             :last-x nil
-                             :last-y nil
-                             :initial-x nil
-                             :initial-y nil
-                             :is-dragging false
-                             :movement :idle)
+            :last-x nil
+            :last-y nil
+            :initial-x nil
+            :initial-y nil
+            :is-dragging false
+            :movement :idle)
           (g/transact
             {:undoable false}
             (g/set-property self :cursor-type :default))
@@ -1225,7 +1224,7 @@
               camera (cond-> camera
                        has-mouse-moved
                        (cond->
-                           (= :track movement)
+                         (= :track movement)
                          (track viewport last-x last-y mouse-x mouse-y)
 
                          (= :tumble movement)
@@ -1241,8 +1240,8 @@
             (when (= :dolly movement)
               (set-dolly-target! self (* ^double dolly-delta-scale (- mouse-y last-y))))
             (g/user-data-swap! self ::camera-state assoc
-                               :last-x mouse-x
-                               :last-y mouse-y)))))))
+              :last-x mouse-x
+              :last-y mouse-y)))))))
 
 (g/defnode CameraController
   (property prefs g/Any)
@@ -1371,7 +1370,7 @@
                                     (str (math/round-with-precision scaled 0.1))))}
          {:key :fov :type :slider :label "scene-popup.camera.fov" :min 5.0 :max 150.0
           :value #(prefs/get prefs prefs-key-fov)
-          :disabled? (fn [state] (not (:perspective state)) )
+          :disabled? (fn [state] (not (:perspective state)))
           :on-value-changed (fn [val]
                               (prefs/set! prefs prefs-key-fov val)
                               (persp-fov-fn val))

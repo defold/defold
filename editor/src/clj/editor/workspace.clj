@@ -113,7 +113,7 @@ ordinary paths."
   resource/Resource
   (children [_] nil)
   (ext [this] (:build-ext (resource/resource-type this) "unknown"))
-  (resource-type* [_ resource-types] (resource/resource-type* resource resource-types))
+  (lookup-resource-type [_ editable->type-ext->resource-type] (resource/lookup-resource-type resource editable->type-ext->resource-type))
   (source-type [_] (resource/source-type resource))
   (read-only? [_] false)
   (symlink? [_] false)
@@ -184,6 +184,17 @@ ordinary paths."
     (when (resource/memory-resource? source-resource)
       (assoc build-resource
         :resource (resource/counterpart-memory-resource source-resource)))))
+
+(defn sort-resource-tree [{:keys [children] :as tree}]
+  (let [sorted-children (->> children
+                             (map sort-resource-tree)
+                             (sort
+                               (util/comparator-chain
+                                 (util/comparator-on resource/file-resource?)
+                                 (util/comparator-on #({:folder 0 :file 1} (resource/source-type %)))
+                                 (util/comparator-on util/natural-order resource/resource-name)))
+                             vec)]
+    (assoc tree :children sorted-children)))
 
 (defn canonical-view-type-id [view-type-id]
   (case view-type-id
@@ -277,8 +288,9 @@ ordinary paths."
                         querying the graph. See make-read-opts for details.
     :write-fn           a fn from a data representation of the resource
                         (a save-value) to string
-    :export-name-fn     a fn from a resource to a filename when materializing it
-                        for copy or drag-and-drop; defaults to resource/resource-name
+    :export-name-fn     a fn from a resource to a filename to use when exporting
+                        an embedded resource for copy or drag-and-drop; defaults
+                        to resource/resource-name.
     :source-value-fn    a fn from a save-value to whatever you want to cache as
                         the source-value for the resource type. When not
                         specified, the save-value will be the source-value.
@@ -582,7 +594,7 @@ ordinary paths."
         proj-path->resource-type
         (fn proj-path->resource-type [proj-path]
           (if-let [resource (proj-path->resource proj-path)]
-            (resource/resource-type* resource editable->type-ext->resource-type)
+            (resource/lookup-resource-type resource editable->type-ext->resource-type)
             (let [editable (editable-proj-path? proj-path)
                   type-ext (resource/filename->type-ext proj-path)
                   type-ext->resource-type (editable->type-ext->resource-type editable)]
@@ -942,16 +954,17 @@ ordinary paths."
      (resource-sync! workspace moved-files render-progress! new-snapshot new-map)))
   ([workspace moved-files render-progress! new-snapshot new-map]
    (let [project-directory (project-directory workspace)
+
          physical-moved-proj-paths
-         (into []
-               (keep (fn [[src tgt]]
-                       (let [src-path (resource/file->proj-path project-directory src)
-                             tgt-path (resource/file->proj-path project-directory tgt)]
-                         (assert (some? src-path) (str "project does not contain source " (pr-str src)))
-                         (assert (some? tgt-path) (str "project does not contain target " (pr-str tgt)))
-                         (when (not= src-path tgt-path)
-                           [src-path tgt-path]))))
-               moved-files)
+         (coll/into-> moved-files []
+           (keep (fn [[src tgt]]
+                   (let [src-path (resource/file->proj-path project-directory src)
+                         tgt-path (resource/file->proj-path project-directory tgt)]
+                     (assert (some? src-path) (str "project does not contain source " (pr-str src)))
+                     (assert (some? tgt-path) (str "project does not contain target " (pr-str tgt)))
+                     (when (not= src-path tgt-path)
+                       [src-path tgt-path])))))
+
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map (resource-watch/make-resource-map old-snapshot)
          moved-proj-paths (resource/expand-resource-moves physical-moved-proj-paths old-map new-map)
@@ -1052,7 +1065,7 @@ ordinary paths."
                      (let [project-directory (io/as-file project-directory-pathname)
                            resources (:resources new-value)
                            root-file-resource (resource/make-file-resource self project-directory-pathname project-directory resources editable-proj-path? unloaded-proj-path?)
-                           resource-tree (resource/sort-resource-tree root-file-resource)
+                           resource-tree (sort-resource-tree root-file-resource)
                            resource-list (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree)))
                            resource-map (coll/pair-map-by resource/proj-path resource-list)]
                        (g/set-properties self

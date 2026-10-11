@@ -27,10 +27,10 @@
 ;; ---------------------------------------------------------------------------
 (def ^:dynamic *serialization-handlers*
   {:read  {"class"         (transit/read-handler
-                            (fn [rep] (java.lang.Class/forName ^String rep)))}
+                             (fn [rep] (java.lang.Class/forName ^String rep)))}
    :write {java.lang.Class (transit/write-handler
-                            (constantly "class")
-                            (fn [^Class v] (.getName v)))}})
+                             (constantly "class")
+                             (fn [^Class v] (.getName v)))}})
 
 (defn register-read-handler!
   [tag handler]

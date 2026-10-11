@@ -25,13 +25,13 @@ import com.google.protobuf.TextFormat;
 
 /**
  * A virtual Defold material generated from one glTF material. The descriptor
- * supplies the asset-pbr shader interface and source sampler state. PBR factors
+ * supplies the built-in glTF shader interface and source sampler state. PBR factors
  * and extension values remain in the imported mesh-set material data.
  */
 public class GltfMaterialResource extends GltfResource {
 
-    private static final String VERTEX_PROGRAM = "/defold-pbr/shaders/pbr.vp";
-    private static final String FRAGMENT_PROGRAM = "/defold-pbr/shaders/pbr.fp";
+    private static final String VERTEX_PROGRAM = "/builtins/materials/gltf.vp";
+    private static final String FRAGMENT_PROGRAM = "/builtins/materials/gltf.fp";
 
     private final MaterialDesc materialDesc;
     private final Modelimporter.Material sourceMaterial;

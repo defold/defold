@@ -164,7 +164,7 @@ TEST_F(FactoryTest, Factory)
 
         ASSERT_NE(0u, id);
         dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(1, 1, 1));
-        ASSERT_NE(0u, (uintptr_t)instance);
+        ASSERT_NE(0, instance);
     }
 }
 
@@ -217,12 +217,12 @@ TEST_F(FactoryTest, FactoryProperties)
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_NE((void*)0, instance);
+    ASSERT_NE(0, instance);
 
     dmGameObject::AcquireInstanceIndex(m_Collection);
     id = dmGameObject::CreateInstanceId();
     instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_NE((void*)0, instance);
+    ASSERT_NE(0, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
 }
@@ -241,7 +241,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_EQ((void*)0, instance);
+    ASSERT_EQ(0, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
 }
@@ -260,7 +260,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_EQ((void*)0, instance);
+    ASSERT_EQ(0, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
 }
@@ -270,5 +270,5 @@ TEST_F(FactoryTest, FactoryCreateCallback)
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
-    ASSERT_NE((void*)0, instance);
+    ASSERT_NE(0, instance);
 }

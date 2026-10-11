@@ -42,6 +42,13 @@ namespace dmShaderc
         SHADER_STAGE_COMPUTE  = 4,
     };
 
+    enum ShaderResourceAccess
+    {
+        SHADER_RESOURCE_ACCESS_NONE  = 0,
+        SHADER_RESOURCE_ACCESS_READ  = 1,
+        SHADER_RESOURCE_ACCESS_WRITE = 2,
+    };
+
     enum BaseType
     {
         BASE_TYPE_UNKNOWN,
@@ -224,6 +231,7 @@ namespace dmShaderc
         uint8_t      m_Binding;
         uint8_t      m_Set;
         uint8_t      m_StageFlags;
+        uint8_t      m_AccessFlags;
     };
 
     struct ShaderReflection
@@ -300,6 +308,7 @@ namespace dmShaderc
     // Reflection
     extern "C" DM_DLLEXPORT const ShaderReflection* GetReflection(HShaderContext context);
     extern "C" DM_DLLEXPORT void                    SetResourceStageFlags(HShaderContext context, uint64_t name_hash, uint8_t stage_flags);
+    extern "C" DM_DLLEXPORT void                    SetResourceAccessFlags(HShaderContext context, uint64_t name_hash, uint8_t access_flags);
 
     // Compilers
     extern "C" DM_DLLEXPORT HShaderCompiler         NewShaderCompiler(HShaderContext context, ShaderLanguage language);

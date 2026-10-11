@@ -14,8 +14,8 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <glfw/glfw.h>
-#include <glfw/glfw_native.h>
+#include <platform/platform_app.h>
+#include <platform/platform_window_ios.h>
 #import <objc/runtime.h>
 #import "AppDelegate.h"
 #import "EAGLView.h"
@@ -126,7 +126,7 @@ public:
 
     void SetUp()
     {
-        UIWindow* window = (UIWindow*)glfwGetiOSUIWindow();
+        UIWindow* window = (UIWindow*)dmPlatform::GetiOSUIWindow();
         m_Scene = [window.windowScene retain];
         m_Delegate = [(DefoldSceneDelegate*)m_Scene.delegate retain];
         m_Controller = g_ApplicationDelegate.viewController;
@@ -135,7 +135,7 @@ public:
     void TearDown()
     {
         g_DismissOnUpdate = NO;
-        if (!glfwGetiOSUIWindow())
+        if (!dmPlatform::GetiOSUIWindow())
         {
             [m_Delegate scene:m_Scene willConnectToSession:m_Scene.session options:g_ConnectionOptions];
             [m_Delegate sceneDidBecomeActive:m_Scene];
@@ -167,7 +167,7 @@ TEST_F(iOSSceneApplication, ProgrammaticSceneStartup)
     ASSERT_EQ((void*)nil, (void*)manifest[@"UISceneConfigurations"]);
     ASSERT_TRUE([AppDelegate instancesRespondToSelector:@selector(application:configurationForConnectingSceneSession:options:)]);
     ASSERT_TRUE([m_Scene.delegate isKindOfClass:[DefoldSceneDelegate class]]);
-    ASSERT_EQ((void*)m_Controller, (void*)((UIWindow*)glfwGetiOSUIWindow()).rootViewController);
+    ASSERT_EQ((void*)m_Controller, (void*)((UIWindow*)dmPlatform::GetiOSUIWindow()).rootViewController);
     ASSERT_GT(g_UpdateCount, 0U);
     UIApplication* application = [UIApplication sharedApplication];
     UISceneConfiguration* configuration = [application.delegate application:application configurationForConnectingSceneSession:m_Scene.session options:g_ConnectionOptions];
@@ -179,7 +179,7 @@ TEST_F(iOSSceneApplication, ProgrammaticSceneStartup)
 // its view for the engine's launch placeholder and remove it from the window.
 TEST_F(iOSSceneApplication, ExtensionViewWithLaunchTagSurvivesUpdates)
 {
-    UIWindow* window = (UIWindow*)glfwGetiOSUIWindow();
+    UIWindow* window = (UIWindow*)dmPlatform::GetiOSUIWindow();
     UIView* container = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
     UIView* extensionView = [[[UIView alloc] initWithFrame:container.bounds] autorelease];
     extensionView.tag = 999;
@@ -195,7 +195,7 @@ TEST_F(iOSSceneApplication, ExtensionViewWithLaunchTagSurvivesUpdates)
 // while preserving an extension view with tag 999 during the same frame.
 TEST_F(iOSSceneApplication, LaunchCleanupRemovesOnlyPlaceholder)
 {
-    UIWindow* window = (UIWindow*)glfwGetiOSUIWindow();
+    UIWindow* window = (UIWindow*)dmPlatform::GetiOSUIWindow();
     UIView* extensionView = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
     extensionView.tag = 999;
     [window addSubview:extensionView];
@@ -223,7 +223,7 @@ TEST_F(iOSSceneApplication, LaunchCleanupAfterReconnect)
     [observer didMoveToParentViewController:m_Controller];
     EXPECT_TRUE(WaitUntil(^BOOL { return observer->m_AppearanceCount == 1; }));
 
-    UIWindow* window = (UIWindow*)glfwGetiOSUIWindow();
+    UIWindow* window = (UIWindow*)dmPlatform::GetiOSUIWindow();
     UIView* first = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
     m_Delegate.launchScreenView = first;
     [window addSubview:first];
@@ -234,7 +234,7 @@ TEST_F(iOSSceneApplication, LaunchCleanupAfterReconnect)
     // pass. Reconnecting before that starts an overlapping appearance transition.
     EXPECT_TRUE(WaitUntil(^BOOL { return observer->m_DisappearanceCount == 1; }));
     [m_Delegate scene:m_Scene willConnectToSession:m_Scene.session options:g_ConnectionOptions];
-    window = (UIWindow*)glfwGetiOSUIWindow();
+    window = (UIWindow*)dmPlatform::GetiOSUIWindow();
     UIView* second = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
     m_Delegate.launchScreenView = second;
     [window addSubview:second];
@@ -298,7 +298,7 @@ TEST_F(iOSSceneApplication, DisconnectStopsUpdates)
 {
     BaseView* view = m_Controller.baseView;
     [m_Delegate sceneDidDisconnect:m_Scene];
-    ASSERT_EQ((void*)nil, glfwGetiOSUIWindow());
+    ASSERT_EQ((void*)nil, dmPlatform::GetiOSUIWindow());
     ASSERT_EQ((void*)nil, (void*)view->displayLink);
     unsigned int before = g_UpdateCount;
     [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
@@ -436,7 +436,7 @@ static void DestroyTestEngine(void* context)
 
 static void GetTestEngineResult(void* context, int* action, int* exit_code, int* argc, char*** argv)
 {
-    *action = GLFW_APP_RUN_EXIT;
+    *action = dmPlatform::APP_RUN_EXIT;
     *exit_code = 0;
     *argc = 0;
     *argv = 0;
@@ -447,8 +447,8 @@ int main(int argc, char** argv)
     jc_test_init(&argc, argv);
     NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
     SceneConnectionObserver* observer = [[[SceneConnectionObserver alloc] init] autorelease];
-    glfwRegisterUISceneDelegate(observer);
-    glfwRegisterUIApplicationDelegate(observer);
+    dmPlatform::RegisteriOSSceneDelegate(observer);
+    dmPlatform::RegisteriOSApplicationDelegate(observer);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         if (!g_TestsStarted)
         {
@@ -456,7 +456,7 @@ int main(int argc, char** argv)
             exit(1);
         }
     });
-    glfwAppBootstrap(argc, argv, 0, 0, 0, CreateTestEngine, DestroyTestEngine, UpdateTestEngine, GetTestEngineResult);
+    dmPlatform::AppBootstrap(argc, argv, 0, 0, 0, CreateTestEngine, DestroyTestEngine, UpdateTestEngine, GetTestEngineResult);
     [pool drain];
     return 0;
 }

@@ -1,6 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
-
 import contextlib
 import io
 import json
@@ -8,6 +5,7 @@ import shlex
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -112,6 +110,152 @@ class BuildSdkTests(unittest.TestCase):
                         for platform in expected_platforms if platform in self.private_sdks
                     }
                     self.assertEqual({'test-sha1/engine/platform.sdks.json': expected_sdks}, uploads)
+
+
+class SdkInstallationTests(unittest.TestCase):
+    # macOS ARMv7 source builds need the Web SDK for LuaJIT's 32-bit generators; other Android builds do not.
+    def test_android_installs_web_sdk_only_for_macos_armv7(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            emsdk = root / 'emsdk'
+            for host in ('arm64-macos', 'x86_64-macos', 'x86_64-linux', 'x86_64-win32'):
+                for target in ('armv7-android', 'arm64-android', 'x86_64-android'):
+                    with self.subTest(host=host, target=target):
+                        configuration = build.Configuration.__new__(build.Configuration)
+                        configuration.ext = str(root)
+                        configuration.host = host
+                        configuration.target_platform = target
+                        configuration.package_path = 'https://packages.example'
+                        configuration.has_sdk = lambda folder, platform: True
+                        with mock.patch.object(build.sdk, 'get_host_platform', return_value=host), \
+                                mock.patch.object(build.sdk, 'get_defold_emsdk', return_value=str(emsdk)), \
+                                mock.patch.object(build.sdk, 'get_defold_emsdk_config', return_value=str(emsdk / '.emscripten')), \
+                                mock.patch.object(build.os.path, 'isfile', return_value=True), \
+                                mock.patch.object(build.build_private, 'install_sdk'), \
+                                mock.patch.object(build, 'download_sdk') as download:
+                            configuration.install_sdk()
+                        web_sdk = f'https://packages.example/{build.sdk.PACKAGES_EMSCRIPTEN_SDK}-{host}.tar.gz'
+                        downloads = [call.args[1] for call in download.call_args_list]
+                        self.assertEqual(target == 'armv7-android' and host.endswith('-macos'), web_sdk in downloads)
+
+
+class SdkCheckTests(unittest.TestCase):
+    def setUp(self):
+        self.configuration = build.Configuration.__new__(build.Configuration)
+        self.configuration.defold_root = str(Path(__file__).resolve().parents[1])
+        self.configuration.dynamo_home = '/test-sdk'
+        self.configuration.ext = '/test-sdk/ext'
+        self.configuration.verbose = False
+        for patch in (
+                mock.patch.object(self.configuration, 'check_python'),
+                mock.patch.object(self.configuration, '_log'),
+                mock.patch.object(build.sdk, 'get_sdk_info', return_value={'ndk': '/android-ndk'}),
+                mock.patch.object(build.sdk, 'test_sdk', return_value=True),
+                mock.patch.object(build.shutil, 'which', return_value='/tools/tool')):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    # ARMv7 on macOS must check its generator SDK as well as Android; other Android builds need only Android.
+    def test_android_checks_generator_sdk_only_for_macos_armv7(self):
+        for host in ('arm64-macos', 'x86_64-macos', 'x86_64-linux', 'x86_64-win32'):
+            for target in ('armv7-android', 'arm64-android', 'x86_64-android'):
+                with self.subTest(host=host, target=target), mock.patch.object(build.run, 'command', return_value='') as command:
+                    self.configuration.host = host
+                    self.configuration.target_platform = target
+                    self.configuration.check_sdk()
+                    checks = [call.args[0] for call in command.call_args_list]
+                    self.assertTrue(checks[0][-1].endswith('scripts/cmake/check_install.cmake'))
+                    if target == 'armv7-android' and host.endswith('-macos'):
+                        self.assertEqual(2, len(checks))
+                        self.assertTrue(checks[1][-1].endswith('external/luajit/host/emscripten.cmake'))
+                        self.assertIn('-DDEFOLD_SDK_ROOT:PATH=/test-sdk', checks[1])
+                        self.assertIn('-DLUAJIT_CHECK_SDK=ON', checks[1])
+                    else:
+                        self.assertEqual(1, len(checks))
+
+    # A missing or unusable generator SDK must fail check_sdk even when the Android toolchain passes.
+    def test_macos_armv7_generator_sdk_failure_is_not_ignored(self):
+        self.configuration.host = 'arm64-macos'
+        self.configuration.target_platform = 'armv7-android'
+        with mock.patch.object(build.run, 'command', side_effect=['', SystemExit(1)]):
+            with self.assertRaises(SystemExit) as error:
+                self.configuration.check_sdk()
+            self.assertEqual(1, error.exception.code)
+
+
+class PlatformSdkPackagingTests(unittest.TestCase):
+    # Both SDK archive formats must include the header used by Extender's Android entry point.
+    def test_android_sdk_includes_platform_application_header(self):
+        for platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                sdk_root = Path(directory)
+                files = {
+                    'extender/build.yml': 'context: {}',
+                    f'lib/{platform}/libplatform.a': 'platform archive',
+                    f'ext/lib/{platform}/libdependency.a': 'external archive',
+                    'share/java/platform_android.jar': 'platform Java classes',
+                    'include/platform/platform_app.h': 'platform application header',
+                    'sdk/include/dmsdk/dlib/android.h': 'Android SDK header',
+                }
+                for relative_path, contents in files.items():
+                    path = sdk_root / relative_path
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(contents)
+
+                configuration = build.Configuration.__new__(build.Configuration)
+                configuration.dynamo_home = str(sdk_root)
+                headers_path = sdk_root / 'defoldsdk_headers.zip'
+                with contextlib.redirect_stdout(io.StringIO()):
+                    archive_path, _ = configuration._package_platform_sdk(platform)
+                    configuration._package_platform_sdk_headers(headers_path)
+
+                for sdk_path in (archive_path, headers_path):
+                    with self.subTest(archive=Path(sdk_path).name), zipfile.ZipFile(sdk_path) as archive:
+                        self.assertEqual(b'platform application header', archive.read('defoldsdk/include/platform/platform_app.h'))
+                        self.assertEqual(b'Android SDK header', archive.read('defoldsdk/sdk/include/dmsdk/dlib/android.h'))
+
+    def package_web_sdk(self, platform, external_javascript):
+        with tempfile.TemporaryDirectory() as directory:
+            sdk_root = Path(directory)
+            files = {
+                'extender/build.yml': 'context: {}',
+                f'lib/{platform}/libplatform.a': 'platform archive',
+                f'lib/{platform}/js/library_platform.js': 'platform JavaScript',
+                f'lib/{platform}/js/library_sys.js': 'system JavaScript',
+                f'ext/lib/{platform}/libdependency.a': 'external archive',
+                'ext/wagyu-port/wagyu.py': 'port source',
+            }
+            if external_javascript:
+                files[f'ext/lib/{platform}/js/library_external.js'] = 'external JavaScript'
+            for relative_path, contents in files.items():
+                path = sdk_root / relative_path
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(contents)
+
+            configuration = build.Configuration.__new__(build.Configuration)
+            configuration.dynamo_home = str(sdk_root)
+            with contextlib.redirect_stdout(io.StringIO()):
+                archive_path, signature_path = configuration._package_platform_sdk(platform)
+            self.assertTrue(Path(signature_path).is_file())
+            with zipfile.ZipFile(archive_path) as archive:
+                return {name: archive.read(name).decode() for name in archive.namelist()}
+
+    # Web SDKs retain native platform JS when the removed GLFW2 package leaves no external JS directory.
+    def test_web_sdk_without_external_javascript(self):
+        for platform in ('wasm-web', 'wasm_pthread-web'):
+            with self.subTest(platform=platform):
+                files = self.package_web_sdk(platform, external_javascript=False)
+                self.assertEqual('platform JavaScript', files[f'defoldsdk/lib/{platform}/js/library_platform.js'])
+                self.assertEqual('system JavaScript', files[f'defoldsdk/lib/{platform}/js/library_sys.js'])
+                self.assertFalse(any(name.startswith(f'defoldsdk/ext/lib/{platform}/js/') for name in files))
+
+    # Optional external JS libraries are still archived alongside the engine JS libraries when present.
+    def test_web_sdk_preserves_external_javascript(self):
+        for platform in ('wasm-web', 'wasm_pthread-web'):
+            with self.subTest(platform=platform):
+                files = self.package_web_sdk(platform, external_javascript=True)
+                self.assertEqual('platform JavaScript', files[f'defoldsdk/lib/{platform}/js/library_platform.js'])
+                self.assertEqual('external JavaScript', files[f'defoldsdk/ext/lib/{platform}/js/library_external.js'])
 
 
 class CiSdkTests(unittest.TestCase):

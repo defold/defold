@@ -59,10 +59,10 @@
 (defn- find-target-item [item-iterator root-nodes]
   (if item-iterator
     (->> item-iterator
-      (iterate parent)
-      (take-while some?)
-      (mapcat #(let [item (value %)] [item (:alt-outline item)]))
-      (some (partial match-reqs root-nodes)))
+         (iterate parent)
+         (take-while some?)
+         (mapcat #(let [item (value %)] [item (:alt-outline item)]))
+         (some (partial match-reqs root-nodes)))
     nil))
 
 (defn- valid-link? [value]
@@ -169,20 +169,20 @@
 
 (defn cut? [src-item-iterators]
   (and (delete? src-item-iterators)
-    (loop [src-item-iterators src-item-iterators
-           common-node-types nil]
-     (if-let [item-it (first src-item-iterators)]
-       (let [root-nodes [(g/node-by-id (:node-id (value item-it)))]
-             parent (parent item-it)
-             [_ reqs] (find-target-item parent root-nodes)
-             node-types (set (map :node-type reqs))
-             common-node-types (if common-node-types
-                                 (set/intersection common-node-types node-types)
-                                 node-types)]
-         (if (and reqs (seq common-node-types))
-           (recur (rest src-item-iterators) common-node-types)
-           false))
-       true))))
+       (loop [src-item-iterators src-item-iterators
+              common-node-types nil]
+         (if-let [item-it (first src-item-iterators)]
+           (let [root-nodes [(g/node-by-id (:node-id (value item-it)))]
+                 parent (parent item-it)
+                 [_ reqs] (find-target-item parent root-nodes)
+                 node-types (set (map :node-type reqs))
+                 common-node-types (if common-node-types
+                                     (set/intersection common-node-types node-types)
+                                     node-types)]
+             (if (and reqs (seq common-node-types))
+               (recur (rest src-item-iterators) common-node-types)
+               false))
+           true))))
 
 (defn cut!
   ([project src-item-iterators]

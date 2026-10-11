@@ -337,6 +337,7 @@ namespace dmScript
         ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_VENDOR,   "vendor");
         ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_WEBGPU,   "webgpu");
         ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_DIRECTX,  "dx12");
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_METAL,    "metal");
         default: break;
         }
     #undef ADAPTER_FAMILY_CASE
@@ -440,6 +441,7 @@ namespace dmScript
             // Per-stage binding limits
             PUSH_LIMIT(m_MaxSamplersPerStage,             "max_samplers_per_stage");
             PUSH_LIMIT(m_MaxTexturesPerStage,             "max_textures_per_stage");
+            PUSH_LIMIT(m_MaxStorageBuffersPerStage,       "max_storage_buffers_per_stage");
             PUSH_LIMIT(m_MaxVertexAttributes,             "max_vertex_attributes");
             PUSH_LIMIT(m_MaxVertexBuffers,                "max_vertex_buffers");
 

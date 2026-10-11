@@ -178,8 +178,8 @@
 (defn- measure-task-impl! [task-key task-fn]
   (let [task-label (name task-key)]
     (log-time-and-memory task-label
-      (du/measuring task-metrics task-key
-        (user-profiling-hook! task-key task-fn)))))
+                         (du/measuring task-metrics task-key
+                           (user-profiling-hook! task-key task-fn)))))
 
 (defmacro ^:private measure-task! [task-key & body]
   {:pre [(keyword? task-key)

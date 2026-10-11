@@ -21,12 +21,13 @@ public class GltfMeshResource extends GltfResource {
     private final int primitiveCount;
     private final int vertexCount;
 
-    GltfMeshResource(IFileSystem fileSystem, IResource sourceResource, String path,
+    GltfMeshResource(IFileSystem fileSystem, IResource sourceResource,
                      GltfContainer.MeshMetadata mesh) {
-        super(fileSystem, sourceResource, path, Kind.MESH, mesh.getIndex(), mesh.getName(), mesh.getContent());
-        this.nameGenerated = mesh.isNameGenerated();
-        this.primitiveCount = mesh.getPrimitiveCount();
-        this.vertexCount = mesh.getVertexCount();
+        super(fileSystem, sourceResource, mesh.resourcePath().substring(1), Kind.MESH,
+                mesh.index(), mesh.name(), mesh.content().toByteArray());
+        this.nameGenerated = mesh.nameGenerated();
+        this.primitiveCount = mesh.primitiveCount();
+        this.vertexCount = mesh.vertexCount();
     }
 
     public boolean isNameGenerated() {

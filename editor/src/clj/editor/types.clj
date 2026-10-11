@@ -194,9 +194,9 @@
 
 (s/defn ^:always-validate rect :- Rect
   ([x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
-    (rect "" (int  x) (int y) (int width) (int height)))
+   (rect "" (int  x) (int y) (int width) (int height)))
   ([path :- s/Any x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
-    (Rect. path (int x) (int y) (int width) (int height))))
+   (Rect. path (int x) (int y) (int width) (int height))))
 
 (def ^:private sprite-trim-modes
   (s/enum :sprite-trim-mode-off
@@ -219,8 +219,8 @@
   (contents [this] contents))
 
 (def ^:private playback-modes (s/enum :playback-none :playback-once-forward :playback-once-backward
-                                     :playback-once-pingpong :playback-loop-forward :playback-loop-backward
-                                     :playback-loop-pingpong))
+                                      :playback-once-pingpong :playback-loop-forward :playback-loop-backward
+                                      :playback-loop-pingpong))
 (g/deftype AnimationPlayback playback-modes)
 
 (s/defrecord Animation
@@ -313,17 +313,17 @@
   (rotation [this] rotation))
 
 (g/deftype OutlineCommand
-    {:label      (s/maybe s/Str)
-     :enabled    (s/maybe  s/Bool)
-     :command-fn (s/maybe  s/Any)
-     :context    (s/maybe  s/Any)})
+  {:label      (s/maybe s/Str)
+   :enabled    (s/maybe  s/Bool)
+   :command-fn (s/maybe  s/Any)
+   :context    (s/maybe  s/Any)})
 
 (g/deftype OutlineItem
-    {:label    (s/maybe s/Str)
-     :icon     (s/maybe Icon)
-     :node-ref (s/maybe Long)
-     :commands [(s/maybe (:schema @OutlineCommand))]
-     :children [(s/maybe s/Any)]})
+  {:label    (s/maybe s/Str)
+   :icon     (s/maybe Icon)
+   :node-ref (s/maybe Long)
+   :commands [(s/maybe (:schema @OutlineCommand))]
+   :children [(s/maybe s/Any)]})
 
 (defprotocol GeomCloud
   (geom-aabbs [this] [this ids])

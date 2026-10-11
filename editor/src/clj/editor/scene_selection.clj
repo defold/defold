@@ -29,7 +29,7 @@
             [editor.workspace :as workspace]
             [schema.core :as s]
             [util.eduction :as e])
-  (:import [com.jogamp.opengl GL2]
+  (:import [com.jogamp.opengl GL3]
            [editor.types Rect]
            [java.lang Math Runnable]
            [javafx.scene Node Scene]
@@ -58,7 +58,7 @@
     :command :scene.visibility.show-all}
    (menu-items/separator-with-id ::context-menu-end)])
 
-(defn render-selection-box [^GL2 gl render-args renderables _count]
+(defn render-selection-box [^GL3 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         start (:start user-data)
         current (:current user-data)]
@@ -84,8 +84,8 @@
         selection (g/node-value controller :picking-selection)
         contextual? (g/node-value controller :contextual?)
         mode-filter-fn (case mode
-                        :single (fn [selection] (if-let [sel (first selection)] [sel] []))
-                        :multi identity)
+                         :single (fn [selection] (if-let [sel (first selection)] [sel] []))
+                         :multi identity)
         toggle-filter-fn (cond
                            toggle?
                            (fn [selection]
@@ -100,7 +100,7 @@
                                (if (some #(= (first selection) %) prev-selection)
                                  prev-selection
                                  selection)))
-                           
+
                            :else
                            identity)
         sel-filter-fn (comp toggle-filter-fn mode-filter-fn)

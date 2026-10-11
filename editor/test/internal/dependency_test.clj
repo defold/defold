@@ -139,7 +139,7 @@
   (input input-5 g/Str)
 
   (output input-counter g/Int (g/fnk [input-1 input-2 input-3 input-4 input-5]
-                                   (count (keep identity [input-1 input-2 input-3 input-4 input-5])))))
+                                (count (keep identity [input-1 input-2 input-3 input-4 input-5])))))
 
 (deftest one-step-multipath
   (testing "one output to several inputs"

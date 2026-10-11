@@ -347,11 +347,11 @@ public class AndroidBundler implements IBundler {
         return hasVulkanAdapter && hasOpenGlesAdapter;
     }
 
-    private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        File dataFile = getRequiredBobFile("lib/vkquality/" + VKQUALITY_DATA_FILE);
+    static void copyVkQualityDataFile(Project project, File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        IResource dataFile = project.getResource("android", "vkquality_database");
         File dest = new File(assetsDir, VKQUALITY_DATA_FILE);
-        logger.info("Copying VkQuality data " + dataFile + " to " + dest);
-        FileUtils.copyFile(dataFile, dest);
+        logger.info("Copying VkQuality data " + dataFile.getPath() + " to " + dest);
+        ExtenderUtil.writeResourceToFile(dataFile, dest);
         BundleHelper.throwIfCanceled(canceled);
     }
 
@@ -477,14 +477,12 @@ public class AndroidBundler implements IBundler {
             // https://developer.android.com/guide/app-bundle#aab_format
             File baseDir = createDir(aabDir, "base");
             File dexDir = createDir(baseDir, "dex");
-            File manifestDir = createDir(baseDir, "manifest");
             File assetsDir = createDir(baseDir, "assets");
             File rootDir = createDir(baseDir, "root");
             File libDir = createDir(baseDir, "lib");
-            File resDir = createDir(baseDir, "res");
 
-            FileUtils.copyFile(new File(apkUnzipDir, "AndroidManifest.xml"), new File(manifestDir, "AndroidManifest.xml"));
-            FileUtils.copyFile(new File(apkUnzipDir, "resources.pb"), new File(baseDir, "resources.pb"));
+            copyCompiledResources(apkUnzipDir, baseDir);
+            BundleHelper.throwIfCanceled(canceled);
 
             // copy classes.dex
             ArrayList<File> classesDex = getClassesDex(project);
@@ -511,7 +509,7 @@ public class AndroidBundler implements IBundler {
                 if (filename.startsWith("/")) {
                     filename = filename.substring(1);
                 }
-                // files starting with "res/" should be ignored as they are copied in a separate step below
+                // files starting with "res/" are supplied by the compiled resource archive
                 if (filename.startsWith(resPath)) {
                     continue;
                 }
@@ -554,15 +552,10 @@ public class AndroidBundler implements IBundler {
 
             boolean vkQualityEnabled = usesVkQuality(project);
             if (vkQualityEnabled) {
-                copyVkQualityDataFile(assetsDir, canceled);
+                copyVkQualityDataFile(project, assetsDir, canceled);
             } else {
                 logger.info("Skipping VkQuality data because Vulkan does not need runtime backend selection");
             }
-
-            // copy resources
-            logger.info("Copying resources to " + resDir);
-            FileUtils.copyDirectory(new File(apkUnzipDir, "res"), resDir);
-            BundleHelper.throwIfCanceled(canceled);
 
             // copy engine
             final String exeName = getBinaryNameFromProject(project);
@@ -653,6 +646,17 @@ public class AndroidBundler implements IBundler {
             return baseZip;
         } catch (Exception e) {
             throw new CompileExceptionError("Failed creating AAB base.zip. Cause: " + String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    static void copyCompiledResources(File apkDir, File baseDir) throws IOException {
+        FileUtils.copyFile(new File(apkDir, "AndroidManifest.xml"), new File(baseDir, "manifest/AndroidManifest.xml"));
+        FileUtils.copyFile(new File(apkDir, "resources.pb"), new File(baseDir, "resources.pb"));
+
+        // R8 can remove every file resource while retaining values in resources.pb.
+        File resourcesDir = new File(apkDir, "res");
+        if (resourcesDir.isDirectory()) {
+            FileUtils.copyDirectory(resourcesDir, new File(baseDir, "res"));
         }
     }
 
@@ -772,7 +776,7 @@ public class AndroidBundler implements IBundler {
 
         // Native extension builds provide compiledresources.apk and skip the local aapt2 path that
         // normally initializes AndroidTools. Initialize explicitly so packed Android resources such
-        // as VkQuality data and native libraries are extracted before Bob.getPath() lookups below.
+        // as VkQuality native libraries are extracted before Bob.getPath() lookups below.
         AndroidTools.init();
 
         final Platform platform = getFirstPlatform(project);

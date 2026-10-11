@@ -47,7 +47,6 @@
 
 (def gen-set (gen/fmap set (gen/vector gen/nat)))
 
-
 (defspec apply-deltas-invariants
   100
   (prop/for-all [[oldset newset] (gen/tuple gen-set gen-set)]

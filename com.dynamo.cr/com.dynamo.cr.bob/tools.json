@@ -1,6 +1,5 @@
 {
     "lib/android.jar": "ext/share/java/android.jar",
-    "lib/vkquality/vkqualitydata.vkq": "ext/share/vkquality/assets/vkqualitydata.vkq",
     "libexec/arm64-android/libvkquality.so": "ext/lib/arm64-android/libvkquality.so",
     "libexec/arm64-linux/glslang": "ext/bin/arm64-linux/glslang",
     "libexec/arm64-linux/gltf_validator": "ext/bin/arm64-linux/gltf_validator",

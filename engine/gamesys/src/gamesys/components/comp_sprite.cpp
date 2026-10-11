@@ -2271,6 +2271,7 @@ namespace dmGameSystem
         dmRender::HRenderListDispatch sprite_dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, sprite_world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
+        uint32_t num_enabled = 0;
         for (uint32_t i = 0; i < sprite_count; ++i)
         {
             SpriteComponent& component = components[i];
@@ -2287,8 +2288,9 @@ namespace dmGameSystem
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
 
-            DM_PROPERTY_ADD_U32(rmtp_Sprite, 1);
+            ++num_enabled;
         }
+        DM_PROPERTY_ADD_U32(rmtp_Sprite, num_enabled);
 
         dmRender::RenderListSubmit(render_context, render_list, write_ptr);
         return dmGameObject::UPDATE_RESULT_OK;

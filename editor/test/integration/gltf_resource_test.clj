@@ -37,13 +37,14 @@
             [integration.test-util :as test-util]
             [service.log :as log]
             [support.test-support :as test-support :refer [with-clean-system]]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.http-server.types :as http-server.types])
   (:import [com.dynamo.bob.pipeline TextureGenerator]
            [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gamesys.proto MeshProto$MeshDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
            [java.awt.image BufferedImage]
-           [java.io ByteArrayOutputStream IOException]
+           [java.io ByteArrayOutputStream IOException InputStream]
            [java.net URI]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
@@ -52,7 +53,9 @@
            [javax.imageio ImageIO]
            [javax.vecmath Point3d]))
 
-(def ^:private geometry-buffer-base64
+(set! *warn-on-reflection* true)
+
+(def ^:private ^String geometry-buffer-base64
   "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAABAAIA")
 
 (def ^:private ^bytes geometry-buffer-bytes
@@ -110,7 +113,7 @@
   (let [bytes (ByteArrayOutputStream.)]
     (with-open [output (ZipOutputStream. bytes)]
       (run!
-        (fn [[entry-path content]]
+        (fn [[^String entry-path content]]
           (let [^bytes content (if (string? content)
                                  (.getBytes ^String content StandardCharsets/UTF_8)
                                  content)]
@@ -323,12 +326,34 @@
               image-path (gltf/uri->proj-path "/models/robot.gltf" uri)
               bindings (gltf/material-binding-descriptors source nil resolve-resource)]
           (is (nil? (workspace/find-resource workspace "/models/robot.gltf/images")))
-          (is (= [image-path] (gltf/external-image-paths source)))
+          (is (= [image-path] (gltf/external-image-proj-paths source)))
           (is (= (vec (repeat 5 image-path))
                  (mapv (comp resource/proj-path :texture) (:textures (first bindings)))))
           (is (= [image-path]
                  (mapv (comp resource/proj-path :image)
                        (:textures (gltf/metadata-descriptors source resolve-resource))))))))))
+
+;; Verifies shared asset and sampler project paths resolve for file and ZIP
+;; containers, guarding against duplicated prefixes and misplaced embedded images.
+(deftest asset-and-sampler-proj-paths-resolve-embedded-and-external-images
+  (doseq [origin [:file :zip]
+          [content image-proj-path] [[(gltf-content "Paint") "/models/albedo.png"]
+                                     [(embedded-gltf-content "Paint") "/models/robot.gltf/images/Albedo_0.png"]]]
+    (with-gltf-project origin content
+      (fn [_project-path workspace _project]
+        (let [source (workspace/find-resource workspace "/models/robot.gltf")
+              material (workspace/find-resource workspace "/models/robot.gltf/materials/Paint_0.material")
+              sampler-bindings (:sampler-bindings (gltf/asset-info material))
+              bindings (gltf/material-binding-descriptors source nil (partial workspace/resolve-workspace-resource workspace))]
+          (is (= 5 (count sampler-bindings)))
+          (is (coll/every? #(= image-proj-path (:image-proj-path %)) sampler-bindings))
+          (is (= 5 (count (:textures (first bindings)))))
+          (is (coll/every? #(= image-proj-path (resource/proj-path (:texture %))) (:textures (first bindings))))
+          (is (= (resource/proj-path material) (:proj-path (gltf/asset-info material))))
+          (doseq [asset-resource (coll/into-> (resource/children source) []
+                                   resource/xform-recursive-resources
+                                   (filter gltf/asset-info))]
+            (is (= (resource/proj-path asset-resource) (:proj-path (gltf/asset-info asset-resource))))))))))
 
 (deftest missing-geometry-does-not-hide-container-assets
   (with-gltf-project :file (gltf-content "Paint" "geometry.bin")
@@ -726,6 +751,8 @@
                 (is (= {:width 1 :height 1} (g/node-value image-node :size)))
                 (is (not (g/error-value? (g/node-value image-node :content-generator))))))))))))
 
+;; Verifies GLB changes refresh image content and HTTP streams, guarding against
+;; stale image data and broken protocols after namespace moves.
 (deftest glb-image-content-depends-on-its-container
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
     (with-open [_deleter (test-util/make-directory-deleter project-path)]
@@ -761,8 +788,13 @@
                 (.put image-bytes))
               (test-support/write-until-new-mtime source-file (.array glb)))
             (workspace/resource-sync! workspace)
-            (let [node (test-util/resource-node project "/image.glb/images/0.png")
+            (let [image-resource (workspace/find-resource workspace "/image.glb/images/0.png")
+                  node (test-util/resource-node project "/image.glb/images/0.png")
                   generator (g/node-value node :content-generator)]
+              (is (= "image/png" (http-server.types/content-type image-resource)))
+              (with-open [^InputStream stream (http-server.types/->connection image-resource)]
+                (is (= (unchecked-int color)
+                       (.getRGB ^BufferedImage (ImageIO/read stream) 0 0))))
               (is (not (g/error-value? generator)))
               (when-not (g/error-value? generator)
                 (is (= (unchecked-int color)

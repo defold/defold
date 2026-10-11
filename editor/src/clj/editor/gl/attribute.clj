@@ -23,7 +23,7 @@
             [util.defonce :as defonce]
             [util.ensure :as ensure]
             [util.fn :as fn])
-  (:import [com.jogamp.opengl GL2]
+  (:import [com.jogamp.opengl GL3]
            [editor.buffers BufferData]
            [editor.graphics.types ElementType]
            [java.nio FloatBuffer IntBuffer ShortBuffer]
@@ -33,14 +33,14 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn- clear-attribute!
-  [vector-type ^GL2 gl ^long base-location]
+  [vector-type ^GL3 gl ^long base-location]
   (let [attribute-count (graphics.types/vector-type-attribute-count vector-type)]
     (gl/clear-attributes! gl base-location attribute-count)))
 
 (defmacro ^:private def-assign-attribute-fn
   [name-sym set-attribute-1-sym set-attribute-2-sym set-attribute-3-sym set-attribute-4-sym]
   `(defn ~name-sym
-     [~'value-array ~'vector-type ~(with-meta 'gl {:tag `GL2}) ~(with-meta 'base-location {:tag `long})]
+     [~'value-array ~'vector-type ~(with-meta 'gl {:tag `GL3}) ~(with-meta 'base-location {:tag `long})]
      (case ~'vector-type
        :vector-type-scalar
        (~set-attribute-1-sym ~'gl ~'base-location ~'value-array 0)
@@ -161,7 +161,7 @@
   gl/set-attribute-4fv!)
 
 (defn- assign-attribute-from-array!
-  [value-array ^ElementType element-type ^GL2 gl ^long base-location]
+  [value-array ^ElementType element-type ^GL3 gl ^long base-location]
   (case (.-data-type element-type)
     :type-byte
     (if (.-normalize element-type)
@@ -197,7 +197,7 @@
     (assign-attribute-from-floats! value-array (.-vector-type element-type) gl base-location)))
 
 (defn- assign-attribute-from-matrix-4d!
-  [^Matrix4d matrix vector-type ^GL2 gl ^long base-location]
+  [^Matrix4d matrix vector-type ^GL3 gl ^long base-location]
   (case vector-type
     (:vector-type-mat2)
     (do (.glVertexAttrib2f gl (+ base-location 0) (.m00 matrix) (.m10 matrix))
@@ -219,11 +219,11 @@
     (.glVertexAttrib4f gl base-location (.m00 matrix) (.m10 matrix) (.m20 matrix) (.m30 matrix))))
 
 (defn- assign-attribute-from-tuple-4d!
-  [^Tuple4d tuple ^GL2 gl ^long base-location]
+  [^Tuple4d tuple ^GL3 gl ^long base-location]
   (.glVertexAttrib4f gl base-location (.x tuple) (.y tuple) (.z tuple) (.w tuple)))
 
 (defn- assign-attribute-from-value!
-  [value ^ElementType element-type ^GL2 gl ^long base-location]
+  [value ^ElementType element-type ^GL3 gl ^long base-location]
   (if (nil? value)
     (clear-attribute! (.-vector-type element-type) gl base-location)
     (condp instance? value
@@ -402,11 +402,11 @@
   gl.types/GLBinding
   (bind! [_this gl _render-args]
     (let [gl-buffer (scene-cache/request-object! ::attribute-buffer request-id gl attribute-buffer-data)]
-      (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
+      (gl/gl-bind-buffer gl GL3/GL_ARRAY_BUFFER gl-buffer)
       gl-buffer))
 
   (unbind! [_this gl _render-args]
-    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)))
+    (gl/gl-bind-buffer gl GL3/GL_ARRAY_BUFFER 0)))
 
 (defn make-attribute-buffer
   "Creates an attribute buffer from the provided data. The returned object is a
@@ -462,25 +462,25 @@
   (->AttributeBufferBinding attribute-buffer-lifecycle base-location))
 
 (defn- update-attribute-buffer!
-  [^GL2 gl ^long gl-buffer ^AttributeBufferData attribute-buffer-data]
+  [^GL3 gl ^long gl-buffer ^AttributeBufferData attribute-buffer-data]
   (let [gl-usage (gl.types/usage-gl-usage (.-usage attribute-buffer-data))
         buffer-data ^BufferData (.-buffer-data attribute-buffer-data)
         data (.-data buffer-data)
         data-byte-size (buffers/total-byte-size data)]
     (assert (buffers/flipped? data) "data Buffer must be flipped before use")
-    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
-    (gl/gl-buffer-data gl GL2/GL_ARRAY_BUFFER data-byte-size data gl-usage)
-    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)
+    (gl/gl-bind-buffer gl GL3/GL_ARRAY_BUFFER gl-buffer)
+    (gl/gl-buffer-data gl GL3/GL_ARRAY_BUFFER data-byte-size data gl-usage)
+    (gl/gl-bind-buffer gl GL3/GL_ARRAY_BUFFER 0)
     gl-buffer))
 
 (defn- create-attribute-buffer!
-  [^GL2 gl ^AttributeBufferData attribute-buffer-data]
+  [^GL3 gl ^AttributeBufferData attribute-buffer-data]
   (let [gl-buffer (gl/gl-gen-buffer gl)
         gl-buffer (update-attribute-buffer! gl gl-buffer attribute-buffer-data)]
     gl-buffer))
 
 (defn- destroy-attribute-buffers!
-  [^GL2 gl gl-buffers _attribute-buffer-datas]
+  [^GL3 gl gl-buffers _attribute-buffer-datas]
   (gl/gl-delete-buffers gl gl-buffers))
 
 (scene-cache/register-object-cache!
@@ -518,7 +518,7 @@
               (instance? Quat4d transform))
         (let [transformed-attribute-buffer-data (->TransformedAttributeBufferData untransformed-buffer-data transform w-component)
               [gl-buffer] (scene-cache/request-object! ::transformed-attribute-buffer request-id gl transformed-attribute-buffer-data)]
-          (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
+          (gl/gl-bind-buffer gl GL3/GL_ARRAY_BUFFER gl-buffer)
           gl-buffer)
         (throw
           (ex-info
@@ -527,7 +527,7 @@
              :render-args render-args})))))
 
   (unbind! [_this gl _render-args]
-    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)))
+    (gl/gl-bind-buffer gl GL3/GL_ARRAY_BUFFER 0)))
 
 (defn make-transformed-attribute-buffer
   "Creates an attribute buffer that will apply a render-arg transform to the
@@ -598,7 +598,7 @@
     target))
 
 (defn- update-transformed-attribute-buffer!
-  [^GL2 gl [gl-buffer ^FloatBuffer transformed-data] ^TransformedAttributeBufferData transformed-attribute-buffer-data]
+  [^GL3 gl [gl-buffer ^FloatBuffer transformed-data] ^TransformedAttributeBufferData transformed-attribute-buffer-data]
   (let [untransformed-buffer-data ^BufferData (.-untransformed-buffer-data transformed-attribute-buffer-data)
         untransformed-data (.data untransformed-buffer-data)
         _ (assert (instance? FloatBuffer untransformed-data))
@@ -622,19 +622,19 @@
           Matrix4d (matrix-transform-into! buffer untransformed-data transform w-component)
           Quat4d (quat-transform-into! buffer untransformed-data transform w-component))]
 
-    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
-    (gl/gl-buffer-data gl GL2/GL_ARRAY_BUFFER data-byte-size transformed-data GL2/GL_STATIC_DRAW)
-    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)
+    (gl/gl-bind-buffer gl GL3/GL_ARRAY_BUFFER gl-buffer)
+    (gl/gl-buffer-data gl GL3/GL_ARRAY_BUFFER data-byte-size transformed-data GL3/GL_STATIC_DRAW)
+    (gl/gl-bind-buffer gl GL3/GL_ARRAY_BUFFER 0)
     (pair gl-buffer transformed-data)))
 
 (defn- create-transformed-attribute-buffer!
-  [^GL2 gl ^TransformedAttributeBufferData transformed-attribute-buffer-data]
+  [^GL3 gl ^TransformedAttributeBufferData transformed-attribute-buffer-data]
   (let [gl-buffer (gl/gl-gen-buffer gl)
         gl-buffer+transformed-data (update-transformed-attribute-buffer! gl (pair gl-buffer nil) transformed-attribute-buffer-data)]
     gl-buffer+transformed-data))
 
 (defn- destroy-transformed-attribute-buffers!
-  [^GL2 gl gl-buffer+transformed-data-pairs _transformed-attribute-buffer-datas]
+  [^GL3 gl gl-buffer+transformed-data-pairs _transformed-attribute-buffer-datas]
   (let [gl-buffers (mapv first gl-buffer+transformed-data-pairs)]
     (gl/gl-delete-buffers gl gl-buffers)))
 
@@ -664,11 +664,11 @@
   gl.types/GLBinding
   (bind! [_this gl _render-args]
     (let [gl-buffer (scene-cache/request-object! ::index-buffer request-id gl index-buffer-data)]
-      (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER gl-buffer)
+      (gl/gl-bind-buffer gl GL3/GL_ELEMENT_ARRAY_BUFFER gl-buffer)
       gl-buffer))
 
   (unbind! [_this gl _render-args]
-    (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER 0)))
+    (gl/gl-bind-buffer gl GL3/GL_ELEMENT_ARRAY_BUFFER 0)))
 
 (defn make-index-buffer
   "Creates an index buffer from the indices in the provided data. The
@@ -688,25 +688,25 @@
     (->IndexBufferLifecycle request-id index-buffer-data element-type)))
 
 (defn- update-index-buffer!
-  [^GL2 gl ^long gl-buffer ^IndexBufferData index-buffer-data]
+  [^GL3 gl ^long gl-buffer ^IndexBufferData index-buffer-data]
   (let [gl-usage (gl.types/usage-gl-usage (.-usage index-buffer-data))
         buffer-data ^BufferData (.-buffer-data index-buffer-data)
         data (.-data buffer-data)
         data-byte-size (buffers/total-byte-size data)]
     (assert (buffers/flipped? data) "data Buffer must be flipped before use")
-    (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER gl-buffer)
-    (gl/gl-buffer-data gl GL2/GL_ELEMENT_ARRAY_BUFFER data-byte-size data gl-usage)
-    (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER 0)
+    (gl/gl-bind-buffer gl GL3/GL_ELEMENT_ARRAY_BUFFER gl-buffer)
+    (gl/gl-buffer-data gl GL3/GL_ELEMENT_ARRAY_BUFFER data-byte-size data gl-usage)
+    (gl/gl-bind-buffer gl GL3/GL_ELEMENT_ARRAY_BUFFER 0)
     gl-buffer))
 
 (defn- create-index-buffer!
-  [^GL2 gl ^IndexBufferData index-buffer-data]
+  [^GL3 gl ^IndexBufferData index-buffer-data]
   (let [gl-buffer (gl/gl-gen-buffer gl)
         gl-buffer (update-index-buffer! gl gl-buffer index-buffer-data)]
     gl-buffer))
 
 (defn- destroy-index-buffers!
-  [^GL2 gl gl-buffers _index-buffer-datas]
+  [^GL3 gl gl-buffers _index-buffer-datas]
   (gl/gl-delete-buffers gl gl-buffers))
 
 (scene-cache/register-object-cache!

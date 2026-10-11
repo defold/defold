@@ -961,7 +961,7 @@
 
          filtered-resources
          (cond->> root-level-editable-file-resources
-                  pred (filter pred))]
+           pred (filter pred))]
 
      (->> filtered-resources
           (sort-by (juxt resource/type-ext resource/proj-path))
@@ -1193,8 +1193,8 @@
     (if (nil? type-field-desc)
       field-frequencies
       (cond-> (pb-enum-desc-empty-frequencies (.getEnumType type-field-desc))
-              (pos? (count field-frequencies))
-              (assoc type-token field-frequencies)))))
+        (pos? (count field-frequencies))
+        (assoc type-token field-frequencies)))))
 
 (defn- pb-read-resource
   ^Message [resource]

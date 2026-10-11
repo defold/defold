@@ -24,8 +24,11 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.material :as material]
+            [editor.math :as math]
             [editor.model-scene :as model-scene]
+            [editor.outline-view :as outline-view]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.texture-util :as texture-util]
@@ -35,14 +38,15 @@
             [internal.graph.types :as gt]
             [service.log :as log]
             [support.test-support :as test-support]
-            [util.coll :as coll])
+            [util.coll :as coll :refer [pair]])
   (:import [ch.qos.logback.classic Logger]
+           [com.dynamo.rig.proto Rig$Material]
            [ch.qos.logback.core.read ListAppender]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
            [java.util Base64]
            [java.util.concurrent CyclicBarrier TimeUnit]
-           [javax.vecmath Point3d Vector4d]
+           [javax.vecmath Point3d]
            [org.slf4j LoggerFactory]))
 
 (vtx/defvertex vtx-pos-nrm-tex
@@ -129,17 +133,13 @@
     (.array glb)))
 
 (defn- scene-mesh-user-data-by-material-index [scene]
-  (into {}
-        (comp
-          (drop 1)
-          (mapcat :children)
-          (map (fn [mesh-scene]
-                 (let [user-data (get-in mesh-scene [:renderable :user-data])]
-                   [(:material-index user-data) user-data]))))
-        (:children scene)))
-
-(defn- vector4d->vector [^Vector4d value]
-  [(.-x value) (.-y value) (.-z value) (.-w value)])
+  (coll/into-> [scene] {}
+    (coll/tree-xf :children :children)
+    (filter #(contains? (get-in % [:renderable :user-data]) :material-index))
+    (map (fn [mesh-scene]
+           (let [user-data (get-in mesh-scene [:renderable :user-data])
+                 material-index (:material-index user-data)]
+             (pair material-index user-data))))))
 
 (defn- assert-read-only-property [node-id property-key expected-value]
   (let [node-properties (g/node-value node-id :_properties)]
@@ -210,10 +210,6 @@
     (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
       (fs/create-file! (io/file models-directory "preview.gltf") (preview-gltf-content))
       (fs/create-file! (io/file models-directory "preview.glb") (preview-glb-content))
-      (doseq [shader-filename ["pbr.vp" "pbr.fp"]]
-        (fs/copy-file!
-          (io/file "test/resources/test_project/defold-pbr/shaders" shader-filename)
-          (io/file project-path "defold-pbr/shaders" shader-filename)))
 
       (test-support/with-clean-system
         (let [workspace (test-util/setup-workspace! project-path)
@@ -253,10 +249,10 @@
                       (is (= #{expected-sampler-name}
                              (into #{} (map key) (:textures user-data))))
                       (is (= base-color-factor
-                             (vector4d->vector
+                             (math/vecmath->clj
                                (material-data "pbrMetallicRoughness.baseColorFactor"))))
                       (is (= [1.0 0.0 0.0 0.0]
-                             (vector4d->vector
+                             (math/vecmath->clj
                                (material-data "pbrMetallicRoughness.metallicRoughnessTextures"))))
                       (is (= image-node-id (:request-id actual-gpu-texture)))
                       (is (= (:texture-request-datas expected-gpu-texture)
@@ -281,6 +277,46 @@
                                  (get-in (scene-mesh-user-data-by-material-index (g/node-value source-node-id :scene))
                                          [index :shader]))))))))))))))))
 
+;; Verifies outline paths hide a glTF/GLB mesh or Meshes group, guarding against mismatched scene and outline paths.
+(deftest gltf-selected-mesh-visibility
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
+        models-directory (io/file project-path "models")]
+    (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
+      (fs/create-file! (io/file models-directory "preview.gltf") (preview-gltf-content))
+      (fs/create-file! (io/file models-directory "preview.glb") (preview-glb-content))
+
+      (test-support/with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              project (test-util/setup-project! workspace)]
+          (doseq [source-proj-path ["/models/preview.gltf" "/models/preview.glb"]]
+            (testing source-proj-path
+              (let [source-node-id (test-util/resource-node project source-proj-path)
+                    preview-scene (g/node-value source-node-id :scene)
+                    decorated-outline (outline-view/decorate-outline
+                                        (g/node-value source-node-id :node-outline)
+                                        #{}
+                                        #{}
+                                        @test-util/localization
+                                        [])
+                    mesh-group-outline (get-in decorated-outline [:outline :children 0])
+                    mesh-outline (get-in mesh-group-outline [:children 0])
+                    mesh-node-id (:node-id mesh-outline)]
+                (doseq [[label selected-outline] [["Mesh" mesh-outline] ["Meshes group" mesh-group-outline]]]
+                  (testing label
+                    (doseq [hidden [false true false]]
+                      (let [render-data (scene/produce-scene-render-data
+                                          {:scene preview-scene
+                                           :selection [(:node-id selected-outline)]
+                                           :hidden-renderable-tags #{}
+                                           :hidden-node-outline-key-paths (if hidden #{(:node-outline-key-path selected-outline)} #{})
+                                           :local-camera (camera/make-camera)})]
+                        (doseq [render-pass [pass/opaque pass/opaque-selection]]
+                          (is (= (if hidden 0 2)
+                                 (count (filterv #(= mesh-node-id (:node-id %))
+                                                 (get-in render-data [:renderables render-pass]))))))))))))))))))
+
+;; Verifies glTF/GLB metadata and picking, including the flat source scene used
+;; by Model components.
 (deftest gltf-metadata-is-shown-in-outline-and-properties
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
         models-directory (io/file project-path "models")]
@@ -317,7 +353,8 @@
 
                 (let [mesh-node-id (get-in meshes-group [:children 0 :node-id])
                       preview-scene (g/node-value source-node-id :scene)
-                      mesh-model-scene (nth (:children preview-scene) 1)
+                      mesh-model-scene (get-in preview-scene [:children 1 :children 0])
+
                       scene-render-data
                       (scene/produce-scene-render-data
                         {:scene preview-scene
@@ -325,13 +362,16 @@
                          :hidden-renderable-tags #{}
                          :hidden-node-outline-key-paths #{}
                          :local-camera (camera/make-camera)})
+
                       mesh-picking-renderables
-                      (coll/filterv-> (get-in scene-render-data [:renderables pass/opaque-selection])
-                                      #(= mesh-node-id (:picking-node-id %)))
+                      (filterv #(= mesh-node-id (:picking-node-id %))
+                               (get-in scene-render-data [:renderables pass/opaque-selection]))
+
                       mesh-outline-renderable
                       (coll/first-where #(and (= mesh-node-id (:node-id %))
                                               (= :self-selected (:selected %)))
                                         (get-in scene-render-data [:renderables pass/outline]))]
+
                   (assert-read-only-property mesh-node-id :index 0)
                   (assert-read-only-property mesh-node-id :name "Body")
                   (assert-read-only-property mesh-node-id :primitive-count 2)
@@ -343,7 +383,9 @@
                   (is (coll/every? #(= mesh-node-id (:node-id %))
                                    (:children mesh-model-scene)))
                   (is (= 2 (count mesh-picking-renderables)))
-                  (is (some? mesh-outline-renderable)))
+                  (is (some? mesh-outline-renderable))
+                  (is (= mesh-node-id
+                         (get-in (g/node-value source-node-id :source-scene) [:children 1 :node-id]))))
 
                 (doseq [[material-index material-outline]
                         (into [] (map-indexed vector) material-outlines)]
@@ -356,8 +398,11 @@
                     (assert-selected-property app-view material-node-id :name "Shared")))
 
                 (doseq [[texture-index texture-outline]
-                        (into [] (map-indexed vector) texture-outlines)]
+                        (into []
+                              (map-indexed vector)
+                              texture-outlines)]
                   (let [texture-node-id (:node-id texture-outline)
+
                         expected-values
                         (nth [{:mag-filter "Linear"
                                :min-filter "Linear"
@@ -370,6 +415,7 @@
                                :wrap-s "Clamp to Edge"
                                :wrap-t "Mirrored Repeat"}]
                              texture-index)]
+
                     (doseq [[property-key expected-value] expected-values]
                       (assert-read-only-property texture-node-id property-key expected-value))))
 
@@ -444,3 +490,16 @@
                       :content-hash)))
         (is (not (identical? initial-collision-preview-position-buffer
                              (collision-preview-position-buffer))))))))
+
+;; Verifies editor PBR factors match runtime, including alpha mode and valid zero factors.
+(deftest pbr-common-material-factors
+  (let [source (protobuf/str->map-with-defaults
+                 Rig$Material
+                 "alphaMode: ALPHA_MODE_BLEND emissiveFactor { x: 0.25 y: 0.5 z: 0.75 } emissiveStrength { emissiveStrength: 2 } normalTexture { scale: 0 } occlusionTexture { scale: 0.3 }")
+        uniforms (into {} (#'model-scene/make-renderable-material-data source))]
+    (is (= [0.25 0.5 0.75 2.0]
+           (math/vecmath->clj (uniforms "pbrEmissiveFactorAndStrength"))))
+    (is (= 2.0 (nth (math/vecmath->clj (uniforms "pbrAlphaCutoffAndDoubleSidedAndIsUnlit")) 3)))
+    (let [[normal-scale occlusion-strength] (math/vecmath->clj (uniforms "pbrNormalScaleAndOcclusionStrength"))]
+      (is (= 0.0 normal-scale))
+      (is (< (Math/abs (- 0.3 occlusion-strength)) 0.00001)))))

@@ -69,48 +69,48 @@
 
 (deftest gen-renderables
   (testing "Renderables generation"
-           (test-util/with-loaded-project
-             (let [path          "/sprite/small_atlas.sprite"
-                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   renderables   (g/node-value view :all-renderables)]
-               (is (reduce fn/and (map #(contains? renderables %) [pass/transparent pass/selection])))))))
+    (test-util/with-loaded-project
+      (let [path          "/sprite/small_atlas.sprite"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            renderables   (g/node-value view :all-renderables)]
+        (is (reduce fn/and (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
 (deftest scene-selection
   (testing "Scene selection"
-           (test-util/with-loaded-project
-             (let [path          "/logic/atlas_sprite.collection"
-                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
-               (is (test-util/selected? app-view resource-node))
-               ;; Press
-               (test-util/mouse-press! view 32 32)
-               (is (test-util/selected? app-view resource-node))
-               ;; Click
-               (test-util/mouse-release! view 32 32)
-               (is (test-util/selected? app-view go-node))
-               ;; Drag
-               (test-util/mouse-drag! view 32 32 32 36)
-               (is (test-util/selected? app-view go-node))
-               ;; Deselect - default to "root" node
-               (test-util/mouse-click! view 0 0)
-               (is (test-util/selected? app-view resource-node))
-               ;; Toggling
-               (let [modifiers (if system/mac? [:meta] [:shift])]
-                 (test-util/mouse-click! view 32 32)
-                 (is (test-util/selected? app-view go-node))
-                 (test-util/mouse-click! view 32 32 modifiers)
-                 (is (test-util/selected? app-view resource-node)))))))
+    (test-util/with-loaded-project
+      (let [path          "/logic/atlas_sprite.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
+        (is (test-util/selected? app-view resource-node))
+        ;; Press
+        (test-util/mouse-press! view 32 32)
+        (is (test-util/selected? app-view resource-node))
+        ;; Click
+        (test-util/mouse-release! view 32 32)
+        (is (test-util/selected? app-view go-node))
+        ;; Drag
+        (test-util/mouse-drag! view 32 32 32 36)
+        (is (test-util/selected? app-view go-node))
+        ;; Deselect - default to "root" node
+        (test-util/mouse-click! view 0 0)
+        (is (test-util/selected? app-view resource-node))
+        ;; Toggling
+        (let [modifiers (if system/mac? [:meta] [:shift])]
+          (test-util/mouse-click! view 32 32)
+          (is (test-util/selected? app-view go-node))
+          (test-util/mouse-click! view 32 32 modifiers)
+          (is (test-util/selected? app-view resource-node)))))))
 
 (deftest scene-multi-selection
   (testing "Scene multi selection"
-           (test-util/with-loaded-project
-             (let [path          "/logic/two_atlas_sprites.collection"
-                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   go-nodes      (map gt/source-id (g/inputs (g/now) resource-node :child-scenes))]
-               (is (test-util/selected? app-view resource-node))
-               ;; Drag entire screen
-               (test-util/mouse-drag! view 0 0 128 128)
-               (is (every? #(test-util/selected? app-view %) go-nodes))))))
+    (test-util/with-loaded-project
+      (let [path          "/logic/two_atlas_sprites.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-nodes      (map gt/source-id (g/inputs (g/now) resource-node :child-scenes))]
+        (is (test-util/selected? app-view resource-node))
+        ;; Drag entire screen
+        (test-util/mouse-drag! view 0 0 128 128)
+        (is (every? #(test-util/selected? app-view %) go-nodes))))))
 
 (defn- pos
   ^Vector3d [node]
@@ -126,32 +126,32 @@
 
 (deftest transform-tools
   (testing "Transform tools and manipulator interactions"
-           (test-util/with-loaded-project
-             (let [path "/logic/atlas_sprite.collection"
-                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
-               (is (test-util/selected? app-view resource-node))
-               ;; Initial selection
-               (test-util/mouse-click! view 64 64)
-               (is (test-util/selected? app-view go-node))
-               ;; Move tool
-               (test-util/set-active-tool! app-view :move)
-               (is (= 0.0 (.x (pos go-node))))
-               (test-util/mouse-drag! view 64 64 68 64)
-               (is (not= 0.0 (.x (pos go-node))))
-               (g/undo! :undo/global)
-               ;; Rotate tool
-               (test-util/set-active-tool! app-view :rotate)
-               (is (= 0.0 (.x (rot go-node))))
-               ;; begin drag at y = 80 to hit y axis (for x rotation)
-               (test-util/mouse-drag! view 64 80 64 84)
-               (is (not= 0.0 (.x (rot go-node))))
-               (g/undo! :undo/global)
-               ;; Scale tool
-               (test-util/set-active-tool! app-view :scale)
-               (is (= 1.0 (.x (scale go-node))))
-               (test-util/mouse-drag! view 64 64 68 64)
-               (is (not= 1.0 (.x (scale go-node))))))))
+    (test-util/with-loaded-project
+      (let [path "/logic/atlas_sprite.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
+        (is (test-util/selected? app-view resource-node))
+        ;; Initial selection
+        (test-util/mouse-click! view 64 64)
+        (is (test-util/selected? app-view go-node))
+        ;; Move tool
+        (test-util/set-active-tool! app-view :move)
+        (is (= 0.0 (.x (pos go-node))))
+        (test-util/mouse-drag! view 64 64 68 64)
+        (is (not= 0.0 (.x (pos go-node))))
+        (g/undo! :undo/global)
+        ;; Rotate tool
+        (test-util/set-active-tool! app-view :rotate)
+        (is (= 0.0 (.x (rot go-node))))
+        ;; begin drag at y = 80 to hit y axis (for x rotation)
+        (test-util/mouse-drag! view 64 80 64 84)
+        (is (not= 0.0 (.x (rot go-node))))
+        (g/undo! :undo/global)
+        ;; Scale tool
+        (test-util/set-active-tool! app-view :scale)
+        (is (= 1.0 (.x (scale go-node))))
+        (test-util/mouse-drag! view 64 64 68 64)
+        (is (not= 1.0 (.x (scale go-node))))))))
 
 (defn- displayed-property-value [view-node-id node-id prop-kw]
   (->> (g/node-value view-node-id :displayed-node-properties)
@@ -227,19 +227,19 @@
 
 (deftest transform-tools-empty-go
   (testing "Transform tools and manipulator interactions"
-           (test-util/with-loaded-project
-             (let [path          "/collection/empty_go.collection"
-                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
-               (is (test-util/selected? app-view resource-node))
-               ;; Initial selection (empty go's are not selectable in the view)
-               (app-view/select! app-view [go-node])
-               (is (test-util/selected? app-view go-node))
-               ;; Move tool
-               (test-util/set-active-tool! app-view :move)
-               (is (= 0.0 (.x (pos go-node))))
-               (test-util/mouse-drag! view 64 64 100 64)
-               (is (not= 0.0 (.x (pos go-node))))))))
+    (test-util/with-loaded-project
+      (let [path          "/collection/empty_go.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
+        (is (test-util/selected? app-view resource-node))
+        ;; Initial selection (empty go's are not selectable in the view)
+        (app-view/select! app-view [go-node])
+        (is (test-util/selected? app-view go-node))
+        ;; Move tool
+        (test-util/set-active-tool! app-view :move)
+        (is (= 0.0 (.x (pos go-node))))
+        (test-util/mouse-drag! view 64 64 100 64)
+        (is (not= 0.0 (.x (pos go-node))))))))
 
 (deftest transform-tools-preserve-types
   (testing "Transform tools and manipulator interactions"
@@ -301,13 +301,13 @@
 
 (deftest select-component-part-in-collection
   (testing "Transform tools and manipulator interactions"
-           (test-util/with-loaded-project
-             (let [path "/collection/go_pfx.collection"
-                   [resource-node view]          (test-util/open-scene-view! project app-view path 128 128)
-                   emitter (:node-id (test-util/outline resource-node [0 0 0]))]
-               (is (not (seq (g/node-value view :selected-renderables))))
-               (app-view/select! app-view [emitter])
-               (is (seq (g/node-value view :selected-renderables)))))))
+    (test-util/with-loaded-project
+      (let [path "/collection/go_pfx.collection"
+            [resource-node view]          (test-util/open-scene-view! project app-view path 128 128)
+            emitter (:node-id (test-util/outline resource-node [0 0 0]))]
+        (is (not (seq (g/node-value view :selected-renderables))))
+        (app-view/select! app-view [emitter])
+        (is (seq (g/node-value view :selected-renderables)))))))
 
 (defn- render-pass? [pass]
   (satisfies? types/Pass pass))

@@ -36,6 +36,7 @@
             [editor.lsp :as lsp]
             [editor.notifications :as notifications]
             [editor.placeholder-resource :as placeholder-resource]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
@@ -211,7 +212,7 @@
   {:pre [(g/node-id? node-id)]}
   (let [resource-metrics (:resource-metrics read-opts)
         {:keys [lazy-loaded read-fn] :as resource-type}
-        (resource/resource-type* resource (:editable->type-ext->resource-type read-opts))
+        (resource/lookup-resource-type resource (:editable->type-ext->resource-type read-opts))
 
         ;; Seeing as how we're operating on a list of resources that we got from
         ;; the file system itself, you might assume that every resource will
@@ -1523,56 +1524,38 @@
    (when-let [settings (settings project evaluation-context)]
      (settings ["project" "dependencies"]))))
 
-(defn update-library-notifications
-  "Creates notification updates for dependency changes and newly imported materials."
-  [project added-resources evaluation-context]
+(defn update-fetch-libraries-notification
+  "Create transaction steps for showing or hiding a 'Fetch Libraries' suggestion
+  when the project dependency list differs from the currently installed
+  dependencies in the workspace."
+  [project evaluation-context]
   (when-let [workspace (workspace project evaluation-context)]
     (let [ignored-dep (:default (:element (settings-core/get-meta-setting gpc/meta-settings ["project" "dependencies"])))
           desired-deps (disj (set (project-dependencies project evaluation-context)) ignored-dep)
           installed-deps (set (workspace/dependencies workspace evaluation-context))
           notifications (workspace/notifications workspace evaluation-context)
-          resources (g/node-value workspace :resource-map evaluation-context)]
-      [(if (coll/every? resources ["/defold-pbr/shaders/pbr.vp" "/defold-pbr/shaders/pbr.fp"])
-         (notifications/close notifications ::pbr-library)
-         (when (coll/any? (fn [resource]
-                            (and (= "material" (resource/ext resource))
-                                 (loop [parent-path (resource/parent-proj-path (resource/proj-path resource))]
-                                   (when-let [parent (resources parent-path)]
-                                     (if (= :file (resource/source-type parent))
-                                       (and (resource/file-resource? parent)
-                                            (#{"gltf" "glb"} (resource/ext parent)))
-                                       (recur (resource/parent-proj-path parent-path)))))))
-                          added-resources)
-           (notifications/show
-             notifications
-             {:id ::pbr-library
-              :type :info
-              :message (localization/message "notification.gltf-pbr-library")
-              :actions [{:message (localization/message "notification.gltf-pbr-library.action.add")
-                         :on-action #(ui/execute-command
-                                       (ui/contexts (ui/main-scene) true)
-                                       :private/add-dependency
-                                       {:dep-url "https://github.com/defold/asset-pbr/archive/refs/heads/master.zip"})}]})))
-       (if (not= desired-deps installed-deps)
-         (notifications/show
-           notifications
-           {:id ::dependencies-changed
-            :type :info
-            :message (localization/message "notification.fetch-libraries.changed")
-            :actions [{:message (localization/message "notification.fetch-libraries.action.fetch")
-                       :on-action #(ui/execute-command
-                                     (ui/contexts (ui/main-scene) true)
-                                     :project.fetch-libraries
-                                     nil)}]})
-         (notifications/close notifications ::dependencies-changed))])))
+          notification-id ::dependencies-changed]
+      (if (not= desired-deps installed-deps)
+        (notifications/show
+          notifications
+          {:id notification-id
+           :type :info
+           :message (localization/message "notification.fetch-libraries.changed")
+           :actions [{:message (localization/message "notification.fetch-libraries.action.fetch")
+                      :on-action #(ui/execute-command
+                                    (ui/contexts (ui/main-scene) true)
+                                    :project.fetch-libraries
+                                    nil)}]})
+        (notifications/close notifications notification-id)))))
 
-(defn update-library-notifications!
-  "Updates notifications for dependency changes and newly imported materials."
-  [project added-resources]
+(defn update-fetch-libraries-notification!
+  "Show or hide a 'Fetch Libraries' suggestion when the project dependency list
+  differs from the currently installed dependencies in the workspace."
+  [project]
   (g/transact
     {:undoable false}
     (g/with-auto-evaluation-context evaluation-context
-      (update-library-notifications project added-resources evaluation-context)))
+      (update-fetch-libraries-notification project evaluation-context)))
   nil)
 
 (defn- handle-resource-changes [project changes render-progress!]
@@ -1592,8 +1575,8 @@
     ;; (resource-update/print-plan resource-change-plan)
     (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
     (lsp/apply-resource-changes! (lsp/get-lsp) changes)
-    ;; Update library offers after imported resources and external dependency edits load.
-    (update-library-notifications! project (:added changes))))
+    ;; Suggest fetching libraries if dependencies changed externally.
+    (update-fetch-libraries-notification! project)))
 
 (defn parse-filter-param
   [_node-id ^String s]
@@ -1664,23 +1647,24 @@
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
   (input proj-path+meta-info-pairs g/Any :array :substitute gu/array-subst-remove-errors)
 
-  (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
-                                                             (let [selected-node-id-set (set all-selected-node-ids)]
-                                                               (->> all-selections
-                                                                    (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
-                                                                    (into {})))))
-  (output selected-node-properties-by-resource-node g/Any :cached (g/fnk [all-selected-node-properties all-selections]
-                                                                    (let [props (->> all-selected-node-properties
-                                                                                     (map (fn [p] [(:node-id p) p]))
-                                                                                     (into {}))]
-                                                                      (->> all-selections
-                                                                           (map (fn [[key vals]] [key (vec (keep props vals))]))
-                                                                           (into {})))))
-  (output sub-selections-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
-                                                          (let [selected-node-id-set (set all-selected-node-ids)]
-                                                            (->> all-sub-selections
-                                                                 (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
-                                                                 (into {})))))
+  (output selected-node-ids-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-ids all-selections]
+            (let [selected-node-id-set (set all-selected-node-ids)]
+              (coll/map-vals
+                #(filterv selected-node-id-set %)
+                all-selections))))
+  (output selected-node-properties-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-properties all-selections]
+            (let [props (coll/pair-map-by :node-id all-selected-node-properties)]
+              (coll/map-vals
+                #(into [] (keep props) %)
+                all-selections))))
+  (output sub-selections-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-ids all-sub-selections]
+            (let [selected-node-id-set (set all-selected-node-ids)]
+              (coll/map-vals
+                #(filterv (comp selected-node-id-set first) %)
+                all-sub-selections))))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv :save-value save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
@@ -1699,10 +1683,10 @@
                                  (double (or (get settings ["display" "height"]) 0))))
   (output render-clear-color g/Any (g/fnk [settings]
                                      (vector-of :double
-                                                (get settings ["render" "clear_color_red"] 0.0)
-                                                (get settings ["render" "clear_color_green"] 0.0)
-                                                (get settings ["render" "clear_color_blue"] 0.0)
-                                                (get settings ["render" "clear_color_alpha"] 1.0))))
+                                       (get settings ["render" "clear_color_red"] 0.0)
+                                       (get settings ["render" "clear_color_green"] 0.0)
+                                       (get settings ["render" "clear_color_blue"] 0.0)
+                                       (get settings ["render" "clear_color_alpha"] 1.0))))
   (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
   (output glsl-es-default-precision-float g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_float"])))
   (output glsl-es-default-precision-int g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_int"])))
@@ -1866,6 +1850,16 @@
   resource/ResourceListener
   (handle-changes [this changes render-progress!]
     (handle-resource-changes project-id changes render-progress!)))
+
+(defn update-language-servers! [project prefs server-definitions]
+  {:pre [(ui/on-ui-thread?)]}
+  (let [{:keys [extension-language-servers lua-language-servers project-language-server]}
+        (g/user-data-swap! project ::language-servers coll/merge server-definitions)]
+    (lsp/set-servers!
+      (lsp/get-lsp)
+      (cond-> (set extension-language-servers)
+        project-language-server (conj project-language-server)
+        (prefs/get prefs [:code :enable-lua-language-server]) (into lua-language-servers)))))
 
 (defn make-project [workspace-id extensions]
   (let [code-preprocessors (workspace/code-preprocessors workspace-id)

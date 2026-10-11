@@ -1,6 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
-
 """Run ready tests without occupying workers with queued resource-group locks."""
 
 import argparse
