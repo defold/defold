@@ -27,6 +27,7 @@
 #include "gameobject.h"
 #include "gameobject_props.h"
 #include "component.h"
+#include "gameobject_transform_private.h"
 
 extern "C"
 {
@@ -279,6 +280,8 @@ namespace dmGameObject
         // These arrays must not move while instances or animation pointers exist.
         dmArray<dmTransform::Transform> m_LocalTransforms;
         dmArray<uint32_t>        m_ParentIndices;
+
+        EulerRotationPool       m_EulerRotations;
 
         // Identifier to game-object handle mapping
         dmHashTable64<HGameObject> m_IDToInstance;

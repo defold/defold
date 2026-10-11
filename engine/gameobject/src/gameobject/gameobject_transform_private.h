@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMEOBJECT_COMP_ANIM_PRIVATE_H
-#define DM_GAMEOBJECT_COMP_ANIM_PRIVATE_H
+#ifndef DM_GAMEOBJECT_TRANSFORM_PRIVATE_H
+#define DM_GAMEOBJECT_TRANSFORM_PRIVATE_H
 
 #include <dmsdk/gameobject/gameobject.h>
 
@@ -33,13 +33,36 @@ namespace dmGameObject
         uint32_t m_NextFree;
     };
 
+    // Sparse property state owned by the collection. Animation bindings use slots
+    // so growing the pool does not invalidate them.
+    struct EulerRotationPool
+    {
+        dmArray<EulerRotation> m_Rotations;
+        dmHashTable<HGameObject, uint32_t> m_InstanceToIndex;
+        uint32_t m_FirstFreeIndex;
+        uint32_t m_PendingCount;
+    };
+
+    inline void MarkEulerRotationPending(EulerRotationPool* pool, EulerRotation* euler)
+    {
+        if (!(euler->m_State & EULER_PENDING))
+            ++pool->m_PendingCount;
+        euler->m_State |= EULER_PENDING | EULER_WRITTEN;
+    }
+
     // Borrowed until the next Euler pool growth. Records retain axis values until
     // instance deletion, including after animations stop, for partial Euler setters.
     EulerRotation* GetEulerRotation(Collection* collection, Instance* instance, bool create);
     void ReleaseEulerRotation(Collection* collection, HGameObject instance);
+    void RestoreEulerRotation(Collection* collection, Instance* instance, const dmVMath::Vector3& value, uint32_t state);
+    dmVMath::Vector3 GetEulerProperty(Collection* collection, Instance* instance);
+    void UpdateEulerToRotation(Collection* collection, EulerRotation* euler);
+    void CommitPendingEulerRotation(Collection* collection, Instance* instance);
 
-    // Synchronize in-progress animation writes before a collection-wide transform refresh.
+    // Synchronize buffered property writes before a collection-wide transform refresh.
     void CommitPendingEulerRotations(Collection* collection);
+    // Commit the batch before callbacks, retaining precedence over later quaternion writes.
+    void CommitEulerRotations(Collection* collection);
 }
 
-#endif // DM_GAMEOBJECT_COMP_ANIM_PRIVATE_H
+#endif // DM_GAMEOBJECT_TRANSFORM_PRIVATE_H

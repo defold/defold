@@ -24,7 +24,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
-#include "../comp_anim_private.h"
+#include "../gameobject_transform_private.h"
 #include "../gameobject_script.h"
 #include <gameobject/gameobject_ddf.h>
 #include "../gameobject_props.h"
@@ -664,6 +664,44 @@ TEST_F(PropsTest, EulerReadsDoNotCreateRecords)
         ASSERT_NEAR(expected.getElem(axis), actual.getElem(axis), 0.0001f);
 }
 
+// Euler properties and buffered writeback must work without an animation component world.
+TEST_F(PropsTest, EulerPropertiesIndependentOfAnimationWorld)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0);
+    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(m_Collection);
+    dmGameObject::Instance* instance = dmGameObject::GetInstanceFromHandle(collection, go);
+    void* worlds[dmGameObject::MAX_COMPONENT_TYPES];
+    memcpy(worlds, collection->m_ComponentWorlds, sizeof(worlds));
+    memset(collection->m_ComponentWorlds, 0, sizeof(worlds));
+
+    // Restore the worlds before assertions so normal fixture teardown remains valid.
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyResult set_result = dmGameObject::SetProperty(go, 0, hash("euler"), options,
+        dmGameObject::PropertyVar(Vector3(0, 0, 60)));
+    dmGameObject::PropertyDesc value;
+    dmGameObject::PropertyResult get_result = dmGameObject::GetProperty(go, 0, hash("euler.z"), options, value);
+    dmGameObject::EulerRotation* euler = dmGameObject::GetEulerRotation(collection, instance, true);
+    euler->m_Value.setZ(90);
+    dmGameObject::MarkEulerRotationPending(&collection->m_EulerRotations, euler);
+    dmGameObject::UpdateTransformsForInstance(collection, instance);
+    Vector4 instance_x_axis = dmGameObject::GetWorldMatrix(go).getCol0();
+    euler->m_Value.setZ(180);
+    dmGameObject::MarkEulerRotationPending(&collection->m_EulerRotations, euler);
+    dmGameObject::UpdateTransforms(collection);
+    Vector4 collection_x_axis = dmGameObject::GetWorldMatrix(go).getCol0();
+    dmGameObject::CommitEulerRotations(collection);
+    memcpy(collection->m_ComponentWorlds, worlds, sizeof(worlds));
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, set_result);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, get_result);
+    ASSERT_NEAR(60.0, value.m_Variant.m_Number, 0.02f);
+    ASSERT_NEAR(0.0f, instance_x_axis.getX(), 0.0001f);
+    ASSERT_NEAR(1.0f, instance_x_axis.getY(), 0.0001f);
+    ASSERT_NEAR(-1.0f, collection_x_axis.getX(), 0.0001f);
+    ASSERT_NEAR(0.0f, collection_x_axis.getY(), 0.0001f);
+    ASSERT_EQ(0u, collection->m_EulerRotations.m_PendingCount);
+}
+
 // A rotation getter commits pending Euler values and preserves final writeback and other pending objects.
 TEST_F(PropsTest, EulerPendingReadsPreserveWritebackState)
 {
@@ -674,10 +712,11 @@ TEST_F(PropsTest, EulerPendingReadsPreserveWritebackState)
     dmGameObject::Instance* second_instance = dmGameObject::GetInstanceFromHandle(collection, second);
     dmGameObject::EulerRotation* second_euler = dmGameObject::GetEulerRotation(collection, second_instance, true);
     second_euler->m_Value.setX(30);
-    second_euler->m_State = dmGameObject::EULER_PENDING | dmGameObject::EULER_WRITTEN;
+    dmGameObject::MarkEulerRotationPending(&collection->m_EulerRotations, second_euler);
     dmGameObject::EulerRotation* first_euler = dmGameObject::GetEulerRotation(collection, first_instance, true);
     first_euler->m_Value.setZ(450);
-    first_euler->m_State = dmGameObject::EULER_PENDING | dmGameObject::EULER_WRITTEN;
+    dmGameObject::MarkEulerRotationPending(&collection->m_EulerRotations, first_euler);
+    ASSERT_EQ(2u, collection->m_EulerRotations.m_PendingCount);
 
     dmGameObject::PropertyOptions options;
     dmGameObject::PropertyDesc value;
@@ -689,6 +728,7 @@ TEST_F(PropsTest, EulerPendingReadsPreserveWritebackState)
     for (uint32_t i = 0; i < 4; ++i)
         ASSERT_NEAR(expected.getElem(i), value.m_Variant.m_V4[i], 0.0001f);
     ASSERT_EQ(dmGameObject::EULER_WRITTEN, first_euler->m_State);
+    ASSERT_EQ(1u, collection->m_EulerRotations.m_PendingCount);
     second_euler = dmGameObject::GetEulerRotation(collection, second_instance, false);
     ASSERT_EQ(dmGameObject::EULER_PENDING | dmGameObject::EULER_WRITTEN, second_euler->m_State);
 
@@ -697,6 +737,7 @@ TEST_F(PropsTest, EulerPendingReadsPreserveWritebackState)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(second, 0, dmHashString64("rotation"), options, value));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(second, 0, dmHashString64("euler.x"), options, value));
     ASSERT_NEAR(30.0, value.m_Variant.m_Number, 0.02f);
+    ASSERT_EQ(0u, collection->m_EulerRotations.m_PendingCount);
 }
 
 // Partial Euler setters preserve the other authored axes rather than reconstructing a different decomposition.

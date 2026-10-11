@@ -26,7 +26,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
-#include "../comp_anim_private.h"
+#include "../gameobject_transform_private.h"
 #include <gameobject/gameobject_ddf.h>
 
 #define EPSILON 0.000001f
@@ -709,7 +709,7 @@ TEST_F(HierarchyTest, InstanceRefreshCommitsPendingRotation)
     dmGameObject::Instance* instance = dmGameObject::GetInstanceFromHandle(collection, go);
     dmGameObject::EulerRotation* euler = dmGameObject::GetEulerRotation(collection, instance, true);
     euler->m_Value.setZ(90);
-    euler->m_State = dmGameObject::EULER_PENDING | dmGameObject::EULER_WRITTEN;
+    dmGameObject::MarkEulerRotationPending(&collection->m_EulerRotations, euler);
 
     dmGameObject::UpdateTransformsForInstance(collection, instance);
     ASSERT_NEAR(M_SQRT1_2, dmGameObject::GetRotation(go).getZ(), 0.0001f);

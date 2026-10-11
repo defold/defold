@@ -30,7 +30,6 @@
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_private.h"
-#include "comp_anim_private.h"
 #include "gameobject_props.h"
 #include "gameobject_props_lua.h"
 #include "gameobject_props_ddf.h"
@@ -503,6 +502,8 @@ namespace dmGameObject
         m_WorldTransforms.EnsureSize(max_instances);
         m_LocalTransforms.EnsureSize(max_instances);
         m_ParentIndices.EnsureSize(max_instances);
+        m_EulerRotations.m_FirstFreeIndex = INVALID_INSTANCE_INDEX;
+        m_EulerRotations.m_PendingCount = 0;
         m_IDToInstance.SetCapacity(max_instances);
         m_InputFocusStack.SetCapacity(max_input_stack_entries);
         m_NameHash = 0;
@@ -3025,20 +3026,6 @@ namespace dmGameObject
         return collection ? DispatchMessages(collection, sockets, socket_count) : false;
     }
 
-    static void UpdateEulerToRotation(Collection* collection, Instance* instance, EulerRotation* euler)
-    {
-        collection->m_LocalTransforms[instance->m_Index].SetRotation(dmVMath::EulerToQuat(euler->m_Value));
-        // Preserve the written marker so the final pass retains Euler precedence over quaternion animation.
-        euler->m_State &= ~EULER_PENDING;
-    }
-
-    static void CommitPendingEulerRotation(Collection* collection, Instance* instance)
-    {
-        EulerRotation* euler = GetEulerRotation(collection, instance, false);
-        if (euler && (euler->m_State & EULER_PENDING))
-            UpdateEulerToRotation(collection, instance, euler);
-    }
-
     void UpdateTransforms(Collection* collection)
     {
         DM_PROFILE("UpdateTransforms");
@@ -4031,19 +4018,6 @@ namespace dmGameObject
         return child && parent && IsChildOf(collection, child, parent);
     }
 
-    static Vector3 GetEulerProperty(Collection* collection, Instance* instance)
-    {
-        EulerRotation* euler = GetEulerRotation(collection, instance, false);
-        if (euler && (euler->m_State & EULER_PENDING))
-            return euler->m_Value;
-
-        Quat q = collection->m_LocalTransforms[instance->m_Index].GetRotation();
-        Vector3 value = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
-        if (euler)
-            euler->m_Value = value;
-        return value;
-    }
-
     PropertyResult GetProperty(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value)
     {
         if (instance == 0)
@@ -4583,7 +4557,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 EulerRotation* euler = GetEulerRotation(collection, instance, true);
                 euler->m_Value = Vector3(value.m_V4[0], value.m_V4[1], value.m_V4[2]);
-                UpdateEulerToRotation(collection, instance, euler);
+                UpdateEulerToRotation(collection, euler);
                 collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
@@ -4593,7 +4567,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 EulerRotation* euler = GetEulerRotation(collection, instance, true);
                 euler->m_Value.setX((float)value.m_Number);
-                UpdateEulerToRotation(collection, instance, euler);
+                UpdateEulerToRotation(collection, euler);
                 collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
@@ -4603,7 +4577,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 EulerRotation* euler = GetEulerRotation(collection, instance, true);
                 euler->m_Value.setY((float)value.m_Number);
-                UpdateEulerToRotation(collection, instance, euler);
+                UpdateEulerToRotation(collection, euler);
                 collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
@@ -4613,7 +4587,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 EulerRotation* euler = GetEulerRotation(collection, instance, true);
                 euler->m_Value.setZ((float)value.m_Number);
-                UpdateEulerToRotation(collection, instance, euler);
+                UpdateEulerToRotation(collection, euler);
                 collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
@@ -4875,12 +4849,7 @@ namespace dmGameObject
         CreateResult res = CreateComponents(collection, new_instance);
         if (res != CREATE_RESULT_OK) {
             collection->m_LocalTransforms[instance->m_Index] = old_transform;
-            euler = GetEulerRotation(collection, instance, false);
-            if (euler)
-            {
-                euler->m_Value = old_euler;
-                euler->m_State = old_euler_state;
-            }
+            RestoreEulerRotation(collection, instance, old_euler, old_euler_state);
             collection->m_ParentIndices[instance->m_Index] = old_parent;
             collection->m_Instances[index] = instance;
             dmHashRelease64(&new_instance->m_CollectionPathHashState);
@@ -4906,12 +4875,7 @@ namespace dmGameObject
         }
         uint32_t new_parent = collection->m_ParentIndices[new_instance->m_Index];
         collection->m_LocalTransforms[instance->m_Index] = old_transform;
-        euler = GetEulerRotation(collection, instance, false);
-        if (euler)
-        {
-            euler->m_Value = old_euler;
-            euler->m_State = old_euler_state;
-        }
+        RestoreEulerRotation(collection, instance, old_euler, old_euler_state);
         collection->m_ParentIndices[instance->m_Index] = old_parent;
         // Because of how hot-reloading reloads resources in-place, the old instance would already point to the 'new' resource, so re-point it to the old
         instance->m_PrototypeIndex = old_proto->m_Index;
@@ -4924,12 +4888,7 @@ namespace dmGameObject
         collection->m_Instances[index] = new_instance;
         DeallocInstance(instance);
         collection->m_LocalTransforms[new_instance->m_Index] = new_transform;
-        euler = GetEulerRotation(collection, new_instance, false);
-        if (euler)
-        {
-            euler->m_Value = new_euler;
-            euler->m_State = new_euler_state;
-        }
+        RestoreEulerRotation(collection, new_instance, new_euler, new_euler_state);
         collection->m_ParentIndices[new_instance->m_Index] = new_parent;
         DoAddToUpdate(collection, new_instance);
     }
