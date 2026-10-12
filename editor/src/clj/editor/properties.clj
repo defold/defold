@@ -695,13 +695,13 @@
            prepare-user-edit-fn (get-in property [:edit-type :prepare-user-edit-fn])
            edited-endpoints (edited-endpoints set-operations)
 
-           tx-data-context-map
+           tx-data-context
            (-> (when prepare-user-edit-fn
                  (prepare-user-edit-fn evaluation-context property set-operations))
                (assoc :edited-endpoints edited-endpoints))]
 
        (g/transact
-         {:tx-data-context-map tx-data-context-map}
+         {:tx-data-context tx-data-context}
          (concat
            (g/operation-label (localization/message "operation.property.set" {"property" (label property)}))
            (g/operation-sequence op-seq)

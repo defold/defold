@@ -23,17 +23,17 @@
 (deftest expand-ec-test
   (test-support/with-clean-system
     (let [node-id (g/make-node! helpers/PropertyTestNode)
-          tx-data-context-map {}]
+          tx-data-context {}]
 
       (testing "Transact."
         (g/transact
-          {:tx-data-context-map tx-data-context-map}
+          {:tx-data-context tx-data-context}
           (concat
             (g/set-property node-id :basic-property :prior-basic-property-value)
             (g/expand-ec
               (fn expanded-tx-steps [evaluation-context node-id property-label value]
                 (is (g/evaluation-context? evaluation-context))
-                (is (identical? tx-data-context-map (deref (:tx-data-context-atom evaluation-context))))
+                (is (identical? tx-data-context (deref (:tx-data-context-atom evaluation-context))))
                 (is (= :prior-basic-property-value (g/node-value node-id :basic-property evaluation-context)))
                 (g/set-property node-id property-label value))
               node-id
@@ -58,15 +58,15 @@
 (deftest expand-ec-within-expanded-tx-steps-test
   (test-support/with-clean-system
     (let [node-id (g/make-node! helpers/PropertyTestNode)
-          tx-data-context-map {}]
+          tx-data-context {}]
 
       (testing "Transact."
         (g/transact
-          {:tx-data-context-map tx-data-context-map}
+          {:tx-data-context tx-data-context}
           (g/expand-ec
             (fn expanded-tx-steps [evaluation-context node-id]
               (is (g/evaluation-context? evaluation-context))
-              (is (identical? tx-data-context-map (deref (:tx-data-context-atom evaluation-context))))
+              (is (identical? tx-data-context (deref (:tx-data-context-atom evaluation-context))))
               (swap! (:tx-data-context-atom evaluation-context) assoc :added-key :added-value)
               (concat
                 (g/set-property node-id :basic-property :basic-property-value)

@@ -23,17 +23,17 @@
 (deftest callback-ec-test
   (test-support/with-clean-system
     (let [node-id (g/make-node! helpers/PropertyTestNode)
-          tx-data-context-map (hash-map :a 1)
+          tx-data-context (hash-map :a 1)
           calls (atom [])]
       (testing "Transact."
         (g/transact
-          {:tx-data-context-map tx-data-context-map}
+          {:tx-data-context tx-data-context}
           (concat
             (g/set-property node-id :basic-property :prior-basic-property-value)
             (g/callback-ec
               (fn callback-fn [evaluation-context & args]
                 (is (g/evaluation-context? evaluation-context))
-                (is (identical? tx-data-context-map (deref (:tx-data-context-atom evaluation-context))))
+                (is (identical? tx-data-context (deref (:tx-data-context-atom evaluation-context))))
                 (is (= :prior-basic-property-value (g/node-value node-id :basic-property evaluation-context)))
                 (swap! calls conj (vec args)))
               :first-arg

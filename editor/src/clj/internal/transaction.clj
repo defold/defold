@@ -151,7 +151,7 @@
      :materializations (:materializations ctx)
      :initial-invalidate-counters (:initial-invalidate-counters ctx)
      :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters ctx)
-     :tx-data-context-atom (:tx-data-context ctx)
+     :tx-data-context-atom (:tx-data-context-atom ctx)
      :node-id-generator (:node-id-generator ctx)
      :override-id-generator (:override-id-generator ctx)
      :materialize-node! materialize-node!}))
@@ -1780,14 +1780,14 @@
     (du/metrics-enabled?) (conj :metrics)))
 
 (defn finalize-update
-  [{:keys [tx-data-context] :as ctx}]
+  [{:keys [tx-data-context-atom] :as ctx}]
   (-> (select-keys ctx tx-report-keys)
       (assoc :status (if (zero? (long (:completed-action-count ctx))) :empty :ok)
-             :tx-data-context-map (deref tx-data-context))))
+             :tx-data-context (deref tx-data-context-atom))))
 
 (defn new-transaction-context
-  [basis node-id-generator override-id-generator tx-data-context-map metrics-collector full-invalidation node-materializations materializations]
-  {:pre [(map? tx-data-context-map)]}
+  [basis node-id-generator override-id-generator tx-data-context metrics-collector full-invalidation node-materializations materializations]
+  {:pre [(map? tx-data-context)]}
   {:basis basis
    :initial-basis basis
    :node-materializations node-materializations
@@ -1805,7 +1805,7 @@
    :override-id-generator override-id-generator
    :completed-action-count 0
    :txid (new-txid)
-   :tx-data-context (atom tx-data-context-map)
+   :tx-data-context-atom (atom tx-data-context)
    :metrics metrics-collector
    :full-invalidation full-invalidation})
 
@@ -1920,7 +1920,7 @@
         {} nil false
         (:node-materializations-atom evaluation-context)
         @materializations-atom)
-      (assoc :tx-data-context (:tx-data-context-atom evaluation-context)
+      (assoc :tx-data-context-atom (:tx-data-context-atom evaluation-context)
              :initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
              :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters evaluation-context)
              :realized-changes [])))

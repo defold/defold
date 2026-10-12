@@ -305,10 +305,10 @@
         basis (is/basis system)
         node-id-generator (is/node-id-generator system)
         override-id-generator (is/override-id-generator system)
-        tx-data-context-map (or (:tx-data-context-map opts) {})
+        tx-data-context (or (:tx-data-context opts) {})
         metrics-collector (:metrics opts)
         full-invalidation (:full-invalidation opts false)]
-    (assoc (it/new-transaction-context basis node-id-generator override-id-generator tx-data-context-map metrics-collector full-invalidation
+    (assoc (it/new-transaction-context basis node-id-generator override-id-generator tx-data-context metrics-collector full-invalidation
                                        (:node-materializations system)
                                        (:materializations system))
       :initial-invalidate-counters (:invalidate-counters system)
@@ -368,9 +368,9 @@
                 Defaults to :undo/global. The undo stack where realized
                 TransactionChanges are appended.
 
-              :tx-data-context-map
+              :tx-data-context
                 Initial transaction data context map. The final value is
-                returned as :tx-data-context-map.
+                returned as :tx-data-context.
     txs     sequence of transaction steps
 
   Example:
@@ -391,7 +391,7 @@
                            undo and redo
     :label                 transaction label, if any
     :sequence-label        transaction sequence label, if any
-    :tx-data-context-map   final transaction context map
+    :tx-data-context       final transaction context map
     :metrics               transaction metrics, when metrics collection is
                            enabled"
   ([txs]
@@ -553,7 +553,7 @@
 (defn migrated-node-ids
   "Returns the set of node-ids that were flagged as migrated from the result of a transaction given a tx-result."
   [tx-result]
-  (-> tx-result :tx-data-context-map (:migrated-node-ids #{})))
+  (-> tx-result :tx-data-context (:migrated-node-ids #{})))
 
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics

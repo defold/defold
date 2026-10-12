@@ -1905,42 +1905,42 @@
         node (get-resource-node project resource evaluation-context)]
     (disconnect-from-inputs @basis-ref node consumer-node connections)))
 
-(defn- ensure-resource-node-created [tx-data-context-map project resource]
+(defn- ensure-resource-node-created [tx-data-context project resource]
   {:pre [(resource/resource? resource)]}
-  (let [created-resource-nodes (:created-resource-nodes tx-data-context-map)
+  (let [created-resource-nodes (:created-resource-nodes tx-data-context)
         pending-resource-node-id (get created-resource-nodes resource ::not-found)]
     (if (not= ::not-found pending-resource-node-id)
-      [tx-data-context-map pending-resource-node-id nil]
+      [tx-data-context pending-resource-node-id nil]
       (let [node-type (resource-node-type resource)
             created-resource-node-id (first (g/take-node-ids 1))
             creation-tx-data (make-resource-node-tx-data project node-type created-resource-node-id resource)
             created-resource-nodes' (assoc (or created-resource-nodes {}) resource created-resource-node-id)
-            tx-data-context-map' (assoc tx-data-context-map :created-resource-nodes created-resource-nodes')]
-        [tx-data-context-map' created-resource-node-id creation-tx-data]))))
+            tx-data-context' (assoc tx-data-context :created-resource-nodes created-resource-nodes')]
+        [tx-data-context' created-resource-node-id creation-tx-data]))))
 
-(defn- ensure-resource-node-loaded [tx-data-context-map basis node-id resource load-opts]
+(defn- ensure-resource-node-loaded [tx-data-context basis node-id resource load-opts]
   {:pre [(resource/resource? resource)]}
-  (let [loaded-resources (:loaded-resources tx-data-context-map)]
+  (let [loaded-resources (:loaded-resources tx-data-context)]
     (if (contains? loaded-resources resource)
-      [tx-data-context-map nil]
+      [tx-data-context nil]
       (let [workspace (resource/workspace resource)
 
-            [tx-data-context-map' read-opts]
-            (if-let [read-opts (:read-opts tx-data-context-map)]
-              (pair tx-data-context-map read-opts)
+            [tx-data-context' read-opts]
+            (if-let [read-opts (:read-opts tx-data-context)]
+              (pair tx-data-context read-opts)
               (let [read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies true)
-                    tx-data-context-map' (assoc tx-data-context-map :read-opts read-opts)]
-                (pair tx-data-context-map' read-opts)))
+                    tx-data-context' (assoc tx-data-context :read-opts read-opts)]
+                (pair tx-data-context' read-opts)))
 
-            tx-data-context-map' (assoc tx-data-context-map' :load-opts load-opts)
+            tx-data-context' (assoc tx-data-context' :load-opts load-opts)
 
             node-load-info (read-node-load-info read-opts node-id resource)
             load-tx-data (e/concat
                            (node-load-info->disk-state-tx-data node-load-info)
                            (node-load-info-tx-data node-load-info load-opts))
             loaded-resources' (conj (or loaded-resources #{}) resource)
-            tx-data-context-map' (assoc tx-data-context-map' :loaded-resources loaded-resources')]
-        [tx-data-context-map' load-tx-data]))))
+            tx-data-context' (assoc tx-data-context' :loaded-resources loaded-resources')]
+        [tx-data-context' load-tx-data]))))
 
 (defn connect-resource-node
   "Creates transaction steps for creating `connections` between the
