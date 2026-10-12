@@ -599,6 +599,7 @@
 (defn camera->prefs-value [camera]
   (let [^Vector4d focus-point (:focus-point camera)]
     {:projection (:type camera)
+     :mode-2d (true? (:mode-2d camera))
      :position (math/vecmath->clj (:position camera))
      :rotation (math/vecmath->clj (:rotation camera))
      :fov-x (:fov-x camera)
@@ -606,7 +607,7 @@
      :focus-point [(.x focus-point) (.y focus-point) (.z focus-point)]}))
 
 (defn try-load-camera-from-prefs [prefs path-key]
-  (let [{:keys [projection position rotation fov-x fov-y focus-point]}
+  (let [{:keys [projection mode-2d position rotation fov-x fov-y focus-point]}
         (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:camera] nil)]
     (when (and projection position rotation fov-x fov-y focus-point)
       (let [[position-x position-y position-z] position
@@ -617,8 +618,10 @@
                        :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
                        :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) 1.0))]
           (assoc camera
-            :mode-2d (and (= :orthographic projection)
-                          (= 1.0 (.getElement (camera-view-matrix camera) 2 2)))))))))
+            :mode-2d (if (some? mode-2d)
+                       mode-2d
+                       (and (= :orthographic projection)
+                            (= 1.0 (.getElement (camera-view-matrix camera) 2 2))))))))))
 
 (def ^:private camera-command->movement
   {:scene.camera.free-look :look
@@ -933,7 +936,8 @@
          {:undoable false}
          (g/set-property camera-node :local-camera end-camera))
        (when-let [advance! (g/node-value camera-node :popup-advance-fn)]
-         (advance!))))
+         (advance!))
+       (when on-animation-end (on-animation-end))))
    nil))
 
 (defn- toggle-free-cam-css [image-view active]

@@ -80,6 +80,24 @@
         (is (= (camera-prefs camera)
                (camera-prefs (try-load-camera-from-prefs prefs "/a.collection"))))))))
 
+(deftest stored-camera-keeps-its-2d-mode
+  (let [prefs (make-isolated-prefs)
+        camera-2d (camera/make-camera :orthographic identity {:fov-x 1000.0 :fov-y 1000.0})
+        front-view-3d (camera/frame-camera-to-axis (camera/tumble camera-2d 10.0 0.0) :+z)
+        tilted-3d (camera/tumble camera-2d 10.0 0.0)]
+    (testing "the mode is restored as stored, regardless of the view direction"
+      (store-camera! prefs "/2d.collection" camera-2d)
+      (store-camera! prefs "/front.collection" front-view-3d)
+      (is (camera/mode-2d? (try-load-camera-from-prefs prefs "/2d.collection")))
+      (is (not (camera/mode-2d? (try-load-camera-from-prefs prefs "/front.collection")))))
+
+    (testing "a camera stored without the mode is 2D when orthographic and front-facing"
+      (doseq [[proj-path camera expected] [["/old-2d.collection" camera-2d true]
+                                           ["/old-tilted.collection" tilted-3d false]]]
+        (prefs/set-pref-entry-in! prefs resource-settings-path proj-path [:camera]
+                                  (dissoc (camera-prefs camera) :mode-2d))
+        (is (= expected (camera/mode-2d? (try-load-camera-from-prefs prefs proj-path))))))))
+
 (deftest incomplete-stored-camera-falls-back-to-the-default
   (let [prefs (make-isolated-prefs)
         camera (camera/make-camera :orthographic identity {:fov-x 1000.0 :fov-y 1000.0})]

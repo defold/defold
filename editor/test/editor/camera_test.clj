@@ -14,11 +14,15 @@
 
 (ns editor.camera-test
   (:require [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.camera :as c]
             [editor.geom :as geom]
             [editor.math :as math]
-            [editor.types :as t])
-  (:import [javax.vecmath Point3d Quat4d Vector3d Vector4d]))
+            [editor.types :as t]
+            [integration.test-util :as test-util]
+            [support.test-support :refer [tx-nodes with-clean-system]])
+  (:import [editor.types Region]
+           [javax.vecmath Point3d Quat4d Vector3d Vector4d]))
 
 (deftest frame-zero-aabb
   (testing "Framing an orthographic camera on a zero AABB should produce a valid projection matrix"
@@ -195,3 +199,60 @@
         distance (.distance focus ^Point3d (:position from))]
     (is (.epsilonEquals ^Point3d (:position from) ^Point3d (:position start) 1e-9))
     (is (< (Math/abs (- distance (.distance focus ^Point3d (:position halfway)))) 1e-9))))
+
+(deftest mode-2d-is-independent-of-the-view-direction
+  (let [camera-2d (c/make-camera :orthographic)]
+    (is (c/mode-2d? camera-2d))
+    (is (not (c/mode-2d? (c/make-camera :perspective))))
+    (testing "Orbiting leaves 2D mode"
+      (is (not (c/mode-2d? (c/tumble camera-2d 10.0 0.0)))))
+    (testing "Aligning to the front view does not enter 2D mode"
+      (let [front (c/frame-camera-to-axis (c/tumble camera-2d 10.0 0.0) :+z)]
+        (is (= (:rotation camera-2d) (:rotation front)))
+        (is (not (c/mode-2d? front)))))
+    (testing "Moving and zooming stay in 2D mode"
+      (is (c/mode-2d? (c/dolly camera-2d 2.0)))
+      (is (c/mode-2d? (c/camera-move camera-2d 10.0 20.0 0.0))))))
+
+(deftest interpolation-is-2d-only-between-2d-cameras
+  (let [camera-2d (c/make-camera :orthographic)
+        camera-3d (c/tumble camera-2d 10.0 0.0)]
+    (doseq [interpolate [c/interpolate #'c/interpolate-orbit]]
+      (is (c/mode-2d? (interpolate camera-2d (c/dolly camera-2d 2.0) 0.5)))
+      (is (not (c/mode-2d? (interpolate camera-2d camera-3d 0.5))))
+      (is (not (c/mode-2d? (interpolate camera-3d camera-2d 0.5)))))))
+
+(g/defnode ViewportNode
+  (property viewport Region))
+
+(defn- make-camera-node! [camera]
+  (let [[camera-node viewport-node]
+        (tx-nodes (g/make-nodes [camera-node [c/CameraController :local-camera camera :prefs (test-util/make-test-prefs)]
+                                 viewport-node [ViewportNode :viewport (t/->Region 0.0 200.0 0.0 100.0)]]
+                    (g/connect viewport-node :viewport camera-node :viewport)))]
+    camera-node))
+
+(deftest realign-camera-toggles-2d-mode
+  (doseq [projection [:orthographic :perspective]]
+    (testing (name projection)
+      (with-clean-system
+        (let [camera-3d (c/tumble (assoc (c/make-camera projection)
+                                    :position (Point3d. 0.0 0.0 100.0))
+                                  10.0 20.0)
+              camera-node (make-camera-node! camera-3d)
+              local-camera #(g/node-value camera-node :local-camera)]
+          (is (not (c/mode-2d? (local-camera))))
+          (c/realign-camera camera-node false)
+          (is (c/mode-2d? (local-camera)))
+          (is (= :orthographic (:type (local-camera))))
+          (is (= (Quat4d. 0.0 0.0 0.0 1.0) (:rotation (local-camera))))
+          (c/realign-camera camera-node false)
+          (is (not (c/mode-2d? (local-camera))))
+          (is (= projection (:type (local-camera))))
+          (is (= (:rotation camera-3d) (:rotation (local-camera)))))))))
+
+(deftest switching-to-perspective-leaves-2d-mode
+  (with-clean-system
+    (let [camera-node (make-camera-node! (c/make-camera :orthographic))]
+      (c/set-camera-type! camera-node :perspective)
+      (is (not (c/mode-2d? (g/node-value camera-node :local-camera)))))))
