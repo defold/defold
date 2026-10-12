@@ -271,13 +271,11 @@
                         (if (and (or (= 1 step) (= -1 step))
                                  (or (zero? direction) (= direction step)))
                           (recur (inc index) frame step)
-                          index)))))
-
-                end (long (nth frames (dec next-index)))]
-            (recur next-index
-                   (conj parts (if (= start end)
-                                 (str start)
-                                 (str start "-" end))))))))))
+                          index)))))]
+            (if (< (- next-index start-index) 3)
+              (recur (inc start-index) (conj parts (str start)))
+              (recur next-index
+                     (conj parts (str start "-" (nth frames (dec next-index))))))))))))
 
 (defn- animation->frames
   [{:keys [frames start-tile end-tile] :as animation}]
