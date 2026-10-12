@@ -226,11 +226,10 @@
   (property viewport Region))
 
 (defn- make-camera-node! [camera]
-  (let [[camera-node viewport-node]
-        (tx-nodes (g/make-nodes [camera-node [c/CameraController :local-camera camera :prefs (test-util/make-test-prefs)]
-                                 viewport-node [ViewportNode :viewport (t/->Region 0.0 200.0 0.0 100.0)]]
-                    (g/connect viewport-node :viewport camera-node :viewport)))]
-    camera-node))
+  (first
+    (tx-nodes (g/make-nodes [camera-node [c/CameraController :local-camera camera :prefs (test-util/make-test-prefs)]
+                             viewport-node [ViewportNode :viewport (t/->Region 0.0 200.0 0.0 100.0)]]
+                (g/connect viewport-node :viewport camera-node :viewport)))))
 
 (deftest realign-camera-toggles-2d-mode
   (doseq [projection [:orthographic :perspective]]

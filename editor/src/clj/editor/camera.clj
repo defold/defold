@@ -612,16 +612,16 @@
     (when (and projection position rotation fov-x fov-y focus-point)
       (let [[position-x position-y position-z] position
             [rotation-x rotation-y rotation-z rotation-w] rotation
-            [focus-x focus-y focus-z] focus-point]
-        (let [camera (assoc (make-camera projection identity {:fov-x fov-x :fov-y fov-y})
-                       :position (Point3d. (double position-x) (double position-y) (double position-z))
-                       :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
-                       :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) 1.0))]
-          (assoc camera
-            :mode-2d (if (some? mode-2d)
-                       mode-2d
-                       (and (= :orthographic projection)
-                            (= 1.0 (.getElement (camera-view-matrix camera) 2 2))))))))))
+            [focus-x focus-y focus-z] focus-point
+            camera (assoc (make-camera projection identity {:fov-x fov-x :fov-y fov-y})
+                     :position (Point3d. (double position-x) (double position-y) (double position-z))
+                     :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
+                     :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) 1.0))]
+        (assoc camera
+          :mode-2d (if (some? mode-2d)
+                     mode-2d
+                     (and (= :orthographic projection)
+                          (= 1.0 (.getElement (camera-view-matrix camera) 2 2)))))))))
 
 (def ^:private camera-command->movement
   {:scene.camera.free-look :look
