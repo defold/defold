@@ -17,7 +17,6 @@ endif()
 
 set(VKQUALITY_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src/main")
 set(VKQUALITY_CPP_DIR "${VKQUALITY_SRC_DIR}/cpp")
-set(VKQUALITY_ASSETS_DIR "${VKQUALITY_SRC_DIR}/assets")
 
 add_library(vkquality SHARED
   "${VKQUALITY_CPP_DIR}/gles_util.cpp"
@@ -46,5 +45,4 @@ install(FILES
   "${VKQUALITY_CPP_DIR}/vkquality.h"
   "${VKQUALITY_CPP_DIR}/vkquality_file_format.h"
   DESTINATION include/vkquality)
-install(FILES "${VKQUALITY_ASSETS_DIR}/vkqualitydata.vkq" DESTINATION share/vkquality/assets)
 install(FILES "${CMAKE_CURRENT_LIST_DIR}/LICENSE" DESTINATION share/licenses/vkquality)

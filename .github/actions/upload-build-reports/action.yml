@@ -8,11 +8,8 @@ inputs:
     description: Optional build variant, such as asan, ubsan, tsan, or valgrind
     default: ''
   reports:
-    description: Newline-separated repository-relative report file paths; paths and formats are preserved
-    default: |
-      engine/font/build/font-render-report/index.html
-      engine/graphics/build/graphics-render-report/index.html
-      engine/graphics/build/graphics-render-report/results.json
+    description: Newline-separated repository-relative report file paths; defaults to font and platform-specific graphics reports
+    default: ''
 runs:
   using: composite
   steps:
@@ -22,7 +19,11 @@ runs:
       shell: bash
       env:
         REPORT_PATHS: ${{ inputs.reports }}
+        REPORT_PLATFORM: ${{ inputs.platform }}
       run: |
+        if [ -z "$REPORT_PATHS" ]; then
+          printf -v REPORT_PATHS 'engine/font/build/font-render-report/index.html\nengine/graphics/build/graphics-render-report/%s/index.html\nengine/graphics/build/graphics-render-report/%s/results.json\n' "$REPORT_PLATFORM" "$REPORT_PLATFORM"
+        fi
         staging=$(mktemp -d "$RUNNER_TEMP/build-reports.XXXXXX")
         count=0
         available=0

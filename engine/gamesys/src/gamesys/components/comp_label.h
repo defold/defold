@@ -59,6 +59,10 @@ namespace dmGameSystem
     const char*      CompLabelGetText(const LabelComponent* component);
     HTextLayout      CompLabelGetTextLayout(LabelComponent* component);
 
+    // Resolves the object's lower-left corner relative to the label pivot, before scale and rotation.
+    // The layout and its object are borrowed from the caller; this does not prepare or replace the layout.
+    uint8_t CompLabelGetLayoutObjectPosition(const LabelComponent* component, HTextLayout layout, const TextLayoutObject* object, float* x, float* y);
+
     dmVMath::Matrix4 CompLabelLocalTransform(const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale, const dmVMath::Vector3& size, uint32_t pivot);
 
     void             CompLabelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);

@@ -54,9 +54,13 @@ dmResource::HFactory g_ResourceFactory = 0;
  * A `link` tag uses `link` by default. Callers may select another named style,
  * such as `link:hover` or `link:active`, in response to input.
  * Font collections initially define these named styles. Each default contains
- * a normalized RGBA face-color multiplier and no effects. The default `link`
- * style also uses a solid underline, which remains when hover or active colors
- * are applied:
+ * a normalized RGBA face color and no effects. Style RGB overrides the base
+ * text color, while alpha uses the lower of the style and base text alpha.
+ * Gradients override RGB and use the lower alpha in the same way. Inline colors
+ * and gradients take precedence over object styles, which take precedence over
+ * the named base style. Nested color or gradient tags override enclosing RGB
+ * in inline markup and named style definitions. The default `link` style also
+ * uses a solid underline, which remains when hover or active colors are applied:
  *
  * - `link`: `(0.10, 0.45, 0.90, 1.0)`, solid underline
  * - `link:hover`: `(0.30, 0.65, 1.00, 1.0)`

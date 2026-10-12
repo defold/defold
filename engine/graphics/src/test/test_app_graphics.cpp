@@ -2253,6 +2253,8 @@ int main(int argc, char **argv)
     dmExportedSymbols();
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
+    // Stop the log thread before process teardown destroys its locks.
+    atexit(dmLog::LogFinalize);
 
 #if defined(DM_TEST_GRAPHICS_CAPTURE)
     int capture_result = RunGraphicsCapture(argc, argv);

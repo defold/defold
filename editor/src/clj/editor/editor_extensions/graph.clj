@@ -395,10 +395,8 @@
 (defn- textual-resource-node? [node-id evaluation-context]
   (let [resource (g/node-value node-id :resource evaluation-context)]
     (and (some? resource)
-         (-> evaluation-context
-             :basis-ref
-             deref
-             (resource/lookup-resource-type (resource/workspace resource) resource)
+         (-> resource
+             (resource/resource-type @(:basis-ref evaluation-context))
              :textual?))))
 
 (register-property-getter!
@@ -535,8 +533,7 @@
                    (e/mapcat #(e/cat ((ext-property-lister (node-id->type-keyword % evaluation-context)) % evaluation-context))))
               (e/map prop-kw->property (attachment/list-kws workspace node-id evaluation-context))
               (when explicit-type-name ["type"])))
-          vec
-          sort
+          coll/sort
           vec))))
 
 ;; endregion
