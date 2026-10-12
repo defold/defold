@@ -33,7 +33,7 @@
             (g/expand-ec
               (fn expanded-tx-steps [evaluation-context node-id property-label value]
                 (is (g/evaluation-context? evaluation-context))
-                (is (identical? tx-data-context-map (deref (:tx-data-context evaluation-context))))
+                (is (identical? tx-data-context-map (deref (:tx-data-context-atom evaluation-context))))
                 (is (= :prior-basic-property-value (g/node-value node-id :basic-property evaluation-context)))
                 (g/set-property node-id property-label value))
               node-id
@@ -66,14 +66,14 @@
           (g/expand-ec
             (fn expanded-tx-steps [evaluation-context node-id]
               (is (g/evaluation-context? evaluation-context))
-              (is (identical? tx-data-context-map (deref (:tx-data-context evaluation-context))))
-              (swap! (:tx-data-context evaluation-context) assoc :added-key :added-value)
+              (is (identical? tx-data-context-map (deref (:tx-data-context-atom evaluation-context))))
+              (swap! (:tx-data-context-atom evaluation-context) assoc :added-key :added-value)
               (concat
                 (g/set-property node-id :basic-property :basic-property-value)
                 (g/expand-ec
                   (fn nested-expanded-tx-steps [evaluation-context node-id]
                     (is (g/evaluation-context? evaluation-context))
-                    (is (= {:added-key :added-value} (deref (:tx-data-context evaluation-context))))
+                    (is (= {:added-key :added-value} (deref (:tx-data-context-atom evaluation-context))))
                     (is (= :basic-property-value (g/node-value node-id :basic-property evaluation-context)))
                     (g/set-property node-id :effecting-property :effecting-property-value))
                   node-id)))

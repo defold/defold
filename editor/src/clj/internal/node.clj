@@ -529,7 +529,7 @@
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context :materialize-node! :node-id-generator :override-id-generator :node-materializations :materializations :initial-materialization-invalidate-counters} (coll/keys options)) (str (coll/keys options)))
+  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context-atom :materialize-node! :node-id-generator :override-id-generator :node-materializations-atom :materializations :initial-materialization-invalidate-counters} (coll/keys options)) (str (coll/keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
@@ -540,17 +540,17 @@
   {:initial-basis basis
    :initial-materializations materializations
    :basis-ref (atom basis)
-   :changes-ref (atom [])
-   :materializations-ref (atom materializations)
-   :invalidated-endpoints-ref (atom #{})
-   :closed-ref (atom false)
+   :changes-atom (atom [])
+   :materializations-atom (atom materializations)
+   :invalidated-endpoints-atom (atom #{})
+   :closed-atom (atom false)
    :cache cache ; cache from the system
    :initial-invalidate-counters initial-invalidate-counters
-   :local (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
-   :local-temp (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
-   :hits (atom [])
+   :local-atom (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
+   :local-temp-atom (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
+   :hits-atom (atom [])
    :in-production #{}
-   :tx-data-context (atom {})})
+   :tx-data-context-atom (atom {})})
 
 (defn custom-evaluation-context
   [{:keys [basis] :as options}]
@@ -559,19 +559,19 @@
             :initial-basis basis
             :initial-materializations (:materializations options)
             :basis-ref (atom basis)
-            :changes-ref (atom [])
-            :materializations-ref (atom (:materializations options))
-            :invalidated-endpoints-ref (atom #{})
-            :closed-ref (atom false)
-            :local (atom {})
-            :hits (atom [])
+            :changes-atom (atom [])
+            :materializations-atom (atom (:materializations options))
+            :invalidated-endpoints-atom (atom #{})
+            :closed-atom (atom false)
+            :local-atom (atom {})
+            :hits-atom (atom [])
             :in-production #{})
 
     (not (:no-local-temp options))
-    (assoc :local-temp (atom {}))
+    (assoc :local-temp-atom (atom {}))
 
-    (not (contains? options :tx-data-context))
-    (assoc :tx-data-context (atom {}))))
+    (not (contains? options :tx-data-context-atom))
+    (assoc :tx-data-context-atom (atom {}))))
 
 (defn pruned-evaluation-context
   "Selectively filters out cache entries from the supplied evaluation context.
@@ -580,8 +580,8 @@
   node-id, output-label, evaluation-context and should return true if the
   cache entry for the output-label should remain in the cache."
   [evaluation-context cache-entry-pred]
-  (let [unfiltered-hits @(:hits evaluation-context)
-        unfiltered-local @(:local evaluation-context)
+  (let [unfiltered-hits @(:hits-atom evaluation-context)
+        unfiltered-local @(:local-atom evaluation-context)
         filtered-hits (into []
                             (filter (fn [endpoint]
                                       (cache-entry-pred (gt/endpoint-node-id endpoint)
@@ -596,22 +596,22 @@
                                                            evaluation-context))))
                              unfiltered-local)]
     (assoc evaluation-context
-      :hits (atom filtered-hits)
-      :local (atom filtered-local))))
+      :hits-atom (atom filtered-hits)
+      :local-atom (atom filtered-local))))
 
 (defn- validate-evaluation-context [evaluation-context]
   (assert (gt/graph? @(:basis-ref evaluation-context)))
   (assert (some? (:in-production evaluation-context)))
-  (assert (some? (:local evaluation-context)))
-  (assert (some? (:hits evaluation-context)))
-  (assert (not @(:closed-ref evaluation-context)) "Evaluation context is closed."))
+  (assert (some? (:local-atom evaluation-context)))
+  (assert (some? (:hits-atom evaluation-context)))
+  (assert (not @(:closed-atom evaluation-context)) "Evaluation context is closed."))
 
 (defn- apply-dry-run-cache [evaluation-context]
   (cond-> evaluation-context
     (:dry-run evaluation-context)
-    (assoc :local (atom @(:local evaluation-context))
-           :local-temp (some-> (:local-temp evaluation-context) deref atom)
-           :hits (atom @(:hits evaluation-context)))))
+    (assoc :local-atom (atom @(:local-atom evaluation-context))
+           :local-temp-atom (some-> (:local-temp-atom evaluation-context) deref atom)
+           :hits-atom (atom @(:hits-atom evaluation-context)))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -1736,10 +1736,10 @@
 
 (defn check-caches! [node-id label evaluation-context]
   (let [cache-key (gt/endpoint node-id label)
-        local-cache @(:local evaluation-context)
+        local-cache @(:local-atom evaluation-context)
         local-cache-value (get local-cache cache-key ::not-found)]
     (if (identical? ::not-found local-cache-value)
-      (let [invalidated-endpoints @(:invalidated-endpoints-ref evaluation-context)
+      (let [invalidated-endpoints @(:invalidated-endpoints-atom evaluation-context)
             global-cache (:cache evaluation-context)
             global-cache-value (if (contains? invalidated-endpoints cache-key)
                                  ::not-found
@@ -1747,12 +1747,12 @@
         (if (identical? ::not-found global-cache-value)
           ::not-found
           (do
-            (swap! (:hits evaluation-context) conj cache-key)
+            (swap! (:hits-atom evaluation-context) conj cache-key)
             (trace-expr-result node-id label evaluation-context :cache global-cache-value))))
       (trace-expr-result node-id label evaluation-context :cache local-cache-value))))
 
 (defn check-local-temp-cache [node-id label evaluation-context]
-  (let [local-temp (some-> (:local-temp evaluation-context) deref)
+  (let [local-temp (some-> (:local-temp-atom evaluation-context) deref)
         weak-cached-value ^WeakReference (get local-temp (gt/endpoint node-id label))]
     (and weak-cached-value (.get weak-cached-value))))
 
@@ -1800,11 +1800,11 @@
        ~forms)))
 
 (defn update-local-cache! [node-id label evaluation-context value]
-  (swap! (:local evaluation-context) assoc (gt/endpoint node-id label) value))
+  (swap! (:local-atom evaluation-context) assoc (gt/endpoint node-id label) value))
 
 (defn update-local-temp-cache! [node-id label evaluation-context value]
-  (when-let [local-temp (:local-temp evaluation-context)]
-    (swap! local-temp assoc (gt/endpoint node-id label) (WeakReference. (nil->cached-nil value)))))
+  (when-let [local-temp-atom (:local-temp-atom evaluation-context)]
+    (swap! local-temp-atom assoc (gt/endpoint node-id label) (WeakReference. (nil->cached-nil value)))))
 
 (defn- cache-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
   (if (contains? (get-in description [:output label :flags]) :cached)

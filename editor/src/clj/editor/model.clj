@@ -154,8 +154,8 @@
 (defn- auto-fill-material-descriptors
   "Retrieves the material bindings approved for this model in the current user edit."
   [evaluation-context node-id]
-  (when-let [tx-data-context (:tx-data-context evaluation-context)]
-    (get-in @tx-data-context [::auto-fill-gltf-material-descriptors-by-node node-id])))
+  (when-let [tx-data-context-atom (:tx-data-context-atom evaluation-context)]
+    (get-in @tx-data-context-atom [::auto-fill-gltf-material-descriptors-by-node node-id])))
 
 (defn- model-mesh-choicebox [collision-meshes]
   {:type :choicebox

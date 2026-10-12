@@ -91,7 +91,7 @@
                 (e/concat
                   (g/callback-ec
                     (fn check-connect-fn-happened [evaluation-context]
-                      (is (identical? load-opts (:load-opts @(:tx-data-context evaluation-context))))
+                      (is (identical? load-opts (:load-opts @(:tx-data-context-atom evaluation-context))))
                       (is (= project (g/node-value self :project-node-id evaluation-context)))))
                   (g/set-property self :value-piece "set incorrectly")
                   (g/set-property self :source-resource source-resource)

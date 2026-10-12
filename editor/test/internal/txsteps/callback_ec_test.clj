@@ -33,7 +33,7 @@
             (g/callback-ec
               (fn callback-fn [evaluation-context & args]
                 (is (g/evaluation-context? evaluation-context))
-                (is (identical? tx-data-context-map (deref (:tx-data-context evaluation-context))))
+                (is (identical? tx-data-context-map (deref (:tx-data-context-atom evaluation-context))))
                 (is (= :prior-basic-property-value (g/node-value node-id :basic-property evaluation-context)))
                 (swap! calls conj (vec args)))
               :first-arg

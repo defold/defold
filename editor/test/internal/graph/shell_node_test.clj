@@ -151,14 +151,14 @@
               [(g/non-undoable (g/set-property self :identity "loaded"))
                (g/set-property self :value 9)
                (g/callback #(when @fail (throw (ex-info "load failed" {}))))]))))
-      (let [{:keys [basis-ref changes-ref materializations-ref invalidated-endpoints-ref] :as evaluation-context} (g/make-evaluation-context)
+      (let [{:keys [basis-ref changes-atom materializations-atom invalidated-endpoints-atom] :as evaluation-context} (g/make-evaluation-context)
             initial-basis @basis-ref
-            initial-materializations @materializations-ref]
+            initial-materializations @materializations-atom]
         (is (thrown-with-msg? ExceptionInfo #"load failed" (g/node-value node-id :result evaluation-context)))
         (is (identical? initial-basis @basis-ref))
-        (is (identical? initial-materializations @materializations-ref))
-        (is (coll/empty? @changes-ref))
-        (is (coll/empty? @invalidated-endpoints-ref))
+        (is (identical? initial-materializations @materializations-atom))
+        (is (coll/empty? @changes-atom))
+        (is (coll/empty? @invalidated-endpoints-atom))
         (is (in/unmaterialized-shell-node? (g/node-by-id @basis-ref node-id)))
         (is (nil? (g/node-value node-id :identity evaluation-context)))
         (is (nil? (g/node-value node-id :identity)))
@@ -542,7 +542,7 @@
         (try
           (is (= [7 7 7 7] (mapv #(deref % 10000 ::timeout) results)))
           (is (= (into {} (map #(vector % 1)) shells) (frequencies @calls)))
-          (let [node-materializations @(:node-materializations (first contexts))]
+          (let [node-materializations @(:node-materializations-atom (first contexts))]
             (is (= (set shells) (set (coll/keys node-materializations))))
             (is (coll/every? #(realized? (:promise %)) (coll/vals node-materializations))))
           (doseq [context contexts]
@@ -807,7 +807,7 @@
               (is (g/error-value? (if concurrent
                                     (deref (results index) 10000 ::timeout)
                                     (g/node-value node-id :result (contexts index))))))
-            (doseq [[_node-id entry] @(:node-materializations (first contexts))]
+            (doseq [[_node-id entry] @(:node-materializations-atom (first contexts))]
               (is (realized? (:promise entry)))
               (is (= #{} (:prerequisite-shell-node-ids entry))))
             (doseq [context contexts]
@@ -832,7 +832,7 @@
       (let [evaluation-context (g/make-evaluation-context)]
         (is (= 1 (g/node-value root :result evaluation-context)))
         (doseq [[node-id prerequisite-ids] prerequisites
-                :let [info (get @(:materializations-ref evaluation-context) node-id)]]
+                :let [info (get @(:materializations-atom evaluation-context) node-id)]]
           (is (= prerequisite-ids (:prerequisite-shell-node-ids info)))
           (is (= prerequisite-ids (set (coll/keys (:dependencies info)))))
           (is (coll/not-any? #(instance? internal.transaction.MaterializationTXC %) (:changes info))))
@@ -869,7 +869,7 @@
                             (catch Exception exception exception)))]
           (try
             (is (= true (deref entered 10000 ::timeout)))
-            (let [result-promise (get-in @(:node-materializations evaluation-context) [shell :promise])
+            (let [result-promise (get-in @(:node-materializations-atom evaluation-context) [shell :promise])
                   waiter (future @result-promise)]
               (deliver release true)
               (is (identical? failure (deref result 10000 ::timeout)))
@@ -910,7 +910,7 @@
                   (fn [self _evaluation-context]
                     (g/set-property self :value 2)))))
             (is (= 2 (g/node-value node-id :result)))
-            (let [new-promise (get-in @(:node-materializations old-context) [node-id :promise])]
+            (let [new-promise (get-in @(:node-materializations-atom old-context) [node-id :promise])]
               (deliver release true)
               (let [result (deref old-result 10000 ::timeout)]
                 (if old-load-fails
@@ -918,7 +918,7 @@
                   (is (= 1 result))))
               (g/update-system-from-evaluation-context! old-context)
               (is (= 2 (g/node-value node-id :result)))
-              (is (identical? new-promise (get-in @(:node-materializations old-context) [node-id :promise]))))
+              (is (identical? new-promise (get-in @(:node-materializations-atom old-context) [node-id :promise]))))
             (finally
               (deliver release true)
               (future-cancel old-result))))))))

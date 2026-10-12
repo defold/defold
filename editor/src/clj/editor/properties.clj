@@ -679,7 +679,7 @@
   {:pre [(map? evaluation-context)]}
   (true?
     (some-> evaluation-context
-            :tx-data-context
+            :tx-data-context-atom
             deref
             :edited-endpoints
             (contains? (g/endpoint node-id prop-kw)))))

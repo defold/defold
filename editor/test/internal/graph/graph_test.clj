@@ -335,7 +335,7 @@
                 :state :end}],
               :state :end}))
 
-      ;; here we disable :local-temp because we're only testing for :local caching
+      ;; Disable :local-temp-atom to test only :local-atom caching.
       (let [ec (g/make-evaluation-context {:tracer (g/make-tree-tracer result) :no-local-temp true})]
         (g/node-value n1 :_properties ec)
         (is (= @result
@@ -375,8 +375,8 @@
                   :state :end}],
                 :state :end}))
 
-        ;; Now, ec :local contains n1 :_declared-properties, so trace is shorter.
-        ;; Note that the tree tracer in the ec can be reused.
+        ;; Now :local-atom contains n1 :_declared-properties, so the trace is
+        ;; shorter. The tree tracer in the ec can be reused.
 
         (g/node-value n1 :_properties ec)
         (is (= @result
@@ -816,7 +816,7 @@
                ~'node-id (g/make-node! LetECTestNode :value ~'value)]
            (~let-ec-sym
              [~'cached-value (g/node-value ~'node-id :cached-value ~'evaluation-context)
-              ~'local-cache-atom (:local ~'evaluation-context)
+              ~'local-cache-atom (:local-atom ~'evaluation-context)
               ~'local-cache-before-merge (deref ~'local-cache-atom)
               ~'system-cache-before-merge (g/cache)]
              (let [~'system-cache-after-merge (g/cache)

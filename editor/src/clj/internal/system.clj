@@ -316,7 +316,7 @@
                                      (:invalidate-counters system)
                                      (:materializations system))
       (assoc :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
-             :node-materializations (:node-materializations system)
+             :node-materializations-atom (:node-materializations system)
              :node-id-generator (node-id-generator system)
              :override-id-generator (override-id-generator system)
              :materialize-node! it/materialize-node!)))
@@ -335,7 +335,7 @@
   [system {options-basis :basis options-cache :cache :as options}]
   (let [options (assoc options
                   :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
-                  :node-materializations (:node-materializations system)
+                  :node-materializations-atom (:node-materializations system)
                   :materializations (:materializations system)
                   :node-id-generator (node-id-generator system)
                   :override-id-generator (override-id-generator system)
@@ -393,8 +393,8 @@
       (if (and (not (identical? initial-invalidate-counters invalidate-counters))
                (full-invalidation-since? initial-invalidate-counters invalidate-counters))
         system
-        (let [evaluation-context-hits @(:hits evaluation-context)
-              evaluation-context-misses @(:local evaluation-context)]
+        (let [evaluation-context-hits @(:hits-atom evaluation-context)
+              evaluation-context-misses @(:local-atom evaluation-context)]
           (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
             (cond-> system
               (coll/not-empty evaluation-context-hits)
@@ -418,10 +418,10 @@
 (defn- materialization-invalidate-counters [system evaluation-context]
   ;; Account for canonical loads already installed by a competing context.
   ;; Later edits still have larger counters and remain conflicts.
-  (let [{:keys [changes-ref initial-invalidate-counters initial-materializations materializations-ref]} evaluation-context]
+  (let [{:keys [changes-atom initial-invalidate-counters initial-materializations materializations-atom]} evaluation-context]
     (cond-> initial-invalidate-counters
-      (coll/not-empty @changes-ref)
-      (coll/reduce-kv=> @materializations-ref
+      (coll/not-empty @changes-atom)
+      (coll/reduce-kv=> @materializations-atom
         (fn [invalidate-counters node-id materialization-info]
           (if (and (not (identical? materialization-info (get initial-materializations node-id)))
                    (identical? materialization-info (get (:materializations system) node-id)))
@@ -429,29 +429,29 @@
             invalidate-counters))))))
 
 (defn evaluation-context-compatible?
-  [system {:keys [changes-ref invalidated-endpoints-ref materializations-ref] :as evaluation-context}]
+  [system {:keys [changes-atom invalidated-endpoints-atom materializations-atom] :as evaluation-context}]
   (let [initial-basis (:initial-basis evaluation-context)
         initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
         invalidate-counters (:invalidate-counters system)]
     (and initial-invalidate-counters
          (not (full-invalidation-since? initial-invalidate-counters invalidate-counters))
-         (or (coll/empty? @changes-ref)
+         (or (coll/empty? @changes-atom)
              (let [expected-invalidate-counters (materialization-invalidate-counters system evaluation-context)
                    current-basis (basis system)]
                (and (coll/not-any?
                       #(endpoint-invalidated-since? % expected-invalidate-counters invalidate-counters)
-                      @invalidated-endpoints-ref)
+                      @invalidated-endpoints-atom)
                     (coll/not-any?
                       (fn [[node-id info]]
                         (when-not (identical? info (get (:materializations system) node-id))
                           (and (ig/node-by-id-at initial-basis node-id)
                                (not (identical? (:shell-node info) (ig/node-by-id-at current-basis node-id))))))
-                      @materializations-ref)))))))
+                      @materializations-atom)))))))
 
 (defn update-system-from-evaluation-context [system evaluation-context]
   (if-not (evaluation-context-compatible? system evaluation-context)
     system
-    (let [changes @(:changes-ref evaluation-context)
+    (let [changes @(:changes-atom evaluation-context)
           expected-invalidate-counters (materialization-invalidate-counters system evaluation-context)
           original-invalidate-counters (:invalidate-counters system)
           system (cond-> system

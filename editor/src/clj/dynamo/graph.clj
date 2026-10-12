@@ -211,8 +211,8 @@
   (is/invalidate-counters @*the-system*))
 
 (defn flag-nodes-as-migrated! [evaluation-context migrated-node-ids]
-  (let [tx-data-context (:tx-data-context evaluation-context)]
-    (swap! tx-data-context update :migrated-node-ids coll/into-set migrated-node-ids)
+  (let [tx-data-context-atom (:tx-data-context-atom evaluation-context)]
+    (swap! tx-data-context-atom update :migrated-node-ids coll/into-set migrated-node-ids)
     nil))
 
 (defn endpoint-invalidated-pred
@@ -1232,10 +1232,10 @@
   Call only after evaluation has finished, with exclusive ownership of the context.
   Closes the context and all contexts sharing its state. They must be discarded
   after this call, even if their changes were incompatible with the system."
-  [{:keys [closed-ref] :as evaluation-context}]
-  (assert (not @closed-ref) "Evaluation context is closed.")
+  [{:keys [closed-atom] :as evaluation-context}]
+  (assert (not @closed-atom) "Evaluation context is closed.")
   (swap! *the-system* is/update-system-from-evaluation-context evaluation-context)
-  (reset! closed-ref true)
+  (reset! closed-atom true)
   nil)
 
 (defmacro with-auto-evaluation-context [ec & body]
@@ -1399,11 +1399,12 @@
 
 (defmacro tx-cached-value!
   "Finds and returns a cached value at the specified key path of the
-  :tx-data-context in the supplied evaluation-context. If no existing value was
-  found in the :tx-data-context, evaluate the value-expr and store the value at
-  the specified key path in the :tx-data-context, then return the value."
+  :tx-data-context-atom in the supplied evaluation-context. If no existing value
+  was found in the :tx-data-context-atom, evaluate the value-expr and store the
+  value at the specified key path in the :tx-data-context-atom, then return the
+  value."
   [evaluation-context-expr tx-data-context-key-path-expr value-expr]
-  `(let [tx-data-context-atom# (:tx-data-context ~evaluation-context-expr)
+  `(let [tx-data-context-atom# (:tx-data-context-atom ~evaluation-context-expr)
          tx-data-context-key-path# ~tx-data-context-key-path-expr
          cached-value# (-> tx-data-context-atom#
                            (deref)
@@ -1416,15 +1417,15 @@
        cached-value#)))
 
 (defn tx-cached-node-value!
-  "Like the node-value function, but caches the result in the :tx-data-context
-  of the supplied evaluation-context if it doesn't have a cache. This is mostly
-  a workaround for the fact that the evaluation-context supplied to property
-  setters inside transactions does not contain a cache. Some operations, like
-  resource lookups, can benefit hugely from caching the lookup maps. However,
-  beware that this function bypasses the regular cache invalidation mechanism.
-  Don't use it on outputs that might otherwise have been invalidated between two
-  calls in the same transaction. The lack of a cache inside transactions has
-  previously been reported as DEFEDIT-1411."
+  "Like the node-value function, but caches the result in the
+  :tx-data-context-atom of the supplied evaluation-context if it doesn't have a
+  cache. This is mostly a workaround for the fact that the evaluation-context
+  supplied to property setters inside transactions does not contain a cache.
+  Some operations, like resource lookups, can benefit hugely from caching the
+  lookup maps. However, beware that this function bypasses the regular cache
+  invalidation mechanism. Don't use it on outputs that might otherwise have
+  been invalidated between two calls in the same transaction. The lack of a
+  cache inside transactions has previously been reported as DEFEDIT-1411."
   [node-id label evaluation-context]
   (cond
     (nil? node-id)
@@ -2125,5 +2126,5 @@
   (and (map? x)
        (contains? x :basis-ref)
        (contains? x :in-production)
-       (contains? x :local)
-       (contains? x :hits)))
+       (contains? x :local-atom)
+       (contains? x :hits-atom)))

@@ -429,7 +429,7 @@
       ;; Make the batch's options available to those loads as well.
       (g/callback-ec
         (fn [evaluation-context]
-          (swap! (:tx-data-context evaluation-context) assoc :load-opts load-opts)))
+          (swap! (:tx-data-context-atom evaluation-context) assoc :load-opts load-opts)))
       (coll/into-> node-load-infos :eduction
         (coll/mapcat-indexed
           (fn [^long node-index node-load-info]
@@ -1092,7 +1092,7 @@
                          :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
      ;; This is frequently called from property setters, where we don't have a
      ;; cache. In that case, manually cache the evaluated value in the
-     ;; :tx-data-context atom of the evaluation-context, since this persists
+     ;; :tx-data-context-atom of the evaluation-context, since this persists
      ;; throughout the transaction.
      (let [nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
@@ -1956,7 +1956,7 @@
   [evaluation-context project path-or-resource consumer-node connections]
   (when-some [resource (resolve-path-or-resource project path-or-resource evaluation-context)]
     (let [{:keys [basis-ref]} evaluation-context
-          tx-data-context-atom (:tx-data-context evaluation-context)
+          tx-data-context-atom (:tx-data-context-atom evaluation-context)
           existing-resource-node-id (get-resource-node project resource evaluation-context)
           [node-id creation-tx-data] (if existing-resource-node-id
                                        [existing-resource-node-id nil]
