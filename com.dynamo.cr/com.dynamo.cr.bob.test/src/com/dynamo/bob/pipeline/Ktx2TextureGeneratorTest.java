@@ -58,11 +58,11 @@ public class Ktx2TextureGeneratorTest {
     }
 
     private static TextureProfile profile(boolean basis, boolean mips, boolean premultiply, int maxSize,
-                                           boolean keepFormat, boolean regenerate) {
+                                           boolean keepFormat) {
         return TextureProfile.newBuilder().setName("KTX2")
                 .addPlatforms(PlatformProfile.newBuilder().setOs(PlatformProfile.OS.OS_ID_GENERIC)
                     .setMipmaps(mips).setPremultiplyAlpha(premultiply).setMaxTextureSize(maxSize)
-                    .setKeepKtx2Format(keepFormat).setRegenerateMipmaps(regenerate)
+                    .setKeepKtx2Format(keepFormat)
                     .addFormats(TextureFormatAlternative.newBuilder().setFormat(TextureFormat.TEXTURE_FORMAT_RGBA)
                         .setCompressionLevel(TextureFormatAlternative.CompressionLevel.FAST)
                         .setCompressionType(basis ? CompressionType.COMPRESSION_TYPE_BASIS_UASTC : CompressionType.COMPRESSION_TYPE_DEFAULT)))
@@ -124,7 +124,7 @@ public class Ktx2TextureGeneratorTest {
     public void channelsAndOrientation() throws Exception {
         byte[] rg = {10, 20, 30, 40, 50, 60, 70, 80};
         byte[] source = raw(2, 2, 2, false, false, null, rg);
-        TextureProfile profile = profile(false, false, true, 0, false, false);
+        TextureProfile profile = profile(false, false, true, 0, false);
         assertArrayEquals(new byte[] {10,20,0,-1,30,40,0,-1,50,60,0,-1,70,80,0,-1}, generate(source, profile, false).imageDatas.get(0));
         byte[] flipped = TextureGenerator.generate(source, profile, false).imageDatas.get(0);
         assertArrayEquals(new byte[] {50,60,0,-1,70,80,0,-1,10,20,0,-1,30,40,0,-1}, flipped);
@@ -142,12 +142,12 @@ public class Ktx2TextureGeneratorTest {
         byte[] authored = solid(4, 64, 128, 192, 32);
         for (boolean srgb : new boolean[] {false, true}) {
             byte[] source = raw(4, 4, 4, srgb, false, null, base, authored);
-            TextureGenerator.GenerateResult uncompressed = generate(source, profile(false, true, false, 0, false, false), false);
+            TextureGenerator.GenerateResult uncompressed = generate(source, profile(false, true, false, 0, false), false);
             assertArrayEquals(base, uncompressed.imageDatas.get(0));
             assertArrayEquals(authored, uncompressed.imageDatas.get(1));
             assertArrayEquals(solid(1, 64, 128, 192, 32), uncompressed.imageDatas.get(2));
 
-            TextureGenerator.GenerateResult compressed = generate(source, profile(true, true, false, 0, false, false), true);
+            TextureGenerator.GenerateResult compressed = generate(source, profile(true, true, false, 0, false), true);
             assertEquals(3, compressed.imageDatas.size());
             for (byte[] mip : compressed.imageDatas) {
                 assertEquals('s', mip[0]);
@@ -164,10 +164,10 @@ public class Ktx2TextureGeneratorTest {
         byte[] pixels = {64, 32, (byte)192, 0, (byte)192, (byte)224, 64, (byte)128,
                         64, 32, (byte)192, 0, (byte)192, (byte)224, 64, (byte)128};
         byte[] source = raw(2, 2, 4, false, false, null, pixels);
-        TextureGenerator.GenerateResult generated = generate(source, profile(false, true, false, 0, false, true), false);
+        TextureGenerator.GenerateResult generated = generate(source, profile(false, true, false, 0, false), false);
         assertArrayEquals(pixels, generated.imageDatas.get(0));
         assertArrayEquals(solid(1, 128, 128, 128, 64), generated.imageDatas.get(1));
-        TextureGenerator.GenerateResult resized = generate(source, profile(false, false, false, 1, false, false), false);
+        TextureGenerator.GenerateResult resized = generate(source, profile(false, false, false, 1, false), false);
         assertArrayEquals(generated.imageDatas.get(1), resized.imageDatas.get(0));
     }
 
@@ -175,22 +175,21 @@ public class Ktx2TextureGeneratorTest {
     public void srgbMipmapsFilterInLinearLight() throws Exception {
         byte[] pixels = {0, 0, 0, 0, -1, -1, -1, (byte)128,
                         0, 0, 0, 0, -1, -1, -1, (byte)128};
-        byte[] source = raw(2, 2, 4, true, false, null, pixels, solid(1, 32, 64, 96, 128));
-        TextureGenerator.GenerateResult regenerated = generate(source, profile(false, true, false, 0, false, true), false);
-        assertArrayEquals(pixels, regenerated.imageDatas.get(0));
-        byte[] mip = regenerated.imageDatas.get(1);
+        byte[] source = raw(2, 2, 4, true, false, null, pixels);
+        TextureGenerator.GenerateResult generated = generate(source, profile(false, true, false, 0, false), false);
+        assertArrayEquals(pixels, generated.imageDatas.get(0));
+        byte[] mip = generated.imageDatas.get(1);
         for (int channel = 0; channel < 3; ++channel) {
             // sRGB encoding of 0.5 linear intensity is about 188, not 128.
             assertEquals(188, mip[channel] & 0xff, 1);
         }
         assertEquals(64, mip[3] & 0xff); // Alpha is always linear.
 
-        byte[] baseOnly = raw(2, 2, 4, true, false, null, pixels);
-        TextureGenerator.GenerateResult resized = generate(baseOnly, profile(false, false, false, 1, false, false), false);
+        TextureGenerator.GenerateResult resized = generate(source, profile(false, false, false, 1, false), false);
         assertArrayEquals(mip, resized.imageDatas.get(0));
 
         byte[] partial = raw(4, 4, 4, true, false, null, solid(16, 32, 64, 96, 128), pixels);
-        TextureGenerator.GenerateResult completed = generate(partial, profile(false, true, false, 0, false, false), false);
+        TextureGenerator.GenerateResult completed = generate(partial, profile(false, true, false, 0, false), false);
         assertArrayEquals(pixels, completed.imageDatas.get(1));
         assertArrayEquals(mip, completed.imageDatas.get(2));
     }
@@ -202,17 +201,16 @@ public class Ktx2TextureGeneratorTest {
             byte[] pixels = {-1, -1, -1, -1, transparentWhite, transparentWhite, transparentWhite, 0,
                             -1, -1, -1, -1, transparentWhite, transparentWhite, transparentWhite, 0};
             byte[] expected = solid(1, 128, 128, 128, 128);
-            byte[] source = raw(2, 2, 4, true, premultiplied, null, pixels, solid(1, 0, 0, 0, 0));
-            TextureGenerator.GenerateResult regenerated = generate(source, profile(false, true, true, 0, false, true), false);
-            assertArrayEquals(expected, regenerated.imageDatas.get(1));
+            byte[] source = raw(2, 2, 4, true, premultiplied, null, pixels);
+            TextureGenerator.GenerateResult generated = generate(source, profile(false, true, true, 0, false), false);
+            assertArrayEquals(expected, generated.imageDatas.get(1));
 
-            source = raw(2, 2, 4, true, premultiplied, null, pixels);
-            TextureGenerator.GenerateResult resized = generate(source, profile(false, false, true, 1, false, false), false);
+            TextureGenerator.GenerateResult resized = generate(source, profile(false, false, true, 1, false), false);
             assertArrayEquals(expected, resized.imageDatas.get(0));
 
             source = raw(4, 4, 4, true, premultiplied, null, solid(16, 0, 0, 0, 0), pixels);
-            TextureGenerator.GenerateResult completed = generate(source, profile(false, true, true, 0, false, false), false);
-            assertArrayEquals(regenerated.imageDatas.get(0), completed.imageDatas.get(1));
+            TextureGenerator.GenerateResult completed = generate(source, profile(false, true, true, 0, false), false);
+            assertArrayEquals(generated.imageDatas.get(0), completed.imageDatas.get(1));
             assertArrayEquals(expected, completed.imageDatas.get(2));
         }
     }
@@ -224,7 +222,7 @@ public class Ktx2TextureGeneratorTest {
             byte[] pixels = {0, 0, 0, -1, white, white, white, (byte)128,
                             0, 0, 0, -1, white, white, white, (byte)128};
             byte[] source = raw(2, 2, 4, true, premultiplied, null, pixels);
-            byte[] mip = generate(source, profile(false, true, true, 0, false, false), false).imageDatas.get(1);
+            byte[] mip = generate(source, profile(false, true, true, 0, false), false).imageDatas.get(1);
             for (int channel = 0; channel < 3; ++channel) {
                 // Linear intensity 128/383, encoded to sRGB and multiplied by mean alpha 191.5/255.
                 assertEquals(117, mip[channel] & 0xff, 1);
@@ -237,7 +235,7 @@ public class Ktx2TextureGeneratorTest {
     public void ordinaryImagesKeepChannelValueFiltering() throws Exception {
         BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, 2, 2, new int[] {0xff000000, 0xffffffff, 0xff000000, 0xffffffff}, 0, 2);
-        TextureGenerator.GenerateResult result = TextureGenerator.generate(image, profile(false, true, false, 0, false, true), false);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(image, profile(false, true, false, 0, false), false);
         for (int channel = 0; channel < 3; ++channel) {
             assertEquals(128, result.imageDatas.get(1)[channel] & 0xff, 1);
         }
@@ -263,7 +261,7 @@ public class Ktx2TextureGeneratorTest {
         MipIndexCompressor compressor = new MipIndexCompressor();
         List<Integer> levels = compressor.levels;
         TextureCompression.registerCompressor(compressor);
-        TextureProfile.Builder profile = profile(false, true, false, 0, false, false).toBuilder();
+        TextureProfile.Builder profile = profile(false, true, false, 0, false).toBuilder();
         profile.getPlatformsBuilder(0).getFormatsBuilder(0)
                 .setCompressor(compressor.getName())
                 .setCompressorPreset(TextureCompressorUncompressed.TextureCompressorUncompressedPresetName);
@@ -275,11 +273,6 @@ public class Ktx2TextureGeneratorTest {
         profile.getPlatformsBuilder(0).setMaxTextureSize(4);
         generate(source, profile.build(), true);
         assertEquals(Arrays.asList(0, 1, 2), levels);
-
-        levels.clear();
-        profile.getPlatformsBuilder(0).setMaxTextureSize(0).setRegenerateMipmaps(true);
-        generate(source, profile.build(), true);
-        assertEquals(Arrays.asList(0, 1, 2, 3), levels);
     }
 
     @Test
@@ -322,10 +315,10 @@ public class Ktx2TextureGeneratorTest {
             assertEquals(43, texture.vkFormat);
             assertEquals(3, texture.supercompression);
         }
-        assertArrayEquals(pixels, generate(bytes, profile(false, false, false, 0, false, false), false).imageDatas.get(0));
+        assertArrayEquals(pixels, generate(bytes, profile(false, false, false, 0, false), false).imageDatas.get(0));
         // levelCount=0 is a valid request for generated mips on uncompressed formats.
         ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).putInt(40, 0);
-        assertEquals(3, generate(bytes, profile(false, true, false, 0, false, false), false).imageDatas.size());
+        assertEquals(3, generate(bytes, profile(false, true, false, 0, false), false).imageDatas.size());
         bytes = fixture("bc7");
         ByteBuffer b = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         offset = (int)b.getLong(80);
@@ -339,55 +332,51 @@ public class Ktx2TextureGeneratorTest {
     public void premultipliedAlphaIsNotAppliedTwice() throws Exception {
         byte[] pixels = solid(4, 40, 20, 10, 128);
         byte[] source = raw(2, 2, 4, false, true, null, pixels, solid(1, 20, 10, 5, 128));
-        TextureGenerator.GenerateResult result = generate(source, profile(false, true, true, 0, false, false), false);
+        TextureGenerator.GenerateResult result = generate(source, profile(false, true, true, 0, false), false);
         assertArrayEquals(pixels, result.imageDatas.get(0));
         assertArrayEquals(solid(1, 20, 10, 5, 128), result.imageDatas.get(1));
         try (TexcLibraryJni.Ktx2Texture texture = TexcLibraryJni.LoadKtx2(source)) {
             assertArrayEquals(pixels, TextureGenerator.generateKtx2MipPreview(texture, 0).imageDatas.get(0));
             assertArrayEquals(solid(1, 20, 10, 5, 128), TextureGenerator.generateKtx2MipPreview(texture, 1).imageDatas.get(0));
         }
-        assertArrayEquals(solid(4, 80, 40, 20, 128), generate(source, profile(false, false, false, 0, false, false), false).imageDatas.get(0));
+        assertArrayEquals(solid(4, 80, 40, 20, 128), generate(source, profile(false, false, false, 0, false), false).imageDatas.get(0));
         source = raw(1, 1, 4, false, false, null, solid(1, 200, 120, 60, 0));
-        assertArrayEquals(solid(1, 0, 0, 0, 0), generate(source, profile(false, false, true, 0, false, false), false).imageDatas.get(0));
+        assertArrayEquals(solid(1, 0, 0, 0, 0), generate(source, profile(false, false, true, 0, false), false).imageDatas.get(0));
     }
 
+    // Keep authored mip images when possible; generate missing levels and rebuild after resampling.
     @Test
-    public void authoredMipsResizingAndRegeneration() throws Exception {
+    public void authoredMipsResizingAndGeneration() throws Exception {
         byte[] base = solid(32, 80, 40, 20, 255);
         byte[] authored = solid(8, 20, 200, 40, 255);
         byte[] source = raw(8, 4, 4, false, false, null, base, authored);
-        TextureGenerator.GenerateResult result = generate(source, profile(false, true, false, 0, false, false), false);
+        TextureGenerator.GenerateResult result = generate(source, profile(false, true, false, 0, false), false);
         assertEquals(4, result.imageDatas.size());
         assertArrayEquals(base, result.imageDatas.get(0));
         assertArrayEquals(authored, result.imageDatas.get(1));
         assertArrayEquals(solid(2, 20, 200, 40, 255), result.imageDatas.get(2));
         assertArrayEquals(solid(1, 20, 200, 40, 255), result.imageDatas.get(3));
-        result = generate(source, profile(false, true, false, 4, false, false), false);
+        result = generate(source, profile(false, true, false, 4, false), false);
         assertEquals(4, result.textureImage.getAlternatives(0).getWidth());
         assertEquals(8, result.textureImage.getAlternatives(0).getOriginalWidth());
         assertArrayEquals(authored, result.imageDatas.get(0));
-        result = generate(source, profile(false, true, false, 0, false, true), false);
-        assertArrayEquals(solid(8, 80, 40, 20, 255), result.imageDatas.get(1));
-        assertEquals(1, generate(source, profile(false, false, false, 0, false, true), false).imageDatas.size());
+        assertEquals(1, generate(source, profile(false, false, false, 0, false), false).imageDatas.size());
         source = raw(3, 2, 4, false, false, null, solid(6, 80, 40, 20, 255), solid(1, 20, 200, 40, 255));
-        result = generate(source, profile(false, true, false, 0, false, false), false);
+        result = generate(source, profile(false, true, false, 0, false), false);
         assertArrayEquals(solid(1, 80, 40, 20, 255), result.imageDatas.get(result.imageDatas.size() - 1));
     }
 
-    // Only keep-format may bypass the selected encoder; mip regeneration remains independent.
+    // Only keep-format may bypass the selected encoder; each authored mip is retained in either case.
     @Test
     public void keepKtx2FormatControlsUastcPreservation() throws Exception {
         for (String name : new String[] {"uastc", "uastc-zstd", "uastc-zlib"}) {
             byte[] source = fixture(name);
             try (TexcLibraryJni.Ktx2Texture texture = TexcLibraryJni.LoadKtx2(source)) {
-                TextureProfile profile = profile(true, true, false, 0, true, false);
+                TextureProfile profile = profile(true, true, false, 0, true);
                 TextureGenerator.GenerateResult preserved = generate(source, profile, true);
                 assertEquals(4, preserved.imageDatas.size());
                 assertArrayEquals(texture.repackMip(0), preserved.imageDatas.get(0));
                 assertArrayEquals(texture.repackMip(1), preserved.imageDatas.get(1));
-                TextureGenerator.GenerateResult regenerated = generate(source, profile(true, true, false, 0, true, true), true);
-                assertArrayEquals(texture.repackMip(0), regenerated.imageDatas.get(0));
-                assertFalse(Arrays.equals(texture.repackMip(1), regenerated.imageDatas.get(1)));
                 assertEquals(CompressionType.COMPRESSION_TYPE_BASIS_UASTC, preserved.textureImage.getAlternatives(0).getCompressionType());
 
                 TextureProfile.Builder encodedProfile = profile.toBuilder();
@@ -407,7 +396,7 @@ public class Ktx2TextureGeneratorTest {
                     assertArrayEquals(expected, encoded.imageDatas.get(level));
                 }
                 assertFalse(Arrays.equals(texture.repackMip(0), TextureGenerator.generate(source, profile, true).imageDatas.get(0)));
-                assertArrayEquals(texture.repackMip(1), generate(source, profile(true, true, false, 4, true, false), true).imageDatas.get(0));
+                assertArrayEquals(texture.repackMip(1), generate(source, profile(true, true, false, 4, true), true).imageDatas.get(0));
                 assertEquals(CompressionType.COMPRESSION_TYPE_DEFAULT, generate(source, profile, false).textureImage.getAlternatives(0).getCompressionType());
                 assertEquals(CompressionType.COMPRESSION_TYPE_DEFAULT, generate(source, null, true).textureImage.getAlternatives(0).getCompressionType());
             }
@@ -425,7 +414,7 @@ public class Ktx2TextureGeneratorTest {
                 assertTrue((pixels[28] & 255) > (pixels[0] & 255) + 100);
                 assertTrue(name + ": green " + (pixels[1] & 255) + " -> " + (pixels[97] & 255), (pixels[97] & 255) > (pixels[1] & 255) + 30);
                 assertEquals(255, pixels[3] & 255);
-                TextureGenerator.GenerateResult result = generate(source, profile(true, true, false, 0, false, false), true);
+                TextureGenerator.GenerateResult result = generate(source, profile(true, true, false, 0, false), true);
                 assertEquals(4, result.imageDatas.size());
                 assertEquals(CompressionType.COMPRESSION_TYPE_BASIS_UASTC, result.textureImage.getAlternatives(0).getCompressionType());
                 assertEquals('s', result.imageDatas.get(0)[0]); assertEquals('B', result.imageDatas.get(0)[1]);
@@ -506,7 +495,7 @@ public class Ktx2TextureGeneratorTest {
 
     @Test
     public void keepKtx2FormatOverridesFormatsOnlyForKtx2() throws Exception {
-        TextureProfile.Builder profile = profile(false, false, false, 0, false, false).toBuilder();
+        TextureProfile.Builder profile = profile(false, false, false, 0, false).toBuilder();
         profile.getPlatformsBuilder(0).setKeepKtx2Format(true).getFormatsBuilder(0).setFormat(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
         byte[] pixels = {10,20,30,40,50,60,70,80,90,100,110,120};
         byte[] source = raw(3, 2, 2, false, false, null, pixels);
@@ -519,14 +508,13 @@ public class Ktx2TextureGeneratorTest {
                 TextureGenerator.generate(ordinary, profile.build(), true).textureImage.getAlternatives(0).getFormat());
     }
 
-    // Optional KTX2 settings default off and survive text and binary serialization.
+    // Keep KTX2 Format defaults off and survives text and binary serialization.
     @Test
-    public void profileFieldsRoundTripAndDefaultToFalse() throws Exception {
+    public void keepKtx2FormatRoundTripsAndDefaultsToFalse() throws Exception {
         PlatformProfile.Builder defaults = PlatformProfile.newBuilder();
         TextFormat.merge("os: OS_ID_GENERIC mipmaps: true", defaults);
-        assertFalse(defaults.getRegenerateMipmaps());
         assertFalse(defaults.getKeepKtx2Format());
-        TextureProfile expected = profile(true, true, false, 0, true, true);
+        TextureProfile expected = profile(true, true, false, 0, true);
         TextureProfile.Builder parsed = TextureProfile.newBuilder();
         TextFormat.merge(TextFormat.printer().printToString(expected), parsed);
         assertEquals(expected, TextureProfile.parseFrom(parsed.build().toByteArray()));
@@ -540,7 +528,7 @@ public class Ktx2TextureGeneratorTest {
             invalidBlock[offset] = (byte)(name.equals("uastc") ? 0x45 : 0); // Reserved UASTC mode / no BC7 mode.
             for (boolean compress : new boolean[] {true, false}) {
                 try {
-                    generate(invalidBlock, profile(true, false, false, 0, false, false), compress);
+                    generate(invalidBlock, profile(true, false, false, 0, false), compress);
                     fail("Accepted invalid " + name + " block");
                 } catch (TextureGeneratorException expected) {
                     assertTrue(expected.getMessage().contains("KTX2"));

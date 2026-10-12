@@ -86,7 +86,6 @@ public class TextureGenerator {
         public String compressorName;
         public String compressorPresetName;
         public boolean generateMipMaps;
-        public boolean regenerateMipmaps;
         public TexcLibraryJni.Ktx2Texture ktx2Encoder;
         public int maxTextureSize;
         public boolean premulAlpha;
@@ -637,7 +636,7 @@ public class TextureGenerator {
                 .setOriginalWidth(source.width).setOriginalHeight(source.height).setFormat(settings.textureFormat);
         List<byte[]> result = new ArrayList<>();
         int offset = 0;
-        int lastLevel = settings.generateMipMaps && !settings.regenerateMipmaps ? texture.levelCount - 1 : firstLevel;
+        int lastLevel = settings.generateMipMaps ? texture.levelCount - 1 : firstLevel;
         for (int level = firstLevel; level <= lastLevel; ++level) {
             int width = Math.max(1, texture.width >> level);
             int height = Math.max(1, texture.height >> level);
@@ -861,7 +860,6 @@ public class TextureGenerator {
                             platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha());
                     settings.powerOfTwo = false;
                     settings.alignToCompressor = false;
-                    settings.regenerateMipmaps = platformProfile.getRegenerateMipmaps();
                     TexcLibraryJni.Ktx2Texture texture = source.ktx2;
                     if (compress && (texture.vkFormat == 0 || texture.vkFormat >= 145)) {
                         settings.ktx2Encoder = texture;
@@ -927,7 +925,6 @@ public class TextureGenerator {
                                                                                          platformProfile.getMipmaps(),
                                                                                          platformProfile.getMaxTextureSize(),
                                                                                          !source.hdr && platformProfile.getPremultiplyAlpha());
-                    settings.regenerateMipmaps = platformProfile.getRegenerateMipmaps();
                     List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis, 0);
                     imageBuilder.setCompressionType(compressionType);
                     textureBuilder.addAlternatives(imageBuilder);

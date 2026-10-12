@@ -9,7 +9,7 @@ The editor opens KTX2 as a texture overview with selectable authored mip levels
 in the Outline and scene. Properties show the source format, supercompression,
 dimensions, mip count, channels, color space, orientation, and alpha metadata.
 The scene shows the matched texture profile. This overview retains the source
-mip sizes even when the profile resizes, regenerates, or disables compiled mips;
+mip sizes even when the profile resizes or disables compiled mips;
 material previews and builds still apply the profile.
 
 Supported sources are non-array 2D textures using ETC1S/BasisLZ, UASTC (optionally
@@ -25,10 +25,9 @@ Existing profile format, compressor, preset, size, alpha, and mipmap settings
 apply. Profiles match the ordinary source path or the virtual glTF image path,
 for example `/models/robot.glb/images/0.ktx2`.
 
-Two optional platform settings default to false:
+One optional platform setting defaults to false:
 
 ```protobuf
-regenerate_mipmaps: false
 keep_ktx2_format: false
 ```
 
@@ -66,9 +65,7 @@ profile retains the existing uncompressed-output behavior.
 Authored mip images are retained even when their encoding changes. A size limit
 can select an existing mip and its descendants. Resampling rebuilds the chain;
 missing descendants are generated from the last retained image.
-`regenerate_mipmaps` instead generates descendants from the processed base image;
-it does not force recompression of an otherwise reusable base. `mipmaps: false`
-still emits only the base level.
+`mipmaps: false` emits only the selected base level.
 
 Orientation, channel swizzles, transfer function, and premultiplication metadata
 are interpreted consistently for builds and previews. R/G channels remain data

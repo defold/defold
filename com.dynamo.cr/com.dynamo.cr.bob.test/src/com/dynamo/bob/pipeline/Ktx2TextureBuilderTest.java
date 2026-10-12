@@ -58,7 +58,7 @@ public class Ktx2TextureBuilderTest extends AbstractProtoBuilderTest {
                 "premultiply_alpha: false " +
                 "formats { format: TEXTURE_FORMAT_RGBA compressor: \"BasisU\" compressor_preset: \"BASISU_LOW\" } } }\n" +
                 "profiles { name: \"Uncompressed\" platforms { os: OS_ID_GENERIC mipmaps: true max_texture_size: 2 " +
-                "premultiply_alpha: false regenerate_mipmaps: true " +
+                "premultiply_alpha: false " +
                 "formats { format: TEXTURE_FORMAT_RGB_16BPP compressor: \"Uncompressed\" compressor_preset: \"UNCOMPRESSED\" } } }");
         Task profiles = getProject().createTask(getProject().getResource("/test.texture_profiles"));
         profiles.getBuilder().build(profiles);

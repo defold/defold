@@ -628,8 +628,8 @@
               built-before (with-open [_build (test-util/build! virtual)]
                              (vec (test-util/node-build-output virtual)))]
           ;; Edit in memory only. Build and preview must track unsaved profile changes.
-          (g/transact (g/update-property profiles :pb assoc-in [:profiles 0 :platforms 0 :regenerate-mipmaps] true))
-          (is (true? (get-in (g/node-value virtual :texture-profile) [:platforms 0 :regenerate-mipmaps])))
+          (g/transact (g/update-property profiles :pb assoc-in [:profiles 0 :platforms 0 :max-texture-size] 4))
+          (is (= 4 (get-in (g/node-value virtual :texture-profile) [:platforms 0 :max-texture-size])))
           (is (not= (:content-hash target-before) (:content-hash (first (g/node-value virtual :build-targets)))))
           (is (not (identical? gpu-before (g/node-value virtual :gpu-texture-generator))))
           (with-open [_build (test-util/build! virtual)]

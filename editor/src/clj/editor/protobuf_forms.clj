@@ -333,11 +333,6 @@
                                  :localization-key "texture-profiles.profiles.platforms.max-texture-size"
                                  :default (protobuf/default Graphics$PlatformProfile :max-texture-size)
                                  :optional true}
-                                {:path [:regenerate-mipmaps]
-                                 :type :boolean
-                                 :localization-key "texture-profiles.profiles.platforms.regenerate-mipmaps"
-                                 :default (protobuf/default Graphics$PlatformProfile :regenerate-mipmaps)
-                                 :optional true}
                                 {:path [:premultiply-alpha]
                                  :type :boolean
                                  :localization-key "texture-profiles.profiles.platforms.premultiply-alpha"

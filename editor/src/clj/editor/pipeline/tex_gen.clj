@@ -99,8 +99,7 @@
                     :keep-ktx2-format  (:keep-ktx2-format platform-profile false)
                     :mipmaps           (:mipmaps platform-profile)
                     :max-texture-size  (:max-texture-size platform-profile)
-                    :premultiply-alpha (:premultiply-alpha platform-profile)
-                    :regenerate-mipmaps (:regenerate-mipmaps platform-profile false)}]})))
+                    :premultiply-alpha (:premultiply-alpha platform-profile)}]})))
 
 (defn make-ktx2-texture-image
   ^TextureGenerator$GenerateResult [^bytes data texture-profile compress preview]
