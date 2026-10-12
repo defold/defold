@@ -14,25 +14,29 @@
 
 (ns editor.properties-view-test
   (:require [cljfx.api :as fx]
+            [cljfx.fx.scene :as fx.scene]
+            [cljfx.fx.stage :as fx.stage]
             [cljfx.plorer :as plorer]
             [clojure.test :refer [deftest is]]
             [dynamo.graph :as g]
-            [editor.properties :as properties]
+            [editor.fxui :as fxui]
             [editor.properties-view :as properties-view]
             [editor.types :as types]
             [editor.ui :as ui]
+            [support.test-support :as test-support]
             [util.coll :as coll])
   (:import [javafx.beans.value ChangeListener]
-           [javafx.scene Node Scene]
-           [javafx.scene.control Button ListCell ListView TextArea TextField]
+           [javafx.scene Node Parent Scene]
+           [javafx.scene.control Button Labeled ListCell ListView TextArea TextField]
            [javafx.scene.control.skin VirtualFlow]
-           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout Priority VBox]
-           [javafx.scene.text Font]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(g/defnode PropertyValues
+  (property values g/Any))
 
 (defn- property-item [i]
   (let [key (keyword (str "property-" i))
@@ -45,6 +49,18 @@
                 :node-ids [1]
                 :prop-kws [key]
                 :values [(str "value-" i)]}}))
+
+(defn- node-property-items [node-id]
+  (into []
+        (map-indexed
+          (fn [i value]
+            (-> (property-item i)
+                (assoc-in [:property :key] [:values i])
+                (assoc-in [:property :node-ids] [node-id])
+                (assoc-in [:property :prop-kws] [:values])
+                (assoc-in [:property :tooltip] "Property value")
+                (assoc-in [:property :values] [value]))))
+        (g/node-value node-id :values)))
 
 (defn- list-description [items node-ids]
   {:fx/type properties-view/property-list-view
@@ -63,61 +79,59 @@
                       (.getGraphic ^ListCell %)))
         (.lookupAll list ".list-cell")))
 
-;; Verifies category order, localization, independent label widths, and omission
-;; of empty categories without constructing any property controls.
+;; Verifies rendered category order, localization, independent label widths,
+;; and omission of empty categories through the public properties pane.
 (deftest property-items-test
-  (let [first-property {:label "First"}
-        second-property {:label "Second"}
-        items (#'properties-view/property-items
-                {:display-order [:first ["Group" :second] ["Empty"]]
-                 :properties {:first first-property :second second-property}}
-                #(str "Localized " %))]
-    (is (= [{:property-keyword :first
-             :property first-property
-             :label "Localized First"}
-            {:category-title "Localized Group"}
-            {:category "Group"
-             :property-keyword :second
-             :property second-property
-             :label "Localized Second"}]
-           items))
-    (let [widths (#'properties-view/property-label-widths
-                   (Font/getDefault)
-                   [{:label "WWWWWWWWWW"}
-                    {:category "Group" :label "I"}])]
-      (is (> (widths nil) (widths "Group"))))))
+  (ui/run-now
+    (let [component (fx/create-component
+                      {:fx/type properties-view/properties-pane-view
+                       :context {}
+                       :localization (atom (fn localize [message] (str "Localized " message)))
+                       :displayed-node-properties
+                       [{:node-id 1
+                         :display-order [:first ["Group" :second] ["Empty"]]
+                         :properties {:first {:node-id 1 :type g/Str :value "first" :label "WWWWWWWWWW"}
+                                      :second {:node-id 1 :type g/Str :value "second" :label "I"}}}]})
+          ^Parent root (fx/instance component)
+          _scene (Scene. root 400.0 400.0)]
+      (try
+        (ui/apply-css! root)
+        (.applyCss root)
+        (.layout root)
+        (let [^ListView list (.lookup root "#properties")
+              _ (layout! list)
+              ^VirtualFlow flow (.lookup list ".virtual-flow")
+              labels (mapv (fn [index]
+                             (let [graphic (.getGraphic ^ListCell (.getVisibleCell flow (int index)))]
+                               (or (.lookup graphic ".property-label")
+                                   (.lookup graphic ".property-category"))))
+                           (range 3))]
+          (is (= 3 (count (.getItems list))))
+          (is (= ["Localized WWWWWWWWWW" "Localized Group" "Localized I"]
+                 (mapv #(.getText ^Labeled %) labels)))
+          (is (> (.getWidth ^Labeled (labels 0)) (.getWidth ^Labeled (labels 2)))))
+        (finally
+          (fx/delete-component component))))))
 
 ;; Guards against eagerly creating editors for thousands of offscreen properties
 ;; and verifies that recycled editors commit to their current property. Clearing
 ;; or shrinking the list also covers JavaFX's temporarily nil cell items.
 (deftest virtual-property-cells-test
-  (let [created (atom #{})
-        deleted (atom #{})
-        changes (atom [])
-        control-view properties-view/control-view]
-    (with-redefs [properties-view/control-view
-                  (fn counted-control-view [props]
-                    {:fx/type fx/ext-on-instance-lifecycle
-                     :on-created (fn on-control-created [control]
-                                   (swap! created conj control))
-                     :on-deleted (fn on-control-deleted [control]
-                                   (swap! deleted conj control))
-                     :desc (control-view props)})
-                  properties/set-values!
-                  (fn record-property-change [property values _op-seq]
-                    (swap! changes conj [(:key property) (first values)]))
-                  ui/*main-stage* (atom nil)]
+  (test-support/with-clean-system
+    (let [initial-values (mapv #(str "value-" %) (range 10000))
+          node-id (first (test-support/tx-nodes (g/make-node PropertyValues :values initial-values)))]
       (ui/run-now
-        (let [items (mapv property-item (range 10000))
+        (let [items (node-property-items node-id)
               component (volatile! (fx/create-component
-                                     (list-description items [1])))
+                                     (list-description items [node-id])))
               ^ListView list (fx/instance @component)
-              _scene (Scene. list 300.0 400.0)]
+              scene (Scene. list 300.0 400.0)
+              stage (doto (Stage.) (.setOpacity 0.0) (.setScene scene) (.show))]
           (try
             (ui/apply-css! list)
             (layout! list)
             (is (= 10000 (count (.getItems list))))
-            (is (< 0 (count @created) 50))
+            (is (< 0 (count (.lookupAll list ".text-field")) 50))
             (is (< 0 (count (populated-cells list)) 50))
 
             (let [^VirtualFlow flow (.lookup list ".virtual-flow")
@@ -132,14 +146,13 @@
                   (coll/first-where #(<= 9900 (.getIndex ^ListCell %))
                                     (populated-cells list))
                   ^TextField field (.lookup (.getGraphic cell) ".text-field")
-                  key (:property-keyword (.getItem cell))]
+                  index (.getIndex cell)]
               (is (= (str "value-" (.getIndex cell)) (.getText field)))
+              (.requestFocus field)
               (.setText field "edited")
-              (.fireEvent field (KeyEvent. KeyEvent/KEY_PRESSED "" ""
-                                           KeyCode/ENTER false false false false))
-              (is (= [[key "edited"]] @changes)))
-            (is (< (count @created) 100))
-            (is (pos? (count @deleted)))
+              (plorer/key-tap! scene :enter)
+              (is (= (assoc initial-values index "edited") (g/node-value node-id :values))))
+            (is (< 0 (count (.lookupAll list ".text-field")) 50))
 
             (vreset! component
                      (fx/advance-component @component (list-description [] [])))
@@ -147,13 +160,13 @@
             (is (coll/empty? (populated-cells list)))
             (vreset! component
                      (fx/advance-component @component
-                                           (list-description [(items 0)] [2])))
+                                           (list-description [(items 0)] [node-id])))
             (layout! list)
             (is (= "value-0" (.getText ^TextField
                                (.lookup list ".text-field"))))
             (finally
-              (fx/delete-component @component)))
-          (is (= @created @deleted)))))))
+              (.hide stage)
+              (fx/delete-component @component))))))))
 
 ;; Verifies variable row heights and replacement of controls when the selected
 ;; nodes change, while preserving a control when its property value changes.
@@ -237,42 +250,65 @@
 ;; A pending text edit must reach its original property when scrolling recycles
 ;; the focused cell, just as it does when Tab moves focus to another editor.
 (deftest virtual-property-scroll-commit-test
-  (let [focused (promise)
-        changes (atom [])]
-    (with-redefs [properties/set-values!
-                  (fn record-property-change [property values _op-seq]
-                    (swap! changes conj [(:key property) (first values)]))
-                  ui/*main-stage* (atom nil)]
-      (let [{:keys [component list scene stage field]}
-            (ui/run-now
-              (let [component (fx/create-component (list-description (mapv property-item (range 100)) [1]))
-                    ^ListView list (fx/instance component)
-                    scene (Scene. list 300.0 400.0)
-                    stage (doto (Stage.) (.setOpacity 0.0) (.setScene scene) (.show))]
-                (ui/apply-css! list)
-                (layout! list)
-                (let [^TextField field (.lookup (.getGraphic ^ListCell
-                                                  (.getVisibleCell ^VirtualFlow (.lookup list ".virtual-flow") 0))
-                                                ".text-field")]
-                  (.addListener (.focusedProperty field)
-                                (reify ChangeListener
-                                  (changed [_ _ _ value]
-                                    (when value (deliver focused true)))))
-                  (.requestFocus stage)
-                  (.requestFocus field)
-                  (when (.isFocused field) (deliver focused true))
-                  {:component component :list list :scene scene :stage stage :field field})))]
+  (ui/run-now
+    ;; Keep the isolated graph bound during native JavaFX focus-cleanup pulses.
+    (test-support/with-clean-system
+      (let [focused (promise)
+            committed (promise)
+            initial-values (mapv #(str "value-" %) (range 100))
+            node-id (first (test-support/tx-nodes (g/make-node PropertyValues :values initial-values)))]
+        (add-watch g/*the-system* ::scroll-commit
+                   (fn on-property-committed [_ _ _ _]
+                     (let [values (g/node-value node-id :values (g/make-evaluation-context))]
+                       (when (not= initial-values values)
+                         (deliver committed values)))))
         (try
-          (is (= true (deref focused 10000 :timeout)))
-          (ui/run-now (.setText ^TextField field "pending"))
-          (plorer/scroll! scene (plorer/point list 0.5 0.5) 0 -1000000)
-          (ui/run-now (layout! list))
-          (ui/run-now
-            (is (= [[:property-0 "pending"]] @changes)))
+          (let [result
+                (fxui/show-stateless-dialog-and-await-result!
+                  (fn property-test-dialog [finish!]
+                    (let [run-scenario
+                          (fn run-scroll-scenario [list scene field]
+                            (finish!
+                              (try
+                                (is (= true (deref focused 10000 :timeout)))
+                                (ui/run-now (.setText ^TextField field "pending"))
+                                (plorer/scroll! scene (plorer/point list 0.5 0.5) 0 -1000000)
+                                (ui/run-now (layout! list))
+                                (deref committed 10000 :timeout)
+                                (catch Throwable exception exception))))]
+                      {:fx/type fx/ext-on-instance-lifecycle
+                       :on-created
+                       (fn on-test-stage-created [^Stage stage]
+                         (let [scene (.getScene stage)
+                               ^ListView list (.getRoot scene)]
+                           (ui/apply-css! list)
+                           (layout! list)
+                           (let [^TextField field (.lookup (.getGraphic ^ListCell
+                                                             (.getVisibleCell ^VirtualFlow (.lookup list ".virtual-flow") 0))
+                                                           ".text-field")]
+                             (.addListener (.focusedProperty field)
+                                           (reify ChangeListener
+                                             (changed [_ _ _ value]
+                                               (when value (deliver focused true)))))
+                             (.requestFocus stage)
+                             (.requestFocus field)
+                             (when (.isFocused field) (deliver focused true))
+                             ;; Start input after cljfx finishes rendering.
+                             (ui/do-run-later
+                               (fn start-scroll-scenario []
+                                 (future (run-scenario list scene field)))))))
+                       :desc {:fx/type fx.stage/lifecycle
+                              :showing true
+                              :opacity 0.0
+                              :width 300.0
+                              :height 400.0
+                              :scene {:fx/type fx.scene/lifecycle
+                                      :root (list-description (node-property-items node-id) [node-id])}}})))]
+            (when (instance? Throwable result)
+              (throw result))
+            (is (= (assoc initial-values 0 "pending") result)))
           (finally
-            (ui/run-now
-              (.hide ^Stage stage)
-              (fx/delete-component component))))))))
+            (remove-watch g/*the-system* ::scroll-commit)))))))
 
 ;; Tab must continue from the logical field after its row is recycled, even
 ;; within a tuple, instead of starting at the newly visible viewport position.
@@ -315,8 +351,9 @@
                       (let [^VirtualFlow flow (.lookup ^ListView list ".virtual-flow")]
                         (.scrollTo flow (int row))
                         (layout! list)
-                        (get (#'properties-view/focusable-controls
-                               (.getGraphic ^ListCell (.getVisibleCell flow (int row))))
+                        (nth (sort-by #(.getMinX (.localToScene ^Node % (.getLayoutBounds ^Node %)))
+                                      (.lookupAll (.getGraphic ^ListCell (.getVisibleCell flow (int row)))
+                                                  ".text-field"))
                              control-index)))]
           (dotimes [_ 2]
             (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary)))
