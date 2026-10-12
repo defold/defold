@@ -18,6 +18,33 @@
             [editor.gl.shader :as shader]
             [editor.scene-cache :as scene-cache]))
 
+;; Verifies material opt-in for reflected samplers. A custom font fragment
+;; shader must keep CPU colors even if its vertex shader uses font_effects.
+(deftest has-configured-sampler-test
+  (doseq [[description configured-uniforms active-samplers expected]
+          [["custom font material with the built-in vertex shader"
+            {"texture_sampler" nil}
+            {"texture_sampler" ["texture_sampler"] "font_effects" ["font_effects"]}
+            false]
+           ["built-in font material"
+            {"texture_sampler" nil "font_effects" nil}
+            {"texture_sampler" ["texture_sampler"] "font_effects" ["font_effects"]}
+            true]
+           ["configured but inactive sampler"
+            {"font_effects" nil} {} false]
+           ["configured array sampler slices"
+            {"font_effects_0" nil "font_effects_1" nil}
+            {"font_effects" ["font_effects_0" "font_effects_1"]}
+            true]]]
+    (testing description
+      (let [test-shader (shader/make-shader-lifecycle
+                         ::configured-sampler
+                         (shader/make-shader-request-data [] [] {} nil)
+                         [] configured-uniforms)]
+        (with-redefs [scene-cache/request-object! (fn [_cache-id _request-id _gl _request-data]
+                                                  {:sampler-name->uniform-names active-samplers})]
+          (is (= expected (shader/has-configured-sampler? test-shader nil "font_effects"))))))))
+
 ;; Verifies that binding a texture to a shader without samplers does not throw,
 ;; which previously aborted GUI rendering and logged an exception on every redraw.
 (deftest set-samplers-by-index-without-samplers-test

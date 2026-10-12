@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.attachment :as attachment]
+            [editor.buffers :as buffers]
             [editor.build-target :as bt]
             [editor.camera :as camera]
             [editor.code.data :as code.data]
@@ -167,7 +168,8 @@
   (vec4.ubyte outline_color true)
   (vec4.ubyte shadow_color true)
   (vec4 sdf_params)
-  (vec3 layer_mask))
+  (vec3 layer_mask)
+  (vec4 effect))
 
 (def ^:private vertex-order [0 1 2 1 3 2])
 
@@ -1100,6 +1102,7 @@
     (set! (.-baseStyle properties) (let [style (:style text-layout "default")]
                                      (if (= "" style) 0 (MurmurHash/hash64 ^String style))))
     (set! (.-useBaseStyle properties) true)
+    (set! (.-useGpuEffects properties) (boolean (:use-gpu-effects entry)))
     (set! (.-baseShadowAlpha properties) (float shadow-alpha))
     (set! (.-sdfScale properties) sdf-scale)
     {:properties properties
@@ -1108,7 +1111,7 @@
      :use-rich-text use-rich-text
      :transform transform
      :atlas-key [(:style text-layout) use-rich-text line-break width tracking text markup]
-     :state-key [(:style text-layout) use-rich-text line-break width height leading tracking align vertical-align
+     :state-key [(:use-gpu-effects entry) (:style text-layout) use-rich-text line-break width height leading tracking align vertical-align
                  face-color outline-color shadow-color shadow-alpha sdf-scale text markup]}))
 
 (defn- apply-native-entry-state!
@@ -1173,6 +1176,7 @@
                                   (doto existing-byte-buffer
                                     (.clear))
                                   (vtx/make-buf vertex-buffer-size))]
+    (.beginBatch native-renderer)
     (dotimes [entry-index (count native-entry-states)]
       (let [native-entry-state (native-entry-states entry-index)
             requirements (entry-requirements entry-index)]
@@ -1187,7 +1191,7 @@
         (.flip byte-buffer)
         (vtx/wrap-vertex-buffer NativeFontVertex :static byte-buffer)))))
 
-(defonce/type NativeVertexBufferRequest [native-renderer native-entry-states entry-requirements vertex-key]
+(defonce/type NativeVertexBufferRequest [request-id native-renderer native-entry-states entry-requirements vertex-key use-gpu-effects]
   Object
   (equals [this other]
     (or (identical? this other)
@@ -1197,22 +1201,38 @@
   (hashCode [_]
     (hash vertex-key)))
 
+(defn- gen-native-render-data
+  [^NativeVertexBufferRequest request vertex-buffer]
+  (let [native-renderer (.-native-renderer request)
+        vertex-buffer (gen-native-vertex-buffer native-renderer
+                                                (.-native-entry-states request)
+                                                (.-entry-requirements request)
+                                                vertex-buffer)]
+    {:vertex-buffer vertex-buffer
+     ;; A batch owns its metadata snapshot so another batch using the same font
+     ;; cannot overwrite the lookup rows referenced by these cached vertices.
+     :effect-texture
+     (when (.-use-gpu-effects request)
+       (let [^FontRenderer$Texture effect-texture (.getEffectTexture ^FontRenderer native-renderer)
+             pixels (.-pixels effect-texture)]
+         (texture/make-gpu-texture
+           [::effects (.-request-id request)]
+           [(texture/make-texture-request-data pixels (buffers/data-hash pixels) :rgba
+                                               (.-width effect-texture) (.-height effect-texture) false)]
+           (vector-of :int 1)
+           {:min-filter gl/nearest :mag-filter gl/nearest
+            :wrap-s gl/clamp-to-edge :wrap-t gl/clamp-to-edge})))}))
+
 (defn- make-native-vb
-  [_gl ^NativeVertexBufferRequest request]
-  (gen-native-vertex-buffer (.-native-renderer request)
-                            (.-native-entry-states request)
-                            (.-entry-requirements request)
-                            nil))
+  [_gl request]
+  (gen-native-render-data request nil))
 
 (defn- update-native-vb
-  [_gl vertex-buffer ^NativeVertexBufferRequest request]
-  (gen-native-vertex-buffer (.-native-renderer request)
-                            (.-native-entry-states request)
-                            (.-entry-requirements request)
-                            vertex-buffer))
+  [_gl render-data request]
+  (gen-native-render-data request (:vertex-buffer render-data)))
 
 (defn- destroy-native-vbs
-  [_gl _vertex-buffers _]
+  [_gl _render-data _]
   nil)
 
 (scene-cache/register-object-cache! ::native-vb make-native-vb update-native-vb destroy-native-vbs)
@@ -1234,26 +1254,27 @@
                                                       (select-keys font-data [:font-map :texture]))]
          (vtx/flip! (fill-vertex-buffer gl vbuf font-data text-entries glyph-cache)))))))
 
-(defn request-vertex-buffer
-  ([^GL3 gl request-id font-data text-entries]
-   (request-vertex-buffer gl request-id font-data text-entries nil))
-  ([^GL3 gl request-id font-data text-entries render-args]
-   (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
-         native-renderer-spec (get-in font-data [:font-map :native-renderer-spec])]
-     (if native-renderer-spec
-       (let [native-renderer (scene-cache/request-object! ::native-renderers (:texture font-data) gl native-renderer-spec)
-             native-entry-states (mapv #(make-native-entry-state (:font-map font-data) %) text-entries)
-             atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
-             [vertex-key entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
-         (scene-cache/request-object! ::native-vb [request-id (:type font-data)] gl
-                                      (NativeVertexBufferRequest. native-renderer native-entry-states entry-requirements vertex-key)))
-       (let [glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
-                                                      (select-keys font-data [:font-map :texture]))
-             layer-count (count-layers-in-mask (:layer-mask (:font-map font-data)))]
-         (scene-cache/request-object! ::vb [request-id (:type font-data) (vertex-count text-entries layer-count)] gl
-                                      {:font-data font-data
-                                       :text-entries text-entries
-                                       :glyph-cache glyph-cache}))))))
+(defn request-render-data
+  [^GL3 gl request-id font-data text-entries render-args material-shader]
+  (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
+        native-renderer-spec (get-in font-data [:font-map :native-renderer-spec])]
+    (if native-renderer-spec
+      ;; A custom fragment shader can share the built-in vertex shader without
+      ;; handling spatial effects. Match the runtime's material sampler opt-in.
+      (let [use-gpu-effects (shader/has-configured-sampler? material-shader gl "font_effects")
+            native-renderer (scene-cache/request-object! ::native-renderers (:texture font-data) gl native-renderer-spec)
+            native-entry-states (mapv #(make-native-entry-state (:font-map font-data) (assoc % :use-gpu-effects use-gpu-effects)) text-entries)
+            atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
+            [vertex-key entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
+        (scene-cache/request-object! ::native-vb [request-id (:type font-data)] gl
+                                     (NativeVertexBufferRequest. request-id native-renderer native-entry-states entry-requirements vertex-key use-gpu-effects)))
+      (let [glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
+                                                     (select-keys font-data [:font-map :texture]))
+            layer-count (count-layers-in-mask (:layer-mask (:font-map font-data)))]
+        {:vertex-buffer (scene-cache/request-object! ::vb [request-id (:type font-data) (vertex-count text-entries layer-count)] gl
+                                                     {:font-data font-data
+                                                      :text-entries text-entries
+                                                      :glyph-cache glyph-cache})}))))
 
 (defn get-texture-recip-uniform [font-map]
   (let [cache-width (:cache-width font-map)
@@ -1269,24 +1290,25 @@
         gpu-texture (:texture user-data)
         font-map (:font-map user-data)
         text-layout (:text-layout user-data)
-        vertex-buffer (request-vertex-buffer
-                        gl
-                        (:node-id user-data)
-                        user-data
-                        [{:text-layout text-layout
-                          :align :left
-                          :offset [0.0 0.0]
-                          :world-transform (doto (Matrix4d.) (.setIdentity))
-                          :color (colors/alpha colors/defold-white-light 1.0)
-                          :outline (colors/alpha colors/mid-grey 1.0)
-                          :shadow [0.0 0.0 0.0 1.0]}]
-                        render-args)
         material-shader (:shader user-data)
+        {:keys [vertex-buffer effect-texture]} (request-render-data
+                                                 gl
+                                                 (:node-id user-data)
+                                                 user-data
+                                                 [{:text-layout text-layout
+                                                   :align :left
+                                                   :offset [0.0 0.0]
+                                                   :world-transform (doto (Matrix4d.) (.setIdentity))
+                                                   :color (colors/alpha colors/defold-white-light 1.0)
+                                                   :outline (colors/alpha colors/mid-grey 1.0)
+                                                   :shadow [0.0 0.0 0.0 1.0]}]
+                                                 render-args material-shader)
         vcount (count vertex-buffer)]
     (when (> vcount 0)
       (let [vertex-binding (vtx/use-with ::vb vertex-buffer material-shader)
             texture-recip-uniform (get-texture-recip-uniform font-map)]
-        (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture]
+        (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture effect-texture]
+          (shader/set-samplers-by-name material-shader gl "font_effects" (vector-of :int 1))
           (shader/set-uniform material-shader gl "texture_size_recip" texture-recip-uniform)
           ;; Need to set the blend mode to alpha since alpha blending the source with GL_SRC_ALPHA and dest with GL_ONE_MINUS_SRC_ALPHA
           ;; gives us a small black border around the outline that looks different than other views..
