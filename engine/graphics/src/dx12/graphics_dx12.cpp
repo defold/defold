@@ -1682,9 +1682,9 @@ namespace dmGraphics
 
     void FlushResourcesToDestroy(DX12FrameResource& current_frame_resource)
     {
-        for (uint32_t i = 0; i < current_frame_resource.m_ObjectsToDestroy.Size(); ++i)
-            current_frame_resource.m_ObjectsToDestroy[i]->Release();
-        current_frame_resource.m_ObjectsToDestroy.SetSize(0);
+        for (uint32_t i = 0; i < current_frame_resource.m_RootSignaturesToDestroy.Size(); ++i)
+            current_frame_resource.m_RootSignaturesToDestroy[i]->Release();
+        current_frame_resource.m_RootSignaturesToDestroy.SetSize(0);
         if (current_frame_resource.m_ResourcesToDestroy.Size() > 0)
         {
             for (uint32_t i = 0; i < current_frame_resource.m_ResourcesToDestroy.Size(); ++i)
@@ -3975,7 +3975,7 @@ namespace dmGraphics
         }
         if (program->m_RootSignature)
         {
-            dmArray<IUnknown*>& retired = context->m_FrameResources[context->m_CurrentFrameIndex].m_ObjectsToDestroy;
+            dmArray<ID3D12RootSignature*>& retired = context->m_FrameResources[context->m_CurrentFrameIndex].m_RootSignaturesToDestroy;
             if (retired.Full())
                 retired.OffsetCapacity(8);
             retired.Push(program->m_RootSignature);

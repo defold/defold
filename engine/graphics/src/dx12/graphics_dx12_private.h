@@ -231,17 +231,17 @@ namespace dmGraphics
 
     struct DX12FrameResource
     {
-        HTexture                 m_TextureColor;
-        HTexture                 m_TextureDepthStencil;
-        DX12RenderTarget         m_RenderTarget;
-        ID3D12Resource*          m_MsaaRenderTarget;
-        ID3D12CommandAllocator*  m_CommandAllocator;
-        ID3D12Fence*             m_Fence;
-        DX12ScratchBuffer        m_ScratchBuffer;
-        DX12UploadRing           m_UploadRing;
-        uint64_t                 m_FenceValue;
-        dmArray<ID3D12Resource*> m_ResourcesToDestroy;
-        dmArray<IUnknown*>       m_ObjectsToDestroy;
+        HTexture                      m_TextureColor;
+        HTexture                      m_TextureDepthStencil;
+        DX12RenderTarget              m_RenderTarget;
+        ID3D12Resource*               m_MsaaRenderTarget;
+        ID3D12CommandAllocator*       m_CommandAllocator;
+        ID3D12Fence*                  m_Fence;
+        DX12ScratchBuffer             m_ScratchBuffer;
+        DX12UploadRing                m_UploadRing;
+        uint64_t                      m_FenceValue;
+        dmArray<ID3D12Resource*>      m_ResourcesToDestroy;
+        dmArray<ID3D12RootSignature*> m_RootSignaturesToDestroy;
     };
 
     struct DX12OneTimeCommandList
