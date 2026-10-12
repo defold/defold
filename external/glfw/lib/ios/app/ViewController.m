@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -63,6 +63,7 @@ static int g_view_type = GLFW_NO_API;
 
     [[self view] insertSubview:baseView atIndex:0];
     [baseView setCurrentContext];
+    [baseView startDisplayLink];
 }
 
 - (void)viewDidLoad
@@ -174,11 +175,6 @@ static int g_view_type = GLFW_NO_API;
     [baseView setCurrentContext];
 
     [super viewDidAppear: animated];
-}
-
-- (void)viewDidUnload
-{
-    [super viewDidUnload];
 }
 
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {

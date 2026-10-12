@@ -522,10 +522,11 @@ namespace dmGraphics
         VkImageAspectFlags vk_image_aspect,
         VkImageLayout vk_to_layout,
         uint32_t base_mip_level,
-        uint32_t layer_count)
+        uint32_t layer_count,
+        VkCommandPool command_pool)
     {
         VkDevice vk_device = logical_device->m_Device;
-        VkCommandPool vk_command_pool = logical_device->m_CommandPool;
+        VkCommandPool vk_command_pool = command_pool != VK_NULL_HANDLE ? command_pool : logical_device->m_CommandPool;
         VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(vk_device, vk_command_pool);
 
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
@@ -1041,7 +1042,7 @@ bail:
             // Keep depth and stencil load ops in sync for packed depth/stencil attachments so
             // the render-pass CLEAR fast path actually clears stencil too.
             attachment_depth.stencilLoadOp  = depthStencilAttachment->m_LoadOp;
-            attachment_depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachment_depth.stencilStoreOp = depthStencilAttachment->m_StoreOp;
             attachment_depth.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_depth.finalLayout    = depthStencilAttachment->m_ImageLayout;
 
@@ -1082,14 +1083,17 @@ bail:
         // yet so for now we just create a single subpass that connects an external source
         // (anything that has happend before this call) to the color output of the render pass,
         // which should be fine in most cases.
-        VkSubpassDependency vk_sub_pass_dependency;
-        memset(&vk_sub_pass_dependency, 0, sizeof(vk_sub_pass_dependency));
-        vk_sub_pass_dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
-        vk_sub_pass_dependency.dstSubpass    = 0;
-        vk_sub_pass_dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        vk_sub_pass_dependency.srcAccessMask = 0;
-        vk_sub_pass_dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        vk_sub_pass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        VkSubpassDependency vk_sub_pass_dependencies[1];
+        memset(vk_sub_pass_dependencies, 0, sizeof(vk_sub_pass_dependencies));
+        vk_sub_pass_dependencies[0].srcSubpass    = VK_SUBPASS_EXTERNAL;
+        vk_sub_pass_dependencies[0].dstSubpass    = 0;
+        vk_sub_pass_dependencies[0].srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        vk_sub_pass_dependencies[0].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        vk_sub_pass_dependencies[0].dstStageMask  = vk_sub_pass_dependencies[0].srcStageMask;
+        vk_sub_pass_dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        // Arbitrary SSBO dependencies are global and may order fragment work
+        // before vertex work. They cannot be expressed by a subpass self-dependency.
 
         // The subpass description connects the input attachments to the render pass,
         // in a MRT situation writing to specific color outputs (gl_FragData[x]) match these numbers.
@@ -1110,8 +1114,8 @@ bail:
         render_pass_create_info.pAttachments    = vk_attachment_desc;
         render_pass_create_info.subpassCount    = 1;
         render_pass_create_info.pSubpasses      = &vk_sub_pass_description;
-        render_pass_create_info.dependencyCount = 1;
-        render_pass_create_info.pDependencies   = &vk_sub_pass_dependency;
+        render_pass_create_info.dependencyCount = DM_ARRAY_SIZE(vk_sub_pass_dependencies);
+        render_pass_create_info.pDependencies   = vk_sub_pass_dependencies;
 
         VkResult res = vkCreateRenderPass(vk_device, &render_pass_create_info, 0, renderPassOut);
 
@@ -1560,6 +1564,20 @@ bail:
     void DestroyRenderTarget(VkDevice vk_device, VulkanRenderTarget::VulkanHandle* handle)
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
+        for (uint32_t i = 0; i < CUBEMAP_FACE_COUNT - 1; ++i)
+        {
+            DestroyFrameBuffer(vk_device, handle->m_CubeMapFramebuffers[i]);
+        }
+        for (uint32_t face = 0; face < CUBEMAP_FACE_COUNT; ++face)
+        {
+            for (uint32_t attachment = 0; attachment < MAX_BUFFER_COLOR_ATTACHMENTS + 1; ++attachment)
+            {
+                if (handle->m_CubeMapAttachmentViews[face][attachment] != VK_NULL_HANDLE)
+                {
+                    vkDestroyImageView(vk_device, handle->m_CubeMapAttachmentViews[face][attachment], 0);
+                }
+            }
+        }
         DestroyRenderPass(vk_device, handle->m_RenderPass);
         // Only destroy CLEAR variants if they are distinct objects. For the main RT both alias
         // context->m_MainRenderPass, which is destroyed by the context teardown instead.
@@ -1577,6 +1595,8 @@ bail:
         handle->m_RenderPass               = VK_NULL_HANDLE;
         handle->m_RenderPassClear          = VK_NULL_HANDLE;
         handle->m_RenderPassClearColorDepth = VK_NULL_HANDLE;
+        DestroyRenderPass(vk_device, handle->m_RenderPassLoad);
+        handle->m_RenderPassLoad = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)

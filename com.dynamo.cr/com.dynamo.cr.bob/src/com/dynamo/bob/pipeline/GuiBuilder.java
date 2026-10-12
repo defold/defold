@@ -298,7 +298,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         for (int fieldNumber : overrideNode.getOverriddenFieldsList()) {
             if (fieldNumber == NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
-                continue;
             } else {
                 FieldDescriptor fieldDesc = typeDesc.findFieldByNumber(fieldNumber);
                 assert fieldDesc != null;
@@ -470,7 +469,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 default -> null;
             };
             if (fieldNumber == NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
-                continue;
             } else if (customPropertyName == null || !legacyPropertyNames.contains(customPropertyName)) {
                 overriddenFields.add(fieldNumber);
             }
@@ -924,7 +922,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private class SceneBuilderIO implements ISceneBuilderIO {
+    private static class SceneBuilderIO implements ISceneBuilderIO {
         com.dynamo.bob.Project project;
         SceneBuilderIO(com.dynamo.bob.Project project) {
             this.project = project;

@@ -72,7 +72,7 @@ defold_target_link_libraries(rig_null "${TARGET_PLATFORM}" SCOPE PUBLIC
 set_target_properties(rig_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET rig_sdk_headers)
 defold_target_link_socket(rig_null "${TARGET_PLATFORM}" PUBLIC)
 
-if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
+if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
   defold_add_library(rig_shared SHARED
     "${RIG_SRC_DIR}/rig.cpp"
     "${RIG_PROTO_CC}")

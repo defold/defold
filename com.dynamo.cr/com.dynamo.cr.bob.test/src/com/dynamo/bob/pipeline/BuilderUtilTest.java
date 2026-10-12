@@ -21,9 +21,11 @@ import org.junit.Test;
 
 import com.dynamo.bob.fs.ResourceUtil;
 
+// These tests intentionally exercise the legacy extension compatibility API.
 public class BuilderUtilTest {
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testReplaceExtCompatibilityShim() {
         boolean oldMinification = ResourceUtil.isMinificationEnabled();
         try {
@@ -36,6 +38,7 @@ public class BuilderUtilTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testReplaceExtCompatibilityShimWithMinification() {
         final String inExt = ".compat_material_tmp";
         final String outExt = ".compat_materialc_tmp";

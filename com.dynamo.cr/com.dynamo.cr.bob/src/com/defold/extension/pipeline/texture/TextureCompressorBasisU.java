@@ -16,7 +16,6 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
-import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.graphics.proto.Graphics;
 
 import java.util.ArrayList;

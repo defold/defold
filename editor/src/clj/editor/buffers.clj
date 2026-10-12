@@ -168,9 +168,9 @@
 (defn slice [^ByteBuffer bb offsets]
   (let [dup (.duplicate bb)]
     (mapv (fn [o] (do
-                   (.position dup (int o))
-                   (doto (.slice dup)
-                     (.order (.order bb))))) offsets)))
+                    (.position dup (int o))
+                    (doto (.slice dup)
+                      (.order (.order bb))))) offsets)))
 
 (extend-type ByteBuffer
   ByteStringCoding

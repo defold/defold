@@ -35,13 +35,13 @@
 (def ^:private imagelib2-uri (nth lib-uris 2))
 (def ^:private bogus-uri (nth lib-uris 3))
 
-(defn- setup [ws-graph]
-  (let [workspace (test-util/setup-workspace! ws-graph *project-path*)
+(defn- setup []
+  (let [workspace (test-util/setup-workspace! *project-path*)
         project (test-util/setup-project! workspace)]
     [workspace project]))
 
-(defn- setup-scratch [ws-graph]
-  (let [workspace (test-util/setup-scratch-workspace! ws-graph *project-path*)
+(defn- setup-scratch []
+  (let [workspace (test-util/setup-scratch-workspace! *project-path*)
         project (test-util/setup-project! workspace)]
     [workspace project]))
 
@@ -66,13 +66,13 @@
 (deftest libraries-skipped-by-default
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (log/without-logging (setup world))]
+      (let [[workspace project] (log/without-logging (setup))]
         (is (= (workspace-resource-paths workspace) directory-resources))))))
 
 (deftest only-load-specified-libraries
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (log/without-logging (setup world))]
+      (let [[workspace project] (log/without-logging (setup))]
         (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
         (workspace/resource-sync! workspace)
         (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib1-resources)))
@@ -89,7 +89,7 @@
 (deftest skip-colliding-libraries
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (log/without-logging (setup world))]
+      (let [[workspace project] (log/without-logging (setup))]
         (test-util/set-cached-project-dependencies! workspace [imagelib1-uri imagelib2-uri])
         (workspace/resource-sync! workspace)
         (is (= (workspace-resource-paths workspace)
@@ -98,7 +98,7 @@
 (deftest skip-bad-lib-uris []
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace projec†] (log/without-logging (setup world))]
+      (let [[workspace projec†] (log/without-logging (setup))]
         (test-util/set-cached-project-dependencies! workspace [imagelib1-uri bogus-uri])
         (workspace/resource-sync! workspace)
         (is (= (workspace-resource-paths workspace)
@@ -107,7 +107,7 @@
 (deftest resource-sync!-diff
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (log/without-logging (setup-scratch world))]
+      (let [[workspace project] (log/without-logging (setup-scratch))]
         (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
         (let [il1-diff (workspace/resource-sync! workspace)]
           (is (= (resource-paths (:added il1-diff)) imagelib1-resources))
@@ -135,7 +135,7 @@
 (deftest exchange-of-zipresource-updates-corresponding-resource-node
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (log/without-logging (setup world))]
+      (let [[workspace project] (log/without-logging (setup))]
         (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
         (workspace/resource-sync! workspace)
         (let [lib1-pow (project/get-resource-node project "/images/pow.png")
@@ -152,7 +152,7 @@
 (deftest delete-of-zipresource-marks-corresponding-resource-node-defective
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (log/without-logging (setup world))]
+      (let [[workspace project] (log/without-logging (setup))]
         (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
         (workspace/resource-sync! workspace)
         (let [lib1-paddle (project/get-resource-node project "/images/paddle.png")]
@@ -165,7 +165,7 @@
   (binding [*project-path* "test/resources/reserved_files_project"]
     (with-clean-system
       (test-util/with-project-default-library-directory
-        (let [[workspace project] (log/without-logging (setup world))]
+        (let [[workspace project] (log/without-logging (setup))]
           (is (not (= nil (project/get-resource-node project "/present.script"))))
           (is (= nil (project/get-resource-node project "/.internal/hidden_internal.script")))
           (is (= nil (project/get-resource-node project "/builtins/hidden_builtins.script")))

@@ -3,6 +3,14 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #include <float.h>
 #include <math.h>
@@ -188,20 +196,15 @@ namespace dmGameSystem
         return 1;
     }
 
-    static btCollisionObject* GetNativeCollisionObject(lua_State* L, dmGameObject::HCollection* out_collection, dmMessage::URL* out_url)
+    static btCollisionObject* GetNativeCollisionObject(lua_State* L)
     {
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
         dmGameObject::HComponent  component = 0;
         void*                     component_world = 0;
-        GetCollisionObject(L, 1, collection, out_url, &component, &component_world);
+        GetCollisionObject(L, 1, collection, 0, &component, &component_world);
         if (!CheckBullet3DWorldBackend(L, component_world))
         {
             return 0;
-        }
-
-        if (out_collection)
-        {
-            *out_collection = collection;
         }
         return (btCollisionObject*)CompCollisionObjectGetBullet3DCollisionObject(component);
     }
@@ -210,12 +213,10 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmGameObject::HCollection collection = 0;
-        dmMessage::URL            url;
-        btCollisionObject*        collision_object = GetNativeCollisionObject(L, &collection, &url);
+        btCollisionObject* collision_object = GetNativeCollisionObject(L);
         if (collision_object)
         {
-            PushBullet3DCollisionObject(L, collision_object, collection, url.m_Path);
+            PushBullet3DCollisionObject(L, collision_object, CompCollisionObjectGetInstance(collision_object->getUserPointer()));
         }
         else
         {
@@ -228,12 +229,25 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmGameObject::HCollection collection = 0;
-        dmMessage::URL            url;
-        btCollisionObject*        collision_object = GetNativeCollisionObject(L, &collection, &url);
+        btCollisionObject* collision_object = GetNativeCollisionObject(L);
         if (collision_object && btRigidBody::upcast(collision_object))
         {
-            PushBullet3DCollisionObject(L, collision_object, collection, url.m_Path);
+            PushBullet3DCollisionObject(L, collision_object, CompCollisionObjectGetInstance(collision_object->getUserPointer()));
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
+    static int Bullet3D_GetGameObjectId(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmhash_t instance_id = GetBullet3DCollisionObjectInstanceId(L, 1);
+        if (instance_id)
+        {
+            dmScript::PushHash(L, instance_id);
         }
         else
         {
@@ -268,6 +282,7 @@ namespace dmGameSystem
         { "get_world", Bullet3D_GetWorld },
         { "get_collision_object", Bullet3D_GetCollisionObject },
         { "get_rigid_body", Bullet3D_GetRigidBody },
+        { "get_gameobject_id", Bullet3D_GetGameObjectId },
         { "get_version", Bullet3D_GetVersion },
         { 0, 0 }
     };
@@ -424,6 +439,23 @@ namespace dmGameSystem
  * -- A trigger is a collision object, not a rigid body.
  * local trigger = bullet3d.get_collision_object("#trigger")
  * assert(trigger and bullet3d.get_rigid_body("#trigger") == nil)
+ * ```
+ */
+
+/*# Get the game object id associated with a Bullet collision object
+ *
+ * Returns the id of the game object that owns the collision-object component.
+ * Accepts both rigid bodies and ghost trigger objects.
+ * Raises a Lua error if the handle is invalid or its game object has been deleted.
+ *
+ * @name bullet3d.get_gameobject_id
+ * @param object [type:btCollisionObject|btRigidBody] the Bullet collision object
+ * @return id [type:hash|nil] the game object id, or `nil` if the collision object has no associated game object
+ * @examples
+ *
+ * ```lua
+ * local object = bullet3d.get_collision_object("#collisionobject")
+ * local id = bullet3d.get_gameobject_id(object)
  * ```
  */
 

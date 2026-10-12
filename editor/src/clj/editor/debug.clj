@@ -70,7 +70,7 @@
   [repl-config]
   (if-let [wrap-sayid (try-resolve 'com.billpiel.sayid.nrepl-middleware/wrap-sayid)]
     (do (println "Adding sayid middleware")
-      (update repl-config :handler wrap-sayid))
+        (update repl-config :handler wrap-sayid))
     repl-config))
 
 (defn- maybe-load-cider

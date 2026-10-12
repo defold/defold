@@ -42,7 +42,7 @@
               [case path] cases]
         (testing case
           (test-util/with-prop [node-id prop (workspace/resolve-workspace-resource workspace path)]
-                               (is (g/error? (test-util/prop-error node-id prop)))))))))
+            (is (g/error? (test-util/prop-error node-id prop)))))))))
 
 (deftest unassigned-font-label-preview-test
   (test-util/with-loaded-project

@@ -74,7 +74,7 @@ public class Bob {
     public static final String VARIANT_RELEASE = "release";
     public static final String VARIANT_HEADLESS = "headless";
 
-    public static final String ARTIFACTS_URL = "http://d.defold.com/archive/";
+    public static final String ARTIFACTS_URL = "https://d.defold.com/archive/";
 
     private static File rootFolder = null;
 
@@ -255,7 +255,7 @@ public class Bob {
         init();
         File f = new File(rootFolder, path);
         if (!f.exists()) {
-            throw new RuntimeException(String.format("location %s not found", f.toString()));
+            throw new RuntimeException(String.format("location %s not found", f));
         }
         return f.getAbsolutePath();
     }
@@ -272,7 +272,7 @@ public class Bob {
     public static String getExe(Platform platform, String name) throws IOException {
         List<String> exes = getExes(platform, name);
         if (exes.size() > 1) {
-            throw new IOException("More than one alternative when getting binary executable for platform: " + platform.toString());
+            throw new IOException("More than one alternative when getting binary executable for platform: " + platform);
         }
         return exes.get(0);
     }
@@ -469,7 +469,7 @@ public class Bob {
             description = description + ". More than one occurrence is allowed";
         }
         return new CommandLineOption(shortOpt, longOpt, argCount, argType, description);
-    };
+    }
 
     private static CommandLineOption opt(String shortOpt, String longOpt, CommandLineOption.ArgCount argCount, String description) {
         return opt(shortOpt, longOpt, argCount, CommandLineOption.ArgType.UNSPECIFIED, description);
@@ -688,7 +688,7 @@ public class Bob {
             for (String choice : validChoices) {
                 System.out.printf("%s, ", choice);
             }
-            System.out.printf("\n");
+            System.out.print("\n");
             throw new OptionValidationException(1);
         }
     }
@@ -746,7 +746,7 @@ public class Bob {
                 return new InvocationResult(true, Collections.emptyList());
             }
             if (cmd.hasOption("version")) {
-                System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
+                System.out.printf("bob.jar version: %s  sha1: %s  built: %s  channel: %s%n", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp, EngineVersion.channel);
                 return new InvocationResult(true, Collections.emptyList());
             }
             String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
@@ -909,7 +909,7 @@ public class Bob {
                 }
 
                 if (architectures.length == 0) {
-                    System.out.println(String.format("ERROR! --architectures cannot be empty. Available architectures: %s", String.join(", ", availableArchitectures)));
+                    System.out.printf("ERROR! --architectures cannot be empty. Available architectures: %s%n", String.join(", ", availableArchitectures));
                     throw new OptionValidationException(1);
                 }
 
@@ -918,7 +918,7 @@ public class Bob {
                 Set<String> uniqueArchitectures = new HashSet<String>();
                 for (String architecture : architectures) {
                     if (!availableArchitectures.contains(architecture)) {
-                        System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
+                        System.out.printf("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s%n", architecture, platform.getPair(), String.join(", ", availableArchitectures));
                         throw new OptionValidationException(1);
                     }
                     uniqueArchitectures.add(architecture);
@@ -927,7 +927,7 @@ public class Bob {
                 project.setOption("architectures", String.join(",", uniqueArchitectures));
 
                 boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
-                project.setOption("liveupdate", shouldPublish ? "true" : "false");
+                project.setOption("liveupdate", Boolean.toString(shouldPublish));
 
                 if (!cmd.hasOption("variant")) {
                     if (cmd.hasOption("debug")) {
@@ -941,7 +941,7 @@ public class Bob {
 
                 String variant = project.option("variant", VARIANT_RELEASE);
                 if (!(variant.equals(VARIANT_DEBUG) || variant.equals(VARIANT_RELEASE) || variant.equals(VARIANT_HEADLESS))) {
-                    System.out.println(String.format("--variant option must be one of %s, %s, or %s", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS));
+                    System.out.printf("--variant option must be one of %s, %s, or %s%n", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS);
                     throw new OptionValidationException(1);
                 }
 

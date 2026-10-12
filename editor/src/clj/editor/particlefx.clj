@@ -47,6 +47,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -85,13 +86,13 @@
                                           (mapv (fn [modifier]
                                                   (let [[mp mr] (xform modifier)]
                                                     (assoc modifier
-                                                           :position (math/vecmath->clj (math/inv-transform ep er mp))
-                                                           :rotation (math/vecmath->clj (math/inv-transform er mr)))))
+                                                      :position (math/vecmath->clj (math/inv-transform ep er mp))
+                                                      :rotation (math/vecmath->clj (math/inv-transform er mr)))))
                                                 global-modifiers))))
                            (:emitters pb))]
     (-> pb
-      (assoc :emitters new-emitters)
-      (dissoc :modifiers))))
+        (assoc :emitters new-emitters)
+        (dissoc :modifiers))))
 
 (defn- select-attribute-values [pb-data key]
   (protobuf/sanitize-repeated
@@ -108,18 +109,18 @@
   (geom/chain steps (comp (partial geom/rotate [0 0 a]) (partial geom/scale [s s 1])) ps))
 
 (def arrow (let [head-ps (->> geom/origin-geom
-                           (geom/transl [0 0.1 0])
-                           (geom/circling 3)
-                           (geom/scale [0.7 1 1])
-                           (geom/transl [0 0.05 0]))]
+                              (geom/transl [0 0.1 0])
+                              (geom/circling 3)
+                              (geom/scale [0.7 1 1])
+                              (geom/transl [0 0.05 0]))]
              (concat
                (geom/transl [0 0.85 0] (interleave head-ps (drop 1 (cycle head-ps))))
                [[0 0 0] [0 0.85 0]])))
 
 (def dash-circle (->> geom/origin-geom
-                   (geom/chain 1 (partial geom/transl [0.05 0 0]))
-                   (geom/transl [0 1 0])
-                   (geom/circling 32)))
+                      (geom/chain 1 (partial geom/transl [0.05 0 0]))
+                      (geom/transl [0 1 0])
+                      (geom/circling 32)))
 
 ; Line shader
 
@@ -127,32 +128,8 @@
   (vec3 position)
   (vec4 color))
 
-(shader/defshader line-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
-
-(shader/defshader line-id-vertex-shader
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
-
-(shader/defshader line-id-fragment-shader
-  (uniform vec4 id)
-  (defn void main []
-    (setq gl_FragColor id)))
-
-(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
+(def line-shader shaders/basic-color-straight-alpha-world-space)
+(def line-id-shader shaders/selection-color-world-space)
 
 (defn- curve->pb-spline-points [curve]
   (->> curve
@@ -227,8 +204,8 @@
               (map (fn [[property-key curve]]
                      (curve->pb-property Particle$Modifier$Property property-key curve)))
               (cond-> {:modifier-key-magnitude magnitude}
-                      (modifier-type-has-max-distance? type)
-                      (assoc :modifier-key-max-distance max-distance)))]
+                (modifier-type-has-max-distance? type)
+                (assoc :modifier-key-max-distance max-distance)))]
 
     (protobuf/make-map-without-defaults Particle$Modifier
       :position position
@@ -275,7 +252,7 @@
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
                      (geom/transf-p world-transform vs-world))
             render-args (if (= pass/selection (:pass render-args))
-                          (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))
+                          (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform renderable))
                           render-args)
             vertex-binding (vtx/use-with ::lines (->vbuf vs vcount color) shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
@@ -290,32 +267,32 @@
                       (interleave top bottom)))
 
 (def vortex-geom-data (let [ps (->> geom/origin-geom
-                                 (geom/transl [0 1 0])
-                                 (spiraling 30 20 1.15)
-                                 (geom/scale [0.7 0.7 1]))]
+                                    (geom/transl [0 1 0])
+                                    (spiraling 30 20 1.15)
+                                    (geom/scale [0.7 0.7 1]))]
                         (geom/circling 4 (drop-last 2 (interleave ps (drop 1 (cycle ps)))))))
 
 (def vortex-neg-geom-data (geom/scale [-1 1 1] vortex-geom-data))
 
 (def acceleration-geom-data (let [right (->> arrow
-                                         (geom/chain 1 (partial geom/transl [0.5 -0.25 0]))
-                                         (geom/transl [0.5 -0.25 0]))
+                                             (geom/chain 1 (partial geom/transl [0.5 -0.25 0]))
+                                             (geom/transl [0.5 -0.25 0]))
                                   left (->> right
-                                         (geom/scale [-1 1 1]))]
+                                            (geom/scale [-1 1 1]))]
                               (geom/scale [50 50 1] (concat left arrow right))))
 
 (def acceleration-neg-geom-data (geom/scale [1 -1 1] acceleration-geom-data))
 
 (def radial-geom-data (->> arrow
-                            (geom/transl [0 0.3 0])
-                            (geom/circling 8)
-                            (geom/scale [40 40 1])))
+                           (geom/transl [0 0.3 0])
+                           (geom/circling 8)
+                           (geom/scale [40 40 1])))
 
 (def radial-neg-geom-data (->> arrow
-                            (geom/scale [1 -1 1])
-                            (geom/transl [0 1.4 0])
-                            (geom/circling 8)
-                            (geom/scale [40 40 1])))
+                               (geom/scale [1 -1 1])
+                               (geom/transl [0 1.4 0])
+                               (geom/circling 8)
+                               (geom/scale [40 40 1])))
 
 (def ^:private mod-types
   {:modifier-type-acceleration {:label "Acceleration"
@@ -409,27 +386,27 @@
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output pb-msg g/Any produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id type node-outline-key]
-      (let [mod-type (mod-types type)]
-        {:node-id _node-id
-         :node-outline-key node-outline-key
-         :label (:message mod-type)
-         :icon modifier-icon})))
+          (g/fnk [_node-id type node-outline-key]
+            (let [mod-type (mod-types type)]
+              {:node-id _node-id
+               :node-outline-key node-outline-key
+               :label (:message mod-type)
+               :icon modifier-icon})))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
 
 (def circle-geom-data (let [ps (->> geom/origin-geom
-                                 (geom/transl [0 0.5 0])
-                                 (geom/circling 64))]
+                                    (geom/transl [0 0.5 0])
+                                    (geom/circling 64))]
                         (interleave ps (drop 1 (cycle ps)))))
 
 (def cone-geom-data (let [ps [[-0.5 1.0 0.0] [0.0 0.0 0.0] [0.5 1.0 0.0]]]
                       (interleave ps (drop 1 (cycle ps)))))
 
 (def box-geom-data (let [ps (->> geom/origin-geom
-                              (geom/transl [0.5 0.5 0.0])
-                              (geom/circling 4))]
+                                 (geom/transl [0.5 0.5 0.0])
+                                 (geom/circling 4))]
                      (interleave ps (drop 1 (cycle ps)))))
 
 (def emitter-types {:emitter-type-circle {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.circle")
@@ -455,7 +432,7 @@
   (doseq [renderable renderables]
     (let [{:keys [color emitter-index emitter-sim-data material-attribute-infos max-particle-count vertex-attribute-bytes]} (:user-data renderable)]
       (when-let [shader (:shader emitter-sim-data)]
-        (let [shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+        (let [shader-attribute-reflection-infos (shader/attribute-reflection-infos shader)
               combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
               vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
               pfx-sim-request-id (some-> renderable :updatable :node-id)]
@@ -895,7 +872,7 @@
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]}))
             (dynamic error (g/fnk [_node-id tile-source]
-                                  (prop-resource-error :fatal _node-id :tile-source tile-source image-message))))
+                             (prop-resource-error :fatal _node-id :tile-source tile-source image-message))))
 
   (property animation g/Str ; Required protobuf field.
             (dynamic label (properties/label-dynamic :particlefx :animation))
@@ -905,8 +882,8 @@
                                (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation animation-message)
                                    (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids animation-message)))))
             (dynamic edit-type (g/fnk [anim-ids]
-                                      (let [vals (seq anim-ids)]
-                                        (properties/->choicebox vals)))))
+                                 (let [vals (seq anim-ids)]
+                                   (properties/->choicebox vals)))))
 
   (property material resource/Resource ; Required protobuf field.
             (dynamic label (properties/label-dynamic :particlefx :material))
@@ -1054,9 +1031,9 @@
         resource-fields (mapcat (fn [field]
                                   (if (vector? field)
                                     (mapv
-                                     (fn [i]
-                                       (into [(first field) i] (rest field)))
-                                     (range (count (get rt-pb-data (first field)))))
+                                      (fn [i]
+                                        (into [(first field) i] (rest field)))
+                                      (range (count (get rt-pb-data (first field)))))
                                     [field]))
                                 resource-fields)
         dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-data label) (get rt-pb-data label)))]) resource-fields)]
@@ -1178,21 +1155,20 @@
 
 (defn- make-modifier
   [parent-id modifier node-outline-key]
-  (let [graph-id (g/node-id->graph-id parent-id)]
-    (g/make-nodes graph-id [mod-node [ModifierNode :node-outline-key node-outline-key]]
-      (gu/set-properties-from-pb-map mod-node Particle$Modifier modifier
-        position :position
-        rotation :rotation
-        type :type
-        use-direction (protobuf/int->boolean :use-direction))
-      (into []
-            (mapcat (fn [property]
-                      (case (:key property)
-                        :modifier-key-magnitude (g/set-property mod-node :magnitude (pb-property->curve-spread property))
-                        :modifier-key-max-distance (g/set-property mod-node :max-distance (pb-property->curve property))
-                        nil)))
-            (:properties modifier))
-      (attach-modifier parent-id mod-node false))))
+  (g/make-nodes [mod-node [ModifierNode :node-outline-key node-outline-key]]
+    (gu/set-properties-from-pb-map mod-node Particle$Modifier modifier
+      position :position
+      rotation :rotation
+      type :type
+      use-direction (protobuf/int->boolean :use-direction))
+    (into []
+          (mapcat (fn [property]
+                    (case (:key property)
+                      :modifier-key-magnitude (g/set-property mod-node :magnitude (pb-property->curve-spread property))
+                      :modifier-key-max-distance (g/set-property mod-node :max-distance (pb-property->curve property))
+                      nil)))
+          (:properties modifier))
+    (attach-modifier parent-id mod-node false)))
 
 (defn- add-modifier-handler [parent-id type select-fn]
   (when-some [modifier (get-in mod-types [type :template])]
@@ -1238,14 +1214,11 @@
             mod-types))))
 
 (defn- make-emitter
-  ([self emitter]
-   (make-emitter self emitter nil false))
-  ([self emitter select-fn resolve-id?]
-   (let [project (project/get-project self)
-         workspace (project/workspace project)
-         graph-id (g/node-id->graph-id self)
-         resolve-resource #(workspace/resolve-workspace-resource workspace %)]
-     (g/make-nodes graph-id [emitter-node EmitterNode]
+  ([self resolve-resource-fn owner-resource emitter]
+   (make-emitter self resolve-resource-fn owner-resource emitter nil false))
+  ([self resolve-resource-fn owner-resource emitter select-fn resolve-id?]
+   (let [resolve-resource #(resolve-resource-fn owner-resource %)]
+     (g/make-nodes [emitter-node EmitterNode]
        (gu/set-properties-from-pb-map emitter-node Particle$Emitter emitter
          position :position
          rotation :rotation
@@ -1290,11 +1263,14 @@
 
 (defn- add-emitter-handler [self type select-fn]
   (when-let [resource (io/resource emitter-template)]
-    (let [emitter (protobuf/read-map-without-defaults Particle$Emitter resource)]
+    (let [basis (g/now)
+          owner-resource (resource-node/owner-resource basis self)
+          resolve-resource-fn #(workspace/resolve-resource basis %1 %2)
+          emitter (protobuf/read-map-without-defaults Particle$Emitter resource)]
       (g/transact
         (concat
           (g/operation-label (localization/message "operation.particlefx.add-emitter"))
-          (make-emitter self (assoc emitter :type type) select-fn true))))))
+          (make-emitter self resolve-resource-fn owner-resource (assoc emitter :type type) select-fn true))))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection evaluation-context] (selection->particlefx selection evaluation-context))
@@ -1313,7 +1289,6 @@
                :command :edit.add-embedded-component
                :user-data {:emitter-type type}})
             emitter-types))))
-
 
 ;;--------------------------------------------------------------------
 ;; Manipulators
@@ -1364,12 +1339,12 @@
                       :emitter-key-size-y new-y
                       :emitter-key-size-z new-z)}))
 
-(defn load-particle-fx [project self _resource pb]
+(defn load-particle-fx [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id pb :source-value}]
   (concat
     (g/connect project :settings self :project-settings)
     (g/connect project :default-tex-params self :default-tex-params)
     (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
-    (map (partial make-emitter self)
+    (map (partial make-emitter self resolve-resource-fn owner-resource)
          (:emitters pb))
     (map (partial make-modifier self)
          (:modifiers pb)
@@ -1397,7 +1372,7 @@
   ;; the editor?
   (update modifier :properties #(or (not-empty %) (get-in mod-types [(:type modifier) :template :properties]))))
 
-(defn- sanitize-particle-fx [particle-fx]
+(defn- sanitize-particle-fx [_read-opts _owner-resource particle-fx]
   ;; Particle$ParticleFX in map format.
   (-> particle-fx
       (protobuf/sanitize-repeated :emitters sanitize-emitter)

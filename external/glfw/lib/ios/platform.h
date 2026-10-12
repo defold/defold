@@ -252,4 +252,6 @@ pthread_mutex_lock( &_glfwThrd.CriticalSection );
 pthread_mutex_unlock( &_glfwThrd.CriticalSection );
 
 
+int _glfwPlatformIsSceneActive(void);
+
 #endif // _platform_h_

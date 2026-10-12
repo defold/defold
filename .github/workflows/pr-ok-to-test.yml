@@ -117,7 +117,7 @@ jobs:
         # file rather than a step output: the names come from the pull request.
         run: |
           gh pr diff "${PR_NUMBER}" --name-only \
-            | grep -E '(^|/)(wscript|CMakeLists\.txt|copy\.sh)$|^ci/|^scripts/build\.py$|^build_tools/|^\.github/|\.gradle$|gradle-wrapper|^packages/|^editor/tasks/|^editor/scripts/' \
+            | grep -E '(^|/)(CMakeLists\.txt|copy\.sh)$|^ci/|^scripts/build\.py$|^build_tools/|^\.github/|\.gradle$|gradle-wrapper|^packages/|^editor/tasks/|^editor/scripts/' \
             > build-affecting-files.txt || true
 
       - name: 'Ask main-ci.yml to build the mirrored branch'

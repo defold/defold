@@ -306,8 +306,8 @@
                                                                                         [preset-name (.getDisplayName (TextureCompression/getPreset preset-name))])
                                                                                       (TextureCompression/getPresetNamesForCompressor (:compressor selected-format)))]
                                                {:sections
-                                               [{:fields
-                                                 [{:path [:compressor]
+                                                [{:fields
+                                                  [{:path [:compressor]
                                                     :localization-key "texture-profiles.profiles.platforms.formats.compressor"
                                                     :type :choicebox
                                                     :options (make-options available-compressors-for-format) ; Unsorted.

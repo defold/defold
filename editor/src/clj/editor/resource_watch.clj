@@ -127,8 +127,7 @@
         (file-resource-status resource)))
 
 (defn file-resource-status-map-entry? [[proj-path {:keys [version source]}]]
-  (and (string? proj-path)
-       (str/starts-with? proj-path "/")
+  (and (resource/proj-path? proj-path)
        (= :directory source)
        (try
          (Long/parseUnsignedLong version)
@@ -236,8 +235,8 @@
             (let [old-source-type (resource/source-type (get old-map path))
                   new-source-type (resource/source-type (get new-map path))]
               (cond-> acc
-                      (not= old-source-type new-source-type)
-                      (update new-source-type conj path)))))
+                (not= old-source-type new-source-type)
+                (update new-source-type conj path)))))
 
         added-paths (into changed-from-folder-to-file (set/difference new-paths old-paths))
         removed-paths (into changed-from-file-to-folder (set/difference old-paths new-paths))

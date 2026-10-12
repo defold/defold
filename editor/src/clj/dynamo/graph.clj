@@ -32,23 +32,22 @@
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
-           [java.io ByteArrayInputStream ByteArrayOutputStream]
-           [java.util.concurrent.atomic AtomicInteger]))
+           [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at endpoint endpoint-node-id endpoint-label])
+;; Deprecated compatibility function. Remove after 2027-09-08.
+(namespaces/import-vars [internal.graph.types node-id->graph-id])
+
+(namespaces/import-vars [internal.graph.types Node node-id node-id? produce-value endpoint endpoint-node-id endpoint-label])
 
 (namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error-value? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than package-if-error])
 
 (namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics])
 
-(namespaces/import-vars [internal.graph explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse successors])
+(namespaces/import-vars [internal.graph connected? dependencies node-ids pre-traverse successors])
 
 (namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters full-invalidation-since?])
-
-(let [graph-id ^AtomicInteger (AtomicInteger. 0)]
-  (defn next-graph-id [] (.getAndIncrement graph-id)))
 
 ;; ---------------------------------------------------------------------------
 ;; State handling
@@ -109,7 +108,7 @@
                                  (pair (.getFileName ste)
                                        (.getLineNumber ste)))
                                (.getStackTrace exception))}
-            cause (assoc :cause (comparable-exception-data cause)))))
+      cause (assoc :cause (comparable-exception-data cause)))))
 
 (defmacro make-evaluation-context-scope-violation-exception [fn-sym]
   `(Error. (str '~fn-sym " called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation.")))
@@ -160,23 +159,22 @@
   "Returns a node given its id. If the basis is provided, it returns the value of the node using that basis.
    Otherwise, it uses the current basis."
   ([node-id]
-   (let [graph-id (node-id->graph-id node-id)]
-     (ig/node-id->node (is/graph @*the-system* graph-id) node-id)))
+   (ig/node-by-id-at (is/basis @*the-system*) node-id))
   ([basis node-id]
-   (gt/node-by-id-at basis node-id)))
+   (ig/node-by-id-at basis node-id)))
 
 (defn node-exists?
   ([node-id]
    (node-exists? (now) node-id))
   ([basis node-id]
-   (some? (gt/node-by-id-at basis node-id))))
+   (some? (ig/node-by-id-at basis node-id))))
 
 (defn node-type*
   "Return the node-type given a node-id.  Uses the current basis if not provided."
   ([node-id]
    (node-type* (now) node-id))
   ([basis node-id]
-   (when-let [n (gt/node-by-id-at basis node-id)]
+   (when-let [n (ig/node-by-id-at basis node-id)]
      (gt/node-type n))))
 
 (defn node-type
@@ -264,10 +262,6 @@
   ([] (c/cache-info (cache)))
   ([cache] (c/cache-info cache)))
 
-(defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
-  [graph-id]
-  (is/graph @*the-system* graph-id))
-
 (when *tps-debug*
   (def tps-counter (agent (long-array 3 0)))
 
@@ -277,7 +271,7 @@
       (aset-long tps-counts 0 transaction-count)
       (when (> now (+ last-report-time 1000000000))
         (let [elapsed-time (/ (- now last-report-time) 1000000000.00)]
-         (do (println "TPS" (/ transaction-count elapsed-time))))
+          (println "TPS" (/ transaction-count elapsed-time)))
         (aset-long tps-counts 1 now)
         (aset-long tps-counts 0 0)))
     tps-counts))
@@ -310,22 +304,20 @@
 (defn make-transaction-context [opts]
   (let [system (deref *the-system*)
         basis (is/basis system)
-        id-generators (is/id-generators system)
+        node-id-generator (is/node-id-generator system)
         override-id-generator (is/override-id-generator system)
         tx-data-context-map (or (:tx-data-context-map opts) {})
         metrics-collector (:metrics opts)
         full-invalidation (:full-invalidation opts false)]
-    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation)))
+    (it/new-transaction-context basis node-id-generator override-id-generator tx-data-context-map metrics-collector full-invalidation)))
 
 (defn commit-tx-result!
-  [tx-result transact-opts pre-tx-graphs]
+  [tx-result transact-opts pre-tx-basis]
   (when (and (not (:dry-run transact-opts))
              (= :ok (:status tx-result)))
-    (let [post-tx-graphs (get-in tx-result [:basis :graphs])
-          modified-post-tx-graphs (is/modified-graph-states pre-tx-graphs post-tx-graphs)
-          undo-key (or (:undo-key transact-opts) :undo/global)
-          {:keys [label nodes-deleted outputs-modified sequence-label undoable-changes]} tx-result]
-      (swap! *the-system* is/merge-graphs modified-post-tx-graphs outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))))
+    (let [undo-key (or (:undo-key transact-opts) :undo/global)
+          {:keys [basis label nodes-deleted outputs-modified sequence-label undoable-changes]} tx-result]
+      (swap! *the-system* is/merge-basis pre-tx-basis basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))))
   nil)
 
 (defn transact
@@ -408,12 +400,12 @@
    ;; when strict evaluation-context scope checks are enabled.
    (let [txs (cond-> txs strict-evaluation-context-scopes eager-tx-data)
          transaction-context (make-transaction-context opts)
-         pre-tx-graphs (it/ctx-graphs transaction-context)
+         pre-tx-basis (:basis transaction-context)
          undoable-changes (when (:undoable opts true)
                             (transient []))
          tx-result (do-strict-evaluation-context-scope-body
                      (it/transact* transaction-context undoable-changes txs))]
-     (commit-tx-result! tx-result opts pre-tx-graphs)
+     (commit-tx-result! tx-result opts pre-tx-basis)
      tx-result)))
 
 ;; ---------------------------------------------------------------------------
@@ -533,8 +525,8 @@
   list without the last two elements"
   [argv]
   (if (and
-       (<= 2 (count argv))
-       (= :as (nth argv (- (count argv) 2))))
+        (<= 2 (count argv))
+        (= :as (nth argv (- (count argv) 2))))
     [(last argv) (take (- (count argv) 2) argv)]
     [nil argv]))
 
@@ -586,13 +578,13 @@
 (deftype IdPair     [(s/one s/Str "id") (s/one s/Int "node-id")])
 (deftype Dict       {s/Str s/Int})
 (deftype Properties
-    {:properties {s/Keyword {:node-id                              s/Int
-                             (s/optional-key :validation-problems) s/Any
-                             :value                                s/Any ; Can be property value or ErrorValue
-                             :type                                 s/Any
-                             s/Keyword                             s/Any}}
-     (s/optional-key :node-id) s/Int
-     (s/optional-key :display-order) [(s/conditional vector? [(s/one s/Any "category") s/Keyword] keyword? s/Keyword)]})
+  {:properties {s/Keyword {:node-id                              s/Int
+                           (s/optional-key :validation-problems) s/Any
+                           :value                                s/Any ; Can be property value or ErrorValue
+                           :type                                 s/Any
+                           s/Keyword                             s/Any}}
+   (s/optional-key :node-id) s/Int
+   (s/optional-key :display-order) [(s/conditional vector? [(s/one s/Any "category") s/Keyword] keyword? s/Keyword)]})
 (deftype Err ErrorValue)
 
 ;; ---------------------------------------------------------------------------
@@ -743,30 +735,36 @@
 
   Example:
 
-  (make-nodes view [render     AtlasRender
-                    scene      scene/SceneRenderer
-                    background background/Gradient
-                    camera     [c/CameraController :camera (c/make-orthographic)]]
+  (make-nodes [render     AtlasRender
+               scene      scene/SceneRenderer
+               background background/Gradient
+               camera     [c/CameraController :camera (c/make-orthographic)]]
      (g/connect background   :renderable scene :renderables)
      (g/connect atlas-render :renderable scene :renderables))"
-  [graph-id binding-expr & body-exprs]
-  (assert (vector? binding-expr) "make-nodes requires a vector for its binding")
-  (assert (even? (count binding-expr)) "make-nodes requires an even number of forms in binding vector")
-  (let [locals (take-nth 2 binding-expr)
-        ctors  (take-nth 2 (next binding-expr))
-        ids    (repeat (count locals) `(internal.system/next-node-id @*the-system* ~graph-id))]
-    `(let [~@(interleave locals ids)]
-       (concat
-         (it/add-nodes
-           [~@(map (fn [ctor id]
-                     (if (sequential? ctor)
-                       (if (= 2 (count ctor))
-                         `(apply construct ~(first ctor) :_node-id ~id (mapcat identity ~(second ctor)))
-                         `(construct ~@ctor :_node-id ~id))
-                       `(construct  ~ctor :_node-id ~id)))
-                   ctors
-                   locals)])
-         ~@body-exprs))))
+  [binding-expr & body-exprs]
+  (if-not (vector? binding-expr)
+    ;; Deprecated graph-ID argument. Remove after 2027-09-08.
+    (do
+      (assert (vector? (first body-exprs)) "make-nodes requires a vector for its binding")
+      `(let [~(gensym "_graph-id") ~binding-expr]
+         (make-nodes ~@body-exprs)))
+    (do
+      (assert (even? (count binding-expr)) "make-nodes requires an even number of forms in binding vector")
+      (let [locals (take-nth 2 binding-expr)
+            ctors  (take-nth 2 (next binding-expr))
+            ids    (repeat (count locals) `(internal.system/next-node-id @*the-system*))]
+        `(let [~@(interleave locals ids)]
+           (concat
+             (it/add-nodes
+               [~@(map (fn [ctor id]
+                         (if (sequential? ctor)
+                           (if (= 2 (count ctor))
+                             `(apply construct ~(first ctor) :_node-id ~id (mapcat identity ~(second ctor)))
+                             `(construct ~@ctor :_node-id ~id))
+                           `(construct  ~ctor :_node-id ~id)))
+                       ctors
+                       locals)])
+             ~@body-exprs))))))
 
 (defn operation-label
   "Set a human-readable label (MessagePattern or string) to describe the current transaction."
@@ -780,11 +778,10 @@
   (it/sequence-label label))
 
 (defn take-node-ids
-  "Given a count, returns a realized sequence of claimed, unique node-ids in the
-  specified graph."
-  [^long graph-id ^long node-id-count]
+  "Claims a batch of unique node IDs."
+  [^long node-id-count]
   (when (pos? node-id-count)
-    (is/take-node-ids @*the-system* graph-id node-id-count)))
+    (is/take-node-ids @*the-system* node-id-count)))
 
 (defn add-node
   "Returns the transaction step for adding a node to the graph. The node will
@@ -802,8 +799,8 @@
   it/add-nodes)
 
 (defn- construct-node-with-id
-  [graph-id node-type args]
-  (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
+  [node-type args]
+  (apply construct node-type :_node-id (is/next-node-id @*the-system*) (mapcat identity args)))
 
 (defn make-node
   "Returns the transaction step for creating a new node.
@@ -812,26 +809,22 @@
 
   Example:
 
-  `(transact (make-node world SimpleTestNode))`"
-  [graph-id node-type & args]
-  (let [args (if (empty? args)
+  `(transact (make-node SimpleTestNode))`"
+  [node-type & args]
+  (let [args (if (coll/empty? args)
                {}
                (if (= 1 (count args))
                  (first args)
                  (apply assoc {} args)))]
-    (it/add-nodes [(construct-node-with-id graph-id node-type args)])))
+    (it/add-nodes [(construct-node-with-id node-type args)])))
 
 (defn make-node!
-  "Creates the transaction step and runs it in a transaction, returning the resulting node.
-
-  Example:
-
-  `(make-node! world SimpleTestNode)`"
-  [graph-id node-type & args]
-  (first (tx-nodes-added (transact (apply make-node graph-id node-type args)))))
+  "Creates a node and returns its ID. Accepts the same arguments as make-node."
+  [node-type & args]
+  (first (tx-nodes-added (transact (apply make-node node-type args)))))
 
 (defn delete-node
- "Returns the transaction step for deleting a node.
+  "Returns the transaction step for deleting a node.
   Needs to be executed within a transact to actually create the node on a graph.
 
   Example:
@@ -842,7 +835,7 @@
   (it/delete-node node-id))
 
 (defn delete-nodes
- "Returns the transaction step for deleting nodes.
+  "Returns the transaction step for deleting nodes.
   Needs to be executed within a transact to actually delete the nodes from a graph."
   [node-ids]
   (it/delete-nodes node-ids))
@@ -901,7 +894,7 @@
   (it/connect source-id source-label target-id target-label))
 
 (defn connect!
- "Creates the transaction step to make a connection from an output of the source node to an input on the target node
+  "Creates the transaction step to make a connection from an output of the source node to an input on the target node
   and applies it in a transaction
 
   Example:
@@ -927,7 +920,7 @@
   (it/disconnect source-id source-label target-id target-label))
 
 (defn disconnect!
- "Creates the transaction step to remove a connection from an output of the source node to the input on the target node.
+  "Creates the transaction step to remove a connection from an output of the source node to the input on the target node.
   It also applies it in transaction, returning the transaction result, (tx-result).
   Note that there might still be connections between the two nodes,
   from other outputs to other inputs.
@@ -1020,30 +1013,18 @@
   [node-id p]
   (transact (clear-property node-id p)))
 
-(defn update-graph-value [graph-id k f & args]
-  (it/update-graph-value graph-id k f args))
+(defn update-graph-value [k f & args]
+  (it/update-graph-value k f args))
 
 (defn set-graph-value
- "Create the transaction step to attach a named value to a graph. It will take effect when the transaction is
-  applied in a transact.
-
-  Example:
-
-  `(transact (set-graph-value 0 :string-value \"A String\"))`"
-  [graph-id k v]
-  (assert graph-id)
-  (it/update-graph-value graph-id k (constantly v) []))
+  "Returns transaction steps assigning a graph value."
+  [k v]
+  (it/update-graph-value k (constantly v) []))
 
 (defn set-graph-value!
-  "Create the transaction step to attach a named value to a graph and applies the transaction.
-  Returns the transaction result, (tx-result).
-
-  Example:
-
-  (set-graph-value! 0 :string-value \"A String\")"
-  [graph-id k v]
-  (assert graph-id)
-  (transact (set-graph-value graph-id k v)))
+  "Assigns a graph value in a transaction."
+  [k v]
+  (transact (set-graph-value k v)))
 
 (defn user-data [node-id key]
   (is/user-data @*the-system* node-id key))
@@ -1061,7 +1042,7 @@
   nil)
 
 (defn invalidate
- "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaction is
+  "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaction is
   applied in a transact.
 
   Example:
@@ -1098,10 +1079,10 @@
    (assert node-id)
    (let [jammable-outputs (in/jammable-output-labels node-type)]
      (list
-      (set-property node-id :_output-jammers
-                    (zipmap jammable-outputs
-                            (repeat defective-value)))
-      (invalidate node-id)))))
+       (set-property node-id :_output-jammers
+         (zipmap jammable-outputs
+                 (repeat defective-value)))
+       (invalidate node-id)))))
 
 (defn mark-defective!
   "Creates the transaction step to mark a node as _defective_.
@@ -1329,7 +1310,7 @@
   ([node-id label evaluation-context]
    (when (some? node-id)
      (let [basis (:basis evaluation-context)
-           node (gt/node-by-id-at basis node-id)]
+           node (ig/node-by-id-at basis node-id)]
        (in/node-value node label evaluation-context)))))
 
 (defn valid-node-value
@@ -1362,7 +1343,7 @@
   ([node-id label evaluation-context]
    (when (some? node-id)
      (let [basis (:basis evaluation-context)
-           node (gt/node-by-id-at basis node-id)]
+           node (ig/node-by-id-at basis node-id)]
        (when (some-> node gt/node-type (in/behavior label))
          (let [value (in/node-value node label evaluation-context)]
            (when-not (error? value)
@@ -1430,63 +1411,54 @@
   value fnk on nodes that you're sure haven't been marked defective."
   [basis node-id property-label]
   `(let [basis# ~basis
-         node# (gt/node-by-id-at basis# ~node-id)]
+         node# (ig/node-by-id-at basis# ~node-id)]
      (raw-property-value* basis# node# ~property-label)))
 
 (defn graph-value
-  "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
-  If the basis is not provided, it will take it from the current point of time in the system.
-
-  Example:
-
-  `(graph-value (node->graph-id view) :renderer)`"
-  ([graph-id k]
-   (graph-value (now) graph-id k))
-  ([basis graph-id k]
-   (get-in basis [:graphs graph-id :graph-values k])))
+  "Reads a graph value from the current or supplied basis."
+  ([k] (graph-value (now) k))
+  ([basis k] (-> basis gt/graph-values (get k))))
 
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
 ;; ---------------------------------------------------------------------------
-(defn arcs->tuples
-  [arcs]
-  (ig/arcs->tuples arcs))
-
 (defn inputs
-  "Return the inputs to this node. Returns a collection like
-  [[source-id output target-id input] [source-id output target-id input]...].
+  "Return the input arcs to this node.
 
   If there are no inputs connected, returns an empty collection."
   ([node-id]       (inputs (now) node-id))
-  ([basis node-id] (arcs->tuples (ig/inputs basis node-id))))
-
-(defn labelled-inputs
-  ([node-id label]       (labelled-inputs (now) node-id label))
-  ([basis node-id label] (arcs->tuples (ig/inputs basis node-id label))))
+  ([basis node-id] (ig/arcs-by-target basis node-id))
+  ([basis node-id label] (ig/arcs-by-target basis node-id label)))
 
 (defn outputs
-  "Return the outputs from this node. Returns a collection like
-  [[source-id output target-id input] [source-id output target-id input]...].
+  "Return the output arcs from this node.
 
   If there are no outputs connected, returns an empty collection."
   ([node-id]       (outputs (now) node-id))
-  ([basis node-id] (arcs->tuples (ig/outputs basis node-id))))
-
-(defn labelled-outputs
-  ([node-id label]       (labelled-outputs (now) node-id label))
-  ([basis node-id label] (arcs->tuples (ig/outputs basis node-id label))))
+  ([basis node-id] (ig/arcs-by-source basis node-id))
+  ([basis node-id label] (ig/arcs-by-source basis node-id label)))
 
 (defn explicit-inputs
+  "Return the explicit input arcs to this node as a collection of Arc records,
+  or nil if there are no matching arcs. When a label is supplied, only arcs
+  connected to that input are returned."
   ([node-id]
    (explicit-inputs (now) node-id))
   ([basis node-id]
-   (arcs->tuples (ig/explicit-inputs basis node-id))))
+   (ig/explicit-arcs-by-target basis node-id))
+  ([basis node-id label]
+   (ig/explicit-arcs-by-target basis node-id label)))
 
 (defn explicit-outputs
+  "Return the explicit output arcs from this node as a collection of Arc records,
+  or nil if there are no matching arcs. When a label is supplied, only arcs
+  connected to that output are returned."
   ([node-id]
    (explicit-outputs (now) node-id))
   ([basis node-id]
-   (arcs->tuples (ig/explicit-outputs basis node-id))))
+   (ig/explicit-arcs-by-source basis node-id))
+  ([basis node-id label]
+   (ig/explicit-arcs-by-source basis node-id label)))
 
 (defn node-feeding-into
   "Find the one-and-only node ID that sources this input on this node.
@@ -1495,31 +1467,8 @@
   ([node-id label]
    (node-feeding-into (now) node-id label))
   ([basis node-id label]
-   (ffirst (sources basis node-id label))))
-
-(defn sources-of
-  "Find the [node-id label] pairs for all connections into the given
-  node's input label. The result is a sequence of pairs."
-  ([node-id label]
-   (sources-of (now) node-id label))
-  ([basis node-id label]
-   (gt/sources basis node-id label)))
-
-(defn targets-of
-  "Find the [node-id label] pairs for all connections out of the given
-  node's output label. The result is a sequence of pairs."
-  ([node-id label]
-   (targets-of (now) node-id label))
-  ([basis node-id label]
-   (gt/targets basis node-id label)))
-
-(defn find-node
-  "Looks up nodes with a property that matches the given value. Exact
-  equality is used. At present, this does a linear scan of all
-  nodes. Future enhancements may offer indexing for faster access of
-  some properties."
-  [basis property-label expected-value]
-  (gt/node-by-property basis property-label expected-value))
+   (some-> (first (inputs basis node-id label))
+           gt/source-id)))
 
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
@@ -1552,7 +1501,7 @@
   ([type node-id]
    (node-instance? (now) type node-id))
   ([basis type node-id]
-   (node-instance*? type (gt/node-by-id-at basis node-id))))
+   (node-instance*? type (ig/node-by-id-at basis node-id))))
 
 (defn node-kw-instance?
   "Returns true if the node is a member of a given type keyword, including
@@ -1577,7 +1526,7 @@
   ([node-id node-types]
    (node-instance-match (now) node-id node-types))
   ([basis node-id node-types]
-   (node-instance-match* (gt/node-by-id-at basis node-id) node-types)))
+   (node-instance-match* (ig/node-by-id-at basis node-id) node-types)))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
@@ -1611,25 +1560,12 @@
    (id-dictionary (.target-id arc))
    (.target-label arc)])
 
-(defn- in-same-graph? [_ ^Arc arc]
-  (= (node-id->graph-id (.source-id arc))
-     (node-id->graph-id (.target-id arc))))
-
-(defn- every-arc-pred [& preds]
-  (fn [basis ^Arc arc]
-    (reduce (fn [_ pred]
-              (if (pred basis arc)
-                true
-                (reduced false)))
-            true
-            preds)))
-
 (defn- predecessors [pred basis node-id]
   (into []
         (keep (fn [^Arc arc]
                 (when (pred basis arc)
                   (.source-id arc))))
-        (ig/inputs basis node-id)))
+        (inputs basis node-id)))
 
 (defn override-predecessors
   "This is an optimized version of the predecessors function above that is used
@@ -1637,30 +1573,26 @@
   a lot of override nodes. Instead of taking a general traversal predicate, this
   optimized function inlines some aspects of the graph traversal, with a few
   minor optimizations that apply specifically to overrides. Specifically, this
-  function will only traverse :cascade-delete inputs, and will ignore all
-  connections that span multiple graphs."
+  function will only traverse :cascade-delete inputs."
   [pred basis ^long target-id]
-  (when-some [target-node (gt/node-by-id-at basis target-id)]
-    (let [graph-id (gt/node-id->graph-id target-id)
-          graph (ig/node-id->graph basis target-id)
-          graph-nodes (:nodes graph)
-          graph-tarcs (:tarcs graph)]
+  (when-some [target-node (ig/node-by-id-at basis target-id)]
+    (let [nodes (gt/nodes basis)
+          tarcs (gt/tarcs basis)]
       (loop [result []
              node-id target-id
              override-chain '()
              followed-inputs (in/cascade-deletes (gt/node-type target-node))]
-        (let [node (get graph-nodes node-id)]
+        (let [node (get nodes node-id)]
           (if-not node
             result
-            (let [arc-tables-by-input-label (graph-tarcs node-id)
+            (let [arc-tables-by-input-label (tarcs node-id)
                   explicit-arcs (when arc-tables-by-input-label
                                   (into []
                                         (comp
                                           (mapcat (comp ig/arc-table-arcs arc-tables-by-input-label))
                                           (filter (fn [arc]
                                                     (let [source-id (gt/source-id arc)]
-                                                      (and (= graph-id (gt/node-id->graph-id source-id))
-                                                           (contains? graph-nodes source-id)
+                                                      (and (contains? nodes source-id)
                                                            (pred basis arc))))))
                                         followed-inputs))
                   source-node-ids (into []
@@ -1673,7 +1605,7 @@
                             (into result
                                   (reduce (fn [source-node-ids override-id]
                                             (mapv (fn [source-node-id]
-                                                    (or (ig/override-of graph source-node-id override-id)
+                                                    (or (ig/override-of basis source-node-id override-id)
                                                         source-node-id))
                                                   source-node-ids))
                                           source-node-ids
@@ -1692,7 +1624,7 @@
 
 (defn- input-traverse
   [basis pred root-ids]
-  (ig/pre-traverse basis root-ids (partial predecessors (every-arc-pred in-same-graph? pred))))
+  (ig/pre-traverse basis root-ids (partial predecessors pred)))
 
 (defn default-node-serializer [node]
   (let [node-id                (gt/node-id node)
@@ -1723,7 +1655,7 @@
    (deep-arcs-by-source (now) source-id))
   ([basis source-id]
    (into []
-         (mapcat (partial gt/arcs-by-source basis))
+         (mapcat (partial ig/arcs-by-source basis))
          (override-originals basis source-id))))
 
 (defn copy
@@ -1779,8 +1711,8 @@
                     :as opts}]
    (s/validate opts-schema opts)
    (let [arcs-by-source (partial deep-arcs-by-source basis)
-         arcs-by-target (partial gt/arcs-by-target basis)
-         serializer #(assoc (serializer (gt/node-by-id-at basis %2)) :serial-id %1)
+         arcs-by-target (partial ig/arcs-by-target basis)
+         serializer #(assoc (serializer (ig/node-by-id-at basis %2)) :serial-id %1)
          original-ids (input-traverse basis traverse? root-ids)
          replacements (zipmap original-ids (map-indexed serializer original-ids))
          serial-ids (into {}
@@ -1815,22 +1747,22 @@
       (->> (apply connect))))
 
 (defn default-node-deserializer
-  [basis graph-id {:keys [node-type properties]}]
-  (construct-node-with-id graph-id node-type properties))
+  [_basis {:keys [node-type properties]}]
+  (construct-node-with-id node-type properties))
 
 (defn paste
-  "Given a `graph-id` and graph fragment from copying, provides the
+  "Given a graph fragment from copying, provides the
   transaction data to create the nodes on the graph and connect all
   the new nodes together with the same arcs in the fragment.  It will
   take effect when it is applied with a transact.
 
   Any nodes that were replaced during the copy must be resolved into
   real nodes here. That is the job of the `:deserializer` function. It
-  receives the current basis, the graph-id being pasted into, and
-  whatever data the :serializer function returned.
+  receives the current or supplied basis and whatever data the
+  :serializer function returned.
 
   `dynamo.graph/default-node-deserializer` creates new nodes (copies)
-  from the fragment. Yours may look up nodes in the world, create new
+  from the fragment. Yours may look up nodes in the graph, create new
   instances, or anything else. The deserializer _must_ return valid
   transaction data, even if that data is just an empty vector.
 
@@ -1841,16 +1773,15 @@
 
   Example:
 
-  `(g/paste (graph project) fragment {:deserializer default-node-deserializer
-                                      :external-refs {:project project}})"
-  ([graph-id fragment opts]
-   (paste (now) graph-id fragment opts))
-  ([basis graph-id fragment {:keys [deserializer external-refs]
-                             :or {deserializer default-node-deserializer
-                                  external-refs {}}}]
-   (let [deserializer  (partial deserializer basis graph-id)
+  `(g/paste fragment {:deserializer default-node-deserializer
+                      :external-refs {:project project}})"
+  ([fragment opts] (paste (now) fragment opts))
+  ([basis fragment {:keys [deserializer external-refs]
+                    :or {deserializer default-node-deserializer
+                         external-refs {}}}]
+   (let [deserializer  (partial deserializer basis)
          nodes         (map deserializer (:nodes fragment))
-         new-nodes     (into [] (remove #(gt/node-by-id-at basis (gt/node-id %))) nodes)
+         new-nodes     (into [] (remove #(ig/node-by-id-at basis (gt/node-id %))) nodes)
          node-txs      (it/add-nodes new-nodes)
          node-ids      (map gt/node-id nodes)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)
@@ -2038,7 +1969,7 @@
                             :properties-by-override-node-key (persistent! properties-by-override-node-key)})))
                      (when (seq overridden-properties)
                        (assoc! properties-by-override-node-key
-                               override-node-key overridden-properties))))))
+                         override-node-key overridden-properties))))))
              properties-by-override-node-key))
        (transient {})
        (ig/pre-traverse basis [source-node-id] ig/cascade-delete-sources)))))
@@ -2065,23 +1996,13 @@
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
 (defn initialize!
-  "Set up the initial system including graphs, caches, and disposal queues"
+  "Set up the initial system including the graph, caches, and disposal queues"
   [config]
   (reset! *the-system* (is/make-system config))
   (low-memory/add-callback!
     (fn low-memory-callback! []
       (log/info :message "Clearing the system cache in desperation due to low-memory conditions.")
       (clear-system-cache!))))
-
-(defn last-graph-added
-  "Retuns the last graph added to the system"
-  []
-  (is/last-graph @*the-system*))
-
-(defn graph-version
-  "Returns the latest version of a graph id"
-  [graph-id]
-  (is/graph-time @*the-system* graph-id))
 
 (defn undo!
   "Reverts the changes from the top undo step and moves it to the redo stack.

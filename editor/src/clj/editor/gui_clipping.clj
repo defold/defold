@@ -293,25 +293,25 @@
         inverted-since-non-inverted-or-bottom (apply + (keep :inverted-since-non-inverted-or-bottom (:children clipper-tree)))
         max-successor-non-inverted-allocated-bits (apply max 0 (map :max-successor-non-inverted-allocated-bits (:children clipper-tree)))]
     (assoc clipper-tree
-           ;; Number of paths down from this clipper that lead to a
-           ;; non-inverted clipper (via only inverted clippers!).
-           ;; We use this to determine how many bits to allocate for
-           ;; distinguishinging successor non-inverted clippers in the
-           ;; ancestor non-inverted clipper.
-           :successor-non-inverted successor-non-inverted
-           ;; Number of inverted clippers along the paths down to a
-           ;; non-inverted clipper (or bottom) + this inverted clipper.
-           ;; We use this to determine how many individual bits to
-           ;; allocate for inverted clippers between the ancestor
-           ;; non-inverted clipper and successor non-inverted
-           ;; clippers (or bottom).
-           :inverted-since-non-inverted-or-bottom (inc inverted-since-non-inverted-or-bottom)
-           ;; On every non-inverted clipper we accumulate a required
-           ;; bit count from the required bit counts of successor
-           ;; non-inverted scopes, the number of successor
-           ;; non-inverted scopes, and the number of inverted
-           ;; scopes passed between.
-           :max-successor-non-inverted-allocated-bits max-successor-non-inverted-allocated-bits)))
+      ;; Number of paths down from this clipper that lead to a
+      ;; non-inverted clipper (via only inverted clippers!).
+      ;; We use this to determine how many bits to allocate for
+      ;; distinguishinging successor non-inverted clippers in the
+      ;; ancestor non-inverted clipper.
+      :successor-non-inverted successor-non-inverted
+      ;; Number of inverted clippers along the paths down to a
+      ;; non-inverted clipper (or bottom) + this inverted clipper.
+      ;; We use this to determine how many individual bits to
+      ;; allocate for inverted clippers between the ancestor
+      ;; non-inverted clipper and successor non-inverted
+      ;; clippers (or bottom).
+      :inverted-since-non-inverted-or-bottom (inc inverted-since-non-inverted-or-bottom)
+      ;; On every non-inverted clipper we accumulate a required
+      ;; bit count from the required bit counts of successor
+      ;; non-inverted scopes, the number of successor
+      ;; non-inverted scopes, and the number of inverted
+      ;; scopes passed between.
+      :max-successor-non-inverted-allocated-bits max-successor-non-inverted-allocated-bits)))
 
 (defn- log2 [n] (/ (Math/log n) (Math/log 2)))
 (defn- pow2 [n] (bit-shift-left 1 n))
@@ -325,17 +325,17 @@
         non-inverted-ref-bits (if (= successor-non-inverted 0) 0 (n->bits successor-non-inverted))
         max-successor-non-inverted-allocated-bits (apply max 0 (map :max-successor-non-inverted-allocated-bits (:children clipper-tree)))]
     (assoc clipper-tree
-           ;; Contributes 1 successor to the ancestor non-inverted
-           ;; scope.
-           :successor-non-inverted 1
-           ;; Accumulated bits needed to distinguish successor
-           ;; non-inverted clipper scopes. Used during assignment of
-           ;; ref-val and mask.
-           :non-inverted-ref-bits non-inverted-ref-bits
-           ;; see count-inverted-clipper-scope
-           :max-successor-non-inverted-allocated-bits (+ non-inverted-ref-bits
-                                                         inverted-since-non-inverted-or-bottom
-                                                         max-successor-non-inverted-allocated-bits))))
+      ;; Contributes 1 successor to the ancestor non-inverted
+      ;; scope.
+      :successor-non-inverted 1
+      ;; Accumulated bits needed to distinguish successor
+      ;; non-inverted clipper scopes. Used during assignment of
+      ;; ref-val and mask.
+      :non-inverted-ref-bits non-inverted-ref-bits
+      ;; see count-inverted-clipper-scope
+      :max-successor-non-inverted-allocated-bits (+ non-inverted-ref-bits
+                                                    inverted-since-non-inverted-or-bottom
+                                                    max-successor-non-inverted-allocated-bits))))
 
 (defn- count-wrapper-scope [clipper-tree]
   (assert (wrapper? clipper-tree))
@@ -344,8 +344,8 @@
         non-inverted-ref-bits (if (= successor-non-inverted 0) 0 (n->bits successor-non-inverted))
         max-successor-non-inverted-allocated-bits (apply max 0 (map :max-successor-non-inverted-allocated-bits (:children clipper-tree)))]
     (assoc clipper-tree
-           :non-inverted-ref-bits non-inverted-ref-bits
-           :allocated-bits (+ non-inverted-ref-bits inverted-since-non-inverted-or-bottom max-successor-non-inverted-allocated-bits))))
+      :non-inverted-ref-bits non-inverted-ref-bits
+      :allocated-bits (+ non-inverted-ref-bits inverted-since-non-inverted-or-bottom max-successor-non-inverted-allocated-bits))))
 
 (defn- count-clipper-scopes [clipper-tree]
   (let [clipper-tree' (update clipper-tree :children #(map count-clipper-scopes %))]
@@ -377,14 +377,14 @@
                                            [[] child-context]
                                            (:children clipper-tree))
         clipper-tree' (assoc clipper-tree
-                             :ref-val ref-val
-                             :mask mask
-                             :child-ref-val child-ref-val
-                             :child-mask child-mask
-                             :children children')
+                        :ref-val ref-val
+                        :mask mask
+                        :child-ref-val child-ref-val
+                        :child-mask child-mask
+                        :children children')
         context' (assoc context
-                        :non-inverted-ref-val-counter (:non-inverted-ref-val-counter child-context')
-                        :inverted-clipper-bits-used (:inverted-clipper-bits-used child-context'))]
+                   :non-inverted-ref-val-counter (:non-inverted-ref-val-counter child-context')
+                   :inverted-clipper-bits-used (:inverted-clipper-bits-used child-context'))]
     [clipper-tree' context']))
 
 (defn- assign-non-inverted-clipper-bits [clipper-tree context]
@@ -404,11 +404,11 @@
                                            [[] child-context]
                                            (:children clipper-tree))
         clipper-tree' (assoc clipper-tree
-                             :ref-val ref-val
-                             :mask mask
-                             :child-ref-val child-ref-val
-                             :child-mask child-mask
-                             :children children')
+                        :ref-val ref-val
+                        :mask mask
+                        :child-ref-val child-ref-val
+                        :child-mask child-mask
+                        :children children')
         context' (update context :non-inverted-ref-val-counter inc)]
     [clipper-tree' context']))
 
@@ -549,8 +549,8 @@
       (apply-clipping scene [trie nil nil]))))
 
 #_(defn- bitstring
-  ([n] (bitstring n stencil-bits))
-  ([n total-bits] (cl-format nil (str "~" total-bits ",'0',B") n)))
+    ([n] (bitstring n stencil-bits))
+    ([n total-bits] (cl-format nil (str "~" total-bits ",'0',B") n)))
 
 #_(defn- print-clipper-tree
     ([clipper-tree] (print-clipper-tree clipper-tree ""))

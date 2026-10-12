@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,9 +30,12 @@
     NSString *fakeText;
 }
 
+@property (nullable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *markedTextStyle;
+
 - (void)swapBuffers;
 - (void)setSwapInterval: (int) interval;
 - (void)setCurrentContext;
+- (void)startDisplayLink;
 - (void)invalidateDisplayLink;
 - (void)setupView;
 - (void)teardownView;
@@ -42,6 +45,7 @@
 @interface BaseView ()
 
 @property (nonatomic) BOOL keyboardActive;
+@property (nonatomic) BOOL safeAreaChanged;
 // TODO: Cooldown "timer" *hack* for backspace and enter release
 #define TEXT_KEY_COOLDOWN (10)
 @property (nonatomic) int textkeyActive;

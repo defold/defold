@@ -1,18 +1,4 @@
 #!/usr/bin/env python
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import sys
 import subprocess
 import platform
@@ -269,10 +255,10 @@ def build_engine(channel, platform, args):
                     'x86_64-android'):
         install_sdk = ''
 
-    cmd_args = ('"%s" scripts/build.py distclean %s install_ext check_sdk' % (sys.executable, install_sdk)).split()
+    cmd_args = ('"%s" scripts/build.py distclean %s install_ext' % (sys.executable, install_sdk)).split()
 
     cmd_opts = []
-    waf_opts = []
+    build_opts = []
 
     cmd_opts.append('--platform=%s' % platform)
     # ccache isn't needed on CI
@@ -280,7 +266,7 @@ def build_engine(channel, platform, args):
     if args.verbose:
         cmd_opts.append('--verbose')
 
-    cmd_args.extend(['build_ext', 'build_engine'])
+    cmd_args.append('build_engine')
 
     if channel:
         cmd_opts.append('--channel=%s' % channel)
@@ -297,29 +283,29 @@ def build_engine(channel, platform, args):
     if args.skip_tests:
         cmd_opts.append('--skip-tests')
     if args.skip_build_tests:
-        waf_opts.append('--skip-build-tests')
+        build_opts.append('--skip-build-tests')
     if args.codesign and args.gcloud_service_key:
         cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
 
     if args.with_valgrind:
-        waf_opts.append('--with-valgrind')
+        build_opts.append('--with-valgrind')
     if args.with_asan:
-        waf_opts.append('--with-asan')
+        build_opts.append('--with-asan')
     if args.with_ubsan:
-        waf_opts.append('--with-ubsan')
+        build_opts.append('--with-ubsan')
     if args.with_tsan:
-        waf_opts.append('--with-tsan')
+        build_opts.append('--with-tsan')
     if args.with_vanilla_lua:
-        waf_opts.append('--use-vanilla-lua')
+        build_opts.append('--use-vanilla-lua')
 
     if platform == 'x86_64-linux' and args.archive:
         cmd_args.append('build_sdk_headers') # gather headers after a successful build
 
     cmd = ' '.join(cmd_args + cmd_opts)
 
-    # Add arguments to waf after a double-dash
-    if waf_opts:
-        cmd += ' -- ' + ' '.join(waf_opts)
+    # Add build arguments after a double-dash
+    if build_opts:
+        cmd += ' -- ' + ' '.join(build_opts)
 
     call(cmd)
 

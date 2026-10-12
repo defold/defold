@@ -22,7 +22,7 @@
 
 (deftest callback-ec-test
   (test-support/with-clean-system
-    (let [node-id (g/make-node! world helpers/PropertyTestNode)
+    (let [node-id (g/make-node! helpers/PropertyTestNode)
           tx-data-context-map (hash-map :a 1)
           calls (atom [])]
       (testing "Transact."

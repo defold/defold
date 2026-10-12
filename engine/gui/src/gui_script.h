@@ -27,6 +27,9 @@ namespace dmGui
 {
     lua_State* InitializeScript(dmScript::HContext script_context);
     void FinalizeScript(lua_State* L, dmScript::HContext script_context);
+
+    // Stores opaque data in the GUI script-instance metatable. The data must outlive the script context.
+    void SetScriptInstanceMetaData(dmScript::HContext script_context, const char* name, void* data);
 }
 
 #endif

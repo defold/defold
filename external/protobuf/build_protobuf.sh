@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 set -eo pipefail
 
 readonly PRODUCT=protobuf
@@ -47,7 +33,7 @@ readonly INSTALL_TARGET="${BUILD_ROOT}/install_target"
 readonly PACKAGE_STAGE="${BUILD_ROOT}/package"
 
 case ${PLATFORM} in
-    x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|win32|x86_64-win32)
+    x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|x86_64-win32)
         IS_DESKTOP=1
         ;;
     *)
@@ -168,7 +154,7 @@ function merge_protobuf_dependencies() {
     while IFS= read -r archive; do
         archives+=("${archive}")
     done < <(find "${libdir}" -maxdepth 1 -type f \( -name 'libabsl_*.a' -o -name 'absl_*.lib' \) -print | sort)
-    if [ "${PLATFORM}" = "win32" ] || [ "${PLATFORM}" = "x86_64-win32" ]; then
+    if [ "${PLATFORM}" = "x86_64-win32" ]; then
         output="${libdir}/libprotobuf_deps.lib"
         local response="${SOURCE_TARGET_PROTOBUF}/_build/protobuf_deps.rsp"
         printf '"%s"\n' "${libdir}/libutf8_validity.lib" "${archives[@]}" > "${response}"
@@ -192,7 +178,7 @@ function create_archive() {
     local archive=$1
     shift
 
-    if [ "${PLATFORM}" = "win32" ] || [ "${PLATFORM}" = "x86_64-win32" ]; then
+    if [ "${PLATFORM}" = "x86_64-win32" ]; then
         # GNU tar treats the drive-letter colon in paths such as D:/... as a
         # remote archive separator unless explicitly told that the path is local.
         tar --force-local -czvf "${archive}" "$@"
@@ -224,7 +210,7 @@ echo "**************************************************"
 unset CFLAGS CXXFLAGS CPPFLAGS LDFLAGS FLAGS CMAKE_TOOLCHAIN_FILE SDKROOT MACOSX_DEPLOYMENT_TARGET
 cmi_setup_cc "${PLATFORM}"
 normalize_cmake_compilers
-if [ "${PLATFORM}" = "win32" ] || [ "${PLATFORM}" = "x86_64-win32" ]; then
+if [ "${PLATFORM}" = "x86_64-win32" ]; then
     FLAGS=
 else
     FLAGS=-fPIC
@@ -234,7 +220,7 @@ configure_abseil "${SOURCE_TARGET_ABSEIL}" "${INSTALL_TARGET}" "${PLATFORM}"
 cmake --build "${SOURCE_TARGET_ABSEIL}/_build" --target install --parallel "${BUILD_JOBS}"
 
 HOST_PROTOC="${SOURCE_HOST_PROTOBUF}/_build/protoc"
-if [ "${HOST_PLATFORM}" = "win32" ] || [ "${HOST_PLATFORM}" = "x86_64-win32" ]; then
+if [ "${HOST_PLATFORM}" = "x86_64-win32" ]; then
     HOST_PROTOC="${HOST_PROTOC}.exe"
 fi
 readonly HOST_PROTOC
@@ -252,7 +238,7 @@ echo "PACKAGE PROTOBUF FOR ${PLATFORM}"
 echo "**************************************************"
 
 case ${PLATFORM} in
-    win32|x86_64-win32)
+    x86_64-win32)
         SUFFIX=.exe
         ;;
     x86_64-macos|arm64-macos|x86_64-linux|arm64-linux)

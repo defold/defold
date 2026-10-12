@@ -1,0 +1,17 @@
+#include <metal_stdlib>
+using namespace metal;
+
+struct Data
+{
+    float4 member1;
+};
+
+struct StorageArguments
+{
+    const device Data* my_data [[id(0)]];
+};
+
+fragment float4 main0(constant StorageArguments& args [[buffer(1)]])
+{
+    return float4(args.my_data[1].member1.rgb, 1.0);
+}

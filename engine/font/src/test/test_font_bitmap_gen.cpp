@@ -416,7 +416,7 @@ static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HText
                              uint32_t vertex_count, uint32_t width, uint32_t height, dmArray<uint8_t>& pixels, bool white_box = false)
 {
     dmGraphics::BeginFrame(g_ImageContext);
-    dmGraphics::SetRenderTarget(g_ImageContext, target, 0);
+    dmGraphics::SetRenderTarget(g_ImageContext, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::SetViewport(g_ImageContext, 0, 0, width, height);
     dmGraphics::Clear(g_ImageContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
     if (white_box)
@@ -441,7 +441,7 @@ static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HText
     dmGraphics::DisableVertexDeclaration(g_ImageContext, g_ImageDeclaration);
     dmGraphics::DisableVertexBuffer(g_ImageContext, buffer);
     dmGraphics::DisableTexture(g_ImageContext, 0, texture);
-    dmGraphics::SetRenderTarget(g_ImageContext, 0, 0);
+    dmGraphics::SetRenderTarget(g_ImageContext, 0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Flip(g_ImageContext);
 }
 

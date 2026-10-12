@@ -13,30 +13,35 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
-#include <stdio.h>
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
 #include <dmsdk/dlib/endian.h>
 
-#define TEST_CHECK(_EXPR) do { if (!(_EXPR)) { fprintf(stderr, "TEST_CHECK failed at line %s:%d: %s\n", __FILE__, __LINE__, #_EXPR); return __LINE__; } } while (0)
-
-int dmEndianCTest(void)
+TEST(Endian, Conversion)
 {
-    TEST_CHECK(EndianToHost16(EndianToNetwork16((uint16_t)0x1234U)) == (uint16_t)0x1234U);
-    TEST_CHECK(EndianToHost32(EndianToNetwork32((uint32_t)0x12345678U)) == (uint32_t)0x12345678U);
-    TEST_CHECK(EndianToHost64(EndianToNetwork64((uint64_t)0x123456789abcdef0ULL)) == (uint64_t)0x123456789abcdef0ULL);
+    ASSERT_EQ((uint16_t)0x1234U, EndianToHost16(EndianToNetwork16((uint16_t)0x1234U)));
+    ASSERT_EQ((uint32_t)0x12345678U, EndianToHost32(EndianToNetwork32((uint32_t)0x12345678U)));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, EndianToHost64(EndianToNetwork64((uint64_t)0x123456789abcdef0ULL)));
 
-    TEST_CHECK(EndianSwap16((uint16_t)0x1234U) == (uint16_t)0x3412U);
-    TEST_CHECK(EndianSwap32((uint32_t)0x12345678U) == (uint32_t)0x78563412U);
-    TEST_CHECK(EndianSwap64((uint64_t)0x123456789abcdef0ULL) == (uint64_t)0xf0debc9a78563412ULL);
+    ASSERT_EQ((uint16_t)0x3412U, EndianSwap16((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x78563412U, EndianSwap32((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0xf0debc9a78563412ULL, EndianSwap64((uint64_t)0x123456789abcdef0ULL));
 
 #if DM_ENDIAN == DM_ENDIAN_LITTLE
-    TEST_CHECK(EndianToNetwork16((uint16_t)0x1234U) == (uint16_t)0x3412U);
-    TEST_CHECK(EndianToNetwork32((uint32_t)0x12345678U) == (uint32_t)0x78563412U);
-    TEST_CHECK(EndianToNetwork64((uint64_t)0x123456789abcdef0ULL) == (uint64_t)0xf0debc9a78563412ULL);
+    ASSERT_EQ((uint16_t)0x3412U, EndianToNetwork16((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x78563412U, EndianToNetwork32((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0xf0debc9a78563412ULL, EndianToNetwork64((uint64_t)0x123456789abcdef0ULL));
 #elif DM_ENDIAN == DM_ENDIAN_BIG
-    TEST_CHECK(EndianToNetwork16((uint16_t)0x1234U) == (uint16_t)0x1234U);
-    TEST_CHECK(EndianToNetwork32((uint32_t)0x12345678U) == (uint32_t)0x12345678U);
-    TEST_CHECK(EndianToNetwork64((uint64_t)0x123456789abcdef0ULL) == (uint64_t)0x123456789abcdef0ULL);
+    ASSERT_EQ((uint16_t)0x1234U, EndianToNetwork16((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x12345678U, EndianToNetwork32((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, EndianToNetwork64((uint64_t)0x123456789abcdef0ULL));
 #endif
+}
 
-    return 0;
+int main(int argc, char** argv)
+{
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

@@ -124,7 +124,7 @@
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn- load-gamepads [_project self _resource pb-map-without-defaults]
+(defn- load-gamepads [_load-opts {self :node-id pb-map-without-defaults :source-value}]
   (g/set-properties self
     :pb (protobuf/inject-defaults Input$GamepadMaps pb-map-without-defaults)))
 

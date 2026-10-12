@@ -137,7 +137,7 @@ jobs:
   build-windows:
     strategy:
       matrix:
-        platform: [win32, x86_64-win32]
+        platform: [x86_64-win32]
     runs-on: windows-2025-vs2026
     steps:
     - name: Checkout repo

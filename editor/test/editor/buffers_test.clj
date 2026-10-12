@@ -93,10 +93,10 @@
       (are [expected buffer] (= expected (b/bbuf->string buffer))
         "Ursäkta mig" (ByteBuffer/wrap (byte-array bytes))
         "Ursäkta mig" (buffer-with-contents bytes)
-         "rsäkta mig" (doto (buffer-with-contents bytes) .get)
-          "säkta mig" (doto (buffer-with-contents bytes) .get .get)
-           "äkta mig" (doto (buffer-with-contents bytes) .get .get .get)
-            "kta mig" (doto (buffer-with-contents bytes) .get .get .get .get .get)))
+        "rsäkta mig" (doto (buffer-with-contents bytes) .get)
+        "säkta mig" (doto (buffer-with-contents bytes) .get .get)
+        "äkta mig" (doto (buffer-with-contents bytes) .get .get .get)
+        "kta mig" (doto (buffer-with-contents bytes) .get .get .get .get .get)))
     (testing "does not impact input buffer properties"
       (let [b (buffer-with-contents bytes)]
         (is (= [0 12 12] (buffer-properties b)))

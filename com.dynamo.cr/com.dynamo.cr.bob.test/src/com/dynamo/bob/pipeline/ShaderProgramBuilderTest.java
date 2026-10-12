@@ -19,6 +19,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
@@ -52,29 +53,10 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "gl_Position = position; \n" +
             "}\n";
 
-    private final String vpEs3 =
-            "#version 310 es \n" +
-            "in vec4 position; \n" +
-            "out vec4 fragColor; \n" +
-            "uniform NonOpaqueBlock { vec4 color; }; \n" +
-            "void main(){ \n" +
-            "   fragColor   = color;\n" +
-            "   gl_Position = position; \n" +
-            "}\n";
-
     public static final String fp =
             "varying vec4 fragColor; \n" +
             "void main(){ \n" +
             "gl_FragColor = fragColor; \n" +
-            "}\n";
-
-    private final String fpEs3 =
-            "#version 310 es \n" +
-            "precision mediump float; \n" +
-            "in vec4 fragColor; \n" +
-            "out vec4 FragColorOut; \n" +
-            "void main(){ \n" +
-            "   FragColorOut = fragColor; \n" +
             "}\n";
 
     private static ShaderDesc.Language getPlatformGLSLLanguage() {
@@ -84,7 +66,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     private static ShaderDesc.Language getDefaultPlatformShaderLanguage() {
         Platform platform = Platform.getHostPlatform();
         if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
-            return ShaderDesc.Language.LANGUAGE_SPIRV;
+            return ShaderDesc.Language.LANGUAGE_MSL_22;
         }
         return getPlatformGLSLLanguage();
     }
@@ -111,10 +93,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void checkOnlyExpectedLanguages(ShaderDesc shader, ShaderDesc.Language... expectedLanguages) {
-        Set<ShaderDesc.Language> expected = new HashSet<>();
-        for (ShaderDesc.Language language : expectedLanguages) {
-            expected.add(language);
-        }
+        Set<ShaderDesc.Language> expected = new HashSet<>(Arrays.asList(expectedLanguages));
 
         Set<ShaderDesc.Language> actual = new HashSet<>();
         for (ShaderDesc.Shader shaderDesc : shader.getShadersList()) {
@@ -176,9 +155,24 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void doTestEs3(ShaderDesc.Language[] expectedLanguagesES3, String outputResource) throws Exception {
+        String vpEs3 = "#version 310 es \n" +
+                "in vec4 position; \n" +
+                "out vec4 fragColor; \n" +
+                "uniform NonOpaqueBlock { vec4 color; }; \n" +
+                "void main(){ \n" +
+                "   fragColor   = color;\n" +
+                "   gl_Position = position; \n" +
+                "}\n";
         ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", vpEs3, outputResource);
         checkExpectedLanguages(shader, expectedLanguagesES3);
 
+        String fpEs3 = "#version 310 es \n" +
+                "precision mediump float; \n" +
+                "in vec4 fragColor; \n" +
+                "out vec4 FragColorOut; \n" +
+                "void main(){ \n" +
+                "   FragColorOut = fragColor; \n" +
+                "}\n";
         shader = addAndBuildShaderDesc("/test_shader.fp", fpEs3, outputResource);
         checkExpectedLanguages(shader, expectedLanguagesES3);
     }
@@ -375,7 +369,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 "{ \n" +
                 "    vec4 member1; \n" +
                 "}; \n" +
-                "buffer Test \n" +
+                "readonly buffer Test \n" +
                 "{ \n" +
                 "    Data my_data_one; \n" +
                 "    Data my_data_two[]; \n" +
@@ -398,9 +392,60 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assertEquals(1, r.getStorageBuffersCount());
             ShaderDesc.ResourceBinding binding_test = r.getStorageBuffers(0);
             assertEquals("Test", binding_test.getName());
+            assertEquals(Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_READ.getValue(), binding_test.getResourceAccessFlags());
 
             ShaderDesc.ResourceTypeInfo binding_type = r.getTypes(binding_test.getType().getTypeIndex());
             assertEquals("Test", binding_type.getName());
+        }
+
+        {
+            String fs_src =
+                "#version 430 \n" +
+                "struct Data \n" +
+                "{ \n" +
+                "    vec4 member1; \n" +
+                "}; \n" +
+                "buffer Test \n" +
+                "{ \n" +
+                "    Data my_data_one; \n" +
+                "    Data my_data_two[]; \n" +
+                "}; \n" +
+                "out vec4 color_out; \n" +
+                "void main() \n" +
+                "{ \n" +
+                "    my_data_one.member1 = vec4(1.0); \n" +
+                "    color_out = my_data_one.member1 + my_data_two[0].member1; \n" +
+                "} \n";
+
+            ShaderDesc shaderDesc = addAndBuildShaderDesc("/reflection_writable_ssbo.fp", fs_src, "/reflection_writable_ssbo.shbundle");
+
+            ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
+            assertEquals(1, r.getStorageBuffersCount());
+            assertEquals(Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_READ.getValue() |
+                         Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_WRITE.getValue(),
+                         r.getStorageBuffers(0).getResourceAccessFlags());
+        }
+
+        {
+            String fs_src =
+                "#version 430 \n" +
+                "writeonly buffer Test \n" +
+                "{ \n" +
+                "    vec4 value; \n" +
+                "}; \n" +
+                "out vec4 color_out; \n" +
+                "void main() \n" +
+                "{ \n" +
+                "    value = vec4(1.0); \n" +
+                "    color_out = vec4(1.0); \n" +
+                "} \n";
+
+            ShaderDesc shaderDesc = addAndBuildShaderDesc("/reflection_writeonly_ssbo.fp", fs_src, "/reflection_writeonly_ssbo.shbundle");
+
+            ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
+            assertEquals(1, r.getStorageBuffersCount());
+            assertEquals(Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_WRITE.getValue(),
+                         r.getStorageBuffers(0).getResourceAccessFlags());
         }
 
         // Shared shader for split/non-split sampler tests:
@@ -522,14 +567,13 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testDefaultShaderLanguagesForPlatforms() throws Exception {
         Object[][] platformLanguages = new Object[][] {
-            { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
-            { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
-            { Platform.X86Win32,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
+            { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
+            { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
-            { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.WasmWeb,        new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
@@ -546,18 +590,29 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testSimulatorAlwaysUsesMetal() throws Exception {
+        String adapters = Project.getShaderAdaptersOption(Platform.Arm64IosSim, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterOpenGL", "GraphicsAdapterVulkan"),
+                             "excludeSymbols", List.of("GraphicsAdapterMetal"))));
+        assertEquals("metal", adapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.Arm64IosSim, "opengles,vulkan", "simulator_metal"),
+            ShaderDesc.Language.LANGUAGE_MSL_22);
+    }
+
+    @Test
     public void testManifestShaderLanguages() throws Exception {
         String shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
             platformSettings("symbols", List.of("GraphicsAdapterOpenGL"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_both"),
             ShaderDesc.Language.LANGUAGE_GLSL_SM330,
-            ShaderDesc.Language.LANGUAGE_SPIRV);
+            ShaderDesc.Language.LANGUAGE_MSL_22);
 
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
             platformSettings(
                 "symbols", List.of("GraphicsAdapterOpenGL"),
-                "excludeLibs", List.of("graphics_vulkan"))));
+                "excludeLibs", List.of("graphics_metal"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_gl"),
             ShaderDesc.Language.LANGUAGE_GLSL_SM330);
@@ -581,14 +636,26 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "{\n" +
             "   color_out = texture(texture_sampler, var_texcoord0.xy);\n" +
             "}\n";
+        ShaderDesc webShaderDesc = compileShaderWithCompiler(
+            getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource);
         checkOnlyExpectedLanguages(
-            compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource),
+            webShaderDesc,
             ShaderDesc.Language.LANGUAGE_GLES_SM300,
             ShaderDesc.Language.LANGUAGE_GLES_SM100,
             ShaderDesc.Language.LANGUAGE_WGSL);
 
+        // WGSL requires separate texture/sampler resources, but including that
+        // variant must not rename the combined sampler used by WebGL fallback.
+        for (ShaderDesc.Language language : List.of(
+                ShaderDesc.Language.LANGUAGE_GLES_SM300,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100)) {
+            String glslSource = getShaderByLanguage(webShaderDesc, language).getSource().toStringUtf8();
+            assertTrue("WebGL sampler name must match shared reflection for " + language,
+                glslSource.contains("sampler2D texture_sampler"));
+        }
+
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
-            platformSettings("excludeSymbols", List.of("GraphicsAdapterVulkan"))));
+            platformSettings("excludeSymbols", List.of("GraphicsAdapterMetal"))));
         assertEquals("", shaderAdapters);
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_no_adapters"));
@@ -613,6 +680,29 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_metal_lib"),
             ShaderDesc.Language.LANGUAGE_MSL_22);
+    }
+
+    @Test
+    public void testVulkanAppManifestConfiguresSpirvShaders() throws Exception {
+        for (Platform platform : List.of(Platform.X86_64MacOS, Platform.Arm64MacOS)) {
+            getProject().setOption("platform", platform.getPair());
+            getProject().setOption("architectures", platform.getPair());
+            getProject().getProjectProperties().putStringValue("native_extension", "app_manifest", "vulkan.appmanifest");
+            addFile("/vulkan.appmanifest",
+                "platforms:\n" +
+                "  osx:\n" +
+                "    context:\n" +
+                "      libs: [graphics_vulkan, platform_vulkan, MoltenVK]\n" +
+                "      symbols: [GraphicsAdapterVulkan]\n" +
+                "      excludeLibs: [graphics_metal, platform]\n" +
+                "      excludeSymbols: [GraphicsAdapterMetal]\n");
+            getProject().configurePreBuildProjectOptions();
+            String shaderAdapters = getProject().option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
+            assertEquals("vulkan", shaderAdapters);
+            checkOnlyExpectedLanguages(
+                compileShaderForPlatform(platform, shaderAdapters, "manifest_vulkan_" + platform.getArch()),
+                ShaderDesc.Language.LANGUAGE_SPIRV);
+        }
     }
 
     @Test
@@ -1167,6 +1257,13 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         Shaderc.ShaderReflection reflection = ShadercJni.GetReflection(ctx);
 
         assertEquals("FragColor", reflection.outputs[0].name);
+        assertEquals(Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_WRITE.getValue(), reflection.outputs[0].accessFlags);
+
+        int readWrite = Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_READ.getValue() |
+                        Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_WRITE.getValue();
+        ShadercJni.SetResourceAccessFlags(ctx, reflection.outputs[0].nameHash, readWrite);
+        reflection = ShadercJni.GetReflection(ctx);
+        assertEquals(readWrite, reflection.outputs[0].accessFlags);
 
         ShadercJni.DeleteShaderContext(ctx);
     }

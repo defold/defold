@@ -3219,17 +3219,17 @@ namespace dmGui
             ref_size = Vector4(parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getX() * reference_scale.getX(), parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getY() * reference_scale.getY(), 0.0f, 1.0f);
         }
 
-        // Apply anchoring
+        // Anchoring removes centering, but root nodes still use the safe-area origin.
         Vector4 scaled_position = mulPerElem(position, adjust_scale);
         if (node.m_XAnchor == XANCHOR_LEFT || node.m_XAnchor == XANCHOR_RIGHT)
         {
-            offset.setX(0.0f);
+            offset.setX(n->m_ParentIndex == INVALID_INDEX ? scene->m_AdjustOffsetX : 0.0f);
             scaled_position.setX(position.getX() * reference_scale.getX());
         }
 
         if (node.m_YAnchor == YANCHOR_TOP || node.m_YAnchor == YANCHOR_BOTTOM)
         {
-            offset.setY(0.0f);
+            offset.setY(n->m_ParentIndex == INVALID_INDEX ? scene->m_AdjustOffsetY : 0.0f);
             scaled_position.setY(position.getY() * reference_scale.getY());
         }
 
@@ -4763,10 +4763,10 @@ namespace dmGui
         // it will be applied during next call to CalculateNodeTransform.
         // See AdjustPosScale for comparison on the steps being performed/inversed.
         if (node->m_Node.m_XAnchor == XANCHOR_LEFT || node->m_Node.m_XAnchor == XANCHOR_RIGHT) {
-            offset.setX(0.0f);
+            offset.setX(parent_node == 0x0 ? scene->m_AdjustOffsetX : 0.0f);
         }
         if (node->m_Node.m_YAnchor == YANCHOR_TOP || node->m_Node.m_YAnchor == YANCHOR_BOTTOM) {
-            offset.setY(0.0f);
+            offset.setY(parent_node == 0x0 ? scene->m_AdjustOffsetY : 0.0f);
         }
 
         Vector3 scaled_position = position - offset.getXYZ();

@@ -1,19 +1,5 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 set -e
 
 _SOURCE="${BASH_SOURCE[0]:-$0}"
@@ -55,10 +41,11 @@ elif [ "Linux" == "${HOST_PLATFORM}" ]; then
         HOST_PLATFORM="arm64-linux"
     fi
 elif [[ "${HOST_PLATFORM}" == MINGW* ]] || [[ "${HOST_PLATFORM}" == MSYS* ]] || [[ "${HOST_PLATFORM}" == CYGWIN* ]]; then
-    HOST_PLATFORM="x86_64-win32"
     if [ "${HOST_ARCH}" == "i686" ] || [ "${HOST_ARCH}" == "i386" ]; then
-        HOST_PLATFORM="win32"
+        echo "32-bit Windows hosts are not supported"
+        exit 1
     fi
+    HOST_PLATFORM="x86_64-win32"
 fi
 
 if [ "${HOST_PLATFORM}" == "${HOST_UNAME}" ]; then
@@ -384,18 +371,7 @@ function cmi_setup_cc() {
             export CPP="${CC} -E"
             ;;
 
-        win32)
-            ;;
-
         x86_64-win32)
-            ;;
-
-        i586-mingw32msvc)
-            export CPP=i586-mingw32msvc-cpp
-            export CC=i586-mingw32msvc-gcc
-            export CXX=i586-mingw32msvc-g++
-            export AR=i586-mingw32msvc-ar
-            export RANLIB=i586-mingw32msvc-ranlib
             ;;
 
         wasm-web)
@@ -449,7 +425,7 @@ function cmi() {
             ;;
 
         # desktop
-        x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|win32|x86_64-win32)
+        x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|x86_64-win32)
             cmi_buildplatform $1
             ;;
 

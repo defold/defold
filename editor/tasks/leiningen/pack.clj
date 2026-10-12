@@ -58,19 +58,10 @@
                        :known-platforms known-platforms})))
     known-platforms))
 
-(defn- platform->engine-src-dirname [platform]
-  (assert (contains? engine-artifacts platform))
-  (case platform
-    "x86-win32" "win32"
-    platform))
-
 (def artifacts
   {
    ; These artifacts are equal to the artifacts from bob
    ; see ResourceUnpacker.java for more info
-   ; "${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"          "x86-win32/bin/OpenAL32.dll"
-   ; "${DYNAMO-HOME}/ext/lib/win32/wrap_oal.dll"          "x86-win32/bin/wrap_oal.dll"
-
    ; "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-64.exe"  "x86_64-win32/bin/luajit-64.exe"
    ; "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"   "x86_64-win32/bin/OpenAL32.dll"
    ; "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"   "x86_64-win32/bin/wrap_oal.dll"
@@ -101,10 +92,9 @@
                  :let [dirs (engine-artifacts platform)]
                  [dir files] dirs
                  file files]
-             (let [engine-src-dirname (platform->engine-src-dirname platform)
-                   src (if (some? git-sha)
-                         (http-cache/download (format "https://%s/archive/%s/engine/%s/%s" archive-domain git-sha engine-src-dirname file))
-                         (io/file (dynamo-home) dir engine-src-dirname file))
+             (let [src (if (some? git-sha)
+                         (http-cache/download (format "https://%s/archive/%s/engine/%s/%s" archive-domain git-sha platform file))
+                         (io/file (dynamo-home) dir platform file))
                    dest (io/file platform dir file)]
                [src dest]))))
 

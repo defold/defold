@@ -1,17 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import os
 import optparse
 import run
@@ -78,6 +64,7 @@ def mac_certificate(codesigning_identity):
         return None
 
 def sign_windows_file(options, file):
+    started = time.monotonic()
     gcloud = shutil.which('gcloud')
     if not gcloud:
         sys.exit("No gcloud tool found")
@@ -92,21 +79,29 @@ def sign_windows_file(options, file):
     env = os.environ.copy()
     env['CLOUDSDK_PYTHON'] = sys.executable
 
-    run.env_command(env, [
-        gcloud,
-        'auth',
-        'activate-service-account',
-        '--key-file', options.gcloud_keyfile], silent = True)
+    # Parallel gcloud.CMD invocations can collide on a shared temporary file.
+    # Keep authentication and token capture together; Jsign only needs the
+    # captured token and can sign separate executables concurrently.
+    lock_started = time.monotonic()
+    with ExclusiveFileLock(_codesigning_lock_path()):
+        auth_started = time.monotonic()
+        run.env_command(env, [
+            gcloud,
+            'auth',
+            'activate-service-account',
+            '--key-file', options.gcloud_keyfile], silent = True)
+        token_started = time.monotonic()
 
-    # Capture the token ourselves so we can strip any stray lines emitted by the Windows
-    # Microsoft Store shim when `python.exe` is missing (it writes that warning to stdout).
-    token_proc = subprocess.run(
-        [gcloud, 'auth', 'print-access-token'],
-        stdout = subprocess.PIPE,
-        stderr = subprocess.PIPE,
-        check = False,
-        text = True,
-        env = env)
+        # Capture the token ourselves so we can strip any stray lines emitted by the Windows
+        # Microsoft Store shim when `python.exe` is missing (it writes that warning to stdout).
+        token_proc = subprocess.run(
+            [gcloud, 'auth', 'print-access-token'],
+            stdout = subprocess.PIPE,
+            stderr = subprocess.PIPE,
+            check = False,
+            text = True,
+            env = env)
+        token_finished = time.monotonic()
     if token_proc.returncode != 0:
         log("gcloud auth print-access-token failed with exit code %d" % token_proc.returncode)
         if token_proc.stderr:
@@ -123,6 +118,7 @@ def sign_windows_file(options, file):
 
     jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
     keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
+    sign_started = time.monotonic()
     run.command([
         'java', '-jar', jsign,
         '--storetype', 'GOOGLECLOUD',
@@ -133,6 +129,12 @@ def sign_windows_file(options, file):
         '--tsmode', 'RFC3161',
         '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
         file], silent = True)
+    finished = time.monotonic()
+    if getattr(options, 'timings', False):
+        log("Codesigning timing %s: lock_wait=%.3fs auth=%.3fs token=%.3fs sign_and_timestamp=%.3fs total=%.3fs" % (
+            os.path.basename(file), auth_started - lock_started,
+            token_started - auth_started, token_finished - token_started,
+            finished - sign_started, finished - started))
 
 def sign_macos_file(options, file):
     codesigning_identity = options.codesigning_identity
@@ -156,10 +158,7 @@ def sign_macos_file(options, file):
 
 def sign_file(platform, options, file):
     if _platform_is_windows(platform):
-        # Signing steps can run in parallel from the same build directory
-        # On Windows, gcloud.CMD is not safe in that situation and collides on tmpfile
-        with ExclusiveFileLock(_codesigning_lock_path()):
-            sign_windows_file(options, file)
+        sign_windows_file(options, file)
 
     if _platform_is_macos(platform):
         sign_macos_file(options, file)
@@ -169,6 +168,8 @@ def _main():
     parser = optparse.OptionParser()
     parser.add_option('--platform', dest='platform', help='Target platform')
     parser.add_option('--file', dest='file', help='File to sign')
+    parser.add_option('--timings', action='store_true', default=False,
+                      help='Report Windows signing stage durations')
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
                       default='Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
                       help='Codesigning identity for macOS')

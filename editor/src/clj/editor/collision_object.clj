@@ -310,7 +310,7 @@
 
         user-data
         (cond-> user-data
-                point-scale-override (assoc :point-scale point-scale-override))]
+          point-scale-override (assoc :point-scale point-scale-override))]
 
     (pair visibility-aabb user-data)))
 
@@ -352,7 +352,6 @@
                                                        scene-shapes/disc-lines
                                                        scene-shapes/capsule-lines))}}]}))
 
-
 (defn- preview-box-shape-renderable
   [visibility-aabb user-data prop-kw->override-value]
   (let [^Point3d ext-override
@@ -374,7 +373,7 @@
 
         user-data
         (cond-> user-data
-                point-scale-override (assoc :point-scale point-scale-override))]
+          point-scale-override (assoc :point-scale point-scale-override))]
 
     (pair visibility-aabb user-data)))
 
@@ -402,9 +401,9 @@
                                        :color color
                                        :geometry scene-shapes/box-triangles)
 
-                                     is-2d
-                                     (assoc :double-sided true
-                                            :point-count 6))}
+                               is-2d
+                               (assoc :double-sided true
+                                      :point-count 6))}
      :children [{:node-id _node-id
                  :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
@@ -415,8 +414,8 @@
                                                    :color color
                                                    :geometry scene-shapes/box-lines)
 
-                                                 is-2d
-                                                 (assoc :point-count 8))}}]}))
+                                           is-2d
+                                           (assoc :point-count 8))}}]}))
 
 (defn- preview-capsule-shape-renderable
   [visibility-aabb user-data prop-kw->override-value]
@@ -452,8 +451,8 @@
 
         user-data
         (cond-> user-data
-                point-scale-override (assoc :point-scale point-scale-override)
-                point-offset-by-w-override (assoc :point-offset-by-w point-offset-by-w-override))]
+          point-scale-override (assoc :point-scale point-scale-override)
+          point-offset-by-w-override (assoc :point-offset-by-w point-offset-by-w-override))]
 
     (pair visibility-aabb user-data)))
 
@@ -713,9 +712,9 @@
   (output shape-errors g/Any
           (g/fnk [_node-id id id-counts shape-type inline-data mesh-scene mesh-name mesh-index ^:try collision-meshes]
             (g/package-errors _node-id
-                              (validate-image-id _node-id id id-counts)
-                              (when (mesh-source-shape? shape-type inline-data mesh-scene mesh-name mesh-index)
-                                (mesh-shape-selection-error _node-id shape-type mesh-scene mesh-name mesh-index collision-meshes)))))
+              (validate-image-id _node-id id id-counts)
+              (when (mesh-source-shape? shape-type inline-data mesh-scene mesh-name mesh-index)
+                (mesh-shape-selection-error _node-id shape-type mesh-scene mesh-name mesh-index collision-meshes)))))
   (output shape-data g/Any (g/fnk [inline-data] inline-data)))
 
 (g/defnode HullShape
@@ -782,17 +781,14 @@
 
 (defn make-shape-node
   [parent {:keys [shape-type] :as shape}]
-  (let [graph-id (g/node-id->graph-id parent)
-        node-type (case shape-type
+  (let [node-type (case shape-type
                     :type-sphere SphereShape
                     :type-box BoxShape
                     :type-capsule CapsuleShape
                     :type-hull HullShape
                     :type-mesh MeshShape)
         node-props (dissoc shape :index :count :id-hash)]
-    (g/make-nodes
-      graph-id
-      [shape-node [node-type node-props]]
+    (g/make-nodes [shape-node [node-type node-props]]
       (attach-shape-node false parent shape-node))))
 
 (defn- decode-embedded-shape [embedded-collision-shape-data shape]
@@ -804,15 +800,18 @@
         decoded-shape-data (decode-shape-data shape shape-data)]
     (merge shape decoded-shape-data)))
 
-(defn load-collision-object
-  [project self resource collision-object-desc]
+(defn- connect-collision-object
+  [project self _resource]
+  (g/connect self :group project :collision-groups))
+
+(defn- load-collision-object
+  [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id collision-object-desc :source-value}]
   {:pre [(map? collision-object-desc)]} ; Physics$CollisionObjectDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         resolve-shape-resources (fn [shape]
                                   (cond-> shape
-                                          (:mesh-scene shape)
-                                          (update :mesh-scene resolve-resource)))
+                                    (:mesh-scene shape)
+                                    (update :mesh-scene resolve-resource)))
         to-comma-separated-string #(some->> % (string/join ", "))]
     (concat
       (gu/set-properties-from-pb-map self Physics$CollisionObjectDesc collision-object-desc
@@ -830,8 +829,6 @@
         event-collision :event-collision
         event-contact :event-contact
         event-trigger :event-trigger)
-      (g/connect self :collision-group-node project :collision-group-nodes)
-      (g/connect project :collision-groups-data self :collision-groups-data)
       (g/connect project :settings self :project-settings)
       (when-some [{:keys [data shapes]} (:embedded-collision-shape collision-object-desc)]
         (sequence (comp (map #(assoc %1 :node-outline-key %2))
@@ -864,7 +861,7 @@
                       :passes [pass/transparent pass/selection]
                       :user-data {:color color
                                   :double-sided true
-                                  :geometry {:primitive-type GL2/GL_POLYGON
+                                  :geometry {:primitive-type GL2/GL_TRIANGLE_FAN
                                              :vbuf vbuf}}}
          :children [{:node-id _node-id
                      :aabb aabb
@@ -921,8 +918,8 @@
   ;; Physics$CollisionObjectDesc in map format.
   (cond-> collision-object-desc
 
-          (empty? (:shapes (:embedded-collision-shape collision-object-desc)))
-          (dissoc :embedded-collision-shape)))
+    (empty? (:shapes (:embedded-collision-shape collision-object-desc)))
+    (dissoc :embedded-collision-shape)))
 
 (g/defnk produce-save-value
   [collision-shape-resource type mass friction restitution
@@ -930,10 +927,10 @@
    shapes]
   (let [embedded-collision-shape (make-embedded-collision-shape shapes)
         mask (cond-> []
-                     (some? mask)
-                     (into (comp (map string/trim)
-                                 (remove string/blank?))
-                           (string/split mask #",")))]
+               (some? mask)
+               (into (comp (map string/trim)
+                           (remove string/blank?))
+                     (string/split mask #",")))]
     (-> (protobuf/make-map-without-defaults Physics$CollisionObjectDesc
           :collision-shape (resource/resource->proj-path collision-shape-resource)
           :type type
@@ -978,8 +975,8 @@
                  :index (count (:data collision-shape))
                  :count (count (:data convex-shape))}]
       (-> collision-shape
-        (update :shapes conj shape)
-        (update :data into (:data convex-shape))))
+          (update :shapes conj shape)
+          (update :data into (:data convex-shape))))
     collision-shape))
 
 (defn- insert-id-hashes [shapes]
@@ -1045,10 +1042,6 @@
                       :mesh-sets mesh-sets}
           :deps dep-build-targets})])))
 
-(g/defnk produce-collision-group-color
-  [collision-groups-data group]
-  (collision-groups/color collision-groups-data group))
-
 (defn- tilemap-collision-shape? [collision-shape]
   (boolean
     (when collision-shape
@@ -1062,7 +1055,6 @@
   (input collision-shape-resource resource/Resource)
   (input dep-build-targets g/Any :array)
   (input collision-mesh-set-infos g/Any :array)
-  (input collision-groups-data g/Any)
   (input project-settings g/Any)
   (input convex-shape-data g/Any)
   (input shape-errors g/Any :array)
@@ -1158,8 +1150,7 @@
   (output id-counts NameCounts :cached (g/fnk [shapes] (frequencies (keep :id shapes))))
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
-  (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
-  (output collision-group-color g/Any :cached produce-collision-group-color))
+  (output collision-group-color g/Any (g/fnk [group] (collision-groups/color group))))
 
 (node-types/register-node-type-name! SphereShape "shape-type-sphere")
 (node-types/register-node-type-name! BoxShape "shape-type-box")
@@ -1167,7 +1158,7 @@
 (node-types/register-node-type-name! HullShape "shape-type-hull")
 (node-types/register-node-type-name! MeshShape "shape-type-mesh")
 
-(defn- sanitize-collision-object [collision-object-desc]
+(defn- sanitize-collision-object [_read-opts _owner-resource collision-object-desc]
   (strip-empty-embedded-collision-shape collision-object-desc))
 
 (defn register-resource-types [workspace]
@@ -1185,6 +1176,7 @@
       :label (localization/message "resource.type.collisionobject")
       :node-type CollisionObjectNode
       :ddf-type Physics$CollisionObjectDesc
+      :connect-fn connect-collision-object
       :load-fn load-collision-object
       :sanitize-fn sanitize-collision-object
       :icon collision-object-icon

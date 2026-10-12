@@ -18,7 +18,7 @@ set(TEXC_SHARED_DEPENDENCIES
   mbedtls_noasan
   profile_null_noasan
   jni_noasan
-  basis_encoder_noasan
+  basis_encoder
   astcenc)
 
 set(TEXC_IS_DESKTOP OFF)

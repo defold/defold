@@ -51,10 +51,8 @@ import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.util.LZ4;
 import com.dynamo.bob.util.TimeProfiler;
-
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
 
 public class ArchiveBuilder {
 
@@ -76,7 +74,6 @@ public class ArchiveBuilder {
     private Map<String, String> hexDigestCache = new ConcurrentHashMap<>();
     private String root;
     private ManifestBuilder manifestBuilder = null;
-    private LZ4Compressor lz4Compressor;
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private int resourcePadding = 4;
     private boolean forceCompression = false; // for building unit tests to create test content
@@ -90,7 +87,6 @@ public class ArchiveBuilder {
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding, Project project) {
         this.root = new File(root).getAbsolutePath();
         this.manifestBuilder = manifestBuilder;
-        this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
         this.resourcePadding = resourcePadding;
         this.project = project;
         this.publisher = project.getPublisher();
@@ -122,10 +118,7 @@ public class ArchiveBuilder {
     }
 
     public byte[] compressResourceData(byte[] buffer) {
-        int maximumCompressedSize = lz4Compressor.maxCompressedLength(buffer.length);
-        byte[] compressedContent = new byte[maximumCompressedSize];
-        int compressedSize = lz4Compressor.compress(buffer, compressedContent);
-        return Arrays.copyOfRange(compressedContent, 0, compressedSize);
+        return LZ4.compress(buffer);
     }
 
     public void setForceCompression(boolean forceCompression) {

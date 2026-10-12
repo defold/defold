@@ -21,6 +21,17 @@ function(defold_codesign_target target entitlements)
     set(_defold_codesign_args
         --platform "${TARGET_PLATFORM}"
         --file "$<TARGET_FILE:${target}>")
+    if(DEFINED ENV{GITHUB_WORKFLOW} AND TARGET_PLATFORM MATCHES "win32$")
+        # Ninja includes POST_BUILD signing in the link task's duration. Time the
+        # linker separately so CI can distinguish link cost from signing cost.
+        get_target_property(_defold_link_launcher "${target}" CXX_LINKER_LAUNCHER)
+        set(_defold_timed_link_launcher "${CMAKE_COMMAND}" -E time)
+        if(_defold_link_launcher)
+            list(APPEND _defold_timed_link_launcher ${_defold_link_launcher})
+        endif()
+        set_property(TARGET "${target}" PROPERTY CXX_LINKER_LAUNCHER "${_defold_timed_link_launcher}")
+        list(APPEND _defold_codesign_args --timings)
+    endif()
     if(DEFOLD_CODESIGNING_IDENTITY)
         list(APPEND _defold_codesign_args --codesigning-identity "${DEFOLD_CODESIGNING_IDENTITY}")
     endif()

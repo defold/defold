@@ -64,6 +64,26 @@ public class Shaderc {
         }
     };
 
+    public enum ShaderResourceAccess {
+        SHADER_RESOURCE_ACCESS_NONE(0),
+        SHADER_RESOURCE_ACCESS_READ(1),
+        SHADER_RESOURCE_ACCESS_WRITE(2);
+        private final int value;
+        private ShaderResourceAccess(int value) {
+            this.value = value;
+        }
+        public int getValue() {
+            return this.value;
+        }
+        static public ShaderResourceAccess fromValue(int value) throws IllegalArgumentException {
+            for (ShaderResourceAccess e : ShaderResourceAccess.values()) {
+                if (e.value == value)
+                    return e;
+            }
+            throw new IllegalArgumentException(String.format("Invalid value to ShaderResourceAccess: %d", value) );
+        }
+    };
+
     public enum BaseType {
         BASE_TYPE_UNKNOWN(0),
         BASE_TYPE_VOID(1),
@@ -295,6 +315,7 @@ public class Shaderc {
         public byte binding = 0;
         public byte set = 0;
         public byte stageFlags = 0;
+        public byte accessFlags = 0;
     };
     public static class ShaderReflection {
         public ShaderResource[] inputs;
@@ -333,4 +354,3 @@ public class Shaderc {
         public byte[] hLSLRootSignature;
     };
 }
-

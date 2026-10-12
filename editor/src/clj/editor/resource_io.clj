@@ -31,7 +31,7 @@
                   (localization/message "error.resource-not-found" {"resource" path}))
         user-data (cond-> {:type :file-not-found
                            :resource resource}
-                          symlink-target-pathname (assoc :symlink-target-pathname symlink-target-pathname))]
+                    symlink-target-pathname (assoc :symlink-target-pathname symlink-target-pathname))]
     (g/->error node-id label severity nil message user-data)))
 
 (defn file-not-found-error? [error]

@@ -9,7 +9,6 @@ endif()
 
 set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   basis_encoder
-  basis_encoder_noasan
   basis_transcoder
   crashext
   crashext_null
@@ -142,6 +141,9 @@ function(defold_target_link_libraries target platform)
   set(_SDK_LIBS ${DLIB_UNPARSED_ARGUMENTS})
   set(_LIBS)
   foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
+    if(_lib MATCHES "^(basis_encoder|basis_transcoder)$")
+      defold_import_basisu("${_lib}" "${platform}")
+    endif()
     set(_vendor_libs)
     set(_vendor_libs_found OFF)
     if(COMMAND defold_xbox_resolve_library)
@@ -436,11 +438,15 @@ function(defold_attach_local_include target)
   # Add include directory for compilation
   target_include_directories(${target} PRIVATE "${_inc_dir}")
 
-  # Add headers to the target's sources so IDEs show them.
-  file(GLOB_RECURSE _headers CONFIGURE_DEPENDS
-       "${_inc_dir}/*.h" "${_inc_dir}/*.hpp" "${_inc_dir}/*.hh" "${_inc_dir}/*.hxx" "${_inc_dir}/*.inl" "${_inc_dir}/*.inc")
-  if(_headers)
-    target_sources(${target} PRIVATE ${_headers})
+  # IDE projects need headers in their source tree. Command-line generators
+  # track included headers through compiler dependencies, without regenerating
+  # the build graph when installation adds SDK headers to this directory.
+  if(CMAKE_GENERATOR MATCHES "Xcode|Visual Studio")
+    file(GLOB_RECURSE _headers CONFIGURE_DEPENDS
+         "${_inc_dir}/*.h" "${_inc_dir}/*.hpp" "${_inc_dir}/*.hh" "${_inc_dir}/*.hxx" "${_inc_dir}/*.inl" "${_inc_dir}/*.inc")
+    if(_headers)
+      target_sources(${target} PRIVATE ${_headers})
+    endif()
   endif()
 endfunction()
 

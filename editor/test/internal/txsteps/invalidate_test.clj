@@ -23,10 +23,10 @@
 
 (deftest evicts-cache-entries-associated-with-invalidated-node-outputs-test
   (test-support/with-clean-system
-    (let [invalidated-node-id (g/make-node! world helpers/PropertyTestNode
+    (let [invalidated-node-id (g/make-node! helpers/PropertyTestNode
                                 :basic-property :invalidated-basic-property-value
                                 :effecting-property :invalidated-effecting-property-value)
-          unaffected-node-id (g/make-node! world helpers/PropertyTestNode
+          unaffected-node-id (g/make-node! helpers/PropertyTestNode
                                :basic-property :unaffected-basic-property-value
                                :effecting-property :unaffected-effecting-property-value)
           invalidated-node-output-endpoints (test-support/cacheable-endpoints invalidated-node-id)
@@ -54,10 +54,9 @@
            downstream-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world
-                [source-node-id [helpers/ConnectionSourceNode :property :source-value]
-                 target-node-id helpers/ConnectionTargetNode
-                 downstream-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                             target-node-id helpers/ConnectionTargetNode
+                             downstream-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :regular-input)
                 (g/connect target-node-id :regular-output downstream-node-id :regular-input))))
 
@@ -88,10 +87,9 @@
            indirectly-owned-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes world
-                [owner-node-id [helpers/OverrideTestNode :property :owner-property-value]
-                 directly-owned-node-id [helpers/OverrideTestNode :property :directly-owned-property-value]
-                 indirectly-owned-node-id [helpers/OverrideTestNode :property :indirectly-owned-property-value]]
+              (g/make-nodes [owner-node-id [helpers/OverrideTestNode :property :owner-property-value]
+                             directly-owned-node-id [helpers/OverrideTestNode :property :directly-owned-property-value]
+                             indirectly-owned-node-id [helpers/OverrideTestNode :property :indirectly-owned-property-value]]
                 (g/connect directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)
                 (g/connect indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)
                 (g/override owner-node-id))))
@@ -131,10 +129,10 @@
 
 (deftest invalidates-node-outputs-on-undo-and-redo-test
   (test-support/with-clean-system
-    (let [invalidated-node-id (g/make-node! world helpers/PropertyTestNode
+    (let [invalidated-node-id (g/make-node! helpers/PropertyTestNode
                                 :basic-property :invalidated-basic-property-value
                                 :effecting-property :invalidated-effecting-property-value)
-          unaffected-node-id (g/make-node! world helpers/PropertyTestNode
+          unaffected-node-id (g/make-node! helpers/PropertyTestNode
                                :basic-property :unaffected-basic-property-value
                                :effecting-property :unaffected-effecting-property-value)
           invalidated-node-output-endpoints (test-support/cacheable-endpoints invalidated-node-id)

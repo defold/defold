@@ -27,6 +27,7 @@
             [editor.math :as math]
             [editor.prefs :as prefs]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [util.coll :as coll])
   (:import [com.jogamp.opengl GL GL2]
            [java.lang Math Runnable]
@@ -78,18 +79,7 @@
 (vtx/defvertex pos-vtx
   (vec3 position))
 
-(shader/defshader vertex-shader
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
-
-(shader/defshader fragment-shader
-  (uniform vec4 color) ; `color` also used in selection pass to render picking id
-  (defn void main []
-    (setq gl_FragColor color)))
-
-; TODO - macro of this
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
+(def shader shaders/uniform-color-local-space)
 
 ; Rendering
 
@@ -152,7 +142,6 @@
 (defn render-manips [^GL2 gl render-args renderables n]
   (let [camera (:camera render-args)
         renderable (first renderables)
-        world-transform (:world-transform renderable)
         user-data (:user-data renderable)
         manip (:manip user-data)
         manip-rotation (:manip-rotation user-data)
@@ -161,17 +150,15 @@
                 (:color user-data))
         vertex-buffers (:vertex-buffers user-data)]
     (when (manip-visible? manip manip-rotation (c/camera-view-matrix camera))
-      (gl/gl-push-matrix gl
-        (gl/gl-mult-matrix-4d gl world-transform)
-        (doseq [[mode vertex-buffer ^long vertex-count] vertex-buffers
-                :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
-                      color (if (#{GL/GL_LINES GL/GL_POINTS} mode)
-                              (float-array (assoc color 3 1.0))
-                              (float-array color))]
-                :when (> vertex-count 0)]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding]
-            (shader/set-uniform shader gl "color" color)
-            (gl/gl-draw-arrays gl mode 0 vertex-count)))))))
+      (doseq [[mode vertex-buffer ^long vertex-count] vertex-buffers
+              :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
+                    color (if (#{GL/GL_LINES GL/GL_POINTS} mode)
+                            (float-array (assoc color 3 1.0))
+                            (float-array color))]
+              :when (> vertex-count 0)]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+          (shader/set-uniform shader gl "color" color)
+          (gl/gl-draw-arrays gl mode 0 vertex-count))))))
 
 ; Vertex generation and transformations
 
@@ -229,7 +216,7 @@
 
 (defn gen-circle [^double segs]
   [[GL/GL_LINES (reduce concat (partition 2 1 (map #(let [angle (* 2.0 Math/PI (/ (double %) segs))]
-                                                     [(Math/cos angle) (Math/sin angle) 0.0]) (range (inc segs)))))]])
+                                                      [(Math/cos angle) (Math/sin angle) 0.0]) (range (inc segs)))))]])
 
 (defn- gen-arrow [sub-divs]
   (concat
@@ -334,12 +321,12 @@
   (if (#{:rot-x :rot-y :rot-z :rot-xy :rot-xz :rot-yz :rot-screen} manip)
     true
     (if tool-active?
-       (or (= manip active-manip)
-           (and (#{:move-x :move-y :move-z} manip)
-                (or (= active-manip :move-screen) (contains? (manip->sub-manips active-manip) manip)))
-           (and (#{:scale-x :scale-y :scale-z} manip)
-                (#{:scale-xy :scale-xz :scale-yz :scale-uniform} active-manip)))
-       true)))
+      (or (= manip active-manip)
+          (and (#{:move-x :move-y :move-z} manip)
+               (or (= active-manip :move-screen) (contains? (manip->sub-manips active-manip) manip)))
+          (and (#{:scale-x :scale-y :scale-z} manip)
+               (#{:scale-xy :scale-xz :scale-yz :scale-uniform} active-manip)))
+      true)))
 
 (let [move (gen-arrow 10)
       move-plane (vtx-add [65.0 65.0 0.0] (vtx-scale [7.0 7.0 1.0] (gen-square true true)))
@@ -521,13 +508,13 @@
       (let [{:manip/keys [node-id tx-data prop-kw->override-value]} manipulation]
         (cond-> combined-manipulations
 
-                (coll/not-empty tx-data)
-                (update :tx-data coll/into-vector tx-data)
+          (coll/not-empty tx-data)
+          (update :tx-data coll/into-vector tx-data)
 
-                (coll/not-empty prop-kw->override-value)
-                (update :node-id->prop-kw->override-value
-                        update (s/assert ::node-id node-id)
-                        coll/merge prop-kw->override-value))))))
+          (coll/not-empty prop-kw->override-value)
+          (update :node-id->prop-kw->override-value
+                  update (s/assert ::node-id node-id)
+                  coll/merge prop-kw->override-value))))))
 
 (defn- make-drag-manipulations-fn [manip-opts active-manip manip-origin original-values initial-evaluation-context]
   (let [make-local-manipulation-fn

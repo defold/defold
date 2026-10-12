@@ -23,6 +23,7 @@
             [editor.properties :as properties]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
            [com.jogamp.opengl GL2]))
@@ -232,6 +233,26 @@
     (is (= [pass/outline pass/selection]
            (get-in scene [:renderable :passes])))))
 
+(deftest legacy-2d-convex-hull-preview-uses-core-topology
+  (let [scene (collision-object/convex-hull-scene
+                0
+                {:shape-type :type-hull
+                 :data [-1.0 -1.0 0.0
+                        1.0 -1.0 0.0
+                        1.0 1.0 0.0
+                        -1.0 1.0 0.0]}
+                [1.0 1.0 1.0 1.0]
+                "2D")
+        fill-renderable (:renderable scene)
+        outline-renderable (get-in scene [:children 0 :renderable])
+        fill-geometry (get-in fill-renderable [:user-data :geometry])
+        outline-geometry (get-in outline-renderable [:user-data :geometry])]
+    (is (= GL2/GL_TRIANGLE_FAN (:primitive-type fill-geometry)))
+    (is (= GL2/GL_LINE_LOOP (:primitive-type outline-geometry)))
+    (is (identical? (:vbuf fill-geometry) (:vbuf outline-geometry)))
+    (is (= [pass/transparent pass/selection] (:passes fill-renderable)))
+    (is (= [pass/outline] (:passes outline-renderable)))))
+
 (deftest mesh-shape-source-selection-survives-load
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/collision_object/mesh_shape.collisionobject")
@@ -319,7 +340,10 @@
   (test-util/with-loaded-project
     (let [collision-object-path "/collision_object/three_shapes.collisionobject"
           collision-object (project/get-resource-node project collision-object-path)
-          [[sphere-shape] [box-shape] [capsule-shape]] (g/sources-of collision-object :child-scenes)]
+          child-scene-arcs (g/inputs (g/now) collision-object :child-scenes)
+          sphere-shape (gt/source-id (nth child-scene-arcs 0))
+          box-shape (gt/source-id (nth child-scene-arcs 1))
+          capsule-shape (gt/source-id (nth child-scene-arcs 2))]
 
       (testing "Sphere Shape"
         (doseq [original-diameter [(float 10.0) (double 10.0)]]

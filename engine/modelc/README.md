@@ -2,11 +2,10 @@
 
 # Model Importer
 
-Build the library first:
+After the initial engine build described in [README_BUILD.md](../../README_BUILD.md), rebuild the library from the repository root. Replace `arm64-macos` with your configured platform:
 
 ```
-$ cd engine/modelc
-$ waf build
+$ cmake --build engine/build/arm64-macos --target model modelc_shared modelimporter_jar
 ```
 
 # Debugging / Iterating
@@ -16,12 +15,14 @@ $ waf build
 Currently, it's easiest to invoke the unit test:
 
 ```
-$ ./build/src/test/test_model <path_to_model>`
+$ cmake --build engine/build/arm64-macos --target test_model
+$ cd engine/modelc
+$ ./build/arm64-macos/src/test/test_model <path_to_model>
 ```
 
-Or faster in combination:
+For subsequent rebuilds from `engine/modelc`:
 ```
-$ waf --opt-level=0 --skip-tests --target=test_model && ./build/src/test/test_model <path_to_model>
+$ cmake --build ../build/arm64-macos --target test_model && ./build/arm64-macos/src/test/test_model <path_to_model>
 ```
 
 
@@ -31,14 +32,14 @@ It will load the model, call `dmModelImporter::DebugScene(scene);` then destroy 
 
 ### ModelImporter.java
 
-You can test it like so:
+From the repository root, you can test it like so:
 ```
-$ ./scripts/test_model_importer.sh <path_to_model>
+$ ./engine/modelc/scripts/test_model_importer.sh <path_to_model>
 ```
 
 Or faster in combination:
 ```
-$ waf --opt-level=0 --skip-tests && ./scripts/test_model_importer.sh <path_to_model>
+$ cmake --build engine/build/arm64-macos --target modelc_shared modelimporter_jar && ./engine/modelc/scripts/test_model_importer.sh <path_to_model>
 ```
 
 

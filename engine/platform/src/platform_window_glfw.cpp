@@ -266,7 +266,7 @@ namespace dmPlatform
 
         int mode = params.m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
 
-        if (!glfwOpenWindow(params.m_Width, params.m_Height, 8, 8, 8, 8, 32, 8, mode))
+        if (!glfwOpenWindow(params.m_Width, params.m_Height, 8, 8, 8, params.m_ContextAlphabits, 32, 8, mode))
         {
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }

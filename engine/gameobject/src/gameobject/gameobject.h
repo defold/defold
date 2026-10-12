@@ -49,11 +49,8 @@ namespace dmGameObject
 
     extern const dmhash_t UNNAMED_IDENTIFIER;
 
-    typedef struct PropertyContainer* HPropertyContainer;
-
     /**
-     * Create a new component type register
-     * @param regist Register
+     * Create a new component type register. Only one register may exist at a time.
      * @return Register handle
      */
     HRegister NewRegister();
@@ -79,7 +76,7 @@ namespace dmGameObject
     /**
      * Set default capacity of collections in this register. This does not affect existing collections.
      * @param regist Register
-     * @param capacity Default capacity of collections in this register (0-65534).
+     * @param capacity Default capacity of collections in this register (1-1048576).
      * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
      */
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
@@ -177,6 +174,20 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
 
     /**
+     * Get the generation encoded in an instance handle.
+     * @param instance Game object instance
+     * @return Instance generation, or zero for an invalid handle encoding
+     */
+    uint32_t GetInstanceGeneration(HGameObject instance);
+
+    /**
+     * Test whether an instance handle identifies a live game object.
+     * @param instance Game object instance
+     * @return True if the instance is live
+     */
+    bool IsValid(HGameObject instance);
+
+    /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
      * @param instance Instance
      * @param component_id Component id
@@ -222,10 +233,10 @@ namespace dmGameObject
 
     /**
      * Performs clean up of the register after update, such as deleting all collections scheduled for delete.
-     * @param reg Game object register
+     * @param regist Game-object register
      * @return True on success
      */
-    bool PostUpdate(HRegister reg);
+    bool PostUpdate(HRegister regist);
 
     /**
      * Dispatches input actions to the input focus stacks in the supplied game object collection.
@@ -256,7 +267,7 @@ namespace dmGameObject
     /**
      * Retrieve a register from the specified collection
      * @param collection Game object collection
-     * @return The register bound to the specified collection
+     * @return The register bound to the specified collection, or 0 if the collection is invalid or stale
      */
     HRegister GetRegister(HCollection collection);
 

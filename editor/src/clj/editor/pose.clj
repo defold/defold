@@ -290,18 +290,18 @@
         parent-scaled (not= default-scale parent-scale)]
     (cond-> child-pose
 
-            parent-scaled
-            (assoc :scale (multiply-vector parent-scale child-scale))
+      parent-scaled
+      (assoc :scale (multiply-vector parent-scale child-scale))
 
-            parent-rotated
-            (assoc :rotation (multiply-quaternion parent-rotation child-rotation))
+      parent-rotated
+      (assoc :rotation (multiply-quaternion parent-rotation child-rotation))
 
-            (or parent-scaled parent-rotated parent-translated)
-            (assoc :translation
-                   (cond-> child-translation
-                           parent-scaled (multiply-vector parent-scale)
-                           parent-rotated (rotate-vector parent-rotation)
-                           parent-translated (add-vector parent-translation))))))
+      (or parent-scaled parent-rotated parent-translated)
+      (assoc :translation
+        (cond-> child-translation
+          parent-scaled (multiply-vector parent-scale)
+          parent-rotated (rotate-vector parent-rotation)
+          parent-translated (add-vector parent-translation))))))
 
 (defn matrix
   ^Matrix4d [^Pose pose]

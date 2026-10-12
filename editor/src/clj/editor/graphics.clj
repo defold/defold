@@ -517,12 +517,12 @@
     ;; We still want to remove the default empty :name-hash string, though.
     (cond-> (dissoc attribute :name-hash :element-count :double-values :long-values :binary-values)
 
-            (and (some? attribute-vector-type)
-                 (not= attribute-vector-type default-attribute-vector-type))
-            (assoc :vector-type attribute-vector-type)
+      (and (some? attribute-vector-type)
+           (not= attribute-vector-type default-attribute-vector-type))
+      (assoc :vector-type attribute-vector-type)
 
-            (not (engine-provided-attribute? attribute))
-            (assoc attribute-value-keyword {:v attribute-values}))))
+      (not (engine-provided-attribute? attribute))
+      (assoc attribute-value-keyword {:v attribute-values}))))
 
 (defn sanitize-attribute-override [attribute]
   ;; Graphics$VertexAttribute in map format.
@@ -648,8 +648,8 @@
              :set-fn attribute-update-fn
              :clear-fn attribute-clear-fn}
 
-            (= semantic-type :semantic-type-color)
-            (assoc :ignore-alpha (not= :vector-type-vec4 vector-type)))))
+      (= semantic-type :semantic-type-color)
+      (assoc :ignore-alpha (not= :vector-type-vec4 vector-type)))))
 
 (defn- attribute-property-value [attribute-values property-type semantic-type source-vector-type target-vector-type]
   (if (= g/Num property-type)
@@ -687,9 +687,9 @@
                                     :value value
                                     :error error}
 
-                                   ;; Insert the original material values as original-value if there is a vertex override.
-                                   (some? override-values)
-                                   (assoc :original-value material-values))]
+                             ;; Insert the original material values as original-value if there is a vertex override.
+                             (some? override-values)
+                             (assoc :original-value material-values))]
                   (pair property-key prop))))
             material-attribute-infos)
 

@@ -573,6 +573,8 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 // Defold extensions
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
+GLFWAPI void glfwRegisterUISceneDelegate(void* delegate);
+GLFWAPI void glfwUnregisterUISceneDelegate(void* delegate);
 GLFWAPI void glfwSetViewType(int view_type);
 GLFWAPI void glfwSetWindowBackgroundColor(unsigned int color);
 GLFWAPI float glfwGetDisplayScaleFactor();

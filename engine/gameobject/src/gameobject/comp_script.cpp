@@ -79,6 +79,12 @@ namespace dmGameObject
             return CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
+        if (script_world->m_Collection == 0x0)
+        {
+            if (GetInstanceFromHandle(params.m_Instance, &script_world->m_Collection) == 0x0)
+                return CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         HScriptInstance script_instance = NewScriptInstance(script_world, script, params.m_Instance, params.m_ComponentIndex);
         SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_PROTOTYPE, params.m_PropertySet);
         if (script_instance == 0x0)

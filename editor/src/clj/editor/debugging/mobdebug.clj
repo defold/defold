@@ -242,7 +242,7 @@
 (defn- read-lua-table [{:keys [content string]}]
   (with-meta (into (sorted-map-by compare-keys)
                    (sequence->map-entries content))
-             {:string string}))
+    {:string string}))
 
 (declare ->LuaStructure)
 
@@ -547,7 +547,6 @@
           "401" (when-let [[size] (re-match #"^Error in Expression\s+(\d+)$" rest)]
                   (let [n (Integer/parseInt size)]
                     {:error (read-data in n)})))))))
-
 
 ;; A note on "SETB file line condition":
 ;; * In LuaBuilder.java we add '@' in front of the filename to tell Lua to

@@ -36,8 +36,8 @@
       (enabled? [instances] (every? #(= % :foo) instances))
       (run [instances] 123))
     (are [inst exp] (= exp (test-util/handler-enabled? :file.open [(handler/->context :global {:instances [inst]})] {}))
-         :foo true
-         :bar false)
+      :foo true
+      :bar false)
     (is (= 123 (test-util/handler-run :file.open [(handler/->context :global {:instances [:foo]})] {})))))
 
 (deftest context
@@ -46,15 +46,15 @@
       (active? [global-context] true)
       (enabled? [global-context] true)
       (run [global-context]
-           (when global-context
-             :c1)))
+        (when global-context
+          :c1)))
 
     (handler/defhandler :c2 :local
       (active? [local-context] true)
       (enabled? [local-context] true)
       (run [local-context]
-           (when local-context
-             :c2)))
+        (when local-context
+          :c2)))
 
     (let [global-context (handler/->context :global {:global-context true})
           local-context (handler/->context :local {:local-context true})]
@@ -87,8 +87,8 @@
       (handler/defhandler :c1 :global
         (active? [selection] selection)
         (run [selection]
-             (g/with-auto-evaluation-context evaluation-context
-               (handler/adapt selection Keyword evaluation-context))))
+          (g/with-auto-evaluation-context evaluation-context
+            (handler/adapt selection Keyword evaluation-context))))
       (doseq [[local-selection expected-selection] [[["b"] [:b]]
                                                     [[] []]
                                                     [nil [:a]]]]
@@ -105,7 +105,7 @@
       (handler/defhandler :c1 :global
         (active? [selection selection-context] (and (= :global selection-context) selection))
         (run [selection]
-             nil))
+          nil))
       (is (test-util/handler-enabled? :c1 [global] {}))
       (is (not (test-util/handler-enabled? :c1 [local] {})))
       (is (test-util/handler-enabled? :c1 [local global] {})))))
@@ -190,8 +190,7 @@
     (run [selection] (g/with-auto-evaluation-context evaluation-context
                        (handler/adapt-every selection OtherType evaluation-context))))
   (with-clean-system
-    (let [[s i] (tx-nodes (g/make-nodes world
-                                        [s [StringNode :string "test"]
+    (let [[s i] (tx-nodes (g/make-nodes [s [StringNode :string "test"]
                                          i [IntNode :int 1]]))
           selection (atom [])
           select! (fn [s] (reset! selection s))]
@@ -204,32 +203,32 @@
                                                    (g/node-value node-id :int)))})]
         (select! [])
         (are [enbl? cmd] (= enbl? (test-util/handler-enabled? cmd [global] {}))
-             false :string-command
-             false :single-string-command
-             false :int-command
-             false :string-node-command
-             false :other-command)
+          false :string-command
+          false :single-string-command
+          false :int-command
+          false :string-node-command
+          false :other-command)
         (select! [s])
         (are [enbl? cmd] (= enbl? (test-util/handler-enabled? cmd [global] {}))
-             true :string-command
-             true :single-string-command
-             false :int-command
-             true :string-node-command
-             false :other-command)
+          true :string-command
+          true :single-string-command
+          false :int-command
+          true :string-node-command
+          false :other-command)
         (select! [s s])
         (are [enbl? cmd] (= enbl? (test-util/handler-enabled? cmd [global] {}))
-             true :string-command
-             false :single-string-command
-             false :int-command
-             true :string-node-command
-             false :other-command)
+          true :string-command
+          false :single-string-command
+          false :int-command
+          true :string-node-command
+          false :other-command)
         (select! [i])
         (are [enbl? cmd] (= enbl? (test-util/handler-enabled? cmd [global] {}))
-             false :string-command
-             false :single-string-command
-             true :int-command
-             false :string-node-command
-             false :other-command)))))
+          false :string-command
+          false :single-string-command
+          true :int-command
+          false :string-node-command
+          false :other-command)))))
 
 (deftest adapt-nested
   (handler/defhandler :string-node-command :global
@@ -237,12 +236,11 @@
     (run [selection] (g/with-auto-evaluation-context evaluation-context
                        (handler/adapt-every selection StringNode evaluation-context))))
   (with-clean-system
-    (let [[s] (tx-nodes (g/make-nodes world
-                                      [s [StringNode :string "test"]]))
+    (let [[s] (tx-nodes (g/make-nodes [s [StringNode :string "test"]]))
           selection (atom [])
           select! (fn [s] (reset! selection s))]
       (let [global (handler/->context :global {} (->DynamicSelection selection) {}
-                              {Long :node-id})]
+                                      {Long :node-id})]
         (select! [])
         (is (not (test-util/handler-enabled? :string-node-command [global] {})))
         (select! [{:node-id s}])
@@ -256,12 +254,11 @@
 
 (deftest dynamics
   (handler/defhandler :string-command :global
-      (active? [string] string)
-      (enabled? [string] string)
-      (run [string] string))
+    (active? [string] string)
+    (enabled? [string] string)
+    (run [string] string))
   (with-clean-system
-    (let [[s] (tx-nodes (g/make-nodes world
-                                      [s [StringNode :string "test"]]))]
+    (let [[s] (tx-nodes (g/make-nodes [s [StringNode :string "test"]]))]
       (let [global (handler/->context :global {:string-node s} nil {:string [:string-node :string]} {})]
         (is (test-util/handler-enabled? :string-command [global] {}))))))
 
@@ -313,12 +310,11 @@
         (let [string-node (handler/adapt-single selection StringNode evaluation-context)]
           (g/node-value string-node :string evaluation-context)))))
   (with-clean-system
-    (let [[s i lonely-i] (tx-nodes (g/make-nodes world
-                                                 [s [StringNode :string "test"]
+    (let [[s i lonely-i] (tx-nodes (g/make-nodes [s [StringNode :string "test"]
                                                   i ImposterStringNode
                                                   lonely-i ImposterStringNode]
-                                                 (g/connect s :string i :string)
-                                                 (g/connect s :_node-id i :source)))
+                                     (g/connect s :string i :string)
+                                     (g/connect s :_node-id i :source)))
           selection (atom [])
           select! (fn [s] (reset! selection s))
           selection-provider (->AltSelection selection)

@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.HashSet;
 import java.util.Comparator;
 
-import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.IResource;
 
 /**
@@ -143,7 +142,7 @@ public class Task {
     }
 
     public boolean isCacheable() {
-        return builder.params != null ? builder.params.isCacheble() : false;
+        return builder.params != null && builder.params.isCacheble();
     }
 
     /**

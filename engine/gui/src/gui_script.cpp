@@ -20,8 +20,10 @@
 #include <dlib/message.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <font/text_layout.h>
 
 #include <script/script.h>
+#include <gameobject/script.h>
 #include <gameobject/gameobject_props_lua.h>
 #include <gameobject/gameobject_script_util.h>
 
@@ -467,12 +469,7 @@ namespace dmGui
     static int GuiScriptInstanceGetUserData(lua_State* L)
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
-        uintptr_t user_data = 0;
-        if (scene != 0 && scene->m_Context->m_GetUserDataCallback != 0)
-        {
-            user_data = scene->m_Context->m_GetUserDataCallback(scene);
-        }
-        lua_pushlightuserdata(L, (void*)user_data);
+        lua_pushlightuserdata(L, scene == 0 ? 0 : GetSceneUserData(scene));
         return 1;
     }
 
@@ -1145,12 +1142,16 @@ namespace dmGui
                 return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
             }
 
-            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
+            dmGameObject::HInstance hinstance = dmGameObject::GetInstanceFromLua(L);
+            if (!hinstance)
+            {
+                return DM_LUA_ERROR("'gui.set()' could not resolve the current game object");
+            }
 
             dmhash_t key = 0;
             if (dmGameObject::GetPropertyOptionsKey((dmGameObject::HPropertyOptions)&options_result.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
-                return HandleGoSetResult(L, dmGameObject::PROPERTY_RESULT_INVALID_KEY, property_hash, instance, target, options_result.m_Options);
+                return HandleGoSetResult(L, dmGameObject::PROPERTY_RESULT_INVALID_KEY, property_hash, hinstance, target, options_result.m_Options);
             }
 
             Result r = DeleteDynamicTexture(scene, key);
@@ -1183,11 +1184,15 @@ namespace dmGui
             {
                 return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
             }
-            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
-            result = dmGameObject::SetProperty(instance, target.m_Fragment, property_hash, options_result.m_Options, property_var);
+            dmGameObject::HInstance hinstance = dmGameObject::GetInstanceFromLua(L);
+            if (!hinstance)
+            {
+                return DM_LUA_ERROR("'gui.set()' could not resolve the current game object");
+            }
+            result = dmGameObject::SetProperty(hinstance, target.m_Fragment, property_hash, options_result.m_Options, property_var);
             if (result != dmGameObject::PROPERTY_RESULT_OK)
             {
-                return HandleGoSetResult(L, result, property_hash, instance, target, options_result.m_Options);
+                return HandleGoSetResult(L, result, property_hash, hinstance, target, options_result.m_Options);
             }
             return 0;
         }
@@ -1767,8 +1772,8 @@ namespace dmGui
      * @member id [type:hash] the object's `id` attribute, or its generated layout object id
      * @member text_offset [type:integer] zero-based UTF-32 offset in the visible text
      * @member text_length [type:integer] visible UTF-32 text length covered by the object
-     * @member x [type:number] lower-left x-coordinate relative to the text node's upper-left layout origin
-     * @member y [type:number] lower-left y-coordinate relative to the text node's upper-left layout origin
+     * @member x [type:number] unscaled lower-left x-coordinate relative to the text node's pivot
+     * @member y [type:number] unscaled lower-left y-coordinate relative to the text node's pivot
      * @member width [type:number] resolved object width
      * @member height [type:number] resolved object height
      * @member attributes [type:table<string, string>] markup attributes keyed by name
@@ -1777,7 +1782,7 @@ namespace dmGui
     /*# gets the markup objects for a text node
      * Returns the sprites and links found in the text node's current layout.
      * Each object's `x` and `y` identify its lower-left corner relative to the
-     * text node's upper-left layout origin.
+     * text node's pivot, before applying the node's scale and rotation.
      *
      * @name gui.get_layout_objects
      * @param node [type:node] text node to inspect
@@ -1798,15 +1803,8 @@ namespace dmGui
         const TextLayoutObject* objects = layout ? TextLayoutGetObjects(layout) : 0;
         const TextLayoutObjectAttribute* attributes = layout ? TextLayoutGetObjectAttributes(layout) : 0;
         const char* source = layout ? TextLayoutGetObjectSource(layout) : "";
-        float layout_width = 0.0f;
-        float layout_height = 0.0f;
-
-        if (layout)
-        {
-            TextLayoutGetBounds(layout, &layout_width, &layout_height);
-        }
-
-        (void)layout_height;
+        const float width = GetNodeProperty(scene, node, PROPERTY_SIZE).getX();
+        const dmVMath::Vector4 pivot_delta = CalcPivotDelta(GetNodePivot(scene, node), dmVMath::Vector4(1.0f, 1.0f, 0.0f, 1.0f));
         lua_createtable(L, object_count, 0);
 
         for (uint32_t i = 0; i < object_count; ++i)
@@ -1827,7 +1825,7 @@ namespace dmGui
             lua_setfield(L, -2, "height");
             float x = 0.0f;
             float y = 0.0f;
-            TextLayoutGetObjectPosition(layout, &object, 0.0f, 0.0f, layout_width, &x, &y);
+            TextLayoutGetObjectPositionLocal(layout, &object, width, -pivot_delta.getX(), -pivot_delta.getY(), &x, &y);
             lua_pushnumber(L, x);
             lua_setfield(L, -2, "x");
             lua_pushnumber(L, y);
@@ -4211,7 +4209,8 @@ namespace dmGui
 
     /*# sets the node color
      * Sets the color of the supplied node. The components
-     * of the supplied vector3 or vector4 should contain the color channel values:
+     * of the supplied vector3 or vector4 should contain the color channel values
+     * in the range 0 to 1:
      *
      * Component        | Color value
      * ---------------- | -------------
@@ -5144,6 +5143,17 @@ namespace dmGui
 
 
 
+
+    void SetScriptInstanceMetaData(dmScript::HContext script_context, const char* name, void* data)
+    {
+        lua_State* L = dmScript::GetLuaState(script_context);
+        DM_LUA_STACK_CHECK(L, 0);
+
+        luaL_getmetatable(L, GUI_SCRIPT_INSTANCE);
+        lua_pushlightuserdata(L, data);
+        lua_setfield(L, -2, name);
+        lua_pop(L, 1);
+    }
 
     lua_State* InitializeScript(dmScript::HContext script_context)
     {

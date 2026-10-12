@@ -167,10 +167,12 @@ endforeach()
 # optimised configuration flags after CMake has enabled the language
 # toolchains. This keeps asserts enabled in Release/RelWithDebInfo/MinSizeRel
 # builds.
-if(NOT DEFINED CMAKE_PROJECT_TOP_LEVEL_INCLUDES)
-  set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES "")
+if(NOT DEFINED CMAKE_PROJECT_INCLUDE)
+  set(CMAKE_PROJECT_INCLUDE "")
 endif()
-list(APPEND CMAKE_PROJECT_TOP_LEVEL_INCLUDES "${DEFOLD_CMAKE_DIR}/defold_post_project.cmake")
+# TOP_LEVEL_INCLUDES runs before language initialization, when the default
+# compiler flags do not exist yet. Use the hook at the end of project().
+list(APPEND CMAKE_PROJECT_INCLUDE "${DEFOLD_CMAKE_DIR}/defold_post_project.cmake")
 
 defold_log("DEFOLD_HOME: ${DEFOLD_HOME}")
 defold_log("DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
@@ -226,9 +228,8 @@ defold_log("DEFOLD_BUILD_HOME: ${DEFOLD_BUILD_HOME}")
 # Prefer colored diagnostics from compilers that support it
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
-# Export compilation database for tooling (clangd, IDEs)
-# -- currently set to off, as it currently interferes with the Waf option
-set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
+# Export compilation database for tooling (clangd, IDEs) when requested.
+option(CMAKE_EXPORT_COMPILE_COMMANDS "Export compilation database" OFF)
 
 # Common paths
 set(DEFOLD_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/include")
@@ -315,15 +316,10 @@ unset(_DEFOLD_ENGINE_LIB)
 unset(_DEFOLD_ENGINE_LIB_UPPER)
 unset(_DEFOLD_ENGINE_LIBS)
 
-# For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
 set(_DEFOLD_PLATFORM_INCLUDE_DIRS)
 set(_DEFOLD_PLATFORM_LIB_DIRS)
 list(APPEND _DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
 list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_LIB_DIR}" "${DEFOLD_EXT_LIB_DIR}")
-if(TARGET_PLATFORM STREQUAL "x86-win32")
-  list(APPEND _DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_SDK_ROOT}/ext/include/win32")
-  list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_SDK_ROOT}/lib/win32" "${DEFOLD_SDK_ROOT}/ext/lib/win32")
-endif()
 list(REMOVE_DUPLICATES _DEFOLD_PLATFORM_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES _DEFOLD_PLATFORM_LIB_DIRS)
 
@@ -353,10 +349,6 @@ target_include_directories(defold_sdk SYSTEM INTERFACE
   "$<INSTALL_INTERFACE:ext/include/${TARGET_PLATFORM}>"
   "$<BUILD_INTERFACE:${DEFOLD_EXT_INCLUDE_DIR}>"
   "$<INSTALL_INTERFACE:ext/include>")
-if(TARGET_PLATFORM STREQUAL "x86-win32")
-  target_include_directories(defold_sdk SYSTEM INTERFACE
-    "$<INSTALL_INTERFACE:ext/include/win32>")
-endif()
 # Library search directories
 foreach(_DEFOLD_PLATFORM_LIB_DIR IN LISTS _DEFOLD_PLATFORM_LIB_DIRS)
   target_link_directories(defold_sdk INTERFACE
@@ -365,11 +357,6 @@ endforeach()
 target_link_directories(defold_sdk INTERFACE
   "$<INSTALL_INTERFACE:lib/${TARGET_PLATFORM}>"
   "$<INSTALL_INTERFACE:ext/lib/${TARGET_PLATFORM}>")
-if(TARGET_PLATFORM STREQUAL "x86-win32")
-  target_link_directories(defold_sdk INTERFACE
-    "$<INSTALL_INTERFACE:lib/win32>"
-    "$<INSTALL_INTERFACE:ext/lib/win32>")
-endif()
 
 # Enable IPO/LTO when supported
 include(CheckIPOSupported)
@@ -392,8 +379,7 @@ link_libraries(defold_sdk)
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
 defold_log("Install prefix set to DEFOLD_SDK_ROOT: ${CMAKE_INSTALL_PREFIX}")
 
-# CMake libraries may be built before every Waf library has populated its
-# dmsdk compatibility headers. Mirror Waf's dmsdk_add_files convention here.
+# Install compatibility headers even when only a subset of libraries is built.
 foreach(_DEFOLD_DMSDK_DIR IN LISTS _DEFOLD_DMSDK_DIRS)
   file(GLOB_RECURSE _DEFOLD_DMSDK_HEADERS CONFIGURE_DEPENDS
        RELATIVE "${_DEFOLD_DMSDK_DIR}"

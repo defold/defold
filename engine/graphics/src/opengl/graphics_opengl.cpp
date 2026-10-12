@@ -40,11 +40,6 @@
 #include "graphics_opengl_private.h"
 #include <platform/window.hpp>
 
-#if defined(DM_PLATFORM_MACOS)
-    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-    #include <Carbon/Carbon.h>
-#endif
-
 /* Include standard OpenGL headers: GLFW uses GL_FALSE/GL_TRUE, and it is
  * convenient for the user to only have to include <GL/glfw.h>. This also
  * solves the problem with Windows <GL/gl.h> and <GL/glu.h> needing some
@@ -1570,17 +1565,6 @@ static void LogFrameBufferError(GLenum status)
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
 
-#if defined(DM_PLATFORM_MACOS)
-        ProcessSerialNumber psn;
-        OSErr err;
-
-        // Move window to front. Required if running without application bundle.
-        err = GetCurrentProcess( &psn );
-        if (err == noErr)
-            (void) SetFrontProcess( &psn );
-#endif
-
-
     #if !(defined(__EMSCRIPTEN__) || defined(GL_ES_VERSION_2_0))
         GLint n;
         glGetIntegerv(GL_NUM_EXTENSIONS, &n);
@@ -1959,6 +1943,16 @@ static void LogFrameBufferError(GLenum status)
         context->m_ComputeSupport &= glMemoryBarrier    != 0;
         context->m_ComputeSupport &= glBindImageTexture != 0;
 
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        #if defined(GL_ES_VERSION_3_0) || defined(GL_ES_VERSION_2_0)
+            const bool storage_buffer_version_supported = version_major > 3 || (version_major == 3 && version_minor >= 1);
+        #else
+            const bool storage_buffer_version_supported = version_major > 4 || (version_major == 4 && version_minor >= 3);
+        #endif
+
+        context->m_StorageBufferSupport = storage_buffer_version_supported && glBindBufferBase != 0 && glMemoryBarrier != 0;
+    #endif
+
         #undef COMPUTE_VERSION_NEEDED
     #endif
 
@@ -2054,12 +2048,19 @@ static void LogFrameBufferError(GLenum status)
         #endif
 
         #ifdef GL_MAX_SHADER_STORAGE_BLOCK_SIZE
-            if (context->m_ComputeSupport)
+            if (context->m_StorageBufferSupport)
             {
                 // GL_MAX_SHADER_STORAGE_BLOCK_SIZE is reported as a signed GLint64
                 // in spec — but glGetIntegerv truncates. Drivers commonly clamp
                 // anyway; revisit with glGetInteger64v if the truncation hurts.
                 limits.m_MaxStorageBufferRange = (uint64_t)(uint32_t) OpenGLGetInteger(GL_MAX_SHADER_STORAGE_BLOCK_SIZE);
+            }
+        #endif
+
+        #ifdef GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS
+            if (context->m_StorageBufferSupport)
+            {
+                limits.m_MaxStorageBuffersPerStage = (uint32_t) OpenGLGetInteger(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS);
             }
         #endif
         }
@@ -2369,6 +2370,131 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLDisableUniformBuffer(_context, uniform_buffer);
         delete ubo;
+    }
+
+    static HStorageBuffer OpenGLNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* storage_buffer = new OpenGLStorageBuffer();
+        storage_buffer->m_BaseStorageBuffer.m_Size = size;
+        storage_buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+
+        GLuint handle = 0;
+        glGenBuffersARB(1, &handle);
+        storage_buffer->m_Id = AddNewGLHandle(context, handle);
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GetOpenGLBufferUsage(buffer_usage));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+        return (HStorageBuffer) storage_buffer;
+    #else
+        (void) _context;
+        (void) size;
+        (void) data;
+        (void) buffer_usage;
+        return 0;
+    #endif
+    }
+
+    static void OpenGLDisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentStorageBuffers[set][binding] == buffer)
+                {
+                    context->m_CurrentStorageBuffers[set][binding] = 0;
+                }
+            }
+        }
+    }
+
+    static void OpenGLDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        if (!storage_buffer)
+        {
+            return;
+        }
+
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        OpenGLDisableStorageBuffer(_context, storage_buffer);
+
+        GLuint handle = GetGLHandle(context, buffer->m_Id);
+        glDeleteBuffersARB(1, &handle);
+        CleanupGLHandle(context, buffer->m_Id);
+        delete buffer;
+    }
+
+    static void OpenGLSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        buffer->m_BaseStorageBuffer.m_Size = size;
+        buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+
+        if (context->m_StorageBufferUpdateBarrierPending)
+        {
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_BUFFER_UPDATE);
+            context->m_StorageBufferUpdateBarrierPending = 0;
+        }
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GetGLHandle(context, buffer->m_Id));
+        glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GetOpenGLBufferUsage(buffer_usage));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+    #else
+        (void) _context;
+        (void) storage_buffer;
+        (void) size;
+        (void) data;
+        (void) buffer_usage;
+    #endif
+    }
+
+    static void OpenGLSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_BaseStorageBuffer.m_Size);
+
+        if (context->m_StorageBufferUpdateBarrierPending)
+        {
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_BUFFER_UPDATE);
+            context->m_StorageBufferUpdateBarrierPending = 0;
+        }
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GetGLHandle(context, buffer->m_Id));
+        glBufferSubDataARB(GL_SHADER_STORAGE_BUFFER, offset, size, data);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+    #else
+        (void) _context;
+        (void) storage_buffer;
+        (void) offset;
+        (void) size;
+        (void) data;
+    #endif
+    }
+
+    static uint32_t OpenGLGetStorageBufferSize(HContext, HStorageBuffer storage_buffer)
+    {
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        return buffer ? buffer->m_BaseStorageBuffer.m_Size : 0;
+    }
+
+    static void OpenGLEnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        context->m_CurrentStorageBuffers[set][binding] = (OpenGLStorageBuffer*) storage_buffer;
     }
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2833,11 +2959,11 @@ static void LogFrameBufferError(GLenum status)
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
         case TEXTURE_FORMAT_DEPTH:
-            gl_type            = GL_FLOAT;
+            // GLES requires an integer upload type for normalized depth storage.
+            gl_type            = GL_UNSIGNED_INT;
             gl_format          = GL_DEPTH_COMPONENT;
             gl_internal_format = GetDepthBufferFormat(context);
         #ifdef __EMSCRIPTEN__
-            gl_type            = GL_UNSIGNED_INT;
             gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
         #endif
             break;
@@ -3008,6 +3134,19 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        if (context->m_StorageBufferSupport)
+        {
+            for (uint32_t i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Size(); ++i)
+            {
+                const ShaderResourceBinding& resource = program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers[i];
+                OpenGLStorageBuffer* buffer = context->m_CurrentStorageBuffers[resource.m_Set][resource.m_Binding];
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, program->m_StorageBufferBindings[i], buffer ? GetGLHandle(context, buffer->m_Id) : 0);
+                CHECK_GL_ERROR;
+            }
+        }
+    #endif
+
     #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR;
@@ -3108,6 +3247,23 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    static void OpenGLStorageBufferBarrier(OpenGLContext* context)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
+        if (context->m_StorageBufferSupport && !context->m_CurrentProgram->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Empty())
+        {
+            // Order readonly draws before later shader writes too. A barrier
+            // after the writer cannot protect reads from an earlier draw.
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
+            if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+                context->m_StorageBufferUpdateBarrierPending = 1;
+            CHECK_GL_ERROR;
+        }
+    #else
+        (void) context;
+    #endif
+    }
+
     static void OpenGLDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer buffer, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
@@ -3132,6 +3288,7 @@ static void LogFrameBufferError(GLenum status)
             glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
             CHECK_GL_ERROR
         }
+        OpenGLStorageBufferBarrier(context);
     }
 
     static void OpenGLDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -3153,6 +3310,7 @@ static void LogFrameBufferError(GLenum status)
             glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
             CHECK_GL_ERROR
         }
+        OpenGLStorageBufferBarrier(context);
     }
 
     static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -3169,7 +3327,11 @@ static void LogFrameBufferError(GLenum status)
             glDispatchCompute(group_count_x, group_count_y, group_count_z);
             CHECK_GL_ERROR;
 
-            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS | DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH);
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS |
+                            DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH |
+                            DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
+            if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+                context->m_StorageBufferUpdateBarrierPending = 1;
             CHECK_GL_ERROR;
         }
     #endif
@@ -3956,6 +4118,25 @@ static void LogFrameBufferError(GLenum status)
         delete program;
     }
 
+    static bool BuildStorageBufferBindings(OpenGLContext* context, OpenGLProgram* program, char* error_buffer, uint32_t error_buffer_size)
+    {
+        const dmArray<ShaderResourceBinding>& resources = program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers;
+        program->m_StorageBufferBindings.SetSize(0);
+        program->m_StorageBufferBindings.SetCapacity(resources.Size());
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            const uint32_t binding = GetStorageBufferBindingIndex(resources, i);
+            if (!context->m_StorageBufferSupport || binding >= context->m_BaseContext.m_Limits.m_MaxStorageBuffersPerStage)
+            {
+                if (error_buffer && error_buffer_size)
+                    dmSnPrintf(error_buffer, error_buffer_size, "Storage buffer binding %u exceeds the adapter's supported binding range.", binding);
+                return false;
+            }
+            program->m_StorageBufferBindings.Push(binding);
+        }
+        return true;
+    }
+
     static HProgram OpenGLNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderDesc::Shader* ddf_vp = 0x0;
@@ -3970,7 +4151,13 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLProgram* program = new OpenGLProgram();
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
+
+        if (!BuildStorageBufferBindings(context, program, error_buffer, error_buffer_size))
+        {
+            DeleteIncompleteProgram(context, program, 0, 0, 0);
+            return 0;
+        }
 
         if (ddf_cp)
         {
@@ -4122,6 +4309,12 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLProgram* program = (OpenGLProgram*) _program;
 
+        // The shared ReloadProgram entry point destroys the previous reflection.
+        // Rebuild it together with the GL mapping before using the new shaders.
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
+        if (!BuildStorageBufferBindings(context, program, error_buffer, error_buffer_size))
+            return false;
+
         if (ddf_cp)
         {
             if (!ReloadShader(context, program->m_ComputeShader, ddf_cp, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf->m_ComputeProgram, error_buffer, error_buffer_size))
@@ -4166,6 +4359,21 @@ static void LogFrameBufferError(GLenum status)
             BuildAttributes(program);
         }
 
+        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        {
+            OpenGLScratchUniformBuffer& buffer = program->m_UniformBuffers[i];
+            GLuint id = GetGLHandle(context, buffer.m_Id);
+            glDeleteBuffersARB(1, &id);
+            CleanupGLHandle(context, buffer.m_Id);
+            delete[] buffer.m_BlockMemory;
+        }
+        program->m_UniformBuffers.SetSize(0);
+        OpenGLShader* shaders[] = { program->m_VertexShader, program->m_FragmentShader };
+        ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        OpenGLShader** active_shaders = ddf_cp ? &program->m_ComputeShader : shaders;
+        const uint32_t shader_count = ddf_cp ? 1 : 2;
+        CreateProgramResourceBindings(program, bindings, active_shaders, shader_count);
+        OpenGLBuildUniforms(context, program, active_shaders, shader_count);
         memset(program->m_TextureUnitTypes, 0, sizeof(program->m_TextureUnitTypes));
         return true;
     }
@@ -4211,6 +4419,8 @@ static void LogFrameBufferError(GLenum status)
         {
             return language == ShaderDesc::LANGUAGE_GLSL_SM430;
         }
+        if (language == ShaderDesc::LANGUAGE_GLSL_SM430)
+            return context->m_StorageBufferSupport;
         return language == ShaderDesc::LANGUAGE_GLSL_SM330;
     }
 
@@ -4449,9 +4659,9 @@ static void LogFrameBufferError(GLenum status)
         ClearTextureParamsData(params);
     }
 
-    static inline void AttachRenderTargetAttachment(OpenGLContext* context, OpenGLRenderTargetAttachment& attachment, HTexture texture, GLenum* attachment_targets, uint32_t num_attachment_targets)
+    static inline void AttachRenderTargetAttachment(OpenGLContext* context, OpenGLRenderTargetAttachment& attachment, HTexture texture, GLenum* attachment_targets, uint32_t num_attachment_targets, CubeMapFace cube_map_face)
     {
-        if (attachment.m_Attached)
+        if (attachment.m_Attached && attachment.m_Type != ATTACHMENT_TYPE_TEXTURE)
         {
             return;
         }
@@ -4468,9 +4678,10 @@ static void LogFrameBufferError(GLenum status)
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
         {
             OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+            GLenum texture_target = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + cube_map_face : GL_TEXTURE_2D;
             for (int i = 0; i < num_attachment_targets; ++i)
             {
-                glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], GL_TEXTURE_2D, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], texture_target, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
                 CHECK_GL_ERROR;
                 CHECK_GL_FRAMEBUFFER_ERROR;
             }
@@ -4490,7 +4701,7 @@ static void LogFrameBufferError(GLenum status)
                 SetTexture(_context, rt->m_Base.m_TextureColor[i], rt->m_Base.m_ColorTextureParams[i]);
 
                 GLenum attachments[] = { (GLenum) GL_COLOR_ATTACHMENT0 + i };
-                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i], attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i], attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             }
         }
 
@@ -4504,11 +4715,11 @@ static void LogFrameBufferError(GLenum status)
     #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
     #else
                 // create a depth-stencil that has the same buffer attached to both GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT (typical ES <= 2.0)
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
     #endif
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
@@ -4518,24 +4729,30 @@ static void LogFrameBufferError(GLenum status)
 
                 // JG: This is a workaround! We can't use SetTexture here since there is no compound format for depth+stencil, and I don't want to introduce one *right now* just for OpenGL..
 
-                glBindTexture(GL_TEXTURE_2D, GetGLHandle(context, attachment_tex->m_TextureIds[0]));
+                GLenum texture_target = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+                glBindTexture(texture_target, GetGLHandle(context, attachment_tex->m_TextureIds[0]));
                 CHECK_GL_ERROR;
 
                  // The data type (DMGRAPHICS_TYPE_UNSIGNED_INT_24_8) might change later when we introduce 32f depth formats
-                glTexImage2D(GL_TEXTURE_2D, 0,
-                    DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8,
-                    rt->m_Base.m_DepthStencilTextureParams.m_Width,
-                    rt->m_Base.m_DepthStencilTextureParams.m_Height,
-                    0, DMGRAPHICS_FORMAT_DEPTH_STENCIL, DMGRAPHICS_TYPE_UNSIGNED_INT_24_8, 0);
-                CHECK_GL_ERROR;
+                uint32_t face_count = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                for (uint32_t face = 0; face < face_count; ++face)
+                {
+                    GLenum image_target = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + face : GL_TEXTURE_2D;
+                    glTexImage2D(image_target, 0,
+                        DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8,
+                        rt->m_Base.m_DepthStencilTextureParams.m_Width,
+                        rt->m_Base.m_DepthStencilTextureParams.m_Height,
+                        0, DMGRAPHICS_FORMAT_DEPTH_STENCIL, DMGRAPHICS_TYPE_UNSIGNED_INT_24_8, 0);
+                    CHECK_GL_ERROR;
+                }
 
-                glBindTexture(GL_TEXTURE_2D, 0);
+                glBindTexture(texture_target, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             #else
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             #endif
             }
             else
@@ -4552,7 +4769,7 @@ static void LogFrameBufferError(GLenum status)
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
@@ -4561,7 +4778,7 @@ static void LogFrameBufferError(GLenum status)
                 SetTexture(_context, rt->m_Base.m_TextureDepth, rt->m_Base.m_DepthBufferParams);
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             }
 
             if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
@@ -4571,7 +4788,7 @@ static void LogFrameBufferError(GLenum status)
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
@@ -4580,7 +4797,45 @@ static void LogFrameBufferError(GLenum status)
                 SetTexture(_context, rt->m_Base.m_TextureStencil, rt->m_Base.m_StencilBufferParams);
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
+            }
+        }
+    }
+
+    static void AttachCubeMapRenderTargetFace(OpenGLContext* context, OpenGLRenderTarget* rt, CubeMapFace face)
+    {
+        assert(rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP);
+        rt->m_Base.m_CubeMapFace = face;
+
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (rt->m_ColorAttachments[i].m_Type == ATTACHMENT_TYPE_TEXTURE)
+            {
+                GLenum attachment = GL_COLOR_ATTACHMENT0 + i;
+                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i], &attachment, 1, face);
+            }
+        }
+
+        if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
+        {
+#ifdef GL_DEPTH_STENCIL_ATTACHMENT
+            GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
+#else
+            GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
+#endif
+            AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), face);
+        }
+        else
+        {
+            if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
+            {
+                GLenum attachment = GL_DEPTH_ATTACHMENT;
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, &attachment, 1, face);
+            }
+            if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
+            {
+                GLenum attachment = GL_STENCIL_ATTACHMENT;
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, &attachment, 1, face);
             }
         }
     }
@@ -4724,7 +4979,12 @@ static void LogFrameBufferError(GLenum status)
         rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
         rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = use_depth_attachment ? params.m_DepthBufferParams : params.m_StencilBufferParams;
-        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, OpenGLGetSupportedSampleCounts(context), "OpenGL");
+        // Cubemap MSAA needs separate multisample storage for each face in order
+        // to preserve attachment contents when a face is loaded again. Until the
+        // adapter owns those per-face surfaces, use the public fallback behavior.
+        uint32_t supported_sample_counts = params.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? 1 : OpenGLGetSupportedSampleCounts(context);
+        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, supported_sample_counts, "OpenGL");
+        rt->m_Base.m_TextureType = params.m_TextureType;
 
         GLuint handle = 0;
         glGenFramebuffers(1, &handle);
@@ -4924,7 +5184,7 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Id));
     }
 
-    static void OpenGLSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void OpenGLSetRenderTarget(HContext _context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLRenderTarget* rt = 0;
@@ -4966,12 +5226,18 @@ static void LogFrameBufferError(GLenum status)
                 }
                 PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
             }
-            context->m_FrameBufferInvalidateBits = transient_buffer_types;
+            context->m_FrameBufferInvalidateBits = params.m_TransientBufferTypes;
 #if defined(DM_PLATFORM_IOS)
             context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
 #else
             context->m_FrameBufferInvalidateAttachments = rt != NULL;
 #endif
+        }
+        if (rt && rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Base.m_SampleCount > 1 ? rt->m_ResolveId : rt->m_Id));
+            AttachCubeMapRenderTargetFace(context, rt, params.m_CubeMapFace);
+            CHECK_GL_FRAMEBUFFER_ERROR;
         }
         glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? dmPlatform::OpenGLGetDefaultFramebufferId() : GetGLHandle(context, rt->m_Id));
         CHECK_GL_ERROR;
@@ -5676,9 +5942,9 @@ static void LogFrameBufferError(GLenum status)
                             CHECK_GL_ERROR;
                             glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 3);
                             CHECK_GL_ERROR;
-                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 4);
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 4);
                             CHECK_GL_ERROR;
-                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
                             CHECK_GL_ERROR;
                         }
                         else
@@ -5691,9 +5957,9 @@ static void LogFrameBufferError(GLenum status)
                             CHECK_GL_ERROR;
                             glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 3);
                             CHECK_GL_ERROR;
-                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 4);
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 4);
                             CHECK_GL_ERROR;
-                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
                             CHECK_GL_ERROR;
                         }
                     }

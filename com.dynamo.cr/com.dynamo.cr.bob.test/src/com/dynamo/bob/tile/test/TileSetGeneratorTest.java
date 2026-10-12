@@ -16,6 +16,7 @@ package com.dynamo.bob.tile.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 import java.awt.Color;
@@ -179,7 +180,7 @@ public class TileSetGeneratorTest {
         assertEquals(3, iterator.nextFrameIndex().intValue());
         assertEquals(0, iterator.nextFrameIndex().intValue());
         assertEquals(1, iterator.nextFrameIndex().intValue());
-        assertEquals(null, iterator.nextFrameIndex());
+        assertNull(iterator.nextFrameIndex());
     }
 
     private static BufferedImage newImage(int w, int h) {

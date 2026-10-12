@@ -135,7 +135,7 @@ namespace dmGameSystem
         struct Info
         {
             dmhash_t m_NameHash;
-            float    m_Values[4]; // Enough to store a float vec4 property (no support for mat4 yet)
+            float    m_Values[16]; // Enough to store a float mat4 property
         };
 
         Info*   m_Infos;

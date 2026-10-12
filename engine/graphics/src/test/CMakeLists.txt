@@ -72,6 +72,10 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
     target_include_directories(test_app_graphics PRIVATE
       "${GRAPHICS_SRC_DIR}"
       "${GRAPHICS_PROTO_ROOT}")
+    if(TARGET_PLATFORM_OS STREQUAL "xbone")
+      target_include_directories(test_app_graphics PRIVATE
+        "${DEFOLD_XBONE_PRIVATE_REPO_ROOT}/engine/graphics/src/test")
+    endif()
     defold_target_link_libraries(test_app_graphics "${TARGET_PLATFORM}"
       testmain
       ddf
@@ -91,6 +95,9 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
     endif()
     if("GraphicsAdapterMetal" IN_LIST _graphics_app_symbols)
       target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_HAS_METAL=1)
+    endif()
+    if("GraphicsAdapterWebGPU" IN_LIST _graphics_app_symbols AND TARGET_PLATFORM STREQUAL "arm64-macos")
+      target_sources(test_app_graphics PRIVATE "${GRAPHICS_TEST_SRC_DIR}/test_app_graphics_webgpu_macos.mm")
     endif()
     if("GraphicsAdapterVulkan" IN_LIST _graphics_app_symbols AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64-nx64)$")
       target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_DEFAULT_VULKAN=1)

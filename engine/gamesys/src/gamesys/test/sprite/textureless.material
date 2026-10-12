@@ -1,0 +1,7 @@
+name: "textureless"
+vertex_program: "/sprite/sprite.vp"
+fragment_program: "/sprite/textureless.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}

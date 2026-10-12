@@ -113,20 +113,20 @@
                      (string? insert) {:type :snippet :value insert}
                      insert insert
                      :else {:type :plaintext :value name})}
-          tags
-          (assoc :tags tags)
-          additional-edits
-          (assoc :additional-edits additional-edits)
-          type
-          (assoc :type type)
-          commit-characters
-          (assoc :commit-characters commit-characters)
-          detail
-          (assoc :detail detail)
-          doc
-          (assoc :doc (if (string? doc)
-                        {:type :markdown :value doc}
-                        doc))))
+    tags
+    (assoc :tags tags)
+    additional-edits
+    (assoc :additional-edits additional-edits)
+    type
+    (assoc :type type)
+    commit-characters
+    (assoc :commit-characters commit-characters)
+    detail
+    (assoc :detail detail)
+    doc
+    (assoc :doc (if (string? doc)
+                  {:type :markdown :value doc}
+                  doc))))
 
 ;; Insertion spec
 (defn- monotonously-increasing-range? [{:keys [from to]}]
@@ -297,25 +297,25 @@
               (assoc :exit-ranges (vec (sort (into [] (dedupe) (:ranges explicit-exit)))))
               (pos? (count non-exit-tab-triggers))
               (assoc :tab-triggers
-                     ;; We want to merge tab triggers sharing the same range
-                     ;; into single tab trigger. We need to deduplicate the
-                     ;; ranges over all tab triggers, since we can get a snippet
-                     ;; like $1$2 in addition to $1$1.
-                     (->> non-exit-tab-triggers
-                          (eduction
-                            (mapcat
-                              (fn [[id tab-trigger]]
-                                (eduction
-                                  (map #(assoc tab-trigger :id id :range %))
-                                  (:ranges tab-trigger))))
-                            (util/distinct-by :range))
-                          (group-by :id)
-                          (sort-by key)
-                          (mapv (fn [[_ coll]]
-                                  (let [{:keys [choice]} (first coll)]
-                                    (cond-> {:ranges (vec (sort (mapv :range coll)))}
-                                            choice
-                                            (assoc :choices choice))))))))))))))
+                ;; We want to merge tab triggers sharing the same range
+                ;; into single tab trigger. We need to deduplicate the
+                ;; ranges over all tab triggers, since we can get a snippet
+                ;; like $1$2 in addition to $1$1.
+                (->> non-exit-tab-triggers
+                     (eduction
+                       (mapcat
+                         (fn [[id tab-trigger]]
+                           (eduction
+                             (map #(assoc tab-trigger :id id :range %))
+                             (:ranges tab-trigger))))
+                       (util/distinct-by :range))
+                     (group-by :id)
+                     (sort-by key)
+                     (mapv (fn [[_ coll]]
+                             (let [{:keys [choice]} (first coll)]
+                               (cond-> {:ranges (vec (sort (mapv :range coll)))}
+                                 choice
+                                 (assoc :choices choice))))))))))))))
 
 (defn insertion
   "Convert completion item to insertion item
@@ -352,7 +352,7 @@
     (cond-> (case type
               :plaintext {:insert-string value}
               :snippet (evaluate-snippet value))
-            cursor-range
-            (assoc :cursor-range cursor-range)
-            additional-edits
-            (assoc :additional-edits additional-edits))))
+      cursor-range
+      (assoc :cursor-range cursor-range)
+      additional-edits
+      (assoc :additional-edits additional-edits))))

@@ -26,11 +26,10 @@ public class OggBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testOgg() throws Exception {
-        StringBuilder src = new StringBuilder();
-        src.append("components {");
-        src.append("  id: \"sound\"\n");
-        src.append("  component: \"/test.ogg\"\n");
-        src.append("}\n");
-        build("/test.go", src.toString());
+        String src = "components {" +
+                "  id: \"sound\"\n" +
+                "  component: \"/test.ogg\"\n" +
+                "}\n";
+        build("/test.go", src);
     }
 }

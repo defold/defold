@@ -121,6 +121,4 @@
       {:type :warning
        :message (localization/message "dialog.button.close")
        :actions [{:message (localization/message "dialog.button.close")
-                  :on-action #(tap> :suppress)}]}))
-
-  ,)
+                  :on-action #(tap> :suppress)}]})))

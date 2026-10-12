@@ -25,7 +25,7 @@
 
 (def macos #{:x86_64-osx :arm64-osx})
 
-(def windows #{:x86-win32 :x86_64-win32})
+(def windows #{:x86_64-win32})
 
 (def android #{:armv7-android :arm64-android :x86_64-android})
 
@@ -37,7 +37,7 @@
 
 (def vulkan
   #{:x86_64-linux :arm64-linux
-    :x86-win32 :x86_64-win32
+    :x86_64-win32
     :armv7-android :arm64-android :x86_64-android
     :arm64-ios})
 
@@ -45,7 +45,7 @@
 
 (def vulkan-ios #{:arm64-ios})
 
-(def metal-ios #{:arm64-ios :arm64_sim-ios})
+(def metal-ios #{:arm64-ios})
 
 (def all-platforms
   #{;; ios
@@ -57,7 +57,7 @@
     ;; linux
     :x86_64-linux :arm64-linux
     ;; windows
-    :x86-win32 :x86_64-win32
+    :x86_64-win32
     ;; web
     :wasm-web :wasm_pthread-web})
 
@@ -212,17 +212,17 @@
            ~value-sym (if (not (~pred ~value-sym))
                         ~fix
                         ~value-sym)]
-      ~(reduce
-         (fn [form [k pred fix]]
-           `(let [~map-sym ~value-sym
-                  ~value-sym (get ~map-sym ~k ::not-found)
-                  ~value-sym (if (or (identical? ~value-sym ::not-found)
-                                     (not (~pred ~value-sym)))
-                               ~fix
-                               ~value-sym)]
-              (assoc ~map-sym ~k ~form)))
-         `(~f-expr ~value-sym)
-         (reverse forms)))))
+       ~(reduce
+          (fn [form [k pred fix]]
+            `(let [~map-sym ~value-sym
+                   ~value-sym (get ~map-sym ~k ::not-found)
+                   ~value-sym (if (or (identical? ~value-sym ::not-found)
+                                      (not (~pred ~value-sym)))
+                                ~fix
+                                ~value-sym)]
+               (assoc ~map-sym ~k ~form)))
+          `(~f-expr ~value-sym)
+          (reverse forms)))))
 
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
@@ -269,7 +269,6 @@
                  :context map? {}
                  key boolean? false
                  (constantly (if enabled value (not value)))))))
-
 
 ;; endregion
 
@@ -322,12 +321,13 @@
                                                        (mapcat second)
                                                        (map #(get-toggle-value manifest %)))
                                                      choices)))]
-         (if all-toggles-unify-to-nil nil none))))))
+          (if all-toggles-unify-to-nil nil none))))))
 
 (defn set-setting-value [manifest setting value]
   (case (:setting setting)
     :check-box (reduce #(set-toggle-value %1 %2 value) manifest (:toggles setting))
-    :choice (let [{:keys [choices none]} setting
+    :choice (let [manifest (reduce #(set-toggle-value %1 %2 false) manifest (:cleanup-toggles setting))
+                  {:keys [choices none]} setting
                   enabled-toggles (if (= none value)
                                     nil
                                     (some (fn [[id toggles]]
@@ -341,8 +341,8 @@
                                              (mapcat second))
                                            choices))]
               (as-> manifest $
-                    (reduce #(set-toggle-value %1 %2 false) $ disabled-toggles)
-                    (reduce #(set-toggle-value %1 %2 true) $ enabled-toggles)))))
+                (reduce #(set-toggle-value %1 %2 false) $ disabled-toggles)
+                (reduce #(set-toggle-value %1 %2 true) $ enabled-toggles)))))
 
 (defn setting-property-setter [setting]
   (fn [_evaluation-context self old new]
@@ -551,14 +551,13 @@
     :rig   (concat (libs-toggles all-platforms ["gamesys_model_null"])   (exclude-libs-toggles all-platforms ["gamesys_model"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
     :model))
 
-
 (def generic-vulkan
   (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
 (def generic-vulkan-toggles
   (concat
-    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
-    (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
+    (exclude-libs-toggles [:x86_64-win32] ["platform"])
+    (libs-toggles [:x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
@@ -617,6 +616,8 @@
    [:open-gl-metal "OpenGL & Metal"]
    [:open-gl-vulkan "OpenGL & Vulkan"]])
 
+;; Legacy macOS entries remain here so changing a choice can remove overrides
+;; written by older editors, including libraries now supplied by engine defaults.
 (def open-gl-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics" "platform"])
@@ -626,6 +627,7 @@
 (def explicit-vulkan-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+    (exclude-libs-toggles vulkan-osx ["platform"])
     (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
 
@@ -652,13 +654,28 @@
     (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterOpenGL"])))
 
 (def graphics-setting-osx
-  (make-choice-setting
-    :open-gl (concat open-gl-osx-toggles exclude-metal-osx-toggles exclude-vulkan-osx-toggles)
-    :metal (concat metal-osx-toggles exclude-open-gl-osx-toggles exclude-vulkan-osx-toggles)
-    :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles exclude-metal-osx-toggles)
-    :open-gl-metal (concat open-gl-osx-toggles metal-osx-toggles exclude-vulkan-osx-toggles)
-    :open-gl-vulkan (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
-    :vulkan))
+  (let [open-gl (concat
+                  (libs-toggles vulkan-osx ["graphics"])
+                  (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
+                  (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"]))
+        vulkan (concat
+                 (libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+                 (exclude-libs-toggles vulkan-osx ["platform"])
+                 (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterVulkan"]))]
+    (assoc
+      ;; Match the combined choice first, before its subsets. Metal and its
+      ;; frameworks/platform library are provided by the engine defaults.
+      (make-choice-setting
+        :open-gl-vulkan (concat open-gl vulkan exclude-metal-osx-toggles)
+        :vulkan (concat vulkan exclude-metal-osx-toggles)
+        :open-gl (concat open-gl exclude-metal-osx-toggles)
+        :open-gl-metal open-gl
+        :metal)
+      ;; Clear both previous choices and redundant entries written by older
+      ;; editors before writing the minimal overrides for the new selection.
+      :cleanup-toggles (concat open-gl-osx-toggles explicit-vulkan-osx-toggles
+                               metal-osx-toggles exclude-metal-osx-toggles
+                               exclude-open-gl-osx-toggles exclude-vulkan-osx-toggles))))
 
 (def open-gl-ios-toggles [])
 
@@ -715,8 +732,8 @@
   (make-choice-setting
     :web-gpu (concat
                webgpu-toggles
-              (exclude-libs-toggles web ["graphics"])
-              (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
+               (exclude-libs-toggles web ["graphics"])
+               (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
     :both webgpu-toggles
     :web-gl))
 
@@ -754,7 +771,6 @@
                   [:x86_64-linux platform-pattern]
                   [:arm64-linux platform-pattern]
                   ;; windows
-                  [:x86-win32 platform-pattern]
                   [:x86_64-win32 platform-pattern]
                   ;; web
                   [:wasm-web platform-pattern]
@@ -771,6 +787,37 @@
                     [:excludeLibs :libs :engineLibs]))
           manifest
           (conj windows :win32)))
+
+(defn- migrate-macos-vulkan-platform [manifest]
+  ;; platform_vulkan replaces the new default platform library. Keep old
+  ;; explicit Vulkan manifests recognizable and link only the selected variant.
+  (reduce (fn [manifest platform]
+            (let [context (get-in-guarded manifest :platforms map? platform map? :context map?)
+                  excluded (:excludeLibs context)
+                  libraries (mapcat #(let [v (get context %)] (when (vector? v) v)) [:libs :engineLibs])]
+              (if (and (or (nil? excluded) (vector? excluded))
+                       (some #{"platform_vulkan"} libraries)
+                       (not-any? #{"platform" "platform_vulkan"} excluded))
+                (assoc-in manifest [:platforms platform :context :excludeLibs]
+                          (conj (or excluded []) "platform"))
+                manifest)))
+          manifest
+          (conj macos :osx)))
+
+(defn- migrate-simulator-graphics [manifest]
+  ;; Simulator graphics are fixed to Metal, independently of device settings.
+  (let [path [:platforms :arm64_sim-ios :context]
+        context (get-in manifest path)
+        obsolete #{"graphics" "graphics_metal" "graphics_vulkan" "platform_vulkan" "MoltenVK"
+                   "GraphicsAdapterOpenGL" "GraphicsAdapterMetal" "GraphicsAdapterVulkan"}]
+    (if-not (map? context)
+      manifest
+      (assoc-in manifest path
+                (reduce (fn [context key]
+                          (if-not (vector? (get context key))
+                            context
+                            (update context key #(into [] (remove obsolete) %))))
+                        context [:libs :engineLibs :excludeLibs :symbols :excludeSymbols])))))
 
 ;; Older 2D-only manifests exclude Bullet archives but predate its separate
 ;; script library and registration symbol.
@@ -811,13 +858,15 @@
                            platforms
                            platforms))))))
 
-(defn- load-app-manifest [_project self _resource]
+(defn- load-app-manifest [_load-opts {self :node-id}]
   (g/expand-ec
     (fn [evaluation-context]
       (let [manifest (g/node-value self :manifest evaluation-context)]
         (when-not (g/error? manifest)
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
+                                      migrate-macos-vulkan-platform
+                                      migrate-simulator-graphics
                                       migrate-bullet3d-exclusions)]
             (when-not (= manifest migrated-manifest)
               ;; Prevent the project loader from caching the original lines as save-data.

@@ -388,7 +388,7 @@
     (and (outline-active? outline-view evaluation-context)
          (< 0 (count selection))
          (-> (root-iterators outline-view evaluation-context)
-           outline/delete?)))
+             outline/delete?)))
   (run [app-view selection selection-provider outline-view]
     (g/let-ec [basis (:basis evaluation-context)
                old-selected-node-ids (handler/selection->node-ids selection evaluation-context)
@@ -419,17 +419,17 @@
     (and (outline-active? outline-view evaluation-context)
          (< 0 (count selection))))
   (run [outline-view project]
-       (let [root-its (root-iterators outline-view)
-             cb (Clipboard/getSystemClipboard)
-             data (outline/copy project root-its)]
-         (set-paste-parent! root-its)
-         (.setContent cb {(data-format-fn) data}))))
+    (let [root-its (root-iterators outline-view)
+          cb (Clipboard/getSystemClipboard)
+          data (outline/copy project root-its)]
+      (set-paste-parent! root-its)
+      (.setContent cb {(data-format-fn) data}))))
 
 (defn- paste-target-it [item-iterators]
   (let [single-parent (single-parent-it item-iterators)]
     (or (when (= (some-> single-parent outline/value :node-id) *paste-into-parent*)
           single-parent)
-      (first item-iterators))))
+        (first item-iterators))))
 
 (handler/defhandler :edit.paste :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
@@ -456,13 +456,13 @@
            (and (< 0 (count item-iterators))
                 (outline/cut? item-iterators)))))
   (run [app-view selection-provider outline-view project]
-       (let [item-iterators (root-iterators outline-view)
-             cb (Clipboard/getSystemClipboard)
-             data-format (data-format-fn)
-             next (g/with-auto-evaluation-context evaluation-context
-                    (-> (handler/succeeding-selection selection-provider evaluation-context)
-                        (handler/selection->node-ids evaluation-context)))]
-         (.setContent cb {data-format (outline/cut! project item-iterators (if next (app-view/select app-view next)))}))))
+    (let [item-iterators (root-iterators outline-view)
+          cb (Clipboard/getSystemClipboard)
+          data-format (data-format-fn)
+          next (g/with-auto-evaluation-context evaluation-context
+                 (-> (handler/succeeding-selection selection-provider evaluation-context)
+                     (handler/selection->node-ids evaluation-context)))]
+      (.setContent cb {data-format (outline/cut! project item-iterators (if next (app-view/select app-view next)))}))))
 
 (defn- drag-detected [project outline-view ^MouseEvent e]
   (let [item-iterators (root-iterators outline-view)]
@@ -754,7 +754,7 @@
       (when-not editing-id
         (.consume event)
         (ui/run-command (.getSource event) :file.open-selected))
-      
+
       ;; The key-down `F2` event is consumed by javafx, even though the built-in editing
       ;; that uses it is set to false, so `:edit.rename :outline` handler will not work
       ;; for `F2`. Since the shortcut is customizable, we need to check if it exists.
@@ -779,7 +779,7 @@
     (doto tree-view
       (ui/customize-tree-view! {:double-click-expand true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
-      (.setOnDragDetected (ui/event-handler e 
+      (.setOnDragDetected (ui/event-handler e
                             (drag-detected project outline-view e)
                             (cancel-rename! tree-view)))
       (.setOnDragOver (ui/event-handler e (drag-over project outline-view e)))
@@ -792,7 +792,7 @@
       (ui/context! :outline {:outline-view outline-view} (->SelectionProvider tree-view) {} {Long :node-id
                                                                                              resource/Resource :link}))))
 
-(defn make-outline-view [graph project app-view localization]
+(defn make-outline-view [project app-view localization]
   (let [tree-view (doto (ExtendedTreeView.)
                     (.setId "outline")
                     (.setPrefWidth 269.0)
@@ -801,9 +801,9 @@
                        (g/tx-nodes-added
                          (g/transact
                            {:undoable false}
-                           (g/make-nodes graph [outline-view [OutlineView
-                                                              :tree-view tree-view
-                                                              :localization localization]]
+                           (g/make-nodes [outline-view [OutlineView
+                                                        :tree-view tree-view
+                                                        :localization localization]]
                              (g/connect app-view :_node-id outline-view :app-view)))))]
     (setup-tree-view project tree-view outline-view app-view localization)
     outline-view))
