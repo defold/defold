@@ -210,6 +210,8 @@
       (let [front (c/frame-camera-to-axis (c/tumble camera-2d 10.0 0.0) :+z)]
         (is (= (:rotation camera-2d) (:rotation front)))
         (is (not (c/mode-2d? front)))))
+    (testing "Converting to perspective leaves 2D mode"
+      (is (not (c/mode-2d? (c/camera-orthographic->perspective camera-2d 30.0)))))
     (testing "Moving and zooming stay in 2D mode"
       (is (c/mode-2d? (c/dolly camera-2d 2.0)))
       (is (c/mode-2d? (c/camera-move camera-2d 10.0 20.0 0.0))))))

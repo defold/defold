@@ -741,6 +741,7 @@
         cam-pos (math/offset-scaled focus-pos cam-forward (- focus-distance))]
     (assoc camera
       :type :perspective
+      :mode-2d false
       :position cam-pos
       :fov-x (max (* fov-y-deg aspect) 1e-6)
       :fov-y (max fov-y-deg 1e-6))))
@@ -1003,8 +1004,7 @@
     (when (not= current-type projection-type)
       (let [new-camera (case projection-type
                          :orthographic (camera-perspective->orthographic old-camera)
-                         :perspective (assoc (camera-orthographic->perspective old-camera (perspective-fov-y camera-node))
-                                        :mode-2d false))]
+                         :perspective (camera-orthographic->perspective old-camera (perspective-fov-y camera-node)))]
         (set-camera! camera-node old-camera new-camera false)))))
 
 (defn mode-2d? [camera]
