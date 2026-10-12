@@ -17,10 +17,12 @@
             [editor.camera :as c]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.attribute :as attribute]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
+            [editor.graphics.types :as graphics.types]
             [editor.math :as math]
             [editor.scene-picking :as scene-picking]
             [editor.shaders :as shaders]
@@ -30,7 +32,7 @@
            [java.awt BasicStroke Color Font RenderingHints]
            [java.awt.geom Ellipse2D$Double]
            [java.awt.image BufferedImage]
-           [javax.vecmath Matrix4d Quat4d Vector3d Vector4d]))
+           [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -235,12 +237,19 @@
 (def ^:private backdrop-texture
   (delay (texture/image-texture [::backdrop] (make-backdrop-image))))
 
-(def ^:private billboard-shader shaders/basic-texture-tint-local-space)
+(def ^:private billboard-shader shaders/basic-texture-color-local-space)
+
+(def ^:private billboard-color-attribute
+  (coll/first-where #(= :color (:name-key %))
+                    (:attributes (shaders/vertex-description billboard-shader))))
 
 (def ^:private billboard-quad
   "Shared quad spanning -1 to 1 in the local XY plane."
   (delay
-    (let [vertex-buffer (vtx/make-vertex-buffer (shaders/vertex-description billboard-shader) :static 6)
+    (let [vertex-description (graphics.types/make-vertex-description
+                               (filterv #(not= billboard-color-attribute %)
+                                        (:attributes (shaders/vertex-description billboard-shader))))
+          vertex-buffer (vtx/make-vertex-buffer vertex-description :static 6)
           byte-buffer (vtx/buf vertex-buffer)
           float-buffer (.asFloatBuffer byte-buffer)]
       (doseq [[^double x ^double y] [[-1.0 -1.0] [1.0 -1.0] [1.0 1.0] [1.0 1.0] [-1.0 1.0] [-1.0 -1.0]]]
@@ -310,13 +319,13 @@
         world-view-proj ^Matrix4d (:world-view-proj render-args)]
     (gl/with-gl-bindings gl render-args [billboard-shader vertex-binding]
       (doseq [{:keys [texture ^Matrix4d matrix alpha brightness]} (handle-billboards (:rotation camera) backdrop-alpha hot-handle)
-              :let [alpha (double alpha)
-                    ;; Textures use premultiplied alpha, so the tint's RGB must include alpha too.
-                    color (* alpha (double brightness))]]
-        (gl/with-gl-bindings gl render-args [texture]
+              :let [color-binding (attribute/make-attribute-value-binding
+                                    (float-array [brightness brightness brightness alpha])
+                                    (graphics.types/attribute-info-element-type billboard-color-attribute)
+                                    (:location billboard-color-attribute))]]
+        (gl/with-gl-bindings gl render-args [texture color-binding]
           (shader/set-samplers-by-index billboard-shader gl 0 (:texture-units texture))
           (shader/set-uniform billboard-shader gl "mtx_world_view_proj" (doto (Matrix4d. world-view-proj) (.mul matrix)))
-          (shader/set-uniform billboard-shader gl "tint" (Vector4d. color color color alpha))
           (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 6)))))
   ;; Restore the blend function expected by the other scene renderers.
   (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
