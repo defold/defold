@@ -2525,11 +2525,15 @@
     (when (= :scene (:id view-type))
       (ui/observe (.selectedProperty tab)
                   (fn [_ _ selected]
-                    (when selected
-                      (when-let [content-parent (.getParent (.getContent tab))]
-                        (.applyCss content-parent)
-                        (.layout content-parent)
-                        (refresh-scene-view! view 0))))))
+                    (if-not selected
+                      (scene/suspend-scene-view! view)
+                      (do
+                        (scene/resume-scene-view! view)
+                        (when-let [content-parent (.getParent (.getContent tab))]
+                          (.applyCss content-parent)
+                          (.layout content-parent)
+                          (refresh-scene-view! view 0))))))
+      (scene/suspend-scene-view! view))
 
     (.add tabs tab)
     (ui/add-styles! tab style-classes)
