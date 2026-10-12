@@ -36,6 +36,7 @@ local function print_tilesource_contents(tilesource)
     for i = 1, #animations do
         local animation_node = animations[i]
         print(("    animation: %s"):format(editor.get(animation_node, "id")))
+        print(("    frames: {%s}"):format(table.concat(editor.get(animation_node, "frames"), ", ")))
     end
     local collision_groups = editor.get(tilesource, "collision_groups")
     print(("  collision groups: %s"):format(#collision_groups))
@@ -313,7 +314,7 @@ function M.get_commands()
                 print("Transaction: add animations and collision groups")
                 editor.transact({
                     editor.tx.add(tilesource, "animations", {id = "idle"}),
-                    editor.tx.add(tilesource, "animations", {id = "walk", frames = "2-6"}),
+                    editor.tx.add(tilesource, "animations", {id = "walk", frames = {2, 3, 4, 5, 6}}),
                     editor.tx.add(tilesource, "collision_groups", {id = "obstacle"}),
                     editor.tx.add(tilesource, "collision_groups", {id = "character"}),
                     editor.tx.add(tilesource, "collision_groups", {}),
@@ -324,6 +325,17 @@ function M.get_commands()
                 print("After transaction (add animations and collision groups):")
                 print_tilesource_contents(tilesource)
 
+                -- Frames must round-trip as integer arrays, including duplicates and empty sequences.
+                local walk = editor.get(tilesource, "animations")[2]
+                local frames = editor.get(walk, "frames")
+                table.insert(frames, 2)
+                print(("Frames before setting modified array: {%s}"):format(table.concat(editor.get(walk, "frames"), ", ")))
+                editor.transact({editor.tx.set(walk, "frames", frames)})
+                print(("Frames after setting modified array: {%s}"):format(table.concat(editor.get(walk, "frames"), ", ")))
+                editor.transact({editor.tx.set(walk, "frames", {})})
+                print(("Frames after clearing: {%s}"):format(table.concat(editor.get(walk, "frames"), ", ")))
+                editor.transact({editor.tx.set(walk, "frames", frames)})
+
                 print("Transaction: set tile_collision_groups to its current value")
                 editor.transact({editor.tx.set(tilesource, "tile_collision_groups", editor.get(tilesource, "tile_collision_groups"))})
 
@@ -331,6 +343,12 @@ function M.get_commands()
                 print_tilesource_contents(tilesource)
 
                 print("Expected errors")
+                expect_error("Frames string", editor.tx.set, walk, "frames", "2-6")
+                expect_error("Fractional frame", editor.tx.set, walk, "frames", {1, 2.5})
+                expect_error("String frame", editor.tx.set, walk, "frames", {1, "2"})
+                expect_error("Added animation with invalid frames", editor.transact, {editor.tx.add(tilesource, "animations", {id = "invalid", frames = {1, false}})})
+                print(("Frames after rejected edits: {%s}"):format(table.concat(editor.get(walk, "frames"), ", ")))
+                print(("Animations after rejected attachment: %s"):format(#editor.get(tilesource, "animations")))
                 expect_error("Using non-existent collision group", editor.transact, {editor.tx.set(tilesource, "tile_collision_groups", {[2] = "does-not-exist"})})
 
                 print("Transaction: clear tilesource")

@@ -1756,7 +1756,9 @@ Transaction: add animations and collision groups
 After transaction (add animations and collision groups):
   animations: 2
     animation: idle
+    frames: {1}
     animation: walk
+    frames: {2, 3, 4, 5, 6}
   collision groups: 4
     collision group: obstacle
     collision group: character
@@ -1765,11 +1767,16 @@ After transaction (add animations and collision groups):
   tile collision groups: 2
     tile collision group: 1 obstacle
     tile collision group: 3 character
+Frames before setting modified array: {2, 3, 4, 5, 6}
+Frames after setting modified array: {2, 3, 4, 5, 6, 2}
+Frames after clearing: {}
 Transaction: set tile_collision_groups to its current value
 After transaction (tile_collision_groups roundtrip):
   animations: 2
     animation: idle
+    frames: {1}
     animation: walk
+    frames: {2, 3, 4, 5, 6, 2}
   collision groups: 4
     collision group: obstacle
     collision group: character
@@ -1779,6 +1786,12 @@ After transaction (tile_collision_groups roundtrip):
     tile collision group: 1 obstacle
     tile collision group: 3 character
 Expected errors
+  Frames string => \"2-6\" is not an array
+  Fractional frame => 2.5 is not an integer
+  String frame => \"2\" is not an integer
+  Added animation with invalid frames => false is not an integer
+Frames after rejected edits: {2, 3, 4, 5, 6, 2}
+Animations after rejected attachment: 2
   Using non-existent collision group => Collision group \"does-not-exist\" is not defined in the tilesource
 Transaction: clear tilesource
 After transaction (clear):

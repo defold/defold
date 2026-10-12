@@ -245,6 +245,7 @@
    g/Bool {:to identity :from (coercing-converter coerce/boolean)}
    g/Num {:to identity :from (coercing-converter coerce/number)}
    g/Int {:to identity :from (coercing-converter coerce/integer)}
+   [g/Int] {:to identity :from (coercing-converter (coerce/vector-of coerce/integer))}
    types/Vec2 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number))}
    types/Vec3 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number))}
    types/Vec4 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number coerce/number))}

@@ -391,6 +391,7 @@
                                               :to-type frames->string
                                               :to-string frames->string
                                               :to-value parse-frames}))
+            (dynamic ext-edit-type (g/constantly {:type [g/Int]}))
             (dynamic error (g/fnk [_node-id frames tile-count]
                              ;; Editor scripts can inspect properties before the
                              ;; animation is attached to its tile source.
