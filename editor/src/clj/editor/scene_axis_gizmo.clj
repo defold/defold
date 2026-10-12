@@ -270,37 +270,36 @@
         ^Vector3d right (screen-axis 1.0 0.0 0.0)
         ^Vector3d up (screen-axis 0.0 1.0 0.0)
         ^Vector3d toward (screen-axis 0.0 0.0 1.0)
-        balls (into []
-                    (map (fn [axis]
-                           (let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))]
-                             {:depth (.dot toward center)
-                              :texture (@ball-textures axis)
-                              :matrix (billboard-matrix center right up toward ball-radius ball-radius)
-                              :alpha 1.0
-                              :brightness (if (= hot-handle axis) 1.25 1.0)})))
-                    axis-order)
-        lines (into []
-                    (keep (fn [axis]
-                            (let [normal ^Vector3d (axis->normal axis)
-                                  side (doto (Vector3d.) (.cross toward normal))
-                                  ;; Trim in screen space so lines cannot show through
-                                  ;; translucent balls when opposite axes overlap.
-                                  screen-length (* (.length side) ^double ball-distance)
-                                  length (* ^double ball-distance (- 1.0 (/ ^double ball-radius (max screen-length 1e-6))))]
-                              (when (pos? length)
-                                (let [center (doto (Vector3d. normal) (.scale (* 0.5 length)))]
-                                  {:depth (.dot toward center)
-                                   :texture (@line-textures axis)
-                                   :matrix (billboard-matrix center (doto side (.normalize)) normal toward
-                                                             (* 2.0 ^double line-half-width) (* 0.5 length))
-                                   :alpha 1.0
-                                   :brightness (if (= hot-handle axis) 1.25 1.0)})))))
-                    [:+x :+y :+z])]
+        balls (coll/into-> axis-order []
+                (map (fn [axis]
+                       (let [center (doto (Vector3d. ^Vector3d (axis->normal axis)) (.scale ball-distance))]
+                         {:depth (.dot toward center)
+                          :texture (@ball-textures axis)
+                          :matrix (billboard-matrix center right up toward ball-radius ball-radius)
+                          :alpha 1.0
+                          :brightness (if (= hot-handle axis) 1.25 1.0)}))))
+        lines (coll/into-> [:+x :+y :+z] []
+                (keep (fn [axis]
+                        (let [normal ^Vector3d (axis->normal axis)
+                              side (doto (Vector3d.) (.cross toward normal))
+                              ;; Trim in screen space so lines cannot show through
+                              ;; translucent balls when opposite axes overlap.
+                              screen-length (* (.length side) ^double ball-distance)
+                              length (* ^double ball-distance (- 1.0 (/ ^double ball-radius (max screen-length 1e-6))))]
+                          (when (pos? length)
+                            (let [center (doto (Vector3d. normal) (.scale (* 0.5 length)))]
+                              {:depth (.dot toward center)
+                               :texture (@line-textures axis)
+                               :matrix (billboard-matrix center (doto side (.normalize)) normal toward
+                                                         (* 2.0 ^double line-half-width) (* 0.5 length))
+                               :alpha 1.0
+                               :brightness (if (= hot-handle axis) 1.25 1.0)}))))))]
     (cond->> (sort-by :depth (into balls lines))
-      (pos? backdrop-alpha) (cons {:texture @backdrop-texture
-                                   :matrix (billboard-matrix (Vector3d.) right up toward backdrop-radius backdrop-radius)
-                                   :alpha backdrop-alpha
-                                   :brightness 1.0}))))
+      (pos? backdrop-alpha)
+      (cons {:texture @backdrop-texture
+             :matrix (billboard-matrix (Vector3d.) right up toward backdrop-radius backdrop-radius)
+             :alpha backdrop-alpha
+             :brightness 1.0}))))
 
 (defn- draw-handles!
   [^GL2 gl render-args ^Camera camera backdrop-alpha hot-handle]
@@ -355,7 +354,7 @@
     (if (= pass/manipulator-selection (:pass render-args))
       (pick-handles! gl gizmo-args (into {} (map (juxt :selection-data identity)) renderables))
       (let [{:keys [backdrop-alpha hot-handle]} (:user-data (first renderables))]
-        (draw-handles! gl gizmo-args camera (double (or backdrop-alpha 0.0)) hot-handle)))))
+        (draw-handles! gl gizmo-args camera backdrop-alpha hot-handle)))))
 
 (g/defnk produce-renderables [_node-id backdrop-alpha camera hot-handle]
   (if (c/mode-2d? camera)

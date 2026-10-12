@@ -869,7 +869,7 @@
                                     (doto (Vector3d. (types/position camera)) (.sub (camera-focus-point camera)))))
         ^Vector3d from-offset (local-offset from)
         ^Vector3d to-offset (local-offset to)
-        unit (fn [^Vector3d v]
+        unit (fn unit [^Vector3d v]
                (if (pos? (.length v))
                  (doto (Vector3d. v) (.normalize))
                  (Vector3d. 0.0 0.0 1.0)))
