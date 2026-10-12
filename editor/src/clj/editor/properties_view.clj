@@ -41,6 +41,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
+            [util.fn :as fn]
             [util.id-vec :as iv])
   (:import [com.sun.javafx.scene NodeHelper]
            [editor.properties Curve CurveSpread]
@@ -929,6 +930,33 @@
               (.clearSelection model))))))
     fx.lifecycle/scalar))
 
+(defn- property-cell-description [context localization-state selection-provider label-widths swap-state
+                                  {:keys [category category-title property-keyword] :as item}]
+  ;; JavaFX can clear the item before marking the cell empty.
+  (if-not item
+    {}
+    {:content-display :graphic-only
+     :style-class ["cell" "indexed-cell" "list-cell" "property-cell"]
+     :alignment :top-left
+     :pref-width 0
+     :focus-traversable false
+     :graphic
+     (if category-title
+       {:fx/type fxui/label
+        :text category-title
+        :style-class "property-category"}
+       {:fx/type fx/ext-recreate-on-key-changed
+        :key [(:original-node-ids selection-provider) property-keyword]
+        :desc (assoc item
+                :fx/type property-row-view
+                :context context
+                :localization-state localization-state
+                :selection-provider selection-provider
+                ;; Items and the factory can advance in either order when a
+                ;; new category is introduced.
+                :label-width (get label-widths category 24.0)
+                :on-label-font-changed (fn/partial swap-state assoc :label-font))})}))
+
 (ui/defc property-list-view
   {:compose [{:fx/type fx/ext-state
               :initial-state {:label-font (Font/getDefault)
@@ -949,55 +977,28 @@
               :args [(get-in props [:state :label-font]) (:items props)]
               :key :label-widths}]}
   [{:keys [items context localization-state selection-provider state swap-state label-widths]}]
-  (let [on-label-font-changed
-        (fn on-label-font-changed [font]
-          (swap-state assoc :label-font font))]
-    {:fx/type fx.ext.list-view/with-selection-props
-     ;; Like the form view's list selection, include the items as a refresh key:
-     ;; JavaFX can clear selection when items change without changing its index.
-     ;; The extension reapplies selection after updating the list's items.
-     :props {prop-list-selected-index
-             [(when-let [selected-property (:selected-property state)]
-                (coll/first-index-where #(= selected-property (:property-keyword %)) items))
-              items]
-             :on-selected-item-changed
-             (fn on-selected-item-changed [item]
-               (swap-state assoc :selected-property (:property-keyword item)))}
-     :desc {:fx/type fx.list-view/lifecycle
-            :id "properties"
-            :min-height 0
-            :min-width 0
-            :focus-traversable false
-            :event-filter handle-property-list-event
-            :items items
-            :cell-factory
-            {:fx/cell-type fx.list-cell/lifecycle
-             :describe
-             (fn describe-property-cell [{:keys [category category-title property-keyword] :as item}]
-               ;; JavaFX can clear the item before marking the cell empty.
-               (if-not item
-                 {}
-                 {:content-display :graphic-only
-                  :style-class ["cell" "indexed-cell" "list-cell" "property-cell"]
-                  :alignment :top-left
-                  :pref-width 0
-                  :focus-traversable false
-                  :graphic
-                  (if category-title
-                    {:fx/type fxui/label
-                     :text category-title
-                     :style-class "property-category"}
-                    {:fx/type fx/ext-recreate-on-key-changed
-                     :key [(:original-node-ids selection-provider) property-keyword]
-                     :desc (assoc item
-                             :fx/type property-row-view
-                             :context context
-                             :localization-state localization-state
-                             :selection-provider selection-provider
-                             ;; Items and the factory can advance in either
-                             ;; order when a new category is introduced.
-                             :label-width (get label-widths category 24.0)
-                             :on-label-font-changed on-label-font-changed)})}))}}}))
+  {:fx/type fx.ext.list-view/with-selection-props
+   ;; Like the form view's list selection, include the items as a refresh key:
+   ;; JavaFX can clear selection when items change without changing its index.
+   ;; The extension reapplies selection after updating the list's items.
+   :props {prop-list-selected-index
+           [(when-let [selected-property (:selected-property state)]
+              (coll/first-index-where #(= selected-property (:property-keyword %)) items))
+            items]
+           :on-selected-item-changed
+           (fn on-selected-item-changed [item]
+             (swap-state assoc :selected-property (:property-keyword item)))}
+   :desc {:fx/type fx.list-view/lifecycle
+          :id "properties"
+          :min-height 0
+          :min-width 0
+          :focus-traversable false
+          :event-filter handle-property-list-event
+          :items items
+          :cell-factory
+          {:fx/cell-type fx.list-cell/lifecycle
+           :describe (fn/partial property-cell-description
+                                 context localization-state selection-provider label-widths swap-state)}}})
 
 (defn- property-items [coalesced-properties localization-state]
   (into []
