@@ -156,6 +156,38 @@
               (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
                 (is (coll/empty? (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))))))))
 
+;; Verifies #10929 is rejected for both skinned shader variants and raw meshes.
+(deftest skinned-material-validation
+  (test-util/with-loaded-project
+    (doseq [model-path ["/model/test.model" "/model/mesh_selection.model"]]
+      (let [node-id (test-util/resource-node project model-path)
+            binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
+        (is (not (g/error-value? (g/node-value node-id :build-targets))))
+        (doseq [material-path ["/builtins/materials/model_skinned.material"
+                               "/builtins/materials/model_skinned_instanced.material"]]
+          (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace material-path)]
+            (let [build-targets (g/node-value node-id :build-targets)
+                  messages (into []
+                                 (comp (keep :message) (map test-util/localization))
+                                 (tree-seq :causes :causes build-targets))]
+              (is (g/error-value? build-targets))
+              (is (coll/any? #(and (.contains ^String % material-path)
+                                   (.contains ^String % "has no skin data")
+                                   (.contains ^String % "bone_weights"))
+                             messages)))))
+        (is (not (g/error-value? (g/node-value node-id :build-targets))))))))
+
+;; Verifies skinned materials work without assigned animation clips.
+(deftest skinned-material-without-animations
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/model/treasure_chest.model")
+          binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
+      (test-util/with-prop [node-id :animations nil]
+        (doseq [material-path ["/builtins/materials/model_skinned.material"
+                               "/builtins/materials/model_skinned_instanced.material"]]
+          (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace material-path)]
+            (is (not (g/error-value? (g/node-value node-id :build-targets))))))))))
+
 (deftest model-validation
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/test.model")]

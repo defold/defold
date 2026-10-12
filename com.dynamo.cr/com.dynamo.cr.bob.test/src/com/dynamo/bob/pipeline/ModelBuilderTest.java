@@ -16,11 +16,15 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.ObjectNode;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -120,6 +124,118 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
         assertEquals(ResourceUtil.minifyPath("/test_skeleton.skeletonc"), rigScene.getSkeleton());
         assertEquals("/test_animation_generated_0.animationsetc", rigScene.getAnimationSet());
+    }
+
+    private void addSkinningMaterial(String attribute) {
+        addFile("/skinning.glsl", "in vec4 " + attribute + ";\n");
+        addFile("/skinned.vp", "#version 140\n#include \"/skinning.glsl\"\nin vec4 position;\nvoid main() { gl_Position = position + " + attribute + "; }\n");
+        addFile("/skinned.fp", "#version 140\nout vec4 color;\nvoid main() { color = vec4(1.0); }\n");
+        addFile("/skinned.material", "name: \"skinned\" vertex_program: \"/skinned.vp\" fragment_program: \"/skinned.fp\" vertex_space: VERTEX_SPACE_LOCAL");
+    }
+
+    // Guards against #10929, including shaders with skin inputs declared in an include and legacy material bindings.
+    @Test
+    public void testStaticMeshRejectsSkinnedMaterial() throws Exception {
+        addFile("/static.gltf", GLTF);
+        addSkinningMaterial("bone_weights");
+        for (String binding : List.of("materials { name: \"default\" material: \"/skinned.material\" }", "material: \"/skinned.material\"")) {
+            try {
+                build("/static.model", "mesh: \"/static.gltf\" " + binding);
+                fail("Static mesh must reject a skinned material");
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage(), e.getMessage().contains("/skinned.material"));
+                assertTrue(e.getMessage(), e.getMessage().contains("bone_weights"));
+                assertTrue(e.getMessage(), e.getMessage().contains("/static.gltf"));
+                assertTrue(e.getMessage(), e.getMessage().contains("has no skin data"));
+            }
+        }
+    }
+
+    // Verifies either bone input requires skin data, and selected raw meshes are validated even without scene instances.
+    @Test
+    public void testSelectedStaticMeshRejectsBoneIndices() throws Exception {
+        addSkinningMaterial("bone_indices");
+        addFile("/selected.gltf", GLTF.replace("\"mesh\":0,", "").replace("\"meshes\":[{", "\"meshes\":[{\"name\":\"Selected\","));
+        try {
+            build("/selected.model", "mesh: \"/selected.gltf\" mesh_name: \"Selected\" mesh_index: 0 materials { name: \"default\" material: \"/skinned.material\" }");
+            fail("Selected static mesh must reject bone indices");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("bone_indices"));
+            assertTrue(e.getMessage(), e.getMessage().contains("has no skin data"));
+        }
+    }
+
+    // Verifies skin data, rather than animation clips, determines whether a skinned material is compatible.
+    @Test
+    public void testSkinnedMeshWithoutAnimations() throws Exception {
+        addSkinningMaterial("bone_weights");
+        try (var stream = getClass().getResourceAsStream("bend2bones.gltf")) {
+            addFile("/skinned.gltf", stream.readAllBytes());
+        }
+        Model model = getMessage(build("/skinned.model", "mesh: \"/skinned.gltf\" skeleton: \"/skinned.gltf\" materials { name: \"Material\" material: \"/skinned.material\" }"), Model.class);
+        RigScene rigScene = RigScene.parseFrom(getProject().getResource(model.getRigScene()).output().getContent());
+        assertEquals("", rigScene.getAnimationSet());
+    }
+
+    // Verifies validation follows material slots and ignores incompatible geometry outside the selected mesh.
+    @Test
+    public void testMixedStaticAndSkinnedMeshes() throws Exception {
+        addSkinningMaterial("bone_weights");
+        getProject().mount(new ClassLoaderResourceScanner());
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode scene;
+        try (var stream = getClass().getResourceAsStream("bend2bones.gltf")) {
+            scene = (ObjectNode) mapper.readTree(stream);
+        }
+        ArrayNode meshes = (ArrayNode) scene.get("meshes");
+        ObjectNode staticMesh = (ObjectNode) mapper.readTree(meshes.get(0).toString());
+        staticMesh.put("name", "Static");
+        ObjectNode primitive = (ObjectNode) staticMesh.get("primitives").get(0);
+        ObjectNode attributes = (ObjectNode) primitive.get("attributes");
+        attributes.remove("JOINTS_0");
+        attributes.remove("WEIGHTS_0");
+        primitive.put("material", 1);
+        meshes.add(staticMesh);
+        ObjectNode staticMaterial = mapper.createObjectNode();
+        staticMaterial.put("name", "StaticMaterial");
+        ((ArrayNode) scene.get("materials")).add(staticMaterial);
+        ArrayNode nodes = (ArrayNode) scene.get("nodes");
+        ((ArrayNode) scene.get("scenes").get(0).get("nodes")).add(nodes.size());
+        ObjectNode staticNode = mapper.createObjectNode();
+        staticNode.put("mesh", 1);
+        staticNode.put("name", "StaticNode");
+        nodes.add(staticNode);
+        addFile("/mixed.gltf", scene.toString());
+        String materials = "materials { name: \"Material\" material: \"/skinned.material\" } " +
+                "materials { name: \"StaticMaterial\" material: \"/builtins/materials/model.material\" }";
+        build("/mixed.model", "mesh: \"/mixed.gltf\" skeleton: \"/mixed.gltf\" " + materials);
+        String incompatibleMaterials = materials.replace("/builtins/materials/model.material", "/skinned.material");
+        build("/selected.model", "mesh: \"/mixed.gltf\" skeleton: \"/mixed.gltf\" mesh_name: \"Cube\" mesh_index: 0 " + incompatibleMaterials);
+        try {
+            build("/mixed.model", "mesh: \"/mixed.gltf\" skeleton: \"/mixed.gltf\" " + incompatibleMaterials);
+            fail("Static mesh in a mixed scene must reject a skinned material");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("StaticMaterial"));
+            assertTrue(e.getMessage(), e.getMessage().contains("has no skin data"));
+        }
+    }
+
+    // Verifies shader edits invalidate model validation even when the compiled material descriptor is unchanged.
+    @Test
+    public void testShaderEditRevalidatesModel() throws Exception {
+        addSkinningMaterial("bone_weights");
+        String shader = "#version 140\n#include \"/skinning.glsl\"\nin vec4 position;\nvoid main() { gl_Position = position; }\n";
+        addFile("/skinned.vp", shader);
+        addFile("/static.gltf", GLTF);
+        String modelSource = "mesh: \"/static.gltf\" materials { name: \"default\" material: \"/skinned.material\" }";
+        build("/static.model", modelSource);
+        addFile("/skinned.vp", shader.replace("gl_Position = position;", "gl_Position = position + bone_weights;"));
+        try {
+            build("/static.model", modelSource);
+            fail("Shader edit must revalidate the model");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("has no skin data"));
+        }
     }
 
     // Verifies the standalone built-in glTF material and its include graph compile as a model dependency.

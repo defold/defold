@@ -40,7 +40,9 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll])
-  (:import [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
+  (:import [com.dynamo.bob.pipeline Shaderc$ShaderStage]
+           [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
+           [com.dynamo.graphics.proto Graphics$ShaderDesc$ResourceBinding Graphics$ShaderDesc$ShaderReflection]
            [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
@@ -272,7 +274,37 @@
           materials
           material-binding-infos)))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-content mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh mesh-name mesh-index collision-meshes skeleton create-go-bones]
+(defn- validate-skinned-materials [_node-id mesh-content mesh mesh-name mesh-index material-skinning-infos]
+  (let [mesh-set (:mesh-set mesh-content)
+        geometry (if (str/blank? mesh-name)
+                   (:models mesh-set)
+                   (into []
+                         (filter #(= mesh-index (:mesh-index %)))
+                         (into (:models mesh-set) (:raw-models mesh-set))))]
+    (some->
+      (into []
+            (comp
+              (mapcat (fn [model]
+                        (mapv #(assoc % :mesh-index (:mesh-index model)) (:meshes model))))
+              (keep (fn [{:keys [weights bone-indices material-index mesh-index]}]
+                      (when (or (coll/empty? weights) (coll/empty? bone-indices))
+                        (let [slot (get-in mesh-set [:materials material-index :name])
+                              material-info (if (= 1 (count material-skinning-infos))
+                                              (first material-skinning-infos)
+                                              (coll/first-where #(= slot (:name %)) material-skinning-infos))]
+                          (when-let [attributes (coll/not-empty (:skin-attributes material-info))]
+                            (g/->error _node-id :materials :fatal nil
+                                       (localization/message "error.model-skinned-material"
+                                                             {"material" (resource/proj-path (:material material-info))
+                                                              "slot" slot
+                                                              "attributes" (coll/join-to-string ", " attributes)
+                                                              "mesh_index" mesh-index
+                                                              "scene" (resource/proj-path mesh)}))))))))
+            geometry)
+      coll/not-empty
+      g/error-aggregate)))
+
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-content mesh-set-build-target materials material-binding-infos material-skinning-infos skeleton-build-target animations mesh mesh-name mesh-index collision-meshes skeleton create-go-bones]
   (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh scene-message)
                       (prop-resource-format-error _node-id :mesh mesh scene-message model-scene/model-file-types)
                       (model-mesh-selection-error _node-id mesh mesh-name mesh-index collision-meshes)
@@ -291,6 +323,7 @@
                (filterv identity)
                not-empty
                g/error-aggregate)
+      (validate-skinned-materials _node-id mesh-content mesh mesh-name mesh-index material-skinning-infos)
       (let [workspace (resource/workspace resource)
             mesh-set-build-target
             (if (str/blank? mesh-name)
@@ -398,6 +431,22 @@
   (output gpu-textures g/Any :cached model-scene/produce-gpu-textures)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
   (output material-scene-info g/Any (g/fnk [shader vertex-space gpu-textures name material-attribute-infos vertex-attribute-bytes :as info] info))
+  (output material-skinning-info g/Any
+          (g/fnk [name material dep-build-targets]
+            {:name name
+             :material material
+             :skin-attributes
+             (into (sorted-set)
+                   (comp
+                     (mapcat :deps)
+                     (keep :shader-reflection)
+                     (mapcat (fn [^Graphics$ShaderDesc$ShaderReflection reflection]
+                               (.getInputsList reflection)))
+                     (filter (fn [^Graphics$ShaderDesc$ResourceBinding input]
+                               (and (not (zero? (bit-and (.getValue Shaderc$ShaderStage/SHADER_STAGE_VERTEX) (.getStageFlags input))))
+                                    (contains? #{"bone_weights" "bone_indices"} (.getName input)))))
+                     (map (fn [^Graphics$ShaderDesc$ResourceBinding input] (.getName input))))
+                   (eduction cat dep-build-targets))}))
   (output material-binding-info g/Any (g/fnk [_node-id name
                                               material
                                               ^:try material-attribute-infos
@@ -454,6 +503,7 @@
     (g/connect material-binding :dep-build-targets model-node-id :dep-build-targets)
     (g/connect material-binding :material-scene-info model-node-id :material-scene-infos)
     (g/connect material-binding :material-binding-info model-node-id :material-binding-infos)
+    (g/connect material-binding :material-skinning-info model-node-id :material-skinning-infos)
     (coll/into-> textures []
       (map (fn [{:keys [sampler texture]}]
              (create-texture-binding-tx material-binding sampler texture))))))
@@ -767,6 +817,7 @@
             (dynamic tooltip (properties/tooltip-dynamic :model :default-animation)))
 
   (input mesh-resource resource/Resource)
+  (input material-skinning-infos g/Any :array)
   (input mesh-content g/Any)
   (input mesh-set-build-target g/Any)
   (input mesh-material-ids g/Any)

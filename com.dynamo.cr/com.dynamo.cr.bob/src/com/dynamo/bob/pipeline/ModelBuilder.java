@@ -31,8 +31,10 @@ import com.dynamo.gamesys.proto.ModelProto.Material;
 import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
 import com.dynamo.gamesys.proto.ModelProto.Texture;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
+import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.RigScene;
 
@@ -82,6 +84,50 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         }
     }
 
+    private void validateSkinnedMaterials(ModelDesc.Builder model, IResource resource, int selectedMeshIndex) throws IOException, CompileExceptionError {
+        MeshSet meshSet = MeshSet.parseFrom(project.getResource(model.getMesh()).changeExt(".meshsetc").getContent());
+        List<Material> materials = model.getMaterialsList();
+        if (materials.isEmpty() && !model.getMaterial().isEmpty()) {
+            materials = List.of(Material.newBuilder().setName("default").setMaterial(model.getMaterial()).build());
+        }
+        // Selected raw meshes can reuse geometry from a scene model. Whole scenes omit unused raw meshes.
+        List<Rig.Model> geometry = new ArrayList<>(meshSet.getModelsList());
+        if (selectedMeshIndex >= 0) {
+            geometry.addAll(meshSet.getRawModelsList());
+        }
+        for (Material material : materials) {
+            MaterialDesc compiledMaterial = MaterialDesc.parseFrom(project.getResource(material.getMaterial()).changeExt(".materialc").getContent());
+            ShaderDesc shader = ShaderDesc.parseFrom(project.getResource(compiledMaterial.getProgram()).output().getContent());
+            List<String> skinAttributes = new ArrayList<>();
+            for (ShaderDesc.ResourceBinding input : shader.getReflection().getInputsList()) {
+                if ((input.getStageFlags() & Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue()) != 0 &&
+                    (input.getName().equals("bone_weights") || input.getName().equals("bone_indices"))) {
+                    skinAttributes.add(input.getName());
+                }
+            }
+            if (skinAttributes.isEmpty()) {
+                continue;
+            }
+            for (Rig.Model geometryModel : geometry) {
+                if (selectedMeshIndex >= 0 && geometryModel.getMeshIndex() != selectedMeshIndex) {
+                    continue;
+                }
+                for (Rig.Mesh mesh : geometryModel.getMeshesList()) {
+                    String slot = meshSet.getMaterials(mesh.getMaterialIndex()).getName();
+                    // A single material also covers the legacy default-material binding.
+                    if (!slot.equals(material.getName()) && materials.size() != 1) {
+                        continue;
+                    }
+                    if (mesh.getWeightsCount() == 0 || mesh.getBoneIndicesCount() == 0) {
+                        throw new CompileExceptionError(resource, 0, String.format(
+                                "Material '%s' in slot '%s' requires skinning attributes (%s), but mesh %d in '%s' has no skin data. Use a non-skinned material.",
+                                material.getMaterial(), slot, String.join(", ", skinAttributes), geometryModel.getMeshIndex(), model.getMesh()));
+                    }
+                }
+            }
+        }
+    }
+
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         ModelDesc.Builder modelDescBuilder = getSrcBuilder(input);
@@ -114,7 +160,8 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
                     createSubTask(t, "texture", taskBuilder);
                 }
 
-                createSubTask(material.getMaterial(), "material", taskBuilder);
+                Task materialTask = createSubTaskOutput(material.getMaterial(), "material", taskBuilder, 0);
+                taskBuilder.addInput(materialTask.input(1)); // Shader reflection also affects model validation.
             }
         } else {
             // Deprecated workflow
@@ -125,7 +172,8 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
             }
 
             if (!modelDescBuilder.getMaterial().isEmpty()) {
-                createSubTask(modelDescBuilder.getMaterial(), "material", taskBuilder);
+                Task materialTask = createSubTaskOutput(modelDescBuilder.getMaterial(), "material", taskBuilder, 0);
+                taskBuilder.addInput(materialTask.input(1));
             }
         }
 
@@ -136,6 +184,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
     public void build(Task task) throws CompileExceptionError, IOException {
         ModelDesc.Builder modelDescBuilder = getSrcBuilder(task.firstInput());
         int selectedMeshIndex = resolveMeshIndex(modelDescBuilder, task.firstInput());
+        validateSkinnedMaterials(modelDescBuilder, task.firstInput(), selectedMeshIndex);
 
         // Rigscene
         RigScene.Builder rigBuilder = RigScene.newBuilder();
