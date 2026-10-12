@@ -644,7 +644,7 @@
               bind! (fn [node]
                       (vreset! dispose (bind-lazy-tooltip! node desc opts)))]
           (with-meta {:desc desc :opts opts :bind bind! :dispose dispose}
-                     {`fx.component/instance :bind})))
+            {`fx.component/instance :bind})))
       (advance [this component desc opts]
         (if (and (= desc (:desc component)) (= opts (:opts component)))
           component

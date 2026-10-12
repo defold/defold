@@ -271,6 +271,74 @@
               (.hide ^Stage stage)
               (fx/delete-component component))))))))
 
+;; Tab must continue from the logical field after its row is recycled, even
+;; within a tuple, instead of starting at the newly visible viewport position.
+(deftest virtual-property-navigation-after-scroll-test
+  (doseq [[row control-index keys expected-row expected-text]
+          [[4 1 [:tab] 4 "3.0"]
+           [4 1 [:shift :tab] 4 "1.0"]
+           [4 2 [:tab] 5 "1.0"]
+           [4 0 [:shift :tab] 3 "3.0"]
+           [0 0 [:shift :tab] nil :before]
+           [99 2 [:tab] nil :after]]
+          scroll-mode [:gradual :fling]]
+    (let [{:keys [component list scene stage before after]}
+          (ui/run-now
+            (let [items (mapv (fn [i]
+                                (-> (property-item i)
+                                    (assoc-in [:property :edit-type :type] types/Vec3)
+                                    (assoc-in [:property :values] [[1.0 2.0 3.0]])))
+                              (range 100))
+                  component (fx/create-component (list-description items [1]))
+                  ^ListView list (fx/instance component)
+                  before (Button. "Before")
+                  after (Button. "After")
+                  root (VBox. ^"[Ljavafx.scene.Node;" (into-array Node [before list after]))
+                  scene (Scene. root 400.0 400.0)
+                  stage (doto (Stage.) (.setOpacity 0.0) (.setScene scene) (.show))]
+              (VBox/setVgrow list Priority/ALWAYS)
+              (ui/apply-css! root)
+              (.applyCss root)
+              (.layout root)
+              (layout! list)
+              {:component component :list list :scene scene :stage stage :before before :after after}))]
+      (try
+        (let [field (ui/run-now
+                      (let [^VirtualFlow flow (.lookup ^ListView list ".virtual-flow")
+                            _ (.scrollTo flow (int row))
+                            _ (layout! list)
+                            controls (#'properties-view/focusable-controls (.getGraphic ^ListCell (.getVisibleCell flow (int row))))]
+                        (controls control-index)))]
+          (dotimes [_ 2]
+            (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary)))
+        (dotimes [_ (if (= :fling scroll-mode) 1 30)]
+          (plorer/scroll! scene (plorer/point list 0.5 0.5) 0
+                          (* (if (= row 99) 1 -1) (if (= :fling scroll-mode) 1000000 45)))
+          (ui/run-now (layout! list)))
+        (ui/run-now
+          (is (= row (.getSelectedIndex (.getSelectionModel ^ListView list)))))
+        (plorer/key-chord! scene keys)
+        (ui/run-now
+          (let [owner (.getFocusOwner ^Scene scene)]
+            (if-not expected-row
+              (is (identical? ({:before before :after after} expected-text) owner))
+              (do
+                (is (instance? TextField owner))
+                (is (= expected-row (.getSelectedIndex (.getSelectionModel ^ListView list))))
+                (when (instance? TextField owner)
+                  (is (= expected-text (.getText ^TextField owner)))
+                  (let [viewport (.lookup ^ListView list ".clipped-container")
+                        viewport-bounds (.localToScene viewport (.getLayoutBounds viewport))
+                        owner-bounds (.localToScene ^TextField owner (.getLayoutBounds ^TextField owner))]
+                    (is (<= (.getMinY viewport-bounds) (.getMinY owner-bounds)))
+                    (is (<= (.getMaxY owner-bounds) (.getMaxY viewport-bounds)))))))))
+        (plorer/mouse-click! scene (plorer/point before 0.5 0.5) :primary)
+        (ui/run-now (is (identical? before (.getFocusOwner ^Scene scene))))
+        (finally
+          (ui/run-now
+            (.hide ^Stage stage)
+            (fx/delete-component component)))))))
+
 ;; Verifies that Tab and Shift+Tab traverse editors beyond the visible cells
 ;; and keep the focused editor entirely inside the viewport without moving
 ;; rows that are already visible. Traversal can leave either end of the list.

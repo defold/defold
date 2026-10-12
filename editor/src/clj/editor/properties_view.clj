@@ -42,16 +42,19 @@
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
             [util.id-vec :as iv])
-  (:import [editor.properties Curve CurveSpread]
+  (:import [com.sun.javafx.scene NodeHelper]
+           [editor.properties Curve CurveSpread]
+           [java.util.function BiConsumer]
            [javafx.beans.value ChangeListener]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
-           [javafx.scene Node Parent]
+           [javafx.scene Node Parent Scene]
            [javafx.scene.control ListCell ListView MenuButton Slider TextArea]
            [javafx.scene.control.skin VirtualFlow]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.paint Color]
-           [javafx.scene.text Font Text]))
+           [javafx.scene.text Font Text]
+           [javafx.util Subscription]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -797,7 +800,7 @@
                         (not (.isDisabled ^Node %)))))
         [node]))
 
-(defn- focus-property-cell! [^ListView list index forward]
+(defn- focus-property-cell! [^ListView list index control-index forward]
   (let [^VirtualFlow flow (.lookup list ".virtual-flow")]
     (loop [index (long index)]
       (when (< -1 index (count (.getItems list)))
@@ -810,22 +813,60 @@
             (.layout list)
             (let [^ListCell cell (.getVisibleCell flow (int index))
                   controls (focusable-controls (.getGraphic cell))]
-              (if-let [^Node target ((if forward first peek) controls)]
+              (if-let [^Node target (or (get controls control-index)
+                                        ((if forward first peek) controls))]
                 (do
                   (.select (.getSelectionModel list) (int index))
                   (.requestFocus target)
-                  true)
+                  target)
                 (recur (+ index (if forward 1 -1)))))))))))
+
+(defn- observe-property-list-focus! [^ListView list]
+  (-> (.sceneProperty list)
+      (.flatMap Scene/.focusOwnerProperty)
+      (.subscribe
+        ^BiConsumer
+        (fn on-property-focus-changed [old-owner owner]
+          (let [^ListCell cell (ui/closest-node-of-type ListCell owner)
+                focused-field (ui/user-data list ::focused-field)
+                ^Node focused-node (:node focused-field)]
+            (cond
+              ;; JavaFX repairs focus after hiding or detaching a
+              ;; cell. Wait for its non-nil replacement, then keep
+              ;; input in the list until the user resumes traversal.
+              (and owner
+                   focused-node
+                   (or (nil? old-owner) (identical? old-owner focused-node))
+                   (or (nil? (.getScene focused-node))
+                       (not (.get (NodeHelper/treeVisibleProperty focused-node))))
+                   (.getScene list)
+                   (.get (NodeHelper/treeVisibleProperty list))
+                   (= (:property-keyword focused-field)
+                      (:property-keyword (.getSelectedItem (.getSelectionModel list)))))
+              (.requestFocus list)
+
+              (and cell (identical? list (.getListView cell)))
+              (when-let [control-index (coll/first-index-where #(identical? owner %)
+                                                               (focusable-controls (.getGraphic cell)))]
+                (ui/user-data! list ::focused-field
+                               {:node owner
+                                :property-keyword (:property-keyword (.getItem cell))
+                                :control-index control-index}))))))))
 
 (defn- handle-property-list-event [^Event event]
   (let [^ListView list (.getSource event)
-        owner (.getFocusOwner (.getScene list))]
+        owner (.getFocusOwner (.getScene list))
+        ^ListCell cell (ui/closest-node-of-type ListCell owner)
+        focused-field (ui/user-data list ::focused-field)]
     (cond
       (= MouseEvent/MOUSE_PRESSED (.getEventType event))
       (when-let [^ListCell cell (ui/closest-node-of-type ListCell (.getTarget event))]
         ;; Embedded controls consume clicks before ListCell can select its row.
         (when (and (identical? list (.getListView cell))
                    (:property-keyword (.getItem cell)))
+          ;; An explicit click supersedes the field remembered before scrolling.
+          (when-not (ui/closest-node-where #(identical? owner %) (.getTarget event))
+            (ui/user-data! list ::focused-field nil))
           (.select (.getSelectionModel list) (.getIndex cell))))
 
       (and (or (= KeyEvent/KEY_PRESSED (.getEventType event))
@@ -833,25 +874,39 @@
            (= KeyCode/TAB (.getCode ^KeyEvent event))
            (not (.isAltDown ^KeyEvent event))
            (or (not (.isControlDown ^KeyEvent event))
-               (instance? TextArea owner))
+               (instance? TextArea (if cell owner (:node focused-field))))
            (not (.isMetaDown ^KeyEvent event))
            (identical? list (ui/closest-node-of-type ListView owner)))
-      (when-let [^ListCell cell (ui/closest-node-of-type ListCell owner)]
-        (.select (.getSelectionModel list) (.getIndex cell))
+      (if-not cell
         (when (and (= KeyEvent/KEY_PRESSED (.getEventType event))
-                   ;; Plain Tab belongs to the multiline editor.
-                   (or (not (instance? TextArea owner))
-                       (.isShiftDown ^KeyEvent event)
-                       (.isControlDown ^KeyEvent event)))
-          (let [forward (not (.isShiftDown ^KeyEvent event))
-                controls (focusable-controls (.getGraphic cell))]
-            (when (identical? owner ((if forward peek first) controls))
-              ;; Commit the focused editor before its cell can be recycled.
-              (.requestFocus (.getGraphic cell))
-              (when (focus-property-cell! list
-                                          (+ (.getIndex cell) (if forward 1 -1))
-                                          forward)
-                (.consume event)))))))))
+                   focused-field
+                   (= (:property-keyword focused-field)
+                      (:property-keyword (.getSelectedItem (.getSelectionModel list)))))
+          (when-let [^Node target (focus-property-cell! list
+                                                        (.getSelectedIndex (.getSelectionModel list))
+                                                        (:control-index focused-field)
+                                                        true)]
+            ;; Resume native traversal (including traversal within a row and
+            ;; out of the list) from the restored field, not the viewport.
+            (Event/fireEvent target (.copyFor event target target))
+            (.consume event)))
+        (do
+          (.select (.getSelectionModel list) (.getIndex cell))
+          (when (and (= KeyEvent/KEY_PRESSED (.getEventType event))
+                     ;; Plain Tab belongs to the multiline editor.
+                     (or (not (instance? TextArea owner))
+                         (.isShiftDown ^KeyEvent event)
+                         (.isControlDown ^KeyEvent event)))
+            (let [forward (not (.isShiftDown ^KeyEvent event))
+                  controls (focusable-controls (.getGraphic cell))]
+              (when (identical? owner ((if forward peek first) controls))
+                ;; Commit the focused editor before its cell can be recycled.
+                (.requestFocus (.getGraphic cell))
+                (when (focus-property-cell! list
+                                            (+ (.getIndex cell) (if forward 1 -1))
+                                            nil
+                                            forward)
+                  (.consume event))))))))))
 
 (def ^:private prop-list-selected-index
   (fx.prop/make
@@ -860,7 +915,9 @@
         (let [model (.getSelectionModel list)]
           (if index
             (.clearAndSelect model (int index))
-            (.clearSelection model)))))
+            (do
+              (ui/user-data! list ::focused-field nil)
+              (.clearSelection model))))))
     fx.lifecycle/scalar))
 
 (ui/defc property-list-view
@@ -870,6 +927,14 @@
                               :selected-property nil}
               :reset (fn reset-property-list-state [state initial-state]
                        (assoc initial-state :label-font (:label-font state)))}
+             {:fx/type fx/ext-on-instance-lifecycle
+              :on-created (fn on-property-list-created [list]
+                            (ui/user-data! list ::focus-subscription
+                                           (observe-property-list-focus! list)))
+              :on-deleted (fn on-property-list-deleted [list]
+                            (.unsubscribe ^Subscription (ui/user-data list ::focus-subscription))
+                            (ui/user-data! list ::focus-subscription nil)
+                            (ui/user-data! list ::focused-field nil))}
              {:fx/type ui/ext-memo
               :fn property-label-widths
               :args [(get-in props [:state :label-font]) (:items props)]
