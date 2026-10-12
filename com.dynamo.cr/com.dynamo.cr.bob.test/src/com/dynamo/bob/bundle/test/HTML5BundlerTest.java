@@ -23,6 +23,7 @@ import static org.junit.Assume.assumeTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
@@ -75,6 +76,69 @@ public class HTML5BundlerTest {
         assertEquals(Long.toString(expectedSize), heapSize);
     }
 
+    private void assertLoaderWebGPU(Platform platform, String architectures, String manifest, boolean expected) throws Exception {
+        try (Project project = createHeapSizeProject()) {
+            BobProjectProperties projectProperties = project.getProjectProperties();
+            projectProperties.loadDefaultMetaFile();
+            projectProperties.putStringValue("html5", "cssfile", "/style.css");
+            project.setOption("platform", platform.getPair());
+            project.setOption("architectures", architectures);
+            if (manifest != null) {
+                projectProperties.putStringValue("native_extension", "app_manifest", "graphics.appmanifest");
+                project.getResource("graphics.appmanifest").setContent(manifest.getBytes(StandardCharsets.UTF_8));
+            }
+            project.configurePreBuildProjectOptions();
+
+            Map<String, Map<String, Object>> propertiesMap = projectProperties.createTypedMap(
+                    new BobProjectProperties.PropertyType[] {BobProjectProperties.PropertyType.BOOL});
+            Map<String, Object> properties = new HashMap<>();
+            properties.put("exe-name", "game");
+            new HTML5Bundler().updateManifestProperties(project, platform, projectProperties, propertiesMap, properties);
+            try (InputStream input = HTML5Bundler.class.getResourceAsStream("resources/web/dmloader.js")) {
+                String loader = BundleHelper.formatResource(propertiesMap, properties, input.readAllBytes(), "dmloader.js");
+                assertEquals(expected, loader.contains("navigator.gpu"));
+                assertEquals(expected, loader.contains("probeWebGPUSupport"));
+                assertEquals(expected, loader.contains("hasWebGPUSupport"));
+            }
+        }
+    }
+
+    // Default WebGL engines must omit all WebGPU probing, including pthread builds.
+    @Test
+    public void testWebGLLoaderOmitsWebGPUProbe() throws Exception {
+        for (Platform platform : List.of(Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+            assertLoaderWebGPU(platform, platform.getPair(), null, false);
+        }
+    }
+
+    // WebGPU symbols or libraries in generic and architecture-specific manifests must retain probing.
+    @Test
+    public void testWebGPUAppManifestKeepsProbe() throws Exception {
+        for (Platform platform : List.of(Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+            for (String manifestPlatform : List.of("web", platform.getPair())) {
+                for (String adapter : List.of("symbols: [GraphicsAdapterWebGPU]", "libs: [graphics_webgpu]")) {
+                    assertLoaderWebGPU(platform, platform.getPair(),
+                            "platforms:\n  " + manifestPlatform + ":\n    context:\n      " + adapter + "\n", true);
+                }
+            }
+        }
+    }
+
+    // An explicitly excluded WebGPU adapter must not leave its probe in the generated loader.
+    @Test
+    public void testExcludedWebGPUOmitsProbe() throws Exception {
+        assertLoaderWebGPU(Platform.WasmWeb, "wasm-web",
+                "platforms:\n  web:\n    context:\n      symbols: [GraphicsAdapterWebGPU]\n" +
+                "      excludeSymbols: [GraphicsAdapterWebGPU]\n", false);
+    }
+
+    // A shared loader must retain the probe when either bundled engine architecture includes WebGPU.
+    @Test
+    public void testWebGPUInPthreadArchitectureKeepsProbe() throws Exception {
+        assertLoaderWebGPU(Platform.WasmWeb, "wasm-web,wasm_pthread-web",
+                "platforms:\n  wasm_pthread-web:\n    context:\n      libs: [graphics_webgpu_wagyu]\n", true);
+    }
+
     // An unset heap size must still render the default 256 MiB as a byte count.
     @Test
     public void testDefaultHeapSize() throws IOException {
@@ -108,6 +172,67 @@ public class HTML5BundlerTest {
             assertHeapSize(project, 134217728L);
             projectProperties.putBooleanValue("html5", "set_custom_heap_size", false);
             assertHeapSize(project, 4294967296L);
+        }
+    }
+
+    // Bundle paths must be sanitized while the display title is preserved (#12673).
+    @Test
+    public void testBundleWithSanitizedProjectTitle() throws Exception {
+        File projectDir = temporaryFolder.newFolder("project");
+        File buildDir = new File(projectDir, "build");
+        assertTrue(buildDir.mkdirs());
+        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+            Files.write(new File(buildDir, name).toPath(), new byte[] {1});
+        }
+        try (Project project = new Project(new DefaultFileSystem(), projectDir.getAbsolutePath(), "build")) {
+            BobProjectProperties properties = project.getProjectProperties();
+            properties.loadDefaultMetaFile();
+            properties.putStringValue("html5", "htmlfile", "/template.html");
+            properties.putStringValue("html5", "cssfile", "/style.css");
+            project.getResource("/template.html").setContent(
+                    "<title>{{project.title}}</title>\n{{exe-name}}\n{{DEFOLD_BINARY_PREFIX}}".getBytes(StandardCharsets.UTF_8));
+            project.getResource("/style.css").setContent(new byte[0]);
+            project.setOption("platform", Platform.WasmWeb.getPair());
+            project.setOption("architectures", "wasm-web,wasm_pthread-web");
+
+            // Only the bundling step is under test, so provide small local engine fixtures.
+            for (Platform platform : List.of(Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+                File engineDir = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair());
+                assertTrue(engineDir.mkdirs());
+                for (String name : platform.formatBinaryName("dmengine")) {
+                    Files.write(new File(engineDir, name).toPath(), new byte[] {1});
+                }
+            }
+
+            String[][] titleCases = {
+                {"2248: Merge & Slash", "2248MergeSlash"},
+                {"My Game", "MyGame"},
+                {"My/Game\\Title", "MyGameTitle"},
+                {"Лорем ипсум", "dmengine"},
+                {":*?", "dmengine"}
+            };
+            for (String[] titleCase : titleCases) {
+                String title = titleCase[0];
+                String binaryName = titleCase[1];
+                properties.putStringValue("project", "title", title);
+                File bundleDir = temporaryFolder.newFolder();
+                new HTML5Bundler().bundleApplication(project, Platform.WasmWeb, bundleDir, () -> false);
+
+                File appDir = new File(bundleDir, binaryName);
+                assertTrue(title, appDir.isDirectory());
+                assertEquals(1, bundleDir.list().length);
+                for (String name : List.of("index.html", "dmloader.js", "archive/archive_files.json", "archive/game0.arcd",
+                        binaryName + "_wasm.js", binaryName + ".wasm",
+                        binaryName + "_pthread_wasm.js", binaryName + "_pthread.wasm")) {
+                    assertTrue(name, new File(appDir, name).isFile());
+                }
+                String html = Files.readString(new File(appDir, "index.html").toPath());
+                assertEquals("<title>" + title.replace("&", "&amp;") + "</title>\n" + binaryName + "\n" + binaryName, html);
+                String loader = Files.readString(new File(appDir, "dmloader.js").toPath());
+                assertTrue(loader.contains("\"" + binaryName + ".wasm\""));
+                assertTrue(loader.contains("\"" + binaryName + "_pthread.wasm\""));
+                assertEquals(title, properties.getStringValue("project", "title"));
+            }
         }
     }
 

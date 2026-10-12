@@ -771,6 +771,7 @@ public final class FontRenderer implements AutoCloseable {
     /**
      * Removes unsupported visible codepoints from rich-text markup with the native parser.
      * Tags, attributes, and entity spellings are preserved byte-for-byte.
+     * Literal ampersands are escaped to preserve their meaning after filtering.
      */
     public static String filterMarkup(String markup, int[] allowedCodepoints) {
         if (markup == null || allowedCodepoints == null)
@@ -781,15 +782,16 @@ public final class FontRenderer implements AutoCloseable {
         }
 
         byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        int outputCapacity = Math.multiplyExact(bytes.length, 5);
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment output = arena.allocate(JAVA_BYTE, Math.max(1, bytes.length));
+            MemorySegment output = arena.allocate(JAVA_BYTE, Math.max(1, outputCapacity));
             MemorySegment outputByteCount = arena.allocate(JAVA_INT);
             checkResult(FontcFilterMarkup(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length,
                             arena.allocateFrom(JAVA_INT, allowedCodepoints), allowedCodepoints.length,
-                            output, bytes.length, outputByteCount),
+                            output, outputCapacity, outputByteCount),
                     "Native rich-text filtering failed");
             int filteredByteCount = outputByteCount.get(JAVA_INT, 0);
-            if (filteredByteCount < 0 || filteredByteCount > bytes.length)
+            if (filteredByteCount < 0 || filteredByteCount > outputCapacity)
                 throw new IllegalStateException("Invalid native filtered markup length");
             return new String(output.asSlice(0, filteredByteCount).toArray(JAVA_BYTE), StandardCharsets.UTF_8);
         }

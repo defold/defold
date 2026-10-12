@@ -1012,6 +1012,62 @@ TEST_F(DX12Test, FrontAndBackCulling)
     DeleteRenderTarget(GetContext(), target);
 }
 
+// Verifies offscreen culling agrees with SV_IsFrontFace for both windings after target switches.
+TEST_F(DX12Test, OffscreenCullingMatchesFrontFace)
+{
+    HRenderTarget targets[] = { CreateTestRenderTarget(4, 4), CreateTestRenderTarget(4, 4) };
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+    TestProgram shader;
+    shader.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage("float4 main(bool front:SV_IsFrontFace):SV_Target{return front ? float4(1,0,0,1) : float4(0,1,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram program = shader.CreateProgram(GetContext());
+    ASSERT_NE((HProgram)0, program);
+    EnableProgram(GetContext(), program);
+    const FaceWinding windings[] = { FACE_WINDING_CW, FACE_WINDING_CCW };
+    const FaceType faces[] = { FACE_TYPE_FRONT, FACE_TYPE_BACK, FACE_TYPE_FRONT_AND_BACK };
+    uint8_t winding_colors[2] = {};
+    for (uint32_t winding = 0; winding < DM_ARRAY_SIZE(windings); ++winding)
+    {
+        SetFaceWinding(GetContext(), windings[winding]);
+        for (uint32_t pass = 0; pass < 3; ++pass)
+        {
+            SetRenderTarget(GetContext(), targets[pass % 2], RenderTargetBindingParams());
+            DisableState(GetContext(), STATE_CULL_FACE);
+            Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+            Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+            uint8_t reference[4] = {};
+            ReadPixels(GetContext(), 1, 1, 1, 1, reference, sizeof(reference));
+            ASSERT_EQ(0, reference[0]);
+            ASSERT_EQ(255, reference[1] + reference[2]);
+            if (pass == 0)
+                winding_colors[winding] = reference[2];
+            ASSERT_EQ(winding_colors[winding], reference[2]);
+            const bool front = reference[2] == 255;
+            for (uint32_t face = 0; face < DM_ARRAY_SIZE(faces); ++face)
+            {
+                EnableState(GetContext(), STATE_CULL_FACE);
+                SetCullFace(GetContext(), faces[face]);
+                Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1, 0);
+                Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+                uint8_t pixel[4] = {};
+                ReadPixels(GetContext(), 1, 1, 1, 1, pixel, sizeof(pixel));
+                const bool culled = faces[face] == FACE_TYPE_FRONT_AND_BACK ||
+                    (front ? faces[face] == FACE_TYPE_FRONT : faces[face] == FACE_TYPE_BACK);
+                ASSERT_EQ(culled ? 255 : 0, pixel[0]);
+                ASSERT_EQ(culled ? 0 : reference[1], pixel[1]);
+                ASSERT_EQ(culled ? 0 : reference[2], pixel[2]);
+            }
+        }
+    }
+    ASSERT_NE(winding_colors[0], winding_colors[1]);
+    SubmitAndWait();
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), targets[0]);
+    DeleteRenderTarget(GetContext(), targets[1]);
+}
+
 // Verifies culling both faces preserves vertex shader storage writes.
 TEST_F(DX12Test, FrontAndBackCullingPreservesVertexWrites)
 {

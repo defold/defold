@@ -52,6 +52,7 @@ fcm_application_id = com.defold.save-data-project
 manifest = /builtins/manifests/android/AndroidManifest.xml
 r8_keep_rules = /builtins/manifests/android/dmengine.keep
 extract_native_libs = 1
+vkquality_database = /builtins/manifests/android/vkqualitydata.vkq
 
 [project]
 title = Save Data Project

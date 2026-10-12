@@ -299,6 +299,21 @@ TEST(FontGlyphBank, RejectsInvalidProvider)
     ASSERT_EQ((HFont)0, FontCreateGlyphBank("test.glyph_bankc", 0));
 }
 
+// Verifies both alignment resources load through the host filesystem, guarding against missing wasm fixtures.
+TEST(FontAlignment, LoadsPreviewAndCompiledResources)
+{
+    FontAlignmentFixture preview;
+    FontAlignmentFixture compiled;
+    CreateAlignmentFixture(preview, false);
+    ASSERT_EQ(DM_ARRAY_SIZE(preview.m_Glyphs), preview.m_GlyphCount);
+    ASSERT_NE((HFont)0, preview.m_Font);
+    ASSERT_NE((HTextLayout)0, preview.m_Layout);
+    CreateAlignmentFixture(compiled, true);
+    ASSERT_EQ(DM_ARRAY_SIZE(compiled.m_Glyphs), compiled.m_GlyphCount);
+    ASSERT_NE((dmFontDDF::GlyphBank*)0, compiled.m_Bank);
+    ASSERT_NE((HTextLayout)0, compiled.m_Layout);
+}
+
 // Compiling a font must preserve every GUI pivot's glyph positions; guards
 // against #13339's raster-padding/monospaced-layout offset in offline fonts.
 TEST(FontAlignment, CompiledFontMatchesPreviewAtEveryPivot)
@@ -306,7 +321,9 @@ TEST(FontAlignment, CompiledFontMatchesPreviewAtEveryPivot)
     FontAlignmentFixture preview;
     FontAlignmentFixture compiled;
     CreateAlignmentFixture(preview, false);
+    ASSERT_EQ(DM_ARRAY_SIZE(preview.m_Glyphs), preview.m_GlyphCount);
     CreateAlignmentFixture(compiled, true);
+    ASSERT_EQ(DM_ARRAY_SIZE(compiled.m_Glyphs), compiled.m_GlyphCount);
     uint32_t mismatched_pivots = 0;
     for (uint32_t pivot = 0; pivot < 9; ++pivot)
     {
@@ -333,7 +350,9 @@ TEST(FontAlignment, CompiledFontMatchesPreviewAtWrapBoundary)
     FontAlignmentFixture preview;
     FontAlignmentFixture compiled;
     CreateAlignmentFixture(preview, false);
+    ASSERT_EQ(DM_ARRAY_SIZE(preview.m_Glyphs), preview.m_GlyphCount);
     CreateAlignmentFixture(compiled, true);
+    ASSERT_EQ(DM_ARRAY_SIZE(compiled.m_Glyphs), compiled.m_GlyphCount);
     dmArray<uint32_t> codepoints;
     TextToCodePoints("Example Example", codepoints);
     TextLayoutSettings settings = {};

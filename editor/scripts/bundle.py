@@ -727,12 +727,17 @@ def init_editor(options, platform, jdk):
 
 def run_tests(jdk):
     with ThreadPoolExecutor(max_workers=1) as executor:
-        cljfmt_check = executor.submit(invoke_lein, ['cljfmt', 'check'], jdk_path=jdk)
+        cljfmt_check = executor.submit(invoke_lein, ['cljfmt', 'check'], jdk_path=jdk, silent=True)
         invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
         invoke_lein(['with-profile', '+headless', 'test'], jdk_path=jdk)
         # test that docs can be successfully produced
         write_docs('target/docs', jdk_path=jdk)
-        cljfmt_check.result()
+        try:
+            log(cljfmt_check.result())
+        except SystemExit as e:
+            # run.command exits while handling ExecException, which retains the output.
+            log(e.__context__.output)
+            raise
 
 def test(options):
     for platform in options.target_platform:

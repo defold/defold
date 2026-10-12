@@ -17,6 +17,7 @@
 
 #include <ddf/ddf.h>
 #include <dlib/math.h>
+#include <dlib/testutil.h>
 #include <font/glyphbank_ddf.h>
 #include "font.h"
 #include "font_glyphbank.h"
@@ -115,13 +116,15 @@ static bool ResolveAlignmentGlyph(void* context, const TextGlyph& text, FontLayo
 
 static void CreateAlignmentFixture(FontAlignmentFixture& fixture, bool compiled)
 {
+    char path[512];
     TextLayoutSettings settings = {};
     settings.m_Size = 15;
     settings.m_Width = 65;
     settings.m_Leading = 1;
     if (compiled)
     {
-        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/test/data/font_render/alignment.glyph_bankc",
+        const char* host_path = dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/test/data/font_render/alignment.glyph_bankc");
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(host_path,
             dmFontDDF::GlyphBank::m_DDFDescriptor, (void**)&fixture.m_Bank));
         dmFontDDF::GlyphBank* bank = fixture.m_Bank;
         memset(&fixture.m_Provider, 0, sizeof(fixture.m_Provider));
@@ -140,7 +143,7 @@ static void CreateAlignmentFixture(FontAlignmentFixture& fixture, bool compiled)
     }
     else
     {
-        fixture.m_Font = FontLoadFromPath("src/test/data/vera_mo_bd.ttf");
+        fixture.m_Font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/vera_mo_bd.ttf"));
     }
     ASSERT_NE((HFont)0, fixture.m_Font);
     fixture.m_Collection = FontCollectionCreate();

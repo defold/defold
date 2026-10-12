@@ -5,6 +5,8 @@
                              :image "empty.svg"
                              :duration "Short"
                              :user-level "Beginner"
+                             ;; ci/cache_key.py reads this template URL. If the key or URL structure
+                             ;; changes, check and update that script as needed.
                              :zip-url "https://github.com/defold/template-empty/archive/d2726f4d4dcd8d503d784ea5f9e4d88547918683.zip"
                              :bundle true
                              :skip-root? true}

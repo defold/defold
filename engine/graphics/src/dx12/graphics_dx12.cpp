@@ -3579,19 +3579,11 @@ namespace dmGraphics
         PipelineState pipeline_state_draw = context->m_PipelineState;
         pipeline_state_draw.m_PrimtiveType = prim_type;
 
-        // Match Vulkan's offscreen culling semantics. Render scripts define cull side
-        // in the engine convention, but offscreen render targets have the opposite
-        // effective winding from the backbuffer path.
+        // The offscreen viewport reverses winding. Correct the front-face
+        // definition so culling and SV_IsFrontFace agree with the backbuffer.
         if (current_rt->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
-            {
-                pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
-            }
-            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
-            {
-                pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
-            }
+            pipeline_state_draw.m_FaceWinding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CCW ? FACE_WINDING_CW : FACE_WINDING_CCW;
         }
 
         DX12Pipeline* pipeline = GetOrCreatePipeline(context, current_rt, pipeline_state_draw, num_vx_buffers);

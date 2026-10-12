@@ -112,6 +112,77 @@ class BuildSdkTests(unittest.TestCase):
                     self.assertEqual({'test-sha1/engine/platform.sdks.json': expected_sdks}, uploads)
 
 
+class SdkInstallationTests(unittest.TestCase):
+    # macOS ARMv7 source builds need the Web SDK for LuaJIT's 32-bit generators; other Android builds do not.
+    def test_android_installs_web_sdk_only_for_macos_armv7(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            emsdk = root / 'emsdk'
+            for host in ('arm64-macos', 'x86_64-macos', 'x86_64-linux', 'x86_64-win32'):
+                for target in ('armv7-android', 'arm64-android', 'x86_64-android'):
+                    with self.subTest(host=host, target=target):
+                        configuration = build.Configuration.__new__(build.Configuration)
+                        configuration.ext = str(root)
+                        configuration.host = host
+                        configuration.target_platform = target
+                        configuration.package_path = 'https://packages.example'
+                        configuration.has_sdk = lambda folder, platform: True
+                        with mock.patch.object(build.sdk, 'get_host_platform', return_value=host), \
+                                mock.patch.object(build.sdk, 'get_defold_emsdk', return_value=str(emsdk)), \
+                                mock.patch.object(build.sdk, 'get_defold_emsdk_config', return_value=str(emsdk / '.emscripten')), \
+                                mock.patch.object(build.os.path, 'isfile', return_value=True), \
+                                mock.patch.object(build.build_private, 'install_sdk'), \
+                                mock.patch.object(build, 'download_sdk') as download:
+                            configuration.install_sdk()
+                        web_sdk = f'https://packages.example/{build.sdk.PACKAGES_EMSCRIPTEN_SDK}-{host}.tar.gz'
+                        downloads = [call.args[1] for call in download.call_args_list]
+                        self.assertEqual(target == 'armv7-android' and host.endswith('-macos'), web_sdk in downloads)
+
+
+class SdkCheckTests(unittest.TestCase):
+    def setUp(self):
+        self.configuration = build.Configuration.__new__(build.Configuration)
+        self.configuration.defold_root = str(Path(__file__).resolve().parents[1])
+        self.configuration.dynamo_home = '/test-sdk'
+        self.configuration.ext = '/test-sdk/ext'
+        self.configuration.verbose = False
+        for patch in (
+                mock.patch.object(self.configuration, 'check_python'),
+                mock.patch.object(self.configuration, '_log'),
+                mock.patch.object(build.sdk, 'get_sdk_info', return_value={'ndk': '/android-ndk'}),
+                mock.patch.object(build.sdk, 'test_sdk', return_value=True),
+                mock.patch.object(build.shutil, 'which', return_value='/tools/tool')):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    # ARMv7 on macOS must check its generator SDK as well as Android; other Android builds need only Android.
+    def test_android_checks_generator_sdk_only_for_macos_armv7(self):
+        for host in ('arm64-macos', 'x86_64-macos', 'x86_64-linux', 'x86_64-win32'):
+            for target in ('armv7-android', 'arm64-android', 'x86_64-android'):
+                with self.subTest(host=host, target=target), mock.patch.object(build.run, 'command', return_value='') as command:
+                    self.configuration.host = host
+                    self.configuration.target_platform = target
+                    self.configuration.check_sdk()
+                    checks = [call.args[0] for call in command.call_args_list]
+                    self.assertTrue(checks[0][-1].endswith('scripts/cmake/check_install.cmake'))
+                    if target == 'armv7-android' and host.endswith('-macos'):
+                        self.assertEqual(2, len(checks))
+                        self.assertTrue(checks[1][-1].endswith('external/luajit/host/emscripten.cmake'))
+                        self.assertIn('-DDEFOLD_SDK_ROOT:PATH=/test-sdk', checks[1])
+                        self.assertIn('-DLUAJIT_CHECK_SDK=ON', checks[1])
+                    else:
+                        self.assertEqual(1, len(checks))
+
+    # A missing or unusable generator SDK must fail check_sdk even when the Android toolchain passes.
+    def test_macos_armv7_generator_sdk_failure_is_not_ignored(self):
+        self.configuration.host = 'arm64-macos'
+        self.configuration.target_platform = 'armv7-android'
+        with mock.patch.object(build.run, 'command', side_effect=['', SystemExit(1)]):
+            with self.assertRaises(SystemExit) as error:
+                self.configuration.check_sdk()
+            self.assertEqual(1, error.exception.code)
+
+
 class PlatformSdkPackagingTests(unittest.TestCase):
     # Both SDK archive formats must include the header used by Extender's Android entry point.
     def test_android_sdk_includes_platform_application_header(self):

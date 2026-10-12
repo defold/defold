@@ -28,8 +28,10 @@ CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 ```
 
-## Changes and tests
+## Changes
 
-- Add focused tests for behavior changes. Put a comment immediately above each new test declaration, outside the test body, stating what it verifies and the regression it guards against, if any.
-- Prefer explicit events or completion signals over sleeps and other timing-dependent test logic, since timing assumptions can make tests unstable on CI.
 - Keep each PR focused on one problem; target `defold:dev` unless instructed otherwise. Link related issues, describe the behavior change, report validation and tested platforms, and include screenshots for editor UI changes.
+
+## Tests
+
+- Prefer explicit events or completion signals over sleeps and other timing-dependent test logic, since timing assumptions can make tests unstable on CI.

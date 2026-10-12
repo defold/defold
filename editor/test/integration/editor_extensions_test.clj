@@ -836,6 +836,34 @@
         output-matches-expectation (= expected actual)]
     (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3))))))
 
+(def ^:private expected-resource-children-test-output
+  "Root contains assets: true
+Library contains logo: true
+/assets
+/assets/triangle.gltf
+/assets/triangle.gltf/images
+/assets/triangle.gltf/images/Albedo_0.png
+/assets/triangle.gltf/materials
+/assets/triangle.gltf/materials/Paint_0.material
+/assets/triangle.gltf/meshes
+/assets/triangle.gltf/meshes/Triangle_0
+File children: 0
+Collection resource children: 0
+Collection scene children: 1
+Missing path: /missing not found
+Relative path rejected: true
+Non-string rejected: true
+Missing argument rejected: true
+Extra argument rejected: true
+")
+
+(deftest resource-children-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resource_children_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-resource-children-test-output out))))
+
 (def ^:private expected-fetch-libraries-test-output
   "fetch libraries: ok
 resource exists after fetch: true
@@ -2428,6 +2456,15 @@ After transaction (add font styles after clear):
     markup: [<color=#aa3300>\\n<ul>]
     id: accent
     markup: [<color=#ff6600>]
+glTF lists:
+  meshes: 1, can add: false, can set: false, can reorder: false
+  materials: 1, can add: false, can set: false, can reorder: false
+  textures: 1, can add: false, can set: false, can reorder: false
+  mesh: gltf-mesh, Triangle, index: 0, primitives: 1, vertices: 3
+  material: gltf-material, Paint, /assets/triangle.gltf/materials/Paint_0.material
+  texture: gltf-texture, AlbedoTexture, /assets/triangle.gltf/images/Albedo_0.png
+  mesh name writable: false
+  image path: /assets/triangle.gltf/images/Albedo_0.png
 ")
 
 (deftest attachment-properties-test
