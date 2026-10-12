@@ -14,6 +14,7 @@
 
 (ns util.coll-test
   (:require [clojure.core :as core]
+            [clojure.data.int-map :as int-map]
             [clojure.test :refer :all]
             [internal.util :as iutil]
             [util.coll :as coll]
@@ -32,15 +33,25 @@
 
 (def ^:dynamic *pmapv-binding-test-value* nil)
 
+;; Verifies map views preserve reduction semantics and support empty checks
+;; without creating sequences.
 (deftest keys-and-vals-test
   (testing "Match core keys and vals semantics."
     (doseq [make-map [(constantly nil)
+                      (constantly {})
                       #(array-map :a 1 :b 2)
                       #(hash-map :a 1 :b 2)
                       #(sorted-map :b 2 :a 1)
+                      #(int-map/int-map 1 :a 2 :b)
                       #(Hashtable. {1 :a 2 :b})]]
       (let [core-map (make-map)
             coll-map (make-map)]
+        (is (counted? (coll/keys coll-map)))
+        (is (counted? (coll/vals coll-map)))
+        (is (= (count coll-map) (count (coll/keys coll-map))))
+        (is (= (count coll-map) (count (coll/vals coll-map))))
+        (is (= (zero? (count coll-map)) (coll/empty? (coll/keys coll-map))))
+        (is (= (zero? (count coll-map)) (coll/empty? (coll/vals coll-map))))
         (is (= (into [] (core/keys core-map))
                (into [] (coll/keys coll-map))))
         (is (= (into [] (core/vals core-map))
@@ -52,6 +63,8 @@
     (is (= :a (reduce iutil/first-rf nil (coll/keys (array-map :a 1 :b 2)))))
     (is (= 1 (reduce iutil/first-rf nil (coll/vals (array-map :a 1 :b 2)))))))
 
+;; Verifies eager sorting preserves core semantics and exposes its stored size
+;; without traversal.
 (deftest sort-test
   (testing "Returns an eagerly-sorted reducible."
     (is (= [] (into [] (coll/sort nil))))
@@ -87,9 +100,13 @@
              ["double array" compare #(double-array [3.0 1.0 2.0])]]]
       (testing description
         (let [core-input (make-input)
-              coll-input (make-input)]
-          (is (= (into [] (core/sort comparator core-input))
-                 (into [] (coll/sort comparator coll-input))))
+              coll-input (make-input)
+              core-result (into [] (core/sort comparator core-input))
+              coll-result (coll/sort comparator coll-input)]
+          (is (counted? coll-result))
+          (is (= (count core-result) (count coll-result)))
+          (is (= (zero? (count core-result)) (coll/empty? coll-result)))
+          (is (= core-result (into [] coll-result)))
           (is (= (into [] core-input)
                  (into [] coll-input)))))))
 

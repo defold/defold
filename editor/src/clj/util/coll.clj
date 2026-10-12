@@ -16,7 +16,7 @@
   (:refer-clojure :exclude [any? bounded-count empty? every? keys mapcat merge merge-with not-any? not-empty not-every? some sort sort-by update-vals vals])
   (:require [util.task :as task])
   (:import [clojure.core Eduction Vec]
-           [clojure.lang Cons Cycle IEditableCollection IReduceInit LazilyPersistentVector LazySeq MapEntry Repeat]
+           [clojure.lang Cons Counted Cycle IEditableCollection IReduceInit LazilyPersistentVector LazySeq MapEntry Repeat]
            [java.util ArrayList Arrays Collection Comparator List]
            [java.util.concurrent Semaphore]
            [java.util.concurrent.atomic AtomicInteger]))
@@ -187,9 +187,12 @@
       (instance? Comparable value)))
 
 (defn keys
-  "Returns an IReduceInit over the map's keys, in the same order as (seq map)."
+  "Returns a counted IReduceInit over the map's keys, in the same order as (seq map)."
   [map]
-  (reify IReduceInit
+  (reify
+    Counted
+    (count [_] (count map))
+    IReduceInit
     (reduce [_ f init]
       (reduce-kv (fn [result key _]
                    (f result key))
@@ -197,9 +200,12 @@
                  map))))
 
 (defn vals
-  "Returns an IReduceInit over the map's values, in the same order as (seq map)."
+  "Returns a counted IReduceInit over the map's values, in the same order as (seq map)."
   [map]
-  (reify IReduceInit
+  (reify
+    Counted
+    (count [_] (count map))
+    IReduceInit
     (reduce [_ f init]
       (reduce-kv (fn [result _ value]
                    (f result value))
@@ -1170,7 +1176,7 @@
       (primitive-types-by-array-manager-id array-manager-id))))
 
 (defn sort
-  "Returns a stable, eagerly-sorted IReduceInit over the items in coll.
+  "Returns a stable, eagerly-sorted, counted IReduceInit over the items in coll.
 
   Sorting and input-mutation semantics match core.sort. Unlike core.sort, the
   result is reducible but not seqable; consume it using reduce, into, mapv, or
@@ -1196,7 +1202,10 @@
                                     coll)
                             (.toArray items)))]
      (Arrays/sort items comparator)
-     (reify IReduceInit
+     (reify
+       Counted
+       (count [_] (alength items))
+       IReduceInit
        (reduce [_ f init]
          (loop [index 0
                 result init]
