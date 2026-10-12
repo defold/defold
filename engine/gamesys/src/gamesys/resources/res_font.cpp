@@ -95,7 +95,7 @@ namespace dmGameSystem
                         return false;
                     if (input.m_GradientMode == TEXT_GRADIENT_MODE_SPATIAL)
                     {
-                        if (input.m_Positions.m_Count != 4 || input.m_Parameters.m_Count != 4 ||
+                        if (input.m_Positions.m_Count != 4 || input.m_Parameters.m_Count != 6 ||
                             input.m_StopCount < 1 || input.m_StopCount > 4 || input.m_ColorType > FONT_COLOR_EFFECT_FOUR_CORNER ||
                             (input.m_ColorType == FONT_COLOR_EFFECT_COLOR && input.m_StopCount != 1) ||
                             (input.m_ColorType == FONT_COLOR_EFFECT_FOUR_CORNER && input.m_StopCount != 4))

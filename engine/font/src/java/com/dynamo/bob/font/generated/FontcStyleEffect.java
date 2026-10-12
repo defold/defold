@@ -37,7 +37,7 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *     uint32_t m_Fit;
  *     uint32_t m_GradientMode;
  *     float m_Positions[4];
- *     float m_Parameters[4];
+ *     float m_Parameters[6];
  *     uint32_t m_ColorType;
  *     uint32_t m_StopCount;
  * }
@@ -58,7 +58,7 @@ public class FontcStyleEffect {
         FontRendererFFM.C_INT.withName("m_Fit"),
         FontRendererFFM.C_INT.withName("m_GradientMode"),
         MemoryLayout.sequenceLayout(4, FontRendererFFM.C_FLOAT).withName("m_Positions"),
-        MemoryLayout.sequenceLayout(4, FontRendererFFM.C_FLOAT).withName("m_Parameters"),
+        MemoryLayout.sequenceLayout(6, FontRendererFFM.C_FLOAT).withName("m_Parameters"),
         FontRendererFFM.C_INT.withName("m_ColorType"),
         FontRendererFFM.C_INT.withName("m_StopCount")
     ).withName("FontcStyleEffect");
@@ -493,7 +493,7 @@ public class FontcStyleEffect {
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * float m_Parameters[4]
+     * float m_Parameters[6]
      * }
      */
     public static final SequenceLayout m_Parameters$layout() {
@@ -505,7 +505,7 @@ public class FontcStyleEffect {
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * float m_Parameters[4]
+     * float m_Parameters[6]
      * }
      */
     public static final long m_Parameters$offset() {
@@ -515,7 +515,7 @@ public class FontcStyleEffect {
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * float m_Parameters[4]
+     * float m_Parameters[6]
      * }
      */
     public static MemorySegment m_Parameters(MemorySegment struct) {
@@ -525,19 +525,19 @@ public class FontcStyleEffect {
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * float m_Parameters[4]
+     * float m_Parameters[6]
      * }
      */
     public static void m_Parameters(MemorySegment struct, MemorySegment fieldValue) {
         MemorySegment.copy(fieldValue, 0L, struct, m_Parameters$OFFSET, m_Parameters$LAYOUT.byteSize());
     }
 
-    private static long[] m_Parameters$DIMS = { 4 };
+    private static long[] m_Parameters$DIMS = { 6 };
 
     /**
      * Dimensions for array field:
      * {@snippet lang=c :
-     * float m_Parameters[4]
+     * float m_Parameters[6]
      * }
      */
     public static long[] m_Parameters$dimensions() {
@@ -548,7 +548,7 @@ public class FontcStyleEffect {
     /**
      * Indexed getter for field:
      * {@snippet lang=c :
-     * float m_Parameters[4]
+     * float m_Parameters[6]
      * }
      */
     public static float m_Parameters(MemorySegment struct, long index0) {
@@ -558,7 +558,7 @@ public class FontcStyleEffect {
     /**
      * Indexed setter for field:
      * {@snippet lang=c :
-     * float m_Parameters[4]
+     * float m_Parameters[6]
      * }
      */
     public static void m_Parameters(MemorySegment struct, long index0, float fieldValue) {

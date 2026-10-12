@@ -319,6 +319,45 @@ TEST_F(FontEffectTest, CircularRadialGradient)
     EXPECT_EQ(255, Pixel(0, 0)[2]);
 }
 
+// Rotated ellipses sample equal colors along both axes with 1-4 stops, including animated sampling.
+TEST_F(FontEffectTest, RotatedEllipticalRadialGradient)
+{
+    const uint8_t colors[4][4] = { { 255, 0, 0, 255 }, { 0, 255, 0, 255 }, { 0, 0, 255, 255 }, { 255, 255, 0, 255 } };
+    for (uint32_t count = 1; count <= 4; ++count)
+        for (uint32_t animated = 0; animated < 2; ++animated)
+        {
+            FontColorEffect effect = {};
+            effect.m_Type = FONT_COLOR_EFFECT_RADIAL;
+            effect.m_StopCount = count;
+            effect.m_Flags = animated ? FONT_COLOR_EFFECT_MIRROR : 0;
+            memcpy(effect.m_Colors, colors, sizeof(colors));
+            for (uint32_t i = 0; i < count; ++i)
+                effect.m_Positions[i] = count > 1 ? (float)i / (count - 1) : 0.0f;
+            // A 40x20-radius ellipse rotated by atan2(3, 4), centered on a pixel.
+            effect.m_Parameters[0] = 64.5f / 128.0f;
+            effect.m_Parameters[1] = 32.5f / 64.0f;
+            effect.m_Parameters[2] = 0.8f * 128.0f / 40.0f;
+            effect.m_Parameters[3] = 0.8f * 64.0f / 20.0f;
+            effect.m_Parameters[4] = 0.6f * 64.0f / 40.0f;
+            effect.m_Parameters[5] = -0.6f * 128.0f / 20.0f;
+            Draw(effect, animated ? 0.25f : 0.0f);
+            for (uint32_t i = 0; i <= 4; ++i)
+            {
+                float t = i * 0.25f + (animated ? 0.25f : 0.0f);
+                t = t > 1.0f ? 2.0f - t : t;
+                const float coordinate = t * (count - 1);
+                const uint32_t left = (uint32_t)coordinate;
+                const uint32_t right = left + 1 < count ? left + 1 : left;
+                const float weight = coordinate - left;
+                const uint8_t* samples[] = { Pixel(64 + 8 * i, 32 + 6 * i), Pixel(64 - 3 * i, 32 + 4 * i),
+                                             Pixel(64 - 8 * i, 32 - 6 * i), Pixel(64 + 3 * i, 32 - 4 * i) };
+                for (uint32_t sample = 0; sample < 4; ++sample)
+                    for (uint32_t channel = 0; channel < 4; ++channel)
+                        ASSERT_NEAR(colors[left][channel] * (1.0f - weight) + colors[right][channel] * weight, samples[sample][channel], 1.0f);
+            }
+        }
+}
+
 // Four-corner evaluation has a bilinear center instead of a triangle-diagonal color seam.
 TEST_F(FontEffectTest, FourCornerGradient)
 {

@@ -102,8 +102,9 @@ struct TextGradientEffect
     union
     {
         TextGradientCorners m_Corners;
-        // Authored parameters: linear angle in degrees; radial pivot UV and radius
-        // relative to the longer fit dimension. Resolved to projection/scale at draw time.
+        // Authored parameters: linear angle in degrees; radial pivot x/y, radius x/y
+        // relative to the longer fit dimension, and counterclockwise angle in degrees.
+        // Resolved to projection/ellipse transform at draw time.
         FontColorEffect m_Color;
     };
     float   m_Hz;

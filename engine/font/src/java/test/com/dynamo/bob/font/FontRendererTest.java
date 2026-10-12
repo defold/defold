@@ -283,30 +283,51 @@ public class FontRendererTest {
         }
     }
 
-    // Four stops and radial parameters survive the native style compiler and Java/native round trip.
+    // Four stops, elliptical radii, and rotation survive the native style compiler and Java/native round trip.
     @Test
     public void testSpatialGradientStyleRoundTrip() throws Exception {
-        String markup = "<gradient type=radial fit=block color0=#FF0000 color1=#00FF00 color2=#0000FF color3=#FFFF00 stop1=0.2 stop2=0.8 pivot-x=0.3 pivot-y=0.7 radius=0.6>";
+        String markup = "<gradient type=radial fit=block color0=#FF0000 color1=#00FF00 color2=#0000FF color3=#FFFF00 stop1=0.2 stop2=0.8 pivot-x=0.3 pivot-y=0.7 radius=0.6 radius-y=0.25 angle=45>";
         FontRenderer.Style style = FontRenderer.compileStyle(markup);
         assertEquals(1, style.effects.length);
         FontRenderer.StyleEffect effect = style.effects[0];
         assertEquals(4, effect.stopCount);
         assertEquals(2, effect.colorType);
         assertArrayEquals(new float[] {0, 0.2f, 0.8f, 1}, effect.positions, 0.00001f);
-        assertArrayEquals(new float[] {0.3f, 0.7f, 0.6f, 0}, effect.parameters, 0.00001f);
+        assertArrayEquals(new float[] {0.3f, 0.7f, 0.6f, 0.25f, 45, 0}, effect.parameters, 0.00001f);
         for (boolean shaping : new boolean[] {false, true}) {
             try (FontRenderer renderer = createRenderer(32, 512, 512, shaping)) {
                 renderer.setStyle(1, style);
                 FontRenderer.Properties properties = new FontRenderer.Properties();
                 properties.baseStyle = 1;
                 properties.useBaseStyle = true;
+                properties.useGpuEffects = true;
                 renderer.setProperties(properties);
                 renderer.setText("AAAA");
+                renderer.beginBatch();
+                renderer.generateTexture(0);
                 TestVertices named = getVertices(renderer, IDENTITY);
+                ByteBuffer namedEffects = renderer.getEffectTexture().pixels;
                 properties.useBaseStyle = false;
                 renderer.setProperties(properties);
                 renderer.setMarkup(markup + "AAAA</gradient>");
+                renderer.beginBatch();
+                renderer.generateTexture(0);
                 TestVertices inline = getVertices(renderer, IDENTITY);
+                ByteBuffer inlineEffects = renderer.getEffectTexture().pixels;
+                int namedRow = (int)named.vertices.getFloat(64);
+                int inlineRow = (int)inline.vertices.getFloat(64);
+                assertTrue(namedRow > 0);
+                assertTrue(inlineRow > 0);
+                for (int i = 0; i < 28; ++i) {
+                    assertEquals(inlineEffects.get(inlineRow * 64 + i), namedEffects.get(namedRow * 64 + i));
+                }
+                inlineEffects.order(ByteOrder.LITTLE_ENDIAN);
+                namedEffects.order(ByteOrder.LITTLE_ENDIAN);
+                for (int i = 0; i < 6; ++i) {
+                    assertEquals(inlineEffects.getFloat(inlineRow * 64 + 28 + i * 4),
+                                 namedEffects.getFloat(namedRow * 64 + 28 + i * 4), 0.00001f);
+                }
+                assertEquals(24, named.vertexCount);
                 assertEquals(inline.vertexCount, named.vertexCount);
                 for (int i = 0; i < named.vertexCount; ++i) {
                     for (int channel = 0; channel < 4; ++channel) {

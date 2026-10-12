@@ -1493,13 +1493,14 @@ TEST_F(FontTest, SpatialGradientMarkup)
             ASSERT_EQ(0.3f, gradient.m_Color.m_Parameters[0]);
             ASSERT_EQ(0.7f, gradient.m_Color.m_Parameters[1]);
             ASSERT_EQ(0.6f, gradient.m_Color.m_Parameters[2]);
+            ASSERT_EQ(0.6f, gradient.m_Color.m_Parameters[3]);
         }
     }
     const char* invalid[] = {
         "<gradient type=linear color0=#ff0000 color2=#0000ff>",
         "<gradient type=linear color0=#ff0000 color1=#0000ff stop0=0.8 stop1=0.2>",
         "<gradient type=radial color0=#ff0000 radius=0>",
-        "<gradient type=radial color0=#ff0000 angle=45>",
+        "<gradient type=color color0=#ff0000 angle=45>",
         "<gradient type=color color0=#ff0000 color1=#0000ff>",
         "<gradient type=four-corner bl=#ff0000 br=#0000ff tl=#00ff00>",
         "<gradient left=#ff0000 right=#0000ff angle=45>",
@@ -1509,6 +1510,55 @@ TEST_F(FontTest, SpatialGradientMarkup)
         TextRenderStyle     style;
         dmArray<TextEffect> effects;
         ASSERT_FALSE(TextLayoutCompileStyleFragment(invalid[i], strlen(invalid[i]), &style, &effects, 0, 0));
+    }
+}
+
+// Radial axes override the radius shorthand independent of attribute order; invalid radii and angles are rejected.
+TEST_F(FontTest, RadialGradientEllipseMarkup)
+{
+    const struct
+    {
+        const char* m_Attributes;
+        float       m_RadiusX, m_RadiusY, m_Angle;
+    } cases[] = {
+        { "", 0.5f, 0.5f, 0 },
+        { "radius=0.7", 0.7f, 0.7f, 0 },
+        { "radius-x=0.8", 0.8f, 0.5f, 0 },
+        { "radius-y=0.3", 0.5f, 0.3f, 0 },
+        { "radius=0.7 radius-x=0.8 radius-y=0.3 angle=45", 0.8f, 0.3f, 45 },
+        { "radius-x=0.8 radius-y=0.3 angle=45 radius=0.7", 0.8f, 0.3f, 45 },
+        { "radius-y=0.3 radius=0.7 angle=-90", 0.7f, 0.3f, -90 },
+        { "radius-x=0.8 radius=0.7 angle=450", 0.8f, 0.7f, 450 },
+    };
+    ASSERT_EQ(72u, sizeof(TextGradientEffect));
+    ASSERT_EQ(64u, sizeof(FontEffectRecord));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        char source[256];
+        dmSnPrintf(source, sizeof(source), "<gradient type=radial color0=#ff0000 %s>", cases[i].m_Attributes);
+        TextRenderStyle style;
+        dmArray<TextEffect> effects;
+        ASSERT_TRUE(TextLayoutCompileStyleFragment(source, strlen(source), &style, &effects, 0, 0));
+        ASSERT_EQ(1u, effects.Size());
+        const FontColorEffect& color = effects[0].m_Gradient.m_Color;
+        ASSERT_EQ(0.5f, color.m_Parameters[0]);
+        ASSERT_EQ(0.5f, color.m_Parameters[1]);
+        ASSERT_EQ(cases[i].m_RadiusX, color.m_Parameters[2]);
+        ASSERT_EQ(cases[i].m_RadiusY, color.m_Parameters[3]);
+        ASSERT_EQ(cases[i].m_Angle, color.m_Parameters[4]);
+    }
+    const char* invalid[] = {
+        "type=radial radius-x=0", "type=radial radius-y=-1", "type=radial radius-x=nan",
+        "type=radial radius-y=inf", "type=radial angle=nan", "type=radial angle=inf",
+        "type=linear radius-x=0.5", "type=color radius-y=0.5",
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid); ++i)
+    {
+        char source[128];
+        dmSnPrintf(source, sizeof(source), "<gradient color0=#ff0000 %s>", invalid[i]);
+        TextRenderStyle style;
+        dmArray<TextEffect> effects;
+        ASSERT_FALSE(TextLayoutCompileStyleFragment(source, strlen(source), &style, &effects, 0, 0));
     }
 }
 
@@ -1588,6 +1638,156 @@ static float ReadTestEffectParameter(const FontEffectRecord& record, uint32_t in
     return value;
 }
 
+// Linear angles rotate counterclockwise from bottom-to-top for every fit, including negative and wrapped angles.
+TEST_F(FontTest, LinearGradientCounterclockwiseAngles)
+{
+    const struct
+    {
+        float m_Angle;
+        float m_StartU, m_StartV;
+        float m_EndU, m_EndV;
+    } cases[] = {
+        { 0, 0.5f, 0, 0.5f, 1 },
+        { 90, 1, 0.5f, 0, 0.5f },
+        { 180, 0.5f, 1, 0.5f, 0 },
+        { 270, 0, 0.5f, 1, 0.5f },
+        { -90, 0, 0.5f, 1, 0.5f },
+        { 450, 1, 0.5f, 0, 0.5f },
+        { 45, 1, 0, 0, 1 },
+        { -45, 0, 0, 1, 1 },
+    };
+    const char* fits[] = { "glyph", "span", "block" };
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &params, &glyph));
+    TestLayoutCachedGlyph cached = { &glyph };
+    for (uint32_t fit = 0; fit < DM_ARRAY_SIZE(fits); ++fit)
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+        {
+            char source[256];
+            dmSnPrintf(source, sizeof(source), "<gradient type=linear fit=%s angle=%g color0=#ff0000 color1=#0000ff>AA\nA</gradient>", fits[fit], cases[i].m_Angle);
+            HMarkup markup = 0;
+            ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &markup, 0));
+            TextLayoutSettings settings = {};
+            settings.m_Size = 32.0f;
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+            MarkupDestroy(markup);
+            SpatialTestRecords records = {};
+            FontLayoutVertexConfig config = {};
+            config.m_Layout = layout;
+            config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+            config.m_ResolveGlyphContext = &cached;
+            config.m_ResolveEffect = ResolveSpatialTestEffect;
+            config.m_ResolveEffectContext = &records;
+            config.m_Transform = dmVMath::Matrix4::identity();
+            config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+            config.m_MetricsFromTtf = true;
+            FontLayoutVertexMetrics metrics;
+            ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+            FontGlyphVertex vertices[18];
+            ASSERT_EQ(18u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+            ASSERT_GT(records.m_Count, 0u);
+            for (uint32_t record = 0; record < records.m_Count; ++record)
+            {
+                const float dx = ReadTestEffectParameter(records.m_Records[record], 0);
+                const float dy = ReadTestEffectParameter(records.m_Records[record], 1);
+                const float offset = ReadTestEffectParameter(records.m_Records[record], 2);
+                ASSERT_NEAR(0.0f, dx * cases[i].m_StartU + dy * cases[i].m_StartV + offset, 0.0001f);
+                ASSERT_NEAR(1.0f, dx * cases[i].m_EndU + dy * cases[i].m_EndV + offset, 0.0001f);
+            }
+            TextLayoutRelease(layout);
+        }
+    FontFreeGlyph(m_Font, &glyph);
+}
+
+// Ellipse axes rotate in local distance units for every fit, with matching GPU records and CPU fallback colors.
+TEST_F(FontTest, RadialGradientEllipseVertexFits)
+{
+    const struct
+    {
+        float m_Angle, m_Cosine, m_Sine;
+    } rotations[] = {
+        { 0, 1, 0 }, { 45, 0.70710678f, 0.70710678f }, { 90, 0, 1 },
+        { -45, 0.70710678f, -0.70710678f }, { 450, 0, 1 },
+    };
+    const char* fits[] = { "glyph", "span", "block" };
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &params, &glyph));
+    TestLayoutCachedGlyph cached = { &glyph };
+    for (uint32_t fit = 0; fit < DM_ARRAY_SIZE(fits); ++fit)
+        for (uint32_t angle = 0; angle < DM_ARRAY_SIZE(rotations); ++angle)
+        {
+            char source[256];
+            dmSnPrintf(source, sizeof(source), "<gradient type=radial fit=%s pivot-x=0.3 pivot-y=0.7 radius-x=0.8 radius-y=0.4 angle=%g color0=#ff0000 color1=#0000ff>AA\nAAAA</gradient>", fits[fit], rotations[angle].m_Angle);
+            HMarkup markup = 0;
+            ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &markup, 0));
+            TextLayoutSettings settings = {};
+            settings.m_Size = 32.0f;
+            settings.m_Leading = 1.2f;
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+            MarkupDestroy(markup);
+            SpatialTestRecords records = {};
+            FontLayoutVertexConfig config = {};
+            config.m_Layout = layout;
+            config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+            config.m_ResolveGlyphContext = &cached;
+            config.m_ResolveEffect = ResolveSpatialTestEffect;
+            config.m_ResolveEffectContext = &records;
+            config.m_Transform = dmVMath::Matrix4::identity();
+            config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+            config.m_MetricsFromTtf = true;
+            for (uint32_t channel = 0; channel < 4; ++channel)
+                config.m_FaceColor[channel] = 1.0f;
+            FontLayoutVertexMetrics metrics;
+            ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+            FontGlyphVertex vertices[36];
+            ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+            ASSERT_GT(records.m_Count, 0u);
+            float matrix[6];
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(matrix); ++i)
+                matrix[i] = ReadTestEffectParameter(records.m_Records[0], i);
+            ASSERT_EQ(0.3f, matrix[0]);
+            ASSERT_EQ(0.7f, matrix[1]);
+            const float width = (vertices[1].m_Position[0] - vertices[0].m_Position[0]) / (vertices[1].m_Effect[0] - vertices[0].m_Effect[0]);
+            const float height = (vertices[2].m_Position[1] - vertices[0].m_Position[1]) / (vertices[2].m_Effect[1] - vertices[0].m_Effect[1]);
+            const float radius_x = 0.8f * dmMath::Max(width, height);
+            const float radius_y = 0.4f * dmMath::Max(width, height);
+            const float cosine = rotations[angle].m_Cosine, sine = rotations[angle].m_Sine;
+            // The endpoints of the rotated physical axes map to the unit circle.
+            const float axes[2][2] = { { cosine * radius_x / width, sine * radius_x / height },
+                                       { -sine * radius_y / width, cosine * radius_y / height } };
+            for (uint32_t axis = 0; axis < 2; ++axis)
+            {
+                ASSERT_NEAR(axis == 0 ? 1.0f : 0.0f, axes[axis][0] * matrix[2] + axes[axis][1] * matrix[4], 0.0001f);
+                ASSERT_NEAR(axis == 1 ? 1.0f : 0.0f, axes[axis][0] * matrix[5] + axes[axis][1] * matrix[3], 0.0001f);
+            }
+            float expected[6];
+            for (uint32_t i = 0; i < 6; ++i)
+            {
+                const float x = (vertices[i].m_Effect[0] - 0.3f) * width;
+                const float y = (vertices[i].m_Effect[1] - 0.7f) * height;
+                const float u = (cosine * x + sine * y) / radius_x;
+                const float v = (-sine * x + cosine * y) / radius_y;
+                expected[i] = dmMath::Min(1.0f, sqrtf(u * u + v * v));
+            }
+            config.m_ResolveEffect = 0;
+            ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+            for (uint32_t i = 0; i < 6; ++i)
+            {
+                ASSERT_EQ(0.0f, vertices[i].m_Effect[2]);
+                ASSERT_NEAR(255.0f * (1.0f - expected[i]), vertices[i].m_FaceColor[0], 1.0f);
+                ASSERT_NEAR(255.0f * expected[i], vertices[i].m_FaceColor[2], 1.0f);
+            }
+            TextLayoutRelease(layout);
+        }
+    FontFreeGlyph(m_Font, &glyph);
+}
+
 // Multiline fits use spatial bounds, preserve a physical 45-degree axis, and keep radial distances circular.
 TEST_F(FontTest, SpatialGradientVertexFits)
 {
@@ -1644,7 +1844,7 @@ TEST_F(FontTest, SpatialGradientVertexFits)
                 const uint32_t offset = type == 1 ? 0 : 2;
                 const float    dx = ReadTestEffectParameter(records.m_Records[0], offset) * du / width;
                 const float    dy = ReadTestEffectParameter(records.m_Records[0], offset + 1) * dv / height;
-                ASSERT_NEAR(dx, dy, 0.0001f);
+                ASSERT_NEAR(type == 1 ? -dx : dx, dy, 0.0001f);
             }
             if (fit == 0)
             {

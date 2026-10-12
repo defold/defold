@@ -17,8 +17,8 @@
     "FontcProperties.java": "e31c81206a021a143381f45acad93fb73ec68dc353ceebc2a2b781108be25daa",
     "FontcStyle.java": "39c849107f31656b91b7579c50b82671ced5f470d369801f77d6f08b4c6f68dc",
     "FontcStyleData.java": "67742c96126eedb03583284f7d929f9d5508661256be591be6b4293b9ccc180b",
-    "FontcStyleEffect.java": "56f52fc8e4a9fe9a4d718777e6d5827746cf069ecf554a552dc688d3706d8382",
+    "FontcStyleEffect.java": "56ed09cc3713feb6244a291686bc7f2acfbe962d67d16de26a9737643e7922b6",
     "FontcTexture.java": "ae6894c024c57c681967b741211f4fd9074e9154fc9c63ab3d9eb4d40d4cbb0a"
   },
-  "header_sha256": "1955c271a28dd0b2e573ec0ac9fcc82e0dcc7df400f6ca87d8fb9d707122285f"
+  "header_sha256": "e011fcc99ee9b632b88045ca04b414980a865997e1dad52e0151b42861acb5f1"
 }

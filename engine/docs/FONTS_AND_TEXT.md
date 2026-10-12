@@ -72,9 +72,10 @@ vector explicitly: fit UVs in `xy`, metadata row in `z`, and animation phase in
 The metadata sampler remains the shared `font_effects` uniform.
 
 The texture stores four colors, four 16-bit stop positions, and type parameters.
-The shader evaluates spatial constant color, linear, circular radial, and
-four-corner effects per fragment. Radial parameters contain the pivot and fit
-dimensions divided by the radius, so distance is circular in text-local space.
+The shader evaluates spatial constant color, linear, radial, and four-corner
+effects per fragment. Radial parameters contain the pivot and an inverse ellipse
+transform, including fit dimensions, rotation, and radii. Equal radii produce a
+circle in text-local space. The six parameters fit in the existing 64-byte record.
 Legacy directional/four-corner markup keeps its original fitting and vertex
 interpolation: negative record indices select `font_effect_vertex_color`, which
 evaluates animation and alpha caps in the vertex shader and clears the index
@@ -94,11 +95,18 @@ four consecutive colors. The color type takes only `color0`. Stops are evenly
 spaced unless `stop0` through `stop3` override their positions in [0, 1]; positions
 must be nondecreasing. Four-corner uses `bl`, `br`, `tl`, and `tr`.
 
-Linear `angle` is in degrees: 0 runs bottom-to-top; 90 runs left-to-right.
+Linear `angle` is in counterclockwise degrees: 0 runs bottom-to-top, 90 runs
+right-to-left, 180 runs top-to-bottom, and 270 runs left-to-right. Stop 0 is at
+the starting edge; the final stop is at the ending edge.
 Projection uses local distances, so a 45-degree axis stays at 45 degrees on a
-wide block. Radial `pivot-x` and `pivot-y` default to 0.5; `radius` defaults to
-0.5 times the longer fit dimension. The radial circle remains circular in
-local text units. Component transforms can subsequently stretch the text.
+wide block. Radial `pivot-x` and `pivot-y` default to 0.5. Radial `radius` defaults
+to 0.5 times the longer fit dimension and supplies both ellipse radii. Positive
+`radius-x` and `radius-y` override their respective axes, regardless of attribute
+order. Both use the longer fit dimension, so equal values produce a circle.
+Radial `angle` defaults to 0 and rotates the ellipse counterclockwise around its
+pivot; at 0 degrees the radii follow the text's X/Y axes, and at 90 degrees those
+axes exchange directions. Rotation uses local text units, preserving the ellipse
+on rectangular fits. Component transforms can subsequently stretch the text.
 `hz` and `direction=forward|reverse` animate the sampled coordinate using the
 layout clock and mirrored wrapping. Static gradients clamp at their endpoints.
 
@@ -106,6 +114,11 @@ For example, `<gradient type=linear fit=block angle=45 color0=#FF4050
 color1=#FFD23F color2=#35D07F color3=#468BFF>text</gradient>` uses four stops
 across the block. Separate tags around each line give independently fitted
 and angled span gradients. Named font styles preserve the same metadata.
+
+For a tilted ellipse, use `<gradient type=radial fit=block radius-x=0.5
+radius-y=0.25 angle=45 color0=#FFFF00 color1=#FF8000 color2=#FF0000
+color3=#8000FF>text</gradient>`. Existing radial markup that only specifies
+`radius` remains circular.
 
 The cache starts with 256 fixed-size records in a 16 KiB texture and doubles
 when all rows are in use. Allocated capacity is retained between frames. Row

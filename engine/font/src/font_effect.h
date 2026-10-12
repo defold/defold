@@ -39,8 +39,9 @@ struct FontColorEffect
     uint8_t m_Colors[4][4];
     // Nondecreasing positions in [0, 1]. Unused stops repeat the last stop.
     float m_Positions[4];
-    // Linear: projection x, y, offset. Radial: pivot x, y, fit width/radius, fit height/radius.
-    float   m_Parameters[4];
+    // Linear: projection x, y, offset. Radial: pivot x, y, then the inverse
+    // ellipse transform's xx, yy, xy, yx coefficients applied to fit UV offsets.
+    float   m_Parameters[6];
     uint8_t m_Type;
     uint8_t m_StopCount;
     uint8_t m_Flags;
@@ -58,8 +59,8 @@ static const uint32_t FONT_EFFECT_RECORD_SIZE = FONT_EFFECT_TEXTURE_WIDTH * 4;
 //   0-3:   effect type, stop count, flags, zero
 //   4-19:  four RGBA8 colors
 //   20-27: four normalized stop positions as big-endian uint16 values
-//   28-43: four parameters as little-endian IEEE 754 float bits
-//   44-63: zero padding
+//   28-51: six parameters as little-endian IEEE 754 float bits
+//   52-63: zero padding
 // Unused color/position slots repeat the final stop. All padding is zeroed so
 // caches can hash and compare records byte-for-byte, then upload them directly.
 // Vertices reference the cached texture row and carry their own effect UVs and
@@ -96,6 +97,9 @@ static inline void FontPackEffect(const FontColorEffect& effect, FontEffectRecor
         const uint32_t position = (uint32_t)(effect.m_Positions[stop] * 65535.0f + 0.5f);
         record->m_Data[20 + i * 2] = (uint8_t)(position >> 8);
         record->m_Data[21 + i * 2] = (uint8_t)position;
+    }
+    for (uint32_t i = 0; i < 6; ++i)
+    {
         // Explicit byte order: the GPU decodes these bytes without integer bit operations.
         uint32_t parameter;
         memcpy(&parameter, &effect.m_Parameters[i], sizeof(parameter));

@@ -236,7 +236,7 @@ public final class FontRenderer implements AutoCloseable {
         public int fit;
         public int gradientMode;
         public float[] positions = new float[4];
-        public float[] parameters = new float[4];
+        public float[] parameters = new float[6];
         public int colorType;
         public int stopCount;
     }

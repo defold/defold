@@ -71,10 +71,13 @@ vec4 font_effect_color(highp vec4 effect)
         t = dot(effect.xy, parameters) + font_effect_parameter(font_effect_texel(base, 9.0));
     else
     {
-        // CPU supplies fit-size / radius on each axis, preserving a circular local-space metric.
+        // CPU supplies the inverse ellipse transform, including fit dimensions.
         FONT_EFFECT_PRECISION vec2 scale = vec2(font_effect_parameter(font_effect_texel(base, 9.0)),
                                                font_effect_parameter(font_effect_texel(base, 10.0)));
-        t = length((effect.xy - parameters) * scale);
+        FONT_EFFECT_PRECISION vec2 cross_scale = vec2(font_effect_parameter(font_effect_texel(base, 11.0)),
+                                                     font_effect_parameter(font_effect_texel(base, 12.0)));
+        FONT_EFFECT_PRECISION vec2 offset = effect.xy - parameters;
+        t = length(offset * scale + offset.yx * cross_scale);
     }
     t = header.z > 0.0 ? font_effect_mirror(t + effect.w) : clamp(t, 0.0, 1.0);
     vec4 p01 = font_effect_texel(base, 5.0);

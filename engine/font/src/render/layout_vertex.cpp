@@ -478,7 +478,8 @@ struct SpatialGradientCache
 static SpatialGradientBounds GetGlyphInkBounds(const FontLayoutVertexConfig& config, const TextGlyph& glyph, float x, float y)
 {
     FontGlyphOptions options;
-    options.m_Scale = FontGetScaleFromSize(glyph.m_Font, config.m_Layout->m_Styles[glyph.m_StyleIndex].m_FontSize);
+    // Measure at the resolved layout size; a named visual style may not declare a size.
+    options.m_Scale = FontGetScaleFromSize(glyph.m_Font, config.m_Layout->m_Styles[glyph.m_BaseStyleIndex].m_FontSize);
     options.m_UseInkBounds = true;
     FontGlyph metrics = {};
     FontGetGlyphByIndex(glyph.m_Font, glyph.m_GlyphIndex, &options, &metrics);
@@ -613,9 +614,11 @@ static void ApplySpatialGradientFallback(FontGlyphVertex* vertices, const FontCo
         {
             if (color.m_Type == FONT_COLOR_EFFECT_RADIAL)
             {
-                x = (x - color.m_Parameters[0]) * color.m_Parameters[2];
-                y = (y - color.m_Parameters[1]) * color.m_Parameters[3];
-                t = sqrtf(x * x + y * y);
+                x -= color.m_Parameters[0];
+                y -= color.m_Parameters[1];
+                const float u = x * color.m_Parameters[2] + y * color.m_Parameters[4];
+                const float v = y * color.m_Parameters[3] + x * color.m_Parameters[5];
+                t = sqrtf(u * u + v * v);
             }
             else
                 t = x * color.m_Parameters[0] + y * color.m_Parameters[1] + color.m_Parameters[2];
@@ -671,9 +674,9 @@ static void ApplySpatialGradient(const FontLayoutVertexConfig& config, const Tex
         color = gradient.m_Color;
         if (color.m_Type == FONT_COLOR_EFFECT_LINEAR)
         {
-            // 0 degrees is bottom-to-top; 90 degrees is left-to-right in local text space.
+            // Angles rotate counterclockwise: 0 is bottom-to-top; 90 is right-to-left in local text space.
             const float angle = color.m_Parameters[0] * (float)(M_PI / 180.0);
-            const float dx = sinf(angle), dy = cosf(angle);
+            const float dx = -sinf(angle), dy = cosf(angle);
             const float extent = fabsf(dx) * width + fabsf(dy) * height;
             color.m_Parameters[0] = dx * width / extent;
             color.m_Parameters[1] = dy * height / extent;
@@ -682,9 +685,16 @@ static void ApplySpatialGradient(const FontLayoutVertexConfig& config, const Tex
         }
         else if (color.m_Type == FONT_COLOR_EFFECT_RADIAL)
         {
-            const float radius = color.m_Parameters[2] * dmMath::Max(width, height);
-            color.m_Parameters[2] = width / radius;
-            color.m_Parameters[3] = height / radius;
+            const float radius_x = color.m_Parameters[2] * dmMath::Max(width, height);
+            const float radius_y = color.m_Parameters[3] * dmMath::Max(width, height);
+            const float angle = color.m_Parameters[4] * (float)(M_PI / 180.0);
+            const float cosine = cosf(angle), sine = sinf(angle);
+            // Undo the counterclockwise rotation in local distance units before
+            // dividing by each radius. Rotating normalized UVs would distort the ellipse.
+            color.m_Parameters[2] = cosine * width / radius_x;
+            color.m_Parameters[3] = cosine * height / radius_y;
+            color.m_Parameters[4] = sine * height / radius_x;
+            color.m_Parameters[5] = -sine * width / radius_y;
         }
         FontEffectRecord record;
         FontPackEffect(color, &record);

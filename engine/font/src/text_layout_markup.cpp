@@ -717,6 +717,7 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
     color.m_Parameters[0] = color.m_Type == FONT_COLOR_EFFECT_RADIAL ? 0.5f : 0.0f;
     color.m_Parameters[1] = 0.5f;
     color.m_Parameters[2] = 0.5f;
+    float radius = 0.5f;
     const MarkupAttribute* attributes = MarkupGetAttributes(markup) + node.m_AttributeIndex;
     for (uint32_t i = 0; i < node.m_AttributeCount; ++i)
     {
@@ -725,16 +726,23 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
         switch (attribute.m_Type)
         {
             case MARKUP_ATTRIBUTE_ANGLE:
-                if (color.m_Type != FONT_COLOR_EFFECT_LINEAR)
+                if (color.m_Type != FONT_COLOR_EFFECT_LINEAR && color.m_Type != FONT_COLOR_EFFECT_RADIAL)
                     return false;
-                value = &color.m_Parameters[0];
+                value = &color.m_Parameters[color.m_Type == FONT_COLOR_EFFECT_RADIAL ? 4 : 0];
                 break;
             case MARKUP_ATTRIBUTE_PIVOT_X:
             case MARKUP_ATTRIBUTE_PIVOT_Y:
-            case MARKUP_ATTRIBUTE_RADIUS:
                 if (color.m_Type != FONT_COLOR_EFFECT_RADIAL)
                     return false;
                 value = &color.m_Parameters[attribute.m_Type - MARKUP_ATTRIBUTE_PIVOT_X];
+                break;
+            case MARKUP_ATTRIBUTE_RADIUS:
+            case MARKUP_ATTRIBUTE_RADIUS_X:
+            case MARKUP_ATTRIBUTE_RADIUS_Y:
+                if (color.m_Type != FONT_COLOR_EFFECT_RADIAL)
+                    return false;
+                value = attribute.m_Type == MARKUP_ATTRIBUTE_RADIUS ? &radius :
+                        &color.m_Parameters[2 + attribute.m_Type - MARKUP_ATTRIBUTE_RADIUS_X];
                 break;
             case MARKUP_ATTRIBUTE_HZ:
                 value = &gradient.m_Hz;
@@ -756,7 +764,17 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
         if (value && !ParseFloat(source, attribute.m_Value, value))
             return false;
     }
-    if (gradient.m_Hz < 0.0f || (color.m_Type == FONT_COLOR_EFFECT_RADIAL && color.m_Parameters[2] <= 0.0f))
+    // Axis-specific radii override the shorthand regardless of attribute order.
+    if (color.m_Type == FONT_COLOR_EFFECT_RADIAL)
+    {
+        if (!FindAttribute(markup, node, MARKUP_ATTRIBUTE_RADIUS_X))
+            color.m_Parameters[2] = radius;
+        if (!FindAttribute(markup, node, MARKUP_ATTRIBUTE_RADIUS_Y))
+            color.m_Parameters[3] = radius;
+        if (radius <= 0.0f || color.m_Parameters[2] <= 0.0f || color.m_Parameters[3] <= 0.0f)
+            return false;
+    }
+    if (gradient.m_Hz < 0.0f)
         return false;
     float direction;
     if (!ParseAnimationDirection(FindAttribute(markup, node, MARKUP_ATTRIBUTE_DIRECTION), &direction))

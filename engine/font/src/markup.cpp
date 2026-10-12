@@ -172,6 +172,8 @@ static const dmhash_t ATTRIBUTE_STOP3 = dmHashString64("stop3");
 static const dmhash_t ATTRIBUTE_PIVOT_X = dmHashString64("pivot-x");
 static const dmhash_t ATTRIBUTE_PIVOT_Y = dmHashString64("pivot-y");
 static const dmhash_t ATTRIBUTE_RADIUS = dmHashString64("radius");
+static const dmhash_t ATTRIBUTE_RADIUS_X = dmHashString64("radius-x");
+static const dmhash_t ATTRIBUTE_RADIUS_Y = dmHashString64("radius-y");
 
 static const dmhash_t VALUE_BLOCK = dmHashString64("block");
 static const dmhash_t VALUE_COLOR = dmHashString64("color");
@@ -399,6 +401,10 @@ static MarkupAttributeType GetAttributeType(dmhash_t name)
         return MARKUP_ATTRIBUTE_PIVOT_Y;
     if (name == ATTRIBUTE_RADIUS)
         return MARKUP_ATTRIBUTE_RADIUS;
+    if (name == ATTRIBUTE_RADIUS_X)
+        return MARKUP_ATTRIBUTE_RADIUS_X;
+    if (name == ATTRIBUTE_RADIUS_Y)
+        return MARKUP_ATTRIBUTE_RADIUS_Y;
 
     return MARKUP_ATTRIBUTE_CUSTOM;
 }
@@ -439,7 +445,7 @@ static bool IsSupportedAttribute(MarkupTagType tag, MarkupAttributeType name)
         name == MARKUP_ATTRIBUTE_DIRECTION || name == MARKUP_ATTRIBUTE_FIT || name == MARKUP_ATTRIBUTE_HZ ||
         name == MARKUP_ATTRIBUTE_LEFT || name == MARKUP_ATTRIBUTE_RIGHT || name == MARKUP_ATTRIBUTE_TL ||
         name == MARKUP_ATTRIBUTE_TOP || name == MARKUP_ATTRIBUTE_TR ||
-        (name >= MARKUP_ATTRIBUTE_TYPE && name <= MARKUP_ATTRIBUTE_RADIUS);
+        (name >= MARKUP_ATTRIBUTE_TYPE && name <= MARKUP_ATTRIBUTE_RADIUS_Y);
     }
 
     if (tag == MARKUP_TAG_WAVE)

@@ -196,7 +196,8 @@ extern "C"
         uint32_t m_Fit;
         uint32_t m_GradientMode;
         float m_Positions[4];
-        float m_Parameters[4];
+        // Authored linear angle, or radial pivot x/y, radius x/y, angle, and unused.
+        float m_Parameters[6];
         uint32_t m_ColorType;
         uint32_t m_StopCount;
     } FontcStyleEffect;

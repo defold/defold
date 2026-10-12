@@ -207,6 +207,26 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(1.0f, effect.colors[13], 0.0f);
     }
 
+    // Ellipse radii and rotation survive compilation and restoration of a named radial style.
+    @Test
+    public void testRadialEllipseStyleSerialization() throws Exception {
+        FontDesc.Builder font = FontDesc.newBuilder().setFont("/Tuffy.ttf").setMaterial("/test.material").setSize(16);
+        font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("default"));
+        font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("ellipse").setMarkup(
+            "<gradient type=radial fit=block pivot-x=0.3 pivot-y=0.7 radius=0.6 radius-y=0.25 angle=45 color0=#FF0000 color1=#0000FF>"));
+        com.dynamo.render.proto.Font.CompiledStyle compiled = com.dynamo.bob.font.FontStyles.compileStyles(font.build()).get(1);
+        compiled = com.dynamo.render.proto.Font.CompiledStyle.parseFrom(compiled.toByteArray());
+        FontRenderer.StyleEffect effect = com.dynamo.bob.font.FontStyles.toNativeStyle(compiled).effects[0];
+        assertEquals(2, effect.colorType);
+        assertEquals(2, effect.stopCount);
+        float[] parameters = {0.3f, 0.7f, 0.6f, 0.25f, 45.0f, 0.0f};
+        assertEquals(parameters.length, compiled.getEffects(0).getParametersCount());
+        assertEquals(parameters.length, effect.parameters.length);
+        for (int i = 0; i < parameters.length; ++i) {
+            assertEquals(parameters[i], effect.parameters[i], 0.0f);
+        }
+    }
+
     @Test
     public void testStyleMigrationAndDeletion() throws Exception {
         FontDesc.Builder font = FontDesc.newBuilder().setFont("/Tuffy.ttf").setMaterial("/test.material").setSize(16);
