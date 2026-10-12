@@ -30,7 +30,7 @@ public class CopyBuilders {
         public Task create(IResource input) throws IOException, CompileExceptionError {
             boolean soundStreaming = project.option("sound-stream-enabled", "false").equals("true");
             // Streamed sounds must be readable directly from the archive.
-            return soundStreaming ? defaultTask(input, Task.OutputFlags.UNCOMPRESSED) : super.create(input);
+            return soundStreaming ? defaultTask(input, Task.OutputFlags.UNCOMPRESSED) : defaultTask(input);
         }
     }
 

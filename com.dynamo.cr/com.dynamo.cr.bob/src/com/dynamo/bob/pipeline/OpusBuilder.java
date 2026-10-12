@@ -40,7 +40,7 @@ public class OpusBuilder extends CopyBuilder{
         oggzValidateExePath = Bob.getOptionalHostExeOnce("oggz-validate", oggzValidateExePath);
         boolean soundStreaming = project.getProjectProperties().getBooleanValue("sound", "stream_enabled", false);
         // Streamed sounds must be readable directly from the archive.
-        Task task = soundStreaming ? defaultTask(input, Task.OutputFlags.UNCOMPRESSED) : super.create(input);
+        Task task = soundStreaming ? defaultTask(input, Task.OutputFlags.UNCOMPRESSED) : defaultTask(input);
         if (oggzValidateExePath == null) {
             if (!missingOggzValidateWarningShown) {
                 logger.warning("oggz-validate not found for host platform, skipping Opus validation.");
