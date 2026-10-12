@@ -15,7 +15,7 @@
 (ns editor.properties-view-test
   (:require [cljfx.api :as fx]
             [cljfx.plorer :as plorer]
-            [clojure.test :refer :all]
+            [clojure.test :refer [deftest is]]
             [dynamo.graph :as g]
             [editor.properties :as properties]
             [editor.properties-view :as properties-view]
@@ -32,6 +32,7 @@
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- property-item [i]
   (let [key (keyword (str "property-" i))
@@ -97,8 +98,10 @@
     (with-redefs [properties-view/control-view
                   (fn counted-control-view [props]
                     {:fx/type fx/ext-on-instance-lifecycle
-                     :on-created #(swap! created conj %)
-                     :on-deleted #(swap! deleted conj %)
+                     :on-created (fn on-control-created [control]
+                                   (swap! created conj control))
+                     :on-deleted (fn on-control-deleted [control]
+                                   (swap! deleted conj control))
                      :desc (control-view props)})
                   properties/set-values!
                   (fn record-property-change [property values _op-seq]
@@ -219,7 +222,7 @@
             (vreset! component (fx/advance-component @component (list-description next-items [1])))
             (layout! list)
             (is (= expected-index (.getSelectedIndex (.getSelectionModel list))))
-            (when-not (neg? expected-index)
+            (when-not (neg? (long expected-index))
               (is (= :property-1 (:property-keyword (.getSelectedItem (.getSelectionModel list)))))))))
       (ui/run-now
         (.select (.getSelectionModel list) 0))
@@ -293,7 +296,7 @@
                   ^ListView list (fx/instance component)
                   before (Button. "Before")
                   after (Button. "After")
-                  root (VBox. ^"[Ljavafx.scene.Node;" (into-array Node [before list after]))
+                  root (VBox. ^Node/1 (into-array Node [before list after]))
                   scene (Scene. root 400.0 400.0)
                   stage (doto (Stage.) (.setOpacity 0.0) (.setScene scene) (.show))]
               (VBox/setVgrow list Priority/ALWAYS)
@@ -301,14 +304,20 @@
               (.applyCss root)
               (.layout root)
               (layout! list)
-              {:component component :list list :scene scene :stage stage :before before :after after}))]
+              {:component component
+               :list list
+               :scene scene
+               :stage stage
+               :before before
+               :after after}))]
       (try
         (let [field (ui/run-now
-                      (let [^VirtualFlow flow (.lookup ^ListView list ".virtual-flow")
-                            _ (.scrollTo flow (int row))
-                            _ (layout! list)
-                            controls (#'properties-view/focusable-controls (.getGraphic ^ListCell (.getVisibleCell flow (int row))))]
-                        (controls control-index)))]
+                      (let [^VirtualFlow flow (.lookup ^ListView list ".virtual-flow")]
+                        (.scrollTo flow (int row))
+                        (layout! list)
+                        (get (#'properties-view/focusable-controls
+                               (.getGraphic ^ListCell (.getVisibleCell flow (int row))))
+                             control-index)))]
           (dotimes [_ 2]
             (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary)))
         (dotimes [_ (if (= :fling scroll-mode) 1 30)]
@@ -349,8 +358,7 @@
           ^ListView list (fx/instance component)
           before (Button. "Before")
           after (Button. "After")
-          root (VBox. ^"[Ljavafx.scene.Node;"
-                 (into-array Node [before list after]))
+          root (VBox. ^Node/1 (into-array Node [before list after]))
           scene (Scene. root 300.0 400.0)
           stage (doto (Stage.)
                   (.setOpacity 0.0)
@@ -475,7 +483,7 @@
         (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary))
       (doseq [[forward steps] [[true (range 1 61)] [false (range 59 -1 -1)]]]
         (reduce
-          (fn [previous-position step]
+          (fn [previous-position ^long step]
             (if forward
               (plorer/key-tap! scene :tab)
               (plorer/key-chord! scene [:shift :tab]))
@@ -538,7 +546,7 @@
             (is (= 0 (.getSelectedIndex (.getSelectionModel list))))
             (is (coll/every? #(.getGraphic ^ListCell %) cells))
             (is (<= (.getLayoutY ^ListCell (apply min-key #(.getIndex ^ListCell %) cells)) 0.0))
-            (is (= 9999 (reduce max -1 (mapv #(.getIndex ^ListCell %) cells))))))
+            (is (= 9999 (transduce (map #(.getIndex ^ListCell %)) max -1 cells)))))
         (finally
           (.hide stage)
           (fx/delete-component component))))))

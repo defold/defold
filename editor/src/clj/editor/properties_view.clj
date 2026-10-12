@@ -723,7 +723,7 @@
 
 (def ^:private prop-on-label-font-changed
   (fx.prop/make
-    (fx.mutator/property-change-listener #(.fontProperty ^MenuButton %))
+    (fx.mutator/property-change-listener MenuButton/.fontProperty)
     fx.lifecycle/change-listener))
 
 (defn- property-label-widths [^Font font items]
@@ -794,13 +794,14 @@
           (coll/tree-xf #(and (instance? Parent %)
                               (.isVisible ^Node %)
                               (not (.isDisabled ^Node %)))
-                        #(.getChildrenUnmodifiable ^Parent %))
+                        Parent/.getChildrenUnmodifiable)
           (filter #(and (.isFocusTraversable ^Node %)
                         (.isVisible ^Node %)
                         (not (.isDisabled ^Node %)))))
         [node]))
 
-(defn- focus-property-cell! [^ListView list index control-index forward]
+(defn- focus-property-cell!
+  ^Node [^ListView list index control-index forward]
   (let [^VirtualFlow flow (.lookup list ".virtual-flow")]
     (loop [index (long index)]
       (when (< -1 index (count (.getItems list)))
@@ -812,16 +813,20 @@
             (.applyCss list)
             (.layout list)
             (let [^ListCell cell (.getVisibleCell flow (int index))
-                  controls (focusable-controls (.getGraphic cell))]
-              (if-let [^Node target (or (get controls control-index)
-                                        ((if forward first peek) controls))]
+                  controls (focusable-controls (.getGraphic cell))
+                  ^Node target (or (get controls control-index)
+                                   ((if forward first peek) controls))]
+              (if-not target
+                (recur (+ index (if forward 1 -1)))
                 (do
                   (.select (.getSelectionModel list) (int index))
                   (.requestFocus target)
-                  target)
-                (recur (+ index (if forward 1 -1)))))))))))
+                  target)))))))))
 
-(defn- observe-property-list-focus! [^ListView list]
+(defn- observe-property-list-focus!
+  ^Subscription [^ListView list]
+  ;; Focus repair also happens during cell reconciliation, when cljfx's wrapped
+  ;; change listeners are suppressed. Keep this native subscription explicit.
   (-> (.sceneProperty list)
       (.flatMap Scene/.focusOwnerProperty)
       (.subscribe
@@ -853,30 +858,16 @@
                                 :property-keyword (:property-keyword (.getItem cell))
                                 :control-index control-index}))))))))
 
-(defn- handle-property-list-event [^Event event]
-  (let [^ListView list (.getSource event)
-        owner (.getFocusOwner (.getScene list))
+(defn- handle-property-list-tab! [^ListView list ^KeyEvent event]
+  (let [owner (.getFocusOwner (.getScene list))
         ^ListCell cell (ui/closest-node-of-type ListCell owner)
         focused-field (ui/user-data list ::focused-field)]
-    (cond
-      (= MouseEvent/MOUSE_PRESSED (.getEventType event))
-      (when-let [^ListCell cell (ui/closest-node-of-type ListCell (.getTarget event))]
-        ;; Embedded controls consume clicks before ListCell can select its row.
-        (when (and (identical? list (.getListView cell))
-                   (:property-keyword (.getItem cell)))
-          ;; An explicit click supersedes the field remembered before scrolling.
-          (when-not (ui/closest-node-where #(identical? owner %) (.getTarget event))
-            (ui/user-data! list ::focused-field nil))
-          (.select (.getSelectionModel list) (.getIndex cell))))
-
-      (and (or (= KeyEvent/KEY_PRESSED (.getEventType event))
-               (= KeyEvent/KEY_RELEASED (.getEventType event)))
-           (= KeyCode/TAB (.getCode ^KeyEvent event))
-           (not (.isAltDown ^KeyEvent event))
-           (or (not (.isControlDown ^KeyEvent event))
-               (instance? TextArea (if cell owner (:node focused-field))))
-           (not (.isMetaDown ^KeyEvent event))
-           (identical? list (ui/closest-node-of-type ListView owner)))
+    (when (and (= KeyCode/TAB (.getCode event))
+               (not (.isAltDown event))
+               (not (.isMetaDown event))
+               (or (not (.isControlDown event))
+                   (instance? TextArea (if cell owner (:node focused-field))))
+               (identical? list (ui/closest-node-of-type ListView owner)))
       (if-not cell
         (when (and (= KeyEvent/KEY_PRESSED (.getEventType event))
                    focused-field
@@ -895,9 +886,9 @@
           (when (and (= KeyEvent/KEY_PRESSED (.getEventType event))
                      ;; Plain Tab belongs to the multiline editor.
                      (or (not (instance? TextArea owner))
-                         (.isShiftDown ^KeyEvent event)
-                         (.isControlDown ^KeyEvent event)))
-            (let [forward (not (.isShiftDown ^KeyEvent event))
+                         (.isShiftDown event)
+                         (.isControlDown event)))
+            (let [forward (not (.isShiftDown event))
                   controls (focusable-controls (.getGraphic cell))]
               (when (identical? owner ((if forward peek first) controls))
                 ;; Commit the focused editor before its cell can be recycled.
@@ -907,6 +898,24 @@
                                             nil
                                             forward)
                   (.consume event))))))))))
+
+(defn- handle-property-list-event [^Event event]
+  (let [^ListView list (.getSource event)]
+    (cond
+      (= MouseEvent/MOUSE_PRESSED (.getEventType event))
+      (when-let [^ListCell cell (ui/closest-node-of-type ListCell (.getTarget event))]
+        ;; Embedded controls consume clicks before ListCell can select its row.
+        (when (and (identical? list (.getListView cell))
+                   (:property-keyword (.getItem cell)))
+          ;; An explicit click supersedes the field remembered before scrolling.
+          (let [owner (.getFocusOwner (.getScene list))]
+            (when-not (ui/closest-node-where #(identical? owner %) (.getTarget event))
+              (ui/user-data! list ::focused-field nil)))
+          (.select (.getSelectionModel list) (.getIndex cell))))
+
+      (or (= KeyEvent/KEY_PRESSED (.getEventType event))
+          (= KeyEvent/KEY_RELEASED (.getEventType event)))
+      (handle-property-list-tab! list event))))
 
 (def ^:private prop-list-selected-index
   (fx.prop/make

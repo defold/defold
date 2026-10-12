@@ -14,7 +14,7 @@
 
 (ns editor.fxui-test
   (:require [cljfx.api :as fx]
-            [clojure.test :refer :all]
+            [clojure.test :refer [deftest is]]
             [editor.fxui :as fxui]
             [editor.ui :as ui])
   (:import [javafx.event Event]
@@ -26,10 +26,10 @@
 
 (defn- mouse-enter! [^Node node]
   (Event/fireEvent node
-                  (MouseEvent. MouseEvent/MOUSE_ENTERED
-                               0.0 0.0 0.0 0.0 nil 0
-                               false false false false false
-                               false false false false false nil)))
+                   (MouseEvent. MouseEvent/MOUSE_ENTERED
+                                0.0 0.0 0.0 0.0 nil 0
+                                false false false false false
+                                false false false false false nil)))
 
 ;; Verifies that tooltip graphics are deferred, reused on hover, refreshed when
 ;; their description changes, and disposed with their owner.
@@ -37,16 +37,20 @@
   (ui/run-now
     (let [created (atom [])
           deleted (atom [])
-          description (fn [text]
+          description (fn tooltip-owner-description [text]
                         {:fx/type fxui/menu-button
                          fxui/prop-lazy-tooltip
                          {:fx/type fx/ext-on-instance-lifecycle
-                          :on-created #(swap! created conj %)
-                          :on-deleted #(swap! deleted conj %)
+                          :on-created (fn on-tooltip-created [tooltip]
+                                        (swap! created conj tooltip))
+                          :on-deleted (fn on-tooltip-deleted [tooltip]
+                                        (swap! deleted conj tooltip))
                           :desc {:fx/type fxui/tooltip
                                  :graphic {:fx/type fx/ext-on-instance-lifecycle
-                                           :on-created #(swap! created conj %)
-                                           :on-deleted #(swap! deleted conj %)
+                                           :on-created (fn on-tooltip-graphic-created [graphic]
+                                                         (swap! created conj graphic))
+                                           :on-deleted (fn on-tooltip-graphic-deleted [graphic]
+                                                         (swap! deleted conj graphic))
                                            :desc {:fx/type fxui/label
                                                   :text text}}}}})
           component (volatile! (fx/create-component (description "original")))
@@ -78,7 +82,7 @@
       (mouse-enter! node)
       (is (= 4 (count @created))))))
 
-;; Verifies that disposing an unhovered label never creates its tooltip content.
+;; Verifies that disposing an unhovered owner never creates its tooltip content.
 (deftest unhovered-tooltip-disposal-test
   (ui/run-now
     (let [created (atom 0)
@@ -86,7 +90,8 @@
                       {:fx/type fxui/menu-button
                        fxui/prop-lazy-tooltip
                        {:fx/type fx/ext-on-instance-lifecycle
-                        :on-created (fn [_] (swap! created inc))
+                        :on-created (fn on-tooltip-created [_]
+                                      (swap! created inc))
                         :desc {:fx/type fxui/tooltip :text "unused"}}})
           node (fx/instance component)]
       (fx/delete-component component)

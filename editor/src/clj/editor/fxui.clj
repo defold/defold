@@ -580,7 +580,7 @@
                                                              (Duration/millis 200)
                                                              ^KeyValue/1 (into-array KeyValue []))]))
                                       (.setOnFinished
-                                        (fn [_]
+                                        (fn on-tooltip-delay-finished [_]
                                           (show-tooltip! tooltip node))))
             show! (fn show! []
                     (when (and (not (.isShowing tooltip))
@@ -589,22 +589,23 @@
             hide! (fn hide! []
                     (.stop show-timeline)
                     (.hide tooltip))
-            ^EventHandler on-enter (fn [_] (show!))
-            ^EventHandler on-exit (fn [_] (hide!))
-            ^ChangeListener showing-property-listener (fn [_ _ showing]
-                                                        (if showing
-                                                          (hide!)
-                                                          (when (.isHover node) (show!))))]
+            ^EventHandler on-enter (fn on-tooltip-owner-entered [_] (show!))
+            ^EventHandler on-exit (fn on-tooltip-owner-exited [_] (hide!))
+            ^ChangeListener showing-property-listener
+            (fn on-tooltip-owner-showing-changed [_ _ showing]
+              (if showing
+                (hide!)
+                (when (.isHover node) (show!))))]
         (when (.isHover node) (show!))
         (.addEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
         (.addEventHandler node MouseEvent/MOUSE_EXITED on-exit)
         (.addListener showing-property showing-property-listener)
-        #(do
-           (.stop show-timeline)
-           (.hide tooltip)
-           (.removeEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
-           (.removeEventHandler node MouseEvent/MOUSE_EXITED on-exit)
-           (.removeListener showing-property showing-property-listener))))
+        (fn dispose-delayed-tooltip! []
+          (.stop show-timeline)
+          (.hide tooltip)
+          (.removeEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
+          (.removeEventHandler node MouseEvent/MOUSE_EXITED on-exit)
+          (.removeListener showing-property showing-property-listener))))
     fx.lifecycle/dynamic))
 
 (def ^:private ext-delayed-tooltip
@@ -612,12 +613,13 @@
 
 (defn- bind-lazy-tooltip! [^Node node desc opts]
   (let [component (volatile! nil)
+        ;; Attach the binding to an existing node, retaining its owner and opts.
         binding-desc {:fx/type ext-delayed-tooltip
                       :desc {:fx/type fx/ext-instance-factory
-                             :create (constantly node)}
+                             :create (fn get-tooltip-owner [] node)}
                       :props {:tooltip desc}}
         ^EventHandler on-enter
-        (fn [_]
+        (fn on-lazy-tooltip-owner-entered [_]
           (when-not @component
             (vreset! component (fx/create-component binding-desc opts))))]
     (.addEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
@@ -626,7 +628,8 @@
     (fn dispose-lazy-tooltip! []
       (.removeEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
       (when-let [component @component]
-        ;; Retract the binding before deleting the tooltip.
+        ;; Component deletion does not retract props on the reused owner.
+        ;; Remove the binding first so its timeline and handlers are disposed.
         (fx/delete-component
           (fx/advance-component component (assoc binding-desc :props {}) opts)
           opts)))))
@@ -635,15 +638,20 @@
   "A delayed tooltip description whose component is created on first hover."
   (fx/make-prop
     (fx.mutator/setter
-      (fn [^Node node bind!]
+      (fn assign-lazy-tooltip! [^Node node bind!]
         (when bind!
           (bind! node))))
+    ;; This lifecycle owns cleanup even when the node itself is deleted, and
+    ;; retains opts for the tooltip component created by a later hover event.
     (reify fx.lifecycle/Lifecycle
       (create [_ desc opts]
         (let [dispose (volatile! nil)
-              bind! (fn [node]
+              bind! (fn bind-lazy-tooltip-to-node! [node]
                       (vreset! dispose (bind-lazy-tooltip! node desc opts)))]
-          (with-meta {:desc desc :opts opts :bind bind! :dispose dispose}
+          (with-meta {:desc desc
+                      :opts opts
+                      :bind bind!
+                      :dispose dispose}
             {`fx.component/instance :bind})))
       (advance [this component desc opts]
         (if (and (= desc (:desc component)) (= opts (:opts component)))
