@@ -1139,7 +1139,9 @@
                                     (deref a-answered-first-range 5000 nil))
                                   [{:range range :newText "b"}]))})
           (let [responses (format-ranges lsp resource multiple-cursor-ranges :two-spaces)]
-            (is (= multiple-cursor-ranges (mapv :requested-cursor-range responses)))
+            ;; Replies may arrive in any order, but each range must occur once.
+            (is (= (frequencies multiple-cursor-ranges)
+                   (frequencies (mapv :requested-cursor-range responses))))
             (is (= [["b"] ["b"]] (mapv #(-> % :edits first second) responses))))))
 
       (set-servers! lsp #{}))))
