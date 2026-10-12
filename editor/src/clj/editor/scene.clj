@@ -252,7 +252,8 @@
       :position (Point3d. (.x world-translation) (.y world-translation) (.z world-translation))
       :rotation (Quat4d. world-rotation)
       :z-near (or near-z 1.0)
-      :z-far (or far-z 1000.0))))
+      :z-far (or far-z 1000.0)
+      :mode-2d false)))
 
 (defn vp-dims [^Region viewport]
   (types/dimensions viewport))

@@ -125,7 +125,10 @@
 (deftest hidden-in-2d-mode
   (let [produce-renderables #'axis-gizmo/produce-renderables
         args {:_node-id 1 :backdrop-alpha 0.0 :hot-handle nil}
-        camera-2d (c/frame-camera-to-axis (c/make-camera :orthographic) :+z)]
+        camera-2d (c/make-camera :orthographic)
+        camera-front (c/frame-camera-to-axis camera-2d :+z)]
     (is (c/mode-2d? camera-2d))
     (is (= {} (produce-renderables (assoc args :camera camera-2d))))
+    (is (not (c/mode-2d? camera-front)))
+    (is (not (coll/empty? (produce-renderables (assoc args :camera camera-front)))))
     (is (not (coll/empty? (produce-renderables (assoc args :camera (test-camera))))))))

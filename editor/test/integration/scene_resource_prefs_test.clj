@@ -189,7 +189,7 @@
     (is (= :grid-3d (grid-mode (camera/make-camera :perspective identity {:fov-x 54.4 :fov-y 37.8}))))
 
     (testing "an orthographic camera rotated off the front view is a 3D view"
-      (is (= :grid-3d (grid-mode (assoc orthographic :rotation (math/euler->quat [0.0 45.0 0.0]))))))))
+      (is (= :grid-3d (grid-mode (camera/tumble orthographic 100.0 0.0)))))))
 
 (deftest grid-reads-the-preset-its-camera-selects
   (test-util/with-loaded-project

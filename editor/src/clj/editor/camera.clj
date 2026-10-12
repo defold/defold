@@ -49,7 +49,7 @@
 
 (def vector3-up (Vector3d. 0.0 1.0 0.0))
 
-(declare interpolate-orbit mode-2d? set-camera!)
+(declare interpolate-orbit set-camera!)
 
 (def ^:private ^:const align-duration 0.25)
 
@@ -101,15 +101,10 @@
         distance (.distance focus (types/position camera))
         position (doto (Point3d. focus)
                    (.scaleAdd (- distance) forward focus))]
-    (assoc camera :rotation rotation :position position)))
+    (assoc camera :rotation rotation :position position :mode-2d false)))
 
 (defn frame-camera-to-axis! [camera-node start-camera axis animate]
   (let [end-camera (frame-camera-to-axis start-camera axis)]
-    ;; A +Z orthographic view enters 2D mode. Save the camera for returning to 3D.
-    (when (mode-2d? end-camera)
-      (g/transact
-        {:undoable false}
-        (g/set-property camera-node :cached-3d-camera start-camera)))
     (set-camera! camera-node start-camera end-camera animate nil {:interpolate-fn interpolate-orbit :duration align-duration})))
 
 (defn camera-focus-point
@@ -257,7 +252,8 @@
               (get opts :fov-x fov-x-35mm-full-frame) (get opts :fov-y fov-y-35mm-full-frame)
               (Vector4d. 0.0 0.0 0.0 1.0)
               0.0
-              filter-fn))))
+              filter-fn
+              (= :orthographic t)))))
 
 (defn- set-extents
   ^Camera [^Camera camera fov-x fov-y z-near z-far]
@@ -585,7 +581,8 @@
     ;; position is now in delta
     (assoc camera
       :position (Point3d. (.x delta) (.y delta) (.z delta))
-      :rotation r)))
+      :rotation r
+      :mode-2d false)))
 
 (def ^:private default-3d-tumble
   "The tumble realign-camera applies when toggling out of 2D mode."
@@ -615,10 +612,13 @@
       (let [[position-x position-y position-z] position
             [rotation-x rotation-y rotation-z rotation-w] rotation
             [focus-x focus-y focus-z] focus-point]
-        (assoc (make-camera projection identity {:fov-x fov-x :fov-y fov-y})
-          :position (Point3d. (double position-x) (double position-y) (double position-z))
-          :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
-          :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) 1.0))))))
+        (let [camera (assoc (make-camera projection identity {:fov-x fov-x :fov-y fov-y})
+                       :position (Point3d. (double position-x) (double position-y) (double position-z))
+                       :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
+                       :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) 1.0))]
+          (assoc camera
+            :mode-2d (and (= :orthographic projection)
+                          (= 1.0 (.getElement (camera-view-matrix camera) 2 2)))))))))
 
 (def ^:private camera-command->movement
   {:scene.camera.free-look :look
@@ -851,7 +851,8 @@
              (lerp (:fov-y from) (:fov-y to) t)
              fp
              (.distance p (Point3d. (.x fp) (.y fp) (.z fp)))
-             filter-fn)))
+             filter-fn
+             (and (:mode-2d from) (:mode-2d to)))))
 
 (defn- interpolate-orbit
   "Interpolates around the focus point to avoid crossing it during axis alignment."
@@ -893,7 +894,8 @@
              (lerp (:fov-y from) (:fov-y to) t)
              fp
              distance
-             filter-fn)))
+             filter-fn
+             (and (:mode-2d from) (:mode-2d to)))))
 
 (defn set-camera!
   ([camera-node start-camera end-camera animate]
@@ -997,12 +999,12 @@
     (when (not= current-type projection-type)
       (let [new-camera (case projection-type
                          :orthographic (camera-perspective->orthographic old-camera)
-                         :perspective (camera-orthographic->perspective old-camera (perspective-fov-y camera-node)))]
+                         :perspective (assoc (camera-orthographic->perspective old-camera (perspective-fov-y camera-node))
+                                        :mode-2d false))]
         (set-camera! camera-node old-camera new-camera false)))))
 
 (defn mode-2d? [camera]
-  (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
-       (= :orthographic (:type camera))))
+  (true? (:mode-2d camera)))
 
 (defn camera-2d?
   [camera-node evaluation-context]
@@ -1048,7 +1050,8 @@
          (let [end-camera (cond-> local-cam
                             is-perspective camera-perspective->orthographic
                             :always camera-orthographic-realign
-                            is-perspective (camera-orthographic->perspective (perspective-fov-y camera-node)))]
+                            is-perspective (camera-orthographic->perspective (perspective-fov-y camera-node))
+                            :always (assoc :mode-2d true))]
            (set-camera! camera-node local-cam end-camera animate #(set-camera-type! camera-node :orthographic) {:duration align-duration})))))))
 
 (defn- contains-key-code? [pressed-keys key-codes] (some #(contains? pressed-keys %) key-codes))
