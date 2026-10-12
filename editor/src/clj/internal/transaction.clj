@@ -147,7 +147,7 @@
 (defn- make-evaluation-context [ctx]
   (in/custom-evaluation-context
     {:basis (:basis ctx)
-     :node-materializations-atom (:node-materializations ctx)
+     :node-materializations-atom (:node-materializations-atom ctx)
      :materializations (:materializations ctx)
      :initial-invalidate-counters (:initial-invalidate-counters ctx)
      :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters ctx)
@@ -1786,11 +1786,11 @@
              :tx-data-context (deref tx-data-context-atom))))
 
 (defn new-transaction-context
-  [basis node-id-generator override-id-generator tx-data-context metrics-collector full-invalidation node-materializations materializations]
+  [basis node-id-generator override-id-generator tx-data-context metrics-collector full-invalidation node-materializations-atom materializations]
   {:pre [(map? tx-data-context)]}
   {:basis basis
    :initial-basis basis
-   :node-materializations node-materializations
+   :node-materializations-atom node-materializations-atom
    :materializations materializations
    :nodes-affected #{}
    :nodes-added []

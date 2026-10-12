@@ -309,7 +309,7 @@
         metrics-collector (:metrics opts)
         full-invalidation (:full-invalidation opts false)]
     (assoc (it/new-transaction-context basis node-id-generator override-id-generator tx-data-context metrics-collector full-invalidation
-                                       (:node-materializations system)
+                                       (:node-materializations-atom system)
                                        (:materializations system))
       :initial-invalidate-counters (:invalidate-counters system)
       :initial-materialization-invalidate-counters (:materialization-invalidate-counters system))))

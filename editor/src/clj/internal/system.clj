@@ -205,7 +205,7 @@
               {}
               nil
               false
-              (:node-materializations system)
+              (:node-materializations-atom system)
               (:materializations system))
         pre-tx-basis (:basis ctx)
         ctx (reduce (fn [ctx transaction-change]
@@ -287,7 +287,7 @@
    :cache (make-cache configuration)
    :invalidate-counters {}
    :user-data {}
-   :node-materializations (atom {})
+   :node-materializations-atom (atom {})
    :materializations {}
    :materialization-invalidate-counters {}})
 
@@ -316,7 +316,7 @@
                                      (:invalidate-counters system)
                                      (:materializations system))
       (assoc :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
-             :node-materializations-atom (:node-materializations system)
+             :node-materializations-atom (:node-materializations-atom system)
              :node-id-generator (node-id-generator system)
              :override-id-generator (override-id-generator system)
              :materialize-node! it/materialize-node!)))
@@ -335,7 +335,7 @@
   [system {options-basis :basis options-cache :cache :as options}]
   (let [options (assoc options
                   :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
-                  :node-materializations-atom (:node-materializations system)
+                  :node-materializations-atom (:node-materializations-atom system)
                   :materializations (:materializations system)
                   :node-id-generator (node-id-generator system)
                   :override-id-generator (override-id-generator system)
@@ -490,6 +490,6 @@
    :cache (:cache system)
    :user-data (:user-data system)
    :invalidate-counters (:invalidate-counters system)
-   :node-materializations (atom {})
+   :node-materializations-atom (atom {})
    :materializations (:materializations system)
    :materialization-invalidate-counters (:materialization-invalidate-counters system)})
