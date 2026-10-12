@@ -41,15 +41,18 @@
 (defonce ^:private spare-images-atom (atom []))
 
 (defn- take-image! [width height]
-  (let [matches-size (fn [{:keys [^WritableImage image]}]
-                       (and (= (int width) (int (.getWidth image)))
-                            (= (int height) (int (.getHeight image)))))
+  (let [matches-size
+        (fn matches-size [{:keys [^WritableImage image]}]
+          (and (= (int width) (int (.getWidth image)))
+               (= (int height) (int (.getHeight image)))))
 
-        [spare-images] (swap-vals! spare-images-atom
-                                   (fn [spare-images]
-                                     (if-let [index (coll/first-index-where matches-size spare-images)]
-                                       (coll/remove-index spare-images index)
-                                       spare-images)))]
+        [spare-images]
+        (swap-vals!
+          spare-images-atom
+          (fn [spare-images]
+            (if-let [index (coll/first-index-where matches-size spare-images)]
+              (coll/remove-index spare-images index)
+              spare-images)))]
     (or (coll/first-where matches-size spare-images)
         (make-direct-buffer-backed-writable-image width height))))
 
